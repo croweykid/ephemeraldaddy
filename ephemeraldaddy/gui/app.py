@@ -3518,11 +3518,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_generate_composite_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
         if len(selected_items) != 2:
-            QMessageBox.warning(
-                self,
-                "Generate Composite Chart",
-                "Select exactly two charts in the database roster to generate a composite chart.",
-            )
+            chart_ids = self._prompt_composite_chart_selection()
+            if chart_ids is None:
+                return
+            self._generate_composite_chart_for_ids(*chart_ids)
             return
 
         try:
@@ -3536,6 +3535,96 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        self._generate_composite_chart_for_ids(base_chart_id, overlay_chart_id)
+
+    def _prompt_composite_chart_selection(self) -> tuple[int, int] | None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Generate Composite Chart")
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        chart_lookup: dict[str, int] = {}
+        labels: list[str] = []
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+            if alias:
+                display_name = f"{display_name} ({alias})"
+            label = f"{display_name}  [#{chart_id}]"
+            labels.append(label)
+            chart_lookup[label] = int(chart_id)
+
+        first_chart_input = QLineEdit(dialog)
+        first_chart_input.setPlaceholderText("Select first chart")
+        first_completer = QCompleter(labels, first_chart_input)
+        first_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        first_completer.setFilterMode(Qt.MatchContains)
+        first_chart_input.setCompleter(first_completer)
+        layout.addWidget(first_chart_input)
+
+        divider = QFrame(dialog)
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(divider)
+
+        second_chart_input = QLineEdit(dialog)
+        second_chart_input.setPlaceholderText("Select second chart")
+        second_completer = QCompleter(labels, second_chart_input)
+        second_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        second_completer.setFilterMode(Qt.MatchContains)
+        second_chart_input.setCompleter(second_completer)
+        layout.addWidget(second_chart_input)
+
+        synastrize_button = QPushButton("Synastrize!", dialog)
+        layout.addWidget(synastrize_button)
+
+        selected_chart_ids: tuple[int, int] | None = None
+
+        def _resolve_chart_id(raw_value: str) -> int | None:
+            query = raw_value.strip()
+            if not query:
+                return None
+            direct_match = chart_lookup.get(query)
+            if direct_match is not None:
+                return direct_match
+            for label, chart_id in chart_lookup.items():
+                if query.lower() == label.lower():
+                    return chart_id
+            return None
+
+        def _submit() -> None:
+            nonlocal selected_chart_ids
+            base_chart_id = _resolve_chart_id(first_chart_input.text())
+            overlay_chart_id = _resolve_chart_id(second_chart_input.text())
+            if base_chart_id is None or overlay_chart_id is None:
+                QMessageBox.warning(
+                    dialog,
+                    "Generate Composite Chart",
+                    "Select two saved charts from autocomplete before generating.",
+                )
+                return
+            if base_chart_id == overlay_chart_id:
+                QMessageBox.warning(
+                    dialog,
+                    "Generate Composite Chart",
+                    "Select two different charts.",
+                )
+                return
+            selected_chart_ids = (base_chart_id, overlay_chart_id)
+            dialog.accept()
+
+        synastrize_button.clicked.connect(_submit)
+        first_chart_input.returnPressed.connect(_submit)
+        second_chart_input.returnPressed.connect(_submit)
+
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return selected_chart_ids
+
+    def _generate_composite_chart_for_ids(self, base_chart_id: int, overlay_chart_id: int) -> None:
         try:
             base_chart = load_chart(base_chart_id)
             overlay_chart = load_chart(overlay_chart_id)
@@ -3707,7 +3796,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
             "-----------------------------------",
             "",
-            f"{base_chart.name}'s Aspects to {overlay_chart.name}:",
+            f"{overlay_chart.name}'s Aspects to {base_chart.name}:",
         ]
 
         def _refresh_summary() -> None:
