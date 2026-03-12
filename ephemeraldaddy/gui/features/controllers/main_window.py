@@ -313,6 +313,16 @@ class ChartAnalysisSectionsController:
         )
         self.add_section(
             panel=panel,
+            section_key="planet_dynamics",
+            section_title="Planet Dynamics",
+            header_title="Planet Dynamics",
+            subtitle_text="Per-planet trait scoring derived from dignity, house/sect/aspect context, dispositors, rulership, and thematic repetition.",
+            default_filename="ephemeraldaddy_chart_planet_dynamics",
+            chart_container_attr="planet_dynamics_container",
+            chart_layout_attr="planet_dynamics_container_layout",
+        )
+        self.add_section(
+            panel=panel,
             section_key="gender_guesser",
             section_title="Gender Guesser",
             header_title="Gender Guesser",

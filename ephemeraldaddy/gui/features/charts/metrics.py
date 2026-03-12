@@ -38,6 +38,180 @@ DISPOSITOR_PLANET_ATTENUATION = 0.35
 DISPOSITOR_SIGN_ATTENUATION = 0.30
 DISPOSITOR_MAX_DEPTH = 2
 
+PLANET_DYNAMICS_METRICS = (
+    "stability",
+    "constructiveness",
+    "volatility",
+    "fragility",
+    "adaptability",
+)
+
+_DYNAMICS_MIN = 0.0
+_DYNAMICS_MAX = 10.0
+
+_SECT_DIURNAL_BENEFICS = {"Sun", "Jupiter", "Saturn"}
+_SECT_NOCTURNAL_BENEFICS = {"Moon", "Venus", "Mars"}
+
+
+def _clamp_dynamics_score(value: float) -> float:
+    return max(_DYNAMICS_MIN, min(_DYNAMICS_MAX, value))
+
+
+def _round_dynamics_score(value: float) -> float:
+    return round(_clamp_dynamics_score(float(value)), 1)
+
+
+def _is_day_chart(chart: Chart) -> bool:
+    houses = getattr(chart, "houses", None)
+    if not houses or len(houses) < 12:
+        return False
+    sun_lon = chart.positions.get("Sun")
+    if sun_lon is None:
+        return False
+    house_num = house_for_longitude(houses, sun_lon)
+    return bool(house_num and 7 <= house_num <= 12)
+
+
+def _planet_dignity_delta(body: str, sign: str) -> float:
+    delta = 0.0
+    if sign in PLANET_RULERSHIP.get(body, []):
+        delta += 2.0
+    exaltation = PLANET_EXALTATION.get(body)
+    if exaltation and sign == exaltation.get("sign"):
+        delta += 1.6
+    if sign in PLANET_DETRIMENT.get(body, []):
+        delta -= 2.0
+    fall = PLANET_FALL.get(body)
+    if fall and sign == fall.get("sign"):
+        delta -= 1.6
+    return delta
+
+
+def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]]:
+    """Derive per-planet dynamics metrics for Natal Chart View analytics.
+
+    Scores are normalized to 0.0-10.0 and rounded to one decimal place.
+    """
+    use_houses = chart_uses_houses(chart)
+    houses = getattr(chart, "houses", None) if use_houses else None
+    planet_keys = dominant_planet_keys(chart)
+    day_chart = _is_day_chart(chart)
+
+    dominant_weights = calculate_dominant_planet_weights(chart)
+    max_dominant_weight = max(
+        [value for value in dominant_weights.values() if isinstance(value, (int, float))],
+        default=1.0,
+    )
+    if max_dominant_weight <= 0:
+        max_dominant_weight = 1.0
+
+    ruler_boosts: dict[str, float] = {planet: 0.0 for planet in planet_keys}
+    if use_houses and houses:
+        for cusp_lon in houses[:12]:
+            sign = sign_for_longitude(cusp_lon)
+            for ruler in _sign_rulers(sign):
+                if ruler in ruler_boosts:
+                    ruler_boosts[ruler] += 0.4
+
+    thematic_repetition: dict[str, float] = {planet: 0.0 for planet in planet_keys}
+    sign_to_bodies: dict[str, list[str]] = {}
+    for body in planet_keys:
+        lon = chart.positions.get(body)
+        if lon is None:
+            continue
+        sign = sign_for_longitude(lon)
+        sign_to_bodies.setdefault(sign, []).append(body)
+    for sign_bodies in sign_to_bodies.values():
+        if len(sign_bodies) < 2:
+            continue
+        repetition_gain = min(1.2, 0.4 * (len(sign_bodies) - 1))
+        for body in sign_bodies:
+            thematic_repetition[body] += repetition_gain
+
+    aspect_effects: dict[str, dict[str, float]] = {
+        body: {
+            "support": 0.0,
+            "stress": 0.0,
+            "activation": 0.0,
+        }
+        for body in planet_keys
+    }
+    for aspect in getattr(chart, "aspects", []) or []:
+        p1 = normalize_body_name(str(aspect.get("p1", "")))
+        p2 = normalize_body_name(str(aspect.get("p2", "")))
+        if p1 not in aspect_effects or p2 not in aspect_effects:
+            continue
+        orb_factor = _aspect_orb_factor(aspect)
+        if orb_factor <= 0:
+            continue
+        aspect_type = str(aspect.get("type", "")).replace(" ", "_").lower()
+        if aspect_type in {"trine", "sextile", "quintile", "biquintile"}:
+            aspect_effects[p1]["support"] += orb_factor
+            aspect_effects[p2]["support"] += orb_factor
+        elif aspect_type in {"square", "opposition", "quincunx", "semisquare", "sesquiquadrate"}:
+            aspect_effects[p1]["stress"] += orb_factor
+            aspect_effects[p2]["stress"] += orb_factor
+        elif aspect_type == "conjunction":
+            aspect_effects[p1]["activation"] += orb_factor
+            aspect_effects[p2]["activation"] += orb_factor
+        else:
+            aspect_effects[p1]["activation"] += orb_factor * 0.5
+            aspect_effects[p2]["activation"] += orb_factor * 0.5
+
+    dynamics: dict[str, dict[str, float]] = {}
+    for body in planet_keys:
+        lon = chart.positions.get(body)
+        if lon is None:
+            continue
+        sign = sign_for_longitude(lon)
+        house_num = house_for_longitude(houses, lon)
+
+        dignity_delta = _planet_dignity_delta(body, sign)
+        angularity = 0.0
+        if house_num in {1, 4, 7, 10}:
+            angularity = 1.2
+        elif house_num in {2, 5, 8, 11}:
+            angularity = 0.5
+
+        sect_delta = 0.0
+        if day_chart and body in _SECT_DIURNAL_BENEFICS:
+            sect_delta = 0.6
+        elif (not day_chart) and body in _SECT_NOCTURNAL_BENEFICS:
+            sect_delta = 0.6
+        elif body in _SECT_DIURNAL_BENEFICS | _SECT_NOCTURNAL_BENEFICS:
+            sect_delta = -0.3
+
+        dominant_norm = float(dominant_weights.get(body, 0.0)) / max_dominant_weight
+        support = aspect_effects[body]["support"]
+        stress = aspect_effects[body]["stress"]
+        activation = aspect_effects[body]["activation"]
+        rulership_power = ruler_boosts.get(body, 0.0)
+        repetition = thematic_repetition.get(body, 0.0)
+        dispositor_rulers = [r for r in _sign_rulers(sign) if r in planet_keys and r != body]
+        dispositor_condition = 0.0
+        if dispositor_rulers:
+            dispositor_condition = sum(
+                _planet_dignity_delta(ruler, sign_for_longitude(chart.positions[ruler]))
+                for ruler in dispositor_rulers
+                if ruler in chart.positions
+            ) / len(dispositor_rulers)
+
+        stability = 5.2 + (dignity_delta * 0.9) + (support * 0.7) + (sect_delta * 0.8) - (stress * 0.8) + (rulership_power * 0.4)
+        constructiveness = 5.0 + (dignity_delta * 0.8) + (support * 0.8) + (dominant_norm * 1.2) + (rulership_power * 0.5) + (dispositor_condition * 0.5)
+        volatility = 4.0 + (activation * 1.2) + (stress * 1.0) + (angularity * 0.6) - (dignity_delta * 0.6) - (support * 0.4)
+        strain_sensitivity = 4.4 + (stress * 1.2) + (activation * 0.6) - (dignity_delta * 0.7) - (support * 0.5) - (sect_delta * 0.5)
+        resourcefulness = 4.8 + (dominant_norm * 1.0) + (dispositor_condition * 0.6) + (rulership_power * 0.6) + (repetition * 0.5) + (support * 0.5) - (stress * 0.3)
+
+        dynamics[body] = {
+            "stability": _round_dynamics_score(stability),
+            "constructiveness": _round_dynamics_score(constructiveness),
+            "volatility": _round_dynamics_score(volatility),
+            "fragility": _round_dynamics_score(strain_sensitivity),
+            "adaptability": _round_dynamics_score(resourcefulness),
+        }
+
+    return dynamics
+
 
 def house_membership_weights(
     cusps: list[float] | None,
