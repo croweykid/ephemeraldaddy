@@ -1,5 +1,33 @@
 """Shared GUI styling and interface constants."""
 
+CHART_THEME_COLORS = {
+    "background": "#111111",
+    "text": "#f5f5f5",
+    "muted_text": "#8b8b8b",
+    "spine": "#444444",
+    "accent": "#6fa8dc",
+}
+
+CHART_HEADER_TEMPLATES = {
+    "name_alias": "Name: {name} | Alias: {alias}",
+    "date_times": "Date: {date} | Official Time: {official_time} | Retcon Time: {retcon_time}",
+    "place": "Place: {birth_place} | {lat:.4f}, {lon:.4f}",
+    "when_where": "When/Where: {date} @ {time} {timezone} | {location}, {lat:.4f}, {lon:.4f}",
+    "when_where_compact": "When/Where: {date_time} | {lat:.4f}, {lon:.4f}",
+}
+
+
+CHART_AXES_STYLE = {
+    "y_tick": {"labelsize": 7.5, "colors": CHART_THEME_COLORS["text"], "pad": 6},
+    "x_tick": {"labelsize": 7, "colors": CHART_THEME_COLORS["muted_text"]},
+    "barh_adjust": {"left": 0.36, "bottom": 0.12, "right": 0.97, "top": 0.96},
+}
+
+
+def format_chart_header(template_key: str, **kwargs: object) -> str:
+    """Format a standard chart header line using the shared template catalog."""
+    return CHART_HEADER_TEMPLATES[template_key].format(**kwargs)
+
 TRISTATE_SENTIMENT_STYLE = """
 QCheckBox::indicator {
     width: 16px;

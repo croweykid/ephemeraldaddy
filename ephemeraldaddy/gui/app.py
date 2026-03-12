@@ -353,6 +353,7 @@ from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
+    CHART_AXES_STYLE,
     CHART_DATA_COMMON_LABELS,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
@@ -370,6 +371,8 @@ from ephemeraldaddy.gui.style import (
     PLANET_DYNAMICS_BAR_COLORS,
     STANDARD_NCV_PIE_CHART,
     STANDARD_NCV_POPOUT_LAYOUT,
+    CHART_THEME_COLORS,
+    format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
@@ -1113,11 +1116,23 @@ def format_chart_text(
     retcon_time_label = chart.dt.strftime("%H:%M") if getattr(chart, "retcon_time_used", False) else "unknown"
     birth_place = getattr(chart, "birth_place", None) or "Unknown"
     alias_text = getattr(chart, "alias", None) or "unknown"
-    lines.append(f"Name: {chart.name} | Alias: {alias_text}")
+    lines.append(format_chart_header("name_alias", name=chart.name, alias=alias_text))
     lines.append(
-        f"Date: {date_label} | Official Time: {official_time_label} | Retcon Time: {retcon_time_label}"
+        format_chart_header(
+            "date_times",
+            date=date_label,
+            official_time=official_time_label,
+            retcon_time=retcon_time_label,
+        )
     )
-    lines.append(f"Place: {birth_place} | {chart.lat:.4f}, {chart.lon:.4f}")
+    lines.append(
+        format_chart_header(
+            "place",
+            birth_place=birth_place,
+            lat=chart.lat,
+            lon=chart.lon,
+        )
+    )
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
@@ -3739,10 +3754,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     f"Chart 1:    {base_chart.name}",
-                    f"When/Where: {base_chart.dt.strftime('%m.%d.%Y %H:%M')} | {base_chart.lat:.4f}, {base_chart.lon:.4f}", #it's funny there's no z index, huh? Cos it's all kinda relative in astrology. What's a little elevation on a solar system scale?? o_o
+                    format_chart_header("when_where_compact", date_time=base_chart.dt.strftime("%m.%d.%Y %H:%M"), lat=base_chart.lat, lon=base_chart.lon),
                     "",
                     f"Chart 2: {overlay_chart.name}",
-                    f"When/Where: {overlay_chart.dt.strftime('%m.%d.%Y %H:%M')} | {overlay_chart.lat:.4f}, {overlay_chart.lon:.4f}",
+                    format_chart_header("when_where_compact", date_time=overlay_chart.dt.strftime("%m.%d.%Y %H:%M"), lat=overlay_chart.lat, lon=overlay_chart.lon),
                 ]
             )
         )
@@ -4072,7 +4087,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     f"Name: {natal_chart.name}",
-                    f"When/Where: {date_label} @ {time_label} {timezone_label} | {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
+                    format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
                 ]
             )
         )
@@ -4170,7 +4185,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Personal Transit (Transit → Natal)",
             "---------------------------------",
             f"Name:      {natal_chart.name}",
-            f"When/Where: {date_label} @ {time_label} {timezone_label} | {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
+            format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
             "",
         ]
         transit_location = (transit_chart.lat, transit_chart.lon)
@@ -12401,9 +12416,9 @@ class MainWindow(QMainWindow):
         }
         figsize = size_by_title.get(title, (8.5, 4.6))
         figure = Figure(figsize=figsize)
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
         if title == "Signs":
             self._draw_sign_tally(ax, chart)
         elif title == "Planets":
@@ -12453,11 +12468,11 @@ class MainWindow(QMainWindow):
                 glyph,
                 ha="center",
                 va="bottom",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=7.5,
             )
         for spine in ax.spines.values():
-            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) # spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.12, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -12505,11 +12520,11 @@ class MainWindow(QMainWindow):
                 PLANET_GLYPHS.get(label, label),
                 ha="center",
                 va="bottom",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=9,
             )
         for spine in ax.spines.values():
-            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) # spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.24, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -12554,7 +12569,7 @@ class MainWindow(QMainWindow):
                 "Houses unavailable",
                 ha="center",
                 va="center",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -12578,7 +12593,7 @@ class MainWindow(QMainWindow):
                 str(label),
                 ha="center",
                 va="bottom",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=8,
             )
         for spine in ax.spines.values():
@@ -12604,7 +12619,7 @@ class MainWindow(QMainWindow):
                 "No element data",
                 ha="center",
                 va="center",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -12664,7 +12679,7 @@ class MainWindow(QMainWindow):
                 "No nakshatra data",
                 ha="center",
                 va="center",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -12698,7 +12713,7 @@ class MainWindow(QMainWindow):
         #ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
         ax.set_anchor("W")
         for spine in ax.spines.values():
-            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) #spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.46, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -12740,7 +12755,7 @@ class MainWindow(QMainWindow):
                 "No modal data",
                 ha="center",
                 va="center",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -12788,13 +12803,13 @@ class MainWindow(QMainWindow):
             axis="x",
             labelrotation=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_label_rotation"],
             labelsize=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_label_size"],
-            colors=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_color"],
+            colors=CHART_AXES_STYLE["x_tick"]["colors"],
             pad=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_pad"],
         )
         ax.tick_params(
             axis="y",
             labelsize=STANDARD_NCV_HORIZONTAL_BAR_CHART["y_tick_label_size"],
-            colors=STANDARD_NCV_HORIZONTAL_BAR_CHART["y_tick_color"],
+            colors=CHART_AXES_STYLE["y_tick"]["colors"],
         )
 
     def _draw_gender_guesser(self, ax, chart: Chart) -> None:
@@ -14886,9 +14901,9 @@ class MainWindow(QMainWindow):
         canvas = getattr(self, canvas_attr)
         if canvas is None:
             figure = Figure(figsize=figsize)
-            figure.patch.set_facecolor("#111111")
+            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax = figure.add_subplot(111)
-            ax.set_facecolor("#111111")
+            ax.set_facecolor(CHART_THEME_COLORS["background"])
             canvas = FigureCanvas(figure)
             self._apply_metric_chart_sizing(canvas)
             setattr(self, canvas_attr, canvas)
@@ -14899,8 +14914,8 @@ class MainWindow(QMainWindow):
             figure = canvas.figure
             ax = figure.gca()
             ax.clear()
-            figure.patch.set_facecolor("#111111")
-            ax.set_facecolor("#111111")
+            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+            ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
         canvas.draw_idle()
