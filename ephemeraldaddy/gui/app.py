@@ -135,6 +135,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
+from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
@@ -1800,7 +1801,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #settings button
         self.manage_settings_button = QPushButton("Settings")
         self.manage_settings_button.setObjectName("manage_settings_button")
-        self.manage_settings_button.setToolTip("Open Database View settings.")
+        self.manage_settings_button.setToolTip("Open Settings.")
         self.manage_settings_button.clicked.connect(self._on_open_settings)
         controls_layout.addWidget(self.manage_settings_button)
 
@@ -2004,6 +2005,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
         self._refresh_charts()
+        apply_default_text_tooltips(self)
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -11830,8 +11832,7 @@ class MainWindow(QMainWindow):
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
         ):
-            current_width = max(28, spinbox.sizeHint().width() // 2)
-            spinbox.setFixedWidth(current_width * 2)
+            spinbox.setFixedWidth(max(53, spinbox.sizeHint().width()))
         
         sentiment_metrics_layout.addWidget(
             QLabel("💖:"), #positive sentiment intensity #"Intensity of 💖"
@@ -12055,6 +12056,7 @@ class MainWindow(QMainWindow):
         self._restore_window_settings()
         self._decrease_chart_view_label_font_sizes()
         self._set_chart_analysis_panel_visible(False)
+        apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
 
