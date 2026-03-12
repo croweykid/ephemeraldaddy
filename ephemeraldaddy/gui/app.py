@@ -8108,6 +8108,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
         self.batch_positive_sentiment_intensity_spin.setRange(1, 10)
         self.batch_positive_sentiment_intensity_spin.setValue(1)
+        self.batch_positive_sentiment_intensity_spin.setFixedWidth(
+            self.batch_positive_sentiment_intensity_spin.sizeHint().width() * 2
+        )
         batch_positive_button = QPushButton("Apply")
         batch_positive_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
@@ -8127,6 +8130,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_negative_sentiment_intensity_spin = QSpinBox()
         self.batch_negative_sentiment_intensity_spin.setRange(1, 10)
         self.batch_negative_sentiment_intensity_spin.setValue(1)
+        self.batch_negative_sentiment_intensity_spin.setFixedWidth(
+            self.batch_negative_sentiment_intensity_spin.sizeHint().width() * 2
+        )
         batch_negative_button = QPushButton("Apply")
         batch_negative_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
@@ -8146,6 +8152,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin = QSpinBox()
         self.batch_familiarity_spin.setRange(1, 10)
         self.batch_familiarity_spin.setValue(1)
+        self.batch_familiarity_spin.setFixedWidth(
+            self.batch_familiarity_spin.sizeHint().width() * 2
+        )
         batch_familiarity_button = QPushButton("Apply")
         batch_familiarity_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
