@@ -129,12 +129,14 @@ TRANSIT_ASPECT_RULES = AspectRuleSet(
     aspect_types=COMPOSITE_ASPECT_TYPES,
     skip_same_body_name=False,
     context="transit_to_natal",
+    orb_table=lambda _a, _b, aspect, _ctx: min(aspect.orb_deg, PERSONAL_TRANSIT_MAX_ORB_DEG),
 )
 
 SYNASTRY_ASPECT_RULES = AspectRuleSet(
     aspect_types=COMPOSITE_ASPECT_TYPES,
     skip_same_body_name=False,
     context="synastry",
+    orb_table=lambda _a, _b, aspect, _ctx: min(aspect.orb_deg, PERSONAL_TRANSIT_MAX_ORB_DEG),
 )
 
 PERSONAL_TRANSIT_MODE_LIFE_FORECAST = "life_forecast"

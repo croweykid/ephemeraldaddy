@@ -83,6 +83,15 @@ CRASH_MESSAGE = (
     "✨Deuces for now, cowboy.✨"
 )
 
+RELATIVE_YEAR_COLORS = {
+    "year before last":"#9966ff",
+    "last year":"#6699ff",
+    "current":"#66ffff",
+    "next":"#99ff99",
+    "year after next":"#ffff66",
+    "other":"#ffffff"
+}
+
 MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
@@ -108,6 +117,12 @@ CHART_DATA_COMMON_LABELS = (
     "Official Time:",
     "Retcon Time:",
     "Place:",
+    "When/Where:",
+    "Personal Transit (Transit → Natal)",
+    "Daily Vibe",
+    "(Short-term 1-3 day personal transits)",
+    "Life Forecast",
+    "(Longer-term and structural transits)",
 )
 CHART_DATA_INFO_LABEL_STYLE = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
 CHART_DATA_POPOUT_HEADER_STYLE = "font-weight: 600;"
