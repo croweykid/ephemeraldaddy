@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: ephemeraldaddy
+Version: 0.1.0
+Summary: A modular, research-ready astrology toolkit.
+Author: Your Name
+License-File: LICENSE
+Requires-Dist: skyfield>=1.49
+Requires-Dist: pandas>=2.2
+Requires-Dist: matplotlib>=3.9
+Requires-Dist: numpy>=1.26
+Requires-Dist: rich>=13.7
+Requires-Dist: timezonefinder>=6.0
+Requires-Dist: geopy>=2.0
+Requires-Dist: PySide6>=6.7
+Dynamic: license-file

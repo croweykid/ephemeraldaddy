@@ -1,0 +1,3 @@
+cd ~/Documents/ephemeraldaddy
+source venv/bin/activate
+python -m ephemeraldaddy.gui.app

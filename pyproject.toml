@@ -1,0 +1,25 @@
+[project]
+name = "ephemeraldaddy"
+version = "0.1.0"
+description = "A modular, research-ready astrology toolkit."
+authors = [{name="Your Name"}]
+dependencies = [
+  "skyfield>=1.49",
+  "pandas>=2.2",
+  "matplotlib>=3.9",
+  "numpy>=1.26",
+  "rich>=13.7",
+  "timezonefinder>=6.0",
+  "geopy>=2.0",
+  "PySide6>=6.7",
+]
+
+[project.scripts]
+ephemeraldaddy = "ephemeraldaddy.gui.app:main"
+
+[tool.setuptools.package-data]
+"ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,1 @@
+"""Cross-feature coordination primitives."""
