@@ -366,6 +366,7 @@ from ephemeraldaddy.gui.style import (
     SETTINGS_APP,
     SETTINGS_ORG,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
+    PLANET_DYNAMICS_BAR_COLORS,
     STANDARD_NCV_PIE_CHART,
     STANDARD_NCV_POPOUT_LAYOUT,
     TRISTATE_SENTIMENT_STYLE,
@@ -12208,8 +12209,8 @@ class MainWindow(QMainWindow):
                 "stability",
                 "constructiveness",
                 "volatility",
-                "strain_sensitivity",
-                "resourcefulness",
+                "fragility",
+                "adaptability",
             )]
         return []
 
@@ -12885,27 +12886,41 @@ class MainWindow(QMainWindow):
             "stability",
             "constructiveness",
             "volatility",
-            "strain_sensitivity",
-            "resourcefulness",
+            "fragility",
+            "adaptability",
         ]
+        metric_labels = ["Stability", "Constructive", "Volatility", "Fragility", "Adaptability"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
-        labels = [metric.replace("_", " ").title() for metric in metric_order]
+        bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
 
-        bars = ax.barh(labels, values, color="#6fa8dc", edgecolor="#9fc5f8", linewidth=0.7)
-        ax.set_xlim(0, 10)
-        ax.invert_yaxis()
-        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
-        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
-        ax.xaxis.grid(True, color="#333333", linestyle="-", linewidth=0.5)
+        bars = ax.bar(metric_labels, values, color=bar_colors)
+        self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        max_value = max(values) if values else 0.0
+        ax.set_ylim(0, max(10.0, max_value + 0.8))
+        ax.set_anchor("W")
 
+        label_offset = max(0.12, (max_value * 0.02) if max_value else 0.12)
         for bar, value in zip(bars, values, strict=True):
-            ax.text(min(9.95, value + 0.12), bar.get_y() + bar.get_height() / 2, f"{value:.1f}", va="center", ha="left", color="#f5f5f5", fontsize=8)
+            ax.text(
+                bar.get_x() + (bar.get_width() / 2),
+                value + label_offset,
+                f"{value:.1f}",
+                ha="center",
+                va="bottom",
+                color="#f5f5f5",
+                fontsize=8,
+            )
 
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
         ax.set_title(f"{_display_body_name(selected_planet)} Dynamics", color="#f5f5f5", fontsize=10, pad=8)
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.29, bottom=0.16, top=0.88, right=0.97)
+        ax.figure.subplots_adjust(
+            left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
+            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
+        )
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -15026,7 +15041,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="planet_dynamics_canvas",
             container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.8),
+            figsize=(5.5, 3.2),
             title="Planet Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,

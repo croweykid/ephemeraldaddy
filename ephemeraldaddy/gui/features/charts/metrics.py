@@ -42,8 +42,8 @@ PLANET_DYNAMICS_METRICS = (
     "stability",
     "constructiveness",
     "volatility",
-    "strain_sensitivity",
-    "resourcefulness",
+    "fragility",
+    "adaptability",
 )
 
 _DYNAMICS_MIN = 0.0
@@ -206,8 +206,8 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
             "stability": _round_dynamics_score(stability),
             "constructiveness": _round_dynamics_score(constructiveness),
             "volatility": _round_dynamics_score(volatility),
-            "strain_sensitivity": _round_dynamics_score(strain_sensitivity),
-            "resourcefulness": _round_dynamics_score(resourcefulness),
+            "fragility": _round_dynamics_score(strain_sensitivity),
+            "adaptability": _round_dynamics_score(resourcefulness),
         }
 
     return dynamics

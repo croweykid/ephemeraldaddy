@@ -158,6 +158,14 @@ STANDARD_NCV_PIE_CHART = {
     "subplots_adjust": {"left": 0.12, "right": 0.88, "bottom": 0.26, "top": 0.92},
 }
 
+PLANET_DYNAMICS_BAR_COLORS = {
+    "stability": "#6aa84f",      # green
+    "constructiveness": "#a94442", # brick red
+    "volatility": "#7fff00",     # chartreuse
+    "fragility": "#6fa8dc",      # blue
+    "adaptability": "#f4c542",   # saffron
+}
+
 STANDARD_NCV_POPOUT_LAYOUT = {
     "window_min_size": (720, 540),
     "content_margins": (12, 12, 12, 12),
