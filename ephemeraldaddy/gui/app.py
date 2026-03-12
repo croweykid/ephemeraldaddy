@@ -11821,7 +11821,8 @@ class MainWindow(QMainWindow):
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
         ):
-            spinbox.setFixedWidth(max(28, spinbox.sizeHint().width() // 2))
+            current_width = max(28, spinbox.sizeHint().width() // 2)
+            spinbox.setFixedWidth(current_width * 2)
         
         sentiment_metrics_layout.addWidget(
             QLabel("💖:"), #positive sentiment intensity #"Intensity of 💖"
