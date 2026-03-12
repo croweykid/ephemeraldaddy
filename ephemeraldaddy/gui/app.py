@@ -1750,7 +1750,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.retcon_button.clicked.connect(self._on_retcon_engine)
         controls_layout.addWidget(self.retcon_button)
 
-        self.generate_composite_chart_button = QPushButton("🧬 Composite")
+        self.generate_composite_chart_button = QPushButton("🧬 Synastry")
         self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
         self.generate_composite_chart_button.clicked.connect(
             self._on_generate_composite_chart
@@ -3617,10 +3617,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     f"Chart 1:    {base_chart.name}",
-                    f"(t, x, y): {base_chart.dt.strftime('%m.%d.%Y %H:%M')} | {base_chart.lat:.4f}, {base_chart.lon:.4f}", #it's funny there's no z index, huh? Cos it's all kinda relative in astrology. What's a little elevation on a solar system scale?? o_o
+                    f"When/Where: {base_chart.dt.strftime('%m.%d.%Y %H:%M')} | {base_chart.lat:.4f}, {base_chart.lon:.4f}", #it's funny there's no z index, huh? Cos it's all kinda relative in astrology. What's a little elevation on a solar system scale?? o_o
                     "",
                     f"Chart 2: {overlay_chart.name}",
-                    f"(t, x, y): {overlay_chart.dt.strftime('%m.%d.%Y %H:%M')} | {overlay_chart.lat:.4f}, {overlay_chart.lon:.4f}",
+                    f"When/Where: {overlay_chart.dt.strftime('%m.%d.%Y %H:%M')} | {overlay_chart.lat:.4f}, {overlay_chart.lon:.4f}",
                 ]
             )
         )
@@ -3686,7 +3686,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_layout.addWidget(summary_output, 3)
 
         synastry_file_stem = (
-            f"synastry_{self._sanitize_export_token(base_chart.name)}x{self._sanitize_export_token(overlay_chart.name)}"
+            f"synastry_{self._sanitize_export_token(base_chart.name)}_x_{self._sanitize_export_token(overlay_chart.name)}"
         )
         summary_share_button = self._attach_popout_share_button(summary_output, synastry_file_stem)
 
@@ -3779,20 +3779,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
         return token or fallback
 
+    def _build_transit_export_file_stem(
+        self,
+        transit_chart: Chart,
+        *,
+        chart_name_for_personal_transit: str | None = None,
+    ) -> str:
+        transit_timestamp = (
+            transit_chart.dt.strftime("%Y-%m-%d_%H%M")
+            if transit_chart.dt
+            else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
+        )
+        default_stem = f"transit_{transit_timestamp}"
+        return f"{default_stem}_{self._sanitize_export_token(chart_name_for_personal_transit)}"
+        # return default_stem
+
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
         viewport = output_widget.viewport()
         margin = 6
         button.move(
-            max(margin, viewport.width() - button.width() - margin),
-            margin,
+            max(margin, viewport.x() + viewport.width() - button.width() - margin),
+            max(margin, viewport.y() + margin),
         )
+        button.raise_()
+        button.show()
 
     def _attach_popout_share_button(
         self,
         output_widget: QPlainTextEdit,
         default_file_stem: str,
+        export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        share_button = QToolButton(output_widget.viewport())
+        share_button = QToolButton(output_widget)
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             share_button.setIcon(QIcon(share_icon_path))
@@ -3809,8 +3827,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._position_popout_share_button(output_widget, share_button)
         return share_button
 
-    def _export_popout_chart_data_output(self, output_widget: QPlainTextEdit, default_file_stem: str) -> None:
-        summary_text = output_widget.toPlainText().strip()
+    def _export_popout_chart_data_output(
+        self,
+        output_widget: QPlainTextEdit,
+        default_file_stem: str,
+        export_text_provider: Callable[[], str] | None = None,
+    ) -> None:
+        if callable(export_text_provider):
+            summary_text = export_text_provider().strip()
+        else:
+            summary_text = output_widget.toPlainText().strip()
         if not summary_text:
             QMessageBox.information(
                 self,
@@ -3920,9 +3946,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_left = QLabel(
             "\n".join(
                 [
-                    f"Name:   {natal_chart.name}",
-                    f"(t, x, y):     {date_label} @ {time_label}",
-                    f"Location: {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
+                    f"Name: {natal_chart.name}",
+                    f"When/Where: {date_label} @ {time_label} | Location: {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
                 ]
             )
         )
@@ -3994,10 +4019,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_layout.addWidget(summary_output, 3)
 
         transit_timestamp = transit_chart.dt.strftime("%Y-%m-%d_%H%M") if transit_chart.dt else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
-        transit_file_stem = (
-            f"transit_{transit_timestamp}_{self._sanitize_export_token(natal_chart.name)}"
+        transit_file_stem = self._build_transit_export_file_stem(
+            transit_chart,
+            chart_name_for_personal_transit=natal_chart.name,
         )
-        summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
+        summary_share_button = self._attach_popout_share_button(
+            summary_output,
+            transit_file_stem,
+            export_text_provider=lambda: _build_personal_transit_export_text(),
+        )
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
@@ -4036,6 +4066,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scan_step_hours = transit_scan_config.scan_step_hours
         scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
+
+        def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
+            daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
+                aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
+            )
+            return [
+                (
+                    "Daily Vibe",
+                    "(Short-term 1-3 day personal transits)",
+                    [
+                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            daily_hits,
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                        )
+                    ],
+                    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                ),
+                (
+                    "Life Forecast",
+                    "(Longer-term and structural transits)",
+                    [
+                        (hit, PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                        )
+                    ]
+                    + [
+                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            rollover_hits,
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                        )
+                    ],
+                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                ),
+            ]
 
             #ojo: is this weird?
         def _window_cache_key(mode: str, hit_obj: Any) -> tuple[object, ...]:
@@ -4091,45 +4162,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lines = list(summary_header_lines)
             aspect_info_map: dict[int, dict[str, object]] = {}
             calendar_info_map.clear()
-            daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
-                aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
-            )
-            sections: list[tuple[str, str, list[tuple[Any, str]], str]] = [
-                (
-                    "Daily Vibe",
-                    "(Short-term 1-3 day personal transits)",
-                    [
-                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            daily_hits,
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                        )
-                    ],
-                    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                ),
-                (
-                    "Life Forecast",
-                    "(Longer-term and structural transits)",
-                    [
-                        (hit, PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-                        )
-                    ]
-                    + [
-                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            rollover_hits,
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                        )
-                    ],
-                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-                ),
-            ]
+            sections = _build_personal_transit_sections(sort_mode)
             for _section_title, _section_subtitle, entries, empty_mode in sections:
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
@@ -4303,6 +4336,85 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }
             _on_window_ready(key, result.start, result.end, metadata)
 
+        def _build_personal_transit_export_text() -> str:
+            lines = list(summary_header_lines)
+            sort_mode = summary_sort_combo.currentText()
+            sections = _build_personal_transit_sections(sort_mode)
+            for section_title, section_subtitle, entries, empty_mode in sections:
+                lines.extend([section_title, section_subtitle, ""])
+                if entries:
+                    for hit, source_mode in entries[:80]:
+                        key = (source_mode, hit.a.name, hit.aspect, hit.b.name)
+                        state = transit_ranges.get(key, {})
+                        start_dt = state.get("start")
+                        end_dt = state.get("end")
+                        start_truncated = bool(state.get("start_truncated_to_scope", False))
+                        end_truncated = bool(state.get("end_truncated_to_scope", False))
+                        resolved = bool(state.get("resolved", False))
+                        failed = bool(state.get("failed", False))
+                        error_text = str(state.get("error", "") or "")
+
+                        if not resolved and not failed:
+                            cache_key = _window_cache_key(source_mode, hit)
+                            cached_payload = _window_cache_get(cache_key)
+                            if isinstance(cached_payload, dict):
+                                resolved = bool(cached_payload.get("resolved", False))
+                                failed = bool(cached_payload.get("failed", False))
+                                start_dt = cached_payload.get("start")
+                                end_dt = cached_payload.get("end")
+                                start_truncated = bool(cached_payload.get("start_truncated_to_scope", False))
+                                end_truncated = bool(cached_payload.get("end_truncated_to_scope", False))
+                                error_text = str(cached_payload.get("error", "") or "")
+
+                        if not resolved and not failed:
+                            try:
+                                result = find_transit_aspect_window_result(
+                                    natal_chart,
+                                    transit_chart.dt,
+                                    transit_location,
+                                    hit,
+                                    mode_rules.get(source_mode, TRANSIT_ASPECT_RULES),
+                                    step_hours=scan_step_hours,
+                                    precision_minutes=scan_precision_minutes,
+                                )
+                                if result.out_of_scope:
+                                    failed = True
+                                    error_text = "Transit date is outside the configured ephemeris scope."
+                                else:
+                                    start_dt = result.start
+                                    end_dt = result.end
+                                    start_truncated = bool(result.start_truncated_to_scope)
+                                    end_truncated = bool(result.end_truncated_to_scope)
+                                    resolved = True
+                            except Exception:
+                                failed = True
+                                error_text = "window lookup failed"
+
+                        if resolved:
+                            window_text = _format_transit_range(
+                                start_dt,
+                                end_dt,
+                                include_time=include_time,
+                                start_truncated_to_scope=start_truncated,
+                                end_truncated_to_scope=end_truncated,
+                            )
+                        elif failed:
+                            window_text = f"Unavailable ({error_text})" if error_text else "Unavailable"
+                        else:
+                            window_text = "Unavailable"
+
+                        left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
+                        right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
+                        lines.append(
+                            f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
+                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  "
+                            f"window {window_text}"
+                        )
+                else:
+                    lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
+                lines.append("")
+            return "\n".join(lines)
+
         def _handle_calendar_click(cursor) -> bool:
             block_number = cursor.block().blockNumber()
             entry = calendar_info_map.get(block_number)
@@ -4363,12 +4475,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        chart_summary, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(
-            chart,
-            **self._chart_data_visibility_options(),
-        )
-        summary_lines = chart_summary.splitlines()
-
         date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
         time_label = (
             "unknown"
@@ -4376,26 +4482,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else chart.dt.strftime("%H:%M")
         )
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
-        cursedness_value = next(
-            (
-                line.strip().removeprefix("CURSEDNESS:").strip()
-                for line in summary_lines
-                if line.strip().startswith("CURSEDNESS:")
-            ),
-            next(
-                (
-                    line.strip()
-                    for line in summary_lines
-                    if line.strip().endswith("%") and line.strip() != "%"
-                ),
-                "Unknown",
-            ),
-        )
-        cursedness_line = f"CURSEDNESS: {cursedness_value}"
-        species_line = next(
-            (line.strip() for line in summary_lines if line.strip().startswith("D&D SPECIES/RACE:")),
-            "D&D SPECIES/RACE: Unknown",
-        )
 
         popout_header_layout = QHBoxLayout()
         popout_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -4404,11 +4490,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         popout_header_left = QLabel(
             "\n".join(
                 [
-                    f"Date:     {date_label}",
-                    f"Time:     {time_label}",
-                    f"Location: {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
-                    cursedness_line,
-                    species_line,
+                    f"When/Where:     {date_label} @ {time_label} | {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
                 ]
             )
         )
@@ -4463,8 +4545,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
-        transit_timestamp = chart.dt.strftime("%Y-%m-%d_%H%M") if chart.dt else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
-        transit_file_stem = f"transit_{transit_timestamp}"
+        transit_file_stem = self._build_transit_export_file_stem(
+            chart,
+            chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
+        )
         summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
 
         popout_context_key = summary_output.viewport()
