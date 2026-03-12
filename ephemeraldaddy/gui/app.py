@@ -15041,7 +15041,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="planet_dynamics_canvas",
             container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.2),
+            figsize=(5.5, 3.3),
             title="Planet Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
