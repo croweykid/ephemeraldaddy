@@ -83,6 +83,15 @@ CRASH_MESSAGE = (
     "✨Deuces for now, cowboy.✨"
 )
 
+RELATIVE_YEAR_COLORS = {
+    "year before last":"#9966ff",
+    "last year":"#6699ff",
+    "current":"#66ffff",
+    "next":"#99ff99",
+    "year after next":"#ffff66",
+    "other":"#ffffff"
+}
+
 MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR

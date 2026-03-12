@@ -362,6 +362,7 @@ from ephemeraldaddy.gui.style import (
     MIDDLE_PANEL_ACCENT_COLOR,
     MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA,
     RIGHT_PANEL_SCROLLBAR_STYLE,
+    RELATIVE_YEAR_COLORS,
     SETTINGS_APP,
     SETTINGS_ORG,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
@@ -440,6 +441,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for house, color in HOUSE_COLORS.items()
             if isinstance(house, (str, int)) and str(house).isdigit() and color
         }
+        self._relative_year_formats = {
+            label: self._make_format(color)
+            for label, color in RELATIVE_YEAR_COLORS.items()
+            if isinstance(color, str) and color
+        }
+        self._transit_range_date_pattern = re.compile(r"\d{2}-\d{2}-(\d{4})(?:\s+\d{2}:\d{2})?\*?")
 
     @staticmethod
     def _make_format(
@@ -535,6 +542,28 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             sign_start = text.find(sign_name)
             if sign_start != -1:
                 self.setFormat(sign_start, len(sign_name), sign_fmt)
+
+        current_year = datetime.datetime.now(datetime.timezone.utc).year
+        for match in self._transit_range_date_pattern.finditer(text):
+            year = int(match.group(1))
+            year_delta = year - current_year
+            if year_delta == -2:
+                year_label = "year before last"
+            elif year_delta == -1:
+                year_label = "last year"
+            elif year_delta == 0:
+                year_label = "current"
+            elif year_delta == 1:
+                year_label = "next"
+            elif year_delta == 2:
+                year_label = "year after next"
+            else:
+                year_label = "other"
+            text_format = self._relative_year_formats.get(year_label)
+            if text_format:
+                start_qt = self._qt_index(text, match.start())
+                length_qt = self._qt_len(match.group(0))
+                self.setFormat(start_qt, length_qt, text_format)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
