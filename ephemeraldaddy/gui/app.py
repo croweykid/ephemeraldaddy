@@ -569,6 +569,14 @@ def _apply_minimum_screen_height(window: QWidget) -> None:
         window.setMinimumHeight(min_height)
 
 
+def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -> list[QObject]:
+    """Collect children for multiple widget types without passing a tuple to findChildren()."""
+    matches: list[QObject] = []
+    for widget_type in widget_types:
+        matches.extend(container.findChildren(widget_type))
+    return matches
+
+
 class TriStateCheckBox(QCheckBox):
     def __init__(self, label: str) -> None:
         super().__init__(label)
@@ -10961,14 +10969,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _iter_help_target_widgets(self) -> list[QWidget]:
         targets: list[QWidget] = []
-        candidates = [
-            *self.findChildren(QAbstractButton),
-            *self.findChildren(QLineEdit),
-            *self.findChildren(QComboBox),
-            *self.findChildren(QDateEdit),
-            *self.findChildren(QTimeEdit),
-            *self.findChildren(QSpinBox),
-        ]
+        candidates = _find_children_for_types(
+            self,
+            QAbstractButton,
+            QLineEdit,
+            QComboBox,
+            QDateEdit,
+            QTimeEdit,
+            QSpinBox,
+        )
         excluded_widgets = {
             getattr(self, "_help_icon_button", None),
             getattr(self, "_help_icon_close", None),
