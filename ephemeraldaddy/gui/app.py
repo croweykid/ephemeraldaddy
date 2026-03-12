@@ -3805,7 +3805,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             aspect_info_map: dict[int, dict[str, object]] = {}
             sorted_hits = self._sort_popout_aspects(aspect_hits, sort_mode)
             if sorted_hits:
-                for hit in sorted_hits[:80]:
+                for hit in sorted_hits: #for hit in sorted_hits[:80]: #<- this had previously been truncated
                     left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                     right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
                     line = (
