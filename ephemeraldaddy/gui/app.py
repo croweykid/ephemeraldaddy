@@ -274,6 +274,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_modal_distribution_counts as _calculate_modal_distribution_counts,
     calculate_mode_weights as _calculate_mode_weights,
+    calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
     calculate_sign_prevalence_counts as _calculate_sign_prevalence_counts,
@@ -12006,6 +12007,7 @@ class MainWindow(QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
+        self.planet_dynamics_canvas = None
         self._manage_charts_dialog = None
         self._handle_database_health()
         self._configure_main_splitter()
@@ -12118,6 +12120,8 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(self._latest_chart)
         elif chart_key == "gender_guesser":
             self._render_gender_guesser(self._latest_chart)
+        elif chart_key == "planet_dynamics":
+            self._render_planet_dynamics(self._latest_chart)
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -12162,6 +12166,21 @@ class MainWindow(QMainWindow):
                 ["Gender Prevalence", round(_calculate_gender_prevalence_score(chart), 2)],
                 ["Gender Weights", round(_calculate_gender_weight_score(chart), 2)],
             ]
+        if chart_key == "planet_dynamics":
+            selected_planet = self._chart_analysis_selected_mode(chart_key, "")
+            scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+            if not selected_planet or selected_planet not in scores:
+                selected_planet = next(iter(scores), "")
+            if not selected_planet:
+                return []
+            metric_scores = scores.get(selected_planet, {})
+            return [["planet", selected_planet]] + [[metric, metric_scores.get(metric, 0.0)] for metric in (
+                "stability",
+                "constructiveness",
+                "volatility",
+                "strain_sensitivity",
+                "resourcefulness",
+            )]
         return []
 
     def _export_chart_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
@@ -12335,6 +12354,7 @@ class MainWindow(QMainWindow):
             "Nakshatra Prevalence": (9.0, 6.6),
             "Modes": (8.0, 5.4),
             "Gender Guesser": (8.0, 4.2),
+            "Planet Dynamics": (8.5, 5.0),
         }
         figsize = size_by_title.get(title, (8.5, 4.6))
         figure = Figure(figsize=figsize)
@@ -12355,6 +12375,8 @@ class MainWindow(QMainWindow):
             self._draw_modal_distribution(ax, chart)
         elif title == "Gender Guesser":
             self._draw_gender_guesser(ax, chart)
+        elif title == "Planet Dynamics":
+            self._draw_planet_dynamics(ax, chart)
         return figure
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
@@ -12817,6 +12839,43 @@ class MainWindow(QMainWindow):
         ax.grid(False)
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(left=0.09, bottom=0.34, top=0.83, right=0.97)
+
+    def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
+        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
+        if not selected_planet or selected_planet not in scores:
+            selected_planet = next(iter(scores), "")
+
+        if not selected_planet:
+            ax.text(0.5, 0.5, "No planet dynamics data", ha="center", va="center", color="#f5f5f5", fontsize=10)
+            ax.set_axis_off()
+            return
+
+        metric_order = [
+            "stability",
+            "constructiveness",
+            "volatility",
+            "strain_sensitivity",
+            "resourcefulness",
+        ]
+        values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
+        labels = [metric.replace("_", " ").title() for metric in metric_order]
+
+        bars = ax.barh(labels, values, color="#6fa8dc", edgecolor="#9fc5f8", linewidth=0.7)
+        ax.set_xlim(0, 10)
+        ax.invert_yaxis()
+        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
+        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
+        ax.xaxis.grid(True, color="#333333", linestyle="-", linewidth=0.5)
+
+        for bar, value in zip(bars, values, strict=True):
+            ax.text(min(9.95, value + 0.12), bar.get_y() + bar.get_height() / 2, f"{value:.1f}", va="center", ha="left", color="#f5f5f5", fontsize=8)
+
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        ax.set_title(f"{_display_body_name(selected_planet)} Dynamics", color="#f5f5f5", fontsize=10, pad=8)
+        ax.figure.tight_layout()
+        ax.figure.subplots_adjust(left=0.29, bottom=0.16, top=0.88, right=0.97)
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -14708,6 +14767,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
+        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -14719,6 +14779,7 @@ class MainWindow(QMainWindow):
                 "nakshatra",
                 "modal",
                 "gender",
+                "planet_dynamics",
                 "wheel",
             }
         self._pending_render_sections.update(sections)
@@ -14750,6 +14811,8 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(chart)
         if "gender" in sections:
             self._render_gender_guesser(chart)
+        if "planet_dynamics" in sections:
+            self._render_planet_dynamics(chart)
         if "wheel" in sections:
             self._render_chart(chart)
 
@@ -14823,6 +14886,7 @@ class MainWindow(QMainWindow):
             self.nakshatra_wordcloud_container_layout,
             self.modal_distribution_container_layout,
             self.gender_guesser_container_layout,
+            self.planet_dynamics_container_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -14841,6 +14905,7 @@ class MainWindow(QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
+        self.planet_dynamics_canvas = None
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
@@ -14910,6 +14975,30 @@ class MainWindow(QMainWindow):
             figsize=(5.5, 2.8),
             title="Gender Guesser",
             draw_fn=self._draw_gender_guesser,
+            chart=chart,
+        )
+
+    def _render_planet_dynamics(self, chart: Chart) -> None:
+        dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
+        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        if dropdown is not None:
+            current = dropdown.currentData()
+            dropdown.blockSignals(True)
+            dropdown.clear()
+            for body in _dominant_planet_keys(chart):
+                if body in scores:
+                    dropdown.addItem(_display_body_name(body).upper(), body)
+            if dropdown.count() > 0:
+                current_index = dropdown.findData(current)
+                dropdown.setCurrentIndex(current_index if current_index >= 0 else 0)
+            dropdown.blockSignals(False)
+
+        self._render_metric_panel(
+            canvas_attr="planet_dynamics_canvas",
+            container_layout=self.planet_dynamics_container_layout,
+            figsize=(5.5, 3.8),
+            title="Planet Dynamics",
+            draw_fn=self._draw_planet_dynamics,
             chart=chart,
         )
 
