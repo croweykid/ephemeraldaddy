@@ -7,10 +7,12 @@ planetary positions for the same calendar years.
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 import calendar
 from functools import lru_cache
 from pathlib import Path
+import re
 from typing import Dict
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
@@ -166,18 +168,80 @@ def _daily_planet_longitude_provider():
 
         return get_longitude
 
+def _coerce_day_key_to_mmdd(raw_key: object) -> str:
+    """Normalize an MM-DD/day-of-year key into MM-DD form."""
+
+    if isinstance(raw_key, str) and re.fullmatch(r"\d{2}-\d{2}", raw_key):
+        return raw_key
+
+    if isinstance(raw_key, int) or (isinstance(raw_key, str) and raw_key.isdigit()):
+        day_of_year = int(raw_key)
+        if not 1 <= day_of_year <= 366:
+            raise ValueError(f"Day-of-year key out of range: {raw_key!r}")
+        target_date = date(2000, 1, 1) + timedelta(days=day_of_year - 1)
+        return target_date.strftime("%m-%d")
+
+    raise ValueError(f"Unsupported day key format: {raw_key!r}")
+
+
+def _load_daily_birth_weight_maps() -> dict[bool, dict[str, float]]:
+    """Load and normalize empirical daily birth weights.
+
+    Source: ``ephemeraldaddy/data/compiled/births_per_day.json``.
+    If Feb 29 is absent, it is inferred as the arithmetic mean of Feb 28 and Mar 1.
+    Returns maps keyed by ``calendar.isleap(year)`` (False -> non-leap, True -> leap).
+    """
+
+    births_path = Path(__file__).resolve().parent / "compiled" / "births_per_day.json"
+    try:
+        loaded = json.loads(births_path.read_text())
+    except Exception as exc:
+        raise RuntimeError(
+            f"Unable to load daily birth weights from {births_path}: {exc}"
+        ) from exc
+
+    if isinstance(loaded, dict) and isinstance(loaded.get("weights"), dict):
+        raw_weights = loaded["weights"]
+    else:
+        raw_weights = loaded
+    if not isinstance(raw_weights, dict):
+        raise RuntimeError(f"Daily birth weights in {births_path} must be a JSON object.")
+
+    mmdd_weights: dict[str, float] = {}
+    for raw_key, raw_value in raw_weights.items():
+        mmdd_key = _coerce_day_key_to_mmdd(raw_key)
+        mmdd_weights[mmdd_key] = float(raw_value)
+
+    if "02-29" not in mmdd_weights:
+        mmdd_weights["02-29"] = (mmdd_weights["02-28"] + mmdd_weights["03-01"]) / 2.0
+
+    non_leap_raw = {k: v for k, v in mmdd_weights.items() if k != "02-29"}
+    non_leap_total = sum(non_leap_raw.values())
+    leap_total = sum(mmdd_weights.values())
+
+    if non_leap_total <= 0.0 or leap_total <= 0.0:
+        raise RuntimeError("Daily birth weights must sum to a positive value.")
+
+    non_leap_weights = {k: v / non_leap_total for k, v in non_leap_raw.items()}
+    leap_weights = {k: v / leap_total for k, v in mmdd_weights.items()}
+
+    assert abs(sum(non_leap_weights.values()) - 1.0) < 1e-12
+    assert abs(sum(leap_weights.values()) - 1.0) < 1e-12
+
+    return {False: non_leap_weights, True: leap_weights}
 
 def estimate_inner_planet_sign_distribution() -> Dict[str, Dict[str, Dict[str, float]]]:
     """Estimate Mercury/Venus sign prevalence weighted by observed yearly births.
 
     Method:
-      1) For each CDC year in ``SUN_SIGN_BIRTHS``, spread that year's births evenly
-         across each calendar day.
+      1) For each CDC year in ``SUN_SIGN_BIRTHS``, spread that year's births across
+         each calendar day using empirical day-of-year weights from
       2) Sample Mercury and Venus longitude at 12:00 UTC each day.
       3) Bin longitudes into zodiac signs and convert to percentages.
     """
 
     get_longitude = _daily_planet_longitude_provider()
+    daily_weight_maps = _load_daily_birth_weight_maps()
     results: Dict[str, Dict[str, float]] = {
         "Mercury": {sign: 0.0 for sign in SIGN_ORDER},
         "Venus": {sign: 0.0 for sign in SIGN_ORDER},
@@ -185,21 +249,27 @@ def estimate_inner_planet_sign_distribution() -> Dict[str, Dict[str, Dict[str, f
 
     for year, year_distribution in SUN_SIGN_BIRTHS.items():
         yearly_births = sum(int(v["count"]) for v in year_distribution.values())
-        days_in_year = 366 if calendar.isleap(year) else 365
-        births_per_day = yearly_births / days_in_year
+        daily_weights = daily_weight_maps[calendar.isleap(year)]
+        allocated_births = 0.0
 
         day_cursor = date(year, 1, 1)
         year_end = date(year + 1, 1, 1)
         while day_cursor < year_end:
+            day_key = day_cursor.strftime("%m-%d")
+            births_for_day = yearly_births * daily_weights[day_key]
+            allocated_births += births_for_day
             for planet_name in ("Mercury", "Venus"):
                 longitude = get_longitude(day_cursor.year, day_cursor.month, day_cursor.day, planet_name)
                 sign = _sign_for_longitude(longitude)
-                results[planet_name][sign] += births_per_day
+                results[planet_name][sign] += births_for_day
             day_cursor += timedelta(days=1)
+
+        assert abs(allocated_births - yearly_births) < 1e-6
 
     output: Dict[str, Dict[str, Dict[str, float]]] = {}
     for planet_name, sign_counts in results.items():
         total = sum(sign_counts.values())
+        assert abs(sum((sign_counts[sign] / total) * 100.0 for sign in SIGN_ORDER) - 100.0) < 1e-9
         output[planet_name] = {
             sign: {
                 "count": round(sign_counts[sign]),
@@ -319,33 +389,106 @@ SUN_SIGN_DISTRIBUTION_AGGREGATED = _aggregate_sun_sign_distribution()
 
 # Computed with `estimate_inner_planet_sign_distribution()`.
 # Values are checked in so they can be consumed without ephemeris calculations.
+# Daily weighting uses empirical per-day birth weights from births_per_day.json.
 INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED = {
     "Mercury": {
-        "Aries": {"count": 1345832, "percent": 10.6283},
-        "Taurus": {"count": 550438, "percent": 4.3469},
-        "Gemini": {"count": 1328958, "percent": 10.495},
-        "Cancer": {"count": 577822, "percent": 4.5632},
-        "Leo": {"count": 1539359, "percent": 12.1566},
-        "Virgo": {"count": 610508, "percent": 4.8213},
-        "Libra": {"count": 1385395, "percent": 10.9407},
-        "Scorpio": {"count": 988819, "percent": 7.8089},
-        "Sagittarius": {"count": 1373587, "percent": 10.8475},
-        "Capricorn": {"count": 797698, "percent": 6.2996},
-        "Aquarius": {"count": 1370075, "percent": 10.8197},
-        "Pisces": {"count": 794250, "percent": 6.2723},
+        "Aries": {
+            "count": 1302439,
+            "percent": 10.2856
+        },
+        "Taurus": {
+            "count": 534473,
+            "percent": 4.2208
+        },
+        "Gemini": {
+            "count": 1322267,
+            "percent": 10.4422
+        },
+        "Cancer": {
+            "count": 593571,
+            "percent": 4.6875
+        },
+        "Leo": {
+            "count": 1620719,
+            "percent": 12.7991
+        },
+        "Virgo": {
+            "count": 651911,
+            "percent": 5.1483
+        },
+        "Libra": {
+            "count": 1452277,
+            "percent": 11.4689
+        },
+        "Scorpio": {
+            "count": 982118,
+            "percent": 7.756
+        },
+        "Sagittarius": {
+            "count": 1342180,
+            "percent": 10.5994
+        },
+        "Capricorn": {
+            "count": 768319,
+            "percent": 6.0676
+        },
+        "Aquarius": {
+            "count": 1321448,
+            "percent": 10.4357
+        },
+        "Pisces": {
+            "count": 771019,
+            "percent": 6.0889
+        }
     },
     "Venus": {
-        "Aries": {"count": 2375873, "percent": 18.7627},
-        "Taurus": {"count": 990509, "percent": 7.8222},
-        "Gemini": {"count": 1861445, "percent": 14.7002},
-        "Cancer": {"count": 1042225, "percent": 8.2306},
-        "Leo": {"count": 889934, "percent": 7.028},
-        "Virgo": {"count": 857854, "percent": 6.7746},
-        "Libra": {"count": 842609, "percent": 6.6542},
-        "Scorpio": {"count": 884261, "percent": 6.9832},
-        "Sagittarius": {"count": 971466, "percent": 7.6718},
-        "Capricorn": {"count": 516238, "percent": 4.0768},
-        "Aquarius": {"count": 507695, "percent": 4.0094},
-        "Pisces": {"count": 922630, "percent": 7.2862},
-    },
+        "Aries": {
+            "count": 2301056,
+            "percent": 18.1719
+        },
+        "Taurus": {
+            "count": 980818,
+            "percent": 7.7457
+        },
+        "Gemini": {
+            "count": 1891904,
+            "percent": 14.9407
+        },
+        "Cancer": {
+            "count": 1094918,
+            "percent": 8.6468
+        },
+        "Leo": {
+            "count": 953931,
+            "percent": 7.5334
+        },
+        "Virgo": {
+            "count": 889478,
+            "percent": 7.0244
+        },
+        "Libra": {
+            "count": 855904,
+            "percent": 6.7592
+        },
+        "Scorpio": {
+            "count": 866507,
+            "percent": 6.843
+        },
+        "Sagittarius": {
+            "count": 947307,
+            "percent": 7.4811
+        },
+        "Capricorn": {
+            "count": 510264,
+            "percent": 4.0296
+        },
+        "Aquarius": {
+            "count": 482740,
+            "percent": 3.8123
+        },
+        "Pisces": {
+            "count": 887915,
+            "percent": 7.012
+        }
+    }
 }

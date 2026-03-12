@@ -4026,8 +4026,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addLayout(right_layout, 3)
 
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
-        date_label = transit_chart.dt.strftime("%m.%d.%Y")
-        time_label = transit_chart.dt.strftime("%H:%M") if include_time else "omitted"
+        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+        transit_dt_local = transit_chart.dt.astimezone(local_tz)
+        date_label = transit_dt_local.strftime("%m.%d.%Y")
+        time_label = transit_dt_local.strftime("%H:%M") if include_time else "omitted"
+        timezone_label = transit_dt_local.strftime("%Z") or str(local_tz)
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
@@ -4036,7 +4039,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     f"Name: {natal_chart.name}",
-                    f"When/Where: {date_label} @ {time_label} | Location: {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
+                    f"When/Where: {date_label} @ {time_label} {timezone_label} | {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
                 ]
             )
         )
@@ -4133,10 +4136,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_header_lines = [
             "Personal Transit (Transit → Natal)",
             "---------------------------------",
-            f"Person:      {natal_chart.name}",
-            f"Date:        {date_label}",
-            f"Time:        {time_label}",
-            f"Location:    {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
+            f"Name:      {natal_chart.name}",
+            f"When/Where: {date_label} @ {time_label} {timezone_label} | {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
             "",
         ]
         transit_location = (transit_chart.lat, transit_chart.lon)
@@ -15124,27 +15125,34 @@ class MainWindow(QMainWindow):
         default_location = self._settings.value("main_window/transit_last_location", "")
         if not isinstance(default_location, str):
             default_location = ""
-        raw_location, accepted = QInputDialog.getText(
-            self,
-            "Get Current Transits",
-            "Transit location (city or lat,lon):",
-            text=default_location.strip(),
-        )
-        if not accepted:
-            return
-
-        try:
-            transit_lat, transit_lon, location_label = self._resolve_current_transit_location(
-                raw_location
+        prompt_value = default_location.strip()
+        while True:
+            raw_location, accepted = QInputDialog.getText(
+                self,
+                "Get Current Transits",
+                "Transit location (city or lat,lon):",
+                text=prompt_value,
             )
-        except (LocationLookupError, ValueError) as exc:
-            QMessageBox.warning(self, "Get Current Transits", str(exc))
-            return
+            if not accepted:
+                return
+            prompt_value = raw_location.strip()
+            try:
+                transit_lat, transit_lon, location_label = self._resolve_current_transit_location(
+                    raw_location
+                )
+                break
+            except (LocationLookupError, ValueError) as exc:
+                QMessageBox.warning(
+                    self,
+                    "Get Current Transits",
+                    f"{exc}\n\nPlease try another location.",
+                )
 
         self._settings.setValue("main_window/transit_last_location", raw_location.strip())
 
         transit_datetime_utc = datetime.datetime.now(datetime.timezone.utc)
-        timestamp_label = transit_datetime_utc.strftime("%Y-%m-%d %H:%M UTC")
+        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+        timestamp_label = transit_datetime_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M %Z")
         natal_chart = copy.deepcopy(self._latest_chart)
         personal_transit_name = (
             f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {location_label}"

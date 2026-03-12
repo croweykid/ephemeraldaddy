@@ -108,6 +108,12 @@ CHART_DATA_COMMON_LABELS = (
     "Official Time:",
     "Retcon Time:",
     "Place:",
+    "When/Where:",
+    "Personal Transit (Transit → Natal)",
+    "Daily Vibe",
+    "(Short-term 1-3 day personal transits)",
+    "Life Forecast",
+    "(Longer-term and structural transits)",
 )
 CHART_DATA_INFO_LABEL_STYLE = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
 CHART_DATA_POPOUT_HEADER_STYLE = "font-weight: 600;"

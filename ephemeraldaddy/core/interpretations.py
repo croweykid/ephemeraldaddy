@@ -1136,7 +1136,7 @@ SIGN_KEYWORDS = {
         "best": [
             "charismatic", "steady", "loyal", "embodied", "grounded", "durable", "magnetic",
             "protective", "resolved", "contained", "deep", "faithful", "seductive", "symbolic",
-            "private", "still",
+            "private", "still","traditional",
         ],
         "worst": [
             "inert", "withholding", "rigid", "repressed", "avoidant", "noncommittal",
@@ -1216,9 +1216,9 @@ SIGN_KEYWORDS = {
 
     "cancer": {
         "best": [
-            "expressive", "soft", "romantic", "imaginative", "emotionally open", "fluid",
-            "adaptive", "sensitive", "intuitive", "artistic", "tender", "dreamy", "porous",
-            "yearning", "emotional", "adaptable","softly resilient","empathic",
+            "expressive", "soft", "romantic", "imaginative", "emotionally open", "fluid","hoarding",
+            "adaptive", "sensitive", "intuitive", "tender", "dreamy", "porous",
+            "yearning", "emotional", "adaptable","softly resilient","empathic","nostalgic","sentimental",
         ],
         "worst": [
             "leaky", "unmoored", "melodramatic", "needy", "over-identifying", "escapist",
@@ -1383,8 +1383,8 @@ SIGN_KEYWORDS = {
 
     "scorpio": {
         "best": [
-            "introspective", "thoughtful", "private", "layered", "gentle", "wise", "reflective",
-            "creative", "deep", "slow-burning", "internal", "emotionally nuanced", "quiet",
+            "introspective", "thoughtful", "private", "layered", "gentle", "wise", "reflective","hunch-driven",
+            "creative", "deep", "slow-burning", "internal", "emotionally nuanced", "quiet","intuitive",
             "internally-paced", "self-contained","mythically resonant","deeply-rooted & unshakeable",
         ],
         "worst": [
@@ -1467,15 +1467,13 @@ SIGN_KEYWORDS = {
 
     "capricorn": {
         "best": [
-            "warm", "grounded", "insightful", "emotionally intelligent", "stable", "kind",
-            "centering", "attuned", "wise", "patient", "generous", "connective", "measured",
-            "thoughtful", "perceptive", "balancing", "consistent", "observing", "orienting",
-            "emotionally literate", "reassuring",
+            "warm", "grounded", "insightful", "emotionally intelligent", "stable", "kind","rugged","self-effacing","modest",
+            "centering", "attuned", "wise", "patient", "generous", "connective", "measured","unshakeable",
+            "thoughtful", "perceptive", "balancing", "consistent", "observing", "orienting","dignified",
+            "emotionally literate", "reassuring","traditional","in-some-ways surprisingly conservative",
         ],
         "worst": [
-            "passive", "overly accommodating", "conflict-avoidant", "enabling", "unassertive",
-            "indirect", "indecisive", "invisible", "overly deferential", "dependent", "bland",
-            "emotionally exhausted",
+            "overly accommodating", "invisible", "overly deferential", "bland", "emotionally exhausted","burnt out",
         ],
         "best_adverbs": [
             "warmly", "in a grounded way", "insightfully", "in an emotionally intelligent way",
@@ -1975,6 +1973,17 @@ HOUSE_KEYWORDS = { #Areas of Life
         "retreats", "the subconscious", "imprisonment", "lingering illness", "escape","lamentation","exile",
         "secrets", "rest", "backstage","hidden things","banishment","lost things","forgotten things","",
     ],
+}
+
+ASPECT_BASE = {
+    "conjunction": {"friction": 0, "support": 0, "intensity": 4},
+    "opposition":  {"friction": 3, "support": 0, "intensity": 3},
+    "square":      {"friction": 4, "support": 0, "intensity": 3},
+    "quincunx":    {"friction": 2, "support": 0, "intensity": 2},
+    "semisquare":  {"friction": 2, "support": 0, "intensity": 2},
+    "sesquiquadrate": {"friction": 2, "support": 0, "intensity": 2},
+    "trine":       {"friction": 0, "support": 3, "intensity": 2},
+    "sextile":     {"friction": 0, "support": 2, "intensity": 1},
 }
 
 ASPECT_KEYWORDS = {
