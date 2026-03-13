@@ -2013,7 +2013,7 @@ ASPECT_TYPES = {
     },
 }
 
-ASPECT_TYPES2 = {
+ASPECT_FRICTION = {
     "harmonious": {
         "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
