@@ -15389,6 +15389,8 @@ class MainWindow(QMainWindow):
         manage_dialog = self._manage_charts_dialog
         if manage_dialog is None:
             return
+        if not manage_dialog.isVisible():
+            return
         if not getattr(manage_dialog, "_chart_rows", None):
             return
         manage_dialog._refresh_charts(
