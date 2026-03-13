@@ -4639,8 +4639,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                state["expanded"] = not bool(state["expanded"])
-                _refresh_summary()
+                if not bool(state["expanded"]):
+                    state["expanded"] = True
+                    _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
