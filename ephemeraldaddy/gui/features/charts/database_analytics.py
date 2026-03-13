@@ -26,7 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
-from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS
+from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS, GENDER_GUESSER_COLORS
 
 
 class DatabaseAnalyticsChartsMixin:
@@ -737,6 +737,106 @@ class DatabaseAnalyticsChartsMixin:
             loaded_charts=loaded_charts,
             bar_height=bar_height,
         )
+
+    def _build_gender_distribution_chart(
+        self,
+        labels: list[str],
+        selection_values: dict[str, float],
+        database_values: dict[str, float],
+        selection_counts: dict[str, int],
+        database_counts: dict[str, int],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        ax = figure.add_subplot(111)
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        color_by_label = {
+            "masculine": GENDER_GUESSER_COLORS["masculine"],
+            "feminine": GENDER_GUESSER_COLORS["feminine"],
+            "androgynous": GENDER_GUESSER_COLORS["androgynous"],
+        }
+        display_labels = [
+            self._format_selection_database_count_label(
+                label,
+                database_counts.get(label, 0),
+                selection_counts.get(label, 0),
+                loaded_charts > 0,
+            )
+            for label in labels
+        ]
+        colors = [color_by_label.get(label.casefold(), "#6fa8dc") for label in labels]
+        positions = list(range(len(labels)))
+        selection_plot_values = [float(selection_values.get(label, 0.0)) for label in labels]
+        database_plot_values = [float(database_values.get(label, 0.0)) for label in labels]
+
+        if loaded_charts == 0:
+            bars = ax.barh(positions, database_plot_values, color=colors, height=bar_height, zorder=2)
+            ax.set_xlim(0, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels([_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]])
+            for bar, database_value in zip(bars, database_plot_values):
+                ax.text(
+                    min(database_value + 0.02, 0.95),
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
+        else:
+            differences = [selection - database for selection, database in zip(selection_plot_values, database_plot_values)]
+            widths = [abs(value) for value in differences]
+            bars = ax.barh(
+                positions,
+                widths,
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            ax.set_xlim(-1, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(bars, differences):
+                width = bar.get_width()
+                if width <= 0:
+                    continue
+                label_x = width if diff_value >= 0 else -width
+                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                ax.text(
+                    label_x,
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(abs(diff_value)),
+                    va="center",
+                    ha="left" if diff_value >= 0 else "right",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
+
+        for spine in ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
+
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
 
     def _build_dominant_element_chart(
         self,
