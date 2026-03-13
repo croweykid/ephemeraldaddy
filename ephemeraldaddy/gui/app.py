@@ -185,6 +185,8 @@ from ephemeraldaddy.core.db import (
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
+    GEN_POP_ACTUAL_GENDER_CAPTION,
+    gen_pop_actual_gender_counts,
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
@@ -2384,6 +2386,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         subheader.setText(f"Distribution of {mode_label.lower()} in database")
 
+
+    def _update_gender_subheader(self) -> None:
+        subheader = getattr(self, "gender_subheader", None)
+        if subheader is None:
+            return
+        if self._database_metrics_baseline_mode == "gen_pop" and self._gender_mode == "actual_gender":
+            subheader.setText(GEN_POP_ACTUAL_GENDER_CAPTION)
+            return
+        subheader.setText("Actual + guessed gender distribution")
+
     def _gen_pop_planet_sign_norms_for_database_size(
         self,
         chart_count: int,
@@ -2510,6 +2522,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/gender_mode",
                         self._gender_mode,
                     )
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2545,6 +2558,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         self._sign_distribution_mode,
                     )
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -3259,8 +3273,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        gender_subheader = add_database_subheader("Actual + guessed gender distribution")
-        gender_section_layout.addWidget(gender_subheader)
+        self.gender_subheader = add_database_subheader("Actual + guessed gender distribution")
+        gender_section_layout.addWidget(self.gender_subheader)
         (
             self.gender_chart_container,
             self.gender_chart_layout,
@@ -7225,36 +7239,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             gender_mode = self._gender_mode
             if gender_mode == "actual_gender":
                 selection_gender_counts_raw: Counter[str] = Counter()
-                database_gender_counts_raw: Counter[str] = Counter()
                 for chart_id in chart_ids:
                     chart = self._get_chart_for_filter(chart_id)
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
-                known_labels = [*GENDER_OPTIONS, "Unknown"]
-                custom_labels = sorted(
-                    label
-                    for label in {
-                        *selection_gender_counts_raw.keys(),
-                        *database_gender_counts_raw.keys(),
+                if self._database_metrics_baseline_mode == "gen_pop":
+                    gender_labels = ["F", "M", "AFAB-M", "AMAB-F", "AFAB-NB", "AMAB-NB"]
+                    selection_gender_counts = {
+                        label: int(selection_gender_counts_raw.get(label, 0))
+                        for label in gender_labels
                     }
-                    - set(known_labels)
-                    if selection_gender_counts_raw.get(label, 0) > 0
-                    or database_gender_counts_raw.get(label, 0) > 0
-                )
-                # Keep the full known gender assignment set visible (even at zero)
-                # so this chart stays in sync with Chart View / Search dropdowns.
-                gender_labels = [*known_labels, *custom_labels]
-                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    baseline_sample_size = loaded_charts if loaded_charts > 0 else database_loaded_charts
+                    database_gender_counts = gen_pop_actual_gender_counts(baseline_sample_size)
+                else:
+                    database_gender_counts_raw: Counter[str] = Counter()
+                    for chart_id in database_cache["chart_ids"]:
+                        chart = self._get_chart_for_filter(chart_id)
+                        if chart is None:
+                            continue
+                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+
+                    known_labels = [*GENDER_OPTIONS, "Unknown"]
+                    custom_labels = sorted(
+                        label
+                        for label in {
+                            *selection_gender_counts_raw.keys(),
+                            *database_gender_counts_raw.keys(),
+                        }
+                        - set(known_labels)
+                        if selection_gender_counts_raw.get(label, 0) > 0
+                        or database_gender_counts_raw.get(label, 0) > 0
+                    )
+                    # Keep the full known gender assignment set visible (even at zero)
+                    # so this chart stays in sync with Chart View / Search dropdowns.
+                    gender_labels = [*known_labels, *custom_labels]
+                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
                 gender_labels = ["Masculine", "Androgynous", "Feminine"]
                 selection_gender_counts = {label: 0 for label in gender_labels}
@@ -9540,6 +9564,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9553,6 +9578,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
