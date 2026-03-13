@@ -38,9 +38,13 @@ ZODIAC_SIGNS = [
 ARIES_THETA_START = 60
 SLICE_SPAN_DEGREES = 30
 ZODIAC_OVERLAY_ZORDER = 100
+DEFAULT_WINDOW_SIZE_PX = 600
 
 
 def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
+    manager = getattr(fig.canvas, "manager", None)
+    if manager is None:
+        return 
 
     try:
         window = manager.window
@@ -72,7 +76,7 @@ def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) ->
 
     max_window_height_px = max(1, int(screen_height * max_screen_fraction))
     max_window_width_px = max(1, int(screen_width * max_screen_fraction))
-    window_size_px = min(max_window_height_px, max_window_width_px)
+    window_size_px = min(DEFAULT_WINDOW_SIZE_PX, max_window_height_px, max_window_width_px)
 
     if hasattr(manager, "resize"):
         try:
