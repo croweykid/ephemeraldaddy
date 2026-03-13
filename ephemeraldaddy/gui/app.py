@@ -705,6 +705,12 @@ class QuadStateSlider(QWidget):
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
 SEARCH_RELATIONSHIP_TYPE_OPTIONS = ["none", *RELATION_TYPE]
 SEARCH_GENDER_OPTIONS = ["none", *GENDER_OPTIONS]
+SEARCH_GENDER_GUESSED_OPTIONS = [
+    ("Any", ""),
+    ("Masculine", "masculine"),
+    ("Androgynous", "androgynous"),
+    ("Feminine", "feminine"),
+]
 
 
 
@@ -1716,6 +1722,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._age_mode = "age_distribution"
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
+        self._gender_mode = "actual_gender"
         self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
@@ -2065,6 +2072,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": self._age_mode,
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
+            "gender": self._gender_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2198,6 +2206,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age",
             "birth_month",
             "birthplace",
+            "gender",
         ]
         return [
             section_key
@@ -2378,6 +2387,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
 
+        if chart_key == "gender":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._gender_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/gender_mode",
+                        self._gender_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "birthplace":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2498,6 +2524,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_birthplace_mode, str):
             self._birthplace_mode = stored_birthplace_mode
+
+        stored_gender_mode = self._settings.value(
+            "manage_charts/gender_mode",
+            self._gender_mode,
+        )
+        if isinstance(stored_gender_mode, str):
+            self._gender_mode = stored_gender_mode
 
         stored_baseline_mode = self._settings.value(
             "manage_charts/database_metrics_baseline_mode",
@@ -3083,6 +3116,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
+
+        # GENDER SECTION
+        gender_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Gender",
+            expanded=self._is_database_metrics_section_expanded("gender"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "gender",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["gender"] = self._is_database_metrics_section_expanded("gender")
+        self._create_analysis_chart_header(
+            gender_section_layout,
+            "Gender",
+            "gender",
+            "gender",
+            dropdown_options=[
+                ("Actual Gender", "actual_gender"),
+                ("Guessed by Weight", "guessed_weight"),
+                ("Guessed by Prevalence", "guessed_prevalence"),
+            ],
+            show_title=False,
+        )
+        gender_subheader = QLabel("Actual + guessed gender distribution")
+        gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        gender_section_layout.addWidget(gender_subheader)
+        (
+            self.gender_chart_container,
+            self.gender_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["gender"] = self.gender_chart_layout
+        gender_section_layout.addWidget(self.gender_chart_container)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -6035,6 +6102,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "none" in self.gender_filter_checkboxes
             and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
         )
+        selected_guessed_gender = str(self.gender_guessed_filter_combo.currentData() or "")
+
         active_body_filters = [
             filters
             for filters in self._search_body_filters
@@ -6081,6 +6150,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
         )
+        guessed_gender_filter = str(self.gender_guessed_filter_combo.currentData() or "")
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -6109,6 +6179,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and self.source_filter_combo.currentData() is None
             and self.species_filter_combo.currentData() == "Any"
+            and not guessed_gender_filter
             and not self.search_text_input.text().strip()
         )
 
@@ -6874,6 +6945,106 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
+            gender_mode = self._gender_mode
+            if gender_mode == "actual_gender":
+                selection_gender_counts_raw: Counter[str] = Counter()
+                database_gender_counts_raw: Counter[str] = Counter()
+                for chart_id in chart_ids:
+                    chart = self._get_chart_for_filter(chart_id)
+                    if chart is None:
+                        continue
+                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                    selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+                for chart_id in database_cache["chart_ids"]:
+                    chart = self._get_chart_for_filter(chart_id)
+                    if chart is None:
+                        continue
+                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+
+                known_labels = [*GENDER_OPTIONS, "Unknown"]
+                custom_labels = sorted(
+                    {
+                        *selection_gender_counts_raw.keys(),
+                        *database_gender_counts_raw.keys(),
+                    }
+                    - set(known_labels)
+                )
+                gender_labels = [
+                    label
+                    for label in [*known_labels, *custom_labels]
+                    if selection_gender_counts_raw.get(label, 0) > 0
+                    or database_gender_counts_raw.get(label, 0) > 0
+                ]
+                if not gender_labels:
+                    gender_labels = ["Unknown"]
+                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+            else:
+                gender_labels = ["Masculine", "Androgynous", "Feminine"]
+                selection_gender_counts = {label: 0 for label in gender_labels}
+                database_gender_counts = {label: 0 for label in gender_labels}
+                for chart_id in chart_ids:
+                    chart = self._get_chart_for_filter(chart_id)
+                    if chart is None:
+                        continue
+                    if gender_mode == "guessed_weight":
+                        guessed = self._classify_guessed_gender(_calculate_gender_weight_score(chart))
+                    else:
+                        guessed = self._classify_guessed_gender(_calculate_gender_prevalence_score(chart))
+                    if guessed == "masculine":
+                        selection_gender_counts["Masculine"] += 1
+                    elif guessed == "feminine":
+                        selection_gender_counts["Feminine"] += 1
+                    else:
+                        selection_gender_counts["Androgynous"] += 1
+                for chart_id in database_cache["chart_ids"]:
+                    chart = self._get_chart_for_filter(chart_id)
+                    if chart is None:
+                        continue
+                    if gender_mode == "guessed_weight":
+                        guessed = self._classify_guessed_gender(_calculate_gender_weight_score(chart))
+                    else:
+                        guessed = self._classify_guessed_gender(_calculate_gender_prevalence_score(chart))
+                    if guessed == "masculine":
+                        database_gender_counts["Masculine"] += 1
+                    elif guessed == "feminine":
+                        database_gender_counts["Feminine"] += 1
+                    else:
+                        database_gender_counts["Androgynous"] += 1
+
+            selection_gender_distribution = {
+                label: (
+                    selection_gender_counts[label] / loaded_charts if loaded_charts else 0.0
+                )
+                for label in gender_labels
+            }
+            database_gender_distribution = {
+                label: (
+                    database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
+                )
+                for label in gender_labels
+            }
+            if _should_refresh_database_metric_section("gender"):
+                gender_canvas = self._build_gender_distribution_chart(
+                    labels=gender_labels,
+                    selection_values=selection_gender_distribution,
+                    database_values=database_gender_distribution,
+                    selection_counts=selection_gender_counts,
+                    database_counts=database_gender_counts,
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.gender_chart_layout)
+                self.gender_chart_layout.addWidget(gender_canvas, 0, Qt.AlignHCenter)
+            self._analysis_chart_export_rows["gender"] = self._build_analysis_export_rows(
+                labels=gender_labels,
+                selection_values=[selection_gender_distribution[label] for label in gender_labels],
+                database_values=[database_gender_distribution[label] for label in gender_labels],
+                selection_counts=[selection_gender_counts[label] for label in gender_labels],
+                database_counts=[database_gender_counts[label] for label in gender_labels],
+                loaded_charts=loaded_charts,
+            )
+
             birth_time_mode = self._birth_time_mode
             birth_time_label_by_mode = {
                 "mean": "Mean Birth Time",
@@ -7517,6 +7688,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             col = idx // gender_rows
             gender_layout.addWidget(checkbox, row, col)
         gender_group_layout.addLayout(gender_layout)
+
+        gender_guessed_layout = QHBoxLayout()
+        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
+        self.gender_guessed_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.gender_guessed_filter_combo)
+        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
+            self.gender_guessed_filter_combo.addItem(label, value)
+        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
+        gender_group_layout.addLayout(gender_guessed_layout)
+
         layout.addWidget(gender_section)
 
         bodies_section, bodies_group_layout = add_collapsible_section("Planet/Angles")
@@ -9431,6 +9613,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.relationship_filter_and.setChecked(True)
             self.gender_filter_or.setChecked(False)
             self.gender_filter_and.setChecked(True)
+            self.gender_guessed_filter_combo.setCurrentIndex(0)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -10532,6 +10715,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not gender_match:
                     return False
 
+        if selected_guessed_gender:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                return False
+            guessed_by_prevalence = self._classify_guessed_gender(
+                _calculate_gender_prevalence_score(chart)
+            )
+            guessed_by_weight = self._classify_guessed_gender(
+                _calculate_gender_weight_score(chart)
+            )
+            if (
+                guessed_by_prevalence != selected_guessed_gender
+                and guessed_by_weight != selected_guessed_gender
+            ):
+                return False
+
         for filters in active_body_filters:
             body = filters["body"].currentData()
             sign_value = filters["sign"].currentText()
@@ -10664,6 +10863,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(gender, str):
             return gender.strip()
         return str(gender).strip()
+
+    @staticmethod
+    def _classify_guessed_gender(score: float) -> str:
+        """Map gender score (0..10, where 5 is neutral) to a label.
+
+        We treat androgynous as a narrow neutral window of ±0.05 around 5.0,
+        which corresponds to ±0.5 percentage points around a perfect 50/50
+        balance on the UI scale.
+        """
+        if score < 4.95:
+            return "masculine"
+        if score > 5.05:
+            return "feminine"
+        return "androgynous"
 
     def _get_chart_for_filter(self, chart_id: int):
         if chart_id in self._chart_cache:
