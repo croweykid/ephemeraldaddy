@@ -4159,8 +4159,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
-        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
+        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
 
     def _build_popout_left_panel(
@@ -12952,6 +12952,7 @@ class MainWindow(QMainWindow):
         bars = ax.bar(signs, values, color=colors)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -13422,6 +13423,7 @@ class MainWindow(QMainWindow):
 
         bars = ax.bar(metric_labels, values, color=bar_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(10.0, max_value + 0.8))
         ax.set_anchor("W")
@@ -15659,8 +15661,8 @@ class MainWindow(QMainWindow):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
-        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
+        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
 
     def _build_popout_left_panel(
