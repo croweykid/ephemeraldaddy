@@ -10050,18 +10050,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        active_left_scrollbar = None
+        active_left_scroll_value = None
+        if self._left_panel_visible:
+            active_left_panel = self._left_panel_widgets.get(self._active_left_panel)
+            if isinstance(active_left_panel, QScrollArea):
+                active_left_scrollbar = active_left_panel.verticalScrollBar()
+                active_left_scroll_value = active_left_scrollbar.value()
+
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
-        self._update_sentiment_tally(
-            update_database_metrics=(
-                self._left_panel_visible
-                and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-            ),
-            update_similarities=(
-                self._left_panel_visible
-                and self._active_left_panel == "similarities"
-            ),
-        )
+        try:
+            self._update_sentiment_tally(
+                update_database_metrics=(
+                    self._left_panel_visible
+                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+                ),
+                update_similarities=(
+                    self._left_panel_visible
+                    and self._active_left_panel == "similarities"
+                ),
+            )
+        finally:
+            if active_left_scrollbar is not None and active_left_scroll_value is not None:
+                self._restore_scrollbar_position(
+                    active_left_scrollbar,
+                    active_left_scroll_value,
+                )
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
