@@ -298,6 +298,10 @@ from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
 
+from ephemeraldaddy.gui.features.charts.aspect_interpretation import (
+    build_aspect_interpretation_lines as _build_aspect_interpretation_lines,
+)
+
 from ephemeraldaddy.gui.features.charts.presentation import (
     apply_nakshatra_tick_info_markers as _apply_nakshatra_tick_info_markers,
     format_degree_minutes as _format_degree_minutes,
@@ -1068,6 +1072,7 @@ def _display_body_name(body: str) -> str:
     return body
 
 
+
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
     display_name = _display_body_name(getattr(body, "name", ""))
     lon_deg = getattr(body, "lon_deg", None)
@@ -1487,6 +1492,10 @@ def format_chart_text(
                 "type": atype,
                 "angle": angle,
                 "delta": delta,
+                "sign1": _sign_for_longitude(positions[p1]) if p1 in positions else None,
+                "sign2": _sign_for_longitude(positions[p2]) if p2 in positions else None,
+                "house1": _house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
+                "house2": _house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None,
             }
             lines.append(line)
 
@@ -4093,6 +4102,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "type": str(hit.aspect),
                         "angle": angle,
                         "delta": float(hit.orb_deg),
+                        "sign1": hit.a.sign,
+                        "sign2": hit.b.sign,
+                        "house1": hit.a.house,
+                        "house2": hit.b.house,
                     }
                     lines.append(line)
             else:
@@ -4767,6 +4780,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             "type": str(hit.aspect),
                             "angle": angle,
                             "delta": float(hit.orb_deg),
+                            "sign1": hit.a.sign,
+                            "sign2": hit.b.sign,
+                            "house1": hit.a.house,
+                            "house2": hit.b.house,
                         }
                         icon_index = line.rfind("📆")
                         if icon_index >= 0:
@@ -14013,6 +14030,10 @@ class MainWindow(QMainWindow):
                         aspect_info["type"],
                         aspect_info["angle"],
                         aspect_info["delta"],
+                        sign1=aspect_info.get("sign1"),
+                        sign2=aspect_info.get("sign2"),
+                        house1=aspect_info.get("house1"),
+                        house2=aspect_info.get("house2"),
                     )
                     return True
             return False
@@ -14163,6 +14184,11 @@ class MainWindow(QMainWindow):
         atype: str,
         angle: float,
         delta: float,
+        *,
+        sign1: str | None = None,
+        sign2: str | None = None,
+        house1: int | None = None,
+        house2: int | None = None,
     ) -> None:
         aspect_keywords = ASPECT_KEYWORDS.get(atype, [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
@@ -14173,20 +14199,15 @@ class MainWindow(QMainWindow):
             )
             return
 
-        unique_lines: list[str] = []
-        seen: set[tuple[str, str, str]] = set()
-        attempts = 0
-        while len(unique_lines) < 6 and attempts < 200:
-            noun1 = random.choice(p1_nouns)
-            noun2 = random.choice(p2_nouns)
-            keyword = random.choice(aspect_keywords)
-            combo = (noun1, keyword, noun2)
-            if combo in seen:
-                attempts += 1
-                continue
-            seen.add(combo)
-            unique_lines.append(f"{noun1} {keyword} {noun2}")
-            attempts += 1
+        unique_lines = _build_aspect_interpretation_lines(
+            p1_nouns=p1_nouns,
+            p2_nouns=p2_nouns,
+            aspect_keywords=aspect_keywords,
+            sign1=sign1,
+            sign2=sign2,
+            house1=house1,
+            house2=house2,
+        )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
         self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
