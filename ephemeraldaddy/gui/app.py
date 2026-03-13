@@ -4160,8 +4160,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
-        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
+        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
 
     def _build_popout_left_panel(
@@ -15660,8 +15660,8 @@ class MainWindow(QMainWindow):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
-        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
+        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
 
     def _build_popout_left_panel(
