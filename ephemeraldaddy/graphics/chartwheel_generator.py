@@ -1,8 +1,9 @@
-"""Generate a concentric planetary color wheel chart.
-
+# Generate a concentric planetary color wheel chart.
+#
 # Run examples:
 # - From repository root: python -m ephemeraldaddy.graphics.chartwheel_generator
 # - From this directory:  python -m chartwheel_generator
+# - If running as a file: python chartwheel_generator.py
 # Note: when using -m, do not include the .py suffix.
 
 from pathlib import Path
@@ -35,7 +36,7 @@ PLANET_DIAMETERS = {
 
 
 def draw_chartwheel(output_path: Path) -> Path:
-    """Draw and save a chart wheel of concentric planetary circles."""
+    # Draw and save a chart wheel of concentric planetary circles.
     max_diameter = max(PLANET_DIAMETERS.values())
     max_radius = max_diameter / 2
 
