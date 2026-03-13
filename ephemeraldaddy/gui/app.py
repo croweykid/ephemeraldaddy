@@ -345,6 +345,8 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
+    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    DATABASE_VIEW_PANEL_HEADER_STYLE,
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
@@ -1999,7 +2001,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_row.setLayout(list_header_layout)
 
         self.charts_header_label = QLabel("Charts Selected: 0 of 0")
-        self.charts_header_label.setStyleSheet("font-weight: bold; color: #f5f5f5;")
+        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         list_header_layout.addWidget(self.charts_header_label)
         list_header_layout.addStretch(1)
         list_header_layout.addWidget(self.sort_button, alignment=Qt.AlignRight)
@@ -2049,7 +2051,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if show_title:
             title = QLabel(title_text)
-            title.setStyleSheet("font-weight: bold;")
+            title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
             header_layout.addWidget(title)
         header_layout.addStretch(1)
 
@@ -2712,9 +2714,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel.setLayout(layout)
 
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
-        self.database_metrics_panel_header_label.setStyleSheet(
-            "font-weight: bold; color: #f5f5f5;"
-        )
+        self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
 
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
@@ -4840,7 +4840,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title_row.setLayout(title_layout)
 
         title = QLabel("Similarities Analysis")
-        title.setStyleSheet("font-weight: bold;")
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         title_layout.addWidget(title)
         title_layout.addStretch(1)
 
@@ -4964,7 +4964,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle.setArrowType(Qt.RightArrow)
         toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        toggle.setStyleSheet("font-weight: 600; padding: 6px; text-align: left;")
+        toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -6042,10 +6042,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.charts_header_label.setText(
                 f"Charts Selected: {selected_count} of {total_count}"
             )
-        header_color = "#c7a56a" if selected_count > 0 else "#f5f5f5"
-        self.charts_header_label.setStyleSheet(
-            f"font-weight: bold; color: {header_color};"
-        )
+        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
 
     def _has_active_chart_filters(self) -> bool:
         selected_sentiments = {
@@ -7410,7 +7407,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
         search_title = QLabel("Database search")
-        search_title.setStyleSheet("font-weight: bold;")
+        search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(search_title)
 
         self.search_text_input = QLineEdit()
@@ -7438,22 +7435,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         astrotheme_row.addWidget(astrotheme_import_button)
         layout.addLayout(astrotheme_row)
 
-        search_mode_layout = QHBoxLayout()
-        search_mode_layout.addWidget(QLabel("Sentiment type"))
-        search_mode_layout.addStretch(1)
-        self.search_text_contains = QRadioButton("contains")
-        self.search_text_exact = QRadioButton("exact")
-        self.search_text_mode_group = QButtonGroup(self)
-        self.search_text_mode_group.setExclusive(True)
-        self.search_text_mode_group.addButton(self.search_text_contains)
-        self.search_text_mode_group.addButton(self.search_text_exact)
-        self.search_text_contains.setChecked(True)
-        self.search_text_contains.toggled.connect(self._on_filter_changed)
-        self.search_text_exact.toggled.connect(self._on_filter_changed)
-        search_mode_layout.addWidget(self.search_text_contains)
-        search_mode_layout.addWidget(self.search_text_exact)
-        layout.addLayout(search_mode_layout)
-
         divider = QFrame()
         divider.setFixedHeight(4)
         divider.setStyleSheet(
@@ -7465,7 +7446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         header_layout = QHBoxLayout()
         title = QLabel("Search Filters")
-        title.setStyleSheet("font-weight: bold;")
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         header_layout.addWidget(title)
         header_layout.addStretch(1)
         #I removed this button, since there's a "Clear Filters" button on the bottom right now.
@@ -7487,9 +7468,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             toggle.setArrowType(Qt.RightArrow)
             toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(
-                "font-weight: bold; padding: 6px; text-align: left;"
-            )
+            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
 
             content = QWidget()
             content_layout = QVBoxLayout()
@@ -7929,7 +7908,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&D Species"
+            "D&&D Species"
         )
         species_filter_row = QHBoxLayout()
         species_filter_row.addWidget(QLabel("Top 3 result"))
@@ -8193,7 +8172,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         header_layout = QHBoxLayout()
         title = QLabel("Batch Edit Charts")
-        title.setStyleSheet("font-weight: bold;")
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         header_layout.addWidget(title)
         header_layout.addStretch(1)
         layout.addLayout(header_layout)
@@ -8217,9 +8196,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             toggle.setArrowType(Qt.RightArrow)
             toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(
-                "font-weight: bold; padding: 6px; text-align: left;"
-            )
+            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
 
             content = QWidget()
             content_layout = QVBoxLayout()
@@ -9599,7 +9576,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.source_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
-            self.search_text_contains.setChecked(True)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.relationship_filter_checkboxes.values():
@@ -10368,7 +10344,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         search_text = self.search_text_input.text().strip()
-        search_exact = self.search_text_exact.isChecked()
         selected_source = self.source_filter_combo.currentData()
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
@@ -10487,17 +10462,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             None,
         )
         if search_text:
-            pattern = re.compile(
-                rf"(?<!\w){re.escape(search_text)}(?!\w)",
-                re.IGNORECASE,
-            )
-
             def matches(value: str | None) -> bool:
-                if not value:
-                    return False
-                if search_exact:
-                    return pattern.search(value) is not None
-                return search_text.casefold() in value.casefold()
+                return bool(value) and search_text.casefold() in value.casefold()
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
@@ -11489,6 +11455,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     keywords=(widget.objectName(),),
                 )
             )
+
+        for entry in help_notes.search_help_entries(query):
+            if entry.title in seen_titles:
+                continue
+            seen_titles.add(entry.title)
+            entries.append(entry)
 
         needle = (query or "").strip().lower()
         if not needle:
