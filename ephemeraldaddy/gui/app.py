@@ -7666,20 +7666,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
-            self.similarities_analysis_panel.setMinimumHeight(
-                self.similarities_analysis_panel.sizeHint().height()
-            )
-            self.similarities_analysis_panel.adjustSize()
-            self.similarities_analysis_panel_scroll.widget().adjustSize()
-            self.similarities_analysis_panel.updateGeometry()
+            self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
 
         if update_database_metrics:
-            self.selection_sentiment_panel.setMinimumHeight(
-                self.selection_sentiment_panel.sizeHint().height()
-            )
-            self.selection_sentiment_panel.adjustSize()
-            self.selection_sentiment_panel_scroll.widget().adjustSize()
-            self.selection_sentiment_panel.updateGeometry()
+            self._stabilize_left_scroll_panel_layout(self.selection_sentiment_panel_scroll)
 
         if left_panel_scrollbar is not None and left_panel_scroll_value is not None:
             self._restore_scrollbar_position(
@@ -7728,7 +7718,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         cleanup_timer = QTimer(scrollbar)
         cleanup_timer.setSingleShot(True)
-        cleanup_timer.setInterval(160)
+        cleanup_timer.setInterval(750)
         cleanup_timer.timeout.connect(_cleanup_handler)
 
         def _on_range_changed(*_) -> None:
@@ -7741,7 +7731,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         _apply_target()
         QTimer.singleShot(0, _apply_target)
+        QTimer.singleShot(60, _apply_target)
+        QTimer.singleShot(220, _apply_target)
         cleanup_timer.start()
+
+    @staticmethod
+    def _stabilize_left_scroll_panel_layout(scroll_area: QScrollArea) -> None:
+        panel_widget = scroll_area.widget()
+        if panel_widget is None:
+            return
+        panel_layout = panel_widget.layout()
+        if panel_layout is not None:
+            panel_layout.activate()
+        panel_widget.updateGeometry()
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
@@ -10050,18 +10052,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        active_left_scrollbar = None
+        active_left_scroll_value = None
+        if self._left_panel_visible:
+            active_left_panel = self._left_panel_widgets.get(self._active_left_panel)
+            if isinstance(active_left_panel, QScrollArea):
+                active_left_scrollbar = active_left_panel.verticalScrollBar()
+                active_left_scroll_value = active_left_scrollbar.value()
+
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
-        self._update_sentiment_tally(
-            update_database_metrics=(
-                self._left_panel_visible
-                and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-            ),
-            update_similarities=(
-                self._left_panel_visible
-                and self._active_left_panel == "similarities"
-            ),
-        )
+        try:
+            self._update_sentiment_tally(
+                update_database_metrics=(
+                    self._left_panel_visible
+                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+                ),
+                update_similarities=(
+                    self._left_panel_visible
+                    and self._active_left_panel == "similarities"
+                ),
+            )
+        finally:
+            if active_left_scrollbar is not None and active_left_scroll_value is not None:
+                self._restore_scrollbar_position(
+                    active_left_scrollbar,
+                    active_left_scroll_value,
+                )
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
