@@ -9,6 +9,15 @@ Run examples:
 Note: when using `-m`, do not include the `.py` suffix.
 """
 
+Run examples:
+- From repository root (preferred):
+  `python -m ephemeraldaddy.graphics.chartwheel_generator`
+- From this directory:
+  `python -m chartwheel_generator`
+
+Note: when using `-m`, do not include the `.py` suffix.
+"""
+
 import argparse
 from pathlib import Path
 import sys
