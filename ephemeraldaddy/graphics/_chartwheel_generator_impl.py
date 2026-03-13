@@ -41,6 +41,7 @@ DEFAULT_OUTPUT_SIZE_PX = 600
 ASCENDANT_OVERLAY_ALPHA = 0.20
 
 SAMPLE_CHART_NAME = "Cletus the Dreamer"
+PLANET_RING_ORDER = ("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
 
 SIGN_WHEEL_CANVAS_SIZE_PX = 2033
 SIGN_WHEEL_DISC_DIAMETER_PX = 1632
@@ -115,8 +116,8 @@ SAMPLE_CHART_POSITIONS = {
 }
 
 
-def _sign_for_planet(planet: str) -> str:
-    placement = SAMPLE_CHART_POSITIONS.get(planet, {})
+def _sign_for_planet(planet: str, chart_positions: dict[str, dict[str, float | str | int]]) -> str:
+    placement = chart_positions.get(planet, {})
     sign = placement.get("sign")
     if sign in SIGN_COLORS:
         return sign
@@ -131,8 +132,8 @@ def _sign_for_planet(planet: str) -> str:
 
 
 
-def _ascendant_sign() -> str:
-    asc = SAMPLE_CHART_POSITIONS.get("AS", {})
+def _ascendant_sign(chart_positions: dict[str, dict[str, float | str | int]]) -> str:
+    asc = chart_positions.get("AS", {})
     sign = asc.get("sign")
     if sign in SIGN_COLORS:
         return sign
@@ -145,8 +146,8 @@ def _ascendant_sign() -> str:
     return ZODIAC_SIGNS[sign_index]
 
 
-def _default_output_filename() -> str:
-    return f"{SAMPLE_CHART_NAME}-natal_chart-wheel_by-ephemeraldaddy.png"
+def _default_output_filename(chart_name: str) -> str:
+    return f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
 
 def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
     manager = getattr(fig.canvas, "manager", None)
@@ -207,7 +208,28 @@ def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) ->
     fig.set_size_inches(target_inches, target_inches, forward=True)
 
 
-def draw_chartwheel(output_path: Path) -> Path:
+def _positions_for_chartwheel(chart_positions: dict[str, float] | None) -> dict[str, dict[str, float | str | int]]:
+    if not chart_positions:
+        return SAMPLE_CHART_POSITIONS
+
+    positions_payload: dict[str, dict[str, float | str | int]] = {}
+    for body, lon in chart_positions.items():
+        if lon is None:
+            continue
+        sign_index = int(float(lon) % 360 // 30)
+        positions_payload[body] = {"sign": ZODIAC_SIGNS[sign_index], "lon": float(lon)}
+
+    if "AS" not in positions_payload:
+        positions_payload["AS"] = SAMPLE_CHART_POSITIONS.get("AS", {"sign": "Aries", "lon": 0.0})
+
+    return positions_payload
+
+
+def draw_chartwheel(
+    output_path: Path,
+    *,
+    chart_positions: dict[str, float] | None = None,
+) -> Path:
     max_diameter = max(PLANET_DIAMETERS.values())
     max_radius = max_diameter / 2
 
@@ -216,13 +238,14 @@ def draw_chartwheel(output_path: Path) -> Path:
     fig.patch.set_alpha(0)
     ax.set_facecolor("none")
 
+    positions_payload = _positions_for_chartwheel(chart_positions)
     sorted_diameters = sorted(PLANET_DIAMETERS.items(), key=lambda entry: entry[1], reverse=True)
     image_extent_radius = _image_extent_radius_for_disc(max_radius)
 
     for z_index, (planet, diameter) in enumerate(sorted_diameters, start=1):
         outer_radius = diameter / 2
         inner_radius = _ring_inner_radius(sorted_diameters, z_index - 1)
-        sign = _sign_for_planet(planet)
+        sign = _sign_for_planet(planet, positions_payload)
         wheel_image = _sign_wheel_image(sign)
 
         if wheel_image is not None:
@@ -269,7 +292,7 @@ def draw_chartwheel(output_path: Path) -> Path:
     asc_overlay = Circle(
         (0, 0),
         radius=max_radius,
-        facecolor=SIGN_COLORS[_ascendant_sign()],
+        facecolor=SIGN_COLORS[_ascendant_sign(positions_payload)],
         edgecolor="none",
         linewidth=0,
         alpha=ASCENDANT_OVERLAY_ALPHA,
@@ -292,8 +315,8 @@ def draw_chartwheel(output_path: Path) -> Path:
 
 
 def main() -> None:
-    output_path = Path(_default_output_filename())
-    saved_path = draw_chartwheel(output_path)
+    output_path = Path(_default_output_filename(SAMPLE_CHART_NAME))
+    saved_path = draw_chartwheel(output_path, chart_positions={k: v["lon"] for k, v in SAMPLE_CHART_POSITIONS.items() if "lon" in v})
     print(f"Chart wheel saved to: {saved_path.resolve()}")
     _fit_window_to_screen(plt.gcf())
     plt.show()
