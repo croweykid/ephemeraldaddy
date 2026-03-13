@@ -40,8 +40,7 @@ SLICE_SPAN_DEGREES = 30
 ZODIAC_OVERLAY_ZORDER = 100
 
 
-def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.85) -> None:
-    manager = plt.get_current_fig_manager()
+def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
 
     try:
         window = manager.window
@@ -51,25 +50,49 @@ def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.85) ->
     screen_width = None
     screen_height = None
 
-    for getter_x, getter_y in (
-        ("winfo_screenwidth", "winfo_screenheight"),
-        ("width", "height"),
-    ):
-        if hasattr(window, getter_x) and hasattr(window, getter_y):
-            try:
-                screen_width = int(getattr(window, getter_x)())
-                screen_height = int(getattr(window, getter_y)())
-            except Exception:
-                screen_width = None
-                screen_height = None
-            if screen_width and screen_height:
-                break
+    if hasattr(window, "winfo_screenwidth") and hasattr(window, "winfo_screenheight"):
+        try:
+            screen_width = int(window.winfo_screenwidth())
+            screen_height = int(window.winfo_screenheight())
+        except Exception:
+            screen_width = None
+            screen_height = None
+
+    if (not screen_width or not screen_height) and hasattr(window, "screen"):
+        try:
+            geometry = window.screen().availableGeometry()
+            screen_width = int(geometry.width())
+            screen_height = int(geometry.height())
+        except Exception:
+            screen_width = None
+            screen_height = None
 
     if not screen_width or not screen_height:
         return
 
-    target_px = min(screen_width, screen_height) * max_screen_fraction
-    target_inches = target_px / fig.dpi
+    max_window_height_px = max(1, int(screen_height * max_screen_fraction))
+    max_window_width_px = max(1, int(screen_width * max_screen_fraction))
+    window_size_px = min(max_window_height_px, max_window_width_px)
+
+    if hasattr(manager, "resize"):
+        try:
+            manager.resize(window_size_px, window_size_px)
+            if hasattr(fig.canvas, "draw_idle"):
+                fig.canvas.draw_idle()
+            return
+        except Exception:
+            pass
+
+    # Fallback for backends without working manager.resize().
+    # Reserve space for title bar / toolbar so overall window height stays within screen bounds.
+    non_canvas_vertical_px = 140
+    non_canvas_horizontal_px = 40
+    target_canvas_px = min(
+        max_window_height_px - non_canvas_vertical_px,
+        max_window_width_px - non_canvas_horizontal_px,
+    )
+    target_canvas_px = max(1, target_canvas_px)
+    target_inches = target_canvas_px / fig.dpi
     fig.set_size_inches(target_inches, target_inches, forward=True)
 
 
