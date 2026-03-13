@@ -164,6 +164,7 @@ from ephemeraldaddy.core.curse_scoring import (
     chart_cursedness_max,
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
+from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
@@ -185,6 +186,9 @@ from ephemeraldaddy.core.db import (
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
+    GEN_POP_ACTUAL_GENDER_CAPTION,
+    GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS,
+    gen_pop_actual_gender_counts,
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
@@ -373,6 +377,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -1990,6 +1995,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
+        self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -2014,6 +2020,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_analysis_panel
         )
         self.left_panel_stack = QStackedWidget()
+        self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
@@ -2070,9 +2077,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Database View - Content splitter (left panel stack, center list, right panel stack).
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
+        self._content_splitter.setChildrenCollapsible(False)
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
+        self._content_splitter.setCollapsible(0, True)
+        self._content_splitter.setCollapsible(2, True)
+        self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
@@ -2378,6 +2391,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         subheader.setText(f"Distribution of {mode_label.lower()} in database")
 
+
+    def _update_gender_subheader(self) -> None:
+        subheader = getattr(self, "gender_subheader", None)
+        unknown_note = getattr(self, "gender_unknown_note", None)
+        if subheader is None:
+            return
+        show_unknown_note = (
+            self._database_metrics_baseline_mode == "gen_pop"
+            and self._gender_mode == "actual_gender"
+        )
+        if show_unknown_note:
+            subheader.setText(GEN_POP_ACTUAL_GENDER_CAPTION)
+        else:
+            subheader.setText("Actual + guessed gender distribution")
+        if unknown_note is not None:
+            unknown_note.setVisible(show_unknown_note)
+
     def _gen_pop_planet_sign_norms_for_database_size(
         self,
         chart_count: int,
@@ -2504,6 +2534,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/gender_mode",
                         self._gender_mode,
                     )
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2539,6 +2570,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         self._sign_distribution_mode,
                     )
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2817,6 +2849,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
+        def add_database_subheader(text: str = "") -> QLabel:
+            subheader = QLabel(text)
+            subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
+            return subheader
+
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
@@ -2842,8 +2880,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
             show_title=False,
         )
-        self.position_sign_distribution_subheader = QLabel()
-        self.position_sign_distribution_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.position_sign_distribution_subheader = add_database_subheader()
         self._update_position_sign_subheader()
         position_sign_section_layout.addWidget(self.position_sign_distribution_subheader)
         (
@@ -2876,8 +2913,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel("Distribution of sentiments in database")
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        sentiment_subheader = add_database_subheader("Distribution of sentiments in database")
         sentiment_section_layout.addWidget(sentiment_subheader)
         #Sentiment Prevalence Chart
         (
@@ -2919,10 +2955,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "relationship_prevalence",
             show_title=False,
         )
-        relationship_subheader = QLabel(
+        relationship_subheader = add_database_subheader(
             "Distribution of relationship types in database"
         )
-        relationship_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         relationship_section_layout.addWidget(relationship_subheader)
 
         #Relationship Prevalence Chart
@@ -2964,10 +2999,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "social_score_summary",
             show_title=False,
         )
-        social_score_subheader = QLabel(
+        social_score_subheader = add_database_subheader(
             "Median, average, and cumulative share of DB social score"
         )
-        social_score_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         social_score_section_layout.addWidget(social_score_subheader)
         (
             self.social_score_summary_chart_container,
@@ -2999,10 +3033,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel(
+        sentiment_subheader = add_database_subheader(
             "Distribution of signs (all positions) in database"
         )
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         sign_section_layout.addWidget(sentiment_subheader)
         #Sign Prevalence Chart
         (
@@ -3041,8 +3074,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = QLabel("Dominant signs in database (by weight)")
-        self.dominant_factors_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.dominant_factors_subheader = add_database_subheader("Dominant signs in database (by weight)")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3081,8 +3113,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        species_subheader = QLabel("Distribution of D&D species in database")
-        species_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        species_subheader = add_database_subheader("Distribution of D&D species in database")
         species_section_layout.addWidget(species_subheader)
 
         #Species Distribution Chart
@@ -3120,8 +3151,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_time_subheader = QLabel("Birth time summary across loaded charts")
-        birth_time_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
         birth_time_section_layout.addWidget(birth_time_subheader)
         (
             self.birth_time_chart_container,
@@ -3154,8 +3184,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        age_subheader = QLabel("Distribution of age and total time known")
-        age_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        age_subheader = add_database_subheader("Distribution of age and total time known")
         age_section_layout.addWidget(age_subheader)
         (
             self.age_chart_container,
@@ -3188,8 +3217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_month_subheader = QLabel("Birth month and recurring birth date patterns")
-        birth_month_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
         birth_month_section_layout.addWidget(birth_month_subheader)
         (
             self.birth_month_chart_container,
@@ -3223,8 +3251,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birthplace_subheader = QLabel("Birthplace distribution and recurring locations")
-        birthplace_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
         birth_place_section_layout.addWidget(birthplace_subheader)
         (
             self.birthplace_chart_container,
@@ -3258,15 +3285,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        gender_subheader = QLabel("Actual + guessed gender distribution")
-        gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-        gender_section_layout.addWidget(gender_subheader)
+        self.gender_subheader = add_database_subheader("Actual + guessed gender distribution")
+        gender_section_layout.addWidget(self.gender_subheader)
         (
             self.gender_chart_container,
             self.gender_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["gender"] = self.gender_chart_layout
         gender_section_layout.addWidget(self.gender_chart_container)
+        self.gender_unknown_note = add_database_subheader(
+            f"*unknown for: {', '.join(GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS)}"
+        )
+        self.gender_unknown_note.setVisible(False)
+        gender_section_layout.addWidget(self.gender_unknown_note)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -7242,36 +7273,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             gender_mode = self._gender_mode
             if gender_mode == "actual_gender":
                 selection_gender_counts_raw: Counter[str] = Counter()
-                database_gender_counts_raw: Counter[str] = Counter()
                 for chart_id in chart_ids:
                     chart = self._get_chart_for_filter(chart_id)
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
-                known_labels = [*GENDER_OPTIONS, "Unknown"]
-                custom_labels = sorted(
-                    label
-                    for label in {
-                        *selection_gender_counts_raw.keys(),
-                        *database_gender_counts_raw.keys(),
+                if self._database_metrics_baseline_mode == "gen_pop":
+                    gender_labels = ["F", "M"]
+                    selection_gender_counts = {
+                        label: int(selection_gender_counts_raw.get(label, 0))
+                        for label in gender_labels
                     }
-                    - set(known_labels)
-                    if selection_gender_counts_raw.get(label, 0) > 0
-                    or database_gender_counts_raw.get(label, 0) > 0
-                )
-                # Keep the full known gender assignment set visible (even at zero)
-                # so this chart stays in sync with Chart View / Search dropdowns.
-                gender_labels = [*known_labels, *custom_labels]
-                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    baseline_sample_size = loaded_charts if loaded_charts > 0 else database_loaded_charts
+                    gen_pop_counts = gen_pop_actual_gender_counts(baseline_sample_size)
+                    database_gender_counts = {label: int(gen_pop_counts.get(label, 0)) for label in gender_labels}
+                else:
+                    database_gender_counts_raw: Counter[str] = Counter()
+                    for chart_id in database_cache["chart_ids"]:
+                        chart = self._get_chart_for_filter(chart_id)
+                        if chart is None:
+                            continue
+                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+
+                    known_labels = [*GENDER_OPTIONS, "Unknown"]
+                    custom_labels = sorted(
+                        label
+                        for label in {
+                            *selection_gender_counts_raw.keys(),
+                            *database_gender_counts_raw.keys(),
+                        }
+                        - set(known_labels)
+                        if selection_gender_counts_raw.get(label, 0) > 0
+                        or database_gender_counts_raw.get(label, 0) > 0
+                    )
+                    # Keep the full known gender assignment set visible (even at zero)
+                    # so this chart stays in sync with Chart View / Search dropdowns.
+                    gender_labels = [*known_labels, *custom_labels]
+                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
                 gender_labels = ["Masculine", "Androgynous", "Feminine"]
                 selection_gender_counts = {label: 0 for label in gender_labels}
@@ -7654,16 +7696,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
         target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
         scrollbar.setValue(target_value)
-
-        def _apply_target_after_range_change(*_) -> None:
-            try:
-                scrollbar.rangeChanged.disconnect(_apply_target_after_range_change)
-            except Exception:
-                pass
-            bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-            scrollbar.setValue(bounded_value)
-
-        scrollbar.rangeChanged.connect(_apply_target_after_range_change)
+        QTimer.singleShot(
+            0,
+            lambda: scrollbar.setValue(
+                max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
+            ),
+        )
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
@@ -9498,8 +9536,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
-    def _set_right_panel_visible(self, visible: bool) -> None:
+    def _is_right_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[2] <= 0
+
+    def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
@@ -9513,11 +9557,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._content_splitter.setSizes([left_size, middle_size, 0])
             return
 
-        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
             self._content_splitter.setSizes(self._right_panel_sizes)
 
-    def _set_left_panel_visible(self, visible: bool) -> None:
+    def _is_left_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[0] <= 0
+
+    def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._left_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._left_panel_visible = visible
         self.left_panel_stack.setVisible(visible)
@@ -9529,6 +9581,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 right_size = sizes[2]
                 middle_size = max(0, total - right_size)
                 self._content_splitter.setSizes([0, middle_size, right_size])
+            return
+
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
@@ -9546,7 +9602,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True)
+        self._set_left_panel_visible(True, restore_default_size=True)
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -9557,6 +9613,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9570,6 +9627,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9584,26 +9642,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if (
             self._left_panel_visible
             and self._active_left_panel == "database_metrics"
+            and not self._is_left_panel_collapsed()
         ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("database_metrics")
 
     def _toggle_gen_pop_norms_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "gen_pop_norms":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "gen_pop_norms"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("gen_pop_norms")
 
     def _toggle_todays_transits_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "todays_transits":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "todays_transits"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._refresh_todays_transits_panel()
         self._show_left_panel("todays_transits")
 
     def _toggle_similarities_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "similarities":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("similarities")
@@ -9626,16 +9697,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True)
+        self._set_right_panel_visible(True, restore_default_size=True)
 
     def _toggle_search_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "search":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "search"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("search")
 
     def _toggle_edit_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "edit":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "edit"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("edit")
@@ -11955,6 +12034,15 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
 
+        self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
+        self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
+        self.gemstone_chartwheel_button.setEnabled(False)
+        self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
+        self.gemstone_chartwheel_button.setToolTip(
+            "Render and export a gemstone chartwheel PNG for the currently open natal chart."
+        )
+        top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
+
         #Help Button
         self.help_overlay_button = QPushButton("❓") #"Help"
         self.help_overlay_button.setObjectName("help_overlay_toggle")
@@ -12739,13 +12827,24 @@ class MainWindow(QMainWindow):
             if not selected_planet:
                 return []
             metric_scores = scores.get(selected_planet, {})
-            return [["planet", selected_planet]] + [[metric, metric_scores.get(metric, 0.0)] for metric in (
+            metric_label_map = {
+                "stability": "Groundedness",
+                "constructiveness": "Productivity",
+                "volatility": "Reactivity",
+                "fragility": "Fragility",
+                "adaptability": "Resilience",
+            }
+            metric_order = (
                 "stability",
                 "constructiveness",
                 "volatility",
                 "fragility",
                 "adaptability",
-            )]
+            )
+            return [["planet", selected_planet]] + [
+                [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
+                for metric in metric_order
+            ]
         return []
 
     def _export_chart_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
@@ -12959,6 +13058,7 @@ class MainWindow(QMainWindow):
         bars = ax.bar(signs, values, color=colors)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -13423,12 +13523,13 @@ class MainWindow(QMainWindow):
             "fragility",
             "adaptability",
         ]
-        metric_labels = ["Stability", "Constructive", "Volatility", "Fragility", "Adaptability"]
+        metric_labels = ["Groundedness", "Productivity", "Reactivity", "Fragility", "Resilience"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
         bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
 
         bars = ax.bar(metric_labels, values, color=bar_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(10.0, max_value + 0.8))
         ax.set_anchor("W")
@@ -13633,6 +13734,47 @@ class MainWindow(QMainWindow):
 
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
+
+
+
+    def on_create_gemstone_chartwheel(self) -> None:
+        chart = self._latest_chart
+        if chart is None:
+            QMessageBox.information(
+                self,
+                "No chart loaded",
+                "Generate or load a chart before creating a gemstone chartwheel.",
+            )
+            return
+
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Gemstone Chartwheel",
+            default_filename,
+            "PNG Files (*.png)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".png"):
+            file_path = f"{file_path}.png"
+
+        try:
+            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Gemstone chartwheel export failed",
+                f"Could not create gemstone chartwheel:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Gemstone chartwheel exported",
+            f"Saved gemstone chartwheel to:\n{file_path}",
+        )
 
     def _on_aspects_sort_changed(self, _value: str) -> None:
         self._refresh_chart_summary()
@@ -14874,6 +15016,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -15210,6 +15353,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -15430,6 +15574,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self.export_chart_button.setEnabled(True)
         self.current_transits_button.setEnabled(True)
+        self.gemstone_chartwheel_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))

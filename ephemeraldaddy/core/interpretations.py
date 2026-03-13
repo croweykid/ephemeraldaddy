@@ -521,20 +521,20 @@ SIGN_COLORS = {
     "Pisces": ELEMENT_COLORS["Water"],
 }
 
-#sign_images, sign_gems, sign_bgs
+
 SIGN_WHEELS = {
-    "Aries": "../ephemeraldaddy/graphics/chartwheel_components/aries.png",
-    "Leo": "../ephemeraldaddy/graphics/chartwheel_components/leo.png",
-    "Sagittarius": "../ephemeraldaddy/graphics/chartwheel_components/sagittarius.png",
-    "Taurus": "../ephemeraldaddy/graphics/chartwheel_components/turus.png",
-    "Virgo": "../ephemeraldaddy/graphics/chartwheel_components/virgo.png",
-    "Capricorn": "../ephemeraldaddy/graphics/chartwheel_components/capricorn.png",
-    "Gemini": "../ephemeraldaddy/graphics/chartwheel_components/gemini.png",
-    "Libra": "../ephemeraldaddy/graphics/chartwheel_components/libra.png",
-    "Aquarius": "../ephemeraldaddy/graphics/chartwheel_components/aquarius.png",
-    "Cancer": "../ephemeraldaddy/graphics/chartwheel_components/cancer.png",
-    "Scorpio": "../ephemeraldaddy/graphics/chartwheel_components/scorpio.png",
-    "Pisces": "../ephemeraldaddy/graphics/chartwheel_components/pisces.png",
+    "Aries": "ephemeraldaddy/graphics/chartwheel_components/aries.png",
+    "Taurus": "ephemeraldaddy/graphics/chartwheel_components/taurus.png",
+    "Gemini": "ephemeraldaddy/graphics/chartwheel_components/gemini.png",
+    "Cancer": "ephemeraldaddy/graphics/chartwheel_components/cancer.png",
+    "Leo": "ephemeraldaddy/graphics/chartwheel_components/leo.png",
+    "Virgo": "ephemeraldaddy/graphics/chartwheel_components/virgo.png",
+    "Libra": "ephemeraldaddy/graphics/chartwheel_components/libra.png",
+    "Scorpio": "ephemeraldaddy/graphics/chartwheel_components/scorpio.png",
+    "Sagittarius": "ephemeraldaddy/graphics/chartwheel_components/sagittarius.png",
+    "Capricorn": "ephemeraldaddy/graphics/chartwheel_components/capricorn.png",
+    "Aquarius": "ephemeraldaddy/graphics/chartwheel_components/aquarius.png",
+    "Pisces": "ephemeraldaddy/graphics/chartwheel_components/pisces.png",
 }
 
 SIGN_DOMESTICATION = { #0 is most chthonic, 10 is most apolonian
