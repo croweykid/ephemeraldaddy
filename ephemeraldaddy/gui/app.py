@@ -7661,18 +7661,54 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
-        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
-        scrollbar.setValue(target_value)
-
-        def _apply_target_after_range_change(*_) -> None:
+        pending_handler = getattr(scrollbar, "_ephemeraldaddy_restore_handler", None)
+        if pending_handler is not None:
             try:
-                scrollbar.rangeChanged.disconnect(_apply_target_after_range_change)
+                scrollbar.rangeChanged.disconnect(pending_handler)
             except Exception:
                 pass
+
+        pending_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
+        if pending_timer is not None:
+            pending_timer.stop()
+            pending_timer.deleteLater()
+
+        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
+
+        def _apply_target() -> None:
             bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
             scrollbar.setValue(bounded_value)
 
-        scrollbar.rangeChanged.connect(_apply_target_after_range_change)
+        def _cleanup_handler() -> None:
+            if getattr(scrollbar, "_ephemeraldaddy_restore_handler", None) is not _on_range_changed:
+                return
+            try:
+                scrollbar.rangeChanged.disconnect(_on_range_changed)
+            except Exception:
+                pass
+            scrollbar._ephemeraldaddy_restore_handler = None
+            cleanup_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
+            if cleanup_timer is not None:
+                cleanup_timer.stop()
+                cleanup_timer.deleteLater()
+            scrollbar._ephemeraldaddy_restore_cleanup_timer = None
+
+        cleanup_timer = QTimer(scrollbar)
+        cleanup_timer.setSingleShot(True)
+        cleanup_timer.setInterval(160)
+        cleanup_timer.timeout.connect(_cleanup_handler)
+
+        def _on_range_changed(*_) -> None:
+            _apply_target()
+            cleanup_timer.start()
+
+        scrollbar._ephemeraldaddy_restore_handler = _on_range_changed
+        scrollbar._ephemeraldaddy_restore_cleanup_timer = cleanup_timer
+        scrollbar.rangeChanged.connect(_on_range_changed)
+
+        _apply_target()
+        QTimer.singleShot(0, _apply_target)
+        cleanup_timer.start()
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
