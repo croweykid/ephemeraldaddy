@@ -1993,6 +1993,38 @@ HOUSE_KEYWORDS = { #Areas of Life
     ],
 }
 
+ASPECT_TYPES = {
+    "chill vibes": {
+        "color": "blue",
+        "aspects": {"sextile", "trine"},
+    },
+    "stress/friction": {
+        "color": "red",
+        "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+    },
+    "amplifying/situational": {
+        "color": "yellow",
+        "aspects": {"conjunction", "semisextile"},
+    },
+    "creative/technical": {
+        "color": "purple",
+        "aspects": {"quintile", "biquintile"},
+    },
+    "harmonious": {
+        "color": "blue",
+        "aspects": {"sextile", "trine", "quintile", "biquintile"},
+    },
+    "conflicted": {
+        "color": "red",
+        "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+    },
+    "neutral/variable": {
+        "color": "yellow",
+        "aspects": {"conjunction", "semisextile"},
+    },
+}
+
+#not sure if this is being used at all:
 ASPECT_BASE = {
     "conjunction": {"friction": 0, "support": 0, "intensity": 4},
     "opposition":  {"friction": 3, "support": 0, "intensity": 3},
