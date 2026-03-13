@@ -913,6 +913,11 @@ def _get_share_icon_path() -> str | None:
     return None
 
 
+def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
+    return token or fallback
+
+
 def _export_aspect_distribution_csv_dialog(
     parent: QWidget,
     aspect_counts: OrderedDict[str, int],
@@ -3917,6 +3922,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             layout,
             chart_info_placeholder="Composite view: first selected chart houses with second selected chart overlay.",
             aspect_entries=list(aspect_hits),
+            export_file_stem=(
+                f"{_sanitize_export_token(base_chart.name)}_x_{_sanitize_export_token(overlay_chart.name)}"
+                "-synastry_aspect_distribution"
+            ),
         )
 
         right_layout = QVBoxLayout()
@@ -4091,6 +4100,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         chart_info_placeholder: str,
         aspect_entries: list[Any],
+        export_file_stem: str,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -4123,9 +4133,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
         analytics_export_button.clicked.connect(
-            lambda _checked=False, counts=aspect_counts: _export_aspect_distribution_csv_dialog(
+            lambda _checked=False, counts=aspect_counts, stem=export_file_stem: _export_aspect_distribution_csv_dialog(
                 self,
                 counts,
+                default_file_stem=stem,
             )
         )
         if aspect_counts:
@@ -4209,8 +4220,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
-        token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
-        return token or fallback
+        return _sanitize_export_token(value, fallback)
 
     def _build_transit_export_file_stem(
         self,
@@ -4358,6 +4368,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             layout,
             chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
             aspect_entries=all_hits,
+            export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
         )
 
         right_layout = QVBoxLayout()
@@ -4886,6 +4897,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
             aspect_entries=list(getattr(chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
         )
 
         right_layout = QVBoxLayout()
@@ -15521,6 +15533,7 @@ class MainWindow(QMainWindow):
         *,
         chart_info_placeholder: str,
         aspect_entries: list[Any],
+        export_file_stem: str,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -15553,9 +15566,10 @@ class MainWindow(QMainWindow):
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
         analytics_export_button.clicked.connect(
-            lambda _checked=False, counts=aspect_counts: _export_aspect_distribution_csv_dialog(
+            lambda _checked=False, counts=aspect_counts, stem=export_file_stem: _export_aspect_distribution_csv_dialog(
                 self,
                 counts,
+                default_file_stem=stem,
             )
         )
         if aspect_counts:
@@ -15634,6 +15648,7 @@ class MainWindow(QMainWindow):
             layout,
             chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
         )
 
         right_layout = QVBoxLayout()
