@@ -39,6 +39,7 @@ ARIES_THETA_START = 60
 SLICE_SPAN_DEGREES = 30
 ZODIAC_OVERLAY_ZORDER = 100
 DEFAULT_WINDOW_SIZE_PX = 600
+DEFAULT_OUTPUT_SIZE_PX = 600
 
 
 def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
@@ -104,7 +105,8 @@ def draw_chartwheel(output_path: Path) -> Path:
     max_diameter = max(PLANET_DIAMETERS.values())
     max_radius = max_diameter / 2
 
-    fig, ax = plt.subplots(figsize=(max_diameter / 100, max_diameter / 100), dpi=100)
+    output_size_inches = DEFAULT_OUTPUT_SIZE_PX / 100
+    fig, ax = plt.subplots(figsize=(output_size_inches, output_size_inches), dpi=100)
     fig.patch.set_alpha(0)
     ax.set_facecolor("none")
 
@@ -147,8 +149,6 @@ def draw_chartwheel(output_path: Path) -> Path:
     fig.savefig(
         output_path,
         dpi=100,
-        bbox_inches="tight",
-        pad_inches=0,
         transparent=True,
     )
     return output_path
