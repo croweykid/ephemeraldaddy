@@ -7729,7 +7729,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         cleanup_timer = QTimer(scrollbar)
         cleanup_timer.setSingleShot(True)
-        cleanup_timer.setInterval(160)
+        cleanup_timer.setInterval(750)
         cleanup_timer.timeout.connect(_cleanup_handler)
 
         def _on_range_changed(*_) -> None:
@@ -7742,6 +7742,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         _apply_target()
         QTimer.singleShot(0, _apply_target)
+        QTimer.singleShot(60, _apply_target)
+        QTimer.singleShot(220, _apply_target)
         cleanup_timer.start()
 
     @staticmethod
