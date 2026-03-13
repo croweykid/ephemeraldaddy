@@ -1068,6 +1068,28 @@ def _display_body_name(body: str) -> str:
     return body
 
 
+SIGN_ADJECTIVES = {
+    "Aries": "Aries",
+    "Taurus": "Taurus",
+    "Gemini": "Gemini",
+    "Cancer": "Cancer",
+    "Leo": "Leo",
+    "Virgo": "Virgo",
+    "Libra": "Libra",
+    "Scorpio": "Scorpio",
+    "Sagittarius": "Sagittarius",
+    "Capricorn": "Capricorn",
+    "Aquarius": "Aquarius",
+    "Pisces": "Pisces",
+}
+
+
+def _sign_adjective(sign: str | None) -> str | None:
+    if not sign:
+        return None
+    return SIGN_ADJECTIVES.get(sign, sign)
+
+
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
     display_name = _display_body_name(getattr(body, "name", ""))
     lon_deg = getattr(body, "lon_deg", None)
@@ -1487,6 +1509,10 @@ def format_chart_text(
                 "type": atype,
                 "angle": angle,
                 "delta": delta,
+                "sign1": _sign_for_longitude(positions[p1]) if p1 in positions else None,
+                "sign2": _sign_for_longitude(positions[p2]) if p2 in positions else None,
+                "house1": _house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
+                "house2": _house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None,
             }
             lines.append(line)
 
@@ -4093,6 +4119,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "type": str(hit.aspect),
                         "angle": angle,
                         "delta": float(hit.orb_deg),
+                        "sign1": hit.a.sign,
+                        "sign2": hit.b.sign,
+                        "house1": hit.a.house,
+                        "house2": hit.b.house,
                     }
                     lines.append(line)
             else:
@@ -4767,6 +4797,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             "type": str(hit.aspect),
                             "angle": angle,
                             "delta": float(hit.orb_deg),
+                            "sign1": hit.a.sign,
+                            "sign2": hit.b.sign,
+                            "house1": hit.a.house,
+                            "house2": hit.b.house,
                         }
                         icon_index = line.rfind("📆")
                         if icon_index >= 0:
@@ -14013,6 +14047,10 @@ class MainWindow(QMainWindow):
                         aspect_info["type"],
                         aspect_info["angle"],
                         aspect_info["delta"],
+                        sign1=aspect_info.get("sign1"),
+                        sign2=aspect_info.get("sign2"),
+                        house1=aspect_info.get("house1"),
+                        house2=aspect_info.get("house2"),
                     )
                     return True
             return False
@@ -14163,6 +14201,11 @@ class MainWindow(QMainWindow):
         atype: str,
         angle: float,
         delta: float,
+        *,
+        sign1: str | None = None,
+        sign2: str | None = None,
+        house1: int | None = None,
+        house2: int | None = None,
     ) -> None:
         aspect_keywords = ASPECT_KEYWORDS.get(atype, [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
@@ -14173,19 +14216,39 @@ class MainWindow(QMainWindow):
             )
             return
 
+        sign1_adj = _sign_adjective(sign1)
+        sign2_adj = _sign_adjective(sign2)
+        house1_keywords = HOUSE_KEYWORDS.get(house1, []) if house1 else []
+        house2_keywords = HOUSE_KEYWORDS.get(house2, []) if house2 else []
+
         unique_lines: list[str] = []
-        seen: set[tuple[str, str, str]] = set()
+        seen: set[tuple[str, str, str, str, str, str, str]] = set()
         attempts = 0
-        while len(unique_lines) < 6 and attempts < 200:
+        while len(unique_lines) < 6 and attempts < 300:
             noun1 = random.choice(p1_nouns)
             noun2 = random.choice(p2_nouns)
             keyword = random.choice(aspect_keywords)
-            combo = (noun1, keyword, noun2)
+            house_noun1 = random.choice(house1_keywords) if house1_keywords else ""
+            house_noun2 = random.choice(house2_keywords) if house2_keywords else ""
+            combo = (
+                sign1_adj or "",
+                noun1,
+                keyword,
+                sign2_adj or "",
+                noun2,
+                house_noun1,
+                house_noun2,
+            )
             if combo in seen:
                 attempts += 1
                 continue
             seen.add(combo)
-            unique_lines.append(f"{noun1} {keyword} {noun2}")
+
+            parts = [part for part in [sign1_adj, noun1, keyword, sign2_adj, noun2] if part]
+            sentence = " ".join(parts)
+            if house_noun1 and house_noun2:
+                sentence += f" in regards to {house_noun1} & {house_noun2}"
+            unique_lines.append(sentence)
             attempts += 1
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
