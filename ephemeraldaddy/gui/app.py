@@ -374,6 +374,7 @@ from ephemeraldaddy.gui.style import (
     STANDARD_NCV_PIE_CHART,
     STANDARD_NCV_POPOUT_LAYOUT,
     CHART_THEME_COLORS,
+    GENDER_GUESSER_COLORS,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
@@ -13025,10 +13026,10 @@ class MainWindow(QMainWindow):
 
         def _gender_label_color(score: float) -> str:
             if score < 5.0:
-                return "#f16464"
+                return GENDER_GUESSER_COLORS["masculine"]
             if score > 5.0:
-                return "#7bdb7b"
-            return "#f5f5f5"
+                return GENDER_GUESSER_COLORS["feminine"]
+            return CHART_THEME_COLORS["text"]
 
         prevalence_label_color = _gender_label_color(prevalence_score)
         weighted_label_color = _gender_label_color(weighted_score)
@@ -13061,8 +13062,8 @@ class MainWindow(QMainWindow):
             zorder=4,
         )
 
-        ax.text(0, -0.18, "♂", color="#f16464", ha="left", va="top", fontsize=8) #"Masculine"
-        ax.text(10, -0.18, "♀", color="#7bdb7b", ha="right", va="top", fontsize=8) #"Feminine"
+        ax.text(0, -0.18, "♂", color=GENDER_GUESSER_COLORS["masculine"], ha="left", va="top", fontsize=8) #"Masculine"
+        ax.text(10, -0.18, "♀", color=GENDER_GUESSER_COLORS["feminine"], ha="right", va="top", fontsize=8) #"Feminine"
         ax.text(
             0.015,
             1.05,
