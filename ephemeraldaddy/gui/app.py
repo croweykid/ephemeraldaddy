@@ -298,6 +298,10 @@ from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
 
+from ephemeraldaddy.gui.features.charts.aspect_interpretation import (
+    build_aspect_interpretation_lines as _build_aspect_interpretation_lines,
+)
+
 from ephemeraldaddy.gui.features.charts.presentation import (
     apply_nakshatra_tick_info_markers as _apply_nakshatra_tick_info_markers,
     format_degree_minutes as _format_degree_minutes,
@@ -1067,27 +1071,6 @@ def _display_body_name(body: str) -> str:
         return "Fortune"
     return body
 
-
-SIGN_ADJECTIVES = {
-    "Aries": "Aries",
-    "Taurus": "Taurus",
-    "Gemini": "Gemini",
-    "Cancer": "Cancer",
-    "Leo": "Leo",
-    "Virgo": "Virgo",
-    "Libra": "Libra",
-    "Scorpio": "Scorpio",
-    "Sagittarius": "Sagittarius",
-    "Capricorn": "Capricorn",
-    "Aquarius": "Aquarius",
-    "Pisces": "Pisces",
-}
-
-
-def _sign_adjective(sign: str | None) -> str | None:
-    if not sign:
-        return None
-    return SIGN_ADJECTIVES.get(sign, sign)
 
 
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
@@ -14238,40 +14221,15 @@ class MainWindow(QMainWindow):
             )
             return
 
-        sign1_adj = _sign_adjective(sign1)
-        sign2_adj = _sign_adjective(sign2)
-        house1_keywords = HOUSE_KEYWORDS.get(house1, []) if house1 else []
-        house2_keywords = HOUSE_KEYWORDS.get(house2, []) if house2 else []
-
-        unique_lines: list[str] = []
-        seen: set[tuple[str, str, str, str, str, str, str]] = set()
-        attempts = 0
-        while len(unique_lines) < 6 and attempts < 300:
-            noun1 = random.choice(p1_nouns)
-            noun2 = random.choice(p2_nouns)
-            keyword = random.choice(aspect_keywords)
-            house_noun1 = random.choice(house1_keywords) if house1_keywords else ""
-            house_noun2 = random.choice(house2_keywords) if house2_keywords else ""
-            combo = (
-                sign1_adj or "",
-                noun1,
-                keyword,
-                sign2_adj or "",
-                noun2,
-                house_noun1,
-                house_noun2,
-            )
-            if combo in seen:
-                attempts += 1
-                continue
-            seen.add(combo)
-
-            parts = [part for part in [sign1_adj, noun1, keyword, sign2_adj, noun2] if part]
-            sentence = " ".join(parts)
-            if house_noun1 and house_noun2:
-                sentence += f" in regards to {house_noun1} & {house_noun2}"
-            unique_lines.append(sentence)
-            attempts += 1
+        unique_lines = _build_aspect_interpretation_lines(
+            p1_nouns=p1_nouns,
+            p2_nouns=p2_nouns,
+            aspect_keywords=aspect_keywords,
+            sign1=sign1,
+            sign2=sign2,
+            house1=house1,
+            house2=house2,
+        )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
         self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
