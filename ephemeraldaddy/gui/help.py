@@ -19,131 +19,175 @@ class HelpEntry:
 
 HELP_ENTRIES: tuple[HelpEntry, ...] = (
     HelpEntry(
-        title="What is EphemeralDaddy?",
+        title="FAQs: What is EphemeralDaddy?",
         description=(
-            "EphemeralDaddy is a hybrid astrology lab + local notebook for chart research, "
-            "relationship pattern tracking, and exploratory analysis."
+            """Q. What is EphemeralDaddy?
+A. EphemeralDaddy (ED) is part astrology lab, part database notebook, part user-defined memoir, part weird toy box."""
         ),
-        keywords=("overview", "intro", "faq"),
+        keywords=("faq", "what is", "overview"),
     ),
     HelpEntry(
-        title="Why people use it",
+        title="FAQs: Why would someone use ED?",
         description=(
-            "Common use cases include personal chart study, private/offline data control, "
-            "pattern-finding experiments, and a dark-mode-first astrology workspace."
+            """Q. Why would someone use ED?
+A. Some reasons:
+1) Debunking/Bunking
+You wonder if there's any merit to astrology at all. Does it work? Probably not, right? But what the hell, it's been around awhile. So have a lot of idiotic things. If only there were a way to confirm or discredit it once and for all! (Yes, there were those bad faith "studies" done based solely on sun signs being used to predict things astrology can't claim to predict, but they were obviously whack; the 'twin study' was the only piece of legitimate science in the mainstream skeptic camp, and I disagree with how it was interpreted, albeit not with the methods of execution) - WELL here. Have a DIY kit for evaluating the people in your life as an experiment. lol Then decide for yourself.
+
+2) Dark mode
+You need dark mode and wanted a free astrology app.
+
+3) Privacy / Data Control
+You wanted a secure, private offline astro chart database that's easy to access.
+
+4) Nakshatras
+You wanted an app that calculated tropical zodiac signs but also included nakshatras in a way that is readable for those more familiar with Western (Tropical/Grecoroman) astrological tradition.
+
+5) Anti-Cloud
+You wanted an good offline astrology app that wouldn't force automated updates on you or start locking features behind a paywall as the universal quality declines, and features get dumbed down.
+
+6) Sociological/Psychological Intrigue
+You wondered how many people you've met in life & could remember & wanted to see if there were any patterns in your relationships. While ED is essentially an astrological app at its core, I am increasingly rolling out mundane sociological metrics as well, for those who just want to analyze patterns in their relationships in a purely science-driven manner, independent of birth date shiz.
+
+If you treat it like a research workspace (not an omniscient oracle), you’ll have a good time."""
         ),
-        keywords=("use cases", "privacy", "dark mode", "research"),
+        keywords=("why", "reasons", "privacy", "dark mode", "nakshatra"),
     ),
     HelpEntry(
-        title="Chart View (Entry / Editor)",
+        title="1A) Chart View (Chart Entry / Editor)",
         description=(
-            "Use Chart View to create or edit one chart at a time: name/alias, birth data, "
-            "chart type, placeholder mode, and save/update actions."
+            """This is where you create or edit one chart at a time.
+
+Key features:
+- Name / Alias / Birth date / Birth place inputs
+- Chart Type dropdown
+- placeholder (check if birth date/year is unknown) checkbox
+- Save/update controls
+- Right-side metrics and mini-analysis widgets
+
+Use this window when you want to:
+- Enter a new chart
+- Edit an existing one
+- Mark a chart as a placeholder
+- Set chart classification manually"""
         ),
-        keywords=("chart view", "entry", "editor", "single chart"),
+        keywords=("chart view", "entry", "editor"),
     ),
     HelpEntry(
-        title="Database View (Manage Charts)",
+        title="1B) Database View (Manage Charts)",
         description=(
-            "Use Manage Charts as mission control: browse records, search/filter by type, "
-            "sort, batch-edit, back up, import/export, and launch transit/composite tools."
+            """This is mission control for your whole chart collection.
+
+Key features:
+- Chart list in the center
+- Search/filter panel (includes Chart Type)
+- Sorting options (including Cursedness)
+- Data management actions (backup/import/export)
+- Buttons for Transit View and 🧬 Composite
+
+Use this window when you want to:
+- Browse and filter lots of charts
+- Batch-manage records
+- Open transit/composite tools
+- Import or export CSV datasets"""
         ),
-        keywords=("database", "manage", "filter", "sort", "backup"),
+        keywords=("database", "manage", "filters", "sort"),
     ),
     HelpEntry(
-        title="Transit View",
+        title="1C/1D) Transit + Composite tools",
         description=(
-            "Transit View is for dated/current overlays and quick 'what is active now' checks."
+            """C. Transit View
+This is for current/dated transit overlays and “what’s active now” checks.
+
+Use it when you want:
+- Transit snapshots
+- Daily vibe / life forecast style transit windows
+- A practical, quick-look timing tool
+
+D. Composite / Synastry tools
+This currently gives you a basic chart-over-chart aspect workflow.
+
+Use it when you want:
+- A rough compatibility lens
+- Overlay-style chart comparison
+
+⚠️ Synastry Tools are still early-stage (details below in the Synastry section)."""
         ),
-        keywords=("transits", "timing", "daily"),
+        keywords=("transit", "composite", "synastry"),
     ),
     HelpEntry(
-        title="Composite / Synastry tools",
+        title="2) Chart calculation: methods & philosophy",
         description=(
-            "Composite/Synastry currently offers a practical early-stage chart-over-chart "
-            "aspect workflow for compatibility exploration."
+            """- Planetary positions are computed with Swiss Ephemeris-backed logic (with offline setup supported).
+- The app computes positions, houses, and aspects, then derives distributions and ranking-style metrics.
+- Philosophy-wise: this is built as an exploratory tool. It favors inspectable intermediate outputs over pretending every interpretation is settled truth.
+- Practical takeaway: treat calculations as structured inputs; treat textual interpretations as draft commentary."""
         ),
-        keywords=("composite", "synastry", "compatibility", "aspects"),
+        keywords=("calculation", "swiss ephemeris", "method"),
     ),
     HelpEntry(
-        title="Calculation philosophy",
+        title="2) Chart Types + placeholders + interpretations",
         description=(
-            "Planet positions are Swiss Ephemeris-backed. Treat computed metrics as structured "
-            "inputs and text interpretations as editable draft commentary."
+            """Chart Types
+- Chart Type is a classifier/tag for what a chart record is (for example: personal, public database import, event, synastry-generated contexts).
+- You set this manually in Natal Chart View (Chart Entry/Edit).
+- The app also assigns defaults in some generation/import pathways.
+- In Manage Charts, Chart Type is filterable, so you can separate personal notes from imported/public datasets.
+
+Sign/Position descriptions (important reality check)
+Short version: useful as rough prompts, not gospel.
+
+Placeholder charts
+What they are:
+- A reminder/contact-style chart entry when exact birth data is missing.
+
+What they’re good for:
+- Relationship notes
+- Sentiment/history tracking
+- Non-astrological organization
+
+What they’re not good for:
+- Serious astrological inference"""
         ),
-        keywords=("swiss ephemeris", "calculation", "method"),
+        keywords=("chart type", "placeholder", "interpretation"),
     ),
     HelpEntry(
-        title="Weighting methods",
+        title="2) Nakshatras + gates/lines + toy metrics",
         description=(
-            "Scoring blends traditional astrology weighting (dignity/rulership-style logic) with "
-            "project-specific experimental tuning for comparative research."
+            """Nakshatras
+- Zodiac sign framework in this app is tropical.
+- Nakshatras are handled separately in the usual Vedic-style spirit.
+- The author’s nakshatra notes are intentionally rough research notes, not a finished published doctrine.
+
+Gates, Lines & Channels
+For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but I haven't done anything with channels yet, nor included any interpretations of I Ching hexagrams, nor calculated "Earth Signs", etc.
+
+Weird toy metrics (D&D Species, Cursedness, Gender Guesser)
+These exist. They are fun. They are not commandments."""
         ),
-        keywords=("weights", "aspects", "houses", "scoring"),
+        keywords=("nakshatra", "gates", "lines", "cursedness"),
     ),
     HelpEntry(
-        title="Chart Types",
+        title="3/4/Final Takeaways",
         description=(
-            "Chart Type is a manual classifier/tag used to keep personal notes, imports, events, "
-            "and generated contexts organized and filterable."
+            """3) Data + privacy essentials
+- Your database is local (stored in your home directory), not bundled inside the app folder.
+- Sharing the app directory alone does not automatically share your chart database.
+- Use built-in import/export/backup tools for intentional migration or sharing.
+
+4) Suggested new-user workflow (fast start)
+1. Create your own chart in Natal Chart View.
+2. Add 5–20 known people in Manage Charts.
+3. Use Chart Type tags early (future-you will be grateful).
+4. Use placeholders for unknown birth-time/date cases.
+5. Run transit/composite tools for pattern exploration.
+
+Final Takeaways
+EphemeralDaddy is best used like a field notebook with a calculator attached.
+If you expect a perfect oracle, you’ll be disappointed.
+If you want a lively research cockpit with honest rough edges, you’re in exactly the right place."""
         ),
-        keywords=("chart type", "classification", "tag"),
-    ),
-    HelpEntry(
-        title="Interpretation text reality check",
-        description=(
-            "Built-in interpretations are still evolving and best treated as prompts. Verify or "
-            "refine externally when you need polished or high-stakes conclusions."
-        ),
-        keywords=("interpretations", "prompts", "quality"),
-    ),
-    HelpEntry(
-        title="Placeholder charts",
-        description=(
-            "Placeholder charts are reminder/contact records for incomplete birth data. Great for "
-            "organization and notes, not for serious astrological inference."
-        ),
-        keywords=("placeholder", "unknown data", "reminder"),
-    ),
-    HelpEntry(
-        title="Nakshatras",
-        description=(
-            "This app uses a tropical zodiac framework while exposing nakshatra outputs as separate "
-            "research notes. You can refine interpretation definitions in core/interpretations.py."
-        ),
-        keywords=("nakshatra", "vedic", "tropical"),
-    ),
-    HelpEntry(
-        title="Gates / Lines status",
-        description=(
-            "Chart View includes gate/line math outputs. Channel-level interpretation support is "
-            "intentionally limited and still in-progress."
-        ),
-        keywords=("gates", "lines", "channels"),
-    ),
-    HelpEntry(
-        title="Weird toy metrics",
-        description=(
-            "D&D Species, Cursedness, and Gender Guesser are playful comparative metrics. Useful "
-            "for curiosity; not authoritative life-decision engines."
-        ),
-        keywords=("cursedness", "dnd", "gender guesser", "fun"),
-    ),
-    HelpEntry(
-        title="Data + privacy essentials",
-        description=(
-            "Your chart database is local to your machine/home directory. Use import/export/backup "
-            "tools when you intentionally want to migrate or share data."
-        ),
-        keywords=("privacy", "local", "backup", "database"),
-    ),
-    HelpEntry(
-        title="Suggested quick-start workflow",
-        description=(
-            "Create your own chart, add a small known cohort, tag chart types early, use "
-            "placeholders for missing data, and treat interpretations as draft notes."
-        ),
-        keywords=("workflow", "quick start", "new user"),
+        keywords=("privacy", "workflow", "takeaways"),
     ),
     HelpEntry(
         title="New Chart",
