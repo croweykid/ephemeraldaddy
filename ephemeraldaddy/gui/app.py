@@ -4484,15 +4484,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             error_text = state.get("error", "")
                             suffix = f"📆 ⚠ {error_text}" if error_text else "📆 ⚠"
                         elif state["expanded"] and state["resolved"]:
-                            suffix = (
-                                "📆 "
-                                + _format_transit_range(
-                                    state["start"],
-                                    state["end"],
-                                    include_time=include_time,
-                                    start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
-                                    end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
-                                )
+                            suffix = _format_transit_range(
+                                state["start"],
+                                state["end"],
+                                include_time=include_time,
+                                start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
+                                end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
                             )
                         left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                         right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
