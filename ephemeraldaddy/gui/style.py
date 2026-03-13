@@ -1,5 +1,39 @@
 """Shared GUI styling and interface constants."""
 
+CHART_THEME_COLORS = {
+    "background": "#111111",
+    "text": "#f5f5f5",
+    "muted_text": "#8b8b8b",
+    "spine": "#444444",
+    "accent": "#6fa8dc",
+}
+
+GENDER_GUESSER_COLORS = {
+    "masculine": "#f16464",
+    "feminine": "#7bdb7b",
+    "androgynous": "#ffd966",
+}
+
+CHART_HEADER_TEMPLATES = {
+    "name_alias": "Name: {name} | Alias: {alias}",
+    "date_times": "Date: {date} | Official Time: {official_time} | Retcon Time: {retcon_time}",
+    "place": "Place: {birth_place} | {lat:.4f}, {lon:.4f}",
+    "when_where": "When/Where: {date} @ {time} {timezone} | {location}, {lat:.4f}, {lon:.4f}",
+    "when_where_compact": "When/Where: {date_time} | {lat:.4f}, {lon:.4f}",
+}
+
+
+CHART_AXES_STYLE = {
+    "y_tick": {"labelsize": 7.5, "colors": CHART_THEME_COLORS["text"], "pad": 6},
+    "x_tick": {"labelsize": 7, "colors": CHART_THEME_COLORS["muted_text"]},
+    "barh_adjust": {"left": 0.36, "bottom": 0.12, "right": 0.97, "top": 0.96},
+}
+
+
+def format_chart_header(template_key: str, **kwargs: object) -> str:
+    """Format a standard chart header line using the shared template catalog."""
+    return CHART_HEADER_TEMPLATES[template_key].format(**kwargs)
+
 TRISTATE_SENTIMENT_STYLE = """
 QCheckBox::indicator {
     width: 16px;
@@ -68,9 +102,6 @@ DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING = 6
 DATABASE_ANALYTICS_EXPORT_ICON_SIZE = (14, 14)
 DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE = (20, 20)
 DATABASE_ANALYTICS_SUBHEADER_STYLE = "margin-bottom: 0px;"
-DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = (
-    "font-weight: bold; padding: 6px; text-align: left;"
-)
 DATABASE_ANALYTICS_CONTENT_MARGINS = (8, 6, 8, 6)
 DATABASE_ANALYTICS_CONTENT_SPACING = 2
 DATABASE_ANALYTICS_CHART_CONTENT_MARGINS = (0, 0, 0, 0)
@@ -94,6 +125,14 @@ RELATIVE_YEAR_COLORS = {
 
 MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
+DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+DATABASE_VIEW_PANEL_HEADER_STYLE = (
+    f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
+)
+DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = (
+    f"font-weight: bold; font-size: 12px; color: #ffffff; padding: 6px; text-align: left;"
+)
+DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
 CHART_DATA_DIVIDER = "---------"
