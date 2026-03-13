@@ -1798,6 +1798,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_dirty_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
+        self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
         self._transit_window_metrics: dict[str, int | float] = {
@@ -13777,6 +13778,52 @@ class MainWindow(QMainWindow):
 
 
 
+
+
+    def _show_gemstone_chartwheel_popout(self, image_path: str) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Gemstone Chartwheel Preview")
+        dialog.resize(720, 760)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        image_label = QLabel()
+        image_label.setAlignment(Qt.AlignCenter)
+        image_label.setMinimumSize(640, 640)
+
+        pixmap = QPixmap(image_path)
+        if pixmap.isNull():
+            image_label.setText("Could not load generated chartwheel image preview.")
+        else:
+            image_label.setPixmap(
+                pixmap.scaled(
+                    680,
+                    680,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+            )
+
+        path_label = QLabel(f"Saved to: {image_path}")
+        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+
+        layout.addWidget(image_label, 1)
+        layout.addWidget(path_label, 0)
+
+        self._register_popout_shortcuts(dialog)
+        self._gemstone_chartwheel_popouts.append(dialog)
+        dialog.destroyed.connect(
+            lambda _=None, d=dialog: self._gemstone_chartwheel_popouts.remove(d)
+            if d in self._gemstone_chartwheel_popouts
+            else None
+        )
+
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def on_create_gemstone_chartwheel(self) -> None:
         chart = self._latest_chart
         if chart is None:
@@ -13810,6 +13857,7 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self._show_gemstone_chartwheel_popout(file_path)
         QMessageBox.information(
             self,
             "Gemstone chartwheel exported",
