@@ -1990,7 +1990,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
-        self.right_panel_stack.setMinimumWidth(420)
+        self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -2076,6 +2076,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
+        self._content_splitter.setCollapsible(2, True)
         self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
@@ -9481,8 +9482,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
-    def _set_right_panel_visible(self, visible: bool) -> None:
+    def _is_right_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[2] <= 0
+
+    def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
@@ -9496,7 +9503,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._content_splitter.setSizes([left_size, middle_size, 0])
             return
 
-        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
             self._content_splitter.setSizes(self._right_panel_sizes)
 
     def _set_left_panel_visible(self, visible: bool) -> None:
@@ -9609,16 +9618,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True)
+        self._set_right_panel_visible(True, restore_default_size=True)
 
     def _toggle_search_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "search":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "search"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("search")
 
     def _toggle_edit_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "edit":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "edit"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("edit")
