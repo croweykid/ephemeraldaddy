@@ -255,12 +255,16 @@ def aspect_orb_factor(asp: dict) -> float:
     return max(0.0, (allowance - orb) / allowance)
 
 
-def aspect_pair_weight(p1: str, p2: str) -> float:
+def aspect_pair_weight(p1: str, p2: str, planet_weights: dict[str, float] | None = None) -> float:
     p1 = normalize_aspect_body(p1)
     p2 = normalize_aspect_body(p2)
-    p1_weight = NATAL_WEIGHT.get(p1, 1)
-    p2_weight = NATAL_WEIGHT.get(p2, 1)
-    return math.sqrt(p1_weight * p2_weight)
+    if planet_weights:
+        p1_weight = float(planet_weights.get(p1, NATAL_WEIGHT.get(p1, 1)))
+        p2_weight = float(planet_weights.get(p2, NATAL_WEIGHT.get(p2, 1)))
+    else:
+        p1_weight = float(NATAL_WEIGHT.get(p1, 1))
+        p2_weight = float(NATAL_WEIGHT.get(p2, 1))
+    return math.sqrt(max(p1_weight, 0.0) * max(p2_weight, 0.0))
 
 
 def aspect_body_sign_duration(body: str) -> float:
@@ -277,12 +281,25 @@ def aspect_duration_score(asp: dict) -> float:
     )
 
 
-def aspect_score(asp: dict) -> float:
+def aspect_score(
+    asp: dict,
+    planet_weights: dict[str, float] | None = None,
+    context_weight: float = 1.0,
+) -> float:
+    """Return an aspect score for ranking/export.
+
+    Formula:
+        sqrt(weight(p1) * weight(p2)) * aspect_type_weight * orb_factor * context_weight
+
+    `planet_weights` can be chart-specific (e.g. dominant_planet_weights). If
+    omitted, static NATAL_WEIGHT values are used.
+    """
     normalized_type = asp["type"].replace(" ", "_").lower()
     aspect_weight = ASPECT_SCORE_WEIGHTS.get(normalized_type, 0.0)
-    pair_weight = aspect_pair_weight(asp["p1"], asp["p2"])
+    pair_weight = aspect_pair_weight(asp["p1"], asp["p2"], planet_weights=planet_weights)
     orb_factor = aspect_orb_factor(asp)
-    return aspect_weight * pair_weight * orb_factor
+    return pair_weight * aspect_weight * orb_factor * float(context_weight)
+
 
 #structure: for each house, sign & planet in the positions line, look up their values below and print: a [HOUSE_NOUNS] that's [SIGN_KEYWORDS ->adverbs->(a concat of best_adverbs & worst_adverbs)] [PLANET_KEYWORDS->verbs]
 #randomly draw 6 different combinations.
