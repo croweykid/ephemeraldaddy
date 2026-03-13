@@ -4446,7 +4446,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Saved chart data output to:\n{file_path}",
         )
 
-    def _personal_transit_priority(self, hit: Any, mode: str) -> float:
+    def _personal_transit_priority(
+        self,
+        hit: Any,
+        mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
+    ) -> float:
         orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
         if orb_cap <= 0:
             return 0.0
@@ -4454,7 +4459,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_key = str(hit.aspect).replace(" ", "_").lower()
         aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
         transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
-        natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
+        if natal_planet_weights:
+            natal_weight = float(natal_planet_weights.get(hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)))
+        else:
+            natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
         angle_weight = float(ANGLE_WEIGHT.get(aspect_angle, 1.0))
         return (transit_weight + natal_weight) * angle_weight * orb_factor
 
@@ -4463,11 +4471,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_hits: list[Any],
         sort_mode: str,
         mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Priority":
             return sorted(
                 aspect_hits,
-                key=lambda hit: self._personal_transit_priority(hit, mode),
+                key=lambda hit: self._personal_transit_priority(
+                    hit,
+                    mode,
+                    natal_planet_weights=natal_planet_weights,
+                ),
                 reverse=True,
             )
         return self._sort_popout_aspects(aspect_hits, sort_mode)
@@ -4630,6 +4643,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scan_step_hours = transit_scan_config.scan_step_hours
         scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
+        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None)
+        if not natal_planet_weights:
+            natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
 
         def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
             daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
@@ -4645,6 +4661,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             daily_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
@@ -4658,6 +4675,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ]
                     + [
@@ -4666,6 +4684,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             rollover_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -5998,6 +6017,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
+            if bool(getattr(chart, "is_placeholder", False)):
+                continue
 
             birth_year_value = getattr(chart, "birth_year", None)
             if not isinstance(birth_year_value, int):
@@ -6255,23 +6276,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["relationship_totals"][relationship] += 1
                 snapshot["relationship_total_count"] += 1
 
-        try:
-            species_top_three = assign_top_three_species(chart)
-        except Exception:
-            species_top_three = []
-        if species_top_three:
-            top_species = species_top_three[0][0]
-            if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
-                snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
-                snapshot["species_total_count_by_mode"]["top_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
-                    snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[1:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
-                    snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
+        if not snapshot["is_placeholder"]:
+            try:
+                species_top_three = assign_top_three_species(chart)
+            except Exception:
+                species_top_three = []
+            if species_top_three:
+                top_species = species_top_three[0][0]
+                if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
+                    snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
+                    snapshot["species_total_count_by_mode"]["top_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
+                        snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[1:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
+                        snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
