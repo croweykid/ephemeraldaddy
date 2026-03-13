@@ -26,7 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
-from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS
+from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS, GENDER_GUESSER_COLORS
 
 
 class DatabaseAnalyticsChartsMixin:
@@ -754,9 +754,9 @@ class DatabaseAnalyticsChartsMixin:
         ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         color_by_label = {
-            "masculine": "#f16464",
-            "feminine": "#7bdb7b",
-            "androgynous": "#ffd966",
+            "masculine": GENDER_GUESSER_COLORS["masculine"],
+            "feminine": GENDER_GUESSER_COLORS["feminine"],
+            "androgynous": GENDER_GUESSER_COLORS["androgynous"],
         }
         display_labels = [
             self._format_selection_database_count_label(
