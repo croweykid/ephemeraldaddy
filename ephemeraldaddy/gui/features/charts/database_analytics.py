@@ -757,6 +757,9 @@ class DatabaseAnalyticsChartsMixin:
             "masculine": GENDER_GUESSER_COLORS["masculine"],
             "feminine": GENDER_GUESSER_COLORS["feminine"],
             "androgynous": GENDER_GUESSER_COLORS["androgynous"],
+            "m": GENDER_GUESSER_COLORS["masculine"],
+            "f": GENDER_GUESSER_COLORS["feminine"],
+            "n/a": GENDER_GUESSER_COLORS["androgynous"],
         }
         display_labels = [
             self._format_selection_database_count_label(
@@ -767,7 +770,13 @@ class DatabaseAnalyticsChartsMixin:
             )
             for label in labels
         ]
-        colors = [color_by_label.get(label.casefold(), "#6fa8dc") for label in labels]
+        colors = [
+            color_by_label.get(
+                str(label).strip().casefold(),
+                "#6fa8dc",  # keep unknown labels such as "?" on default blue
+            )
+            for label in labels
+        ]
         positions = list(range(len(labels)))
         selection_plot_values = [float(selection_values.get(label, 0.0)) for label in labels]
         database_plot_values = [float(database_values.get(label, 0.0)) for label in labels]
