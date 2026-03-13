@@ -40,6 +40,32 @@ OUTER_PLANETS = (
     "Pluto",
 )
 
+GEN_POP_ACTUAL_GENDER_CAPTION = (
+    "This is based on a global estimate of gender distribution worldwide. "
+    "Statistics for nonbinary identities skew significantly by age group & region too "
+    "drastically to make educated generalizations."
+)
+
+# Ordered for chart display in Gen Pop mode.
+GEN_POP_ACTUAL_GENDER_BASELINE = {
+    "F": 0.4938,
+    "M": 0.4995,
+    "AFAB-M": 0.0,
+    "AMAB-F": 0.0,
+    "AFAB-NB": 0.0,
+    "AMAB-NB": 0.0,
+}
+
+
+def gen_pop_actual_gender_counts(chart_count: int) -> dict[str, int]:
+    """Return baseline Gen Pop actual-gender counts for a given sample size."""
+
+    safe_chart_count = max(0, int(chart_count))
+    return {
+        label: int(round(ratio * safe_chart_count))
+        for label, ratio in GEN_POP_ACTUAL_GENDER_BASELINE.items()
+    }
+
 SUN_SIGN_BIRTHS = {  # from CDC natality files
     1988: {
         "Aries": {"count": 311169, "percent": 7.95},
