@@ -10401,6 +10401,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "none" in self.gender_filter_checkboxes
             and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
         )
+        selected_guessed_gender = str(
+            self.gender_guessed_filter_combo.currentData() or ""
+        )
         active_body_filters = [
             filters
             for filters in self._search_body_filters
