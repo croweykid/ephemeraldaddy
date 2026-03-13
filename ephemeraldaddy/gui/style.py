@@ -8,6 +8,12 @@ CHART_THEME_COLORS = {
     "accent": "#6fa8dc",
 }
 
+GENDER_GUESSER_COLORS = {
+    "masculine": "#f16464",
+    "feminine": "#7bdb7b",
+    "androgynous": "#ffd966",
+}
+
 CHART_HEADER_TEMPLATES = {
     "name_alias": "Name: {name} | Alias: {alias}",
     "date_times": "Date: {date} | Official Time: {official_time} | Retcon Time: {retcon_time}",
