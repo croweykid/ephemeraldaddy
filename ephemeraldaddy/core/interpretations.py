@@ -521,6 +521,22 @@ SIGN_COLORS = {
     "Pisces": ELEMENT_COLORS["Water"],
 }
 
+
+SIGN_WHEELS = {
+    "Aries": "ephemeraldaddy/graphics/chartwheel_components/aries.png",
+    "Taurus": "ephemeraldaddy/graphics/chartwheel_components/taurus.png",
+    "Gemini": "ephemeraldaddy/graphics/chartwheel_components/gemini.png",
+    "Cancer": "ephemeraldaddy/graphics/chartwheel_components/cancer.png",
+    "Leo": "ephemeraldaddy/graphics/chartwheel_components/leo.png",
+    "Virgo": "ephemeraldaddy/graphics/chartwheel_components/virgo.png",
+    "Libra": "ephemeraldaddy/graphics/chartwheel_components/libra.png",
+    "Scorpio": "ephemeraldaddy/graphics/chartwheel_components/scorpio.png",
+    "Sagittarius": "ephemeraldaddy/graphics/chartwheel_components/sagittarius.png",
+    "Capricorn": "ephemeraldaddy/graphics/chartwheel_components/capricorn.png",
+    "Aquarius": "ephemeraldaddy/graphics/chartwheel_components/aquarius.png",
+    "Pisces": "ephemeraldaddy/graphics/chartwheel_components/pisces.png",
+}
+
 SIGN_DOMESTICATION = { #0 is most chthonic, 10 is most apolonian
     "Aries":6, #barbaric but concerned with rationality
     "Taurus":2, #primal

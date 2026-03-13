@@ -164,6 +164,7 @@ from ephemeraldaddy.core.curse_scoring import (
     chart_cursedness_max,
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
+from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
@@ -11741,6 +11742,15 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
 
+        self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
+        self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
+        self.gemstone_chartwheel_button.setEnabled(False)
+        self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
+        self.gemstone_chartwheel_button.setToolTip(
+            "Render and export a gemstone chartwheel PNG for the currently open natal chart."
+        )
+        top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
+
         #Help Button
         self.help_overlay_button = QPushButton("❓") #"Help"
         self.help_overlay_button.setObjectName("help_overlay_toggle")
@@ -13420,6 +13430,47 @@ class MainWindow(QMainWindow):
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
 
+
+
+    def on_create_gemstone_chartwheel(self) -> None:
+        chart = self._latest_chart
+        if chart is None:
+            QMessageBox.information(
+                self,
+                "No chart loaded",
+                "Generate or load a chart before creating a gemstone chartwheel.",
+            )
+            return
+
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Gemstone Chartwheel",
+            default_filename,
+            "PNG Files (*.png)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".png"):
+            file_path = f"{file_path}.png"
+
+        try:
+            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Gemstone chartwheel export failed",
+                f"Could not create gemstone chartwheel:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Gemstone chartwheel exported",
+            f"Saved gemstone chartwheel to:\n{file_path}",
+        )
+
     def _on_aspects_sort_changed(self, _value: str) -> None:
         self._refresh_chart_summary()
 
@@ -14660,6 +14711,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -14996,6 +15048,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -15216,6 +15269,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self.export_chart_button.setEnabled(True)
         self.current_transits_button.setEnabled(True)
+        self.gemstone_chartwheel_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
