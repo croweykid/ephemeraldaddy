@@ -1704,7 +1704,7 @@ PLANET_KEYWORDS = {
     },
     "Jupiter": {
         "nouns": [
-            "learning", "teaching", "travel", "tries", "exploration", "groups",
+            "learning", "teaching", "travel", "attempts", "exploration", "groups",
             "advice", "study", "publishing", "promotion", "investments", "growth",
         ],
         "verbs": [
@@ -1900,8 +1900,8 @@ PLANET_KEYWORDS = {
     },
     "AS": {
         "nouns": [
-            "introductions", "arrival", "starts", "meetings", "first impressions", "initiative",
-            "reactions", "approaches", "tries", "testing", "style", "tone",
+            "introductions", "arrival", "beginnings", "first impressions", "initiative",
+            "reactions", "approaches", "style", "tone",
         ],
         "verbs": [
             "introducing yourself to", "showing up like", "meeting people via", "making first impressions", "taking initiative via",
