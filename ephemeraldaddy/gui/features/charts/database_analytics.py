@@ -26,6 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS
 
 
 class DatabaseAnalyticsChartsMixin:
@@ -115,9 +116,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         relationship_figure = Figure(figsize=(4.8, 5.8))
-        relationship_figure.patch.set_facecolor("#111111")
+        relationship_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         relationship_ax = relationship_figure.add_subplot(111)
-        relationship_ax.set_facecolor("#111111")
+        relationship_ax.set_facecolor(CHART_THEME_COLORS["background"])
         relationship_labels = list(RELATION_TYPE)
         relationship_display_labels = [
             self._format_selection_database_count_label(
@@ -152,17 +153,8 @@ class DatabaseAnalyticsChartsMixin:
                 labels=relationship_display_labels,
             )
             relationship_ax.invert_yaxis()
-            relationship_ax.tick_params(
-                axis="y",
-                labelsize=7.5,
-                colors="#f5f5f5",
-                pad=6,
-            )
-            relationship_ax.tick_params(
-                axis="x",
-                labelsize=7,
-                colors="#8b8b8b",
-            )
+            relationship_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+            relationship_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
             relationship_ax.set_xlabel("")
             relationship_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             relationship_ax.set_xticklabels(
@@ -177,7 +169,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_percent(database_value),
                     va="center",
                     ha="left",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -202,17 +194,8 @@ class DatabaseAnalyticsChartsMixin:
                 labels=relationship_display_labels,
             )
             relationship_ax.invert_yaxis()
-            relationship_ax.tick_params(
-                axis="y",
-                labelsize=7.5,
-                colors="#f5f5f5",
-                pad=6,
-            )
-            relationship_ax.tick_params(
-                axis="x",
-                labelsize=7,
-                colors="#8b8b8b",
-            )
+            relationship_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+            relationship_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
             relationship_ax.set_xlabel("")
             relationship_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             relationship_ax.set_xticklabels(
@@ -220,7 +203,7 @@ class DatabaseAnalyticsChartsMixin:
             )
             relationship_ax.axvline(
                 0,
-                color="#444444",
+                color=CHART_THEME_COLORS["spine"],
                 linewidth=1.5,
                 zorder=1,
             )
@@ -242,20 +225,15 @@ class DatabaseAnalyticsChartsMixin:
                         _format_percent(label_value),
                         va="center",
                         ha="left" if diff_value >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in relationship_ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in relationship_ax.get_yticklabels():
             tick_label.set_ha("right")
         relationship_figure.tight_layout()
-        relationship_figure.subplots_adjust(
-            left=0.36,
-            bottom=0.12,
-            right=0.97,
-            top=0.96,
-        )
+        relationship_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
 
         relationship_canvas = FigureCanvas(relationship_figure)
         self._configure_left_panel_canvas(
@@ -281,9 +259,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         # DB View's lefthand panel top graph dimensions
         figure = Figure(figsize=(5.6, 6.8))  # graph dimensions
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
         positive_total_color = "#39ff14"
         negative_total_color = "#ff1744"
         negative_start_display = len(positive_labels) + 1
@@ -329,8 +307,8 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, 0, 1)
             ax.set_yticks(y_positions, labels=display_labels_with_counts)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             ax.set_xticklabels(
@@ -345,7 +323,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_percent(database_value),
                     va="center",
                     ha="left",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -368,14 +346,14 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, -1, 1)
             ax.set_yticks(y_positions, labels=display_labels_with_counts)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels(
                 [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
             )
-            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, difference_value in zip(selection_bars, difference_values):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
@@ -394,11 +372,11 @@ class DatabaseAnalyticsChartsMixin:
                         _format_percent(label_value),
                         va="center",
                         ha="left" if difference_value >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label, label in zip(ax.get_yticklabels(), display_labels):
             tick_label.set_ha("right")
             if label == positive_total_label:
@@ -427,9 +405,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         # DB View's lefthand panel graph dimensions (for sign graph)?
         sign_figure = Figure(figsize=(4.8, 5.8))
-        sign_figure.patch.set_facecolor("#111111")
+        sign_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         sign_ax = sign_figure.add_subplot(111)
-        sign_ax.set_facecolor("#111111")
+        sign_ax.set_facecolor(CHART_THEME_COLORS["background"])
         sign_labels = list(ZODIAC_NAMES)
         sign_display_labels = [
             self._format_selection_database_count_label(
@@ -455,8 +433,8 @@ class DatabaseAnalyticsChartsMixin:
             sign_ax.set_xlim(0, 1)
             sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
             sign_ax.invert_yaxis()
-            sign_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            sign_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            sign_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
             sign_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             sign_ax.set_xticklabels(
@@ -471,7 +449,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_percent(database_value),
                     va="center",
                     ha="left",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -497,14 +475,14 @@ class DatabaseAnalyticsChartsMixin:
             sign_ax.set_xlim(-1, 1)
             sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
             sign_ax.invert_yaxis()
-            sign_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            sign_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            sign_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
             sign_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             sign_ax.set_xticklabels(
                 [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
             )
-            sign_ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            sign_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
@@ -523,11 +501,11 @@ class DatabaseAnalyticsChartsMixin:
                         _format_percent(label_value),
                         va="center",
                         ha="left" if diff_value >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in sign_ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in sign_ax.get_yticklabels():
             tick_label.set_ha("right")
         sign_figure.tight_layout()
@@ -549,9 +527,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         dominant_figure = Figure(figsize=(4.8, 5.8))
-        dominant_figure.patch.set_facecolor("#111111")
+        dominant_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         dominant_ax = dominant_figure.add_subplot(111)
-        dominant_ax.set_facecolor("#111111")
+        dominant_ax.set_facecolor(CHART_THEME_COLORS["background"])
         sign_labels = list(ZODIAC_NAMES)
         sign_display_labels = [
             self._format_selection_database_count_label(
@@ -577,8 +555,8 @@ class DatabaseAnalyticsChartsMixin:
             dominant_ax.set_xlim(0, 1)
             dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
             dominant_ax.invert_yaxis()
-            dominant_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            dominant_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            dominant_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
             dominant_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             dominant_ax.set_xticklabels(
@@ -593,7 +571,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_percent(database_value),
                     va="center",
                     ha="left",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -619,14 +597,14 @@ class DatabaseAnalyticsChartsMixin:
             dominant_ax.set_xlim(-1, 1)
             dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
             dominant_ax.invert_yaxis()
-            dominant_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            dominant_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            dominant_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
             dominant_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             dominant_ax.set_xticklabels(
                 [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
             )
-            dominant_ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            dominant_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
@@ -645,11 +623,11 @@ class DatabaseAnalyticsChartsMixin:
                         _format_percent(label_value),
                         va="center",
                         ha="left" if diff_value >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in dominant_ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in dominant_ax.get_yticklabels():
             tick_label.set_ha("right")
         dominant_figure.tight_layout()
@@ -670,9 +648,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 5.8))
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
         labels = list(selection_planets.keys())
         display_labels = [
             self._format_selection_database_count_label(
@@ -698,12 +676,12 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(0, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]])
             for bar, database_value in zip(bars, database_values):
-                ax.text(min(database_value + 0.02, 0.95), bar.get_y() + (bar.get_height() / 2), _format_percent(database_value), va="center", ha="left", color="#f5f5f5", fontsize=7.5)
+                ax.text(min(database_value + 0.02, 0.95), bar.get_y() + (bar.get_height() / 2), _format_percent(database_value), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
         else:
             differences = [selection - database for selection, database in zip(selection_values, database_values)]
             widths = [abs(value) for value in differences]
@@ -718,21 +696,21 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(-1, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
-            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(bars, differences):
                 width = bar.get_width()
                 if width <= 0:
                     continue
                 label_x = width if diff_value >= 0 else -width
                 label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
-                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(abs(diff_value)), va="center", ha="left" if diff_value >= 0 else "right", color="#f5f5f5", fontsize=7.5)
+                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(abs(diff_value)), va="center", ha="left" if diff_value >= 0 else "right", color=CHART_THEME_COLORS["text"], fontsize=7.5)
 
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         figure.tight_layout()
@@ -788,9 +766,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 12.0))
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
         labels = list(SPECIES_FAMILIES)
         display_labels = [
             self._format_selection_database_count_label(
@@ -816,8 +794,8 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(0, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
             ax.set_xticklabels(
@@ -832,7 +810,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_percent(database_value),
                     va="center",
                     ha="left",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -852,14 +830,14 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(-1, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels(
                 [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
             )
-            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(species_bars, differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
@@ -876,11 +854,11 @@ class DatabaseAnalyticsChartsMixin:
                         _format_percent(label_value),
                         va="center",
                         ha="left" if diff_value >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         figure.tight_layout()
@@ -900,9 +878,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 2.8))
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
         colors = ["#6fa8dc" for _ in labels]
 
         def _is_percent_metric(metric_label: str) -> bool:
@@ -936,11 +914,11 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, lower_bound, upper_bound)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
             if lower_bound < 0 < upper_bound:
-                ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+                ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, label, database_value in zip(bars, labels, database_values):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 label_x = database_value + (0.6 if database_value >= 0 else -0.6)
@@ -950,7 +928,7 @@ class DatabaseAnalyticsChartsMixin:
                     _format_metric_value(label, database_value),
                     va="center",
                     ha="left" if database_value >= 0 else "right",
-                    color="#f5f5f5",
+                    color=CHART_THEME_COLORS["text"],
                     fontsize=7.5,
                 )
         else:
@@ -971,10 +949,10 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
-            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
-            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, label, difference in zip(bars, labels, differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 width = bar.get_width()
@@ -991,11 +969,11 @@ class DatabaseAnalyticsChartsMixin:
                         _format_metric_value(label, difference, signed=True),
                         va="center",
                         ha="left" if difference >= 0 else "right",
-                        color="#f5f5f5",
+                        color=CHART_THEME_COLORS["text"],
                         fontsize=7.5,
                     )
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         figure.tight_layout()
@@ -1160,9 +1138,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 1.8))
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         display_value = selection_value if loaded_charts else database_value
         labels = [f"({self._minutes_to_label(display_value)}) {label}"]
@@ -1170,8 +1148,8 @@ class DatabaseAnalyticsChartsMixin:
         bars = ax.barh(positions, [display_value], color="#6fa8dc", height=0.55)
         ax.set_xlim(0, 24 * 60)
         ax.set_yticks(positions, labels=labels)
-        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5", pad=6)
-        ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+        ax.tick_params(axis="y", labelsize=8, colors=CHART_THEME_COLORS["text"], pad=6)
+        ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_xticks([0, 360, 720, 1080, 1439])
         ax.set_xticklabels(["00:00", "06:00", "12:00", "18:00", "23:59"])
         ax.set_xlabel("")
@@ -1183,11 +1161,11 @@ class DatabaseAnalyticsChartsMixin:
                 self._minutes_to_label(value),
                 va="center",
                 ha="left" if value < (24 * 60) - 40 else "right",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=7.5,
             )
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
 
@@ -1208,9 +1186,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
         figure = Figure(figsize=(4.8, chart_height))
-        figure.patch.set_facecolor("#111111")
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
-        ax.set_facecolor("#111111")
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         values = selection_counts if loaded_charts else database_counts
         display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
@@ -1220,8 +1198,8 @@ class DatabaseAnalyticsChartsMixin:
         self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
         ax.set_yticks(positions, labels=display_labels)
         ax.invert_yaxis()
-        ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
-        ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+        ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
+        ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_xlabel("")
         for bar, value in zip(bars, values):
             ax.text(
@@ -1230,11 +1208,11 @@ class DatabaseAnalyticsChartsMixin:
                 str(value),
                 va="center",
                 ha="left",
-                color="#f5f5f5",
+                color=CHART_THEME_COLORS["text"],
                 fontsize=7.5,
             )
         for spine in ax.spines.values():
-            spine.set_color("#444444")
+            spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
 
