@@ -40,6 +40,30 @@ OUTER_PLANETS = (
     "Pluto",
 )
 
+ACTUAL_GENDER_GEN_POP_LABELS: tuple[str, ...] = (
+    "F",
+    "M",
+    "AFAB-M",
+    "AMAB-F",
+    "AFAB-NB",
+    "AMAB-NB",
+)
+
+ACTUAL_GENDER_GEN_POP_DISTRIBUTION: dict[str, float] = {
+    "F": 0.4938,
+    "M": 0.4995,
+    "AFAB-M": 0.0,
+    "AMAB-F": 0.0,
+    "AFAB-NB": 0.0,
+    "AMAB-NB": 0.0,
+}
+
+ACTUAL_GENDER_GEN_POP_SUBHEADER = (
+    "This is based on a global estimate of gender distribution worldwide. "
+    "Statistics for nonbinary identities skew significantly by age group & "
+    "region too drastically to make educated generalizations."
+)
+
 SUN_SIGN_BIRTHS = {  # from CDC natality files
     1988: {
         "Aries": {"count": 311169, "percent": 7.95},
@@ -98,6 +122,9 @@ SUN_SIGN_BIRTHS = {  # from CDC natality files
         "Pisces": {"count": 303747, "percent": 8.07},
     },
 }
+
+
+
 
 
 def _sign_for_longitude(longitude: float) -> str:
