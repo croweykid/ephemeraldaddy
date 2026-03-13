@@ -164,6 +164,7 @@ from ephemeraldaddy.core.curse_scoring import (
     chart_cursedness_max,
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
+from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
@@ -186,6 +187,7 @@ from ephemeraldaddy.core.db import (
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
     GEN_POP_ACTUAL_GENDER_CAPTION,
+    GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS,
     gen_pop_actual_gender_counts,
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
@@ -245,6 +247,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     ASPECT_COLORS,
+    ASPECT_FRICTION,
     ASPECT_TYPES,
 )
 
@@ -2391,12 +2394,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _update_gender_subheader(self) -> None:
         subheader = getattr(self, "gender_subheader", None)
+        unknown_note = getattr(self, "gender_unknown_note", None)
         if subheader is None:
             return
-        if self._database_metrics_baseline_mode == "gen_pop" and self._gender_mode == "actual_gender":
+        show_unknown_note = (
+            self._database_metrics_baseline_mode == "gen_pop"
+            and self._gender_mode == "actual_gender"
+        )
+        if show_unknown_note:
             subheader.setText(GEN_POP_ACTUAL_GENDER_CAPTION)
-            return
-        subheader.setText("Actual + guessed gender distribution")
+        else:
+            subheader.setText("Actual + guessed gender distribution")
+        if unknown_note is not None:
+            unknown_note.setVisible(show_unknown_note)
 
     def _gen_pop_planet_sign_norms_for_database_size(
         self,
@@ -3283,6 +3293,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["gender"] = self.gender_chart_layout
         gender_section_layout.addWidget(self.gender_chart_container)
+        self.gender_unknown_note = add_database_subheader(
+            f"*unknown for: {', '.join(GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS)}"
+        )
+        self.gender_unknown_note.setVisible(False)
+        gender_section_layout.addWidget(self.gender_unknown_note)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -4115,9 +4130,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _collect_aspect_category_totals(
         self,
         aspect_counts: OrderedDict[str, int],
+        *,
+        categories: dict[str, dict[str, Any]],
     ) -> OrderedDict[str, int]:
         category_totals: OrderedDict[str, int] = OrderedDict()
-        for category_name, category_meta in ASPECT_TYPES.items():
+        for category_name, category_meta in categories.items():
             category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
             total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
             if total > 0:
@@ -4130,15 +4147,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         mode: str,
         aspect_counts: OrderedDict[str, int],
-        category_totals: OrderedDict[str, int],
+        type_totals: OrderedDict[str, int],
+        friction_totals: OrderedDict[str, int],
     ) -> None:
         analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         if mode == "aspect_types":
-            active_counts = category_totals
+            active_counts = type_totals
             labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction":
+            active_counts = friction_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         else:
             active_counts = aspect_counts
             labels = [key.replace("_", " ").title() for key in active_counts.keys()]
@@ -4146,20 +4168,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         values = list(active_counts.values())
         if values:
-            bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
-            analytics_ax.invert_yaxis()
-            max_value = max(values)
-            analytics_ax.set_xlim(0, max(1.0, max_value * 1.25))
-            for bar, value in zip(bars, values):
-                analytics_ax.text(
-                    bar.get_width() + (0.05 * max(1.0, max_value)),
-                    bar.get_y() + (bar.get_height() / 2),
-                    str(value),
-                    va="center",
-                    ha="left",
-                    color=CHART_THEME_COLORS["text"],
-                    fontsize=8,
-                )
+            total = sum(values)
+            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            analytics_ax.pie(
+                values,
+                labels=formatted_labels,
+                colors=colors,
+                startangle=90,
+                counterclock=False,
+                wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
+                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
+                pctdistance=0.72,
+                labeldistance=1.08,
+            )
+            analytics_ax.axis("equal")
         else:
             analytics_ax.text(
                 0.5,
@@ -4176,9 +4199,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
-        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
-        analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
+        analytics_ax.set_xticks([])
+        analytics_ax.set_yticks([])
 
     def _build_popout_left_panel(
         self,
@@ -4201,6 +4223,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
         analytics_view_dropdown.addItem("ASPECTS", "aspects")
         analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
         analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
 
         analytics_header_layout.addStretch(1)
@@ -4225,12 +4248,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        category_totals = self._collect_aspect_category_totals(aspect_counts)
+        type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
 
         def _export_selected_aspect_distribution(_checked: bool = False) -> None:
             selected_mode = analytics_view_dropdown.currentData()
-            selected_counts = category_totals if selected_mode == "aspect_types" else aspect_counts
-            export_stem = f"{export_file_stem}_aspect_types" if selected_mode == "aspect_types" else export_file_stem
+            if selected_mode == "aspect_types":
+                selected_counts = type_totals
+                export_stem = f"{export_file_stem}_aspect_types"
+            elif selected_mode == "aspect_friction":
+                selected_counts = friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction"
+            else:
+                selected_counts = aspect_counts
+                export_stem = export_file_stem
             _export_aspect_distribution_csv_dialog(
                 self,
                 selected_counts,
@@ -4245,9 +4276,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 analytics_ax,
                 mode=selected_mode,
                 aspect_counts=aspect_counts,
-                category_totals=category_totals,
+                type_totals=type_totals,
+                friction_totals=friction_totals,
             )
-            analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+            analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
             analytics_canvas.draw_idle()
 
         analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
@@ -7249,13 +7281,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
                 if self._database_metrics_baseline_mode == "gen_pop":
-                    gender_labels = ["F", "M", "AFAB-M", "AMAB-F", "AFAB-NB", "AMAB-NB"]
+                    gender_labels = ["F", "M"]
                     selection_gender_counts = {
                         label: int(selection_gender_counts_raw.get(label, 0))
                         for label in gender_labels
                     }
                     baseline_sample_size = loaded_charts if loaded_charts > 0 else database_loaded_charts
-                    database_gender_counts = gen_pop_actual_gender_counts(baseline_sample_size)
+                    gen_pop_counts = gen_pop_actual_gender_counts(baseline_sample_size)
+                    database_gender_counts = {label: int(gen_pop_counts.get(label, 0)) for label in gender_labels}
                 else:
                     database_gender_counts_raw: Counter[str] = Counter()
                     for chart_id in database_cache["chart_ids"]:
@@ -12041,6 +12074,15 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
 
+        self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
+        self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
+        self.gemstone_chartwheel_button.setEnabled(False)
+        self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
+        self.gemstone_chartwheel_button.setToolTip(
+            "Render and export a gemstone chartwheel PNG for the currently open natal chart."
+        )
+        top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
+
         #Help Button
         self.help_overlay_button = QPushButton("❓") #"Help"
         self.help_overlay_button.setObjectName("help_overlay_toggle")
@@ -13733,6 +13775,47 @@ class MainWindow(QMainWindow):
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
 
+
+
+    def on_create_gemstone_chartwheel(self) -> None:
+        chart = self._latest_chart
+        if chart is None:
+            QMessageBox.information(
+                self,
+                "No chart loaded",
+                "Generate or load a chart before creating a gemstone chartwheel.",
+            )
+            return
+
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Gemstone Chartwheel",
+            default_filename,
+            "PNG Files (*.png)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".png"):
+            file_path = f"{file_path}.png"
+
+        try:
+            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Gemstone chartwheel export failed",
+                f"Could not create gemstone chartwheel:\n{exc}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Gemstone chartwheel exported",
+            f"Saved gemstone chartwheel to:\n{file_path}",
+        )
+
     def _on_aspects_sort_changed(self, _value: str) -> None:
         self._refresh_chart_summary()
 
@@ -14973,6 +15056,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -15309,6 +15393,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
+        self.gemstone_chartwheel_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -15529,6 +15614,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self.export_chart_button.setEnabled(True)
         self.current_transits_button.setEnabled(True)
+        self.gemstone_chartwheel_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
@@ -15704,9 +15790,11 @@ class MainWindow(QMainWindow):
     def _collect_aspect_category_totals(
         self,
         aspect_counts: OrderedDict[str, int],
+        *,
+        categories: dict[str, dict[str, Any]],
     ) -> OrderedDict[str, int]:
         category_totals: OrderedDict[str, int] = OrderedDict()
-        for category_name, category_meta in ASPECT_TYPES.items():
+        for category_name, category_meta in categories.items():
             category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
             total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
             if total > 0:
@@ -15719,15 +15807,20 @@ class MainWindow(QMainWindow):
         *,
         mode: str,
         aspect_counts: OrderedDict[str, int],
-        category_totals: OrderedDict[str, int],
+        type_totals: OrderedDict[str, int],
+        friction_totals: OrderedDict[str, int],
     ) -> None:
         analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         if mode == "aspect_types":
-            active_counts = category_totals
+            active_counts = type_totals
             labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction":
+            active_counts = friction_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         else:
             active_counts = aspect_counts
             labels = [key.replace("_", " ").title() for key in active_counts.keys()]
@@ -15735,20 +15828,21 @@ class MainWindow(QMainWindow):
 
         values = list(active_counts.values())
         if values:
-            bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
-            analytics_ax.invert_yaxis()
-            max_value = max(values)
-            analytics_ax.set_xlim(0, max(1.0, max_value * 1.25))
-            for bar, value in zip(bars, values):
-                analytics_ax.text(
-                    bar.get_width() + (0.05 * max(1.0, max_value)),
-                    bar.get_y() + (bar.get_height() / 2),
-                    str(value),
-                    va="center",
-                    ha="left",
-                    color=CHART_THEME_COLORS["text"],
-                    fontsize=8,
-                )
+            total = sum(values)
+            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            analytics_ax.pie(
+                values,
+                labels=formatted_labels,
+                colors=colors,
+                startangle=90,
+                counterclock=False,
+                wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
+                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
+                pctdistance=0.72,
+                labeldistance=1.08,
+            )
+            analytics_ax.axis("equal")
         else:
             analytics_ax.text(
                 0.5,
@@ -15765,9 +15859,8 @@ class MainWindow(QMainWindow):
 
         for spine in analytics_ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
-        analytics_ax.tick_params(axis="x", **{**CHART_AXES_STYLE["x_tick"], "colors": CHART_THEME_COLORS["text"]})
-        analytics_ax.tick_params(axis="y", **{**CHART_AXES_STYLE["y_tick"], "colors": CHART_THEME_COLORS["text"]})
-        analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
+        analytics_ax.set_xticks([])
+        analytics_ax.set_yticks([])
 
     def _build_popout_left_panel(
         self,
@@ -15790,6 +15883,7 @@ class MainWindow(QMainWindow):
         analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
         analytics_view_dropdown.addItem("ASPECTS", "aspects")
         analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
         analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
 
         analytics_header_layout.addStretch(1)
@@ -15814,12 +15908,20 @@ class MainWindow(QMainWindow):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        category_totals = self._collect_aspect_category_totals(aspect_counts)
+        type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
 
         def _export_selected_aspect_distribution(_checked: bool = False) -> None:
             selected_mode = analytics_view_dropdown.currentData()
-            selected_counts = category_totals if selected_mode == "aspect_types" else aspect_counts
-            export_stem = f"{export_file_stem}_aspect_types" if selected_mode == "aspect_types" else export_file_stem
+            if selected_mode == "aspect_types":
+                selected_counts = type_totals
+                export_stem = f"{export_file_stem}_aspect_types"
+            elif selected_mode == "aspect_friction":
+                selected_counts = friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction"
+            else:
+                selected_counts = aspect_counts
+                export_stem = export_file_stem
             _export_aspect_distribution_csv_dialog(
                 self,
                 selected_counts,
@@ -15834,9 +15936,10 @@ class MainWindow(QMainWindow):
                 analytics_ax,
                 mode=selected_mode,
                 aspect_counts=aspect_counts,
-                category_totals=category_totals,
+                type_totals=type_totals,
+                friction_totals=friction_totals,
             )
-            analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+            analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
             analytics_canvas.draw_idle()
 
         analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
