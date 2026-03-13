@@ -595,14 +595,14 @@ HOUSE_COLORS = {
 }
 
 ASPECT_COLORS = {
-    "conjunction": DARK_THEME["aspect_conjunction"],
-    "sextile":     DARK_THEME["aspect_sextile"],
-    "square":      DARK_THEME["aspect_square"],
-    "trine":       DARK_THEME["aspect_trine"],
-    "opposition":  DARK_THEME["aspect_opposition"],
+    "conjunction": "#aaaaaa",
+    "sextile":     "#4caf50",
+    "square":      "#f44336",
+    "trine":       "#2196f3",
+    "opposition":  "#ff9800",
     "quincunx":    "white",
-    "semisquare":  "white",
-    "sesquiquadrate": "white",
+    "semisquare":  "azure",
+    "sesquiquadrate": "grey",
 }
 
 NAKSHATRA_PLANET_COLOR = {
