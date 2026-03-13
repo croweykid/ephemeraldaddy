@@ -2677,6 +2677,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
+        self.database_metrics_panel_header_label = QLabel("Database Analytics")
+        self.database_metrics_panel_header_label.setStyleSheet(
+            "font-weight: bold; color: #f5f5f5;"
+        )
+        layout.addWidget(self.database_metrics_panel_header_label)
+
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
@@ -7418,17 +7424,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
         layout.addWidget(year_first_encountered_section)
 
-        species_filter_row = QHBoxLayout()
-        species_filter_row.addWidget(QLabel("D&D species (top 3)"))
-        self.species_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.species_filter_combo)
-        self.species_filter_combo.addItem("Any", "Any")
-        for species in SPECIES_FAMILIES:
-            self.species_filter_combo.addItem(species, species)
-        self.species_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        species_filter_row.addWidget(self.species_filter_combo, 1)
-        layout.addLayout(species_filter_row)
-
         sentiment_section, sentiment_group_layout = add_collapsible_section("Sentiments")
 
         sentiment_mode_layout = QHBoxLayout()
@@ -7749,6 +7744,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dominant_element_layout.addRow(secondary_row)
 
         layout.addWidget(dominant_element_section)
+
+        dnd_species_section, dnd_species_group_layout = add_collapsible_section(
+            "D&D Species"
+        )
+        species_filter_row = QHBoxLayout()
+        species_filter_row.addWidget(QLabel("Top 3 result"))
+        self.species_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.species_filter_combo)
+        self.species_filter_combo.addItem("Any", "Any")
+        for species in SPECIES_FAMILIES:
+            self.species_filter_combo.addItem(species, species)
+        self.species_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        species_filter_row.addWidget(self.species_filter_combo, 1)
+        dnd_species_group_layout.addLayout(species_filter_row)
+        layout.addWidget(dnd_species_section)
 
         button_row = QHBoxLayout()
         button_row.addStretch(1)
@@ -9075,6 +9085,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_left_panel_visible(True)
 
         if panel_name == "database_metrics":
+            self.database_metrics_panel_header_label.setText("Database Analytics")
             self._database_metrics_baseline_mode = "database"
             self._settings.setValue(
                 "manage_charts/database_metrics_baseline_mode",
@@ -9086,6 +9097,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_similarities=False,
             )
         elif panel_name == "gen_pop_norms":
+            self.database_metrics_panel_header_label.setText("General Population")
             self._database_metrics_baseline_mode = "gen_pop"
             self._settings.setValue(
                 "manage_charts/database_metrics_baseline_mode",
