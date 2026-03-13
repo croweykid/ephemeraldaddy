@@ -12500,13 +12500,24 @@ class MainWindow(QMainWindow):
             if not selected_planet:
                 return []
             metric_scores = scores.get(selected_planet, {})
-            return [["planet", selected_planet]] + [[metric, metric_scores.get(metric, 0.0)] for metric in (
+            metric_label_map = {
+                "stability": "Groundedness",
+                "constructiveness": "Productivity",
+                "volatility": "Reactivity",
+                "fragility": "Fragility",
+                "adaptability": "Resilience",
+            }
+            metric_order = (
                 "stability",
                 "constructiveness",
                 "volatility",
                 "fragility",
                 "adaptability",
-            )]
+            )
+            return [["planet", selected_planet]] + [
+                [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
+                for metric in metric_order
+            ]
         return []
 
     def _export_chart_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
@@ -13184,7 +13195,7 @@ class MainWindow(QMainWindow):
             "fragility",
             "adaptability",
         ]
-        metric_labels = ["Stability", "Constructive", "Volatility", "Fragility", "Adaptability"]
+        metric_labels = ["Groundedness", "Productivity", "Reactivity", "Fragility", "Resilience"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
         bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
 
