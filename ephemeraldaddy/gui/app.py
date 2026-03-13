@@ -12030,6 +12030,7 @@ class MainWindow(QMainWindow):
         self._metric_scroll_widgets: set[QWidget] = set()
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
+        self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
         self._chart_analysis_section_expanded: dict[str, bool] = {}
@@ -13843,12 +13844,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_label, 0)
 
         self._register_popout_shortcuts(dialog)
-        if not hasattr(self, "_gemstone_chartwheel_popouts"):
-            self._gemstone_chartwheel_popouts = []
         self._gemstone_chartwheel_popouts.append(dialog)
         dialog.destroyed.connect(
             lambda _=None, d=dialog: self._gemstone_chartwheel_popouts.remove(d)
-            if hasattr(self, "_gemstone_chartwheel_popouts") and d in self._gemstone_chartwheel_popouts
+            if d in self._gemstone_chartwheel_popouts
             else None
         )
 
