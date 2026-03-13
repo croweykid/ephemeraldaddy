@@ -7677,16 +7677,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
         target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
         scrollbar.setValue(target_value)
-
-        def _apply_target_after_range_change(*_) -> None:
-            try:
-                scrollbar.rangeChanged.disconnect(_apply_target_after_range_change)
-            except Exception:
-                pass
-            bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-            scrollbar.setValue(bounded_value)
-
-        scrollbar.rangeChanged.connect(_apply_target_after_range_change)
+        QTimer.singleShot(
+            0,
+            lambda: scrollbar.setValue(
+                max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
+            ),
+        )
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
