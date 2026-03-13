@@ -1108,8 +1108,8 @@ def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
 
-def _aspect_score(asp: dict) -> float:
-    return aspect_score(asp)
+def _aspect_score(asp: dict, planet_weights: dict[str, float] | None = None) -> float:
+    return aspect_score(asp, planet_weights=planet_weights)
 
 
 def _aspect_duration_score(asp: dict) -> float:
@@ -1450,7 +1450,14 @@ def format_chart_text(
         #         if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
         #     ]
         sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-        sorted_aspects = _sort_natal_aspects(filtered_aspects, sort_mode)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        sorted_aspects = _sort_natal_aspects(
+            filtered_aspects,
+            sort_mode,
+            planet_weights=dominant_planet_weights,
+        )
         positions = getattr(chart, "positions", {})
         aspect_body_labels: dict[str, str] = {}
         for asp in sorted_aspects:
@@ -13708,7 +13715,13 @@ class MainWindow(QMainWindow):
                 for asp in filtered_aspects
                 if asp.get("p1") not in angular_bodies and asp.get("p2") not in angular_bodies
             ]
-        filtered_aspects.sort(key=_aspect_score, reverse=True)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        filtered_aspects.sort(
+            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
+            reverse=True,
+        )
         if not filtered_aspects:
             lines.append("| — | — | — | — | — | — |")
         for asp in filtered_aspects:
@@ -13716,7 +13729,7 @@ class MainWindow(QMainWindow):
                 "| "
                 f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
                 f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp):.2f} |"
+                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
             )
 
         lines.extend([
