@@ -4032,6 +4032,104 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else None
         )
 
+    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
+        return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+        counts: Counter[str] = Counter()
+        for entry in aspect_entries:
+            aspect_value = getattr(entry, "aspect", None)
+            if aspect_value is None:
+                aspect_value = getattr(entry, "type", None)
+            if aspect_value is None and isinstance(entry, dict):
+                aspect_value = entry.get("aspect") or entry.get("type")
+            aspect_key = self._normalize_aspect_type(aspect_value)
+            if not aspect_key:
+                continue
+            counts[aspect_key] += 1
+
+        ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
+        for key in sorted(counts.keys()):
+            if key not in ordered_keys and counts[key] > 0:
+                ordered_keys.append(key)
+        return OrderedDict((key, counts[key]) for key in ordered_keys)
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        left_panel_layout.addWidget(analytics_label)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        if aspect_counts:
+            labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
+            values = list(aspect_counts.values())
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in aspect_counts.keys()]
+            bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
+            analytics_ax.invert_yaxis()
+            max_value = max(values)
+            analytics_ax.set_xlim(0, max(1.0, max_value * 1.25))
+            for bar, value in zip(bars, values):
+                analytics_ax.text(
+                    bar.get_width() + (0.05 * max(1.0, max_value)),
+                    bar.get_y() + (bar.get_height() / 2),
+                    str(value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=8,
+                )
+        else:
+            analytics_ax.text(
+                0.5,
+                0.5,
+                "No relevant aspects",
+                color=CHART_THEME_COLORS["muted_text"],
+                ha="center",
+                va="center",
+                transform=analytics_ax.transAxes,
+                fontsize=8,
+            )
+            analytics_ax.set_xticks([])
+            analytics_ax.set_yticks([])
+
+        for spine in analytics_ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
+        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
+        analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+        analytics_canvas.setMinimumHeight(220)
+        analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        analytics_canvas.draw_idle()
+        left_panel_layout.addWidget(analytics_canvas, 2)
+
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(chart_info_placeholder)
+        chart_info_output.setMinimumWidth(250)
+        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
+        left_panel_layout.addWidget(chart_info_label)
+        left_panel_layout.addWidget(chart_info_output, 1)
+
+        layout.addLayout(left_panel_layout, 1)
+        return chart_info_output
+
     def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]:
         if sort_mode == "Aspect":
             return sorted(
@@ -15348,8 +15446,10 @@ class MainWindow(QMainWindow):
         counts: Counter[str] = Counter()
         for entry in aspect_entries:
             aspect_value = getattr(entry, "aspect", None)
+            if aspect_value is None:
+                aspect_value = getattr(entry, "type", None)
             if aspect_value is None and isinstance(entry, dict):
-                aspect_value = entry.get("aspect")
+                aspect_value = entry.get("aspect") or entry.get("type")
             aspect_key = self._normalize_aspect_type(aspect_value)
             if not aspect_key:
                 continue
