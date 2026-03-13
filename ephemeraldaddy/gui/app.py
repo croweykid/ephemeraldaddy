@@ -372,6 +372,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -1989,6 +1990,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
+        self.right_panel_stack.setMinimumWidth(420)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -2013,6 +2015,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_analysis_panel
         )
         self.left_panel_stack = QStackedWidget()
+        self.left_panel_stack.setMinimumWidth(260)
         self._left_panel_widgets = {
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
@@ -2069,9 +2072,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Database View - Content splitter (left panel stack, center list, right panel stack).
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
+        self._content_splitter.setChildrenCollapsible(False)
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
+        self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
@@ -2816,6 +2823,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
+        def add_database_subheader(text: str = "") -> QLabel:
+            subheader = QLabel(text)
+            subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
+            return subheader
+
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
@@ -2841,8 +2854,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
             show_title=False,
         )
-        self.position_sign_distribution_subheader = QLabel()
-        self.position_sign_distribution_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.position_sign_distribution_subheader = add_database_subheader()
         self._update_position_sign_subheader()
         position_sign_section_layout.addWidget(self.position_sign_distribution_subheader)
         (
@@ -2875,8 +2887,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel("Distribution of sentiments in database")
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        sentiment_subheader = add_database_subheader("Distribution of sentiments in database")
         sentiment_section_layout.addWidget(sentiment_subheader)
         #Sentiment Prevalence Chart
         (
@@ -2918,10 +2929,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "relationship_prevalence",
             show_title=False,
         )
-        relationship_subheader = QLabel(
+        relationship_subheader = add_database_subheader(
             "Distribution of relationship types in database"
         )
-        relationship_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         relationship_section_layout.addWidget(relationship_subheader)
 
         #Relationship Prevalence Chart
@@ -2963,10 +2973,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "social_score_summary",
             show_title=False,
         )
-        social_score_subheader = QLabel(
+        social_score_subheader = add_database_subheader(
             "Median, average, and cumulative share of DB social score"
         )
-        social_score_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         social_score_section_layout.addWidget(social_score_subheader)
         (
             self.social_score_summary_chart_container,
@@ -2998,10 +3007,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel(
+        sentiment_subheader = add_database_subheader(
             "Distribution of signs (all positions) in database"
         )
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         sign_section_layout.addWidget(sentiment_subheader)
         #Sign Prevalence Chart
         (
@@ -3040,8 +3048,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = QLabel("Dominant signs in database (by weight)")
-        self.dominant_factors_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.dominant_factors_subheader = add_database_subheader("Dominant signs in database (by weight)")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3080,8 +3087,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        species_subheader = QLabel("Distribution of D&D species in database")
-        species_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        species_subheader = add_database_subheader("Distribution of D&D species in database")
         species_section_layout.addWidget(species_subheader)
 
         #Species Distribution Chart
@@ -3119,8 +3125,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_time_subheader = QLabel("Birth time summary across loaded charts")
-        birth_time_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
         birth_time_section_layout.addWidget(birth_time_subheader)
         (
             self.birth_time_chart_container,
@@ -3153,8 +3158,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        age_subheader = QLabel("Distribution of age and total time known")
-        age_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        age_subheader = add_database_subheader("Distribution of age and total time known")
         age_section_layout.addWidget(age_subheader)
         (
             self.age_chart_container,
@@ -3187,8 +3191,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_month_subheader = QLabel("Birth month and recurring birth date patterns")
-        birth_month_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
         birth_month_section_layout.addWidget(birth_month_subheader)
         (
             self.birth_month_chart_container,
@@ -3222,8 +3225,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birthplace_subheader = QLabel("Birthplace distribution and recurring locations")
-        birthplace_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
         birth_place_section_layout.addWidget(birthplace_subheader)
         (
             self.birthplace_chart_container,
@@ -3257,8 +3259,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        gender_subheader = QLabel("Actual + guessed gender distribution")
-        gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        gender_subheader = add_database_subheader("Actual + guessed gender distribution")
         gender_section_layout.addWidget(gender_subheader)
         (
             self.gender_chart_container,
