@@ -7171,20 +7171,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
                 known_labels = [*GENDER_OPTIONS, "Unknown"]
                 custom_labels = sorted(
-                    {
+                    label
+                    for label in {
                         *selection_gender_counts_raw.keys(),
                         *database_gender_counts_raw.keys(),
                     }
                     - set(known_labels)
-                )
-                gender_labels = [
-                    label
-                    for label in [*known_labels, *custom_labels]
                     if selection_gender_counts_raw.get(label, 0) > 0
                     or database_gender_counts_raw.get(label, 0) > 0
-                ]
-                if not gender_labels:
-                    gender_labels = ["Unknown"]
+                )
+                # Keep the full known gender assignment set visible (even at zero)
+                # so this chart stays in sync with Chart View / Search dropdowns.
+                gender_labels = [*known_labels, *custom_labels]
                 selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
                 database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
