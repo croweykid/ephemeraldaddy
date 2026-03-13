@@ -1993,7 +1993,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
-        self.right_panel_stack.setMinimumWidth(420)
+        self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -2018,7 +2018,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_analysis_panel
         )
         self.left_panel_stack = QStackedWidget()
-        self.left_panel_stack.setMinimumWidth(260)
+        self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
@@ -2079,6 +2079,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
+        self._content_splitter.setCollapsible(0, True)
+        self._content_splitter.setCollapsible(2, True)
         self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
@@ -9519,8 +9521,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
-    def _set_right_panel_visible(self, visible: bool) -> None:
+    def _is_right_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[2] <= 0
+
+    def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
@@ -9534,11 +9542,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._content_splitter.setSizes([left_size, middle_size, 0])
             return
 
-        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
             self._content_splitter.setSizes(self._right_panel_sizes)
 
-    def _set_left_panel_visible(self, visible: bool) -> None:
+    def _is_left_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[0] <= 0
+
+    def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._left_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._left_panel_visible = visible
         self.left_panel_stack.setVisible(visible)
@@ -9550,6 +9566,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 right_size = sizes[2]
                 middle_size = max(0, total - right_size)
                 self._content_splitter.setSizes([0, middle_size, right_size])
+            return
+
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
@@ -9567,7 +9587,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True)
+        self._set_left_panel_visible(True, restore_default_size=True)
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -9607,26 +9627,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if (
             self._left_panel_visible
             and self._active_left_panel == "database_metrics"
+            and not self._is_left_panel_collapsed()
         ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("database_metrics")
 
     def _toggle_gen_pop_norms_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "gen_pop_norms":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "gen_pop_norms"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("gen_pop_norms")
 
     def _toggle_todays_transits_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "todays_transits":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "todays_transits"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._refresh_todays_transits_panel()
         self._show_left_panel("todays_transits")
 
     def _toggle_similarities_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "similarities":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("similarities")
@@ -9649,16 +9682,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True)
+        self._set_right_panel_visible(True, restore_default_size=True)
 
     def _toggle_search_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "search":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "search"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("search")
 
     def _toggle_edit_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "edit":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "edit"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("edit")
@@ -12993,6 +13034,7 @@ class MainWindow(QMainWindow):
         bars = ax.bar(signs, values, color=colors)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -13463,6 +13505,7 @@ class MainWindow(QMainWindow):
 
         bars = ax.bar(metric_labels, values, color=bar_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(10.0, max_value + 0.8))
         ax.set_anchor("W")
