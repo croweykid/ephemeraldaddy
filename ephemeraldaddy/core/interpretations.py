@@ -164,17 +164,17 @@ ASPECT_SCORE_WEIGHTS = {
 }
 
 ASPECT_SCORE_MULTIPLIERS = {
-    "conjunction": 1,
-    "opposition": .9,
-    "trine": .85,
-    "square": .8,
-    "sextile": .7,
-    "quincunx": .2,
-    "semisextile": .1,
-    "semisquare": .1,
-    "sesquiquadrate": .1,
-    "quintile": .1,
-    "biquintile": .1,
+    "conjunction": 1, #1.3
+    "opposition": .9, #1.2
+    "trine": .85, #1.15
+    "square": .8, #1
+    "sextile": .7, #.8
+    "quincunx": .2, #.75
+    "semisextile": .1, #.65
+    "semisquare": .1, #.7
+    "sesquiquadrate": .1, #.5
+    "quintile": .1, #.6
+    "biquintile": .1, #.65
 }
 
 
