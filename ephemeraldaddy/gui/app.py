@@ -7728,7 +7728,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         cleanup_timer = QTimer(scrollbar)
         cleanup_timer.setSingleShot(True)
-        cleanup_timer.setInterval(160)
+        cleanup_timer.setInterval(750)
         cleanup_timer.timeout.connect(_cleanup_handler)
 
         def _on_range_changed(*_) -> None:
@@ -7741,6 +7741,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         _apply_target()
         QTimer.singleShot(0, _apply_target)
+        QTimer.singleShot(60, _apply_target)
+        QTimer.singleShot(220, _apply_target)
         cleanup_timer.start()
 
     @staticmethod
@@ -10050,18 +10052,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        active_left_scrollbar = None
+        active_left_scroll_value = None
+        if self._left_panel_visible:
+            active_left_panel = self._left_panel_widgets.get(self._active_left_panel)
+            if isinstance(active_left_panel, QScrollArea):
+                active_left_scrollbar = active_left_panel.verticalScrollBar()
+                active_left_scroll_value = active_left_scrollbar.value()
+
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
-        self._update_sentiment_tally(
-            update_database_metrics=(
-                self._left_panel_visible
-                and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-            ),
-            update_similarities=(
-                self._left_panel_visible
-                and self._active_left_panel == "similarities"
-            ),
-        )
+        try:
+            self._update_sentiment_tally(
+                update_database_metrics=(
+                    self._left_panel_visible
+                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+                ),
+                update_similarities=(
+                    self._left_panel_visible
+                    and self._active_left_panel == "similarities"
+                ),
+            )
+        finally:
+            if active_left_scrollbar is not None and active_left_scroll_value is not None:
+                self._restore_scrollbar_position(
+                    active_left_scrollbar,
+                    active_left_scroll_value,
+                )
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
