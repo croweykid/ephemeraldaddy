@@ -1,5 +1,15 @@
-"""Generate a concentric planetary color wheel chart."""
+"""Generate a concentric planetary color wheel chart.
 
+Run examples:
+- From repository root (preferred):
+  `python -m ephemeraldaddy.graphics.chartwheel_generator`
+- From this directory:
+  `python -m chartwheel_generator`
+
+Note: when using `-m`, do not include the `.py` suffix.
+"""
+
+import argparse
 from pathlib import Path
 import sys
 
@@ -63,7 +73,16 @@ def draw_chartwheel(output_path: Path) -> Path:
 
 
 def main() -> None:
-    output_path = Path("chartwheel.png")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="chartwheel.png",
+        help="Path to output image (default: chartwheel.png)",
+    )
+    args = parser.parse_args()
+
+    output_path = Path(args.output)
     saved_path = draw_chartwheel(output_path)
     print(f"Chart wheel saved to: {saved_path.resolve()}")
 
