@@ -39,7 +39,8 @@ ZODIAC_SIGNS = [
 DEFAULT_WINDOW_SIZE_PX = 600
 DEFAULT_OUTPUT_SIZE_PX = 600
 
-
+SIGN_WHEEL_CANVAS_SIZE_PX = 2033
+SIGN_WHEEL_DISC_DIAMETER_PX = 1632
 
 SIGN_WHEELS = getattr(interpretations, "SIGN_WHEELS", {})
 SIGN_WHEEL_IMAGE_CACHE: dict[str, object | None] = {}
@@ -83,6 +84,13 @@ def _sign_wheel_image(sign: str):
 
     return SIGN_WHEEL_IMAGE_CACHE[sign]
 
+
+
+
+def _image_extent_radius_for_disc(max_radius: float) -> float:
+    if SIGN_WHEEL_DISC_DIAMETER_PX <= 0:
+        return max_radius
+    return max_radius * (SIGN_WHEEL_CANVAS_SIZE_PX / SIGN_WHEEL_DISC_DIAMETER_PX)
 
 def _ring_inner_radius(sorted_diameters: list[tuple[str, int]], index: int) -> float:
     if index + 1 >= len(sorted_diameters):
@@ -186,6 +194,7 @@ def draw_chartwheel(output_path: Path) -> Path:
     ax.set_facecolor("none")
 
     sorted_diameters = sorted(PLANET_DIAMETERS.items(), key=lambda entry: entry[1], reverse=True)
+    image_extent_radius = _image_extent_radius_for_disc(max_radius)
 
     for z_index, (planet, diameter) in enumerate(sorted_diameters, start=1):
         outer_radius = diameter / 2
@@ -196,7 +205,12 @@ def draw_chartwheel(output_path: Path) -> Path:
         if wheel_image is not None:
             ring_image = ax.imshow(
                 wheel_image,
-                extent=(-max_radius, max_radius, -max_radius, max_radius),
+                extent=(
+                    -image_extent_radius,
+                    image_extent_radius,
+                    -image_extent_radius,
+                    image_extent_radius,
+                ),
                 zorder=z_index,
             )
             ring_clip = Wedge(
