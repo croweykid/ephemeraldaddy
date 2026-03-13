@@ -1995,31 +1995,31 @@ HOUSE_KEYWORDS = { #Areas of Life
 
 ASPECT_TYPES = {
     "chill vibes": {
-        "color": "blue",
+        "color": "#6666ff", #violet
         "aspects": {"sextile", "trine"},
     },
     "stress/friction": {
-        "color": "red",
+        "color": "#b30000", #brick red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
     },
     "amplifying/situational": {
-        "color": "yellow",
+        "color": "#ffff00", #aggro yellow
         "aspects": {"conjunction", "semisextile"},
     },
     "creative/technical": {
-        "color": "purple",
+        "color": "#9966ff", #lavender
         "aspects": {"quintile", "biquintile"},
     },
     "harmonious": {
-        "color": "blue",
+        "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
     },
     "conflicted": {
-        "color": "red",
+        "color": "#ff0000", #murdery red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
     },
     "neutral/variable": {
-        "color": "yellow",
+        "color": "#ffff66", #chill yellow
         "aspects": {"conjunction", "semisextile"},
     },
 }
