@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Wedge
 
-from ..core.interpretations import PLANET_COLORS, SIGN_COLORS
+from ..core.interpretations import SIGN_COLORS
 
 PLANET_DIAMETERS = {
     "Sun": 350,
@@ -42,10 +42,38 @@ DEFAULT_WINDOW_SIZE_PX = 600
 DEFAULT_OUTPUT_SIZE_PX = 600
 
 
+SAMPLE_CHART_POSITIONS = {
+    "Sun": {"sign": "Pisces", "lon": 335.30, "house": 4},
+    "Moon": {"sign": "Capricorn", "lon": 287.47, "house": 1},
+    "Mercury": {"sign": "Aquarius", "lon": 318.45, "house": 3},
+    "Venus": {"sign": "Aquarius", "lon": 305.62, "house": 3},
+    "Mars": {"sign": "Aries", "lon": 6.00, "house": 2},
+    "Jupiter": {"sign": "Virgo", "lon": 150.80, "house": 8},
+    "Saturn": {"sign": "Aries", "lon": 10.89, "house": 2},
+    "Uranus": {"sign": "Virgo", "lon": 178.56, "house": 9},
+    "Neptune": {"sign": "Scorpio", "lon": 236.97, "house": 10},
+    "Pluto": {"sign": "Virgo", "lon": 172.43, "house": 9},
+}
+
+
+def _sign_for_planet(planet: str) -> str:
+    placement = SAMPLE_CHART_POSITIONS.get(planet, {})
+    sign = placement.get("sign")
+    if sign in SIGN_COLORS:
+        return sign
+
+    lon = placement.get("lon")
+    if lon is None:
+        return "Aries"
+
+    sign_index = int(float(lon) % 360 // 30)
+    return ZODIAC_SIGNS[sign_index]
+
+
 def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
     manager = getattr(fig.canvas, "manager", None)
     if manager is None:
-        return 
+        return
 
     try:
         window = manager.window
@@ -133,7 +161,7 @@ def draw_chartwheel(output_path: Path) -> Path:
         circle = Circle(
             (0, 0),
             radius=diameter / 2,
-            facecolor=PLANET_COLORS[planet],
+            facecolor=SIGN_COLORS[_sign_for_planet(planet)],
             edgecolor="#111111",
             linewidth=1,
             zorder=z_index,
