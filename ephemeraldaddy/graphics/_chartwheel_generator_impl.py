@@ -38,6 +38,9 @@ ZODIAC_SIGNS = [
 
 DEFAULT_WINDOW_SIZE_PX = 600
 DEFAULT_OUTPUT_SIZE_PX = 600
+ASCENDANT_OVERLAY_ALPHA = 0.20
+
+SAMPLE_CHART_NAME = "Cletus the Dreamer"
 
 SIGN_WHEEL_CANVAS_SIZE_PX = 2033
 SIGN_WHEEL_DISC_DIAMETER_PX = 1632
@@ -108,6 +111,7 @@ SAMPLE_CHART_POSITIONS = {
     "Uranus": {"sign": "Virgo", "lon": 178.56, "house": 9},
     "Neptune": {"sign": "Scorpio", "lon": 236.97, "house": 10},
     "Pluto": {"sign": "Virgo", "lon": 172.43, "house": 9},
+    "AS": {"sign": "Capricorn", "lon": 271.25, "house": 1},
 }
 
 
@@ -124,6 +128,25 @@ def _sign_for_planet(planet: str) -> str:
     sign_index = int(float(lon) % 360 // 30)
     return ZODIAC_SIGNS[sign_index]
 
+
+
+
+def _ascendant_sign() -> str:
+    asc = SAMPLE_CHART_POSITIONS.get("AS", {})
+    sign = asc.get("sign")
+    if sign in SIGN_COLORS:
+        return sign
+
+    lon = asc.get("lon")
+    if lon is None:
+        return "Aries"
+
+    sign_index = int(float(lon) % 360 // 30)
+    return ZODIAC_SIGNS[sign_index]
+
+
+def _default_output_filename() -> str:
+    return f"{SAMPLE_CHART_NAME}-natal_chart-wheel_by-ephemeraldaddy.png"
 
 def _fit_window_to_screen(fig: plt.Figure, max_screen_fraction: float = 0.95) -> None:
     manager = getattr(fig.canvas, "manager", None)
@@ -243,6 +266,17 @@ def draw_chartwheel(output_path: Path) -> Path:
         )
         ax.add_patch(ring_outline)
 
+    asc_overlay = Circle(
+        (0, 0),
+        radius=max_radius,
+        facecolor=SIGN_COLORS[_ascendant_sign()],
+        edgecolor="none",
+        linewidth=0,
+        alpha=ASCENDANT_OVERLAY_ALPHA,
+        zorder=len(sorted_diameters) + 5,
+    )
+    ax.add_patch(asc_overlay)
+
     ax.set_xlim(-max_radius, max_radius)
     ax.set_ylim(-max_radius, max_radius)
     ax.set_aspect("equal")
@@ -258,7 +292,7 @@ def draw_chartwheel(output_path: Path) -> Path:
 
 
 def main() -> None:
-    output_path = Path("chartwheel.png")
+    output_path = Path(_default_output_filename())
     saved_path = draw_chartwheel(output_path)
     print(f"Chart wheel saved to: {saved_path.resolve()}")
     _fit_window_to_screen(plt.gcf())
