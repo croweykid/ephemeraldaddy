@@ -40,6 +40,13 @@ OUTER_PLANETS = (
     "Pluto",
 )
 
+GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS = (
+    "AFAB-M",
+    "AMAB-F",
+    "AFAB-NB",
+    "AMAB-NB",
+)
+
 GEN_POP_ACTUAL_GENDER_CAPTION = (
     "This is based on a global estimate of gender distribution worldwide. "
     "Statistics for nonbinary identities skew significantly by age group & region too "
