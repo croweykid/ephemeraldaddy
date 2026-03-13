@@ -331,6 +331,32 @@ from ephemeraldaddy.gui.features.import_export.parsing import (
     trim_import_row,
 )
 
+GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES: frozenset[str] = frozenset(
+    {"Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "AS", "MC"}
+)
+GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
+    {
+        "sentiment_prevalence",
+        "relationship_prevalence",
+        "social_score_summary",
+        "sign_prevalence",
+        "dominant_signs",
+        "species_distribution",
+        "birth_time",
+        "age",
+        "birth_month",
+        "birthplace",
+    }
+)
+GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES: dict[str, float | None] = {
+    "F": 0.4938,
+    "M": 0.4995,
+    "AFAB-M": None,
+    "AMAB-F": None,
+    "AFAB-NB": None,
+    "AMAB-NB": None,
+}
+
 # Explicit startup validation to avoid hidden import-time side effects.
 validate_transit_window_mode_flags()
 
@@ -1717,6 +1743,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
+        self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
         self._sign_distribution_mode = "Sun"
         self._dominant_factors_mode = "dominant_signs"
@@ -2118,6 +2145,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
+        section_key: str | None = None,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -2156,6 +2184,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout.addWidget(toggle)
         section_layout.addWidget(content)
         layout.addWidget(section)
+        if section_key is not None:
+            self._database_metrics_section_widgets[section_key] = section
         return content_layout
 
     def _create_database_analytics_chart_container(self) -> tuple[QWidget, QVBoxLayout]:
@@ -2191,6 +2221,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
         return self._database_metrics_section_expanded.get(section_key, False)
 
+    def _available_sign_distribution_dropdown_options(self) -> list[tuple[str, str]]:
+        if self._database_metrics_baseline_mode != "gen_pop":
+            return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
+        return [
+            (label, value)
+            for label, value in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
+            if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
+        ]
+
+    def _update_gender_subheader(self) -> None:
+        gender_subheader = getattr(self, "gender_subheader", None)
+        if gender_subheader is None:
+            return
+        is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
+        if is_gen_pop and self._gender_mode == "actual_gender":
+            gender_subheader.setText(
+                "This is based on a global estimate of gender distribution worldwide. "
+                "Statistics for nonbinary identities skew significantly by age group & region too drastically to make educated generalizations."
+            )
+            return
+        gender_subheader.setText("Actual + guessed gender distribution")
+
+    def _sync_gen_pop_panel_visibility(self) -> None:
+        is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
+        for section_key, section_widget in self._database_metrics_section_widgets.items():
+            should_hide = is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+            section_widget.setVisible(not should_hide)
+
+        self._update_gender_subheader()
+
+        dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
+        if dropdown is None:
+            return
+
+        options = self._available_sign_distribution_dropdown_options()
+        allowed_modes = {value for _label, value in options}
+        previous_mode = self._sign_distribution_mode
+        if previous_mode not in allowed_modes:
+            previous_mode = options[0][1] if options else "Sun"
+
+        dropdown.blockSignals(True)
+        dropdown.clear()
+        for option_label, option_value in options:
+            dropdown.addItem(option_label.upper(), option_value)
+        selected_index = dropdown.findData(previous_mode)
+        if selected_index < 0 and dropdown.count() > 0:
+            selected_index = 0
+        if selected_index >= 0:
+            dropdown.setCurrentIndex(selected_index)
+            current_mode = dropdown.currentData()
+            if isinstance(current_mode, str):
+                self._sign_distribution_mode = current_mode
+        dropdown.blockSignals(False)
+
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
@@ -2215,6 +2299,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_key
             for section_key in section_order
             if self._is_database_metrics_section_expanded(section_key)
+            and not (
+                self._database_metrics_baseline_mode == "gen_pop"
+                and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+            )
         ]
 
     def _should_use_incremental_metrics_refresh(self) -> bool:
@@ -2400,6 +2488,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/gender_mode",
                         self._gender_mode,
                     )
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2722,6 +2811,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Sign Distribution by Placement",
+            section_key="planetary_sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("planetary_sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "planetary_sign_prevalence",
@@ -2755,6 +2845,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Sentiment Prevalence",
+            section_key="sentiment_prevalence",
             expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "sentiment_prevalence",
@@ -2797,6 +2888,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Relationship Prevalence",
+            section_key="relationship_prevalence",
             expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "relationship_prevalence",
@@ -2843,6 +2935,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Social Score Summary",
+            section_key="social_score_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "social_score_summary",
                 checked,
@@ -2875,6 +2968,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Sign Prevalence (all positions)",
+            section_key="sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "sign_prevalence",
@@ -2910,6 +3004,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Dominant Factors",
+            section_key="dominant_signs",
             expanded=self._is_database_metrics_section_expanded("dominant_signs"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "dominant_signs",
@@ -2950,6 +3045,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Species Distribution",
+            section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "species_distribution",
@@ -2989,6 +3085,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birth Time",
+            section_key="birth_time",
             expanded=self._is_database_metrics_section_expanded("birth_time"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birth_time",
@@ -3023,6 +3120,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Age",
+            section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "age",
@@ -3056,6 +3154,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birthday",
+            section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birth_month",
@@ -3089,6 +3188,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birthplace",
+            section_key="birthplace",
             expanded=self._is_database_metrics_section_expanded("birthplace"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birthplace",
@@ -3123,6 +3223,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Gender",
+            section_key="gender",
             expanded=self._is_database_metrics_section_expanded("gender"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "gender",
@@ -3144,6 +3245,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         gender_subheader = QLabel("Actual + guessed gender distribution")
         gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.gender_subheader = gender_subheader
         gender_section_layout.addWidget(gender_subheader)
         (
             self.gender_chart_container,
@@ -6223,6 +6325,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         negative_labels = labels[negative_start:]
 
         def _should_refresh_database_metric_section(section_key: str) -> bool:
+            if (
+                self._database_metrics_baseline_mode == "gen_pop"
+                and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+            ):
+                return False
             if not self._is_database_metrics_section_expanded(section_key):
                 return False
             if sections_to_refresh is None:
@@ -6946,38 +7053,65 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             gender_mode = self._gender_mode
             if gender_mode == "actual_gender":
                 selection_gender_counts_raw: Counter[str] = Counter()
-                database_gender_counts_raw: Counter[str] = Counter()
                 for chart_id in chart_ids:
                     chart = self._get_chart_for_filter(chart_id)
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
-                known_labels = [*GENDER_OPTIONS, "Unknown"]
-                custom_labels = sorted(
-                    {
-                        *selection_gender_counts_raw.keys(),
-                        *database_gender_counts_raw.keys(),
+                if self._database_metrics_baseline_mode == "gen_pop":
+                    gender_labels = [
+                        "F",
+                        "M",
+                        "AFAB-M (unknown)",
+                        "AMAB-F (unknown)",
+                        "AFAB-NB (unknown)",
+                        "AMAB-NB (unknown)",
+                    ]
+                    selection_gender_counts = {
+                        label: int(selection_gender_counts_raw.get(label.replace(" (unknown)", ""), 0))
+                        for label in gender_labels
                     }
-                    - set(known_labels)
-                )
-                gender_labels = [
-                    label
-                    for label in [*known_labels, *custom_labels]
-                    if selection_gender_counts_raw.get(label, 0) > 0
-                    or database_gender_counts_raw.get(label, 0) > 0
-                ]
-                if not gender_labels:
-                    gender_labels = ["Unknown"]
-                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    database_gender_distribution = {
+                        "F": GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES["F"] or 0.0,
+                        "M": GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES["M"] or 0.0,
+                        "AFAB-M (unknown)": 0.0,
+                        "AMAB-F (unknown)": 0.0,
+                        "AFAB-NB (unknown)": 0.0,
+                        "AMAB-NB (unknown)": 0.0,
+                    }
+                    database_gender_counts = {
+                        label: int(database_gender_distribution[label] * float(baseline_total_charts))
+                        for label in gender_labels
+                    }
+                else:
+                    database_gender_counts_raw: Counter[str] = Counter()
+                    for chart_id in database_cache["chart_ids"]:
+                        chart = self._get_chart_for_filter(chart_id)
+                        if chart is None:
+                            continue
+                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+
+                    known_labels = [*GENDER_OPTIONS, "Unknown"]
+                    custom_labels = sorted(
+                        {
+                            *selection_gender_counts_raw.keys(),
+                            *database_gender_counts_raw.keys(),
+                        }
+                        - set(known_labels)
+                    )
+                    gender_labels = [
+                        label
+                        for label in [*known_labels, *custom_labels]
+                        if selection_gender_counts_raw.get(label, 0) > 0
+                        or database_gender_counts_raw.get(label, 0) > 0
+                    ]
+                    if not gender_labels:
+                        gender_labels = ["Unknown"]
+                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
                 gender_labels = ["Masculine", "Androgynous", "Feminine"]
                 selection_gender_counts = {label: 0 for label in gender_labels}
@@ -7017,12 +7151,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for label in gender_labels
             }
-            database_gender_distribution = {
-                label: (
-                    database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
-                )
-                for label in gender_labels
-            }
+            if gender_mode == "actual_gender" and self._database_metrics_baseline_mode == "gen_pop":
+                database_gender_distribution = {
+                    label: float(database_gender_distribution.get(label, 0.0))
+                    for label in gender_labels
+                }
+            else:
+                database_gender_distribution = {
+                    label: (
+                        database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
+                    )
+                    for label in gender_labels
+                }
             if _should_refresh_database_metric_section("gender"):
                 gender_canvas = self._build_gender_distribution_chart(
                     labels=gender_labels,
@@ -9251,6 +9391,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "manage_charts/database_metrics_baseline_mode",
                 self._database_metrics_baseline_mode,
             )
+            self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
@@ -9263,6 +9404,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "manage_charts/database_metrics_baseline_mode",
                 self._database_metrics_baseline_mode,
             )
+            self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
@@ -13157,7 +13299,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "aspects_sort_combo"):
             return self.aspects_sort_combo.currentText()
         return "Priority"
-
 
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
