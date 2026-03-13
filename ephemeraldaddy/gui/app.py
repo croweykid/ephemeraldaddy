@@ -2466,6 +2466,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/gender_mode",
                         self._gender_mode,
                     )
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -3222,6 +3223,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         gender_subheader = QLabel("Actual + guessed gender distribution")
         gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.gender_subheader = gender_subheader
         gender_section_layout.addWidget(gender_subheader)
         (
             self.gender_chart_container,
@@ -7003,19 +7005,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             gender_mode = self._gender_mode
             if gender_mode == "actual_gender":
                 selection_gender_counts_raw: Counter[str] = Counter()
-                database_gender_counts_raw: Counter[str] = Counter()
                 for chart_id in chart_ids:
                     chart = self._get_chart_for_filter(chart_id)
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
                 known_labels = [*GENDER_OPTIONS, "Unknown"]
                 custom_labels = sorted(
@@ -7072,12 +7067,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for label in gender_labels
             }
-            database_gender_distribution = {
-                label: (
-                    database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
-                )
-                for label in gender_labels
-            }
+            if gender_mode == "actual_gender" and self._database_metrics_baseline_mode == "gen_pop":
+                database_gender_distribution = {
+                    label: float(database_gender_distribution.get(label, 0.0))
+                    for label in gender_labels
+                }
+            else:
+                database_gender_distribution = {
+                    label: (
+                        database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
+                    )
+                    for label in gender_labels
+                }
             if _should_refresh_database_metric_section("gender"):
                 gender_canvas = self._build_gender_distribution_chart(
                     labels=gender_labels,
