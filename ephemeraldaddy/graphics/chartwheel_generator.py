@@ -1,11 +1,24 @@
 """Generate a concentric planetary color wheel chart."""
 
+# Run examples:
+# - From repository root: python -m ephemeraldaddy.graphics.chartwheel_generator
+# - From this directory:  python -m chartwheel_generator
+# Note: when using -m, do not include the .py suffix.
+
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
-from ephemeraldaddy.core.interpretations import PLANET_COLORS
+if __package__ in {None, ""}:
+    # Support running this file directly while preserving package imports.
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from ephemeraldaddy.core.interpretations import PLANET_COLORS
+else:
+    from ..core.interpretations import PLANET_COLORS
 
 PLANET_DIAMETERS = {
     "Sun": 350,
