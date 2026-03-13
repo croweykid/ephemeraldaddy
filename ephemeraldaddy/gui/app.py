@@ -13828,10 +13828,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_label, 0)
 
         self._register_popout_shortcuts(dialog)
+        if not hasattr(self, "_gemstone_chartwheel_popouts"):
+            self._gemstone_chartwheel_popouts = []
         self._gemstone_chartwheel_popouts.append(dialog)
         dialog.destroyed.connect(
             lambda _=None, d=dialog: self._gemstone_chartwheel_popouts.remove(d)
-            if d in self._gemstone_chartwheel_popouts
+            if hasattr(self, "_gemstone_chartwheel_popouts") and d in self._gemstone_chartwheel_popouts
             else None
         )
 
