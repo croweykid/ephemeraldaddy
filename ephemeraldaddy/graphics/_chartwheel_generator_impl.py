@@ -90,7 +90,7 @@ def draw_chartwheel(output_path: Path) -> Path:
             theta1=theta1,
             theta2=theta2,
             facecolor=SIGN_COLORS[sign],
-            alpha=0.10,
+            alpha=0.30,
             edgecolor="#202020",
             linewidth=0.8,
             zorder=ZODIAC_OVERLAY_ZORDER,
