@@ -1133,6 +1133,8 @@ class DatabaseAnalyticsChartsMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
+            if bool(getattr(chart, "is_placeholder", False)):
+                continue
 
             birth_year_value = getattr(chart, "birth_year", None)
             if not isinstance(birth_year_value, int):

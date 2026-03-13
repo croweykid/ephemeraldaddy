@@ -465,6 +465,7 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
     for body, transfer in dispositor_transfers.items():
         subtotal_weights[body] += transfer
 
+    # Aspect interactions increase per-chart dominant planet weights here.
     final_weights = dict(subtotal_weights)
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))

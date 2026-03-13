@@ -1068,6 +1068,28 @@ def _display_body_name(body: str) -> str:
     return body
 
 
+SIGN_ADJECTIVES = {
+    "Aries": "Aries",
+    "Taurus": "Taurus",
+    "Gemini": "Gemini",
+    "Cancer": "Cancer",
+    "Leo": "Leo",
+    "Virgo": "Virgo",
+    "Libra": "Libra",
+    "Scorpio": "Scorpio",
+    "Sagittarius": "Sagittarius",
+    "Capricorn": "Capricorn",
+    "Aquarius": "Aquarius",
+    "Pisces": "Pisces",
+}
+
+
+def _sign_adjective(sign: str | None) -> str | None:
+    if not sign:
+        return None
+    return SIGN_ADJECTIVES.get(sign, sign)
+
+
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
     display_name = _display_body_name(getattr(body, "name", ""))
     lon_deg = getattr(body, "lon_deg", None)
@@ -1108,8 +1130,8 @@ def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
 
-def _aspect_score(asp: dict) -> float:
-    return aspect_score(asp)
+def _aspect_score(asp: dict, planet_weights: dict[str, float] | None = None) -> float:
+    return aspect_score(asp, planet_weights=planet_weights)
 
 
 def _aspect_duration_score(asp: dict) -> float:
@@ -1450,7 +1472,14 @@ def format_chart_text(
         #         if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
         #     ]
         sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-        sorted_aspects = _sort_natal_aspects(filtered_aspects, sort_mode)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        sorted_aspects = _sort_natal_aspects(
+            filtered_aspects,
+            sort_mode,
+            planet_weights=dominant_planet_weights,
+        )
         positions = getattr(chart, "positions", {})
         aspect_body_labels: dict[str, str] = {}
         for asp in sorted_aspects:
@@ -1480,6 +1509,10 @@ def format_chart_text(
                 "type": atype,
                 "angle": angle,
                 "delta": delta,
+                "sign1": _sign_for_longitude(positions[p1]) if p1 in positions else None,
+                "sign2": _sign_for_longitude(positions[p2]) if p2 in positions else None,
+                "house1": _house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
+                "house2": _house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None,
             }
             lines.append(line)
 
@@ -4086,6 +4119,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "type": str(hit.aspect),
                         "angle": angle,
                         "delta": float(hit.orb_deg),
+                        "sign1": hit.a.sign,
+                        "sign2": hit.b.sign,
+                        "house1": hit.a.house,
+                        "house2": hit.b.house,
                     }
                     lines.append(line)
             else:
@@ -4426,7 +4463,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Saved chart data output to:\n{file_path}",
         )
 
-    def _personal_transit_priority(self, hit: Any, mode: str) -> float:
+    def _personal_transit_priority(
+        self,
+        hit: Any,
+        mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
+    ) -> float:
         orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
         if orb_cap <= 0:
             return 0.0
@@ -4434,7 +4476,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_key = str(hit.aspect).replace(" ", "_").lower()
         aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
         transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
-        natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
+        if natal_planet_weights:
+            natal_weight = float(natal_planet_weights.get(hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)))
+        else:
+            natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
         angle_weight = float(ANGLE_WEIGHT.get(aspect_angle, 1.0))
         return (transit_weight + natal_weight) * angle_weight * orb_factor
 
@@ -4443,11 +4488,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_hits: list[Any],
         sort_mode: str,
         mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Priority":
             return sorted(
                 aspect_hits,
-                key=lambda hit: self._personal_transit_priority(hit, mode),
+                key=lambda hit: self._personal_transit_priority(
+                    hit,
+                    mode,
+                    natal_planet_weights=natal_planet_weights,
+                ),
                 reverse=True,
             )
         return self._sort_popout_aspects(aspect_hits, sort_mode)
@@ -4610,6 +4660,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scan_step_hours = transit_scan_config.scan_step_hours
         scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
+        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None)
+        if not natal_planet_weights:
+            natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
 
         def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
             daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
@@ -4625,6 +4678,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             daily_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
@@ -4638,6 +4692,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ]
                     + [
@@ -4646,6 +4701,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             rollover_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -4760,6 +4816,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             "type": str(hit.aspect),
                             "angle": angle,
                             "delta": float(hit.orb_deg),
+                            "sign1": hit.a.sign,
+                            "sign2": hit.b.sign,
+                            "house1": hit.a.house,
+                            "house2": hit.b.house,
                         }
                         icon_index = line.rfind("📆")
                         if icon_index >= 0:
@@ -5974,6 +6034,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
+            if bool(getattr(chart, "is_placeholder", False)):
+                continue
 
             birth_year_value = getattr(chart, "birth_year", None)
             if not isinstance(birth_year_value, int):
@@ -6231,23 +6293,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["relationship_totals"][relationship] += 1
                 snapshot["relationship_total_count"] += 1
 
-        try:
-            species_top_three = assign_top_three_species(chart)
-        except Exception:
-            species_top_three = []
-        if species_top_three:
-            top_species = species_top_three[0][0]
-            if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
-                snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
-                snapshot["species_total_count_by_mode"]["top_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
-                    snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[1:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
-                    snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
+        if not snapshot["is_placeholder"]:
+            try:
+                species_top_three = assign_top_three_species(chart)
+            except Exception:
+                species_top_three = []
+            if species_top_three:
+                top_species = species_top_three[0][0]
+                if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
+                    snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
+                    snapshot["species_total_count_by_mode"]["top_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
+                        snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[1:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
+                        snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -6998,8 +7061,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
             social_score_labels = [
-                "Median Social Score",
-                "Average Social Score",
+                "Median",
+                "Avg",
                 "Cumulative Share of DB (%)",
             ]
             social_score_selection_values = [
@@ -7667,20 +7730,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
-            self.similarities_analysis_panel.setMinimumHeight(
-                self.similarities_analysis_panel.sizeHint().height()
-            )
-            self.similarities_analysis_panel.adjustSize()
-            self.similarities_analysis_panel_scroll.widget().adjustSize()
-            self.similarities_analysis_panel.updateGeometry()
+            self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
 
         if update_database_metrics:
-            self.selection_sentiment_panel.setMinimumHeight(
-                self.selection_sentiment_panel.sizeHint().height()
-            )
-            self.selection_sentiment_panel.adjustSize()
-            self.selection_sentiment_panel_scroll.widget().adjustSize()
-            self.selection_sentiment_panel.updateGeometry()
+            self._stabilize_left_scroll_panel_layout(self.selection_sentiment_panel_scroll)
 
         if left_panel_scrollbar is not None and left_panel_scroll_value is not None:
             self._restore_scrollbar_position(
@@ -7729,7 +7782,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         cleanup_timer = QTimer(scrollbar)
         cleanup_timer.setSingleShot(True)
-        cleanup_timer.setInterval(160)
+        cleanup_timer.setInterval(750)
         cleanup_timer.timeout.connect(_cleanup_handler)
 
         def _on_range_changed(*_) -> None:
@@ -7742,7 +7795,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         _apply_target()
         QTimer.singleShot(0, _apply_target)
+        QTimer.singleShot(60, _apply_target)
+        QTimer.singleShot(220, _apply_target)
         cleanup_timer.start()
+
+    @staticmethod
+    def _stabilize_left_scroll_panel_layout(scroll_area: QScrollArea) -> None:
+        panel_widget = scroll_area.widget()
+        if panel_widget is None:
+            return
+        panel_layout = panel_widget.layout()
+        if panel_layout is not None:
+            panel_layout.activate()
+        panel_widget.updateGeometry()
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
@@ -10051,18 +10116,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        active_left_scrollbar = None
+        active_left_scroll_value = None
+        if self._left_panel_visible:
+            active_left_panel = self._left_panel_widgets.get(self._active_left_panel)
+            if isinstance(active_left_panel, QScrollArea):
+                active_left_scrollbar = active_left_panel.verticalScrollBar()
+                active_left_scroll_value = active_left_scrollbar.value()
+
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
-        self._update_sentiment_tally(
-            update_database_metrics=(
-                self._left_panel_visible
-                and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-            ),
-            update_similarities=(
-                self._left_panel_visible
-                and self._active_left_panel == "similarities"
-            ),
-        )
+        try:
+            self._update_sentiment_tally(
+                update_database_metrics=(
+                    self._left_panel_visible
+                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+                ),
+                update_similarities=(
+                    self._left_panel_visible
+                    and self._active_left_panel == "similarities"
+                ),
+            )
+        finally:
+            if active_left_scrollbar is not None and active_left_scroll_value is not None:
+                self._restore_scrollbar_position(
+                    active_left_scrollbar,
+                    active_left_scroll_value,
+                )
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
@@ -12006,6 +12086,7 @@ class MainWindow(QMainWindow):
         self._metric_scroll_widgets: set[QWidget] = set()
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
+        self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
         self._chart_analysis_section_expanded: dict[str, bool] = {}
@@ -13709,7 +13790,13 @@ class MainWindow(QMainWindow):
                 for asp in filtered_aspects
                 if asp.get("p1") not in angular_bodies and asp.get("p2") not in angular_bodies
             ]
-        filtered_aspects.sort(key=_aspect_score, reverse=True)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        filtered_aspects.sort(
+            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
+            reverse=True,
+        )
         if not filtered_aspects:
             lines.append("| — | — | — | — | — | — |")
         for asp in filtered_aspects:
@@ -13717,7 +13804,7 @@ class MainWindow(QMainWindow):
                 "| "
                 f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
                 f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp):.2f} |"
+                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
             )
 
         lines.extend([
@@ -13982,6 +14069,10 @@ class MainWindow(QMainWindow):
                         aspect_info["type"],
                         aspect_info["angle"],
                         aspect_info["delta"],
+                        sign1=aspect_info.get("sign1"),
+                        sign2=aspect_info.get("sign2"),
+                        house1=aspect_info.get("house1"),
+                        house2=aspect_info.get("house2"),
                     )
                     return True
             return False
@@ -14132,6 +14223,11 @@ class MainWindow(QMainWindow):
         atype: str,
         angle: float,
         delta: float,
+        *,
+        sign1: str | None = None,
+        sign2: str | None = None,
+        house1: int | None = None,
+        house2: int | None = None,
     ) -> None:
         aspect_keywords = ASPECT_KEYWORDS.get(atype, [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
@@ -14142,19 +14238,39 @@ class MainWindow(QMainWindow):
             )
             return
 
+        sign1_adj = _sign_adjective(sign1)
+        sign2_adj = _sign_adjective(sign2)
+        house1_keywords = HOUSE_KEYWORDS.get(house1, []) if house1 else []
+        house2_keywords = HOUSE_KEYWORDS.get(house2, []) if house2 else []
+
         unique_lines: list[str] = []
-        seen: set[tuple[str, str, str]] = set()
+        seen: set[tuple[str, str, str, str, str, str, str]] = set()
         attempts = 0
-        while len(unique_lines) < 6 and attempts < 200:
+        while len(unique_lines) < 6 and attempts < 300:
             noun1 = random.choice(p1_nouns)
             noun2 = random.choice(p2_nouns)
             keyword = random.choice(aspect_keywords)
-            combo = (noun1, keyword, noun2)
+            house_noun1 = random.choice(house1_keywords) if house1_keywords else ""
+            house_noun2 = random.choice(house2_keywords) if house2_keywords else ""
+            combo = (
+                sign1_adj or "",
+                noun1,
+                keyword,
+                sign2_adj or "",
+                noun2,
+                house_noun1,
+                house_noun2,
+            )
             if combo in seen:
                 attempts += 1
                 continue
             seen.add(combo)
-            unique_lines.append(f"{noun1} {keyword} {noun2}")
+
+            parts = [part for part in [sign1_adj, noun1, keyword, sign2_adj, noun2] if part]
+            sentence = " ".join(parts)
+            if house_noun1 and house_noun2:
+                sentence += f" in regards to {house_noun1} & {house_noun2}"
+            unique_lines.append(sentence)
             attempts += 1
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
