@@ -40,6 +40,16 @@ OUTER_PLANETS = (
     "Pluto",
 )
 
+
+GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES: dict[str, float | None] = {
+    "F": 0.4938,
+    "M": 0.4995,
+    "AFAB-M": None,
+    "AMAB-F": None,
+    "AFAB-NB": None,
+    "AMAB-NB": None,
+}
+
 SUN_SIGN_BIRTHS = {  # from CDC natality files
     1988: {
         "Aries": {"count": 311169, "percent": 7.95},
