@@ -11276,6 +11276,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
+        for entry in help_notes.search_help_entries(query):
+            if entry.title in seen_titles:
+                continue
+            seen_titles.add(entry.title)
+            entries.append(entry)
+
         needle = (query or "").strip().lower()
         if not needle:
             return tuple(entries)
