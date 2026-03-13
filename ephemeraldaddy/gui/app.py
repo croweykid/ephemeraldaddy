@@ -5981,6 +5981,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
+            if bool(getattr(chart, "is_placeholder", False)):
+                continue
 
             birth_year_value = getattr(chart, "birth_year", None)
             if not isinstance(birth_year_value, int):
@@ -6238,23 +6240,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["relationship_totals"][relationship] += 1
                 snapshot["relationship_total_count"] += 1
 
-        try:
-            species_top_three = assign_top_three_species(chart)
-        except Exception:
-            species_top_three = []
-        if species_top_three:
-            top_species = species_top_three[0][0]
-            if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
-                snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
-                snapshot["species_total_count_by_mode"]["top_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
-                    snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
-            for species_name, _subtype, _score in species_top_three[1:3]:
-                if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
-                    snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
-                    snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
+        if not snapshot["is_placeholder"]:
+            try:
+                species_top_three = assign_top_three_species(chart)
+            except Exception:
+                species_top_three = []
+            if species_top_three:
+                top_species = species_top_three[0][0]
+                if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
+                    snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
+                    snapshot["species_total_count_by_mode"]["top_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
+                        snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
+                for species_name, _subtype, _score in species_top_three[1:3]:
+                    if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
+                        snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
