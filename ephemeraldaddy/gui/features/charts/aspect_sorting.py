@@ -5,6 +5,7 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
     ASPECT_SORT_OPTIONS,
     NATAL_WEIGHT,
+    aspect_score,
 )
 
 NATAL_ASPECT_SORT_OPTIONS = tuple(
@@ -34,15 +35,15 @@ def aspect_type_rank(atype: str) -> int:
     return _ASPECT_TYPE_SORT_RANK.get(normalized, len(_ASPECT_TYPE_SORT_RANK))
 
 
-def natal_aspect_priority(asp: dict) -> float:
-    normalized_type = str(asp.get("type", "")).replace(" ", "_").lower()
-    aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(normalized_type, 0.0))
-    p1_weight = float(NATAL_WEIGHT.get(normalize_aspect_body(asp.get("p1", "")), 1.0))
-    p2_weight = float(NATAL_WEIGHT.get(normalize_aspect_body(asp.get("p2", "")), 1.0))
-    return aspect_weight + p1_weight + p2_weight
+def natal_aspect_priority(asp: dict, planet_weights: dict[str, float] | None = None) -> float:
+    return float(aspect_score(asp, planet_weights=planet_weights))
 
 
-def sort_natal_aspects(filtered_aspects: list[dict], sort_mode: str) -> list[dict]:
+def sort_natal_aspects(
+    filtered_aspects: list[dict],
+    sort_mode: str,
+    planet_weights: dict[str, float] | None = None,
+) -> list[dict]:
     if sort_mode == "Aspect":
         return sorted(
             filtered_aspects,
@@ -66,7 +67,7 @@ def sort_natal_aspects(filtered_aspects: list[dict], sort_mode: str) -> list[dic
     return sorted(
         filtered_aspects,
         key=lambda a: (
-            natal_aspect_priority(a),
+            natal_aspect_priority(a, planet_weights=planet_weights),
             -abs(float(a["delta"])),
             -aspect_type_rank(a["type"]),
         ),
