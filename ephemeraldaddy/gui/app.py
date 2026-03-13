@@ -243,6 +243,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     ASPECT_COLORS,
+    ASPECT_TYPES,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -4094,55 +4095,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ordered_keys.append(key)
         return OrderedDict((key, counts[key]) for key in ordered_keys)
 
-    def _build_popout_left_panel(
+    def _collect_aspect_category_totals(
         self,
-        layout: QHBoxLayout,
+        aspect_counts: OrderedDict[str, int],
+    ) -> OrderedDict[str, int]:
+        category_totals: OrderedDict[str, int] = OrderedDict()
+        for category_name, category_meta in ASPECT_TYPES.items():
+            category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
+            total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
+            if total > 0:
+                category_totals[category_name] = total
+        return category_totals
+
+    def _draw_popout_aspect_distribution_chart(
+        self,
+        analytics_ax: Any,
         *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-    ) -> QPlainTextEdit:
-        left_panel_layout = QVBoxLayout()
-
-        analytics_header_layout = QHBoxLayout()
-        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
-        analytics_header_layout.setSpacing(6)
-        analytics_label = QLabel("Aspect Distribution")
-        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        analytics_header_layout.addWidget(analytics_label)
-        analytics_header_layout.addStretch(1)
-
-        analytics_export_button = QToolButton()
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            analytics_export_button.setIcon(QIcon(share_icon_path))
-            analytics_export_button.setIconSize(QSize(14, 14))
-        else:
-            analytics_export_button.setText("↗")
-        analytics_export_button.setAutoRaise(True)
-        analytics_export_button.setCursor(Qt.PointingHandCursor)
-        analytics_export_button.setToolTip("Export aspect distribution as CSV")
-        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
-        left_panel_layout.addLayout(analytics_header_layout)
-
-        analytics_figure = Figure(figsize=(4.2, 3.4))
-        analytics_canvas = FigureCanvas(analytics_figure)
-        analytics_ax = analytics_figure.add_subplot(111)
-        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        mode: str,
+        aspect_counts: OrderedDict[str, int],
+        category_totals: OrderedDict[str, int],
+    ) -> None:
+        analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        analytics_export_button.clicked.connect(
-            lambda _checked=False, counts=aspect_counts, stem=export_file_stem: _export_aspect_distribution_csv_dialog(
-                self,
-                counts,
-                default_file_stem=stem,
-            )
-        )
-        if aspect_counts:
-            labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
-            values = list(aspect_counts.values())
-            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in aspect_counts.keys()]
+        if mode == "aspect_types":
+            active_counts = category_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = aspect_counts
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+
+        values = list(active_counts.values())
+        if values:
             bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
             analytics_ax.invert_yaxis()
             max_value = max(values)
@@ -4176,10 +4162,81 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
         analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
-        analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+        export_file_stem: str,
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        analytics_header_layout.addWidget(analytics_label)
+
+        analytics_view_dropdown = QComboBox()
+        analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        analytics_view_dropdown.addItem("ASPECTS", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
+
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        category_totals = self._collect_aspect_category_totals(aspect_counts)
+
+        def _export_selected_aspect_distribution(_checked: bool = False) -> None:
+            selected_mode = analytics_view_dropdown.currentData()
+            selected_counts = category_totals if selected_mode == "aspect_types" else aspect_counts
+            export_stem = f"{export_file_stem}_aspect_types" if selected_mode == "aspect_types" else export_file_stem
+            _export_aspect_distribution_csv_dialog(
+                self,
+                selected_counts,
+                default_file_stem=export_stem,
+            )
+
+        analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
+
+        def _render_analytics_chart() -> None:
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            self._draw_popout_aspect_distribution_chart(
+                analytics_ax,
+                mode=selected_mode,
+                aspect_counts=aspect_counts,
+                category_totals=category_totals,
+            )
+            analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+            analytics_canvas.draw_idle()
+
+        analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
+        _render_analytics_chart()
         analytics_canvas.setMinimumHeight(220)
         analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        analytics_canvas.draw_idle()
         left_panel_layout.addWidget(analytics_canvas, 2)
 
         chart_info_label = QLabel("Chart Info!")
@@ -15527,55 +15584,40 @@ class MainWindow(QMainWindow):
                 ordered_keys.append(key)
         return OrderedDict((key, counts[key]) for key in ordered_keys)
 
-    def _build_popout_left_panel(
+    def _collect_aspect_category_totals(
         self,
-        layout: QHBoxLayout,
+        aspect_counts: OrderedDict[str, int],
+    ) -> OrderedDict[str, int]:
+        category_totals: OrderedDict[str, int] = OrderedDict()
+        for category_name, category_meta in ASPECT_TYPES.items():
+            category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
+            total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
+            if total > 0:
+                category_totals[category_name] = total
+        return category_totals
+
+    def _draw_popout_aspect_distribution_chart(
+        self,
+        analytics_ax: Any,
         *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-    ) -> QPlainTextEdit:
-        left_panel_layout = QVBoxLayout()
-
-        analytics_header_layout = QHBoxLayout()
-        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
-        analytics_header_layout.setSpacing(6)
-        analytics_label = QLabel("Aspect Distribution")
-        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        analytics_header_layout.addWidget(analytics_label)
-        analytics_header_layout.addStretch(1)
-
-        analytics_export_button = QToolButton()
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            analytics_export_button.setIcon(QIcon(share_icon_path))
-            analytics_export_button.setIconSize(QSize(14, 14))
-        else:
-            analytics_export_button.setText("↗")
-        analytics_export_button.setAutoRaise(True)
-        analytics_export_button.setCursor(Qt.PointingHandCursor)
-        analytics_export_button.setToolTip("Export aspect distribution as CSV")
-        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
-        left_panel_layout.addLayout(analytics_header_layout)
-
-        analytics_figure = Figure(figsize=(4.2, 3.4))
-        analytics_canvas = FigureCanvas(analytics_figure)
-        analytics_ax = analytics_figure.add_subplot(111)
-        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        mode: str,
+        aspect_counts: OrderedDict[str, int],
+        category_totals: OrderedDict[str, int],
+    ) -> None:
+        analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        analytics_export_button.clicked.connect(
-            lambda _checked=False, counts=aspect_counts, stem=export_file_stem: _export_aspect_distribution_csv_dialog(
-                self,
-                counts,
-                default_file_stem=stem,
-            )
-        )
-        if aspect_counts:
-            labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
-            values = list(aspect_counts.values())
-            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in aspect_counts.keys()]
+        if mode == "aspect_types":
+            active_counts = category_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = aspect_counts
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+
+        values = list(active_counts.values())
+        if values:
             bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
             analytics_ax.invert_yaxis()
             max_value = max(values)
@@ -15609,10 +15651,81 @@ class MainWindow(QMainWindow):
         analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
         analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
         analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
-        analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+        export_file_stem: str,
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        analytics_header_layout.addWidget(analytics_label)
+
+        analytics_view_dropdown = QComboBox()
+        analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        analytics_view_dropdown.addItem("ASPECTS", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
+
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        category_totals = self._collect_aspect_category_totals(aspect_counts)
+
+        def _export_selected_aspect_distribution(_checked: bool = False) -> None:
+            selected_mode = analytics_view_dropdown.currentData()
+            selected_counts = category_totals if selected_mode == "aspect_types" else aspect_counts
+            export_stem = f"{export_file_stem}_aspect_types" if selected_mode == "aspect_types" else export_file_stem
+            _export_aspect_distribution_csv_dialog(
+                self,
+                selected_counts,
+                default_file_stem=export_stem,
+            )
+
+        analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
+
+        def _render_analytics_chart() -> None:
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            self._draw_popout_aspect_distribution_chart(
+                analytics_ax,
+                mode=selected_mode,
+                aspect_counts=aspect_counts,
+                category_totals=category_totals,
+            )
+            analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+            analytics_canvas.draw_idle()
+
+        analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
+        _render_analytics_chart()
         analytics_canvas.setMinimumHeight(220)
         analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        analytics_canvas.draw_idle()
         left_panel_layout.addWidget(analytics_canvas, 2)
 
         chart_info_label = QLabel("Chart Info!")
