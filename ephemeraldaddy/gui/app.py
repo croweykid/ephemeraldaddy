@@ -7433,22 +7433,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         astrotheme_row.addWidget(astrotheme_import_button)
         layout.addLayout(astrotheme_row)
 
-        search_mode_layout = QHBoxLayout()
-        search_mode_layout.addWidget(QLabel("Sentiment type"))
-        search_mode_layout.addStretch(1)
-        self.search_text_contains = QRadioButton("contains")
-        self.search_text_exact = QRadioButton("exact")
-        self.search_text_mode_group = QButtonGroup(self)
-        self.search_text_mode_group.setExclusive(True)
-        self.search_text_mode_group.addButton(self.search_text_contains)
-        self.search_text_mode_group.addButton(self.search_text_exact)
-        self.search_text_contains.setChecked(True)
-        self.search_text_contains.toggled.connect(self._on_filter_changed)
-        self.search_text_exact.toggled.connect(self._on_filter_changed)
-        search_mode_layout.addWidget(self.search_text_contains)
-        search_mode_layout.addWidget(self.search_text_exact)
-        layout.addLayout(search_mode_layout)
-
         divider = QFrame()
         divider.setFixedHeight(4)
         divider.setStyleSheet(
@@ -9590,7 +9574,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.source_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
-            self.search_text_contains.setChecked(True)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.relationship_filter_checkboxes.values():
@@ -10359,7 +10342,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         search_text = self.search_text_input.text().strip()
-        search_exact = self.search_text_exact.isChecked()
         selected_source = self.source_filter_combo.currentData()
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
@@ -10478,17 +10460,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             None,
         )
         if search_text:
-            pattern = re.compile(
-                rf"(?<!\w){re.escape(search_text)}(?!\w)",
-                re.IGNORECASE,
-            )
-
             def matches(value: str | None) -> bool:
-                if not value:
-                    return False
-                if search_exact:
-                    return pattern.search(value) is not None
-                return search_text.casefold() in value.casefold()
+                return bool(value) and search_text.casefold() in value.casefold()
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
