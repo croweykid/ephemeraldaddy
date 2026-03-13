@@ -521,6 +521,21 @@ SIGN_COLORS = {
     "Pisces": ELEMENT_COLORS["Water"],
 }
 
+SIGN_WHEELS = {
+    "Aries": "../ephemeraldaddy/graphics/chartwheel_components/aries.png",
+    "Leo": "../ephemeraldaddy/graphics/chartwheel_components/leo.png",
+    "Sagittarius": "../ephemeraldaddy/graphics/chartwheel_components/sagittarius.png",
+    "Taurus": "../ephemeraldaddy/graphics/chartwheel_components/turus.png",
+    "Virgo": "../ephemeraldaddy/graphics/chartwheel_components/virgo.png",
+    "Capricorn": "../ephemeraldaddy/graphics/chartwheel_components/capricorn.png",
+    "Gemini": "../ephemeraldaddy/graphics/chartwheel_components/gemini.png",
+    "Libra": "../ephemeraldaddy/graphics/chartwheel_components/libra.png",
+    "Aquarius": "../ephemeraldaddy/graphics/chartwheel_components/aquarius.png",
+    "Cancer": "../ephemeraldaddy/graphics/chartwheel_components/cancer.png",
+    "Scorpio": "../ephemeraldaddy/graphics/chartwheel_components/scorpio.png",
+    "Pisces": "../ephemeraldaddy/graphics/chartwheel_components/pisces.png",
+}
+
 SIGN_DOMESTICATION = { #0 is most chthonic, 10 is most apolonian
     "Aries":6, #barbaric but concerned with rationality
     "Taurus":2, #primal
@@ -595,14 +610,14 @@ HOUSE_COLORS = {
 }
 
 ASPECT_COLORS = {
-    "conjunction": DARK_THEME["aspect_conjunction"],
-    "sextile":     DARK_THEME["aspect_sextile"],
-    "square":      DARK_THEME["aspect_square"],
-    "trine":       DARK_THEME["aspect_trine"],
-    "opposition":  DARK_THEME["aspect_opposition"],
+    "conjunction": "#aaaaaa",
+    "sextile":     "#4caf50",
+    "square":      "#f44336",
+    "trine":       "#2196f3",
+    "opposition":  "#ff9800",
     "quincunx":    "white",
-    "semisquare":  "white",
-    "sesquiquadrate": "white",
+    "semisquare":  "azure",
+    "sesquiquadrate": "grey",
 }
 
 NAKSHATRA_PLANET_COLOR = {
@@ -1978,6 +1993,38 @@ HOUSE_KEYWORDS = { #Areas of Life
     ],
 }
 
+ASPECT_TYPES = {
+    "chill vibes": {
+        "color": "blue",
+        "aspects": {"sextile", "trine"},
+    },
+    "stress/friction": {
+        "color": "red",
+        "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+    },
+    "amplifying/situational": {
+        "color": "yellow",
+        "aspects": {"conjunction", "semisextile"},
+    },
+    "creative/technical": {
+        "color": "purple",
+        "aspects": {"quintile", "biquintile"},
+    },
+    "harmonious": {
+        "color": "blue",
+        "aspects": {"sextile", "trine", "quintile", "biquintile"},
+    },
+    "conflicted": {
+        "color": "red",
+        "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
+    },
+    "neutral/variable": {
+        "color": "yellow",
+        "aspects": {"conjunction", "semisextile"},
+    },
+}
+
+#not sure if this is being used at all:
 ASPECT_BASE = {
     "conjunction": {"friction": 0, "support": 0, "intensity": 4},
     "opposition":  {"friction": 3, "support": 0, "intensity": 3},
