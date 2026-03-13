@@ -7023,11 +7023,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for label in gender_labels
             }
             if _should_refresh_database_metric_section("gender"):
-                gender_canvas = self._build_dominant_planet_chart(
-                    selection_planets=selection_gender_distribution,
-                    database_planets=database_gender_distribution,
-                    selection_planet_counts=selection_gender_counts,
-                    database_planet_counts=database_gender_counts,
+                gender_canvas = self._build_gender_distribution_chart(
+                    labels=gender_labels,
+                    selection_values=selection_gender_distribution,
+                    database_values=database_gender_distribution,
+                    selection_counts=selection_gender_counts,
+                    database_counts=database_gender_counts,
                     loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.gender_chart_layout)
@@ -10708,6 +10709,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     return False
 
         if selected_guessed_gender:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                return False
             guessed_by_prevalence = self._classify_guessed_gender(
                 _calculate_gender_prevalence_score(chart)
             )
@@ -10855,9 +10859,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _classify_guessed_gender(score: float) -> str:
-        if score < 4.5:
+        """Map gender score (0..10, where 5 is neutral) to a label.
+
+        We treat androgynous as a narrow neutral window of ±0.05 around 5.0,
+        which corresponds to ±0.5 percentage points around a perfect 50/50
+        balance on the UI scale.
+        """
+        if score < 4.95:
             return "masculine"
-        if score > 5.5:
+        if score > 5.05:
             return "feminine"
         return "androgynous"
 
