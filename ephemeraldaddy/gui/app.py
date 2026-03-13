@@ -186,6 +186,9 @@ from ephemeraldaddy.core.db import (
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 from ephemeraldaddy.data.genpop import (
+    GEN_POP_ACTUAL_GENDER_CAPTION,
+    GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS,
+    gen_pop_actual_gender_counts,
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
@@ -243,6 +246,9 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
+    ASPECT_COLORS,
+    ASPECT_FRICTION,
+    ASPECT_TYPES,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -371,6 +377,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -911,6 +918,42 @@ def _get_share_icon_path() -> str | None:
     if icon_path.exists():
         return str(icon_path)
     return None
+
+
+def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
+    return token or fallback
+
+
+def _export_aspect_distribution_csv_dialog(
+    parent: QWidget,
+    aspect_counts: OrderedDict[str, int],
+    *,
+    default_file_stem: str = "aspect_distribution",
+) -> None:
+    default_filename = f"{default_file_stem}.csv"
+    file_path, _selected_filter = QFileDialog.getSaveFileName(
+        parent,
+        "Export Aspect Distribution as CSV",
+        default_filename,
+        "CSV Files (*.csv)",
+    )
+    if not file_path:
+        return
+    if not file_path.lower().endswith(".csv"):
+        file_path = f"{file_path}.csv"
+
+    try:
+        with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["aspect_type", "count"])
+            for aspect_key, count in aspect_counts.items():
+                writer.writerow([aspect_key, count])
+    except Exception as exc:
+        QMessageBox.critical(parent, "Export failed", f"Could not write CSV file.\n\n{exc}")
+        return
+
+    QMessageBox.information(parent, "Export complete", f"Exported aspect distribution CSV to:\n{file_path}")
 
 
 
@@ -1953,6 +1996,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
+        self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -1977,6 +2021,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_analysis_panel
         )
         self.left_panel_stack = QStackedWidget()
+        self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
@@ -2033,9 +2078,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Database View - Content splitter (left panel stack, center list, right panel stack).
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
+        self._content_splitter.setChildrenCollapsible(False)
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
+        self._content_splitter.setCollapsible(0, True)
+        self._content_splitter.setCollapsible(2, True)
+        self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
@@ -2341,6 +2392,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         subheader.setText(f"Distribution of {mode_label.lower()} in database")
 
+
+    def _update_gender_subheader(self) -> None:
+        subheader = getattr(self, "gender_subheader", None)
+        unknown_note = getattr(self, "gender_unknown_note", None)
+        if subheader is None:
+            return
+        show_unknown_note = (
+            self._database_metrics_baseline_mode == "gen_pop"
+            and self._gender_mode == "actual_gender"
+        )
+        if show_unknown_note:
+            subheader.setText(GEN_POP_ACTUAL_GENDER_CAPTION)
+        else:
+            subheader.setText("Actual + guessed gender distribution")
+        if unknown_note is not None:
+            unknown_note.setVisible(show_unknown_note)
+
     def _gen_pop_planet_sign_norms_for_database_size(
         self,
         chart_count: int,
@@ -2467,6 +2535,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/gender_mode",
                         self._gender_mode,
                     )
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2502,6 +2571,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         self._sign_distribution_mode,
                     )
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -2780,6 +2850,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
+        def add_database_subheader(text: str = "") -> QLabel:
+            subheader = QLabel(text)
+            subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
+            return subheader
+
         self.database_metrics_panel_header_label = QLabel("Database Analytics")
         self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(self.database_metrics_panel_header_label)
@@ -2805,8 +2881,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
             show_title=False,
         )
-        self.position_sign_distribution_subheader = QLabel()
-        self.position_sign_distribution_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.position_sign_distribution_subheader = add_database_subheader()
         self._update_position_sign_subheader()
         position_sign_section_layout.addWidget(self.position_sign_distribution_subheader)
         (
@@ -2839,8 +2914,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel("Distribution of sentiments in database")
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        sentiment_subheader = add_database_subheader("Distribution of sentiments in database")
         sentiment_section_layout.addWidget(sentiment_subheader)
         #Sentiment Prevalence Chart
         (
@@ -2882,10 +2956,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "relationship_prevalence",
             show_title=False,
         )
-        relationship_subheader = QLabel(
+        relationship_subheader = add_database_subheader(
             "Distribution of relationship types in database"
         )
-        relationship_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         relationship_section_layout.addWidget(relationship_subheader)
 
         #Relationship Prevalence Chart
@@ -2927,10 +3000,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "social_score_summary",
             show_title=False,
         )
-        social_score_subheader = QLabel(
+        social_score_subheader = add_database_subheader(
             "Median, average, and cumulative share of DB social score"
         )
-        social_score_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         social_score_section_layout.addWidget(social_score_subheader)
         (
             self.social_score_summary_chart_container,
@@ -2962,10 +3034,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             show_title=False,
         )
-        sentiment_subheader = QLabel(
+        sentiment_subheader = add_database_subheader(
             "Distribution of signs (all positions) in database"
         )
-        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         sign_section_layout.addWidget(sentiment_subheader)
         #Sign Prevalence Chart
         (
@@ -3004,8 +3075,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = QLabel("Dominant signs in database (by weight)")
-        self.dominant_factors_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        self.dominant_factors_subheader = add_database_subheader("Dominant signs in database (by weight)")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3044,8 +3114,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        species_subheader = QLabel("Distribution of D&D species in database")
-        species_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        species_subheader = add_database_subheader("Distribution of D&D species in database")
         species_section_layout.addWidget(species_subheader)
 
         #Species Distribution Chart
@@ -3083,8 +3152,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_time_subheader = QLabel("Birth time summary across loaded charts")
-        birth_time_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
         birth_time_section_layout.addWidget(birth_time_subheader)
         (
             self.birth_time_chart_container,
@@ -3117,8 +3185,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        age_subheader = QLabel("Distribution of age and total time known")
-        age_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        age_subheader = add_database_subheader("Distribution of age and total time known")
         age_section_layout.addWidget(age_subheader)
         (
             self.age_chart_container,
@@ -3151,8 +3218,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_month_subheader = QLabel("Birth month and recurring birth date patterns")
-        birth_month_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
         birth_month_section_layout.addWidget(birth_month_subheader)
         (
             self.birth_month_chart_container,
@@ -3186,8 +3252,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birthplace_subheader = QLabel("Birthplace distribution and recurring locations")
-        birthplace_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
         birth_place_section_layout.addWidget(birthplace_subheader)
         (
             self.birthplace_chart_container,
@@ -3221,15 +3286,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        gender_subheader = QLabel("Actual + guessed gender distribution")
-        gender_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-        gender_section_layout.addWidget(gender_subheader)
+        self.gender_subheader = add_database_subheader("Actual + guessed gender distribution")
+        gender_section_layout.addWidget(self.gender_subheader)
         (
             self.gender_chart_container,
             self.gender_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["gender"] = self.gender_chart_layout
         gender_section_layout.addWidget(self.gender_chart_container)
+        self.gender_unknown_note = add_database_subheader(
+            f"*unknown for: {', '.join(GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS)}"
+        )
+        self.gender_unknown_note.setVisible(False)
+        gender_section_layout.addWidget(self.gender_unknown_note)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -3883,19 +3952,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Composite view: first selected chart houses with second selected chart overlay."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Composite view: first selected chart houses with second selected chart overlay.",
+            aspect_entries=list(aspect_hits),
+            export_file_stem=(
+                f"{_sanitize_export_token(base_chart.name)}_x_{_sanitize_export_token(overlay_chart.name)}"
+                "-synastry_aspect_distribution"
+            ),
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -4041,6 +4106,202 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else None
         )
 
+    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
+        return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+        counts: Counter[str] = Counter()
+        for entry in aspect_entries:
+            aspect_value = getattr(entry, "aspect", None)
+            if aspect_value is None:
+                aspect_value = getattr(entry, "type", None)
+            if aspect_value is None and isinstance(entry, dict):
+                aspect_value = entry.get("aspect") or entry.get("type")
+            aspect_key = self._normalize_aspect_type(aspect_value)
+            if not aspect_key:
+                continue
+            counts[aspect_key] += 1
+
+        ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
+        for key in sorted(counts.keys()):
+            if key not in ordered_keys and counts[key] > 0:
+                ordered_keys.append(key)
+        return OrderedDict((key, counts[key]) for key in ordered_keys)
+
+    def _collect_aspect_category_totals(
+        self,
+        aspect_counts: OrderedDict[str, int],
+        *,
+        categories: dict[str, dict[str, Any]],
+    ) -> OrderedDict[str, int]:
+        category_totals: OrderedDict[str, int] = OrderedDict()
+        for category_name, category_meta in categories.items():
+            category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
+            total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
+            if total > 0:
+                category_totals[category_name] = total
+        return category_totals
+
+    def _draw_popout_aspect_distribution_chart(
+        self,
+        analytics_ax: Any,
+        *,
+        mode: str,
+        aspect_counts: OrderedDict[str, int],
+        type_totals: OrderedDict[str, int],
+        friction_totals: OrderedDict[str, int],
+    ) -> None:
+        analytics_ax.clear()
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        if mode == "aspect_types":
+            active_counts = type_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction":
+            active_counts = friction_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = aspect_counts
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+
+        values = list(active_counts.values())
+        if values:
+            total = sum(values)
+            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            analytics_ax.pie(
+                values,
+                labels=formatted_labels,
+                colors=colors,
+                startangle=90,
+                counterclock=False,
+                wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
+                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
+                pctdistance=0.72,
+                labeldistance=1.08,
+            )
+            analytics_ax.axis("equal")
+        else:
+            analytics_ax.text(
+                0.5,
+                0.5,
+                "No relevant aspects",
+                color=CHART_THEME_COLORS["muted_text"],
+                ha="center",
+                va="center",
+                transform=analytics_ax.transAxes,
+                fontsize=8,
+            )
+            analytics_ax.set_xticks([])
+            analytics_ax.set_yticks([])
+
+        for spine in analytics_ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        analytics_ax.set_xticks([])
+        analytics_ax.set_yticks([])
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+        export_file_stem: str,
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        analytics_header_layout.addWidget(analytics_label)
+
+        analytics_view_dropdown = QComboBox()
+        analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        analytics_view_dropdown.addItem("ASPECTS", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
+        analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
+
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
+
+        def _export_selected_aspect_distribution(_checked: bool = False) -> None:
+            selected_mode = analytics_view_dropdown.currentData()
+            if selected_mode == "aspect_types":
+                selected_counts = type_totals
+                export_stem = f"{export_file_stem}_aspect_types"
+            elif selected_mode == "aspect_friction":
+                selected_counts = friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction"
+            else:
+                selected_counts = aspect_counts
+                export_stem = export_file_stem
+            _export_aspect_distribution_csv_dialog(
+                self,
+                selected_counts,
+                default_file_stem=export_stem,
+            )
+
+        analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
+
+        def _render_analytics_chart() -> None:
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            self._draw_popout_aspect_distribution_chart(
+                analytics_ax,
+                mode=selected_mode,
+                aspect_counts=aspect_counts,
+                type_totals=type_totals,
+                friction_totals=friction_totals,
+            )
+            analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
+            analytics_canvas.draw_idle()
+
+        analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
+        _render_analytics_chart()
+        analytics_canvas.setMinimumHeight(220)
+        analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        left_panel_layout.addWidget(analytics_canvas, 2)
+
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(chart_info_placeholder)
+        chart_info_output.setMinimumWidth(250)
+        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
+        left_panel_layout.addWidget(chart_info_label)
+        left_panel_layout.addWidget(chart_info_output, 1)
+
+        layout.addLayout(left_panel_layout, 1)
+        return chart_info_output
+
     def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]:
         if sort_mode == "Aspect":
             return sorted(
@@ -4066,8 +4327,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
-        token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
-        return token or fallback
+        return _sanitize_export_token(value, fallback)
 
     def _build_transit_export_file_stem(
         self,
@@ -4209,19 +4469,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Personal Transit Chart: natal houses with transit planet overlay."
+        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
+        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
+            aspect_entries=all_hits,
+            export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -4266,8 +4521,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         natal_for_plot = copy.deepcopy(natal_chart)
         natal_for_plot.name = transit_chart.name
         natal_for_plot.aspects = []
-        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
-        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
         overlay_aspects = _overlay_aspect_segments(all_hits)
         draw_chart_wheel(
             figure,
@@ -4747,19 +5000,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Click the ⓘ in chart summary text to see details/interpretation."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
+            aspect_entries=list(getattr(chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -7028,38 +7274,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             gender_mode = self._gender_mode
             if gender_mode == "actual_gender":
                 selection_gender_counts_raw: Counter[str] = Counter()
-                database_gender_counts_raw: Counter[str] = Counter()
                 for chart_id in chart_ids:
                     chart = self._get_chart_for_filter(chart_id)
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
-                known_labels = [*GENDER_OPTIONS, "Unknown"]
-                custom_labels = sorted(
-                    {
-                        *selection_gender_counts_raw.keys(),
-                        *database_gender_counts_raw.keys(),
+                if self._database_metrics_baseline_mode == "gen_pop":
+                    gender_labels = ["F", "M"]
+                    selection_gender_counts = {
+                        label: int(selection_gender_counts_raw.get(label, 0))
+                        for label in gender_labels
                     }
-                    - set(known_labels)
-                )
-                gender_labels = [
-                    label
-                    for label in [*known_labels, *custom_labels]
-                    if selection_gender_counts_raw.get(label, 0) > 0
-                    or database_gender_counts_raw.get(label, 0) > 0
-                ]
-                if not gender_labels:
-                    gender_labels = ["Unknown"]
-                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    baseline_sample_size = loaded_charts if loaded_charts > 0 else database_loaded_charts
+                    gen_pop_counts = gen_pop_actual_gender_counts(baseline_sample_size)
+                    database_gender_counts = {label: int(gen_pop_counts.get(label, 0)) for label in gender_labels}
+                else:
+                    database_gender_counts_raw: Counter[str] = Counter()
+                    for chart_id in database_cache["chart_ids"]:
+                        chart = self._get_chart_for_filter(chart_id)
+                        if chart is None:
+                            continue
+                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
+                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+
+                    known_labels = [*GENDER_OPTIONS, "Unknown"]
+                    custom_labels = sorted(
+                        label
+                        for label in {
+                            *selection_gender_counts_raw.keys(),
+                            *database_gender_counts_raw.keys(),
+                        }
+                        - set(known_labels)
+                        if selection_gender_counts_raw.get(label, 0) > 0
+                        or database_gender_counts_raw.get(label, 0) > 0
+                    )
+                    # Keep the full known gender assignment set visible (even at zero)
+                    # so this chart stays in sync with Chart View / Search dropdowns.
+                    gender_labels = [*known_labels, *custom_labels]
+                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
                 gender_labels = ["Masculine", "Androgynous", "Feminine"]
                 selection_gender_counts = {label: 0 for label in gender_labels}
@@ -7440,18 +7695,54 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
-        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
-        scrollbar.setValue(target_value)
-
-        def _apply_target_after_range_change(*_) -> None:
+        pending_handler = getattr(scrollbar, "_ephemeraldaddy_restore_handler", None)
+        if pending_handler is not None:
             try:
-                scrollbar.rangeChanged.disconnect(_apply_target_after_range_change)
+                scrollbar.rangeChanged.disconnect(pending_handler)
             except Exception:
                 pass
+
+        pending_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
+        if pending_timer is not None:
+            pending_timer.stop()
+            pending_timer.deleteLater()
+
+        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
+
+        def _apply_target() -> None:
             bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
             scrollbar.setValue(bounded_value)
 
-        scrollbar.rangeChanged.connect(_apply_target_after_range_change)
+        def _cleanup_handler() -> None:
+            if getattr(scrollbar, "_ephemeraldaddy_restore_handler", None) is not _on_range_changed:
+                return
+            try:
+                scrollbar.rangeChanged.disconnect(_on_range_changed)
+            except Exception:
+                pass
+            scrollbar._ephemeraldaddy_restore_handler = None
+            cleanup_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
+            if cleanup_timer is not None:
+                cleanup_timer.stop()
+                cleanup_timer.deleteLater()
+            scrollbar._ephemeraldaddy_restore_cleanup_timer = None
+
+        cleanup_timer = QTimer(scrollbar)
+        cleanup_timer.setSingleShot(True)
+        cleanup_timer.setInterval(160)
+        cleanup_timer.timeout.connect(_cleanup_handler)
+
+        def _on_range_changed(*_) -> None:
+            _apply_target()
+            cleanup_timer.start()
+
+        scrollbar._ephemeraldaddy_restore_handler = _on_range_changed
+        scrollbar._ephemeraldaddy_restore_cleanup_timer = cleanup_timer
+        scrollbar.rangeChanged.connect(_on_range_changed)
+
+        _apply_target()
+        QTimer.singleShot(0, _apply_target)
+        cleanup_timer.start()
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
@@ -9286,8 +9577,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
-    def _set_right_panel_visible(self, visible: bool) -> None:
+    def _is_right_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[2] <= 0
+
+    def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
@@ -9301,11 +9598,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._content_splitter.setSizes([left_size, middle_size, 0])
             return
 
-        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
             self._content_splitter.setSizes(self._right_panel_sizes)
 
-    def _set_left_panel_visible(self, visible: bool) -> None:
+    def _is_left_panel_collapsed(self) -> bool:
+        sizes = self._content_splitter.sizes()
+        return len(sizes) >= 3 and sizes[0] <= 0
+
+    def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._left_panel_visible == visible:
+            if visible and restore_default_size:
+                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._left_panel_visible = visible
         self.left_panel_stack.setVisible(visible)
@@ -9317,6 +9622,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 right_size = sizes[2]
                 middle_size = max(0, total - right_size)
                 self._content_splitter.setSizes([0, middle_size, right_size])
+            return
+
+        if restore_default_size:
+            self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
@@ -9334,7 +9643,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True)
+        self._set_left_panel_visible(True, restore_default_size=True)
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -9345,6 +9654,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9358,6 +9668,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._sync_gen_pop_panel_visibility()
             self._update_position_sign_subheader()
+            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9372,26 +9683,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if (
             self._left_panel_visible
             and self._active_left_panel == "database_metrics"
+            and not self._is_left_panel_collapsed()
         ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("database_metrics")
 
     def _toggle_gen_pop_norms_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "gen_pop_norms":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "gen_pop_norms"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("gen_pop_norms")
 
     def _toggle_todays_transits_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "todays_transits":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "todays_transits"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._refresh_todays_transits_panel()
         self._show_left_panel("todays_transits")
 
     def _toggle_similarities_panel(self) -> None:
-        if self._left_panel_visible and self._active_left_panel == "similarities":
+        if (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+            and not self._is_left_panel_collapsed()
+        ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("similarities")
@@ -9414,16 +9738,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True)
+        self._set_right_panel_visible(True, restore_default_size=True)
 
     def _toggle_search_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "search":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "search"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("search")
 
     def _toggle_edit_panel(self) -> None:
-        if self._right_panel_visible and self._active_right_panel == "edit":
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "edit"
+            and not self._is_right_panel_collapsed()
+        ):
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("edit")
@@ -12536,13 +12868,24 @@ class MainWindow(QMainWindow):
             if not selected_planet:
                 return []
             metric_scores = scores.get(selected_planet, {})
-            return [["planet", selected_planet]] + [[metric, metric_scores.get(metric, 0.0)] for metric in (
+            metric_label_map = {
+                "stability": "Groundedness",
+                "constructiveness": "Productivity",
+                "volatility": "Reactivity",
+                "fragility": "Fragility",
+                "adaptability": "Resilience",
+            }
+            metric_order = (
                 "stability",
                 "constructiveness",
                 "volatility",
                 "fragility",
                 "adaptability",
-            )]
+            )
+            return [["planet", selected_planet]] + [
+                [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
+                for metric in metric_order
+            ]
         return []
 
     def _export_chart_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
@@ -12756,6 +13099,7 @@ class MainWindow(QMainWindow):
         bars = ax.bar(signs, values, color=colors)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -13220,12 +13564,13 @@ class MainWindow(QMainWindow):
             "fragility",
             "adaptability",
         ]
-        metric_labels = ["Stability", "Constructive", "Volatility", "Fragility", "Adaptability"]
+        metric_labels = ["Groundedness", "Productivity", "Reactivity", "Fragility", "Resilience"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
         bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
 
         bars = ax.bar(metric_labels, values, color=bar_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(10.0, max_value + 0.8))
         ax.set_anchor("W")
@@ -15468,6 +15813,202 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
+    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
+        return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+        counts: Counter[str] = Counter()
+        for entry in aspect_entries:
+            aspect_value = getattr(entry, "aspect", None)
+            if aspect_value is None:
+                aspect_value = getattr(entry, "type", None)
+            if aspect_value is None and isinstance(entry, dict):
+                aspect_value = entry.get("aspect") or entry.get("type")
+            aspect_key = self._normalize_aspect_type(aspect_value)
+            if not aspect_key:
+                continue
+            counts[aspect_key] += 1
+
+        ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
+        for key in sorted(counts.keys()):
+            if key not in ordered_keys and counts[key] > 0:
+                ordered_keys.append(key)
+        return OrderedDict((key, counts[key]) for key in ordered_keys)
+
+    def _collect_aspect_category_totals(
+        self,
+        aspect_counts: OrderedDict[str, int],
+        *,
+        categories: dict[str, dict[str, Any]],
+    ) -> OrderedDict[str, int]:
+        category_totals: OrderedDict[str, int] = OrderedDict()
+        for category_name, category_meta in categories.items():
+            category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
+            total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
+            if total > 0:
+                category_totals[category_name] = total
+        return category_totals
+
+    def _draw_popout_aspect_distribution_chart(
+        self,
+        analytics_ax: Any,
+        *,
+        mode: str,
+        aspect_counts: OrderedDict[str, int],
+        type_totals: OrderedDict[str, int],
+        friction_totals: OrderedDict[str, int],
+    ) -> None:
+        analytics_ax.clear()
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        if mode == "aspect_types":
+            active_counts = type_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction":
+            active_counts = friction_totals
+            labels = [label.title() for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = aspect_counts
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+
+        values = list(active_counts.values())
+        if values:
+            total = sum(values)
+            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            analytics_ax.pie(
+                values,
+                labels=formatted_labels,
+                colors=colors,
+                startangle=90,
+                counterclock=False,
+                wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
+                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
+                pctdistance=0.72,
+                labeldistance=1.08,
+            )
+            analytics_ax.axis("equal")
+        else:
+            analytics_ax.text(
+                0.5,
+                0.5,
+                "No relevant aspects",
+                color=CHART_THEME_COLORS["muted_text"],
+                ha="center",
+                va="center",
+                transform=analytics_ax.transAxes,
+                fontsize=8,
+            )
+            analytics_ax.set_xticks([])
+            analytics_ax.set_yticks([])
+
+        for spine in analytics_ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        analytics_ax.set_xticks([])
+        analytics_ax.set_yticks([])
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+        export_file_stem: str,
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        analytics_header_layout.addWidget(analytics_label)
+
+        analytics_view_dropdown = QComboBox()
+        analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        analytics_view_dropdown.addItem("ASPECTS", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
+        analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
+
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
+
+        def _export_selected_aspect_distribution(_checked: bool = False) -> None:
+            selected_mode = analytics_view_dropdown.currentData()
+            if selected_mode == "aspect_types":
+                selected_counts = type_totals
+                export_stem = f"{export_file_stem}_aspect_types"
+            elif selected_mode == "aspect_friction":
+                selected_counts = friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction"
+            else:
+                selected_counts = aspect_counts
+                export_stem = export_file_stem
+            _export_aspect_distribution_csv_dialog(
+                self,
+                selected_counts,
+                default_file_stem=export_stem,
+            )
+
+        analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
+
+        def _render_analytics_chart() -> None:
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            self._draw_popout_aspect_distribution_chart(
+                analytics_ax,
+                mode=selected_mode,
+                aspect_counts=aspect_counts,
+                type_totals=type_totals,
+                friction_totals=friction_totals,
+            )
+            analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
+            analytics_canvas.draw_idle()
+
+        analytics_view_dropdown.currentIndexChanged.connect(lambda _index: _render_analytics_chart())
+        _render_analytics_chart()
+        analytics_canvas.setMinimumHeight(220)
+        analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        left_panel_layout.addWidget(analytics_canvas, 2)
+
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(chart_info_placeholder)
+        chart_info_output.setMinimumWidth(250)
+        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
+        left_panel_layout.addWidget(chart_info_label)
+        left_panel_layout.addWidget(chart_info_output, 1)
+
+        layout.addLayout(left_panel_layout, 1)
+        return chart_info_output
+
     def on_popout_chart(self) -> None:
         if self._latest_chart is None:
             QMessageBox.information(
@@ -15484,19 +16025,12 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Click the ⓘ next to a position or aspect to see details/interpretation."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
+            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
         )
-        chart_info_output.setMinimumWidth(260)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
