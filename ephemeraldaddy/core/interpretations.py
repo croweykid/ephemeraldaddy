@@ -2003,7 +2003,7 @@ ASPECT_TYPES = {
         "color": "#b30000", #brick red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
     },
-    "amplifying/situational": {
+    "amplifying": {
         "color": "#ffff00", #aggro yellow
         "aspects": {"conjunction", "semisextile"},
     },
@@ -2011,6 +2011,9 @@ ASPECT_TYPES = {
         "color": "#9966ff", #lavender
         "aspects": {"quintile", "biquintile"},
     },
+}
+
+ASPECT_TYPES2 = {
     "harmonious": {
         "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
