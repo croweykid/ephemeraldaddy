@@ -4639,8 +4639,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                state["expanded"] = not bool(state["expanded"])
-                _refresh_summary()
+                if not bool(state["expanded"]):
+                    state["expanded"] = True
+                    _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
@@ -8098,10 +8099,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         chart_result = parent._build_chart_from_inputs(show_feedback=False)
         if chart_result is None:
+            parent._reset_new_chart_form()
             QMessageBox.warning(
                 self,
                 "Astrotheme import",
-                "Astrotheme data was loaded, but chart creation failed. Please review the imported fields.",
+                "Astrotheme import failed: chart creation could not be completed.",
             )
             return
         chart, place, _, _ = chart_result
@@ -8112,16 +8114,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
 
-        chart_id = save_chart(
-            chart,
-            birth_place=place,
-            retcon_time_used=False,
-            is_placeholder=False,
-            birth_month=profile_data["birth_month"],
-            birth_day=profile_data["birth_day"],
-            birth_year=profile_data["birth_year"],
-            chart_type=SOURCE_PUBLIC_DB,
-        )
+        try:
+            chart_id = save_chart(
+                chart,
+                birth_place=place,
+                retcon_time_used=False,
+                is_placeholder=False,
+                birth_month=profile_data["birth_month"],
+                birth_day=profile_data["birth_day"],
+                birth_year=profile_data["birth_year"],
+                chart_type=SOURCE_PUBLIC_DB,
+            )
+        except Exception as exc:
+            parent._reset_new_chart_form()
+            QMessageBox.warning(
+                self,
+                "Astrotheme import",
+                f"Astrotheme import failed while saving the chart:\n{exc}",
+            )
+            return
         set_current_chart(chart_id)
         parent.current_chart_id = chart_id
         parent._manage_charts_pending_changed_ids.add(chart_id)
