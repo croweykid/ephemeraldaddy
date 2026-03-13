@@ -521,6 +521,7 @@ SIGN_COLORS = {
     "Pisces": ELEMENT_COLORS["Water"],
 }
 
+#sign_images, sign_gems, sign_bgs
 SIGN_WHEELS = {
     "Aries": "../ephemeraldaddy/graphics/chartwheel_components/aries.png",
     "Leo": "../ephemeraldaddy/graphics/chartwheel_components/leo.png",
