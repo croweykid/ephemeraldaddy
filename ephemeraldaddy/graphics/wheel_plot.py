@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
-from .theme import DARK_THEME
+from ephemeraldaddy.gui.style import DARK_THEME
 
 
 from ephemeraldaddy.core.interpretations import (

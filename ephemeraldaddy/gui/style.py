@@ -1,5 +1,13 @@
 """Shared GUI styling and interface constants."""
 
+DARK_THEME = {
+    "background": "#111111",
+    "foreground": "#f5f5f5",
+    "wheel_circle": "#444444",
+    "house_line": "#333333",
+    "planet": "#f1d28f",
+}
+
 CHART_THEME_COLORS = {
     "background": "#111111",
     "text": "#f5f5f5",

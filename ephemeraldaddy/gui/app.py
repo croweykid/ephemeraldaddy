@@ -242,6 +242,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
+    ASPECT_COLORS,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -348,14 +349,6 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birthplace",
     }
 )
-GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES: dict[str, float | None] = {
-    "F": 0.4938,
-    "M": 0.4995,
-    "AFAB-M": None,
-    "AMAB-F": None,
-    "AFAB-NB": None,
-    "AMAB-NB": None,
-}
 
 # Explicit startup validation to avoid hidden import-time side effects.
 validate_transit_window_mode_flags()
@@ -2230,26 +2223,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
         ]
 
-    def _update_gender_subheader(self) -> None:
-        gender_subheader = getattr(self, "gender_subheader", None)
-        if gender_subheader is None:
-            return
-        is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
-        if is_gen_pop and self._gender_mode == "actual_gender":
-            gender_subheader.setText(
-                "This is based on a global estimate of gender distribution worldwide. "
-                "Statistics for nonbinary identities skew significantly by age group & region too drastically to make educated generalizations."
-            )
-            return
-        gender_subheader.setText("Actual + guessed gender distribution")
-
     def _sync_gen_pop_panel_visibility(self) -> None:
         is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
         for section_key, section_widget in self._database_metrics_section_widgets.items():
             should_hide = is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
             section_widget.setVisible(not should_hide)
-
-        self._update_gender_subheader()
 
         dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
         if dropdown is None:
@@ -3906,19 +3884,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Composite view: first selected chart houses with second selected chart overlay."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Composite view: first selected chart houses with second selected chart overlay.",
+            aspect_entries=list(aspect_hits),
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -4232,19 +4202,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Personal Transit Chart: natal houses with transit planet overlay."
+        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
+        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
+            aspect_entries=all_hits,
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -4289,8 +4253,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         natal_for_plot = copy.deepcopy(natal_chart)
         natal_for_plot.name = transit_chart.name
         natal_for_plot.aspects = []
-        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
-        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
         overlay_aspects = _overlay_aspect_segments(all_hits)
         draw_chart_wheel(
             figure,
@@ -4509,15 +4471,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             error_text = state.get("error", "")
                             suffix = f"📆 ⚠ {error_text}" if error_text else "📆 ⚠"
                         elif state["expanded"] and state["resolved"]:
-                            suffix = (
-                                "📆 "
-                                + _format_transit_range(
-                                    state["start"],
-                                    state["end"],
-                                    include_time=include_time,
-                                    start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
-                                    end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
-                                )
+                            suffix = _format_transit_range(
+                                state["start"],
+                                state["end"],
+                                include_time=include_time,
+                                start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
+                                end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
                             )
                         left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                         right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
@@ -4741,8 +4700,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                state["expanded"] = not bool(state["expanded"])
-                _refresh_summary()
+                if not bool(state["expanded"]):
+                    state["expanded"] = True
+                    _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
@@ -4772,19 +4732,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Click the ⓘ in chart summary text to see details/interpretation."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
+            aspect_entries=list(getattr(chart, "aspects", []) or []),
         )
-        chart_info_output.setMinimumWidth(250)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -7060,58 +7012,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
                     selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
 
-                if self._database_metrics_baseline_mode == "gen_pop":
-                    gender_labels = [
-                        "F",
-                        "M",
-                        "AFAB-M (unknown)",
-                        "AMAB-F (unknown)",
-                        "AFAB-NB (unknown)",
-                        "AMAB-NB (unknown)",
-                    ]
-                    selection_gender_counts = {
-                        label: int(selection_gender_counts_raw.get(label.replace(" (unknown)", ""), 0))
-                        for label in gender_labels
+                known_labels = [*GENDER_OPTIONS, "Unknown"]
+                custom_labels = sorted(
+                    label
+                    for label in {
+                        *selection_gender_counts_raw.keys(),
+                        *database_gender_counts_raw.keys(),
                     }
-                    database_gender_distribution = {
-                        "F": GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES["F"] or 0.0,
-                        "M": GEN_POP_ACTUAL_GENDER_BASELINE_PERCENTAGES["M"] or 0.0,
-                        "AFAB-M (unknown)": 0.0,
-                        "AMAB-F (unknown)": 0.0,
-                        "AFAB-NB (unknown)": 0.0,
-                        "AMAB-NB (unknown)": 0.0,
-                    }
-                    database_gender_counts = {
-                        label: int(database_gender_distribution[label] * float(baseline_total_charts))
-                        for label in gender_labels
-                    }
-                else:
-                    database_gender_counts_raw: Counter[str] = Counter()
-                    for chart_id in database_cache["chart_ids"]:
-                        chart = self._get_chart_for_filter(chart_id)
-                        if chart is None:
-                            continue
-                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-
-                    known_labels = [*GENDER_OPTIONS, "Unknown"]
-                    custom_labels = sorted(
-                        {
-                            *selection_gender_counts_raw.keys(),
-                            *database_gender_counts_raw.keys(),
-                        }
-                        - set(known_labels)
-                    )
-                    gender_labels = [
-                        label
-                        for label in [*known_labels, *custom_labels]
-                        if selection_gender_counts_raw.get(label, 0) > 0
-                        or database_gender_counts_raw.get(label, 0) > 0
-                    ]
-                    if not gender_labels:
-                        gender_labels = ["Unknown"]
-                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                    - set(known_labels)
+                    if selection_gender_counts_raw.get(label, 0) > 0
+                    or database_gender_counts_raw.get(label, 0) > 0
+                )
+                # Keep the full known gender assignment set visible (even at zero)
+                # so this chart stays in sync with Chart View / Search dropdowns.
+                gender_labels = [*known_labels, *custom_labels]
+                selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
+                database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
             else:
                 gender_labels = ["Masculine", "Androgynous", "Feminine"]
                 selection_gender_counts = {label: 0 for label in gender_labels}
@@ -8238,10 +8154,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         chart_result = parent._build_chart_from_inputs(show_feedback=False)
         if chart_result is None:
+            parent._reset_new_chart_form()
             QMessageBox.warning(
                 self,
                 "Astrotheme import",
-                "Astrotheme data was loaded, but chart creation failed. Please review the imported fields.",
+                "Astrotheme import failed: chart creation could not be completed.",
             )
             return
         chart, place, _, _ = chart_result
@@ -8252,16 +8169,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
 
-        chart_id = save_chart(
-            chart,
-            birth_place=place,
-            retcon_time_used=False,
-            is_placeholder=False,
-            birth_month=profile_data["birth_month"],
-            birth_day=profile_data["birth_day"],
-            birth_year=profile_data["birth_year"],
-            chart_type=SOURCE_PUBLIC_DB,
-        )
+        try:
+            chart_id = save_chart(
+                chart,
+                birth_place=place,
+                retcon_time_used=False,
+                is_placeholder=False,
+                birth_month=profile_data["birth_month"],
+                birth_day=profile_data["birth_day"],
+                birth_year=profile_data["birth_year"],
+                chart_type=SOURCE_PUBLIC_DB,
+            )
+        except Exception as exc:
+            parent._reset_new_chart_form()
+            QMessageBox.warning(
+                self,
+                "Astrotheme import",
+                f"Astrotheme import failed while saving the chart:\n{exc}",
+            )
+            return
         set_current_chart(chart_id)
         parent.current_chart_id = chart_id
         parent._manage_charts_pending_changed_ids.add(chart_id)
@@ -15416,6 +15342,102 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
+    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
+        return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+        counts: Counter[str] = Counter()
+        for entry in aspect_entries:
+            aspect_value = getattr(entry, "aspect", None)
+            if aspect_value is None and isinstance(entry, dict):
+                aspect_value = entry.get("aspect")
+            aspect_key = self._normalize_aspect_type(aspect_value)
+            if not aspect_key:
+                continue
+            counts[aspect_key] += 1
+
+        ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
+        for key in sorted(counts.keys()):
+            if key not in ordered_keys and counts[key] > 0:
+                ordered_keys.append(key)
+        return OrderedDict((key, counts[key]) for key in ordered_keys)
+
+    def _build_popout_left_panel(
+        self,
+        layout: QHBoxLayout,
+        *,
+        chart_info_placeholder: str,
+        aspect_entries: list[Any],
+    ) -> QPlainTextEdit:
+        left_panel_layout = QVBoxLayout()
+
+        analytics_label = QLabel("Aspect Distribution")
+        analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        left_panel_layout.addWidget(analytics_label)
+
+        analytics_figure = Figure(figsize=(4.2, 3.4))
+        analytics_canvas = FigureCanvas(analytics_figure)
+        analytics_ax = analytics_figure.add_subplot(111)
+        analytics_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        if aspect_counts:
+            labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
+            values = list(aspect_counts.values())
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in aspect_counts.keys()]
+            bars = analytics_ax.barh(labels, values, color=colors, height=0.62)
+            analytics_ax.invert_yaxis()
+            max_value = max(values)
+            analytics_ax.set_xlim(0, max(1.0, max_value * 1.25))
+            for bar, value in zip(bars, values):
+                analytics_ax.text(
+                    bar.get_width() + (0.05 * max(1.0, max_value)),
+                    bar.get_y() + (bar.get_height() / 2),
+                    str(value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=8,
+                )
+        else:
+            analytics_ax.text(
+                0.5,
+                0.5,
+                "No relevant aspects",
+                color=CHART_THEME_COLORS["muted_text"],
+                ha="center",
+                va="center",
+                transform=analytics_ax.transAxes,
+                fontsize=8,
+            )
+            analytics_ax.set_xticks([])
+            analytics_ax.set_yticks([])
+
+        for spine in analytics_ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        analytics_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
+        analytics_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
+        analytics_ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], alpha=0.35, linewidth=0.6)
+        analytics_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
+        analytics_canvas.setMinimumHeight(220)
+        analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        analytics_canvas.draw_idle()
+        left_panel_layout.addWidget(analytics_canvas, 2)
+
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(chart_info_placeholder)
+        chart_info_output.setMinimumWidth(250)
+        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
+        left_panel_layout.addWidget(chart_info_label)
+        left_panel_layout.addWidget(chart_info_output, 1)
+
+        layout.addLayout(left_panel_layout, 1)
+        return chart_info_output
+
     def on_popout_chart(self) -> None:
         if self._latest_chart is None:
             QMessageBox.information(
@@ -15432,19 +15454,11 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        chart_info_layout = QVBoxLayout()
-        chart_info_label = QLabel("Chart Info!")
-        chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_info_output = QPlainTextEdit()
-        chart_info_output.setReadOnly(True)
-        chart_info_output.setPlaceholderText(
-            "Click the ⓘ next to a position or aspect to see details/interpretation."
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
+            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
         )
-        chart_info_output.setMinimumWidth(260)
-        chart_info_output._summary_highlighter = ChartSummaryHighlighter(chart_info_output.document())
-        chart_info_layout.addWidget(chart_info_label)
-        chart_info_layout.addWidget(chart_info_output, 1)
-        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)

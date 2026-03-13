@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from ephemeraldaddy.graphics.theme import DARK_THEME
+from ephemeraldaddy.gui.style import DARK_THEME
 
 
 # Aspect scoring constants/helpers consolidated here to keep major astro constants in one module.
@@ -595,11 +595,14 @@ HOUSE_COLORS = {
 }
 
 ASPECT_COLORS = {
-    "conjunction": "white", #DARK_THEME["aspect_conjunction"],
-    "sextile":     "white", #DARK_THEME["aspect_sextile"],
-    "square":      "white", #DARK_THEME["aspect_square"],
-    "trine":       "white", #DARK_THEME["aspect_trine"],
-    "opposition":  "white", #DARK_THEME["aspect_opposition"],
+    "conjunction": "#aaaaaa",
+    "sextile":     "#4caf50",
+    "square":      "#f44336",
+    "trine":       "#2196f3",
+    "opposition":  "#ff9800",
+    "quincunx":    "white",
+    "semisquare":  "azure",
+    "sesquiquadrate": "grey",
 }
 
 NAKSHATRA_PLANET_COLOR = {
