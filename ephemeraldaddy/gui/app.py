@@ -913,6 +913,37 @@ def _get_share_icon_path() -> str | None:
     return None
 
 
+def _export_aspect_distribution_csv_dialog(
+    parent: QWidget,
+    aspect_counts: OrderedDict[str, int],
+    *,
+    default_file_stem: str = "aspect_distribution",
+) -> None:
+    default_filename = f"{default_file_stem}.csv"
+    file_path, _selected_filter = QFileDialog.getSaveFileName(
+        parent,
+        "Export Aspect Distribution as CSV",
+        default_filename,
+        "CSV Files (*.csv)",
+    )
+    if not file_path:
+        return
+    if not file_path.lower().endswith(".csv"):
+        file_path = f"{file_path}.csv"
+
+    try:
+        with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["aspect_type", "count"])
+            for aspect_key, count in aspect_counts.items():
+                writer.writerow([aspect_key, count])
+    except Exception as exc:
+        QMessageBox.critical(parent, "Export failed", f"Could not write CSV file.\n\n{exc}")
+        return
+
+    QMessageBox.information(parent, "Export complete", f"Exported aspect distribution CSV to:\n{file_path}")
+
+
 
 
 
@@ -4063,9 +4094,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
         analytics_label = QLabel("Aspect Distribution")
         analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        left_panel_layout.addWidget(analytics_label)
+        analytics_header_layout.addWidget(analytics_label)
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
         analytics_canvas = FigureCanvas(analytics_figure)
@@ -4074,6 +4122,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        analytics_export_button.clicked.connect(
+            lambda _checked=False, counts=aspect_counts: _export_aspect_distribution_csv_dialog(
+                self,
+                counts,
+            )
+        )
         if aspect_counts:
             labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
             values = list(aspect_counts.values())
@@ -15470,9 +15524,26 @@ class MainWindow(QMainWindow):
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
+        analytics_header_layout = QHBoxLayout()
+        analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        analytics_header_layout.setSpacing(6)
         analytics_label = QLabel("Aspect Distribution")
         analytics_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        left_panel_layout.addWidget(analytics_label)
+        analytics_header_layout.addWidget(analytics_label)
+        analytics_header_layout.addStretch(1)
+
+        analytics_export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            analytics_export_button.setIcon(QIcon(share_icon_path))
+            analytics_export_button.setIconSize(QSize(14, 14))
+        else:
+            analytics_export_button.setText("↗")
+        analytics_export_button.setAutoRaise(True)
+        analytics_export_button.setCursor(Qt.PointingHandCursor)
+        analytics_export_button.setToolTip("Export aspect distribution as CSV")
+        analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
+        left_panel_layout.addLayout(analytics_header_layout)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
         analytics_canvas = FigureCanvas(analytics_figure)
@@ -15481,6 +15552,12 @@ class MainWindow(QMainWindow):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        analytics_export_button.clicked.connect(
+            lambda _checked=False, counts=aspect_counts: _export_aspect_distribution_csv_dialog(
+                self,
+                counts,
+            )
+        )
         if aspect_counts:
             labels = [key.replace("_", " ").title() for key in aspect_counts.keys()]
             values = list(aspect_counts.values())
