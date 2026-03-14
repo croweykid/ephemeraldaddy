@@ -3997,6 +3997,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
+        normalized_overlay_weights = _normalize_planet_weight_map(
+            getattr(overlay_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(overlay_chart)
+        )
+        normalized_base_weights = _normalize_planet_weight_map(
+            getattr(base_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(base_chart)
+        )
+
+        def _weighted_synastry_score(hit: Any) -> float:
+            if not hasattr(hit, "a") or not hasattr(hit, "b"):
+                return 0.0
+            return max(
+                0.0,
+                _synastry_pair_weight(
+                    hit.a.name,
+                    hit.b.name,
+                    normalized_overlay_weights,
+                    normalized_base_weights,
+                )
+                * float(getattr(hit, "weight", 0.0))
+                * float(getattr(hit, "exactness", 0.0)),
+            )
+
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Composite view: first selected chart houses with second selected chart overlay.",
@@ -4005,7 +4027,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"{_sanitize_export_token(base_chart.name)}_x_{_sanitize_export_token(overlay_chart.name)}"
                 "-synastry_aspect_distribution"
             ),
-            chart_for_weighting=base_chart,
+            weighted_score_for_entry=_weighted_synastry_score,
         )
 
         right_layout = QVBoxLayout()
@@ -4181,52 +4203,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight = 0.0
         return max(0.0, weight)
 
-    def _aspect_entry_payload(self, aspect_entry: Any) -> dict[str, Any]:
-        if isinstance(aspect_entry, dict):
-            p1 = str(aspect_entry.get("p1") or "")
-            p2 = str(aspect_entry.get("p2") or "")
-            aspect_type = self._normalize_aspect_type(aspect_entry.get("aspect") or aspect_entry.get("type"))
-            delta = float(aspect_entry.get("delta", 0.0) or 0.0)
-            return {"p1": p1, "p2": p2, "type": aspect_type, "delta": abs(delta)}
 
-        left = getattr(aspect_entry, "a", None)
-        right = getattr(aspect_entry, "b", None)
-        p1 = str(getattr(left, "name", "") or "")
-        p2 = str(getattr(right, "name", "") or "")
-        aspect_type = self._normalize_aspect_type(getattr(aspect_entry, "aspect", None) or getattr(aspect_entry, "type", None))
-        delta = float(getattr(aspect_entry, "orb_deg", 0.0) or 0.0)
-        return {"p1": p1, "p2": p2, "type": aspect_type, "delta": abs(delta)}
-
-    def _entry_personalized_aspect_weight(
-        self,
-        aspect_entry: Any,
-        *,
-        chart_for_weighting: Chart | None,
-        planet_weights: dict[str, float] | None,
-    ) -> float:
-        entry_weight = self._extract_aspect_weight(aspect_entry)
-        if entry_weight > 0:
-            return entry_weight
-        if chart_for_weighting is None:
-            return 0.0
-
-        payload = self._aspect_entry_payload(aspect_entry)
-        if not payload["p1"] or not payload["p2"] or not payload["type"]:
-            return 0.0
-
-        return max(0.0, float(aspect_score(payload, planet_weights=planet_weights)))
 
     def _collect_aspect_type_counts(
         self,
         aspect_entries: list[Any],
         *,
         weighted: bool = False,
-        chart_for_weighting: Chart | None = None,
+        weighted_score_for_entry: Callable[[Any], float] | None = None,
     ) -> OrderedDict[str, float]:
         counts: Counter[str] = Counter()
-        planet_weights = None
-        if weighted and chart_for_weighting is not None:
-            planet_weights = getattr(chart_for_weighting, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart_for_weighting)
 
         for entry in aspect_entries:
             aspect_value = getattr(entry, "aspect", None)
@@ -4238,11 +4224,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not aspect_key:
                 continue
             if weighted:
-                weight = self._entry_personalized_aspect_weight(
-                    entry,
-                    chart_for_weighting=chart_for_weighting,
-                    planet_weights=planet_weights,
-                )
+                if weighted_score_for_entry is not None:
+                    weight = max(0.0, float(weighted_score_for_entry(entry) or 0.0))
+                else:
+                    weight = self._extract_aspect_weight(entry)
                 if weight <= 0:
                     continue
                 counts[aspect_key] += weight
@@ -4353,7 +4338,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_info_placeholder: str,
         aspect_entries: list[Any],
         export_file_stem: str,
-        chart_for_weighting: Chart | None = None,
+        weighted_score_for_entry: Callable[[Any], float] | None = None,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -4396,7 +4381,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True, chart_for_weighting=chart_for_weighting)
+        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True, weighted_score_for_entry=weighted_score_for_entry)
         type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
         weighted_type_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_TYPES)
         friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
@@ -4670,12 +4655,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
         all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
+        hit_modes: dict[int, str] = {}
+        for mode_name, mode_hits in aspect_hits_by_mode.items():
+            for hit in mode_hits:
+                hit_modes[id(hit)] = mode_name
+        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(natal_chart)
+
+        def _weighted_personal_transit_score(hit: Any) -> float:
+            mode_name = hit_modes.get(id(hit), PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
+            return max(
+                0.0,
+                self._personal_transit_priority(
+                    hit,
+                    mode_name,
+                    natal_planet_weights=natal_planet_weights,
+                ),
+            )
+
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
             aspect_entries=all_hits,
             export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
-            chart_for_weighting=natal_chart,
+            weighted_score_for_entry=_weighted_personal_transit_score,
         )
 
         right_layout = QVBoxLayout()
@@ -5210,12 +5212,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
+        transit_planet_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
+
+        def _weighted_transit_score(entry: Any) -> float:
+            if isinstance(entry, dict):
+                return max(0.0, float(_aspect_score(entry, planet_weights=transit_planet_weights)))
+            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
+                return max(0.0, float(entry.exactness) * float(entry.weight))
+            return 0.0
+
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
             aspect_entries=list(getattr(chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
-            chart_for_weighting=chart,
+            weighted_score_for_entry=_weighted_transit_score,
         )
 
         right_layout = QVBoxLayout()
@@ -16079,52 +16090,16 @@ class MainWindow(QMainWindow):
             weight = 0.0
         return max(0.0, weight)
 
-    def _aspect_entry_payload(self, aspect_entry: Any) -> dict[str, Any]:
-        if isinstance(aspect_entry, dict):
-            p1 = str(aspect_entry.get("p1") or "")
-            p2 = str(aspect_entry.get("p2") or "")
-            aspect_type = self._normalize_aspect_type(aspect_entry.get("aspect") or aspect_entry.get("type"))
-            delta = float(aspect_entry.get("delta", 0.0) or 0.0)
-            return {"p1": p1, "p2": p2, "type": aspect_type, "delta": abs(delta)}
 
-        left = getattr(aspect_entry, "a", None)
-        right = getattr(aspect_entry, "b", None)
-        p1 = str(getattr(left, "name", "") or "")
-        p2 = str(getattr(right, "name", "") or "")
-        aspect_type = self._normalize_aspect_type(getattr(aspect_entry, "aspect", None) or getattr(aspect_entry, "type", None))
-        delta = float(getattr(aspect_entry, "orb_deg", 0.0) or 0.0)
-        return {"p1": p1, "p2": p2, "type": aspect_type, "delta": abs(delta)}
-
-    def _entry_personalized_aspect_weight(
-        self,
-        aspect_entry: Any,
-        *,
-        chart_for_weighting: Chart | None,
-        planet_weights: dict[str, float] | None,
-    ) -> float:
-        entry_weight = self._extract_aspect_weight(aspect_entry)
-        if entry_weight > 0:
-            return entry_weight
-        if chart_for_weighting is None:
-            return 0.0
-
-        payload = self._aspect_entry_payload(aspect_entry)
-        if not payload["p1"] or not payload["p2"] or not payload["type"]:
-            return 0.0
-
-        return max(0.0, float(aspect_score(payload, planet_weights=planet_weights)))
 
     def _collect_aspect_type_counts(
         self,
         aspect_entries: list[Any],
         *,
         weighted: bool = False,
-        chart_for_weighting: Chart | None = None,
+        weighted_score_for_entry: Callable[[Any], float] | None = None,
     ) -> OrderedDict[str, float]:
         counts: Counter[str] = Counter()
-        planet_weights = None
-        if weighted and chart_for_weighting is not None:
-            planet_weights = getattr(chart_for_weighting, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart_for_weighting)
 
         for entry in aspect_entries:
             aspect_value = getattr(entry, "aspect", None)
@@ -16136,11 +16111,10 @@ class MainWindow(QMainWindow):
             if not aspect_key:
                 continue
             if weighted:
-                weight = self._entry_personalized_aspect_weight(
-                    entry,
-                    chart_for_weighting=chart_for_weighting,
-                    planet_weights=planet_weights,
-                )
+                if weighted_score_for_entry is not None:
+                    weight = max(0.0, float(weighted_score_for_entry(entry) or 0.0))
+                else:
+                    weight = self._extract_aspect_weight(entry)
                 if weight <= 0:
                     continue
                 counts[aspect_key] += weight
@@ -16251,7 +16225,7 @@ class MainWindow(QMainWindow):
         chart_info_placeholder: str,
         aspect_entries: list[Any],
         export_file_stem: str,
-        chart_for_weighting: Chart | None = None,
+        weighted_score_for_entry: Callable[[Any], float] | None = None,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -16294,7 +16268,7 @@ class MainWindow(QMainWindow):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
-        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True, chart_for_weighting=chart_for_weighting)
+        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True, weighted_score_for_entry=weighted_score_for_entry)
         type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
         weighted_type_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_TYPES)
         friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
@@ -16378,12 +16352,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
+        natal_planet_weights = getattr(self._latest_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(self._latest_chart)
+
+        def _weighted_natal_score(entry: Any) -> float:
+            if isinstance(entry, dict):
+                return max(0.0, float(_aspect_score(entry, planet_weights=natal_planet_weights)))
+            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
+                return max(0.0, float(entry.exactness) * float(entry.weight))
+            return 0.0
+
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
-            chart_for_weighting=self._latest_chart,
+            weighted_score_for_entry=_weighted_natal_score,
         )
 
         right_layout = QVBoxLayout()
