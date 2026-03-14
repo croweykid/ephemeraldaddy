@@ -4035,7 +4035,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "goodness or awfulness of some people is far more critical in determining relationship outcomes "
                 "than baseline 'compatibility'. Maybe there's a big difference in conflict based on being 'wired "
                 "different' vs conflict based on differing levels of emotional maturity or sociopathy. lol But I "
-                "think my algorithm is also wrong."
+                "suspect my algorithm is also wrong."
             ),
         )
 
