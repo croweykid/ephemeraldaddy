@@ -1108,13 +1108,42 @@ def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
 
-def _aspect_score(asp: dict) -> float:
-    return aspect_score(asp)
+def _aspect_score(asp: dict, planet_weights: dict[str, float] | None = None) -> float:
+    return aspect_score(asp, planet_weights=planet_weights)
 
 
 def _aspect_duration_score(asp: dict) -> float:
     return aspect_duration_score(asp)
 
+
+
+def _normalize_planet_weight_map(weights: dict[str, float] | None) -> dict[str, float]:
+    if not weights:
+        return {}
+    normalized: dict[str, float] = {}
+    total = 0.0
+    for body, raw_weight in weights.items():
+        value = max(0.0, float(raw_weight))
+        normalized[str(body)] = value
+        total += value
+    if total <= 0.0:
+        return {}
+    return {body: (value / total) for body, value in normalized.items()}
+
+
+def _synastry_pair_weight(
+    overlay_body: str,
+    base_body: str,
+    normalized_overlay_weights: dict[str, float],
+    normalized_base_weights: dict[str, float],
+) -> float:
+    """Balanced pair score for synastry using geometric mean of normalized weights."""
+    overlay_weight = float(normalized_overlay_weights.get(overlay_body, 0.0))
+    base_weight = float(normalized_base_weights.get(base_body, 0.0))
+    if overlay_weight <= 0.0 or base_weight <= 0.0:
+        # fallback to static pair weight when normalized maps are unavailable/missing
+        return _aspect_pair_weight(overlay_body, base_body)
+    return math.sqrt(overlay_weight * base_weight)
 
 
 def _is_structural_tautology(asp: dict) -> bool:
@@ -1450,7 +1479,14 @@ def format_chart_text(
         #         if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
         #     ]
         sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-        sorted_aspects = _sort_natal_aspects(filtered_aspects, sort_mode)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        sorted_aspects = _sort_natal_aspects(
+            filtered_aspects,
+            sort_mode,
+            planet_weights=dominant_planet_weights,
+        )
         positions = getattr(chart, "positions", {})
         aspect_body_labels: dict[str, str] = {}
         for asp in sorted_aspects:
@@ -4057,6 +4093,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
 
+        base_dominant_planet_weights = getattr(base_chart, "dominant_planet_weights", None)
+        if not base_dominant_planet_weights:
+            base_dominant_planet_weights = _calculate_dominant_planet_weights(base_chart)
+        overlay_dominant_planet_weights = getattr(overlay_chart, "dominant_planet_weights", None)
+        if not overlay_dominant_planet_weights:
+            overlay_dominant_planet_weights = _calculate_dominant_planet_weights(overlay_chart)
+
         summary_header_lines = [
             f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
             "-----------------------------------",
@@ -4068,7 +4111,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sort_mode = summary_sort_combo.currentText()
             lines = list(summary_header_lines)
             aspect_info_map: dict[int, dict[str, object]] = {}
-            sorted_hits = self._sort_popout_aspects(aspect_hits, sort_mode)
+            sorted_hits = self._sort_popout_aspects(
+                aspect_hits,
+                sort_mode,
+                synastry_overlay_planet_weights=overlay_dominant_planet_weights,
+                synastry_base_planet_weights=base_dominant_planet_weights,
+            )
             if sorted_hits:
                 for hit in sorted_hits: #for hit in sorted_hits[:80]: #<- this had previously been truncated
                     left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
@@ -4301,7 +4349,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addLayout(left_panel_layout, 1)
         return chart_info_output
 
-    def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]:
+    def _sort_popout_aspects(
+        self,
+        aspect_hits: list[Any],
+        sort_mode: str,
+        *,
+        synastry_overlay_planet_weights: dict[str, float] | None = None,
+        synastry_base_planet_weights: dict[str, float] | None = None,
+    ) -> list[Any]:
         if sort_mode == "Aspect":
             return sorted(
                 aspect_hits,
@@ -4317,6 +4372,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return sorted(
                 aspect_hits,
                 key=lambda hit: (aspect_body_sign_duration(hit.a.name), hit.exactness, hit.weight, -hit.orb_deg),
+                reverse=True,
+            )
+        if synastry_overlay_planet_weights is not None and synastry_base_planet_weights is not None:
+            normalized_overlay_weights = _normalize_planet_weight_map(synastry_overlay_planet_weights)
+            normalized_base_weights = _normalize_planet_weight_map(synastry_base_planet_weights)
+            return sorted(
+                aspect_hits,
+                key=lambda hit: (
+                    _synastry_pair_weight(
+                        hit.a.name,
+                        hit.b.name,
+                        normalized_overlay_weights,
+                        normalized_base_weights,
+                    ) * float(hit.weight) * float(hit.exactness),
+                    float(hit.exactness),
+                    -float(hit.orb_deg),
+                ),
                 reverse=True,
             )
         return sorted(
@@ -4425,7 +4497,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Saved chart data output to:\n{file_path}",
         )
 
-    def _personal_transit_priority(self, hit: Any, mode: str) -> float:
+    def _personal_transit_priority(
+        self,
+        hit: Any,
+        mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
+    ) -> float:
         orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
         if orb_cap <= 0:
             return 0.0
@@ -4433,7 +4510,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_key = str(hit.aspect).replace(" ", "_").lower()
         aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
         transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
-        natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
+        if natal_planet_weights:
+            natal_weight = float(natal_planet_weights.get(hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)))
+        else:
+            natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
         angle_weight = float(ANGLE_WEIGHT.get(aspect_angle, 1.0))
         return (transit_weight + natal_weight) * angle_weight * orb_factor
 
@@ -4442,11 +4522,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_hits: list[Any],
         sort_mode: str,
         mode: str,
+        natal_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Priority":
             return sorted(
                 aspect_hits,
-                key=lambda hit: self._personal_transit_priority(hit, mode),
+                key=lambda hit: self._personal_transit_priority(
+                    hit,
+                    mode,
+                    natal_planet_weights=natal_planet_weights,
+                ),
                 reverse=True,
             )
         return self._sort_popout_aspects(aspect_hits, sort_mode)
@@ -4609,6 +4694,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scan_step_hours = transit_scan_config.scan_step_hours
         scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
+        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None)
+        if not natal_planet_weights:
+            natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
 
         def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
             daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
@@ -4624,6 +4712,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             daily_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_DAILY_VIBE,
@@ -4637,6 +4726,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ]
                     + [
@@ -4645,6 +4735,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             rollover_hits,
                             sort_mode,
                             PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                            natal_planet_weights=natal_planet_weights,
                         )
                     ],
                     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
@@ -13708,7 +13799,13 @@ class MainWindow(QMainWindow):
                 for asp in filtered_aspects
                 if asp.get("p1") not in angular_bodies and asp.get("p2") not in angular_bodies
             ]
-        filtered_aspects.sort(key=_aspect_score, reverse=True)
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        filtered_aspects.sort(
+            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
+            reverse=True,
+        )
         if not filtered_aspects:
             lines.append("| — | — | — | — | — | — |")
         for asp in filtered_aspects:
@@ -13716,7 +13813,7 @@ class MainWindow(QMainWindow):
                 "| "
                 f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
                 f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp):.2f} |"
+                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
             )
 
         lines.extend([

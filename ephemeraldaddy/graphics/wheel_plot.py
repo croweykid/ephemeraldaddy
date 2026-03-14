@@ -412,6 +412,7 @@ def _draw_chart_wheel(
     gamma = 0.8
 
     aspect_entries: list[tuple[dict, float]] = []
+    dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
     angular_bodies = {"AS", "MC", "DS", "IC"}
     if not overlay_aspects_only:
         for asp in getattr(chart, "aspects", []):
@@ -422,7 +423,7 @@ def _draw_chart_wheel(
                 continue
             if not use_houses and (p1 in angular_bodies or p2 in angular_bodies):
                 continue
-            aspect_entries.append((asp, aspect_score(asp)))
+            aspect_entries.append((asp, aspect_score(asp, planet_weights=dominant_planet_weights)))
 
     for overlay_asp in overlay_aspects or []:
         lon1 = overlay_asp.get("lon1_deg")
