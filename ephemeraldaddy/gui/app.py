@@ -4280,33 +4280,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if mode == "aspect_types_weighted":
             active_counts = weighted_type_totals
-            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_types":
             active_counts = type_totals
-            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction_weighted":
             active_counts = weighted_friction_totals
-            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction":
             active_counts = friction_totals
-            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspects":
             active_counts = aspect_counts
-            labels = [f"{key.replace('_', ' ').title()} (Prevalence)" for key in active_counts.keys()]
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         else:
             active_counts = weighted_aspect_counts
-            labels = [f"{key.replace('_', ' ').title()} (Weighted)" for key in active_counts.keys()]
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
 
         values = list(active_counts.values())
         if values:
             total = sum(values)
-            formatted_labels = [f"{label} ({value:.2f})" if isinstance(value, float) and not value.is_integer() else f"{label} ({int(value)})" for label, value in zip(labels, values)]
+            min_labeled_pct = 6
+            formatted_labels = [
+                label if total > 0 and ((value / total) * 100) >= min_labeled_pct else ""
+                for label, value in zip(labels, values)
+            ]
             analytics_ax.pie(
                 values,
                 labels=formatted_labels,
@@ -4315,10 +4319,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 counterclock=False,
                 radius=0.5,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
-                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
-                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
-                pctdistance=0.66,
-                labeldistance=0.98,
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 7},
+                autopct=lambda pct: f"{pct:.0f}%" if pct >= min_labeled_pct else "",
+                pctdistance=0.7,
+                labeldistance=1.08,
             )
             analytics_ax.axis("equal")
             analytics_ax.set_xlim(-1.1, 1.1)
@@ -16176,33 +16180,37 @@ class MainWindow(QMainWindow):
 
         if mode == "aspect_types_weighted":
             active_counts = weighted_type_totals
-            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_types":
             active_counts = type_totals
-            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction_weighted":
             active_counts = weighted_friction_totals
-            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction":
             active_counts = friction_totals
-            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            labels = [label.title() for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspects":
             active_counts = aspect_counts
-            labels = [f"{key.replace('_', ' ').title()} (Prevalence)" for key in active_counts.keys()]
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         else:
             active_counts = weighted_aspect_counts
-            labels = [f"{key.replace('_', ' ').title()} (Weighted)" for key in active_counts.keys()]
+            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
 
         values = list(active_counts.values())
         if values:
             total = sum(values)
-            formatted_labels = [f"{label} ({value:.2f})" if isinstance(value, float) and not value.is_integer() else f"{label} ({int(value)})" for label, value in zip(labels, values)]
+            min_labeled_pct = 6
+            formatted_labels = [
+                label if total > 0 and ((value / total) * 100) >= min_labeled_pct else ""
+                for label, value in zip(labels, values)
+            ]
             analytics_ax.pie(
                 values,
                 labels=formatted_labels,
@@ -16211,10 +16219,10 @@ class MainWindow(QMainWindow):
                 counterclock=False,
                 radius=0.5,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
-                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
-                autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
-                pctdistance=0.66,
-                labeldistance=0.98,
+                textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 7},
+                autopct=lambda pct: f"{pct:.0f}%" if pct >= min_labeled_pct else "",
+                pctdistance=0.7,
+                labeldistance=1.08,
             )
             analytics_ax.axis("equal")
             analytics_ax.set_xlim(-1.1, 1.1)
