@@ -4387,7 +4387,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if aspect_subheader:
             aspect_subheader_label = QLabel(aspect_subheader)
             aspect_subheader_label.setWordWrap(True)
-            aspect_subheader_label.setStyleSheet(CHART_DATA_BODY_LABEL_STYLE)
+            aspect_subheader_label.setStyleSheet(f"color: {CHART_THEME_COLORS['text']};")
             left_panel_layout.addWidget(aspect_subheader_label)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
@@ -16281,7 +16281,7 @@ class MainWindow(QMainWindow):
         if aspect_subheader:
             aspect_subheader_label = QLabel(aspect_subheader)
             aspect_subheader_label.setWordWrap(True)
-            aspect_subheader_label.setStyleSheet(CHART_DATA_BODY_LABEL_STYLE)
+            aspect_subheader_label.setStyleSheet(f"color: {CHART_THEME_COLORS['text']};")
             left_panel_layout.addWidget(aspect_subheader_label)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
