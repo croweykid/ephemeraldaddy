@@ -11556,7 +11556,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.setWindowTitle("Database View Settings")
         dialog.setWindowFlag(Qt.Window, True)
         dialog.setModal(False)
-        dialog.setFixedSize(300, 300)
+        dialog.setMinimumSize(520, 520)
         dialog.setStyleSheet(
             "QDialog { background-color: #181818; color: #ececec; }"
             "QLabel { color: #ececec; }"
@@ -11573,12 +11573,80 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         root_layout.setContentsMargins(12, 12, 12, 12)
         root_layout.setSpacing(12)
 
-        root_layout.addWidget(QLabel("Reset the interface to first-launch defaults."))
-        root_layout.addStretch(1)
+        scroll = QScrollArea(dialog)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        root_layout.addWidget(scroll)
+
+        content = QWidget()
+        scroll.setWidget(content)
+
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+
+        visibility_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Visibility",
+        )
+        visibility_section.addWidget(QLabel("Chart data panels"))
+
+        cursedness_checkbox = QCheckBox("Show cursedness analysis")
+        cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
+        cursedness_checkbox.toggled.connect(
+            lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
+        )
+        visibility_section.addWidget(cursedness_checkbox)
+
+        dnd_species_checkbox = QCheckBox("Show D&D species card")
+        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_species"))
+        dnd_species_checkbox.toggled.connect(
+            lambda checked: self._set_chart_data_visibility("chart_data.dnd_species", checked)
+        )
+        visibility_section.addWidget(dnd_species_checkbox)
+
+        visibility_section.addSpacing(8)
+        visibility_section.addWidget(QLabel("Database Metrics panel sections"))
+
+        for key in DATABASE_ANALYTICS_SECTION_KEYS:
+            section_key = key.replace("database_metrics.", "", 1)
+            label = section_key.replace("_", " ").title()
+            checkbox = QCheckBox(f"Show {label}")
+            checkbox.setChecked(self._is_database_metrics_section_expanded(section_key))
+            checkbox.toggled.connect(
+                lambda checked, section=section_key: self._set_database_metric_visibility_from_settings(
+                    section,
+                    checked,
+                )
+            )
+            visibility_section.addWidget(checkbox)
+
+        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
+        dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
+
+        size_checker_button = QPushButton("Toggle Size Checker")
+        size_checker_button.clicked.connect(self._toggle_size_checker)
+        dev_tools_section.addWidget(size_checker_button)
+
+        cleanup_button = QPushButton("Rename Database Properties")
+        cleanup_button.clicked.connect(self._launch_cleanup_sentiments_app)
+        dev_tools_section.addWidget(cleanup_button)
+
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
+        age_tools_section.addWidget(QLabel("Jump to age-related database metrics."))
+
+        open_age_metrics_button = QPushButton("Open Age distribution panel")
+        open_age_metrics_button.clicked.connect(self._open_age_distribution_panel)
+        age_tools_section.addWidget(open_age_metrics_button)
+
+        reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
+        reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
 
         reset_interface_button = QPushButton("Reset interface to default")
         reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
-        root_layout.addWidget(reset_interface_button)
+        reset_section.addWidget(reset_interface_button)
+        content_layout.addStretch(1)
 
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
@@ -11659,14 +11727,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
         return section_content_layout
 
+    def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
+        self._visibility.set(key, checked)
+        self._refresh_chart_preview()
+
+    def _set_database_metric_visibility_from_settings(self, section_key: str, checked: bool) -> None:
+        self._set_database_metrics_section_expanded(section_key, checked)
+        self._refresh_charts(refresh_metrics=True)
+
+    def _open_age_distribution_panel(self) -> None:
+        self._active_left_panel = "database_metrics"
+        self.left_panel_stack.setCurrentWidget(self._left_panel_widgets[self._active_left_panel])
+        self._left_panel_visible = True
+        self.left_panel_stack.setVisible(True)
+
+        self._set_database_metrics_section_expanded("age", True)
+        self._update_sentiment_tally(
+            update_database_metrics=True,
+            update_similarities=False,
+            sections_to_refresh={"age"},
+        )
+
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
         screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
         if screen is None:
-            dialog.resize(300, 300)
+            dialog.resize(520, 520)
             return
         geometry = screen.availableGeometry()
-        width = 300
-        height = 300
+        width = min(560, geometry.width() - 40)
+        height = min(680, geometry.height() - 40)
         x = geometry.x() + ((geometry.width() - width) // 2)
         y = geometry.y() + ((geometry.height() - height) // 2)
         dialog.setGeometry(x, y, width, height)
