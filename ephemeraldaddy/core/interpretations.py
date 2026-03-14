@@ -1972,8 +1972,8 @@ HOUSE_KEYWORDS = { #Areas of Life
         "missives","cousins","neighbors","brethren","research","studies","analysis","investigation","communication",
     ],
     4: [
-        "parents","your home", "family", "your personal space", "your house", "your roots", "your childhood","real estate","castles","antiquities","antiques","gardens","vintage items","gardening",
-        "privacy", "a sense of belonging", "your property", "the kitchen", "your bed", "your past","property","home","property","vineyards","cornfields","your residence","your parents",
+        "parents","home life", "family", "personal space", "house", "family roots", "childhood","real estate","castles","antiquities","antiques","gardens","vintage items","gardening",
+        "privacy", "a sense of belonging", "personal property", "the kitchen", "bedroom", "the past","property","home","property","vineyards","cornfields","personal residence","parents",
         #final end of all things, the querent’s father, his patrimony
     ],
     5: [
