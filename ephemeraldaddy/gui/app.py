@@ -14334,7 +14334,7 @@ class MainWindow(QMainWindow):
                     attempts += 1
                     continue
                 seen.add(combo)
-                unique_lines.append(f"+ {verb} {noun} {adverb}")
+                unique_lines.append(f"• {verb} {noun} {adverb}")
                 attempts += 1
         if house_num is None:
             verb_choices = verbs_only or verbs
@@ -14349,7 +14349,15 @@ class MainWindow(QMainWindow):
         self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
-        self.chart_info_output.setPlainText(_format_nakshatra_description_text(nakshatra))
+        formatted_text = _format_nakshatra_description_text(nakshatra)
+        lines = formatted_text.splitlines()
+        if len(lines) <= 1:
+            self.chart_info_output.setPlainText(formatted_text)
+            return
+
+        title = lines[0]
+        bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
+        self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
 
     def _show_species_info(
         self,
@@ -14364,7 +14372,7 @@ class MainWindow(QMainWindow):
             self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "Evidence is unavailable for this species assignment."])
+            "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
         )
 
     def _show_aspect_info(
@@ -14400,7 +14408,8 @@ class MainWindow(QMainWindow):
         )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
-        self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
+        bullet_lines = [f"• {line}" for line in unique_lines]
+        self.chart_info_output.setPlainText("\n".join([header, ""] + bullet_lines))
 
     def _confirm_discard_or_save(self) -> bool:
         if not self._lucygoosey:
