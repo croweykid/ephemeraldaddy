@@ -143,10 +143,11 @@ def draw_popout_aspect_distribution_chart(
             autopct=lambda pct: f"{pct:.0f}%" if pct >= min_labeled_pct else "",
             pctdistance=0.7,
             labeldistance=1.08,
+            radius=0.5,
         )
         analytics_ax.axis("equal")
-        analytics_ax.set_xlim(-1.1, 1.1)
-        analytics_ax.set_ylim(-1.1, 1.1)
+        analytics_ax.set_xlim(-1.0, 1.0)
+        analytics_ax.set_ylim(-1.0, 1.0)
     else:
         analytics_ax.text(
             0.5,
