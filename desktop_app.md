@@ -16,13 +16,14 @@ bundled app includes the GUI and an embedded icon for each platform.
    ```bash
    python -m pip install pyinstaller pillow
    ```
-2. Build the app:
+2. Build the app with all dependencies bundled:
    ```bash
-   python tools/build_desktop_app.py --icon icons/ephemeraldaddy1.png
+   python tools/build_desktop_app.py --onefile --icon icons/ephemeraldaddy1.png
    ```
 
-The bundled app will be in `dist/EphemeralDaddy` (or `dist/EphemeralDaddy.app` on macOS). You can
-drag it to the Dock/Applications on macOS or pin it on Windows for one-click launch.
+The helper collects hidden imports and package data (including astrology assets and bundled datasets) so the resulting binary can run offline.
+
+The bundled app will be in `dist/EphemeralDaddy.exe` on Windows (for `--onefile`) or `dist/EphemeralDaddy`/`dist/EphemeralDaddy.app` for folder-based builds.
 
 ## Custom icon
 
