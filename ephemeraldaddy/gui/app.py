@@ -931,7 +931,7 @@ def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
 
 def _export_aspect_distribution_csv_dialog(
     parent: QWidget,
-    aspect_counts: OrderedDict[str, int],
+    aspect_counts: OrderedDict[str, float],
     *,
     default_file_stem: str = "aspect_distribution",
 ) -> None:
@@ -4170,7 +4170,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
 
-    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
+        raw_weight = getattr(aspect_entry, "weight", None)
+        if raw_weight is None and isinstance(aspect_entry, dict):
+            raw_weight = aspect_entry.get("weight")
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 0.0
+        return max(0.0, weight)
+
+    def _collect_aspect_type_counts(
+        self,
+        aspect_entries: list[Any],
+        *,
+        weighted: bool = False,
+    ) -> OrderedDict[str, float]:
         counts: Counter[str] = Counter()
         for entry in aspect_entries:
             aspect_value = getattr(entry, "aspect", None)
@@ -4181,7 +4196,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             aspect_key = self._normalize_aspect_type(aspect_value)
             if not aspect_key:
                 continue
-            counts[aspect_key] += 1
+            counts[aspect_key] += self._extract_aspect_weight(entry) if weighted else 1.0
 
         ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
         for key in sorted(counts.keys()):
@@ -4191,11 +4206,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _collect_aspect_category_totals(
         self,
-        aspect_counts: OrderedDict[str, int],
+        aspect_counts: OrderedDict[str, float],
         *,
         categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, int]:
-        category_totals: OrderedDict[str, int] = OrderedDict()
+    ) -> OrderedDict[str, float]:
+        category_totals: OrderedDict[str, float] = OrderedDict()
         for category_name, category_meta in categories.items():
             category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
             total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
@@ -4208,30 +4223,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax: Any,
         *,
         mode: str,
-        aspect_counts: OrderedDict[str, int],
-        type_totals: OrderedDict[str, int],
-        friction_totals: OrderedDict[str, int],
+        aspect_counts: OrderedDict[str, float],
+        weighted_aspect_counts: OrderedDict[str, float],
+        type_totals: OrderedDict[str, float],
+        weighted_type_totals: OrderedDict[str, float],
+        friction_totals: OrderedDict[str, float],
+        weighted_friction_totals: OrderedDict[str, float],
     ) -> None:
         analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        if mode == "aspect_types":
-            active_counts = type_totals
-            labels = [label.title() for label in active_counts.keys()]
+        if mode == "aspect_types_weighted":
+            active_counts = weighted_type_totals
+            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_types":
+            active_counts = type_totals
+            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction_weighted":
+            active_counts = weighted_friction_totals
+            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction":
             active_counts = friction_totals
-            labels = [label.title() for label in active_counts.keys()]
+            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
-        else:
+        elif mode == "aspects":
             active_counts = aspect_counts
-            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            labels = [f"{key.replace('_', ' ').title()} (Prevalence)" for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = weighted_aspect_counts
+            labels = [f"{key.replace('_', ' ').title()} (Weighted)" for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
 
         values = list(active_counts.values())
         if values:
             total = sum(values)
-            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            formatted_labels = [f"{label} ({value:.2f})" if isinstance(value, float) and not value.is_integer() else f"{label} ({int(value)})" for label, value in zip(labels, values)]
             analytics_ax.pie(
                 values,
                 labels=formatted_labels,
@@ -4284,9 +4314,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         analytics_view_dropdown = QComboBox()
         analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
-        analytics_view_dropdown.addItem("ASPECTS", "aspects")
-        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
-        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
+        analytics_view_dropdown.addItem("ASPECTS (WEIGHTED)", "aspects_weighted")
+        analytics_view_dropdown.addItem("ASPECT TYPES (WEIGHTED)", "aspect_types_weighted")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (WEIGHTED)", "aspect_friction_weighted")
+        analytics_view_dropdown.addItem("ASPECTS (PREVALENCE)", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES (PREVALENCE)", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (PREVALENCE)", "aspect_friction")
         analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
 
         analytics_header_layout.addStretch(1)
@@ -4311,20 +4344,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True)
         type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        weighted_type_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_TYPES)
         friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
+        weighted_friction_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_FRICTION)
 
         def _export_selected_aspect_distribution(_checked: bool = False) -> None:
             selected_mode = analytics_view_dropdown.currentData()
-            if selected_mode == "aspect_types":
+            if selected_mode == "aspect_types_weighted":
+                selected_counts = weighted_type_totals
+                export_stem = f"{export_file_stem}_aspect_types_weighted"
+            elif selected_mode == "aspect_types":
                 selected_counts = type_totals
-                export_stem = f"{export_file_stem}_aspect_types"
+                export_stem = f"{export_file_stem}_aspect_types_prevalence"
+            elif selected_mode == "aspect_friction_weighted":
+                selected_counts = weighted_friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction_weighted"
             elif selected_mode == "aspect_friction":
                 selected_counts = friction_totals
-                export_stem = f"{export_file_stem}_aspect_friction"
-            else:
+                export_stem = f"{export_file_stem}_aspect_friction_prevalence"
+            elif selected_mode == "aspects":
                 selected_counts = aspect_counts
-                export_stem = export_file_stem
+                export_stem = f"{export_file_stem}_aspects_prevalence"
+            else:
+                selected_counts = weighted_aspect_counts
+                export_stem = f"{export_file_stem}_aspects_weighted"
             _export_aspect_distribution_csv_dialog(
                 self,
                 selected_counts,
@@ -4334,13 +4379,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
 
         def _render_analytics_chart() -> None:
-            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects_weighted")
             self._draw_popout_aspect_distribution_chart(
                 analytics_ax,
                 mode=selected_mode,
                 aspect_counts=aspect_counts,
+                weighted_aspect_counts=weighted_aspect_counts,
                 type_totals=type_totals,
+                weighted_type_totals=weighted_type_totals,
                 friction_totals=friction_totals,
+                weighted_friction_totals=weighted_friction_totals,
             )
             analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
             analytics_canvas.draw_idle()
@@ -15967,7 +16015,22 @@ class MainWindow(QMainWindow):
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return str(raw_aspect or "").strip().lower().replace("-", "_").replace(" ", "_")
 
-    def _collect_aspect_type_counts(self, aspect_entries: list[Any]) -> OrderedDict[str, int]:
+    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
+        raw_weight = getattr(aspect_entry, "weight", None)
+        if raw_weight is None and isinstance(aspect_entry, dict):
+            raw_weight = aspect_entry.get("weight")
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 0.0
+        return max(0.0, weight)
+
+    def _collect_aspect_type_counts(
+        self,
+        aspect_entries: list[Any],
+        *,
+        weighted: bool = False,
+    ) -> OrderedDict[str, float]:
         counts: Counter[str] = Counter()
         for entry in aspect_entries:
             aspect_value = getattr(entry, "aspect", None)
@@ -15978,7 +16041,7 @@ class MainWindow(QMainWindow):
             aspect_key = self._normalize_aspect_type(aspect_value)
             if not aspect_key:
                 continue
-            counts[aspect_key] += 1
+            counts[aspect_key] += self._extract_aspect_weight(entry) if weighted else 1.0
 
         ordered_keys = [key for key in ASPECT_COLORS.keys() if counts.get(key, 0) > 0]
         for key in sorted(counts.keys()):
@@ -15988,11 +16051,11 @@ class MainWindow(QMainWindow):
 
     def _collect_aspect_category_totals(
         self,
-        aspect_counts: OrderedDict[str, int],
+        aspect_counts: OrderedDict[str, float],
         *,
         categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, int]:
-        category_totals: OrderedDict[str, int] = OrderedDict()
+    ) -> OrderedDict[str, float]:
+        category_totals: OrderedDict[str, float] = OrderedDict()
         for category_name, category_meta in categories.items():
             category_aspects = {self._normalize_aspect_type(name) for name in category_meta.get("aspects", set())}
             total = sum(aspect_counts.get(aspect_name, 0) for aspect_name in category_aspects)
@@ -16005,30 +16068,45 @@ class MainWindow(QMainWindow):
         analytics_ax: Any,
         *,
         mode: str,
-        aspect_counts: OrderedDict[str, int],
-        type_totals: OrderedDict[str, int],
-        friction_totals: OrderedDict[str, int],
+        aspect_counts: OrderedDict[str, float],
+        weighted_aspect_counts: OrderedDict[str, float],
+        type_totals: OrderedDict[str, float],
+        weighted_type_totals: OrderedDict[str, float],
+        friction_totals: OrderedDict[str, float],
+        weighted_friction_totals: OrderedDict[str, float],
     ) -> None:
         analytics_ax.clear()
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        if mode == "aspect_types":
-            active_counts = type_totals
-            labels = [label.title() for label in active_counts.keys()]
+        if mode == "aspect_types_weighted":
+            active_counts = weighted_type_totals
+            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
             colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_types":
+            active_counts = type_totals
+            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
+            colors = [ASPECT_TYPES.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        elif mode == "aspect_friction_weighted":
+            active_counts = weighted_friction_totals
+            labels = [f"{label.title()} (Weighted)" for label in active_counts.keys()]
+            colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
         elif mode == "aspect_friction":
             active_counts = friction_totals
-            labels = [label.title() for label in active_counts.keys()]
+            labels = [f"{label.title()} (Prevalence)" for label in active_counts.keys()]
             colors = [ASPECT_FRICTION.get(key, {}).get("color", CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
-        else:
+        elif mode == "aspects":
             active_counts = aspect_counts
-            labels = [key.replace("_", " ").title() for key in active_counts.keys()]
+            labels = [f"{key.replace('_', ' ').title()} (Prevalence)" for key in active_counts.keys()]
+            colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
+        else:
+            active_counts = weighted_aspect_counts
+            labels = [f"{key.replace('_', ' ').title()} (Weighted)" for key in active_counts.keys()]
             colors = [ASPECT_COLORS.get(key, CHART_THEME_COLORS["accent"]) for key in active_counts.keys()]
 
         values = list(active_counts.values())
         if values:
             total = sum(values)
-            formatted_labels = [f"{label} ({value})" for label, value in zip(labels, values)]
+            formatted_labels = [f"{label} ({value:.2f})" if isinstance(value, float) and not value.is_integer() else f"{label} ({int(value)})" for label, value in zip(labels, values)]
             analytics_ax.pie(
                 values,
                 labels=formatted_labels,
@@ -16081,9 +16159,12 @@ class MainWindow(QMainWindow):
 
         analytics_view_dropdown = QComboBox()
         analytics_view_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
-        analytics_view_dropdown.addItem("ASPECTS", "aspects")
-        analytics_view_dropdown.addItem("ASPECT TYPES", "aspect_types")
-        analytics_view_dropdown.addItem("ASPECT FRICTION", "aspect_friction")
+        analytics_view_dropdown.addItem("ASPECTS (WEIGHTED)", "aspects_weighted")
+        analytics_view_dropdown.addItem("ASPECT TYPES (WEIGHTED)", "aspect_types_weighted")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (WEIGHTED)", "aspect_friction_weighted")
+        analytics_view_dropdown.addItem("ASPECTS (PREVALENCE)", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES (PREVALENCE)", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (PREVALENCE)", "aspect_friction")
         analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
 
         analytics_header_layout.addStretch(1)
@@ -16108,20 +16189,32 @@ class MainWindow(QMainWindow):
         analytics_ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         aspect_counts = self._collect_aspect_type_counts(aspect_entries)
+        weighted_aspect_counts = self._collect_aspect_type_counts(aspect_entries, weighted=True)
         type_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_TYPES)
+        weighted_type_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_TYPES)
         friction_totals = self._collect_aspect_category_totals(aspect_counts, categories=ASPECT_FRICTION)
+        weighted_friction_totals = self._collect_aspect_category_totals(weighted_aspect_counts, categories=ASPECT_FRICTION)
 
         def _export_selected_aspect_distribution(_checked: bool = False) -> None:
             selected_mode = analytics_view_dropdown.currentData()
-            if selected_mode == "aspect_types":
+            if selected_mode == "aspect_types_weighted":
+                selected_counts = weighted_type_totals
+                export_stem = f"{export_file_stem}_aspect_types_weighted"
+            elif selected_mode == "aspect_types":
                 selected_counts = type_totals
-                export_stem = f"{export_file_stem}_aspect_types"
+                export_stem = f"{export_file_stem}_aspect_types_prevalence"
+            elif selected_mode == "aspect_friction_weighted":
+                selected_counts = weighted_friction_totals
+                export_stem = f"{export_file_stem}_aspect_friction_weighted"
             elif selected_mode == "aspect_friction":
                 selected_counts = friction_totals
-                export_stem = f"{export_file_stem}_aspect_friction"
-            else:
+                export_stem = f"{export_file_stem}_aspect_friction_prevalence"
+            elif selected_mode == "aspects":
                 selected_counts = aspect_counts
-                export_stem = export_file_stem
+                export_stem = f"{export_file_stem}_aspects_prevalence"
+            else:
+                selected_counts = weighted_aspect_counts
+                export_stem = f"{export_file_stem}_aspects_weighted"
             _export_aspect_distribution_csv_dialog(
                 self,
                 selected_counts,
@@ -16131,13 +16224,16 @@ class MainWindow(QMainWindow):
         analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
 
         def _render_analytics_chart() -> None:
-            selected_mode = str(analytics_view_dropdown.currentData() or "aspects")
+            selected_mode = str(analytics_view_dropdown.currentData() or "aspects_weighted")
             self._draw_popout_aspect_distribution_chart(
                 analytics_ax,
                 mode=selected_mode,
                 aspect_counts=aspect_counts,
+                weighted_aspect_counts=weighted_aspect_counts,
                 type_totals=type_totals,
+                weighted_type_totals=weighted_type_totals,
                 friction_totals=friction_totals,
+                weighted_friction_totals=weighted_friction_totals,
             )
             analytics_figure.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.95)
             analytics_canvas.draw_idle()
