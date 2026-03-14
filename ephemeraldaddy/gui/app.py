@@ -1122,6 +1122,35 @@ def _aspect_duration_score(asp: dict) -> float:
 
 
 
+def _normalize_planet_weight_map(weights: dict[str, float] | None) -> dict[str, float]:
+    if not weights:
+        return {}
+    normalized: dict[str, float] = {}
+    total = 0.0
+    for body, raw_weight in weights.items():
+        value = max(0.0, float(raw_weight))
+        normalized[str(body)] = value
+        total += value
+    if total <= 0.0:
+        return {}
+    return {body: (value / total) for body, value in normalized.items()}
+
+
+def _synastry_pair_weight(
+    overlay_body: str,
+    base_body: str,
+    normalized_overlay_weights: dict[str, float],
+    normalized_base_weights: dict[str, float],
+) -> float:
+    """Balanced pair score for synastry using geometric mean of normalized weights."""
+    overlay_weight = float(normalized_overlay_weights.get(overlay_body, 0.0))
+    base_weight = float(normalized_base_weights.get(base_body, 0.0))
+    if overlay_weight <= 0.0 or base_weight <= 0.0:
+        # fallback to static pair weight when normalized maps are unavailable/missing
+        return _aspect_pair_weight(overlay_body, base_body)
+    return math.sqrt(overlay_weight * base_weight)
+
+
 def _is_structural_tautology(asp: dict) -> bool:
     aspect_label = _aspect_label(asp["type"])
     if aspect_label not in {"Opposition", "Square"}:
@@ -4074,6 +4103,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
 
+        base_dominant_planet_weights = getattr(base_chart, "dominant_planet_weights", None)
+        if not base_dominant_planet_weights:
+            base_dominant_planet_weights = _calculate_dominant_planet_weights(base_chart)
+        overlay_dominant_planet_weights = getattr(overlay_chart, "dominant_planet_weights", None)
+        if not overlay_dominant_planet_weights:
+            overlay_dominant_planet_weights = _calculate_dominant_planet_weights(overlay_chart)
+
         summary_header_lines = [
             f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
             "-----------------------------------",
@@ -4085,7 +4121,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sort_mode = summary_sort_combo.currentText()
             lines = list(summary_header_lines)
             aspect_info_map: dict[int, dict[str, object]] = {}
-            sorted_hits = self._sort_popout_aspects(aspect_hits, sort_mode)
+            sorted_hits = self._sort_popout_aspects(
+                aspect_hits,
+                sort_mode,
+                synastry_overlay_planet_weights=overlay_dominant_planet_weights,
+                synastry_base_planet_weights=base_dominant_planet_weights,
+            )
             if sorted_hits:
                 for hit in sorted_hits: #for hit in sorted_hits[:80]: #<- this had previously been truncated
                     left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
@@ -4322,7 +4363,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addLayout(left_panel_layout, 1)
         return chart_info_output
 
-    def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]:
+    def _sort_popout_aspects(
+        self,
+        aspect_hits: list[Any],
+        sort_mode: str,
+        *,
+        synastry_overlay_planet_weights: dict[str, float] | None = None,
+        synastry_base_planet_weights: dict[str, float] | None = None,
+    ) -> list[Any]:
         if sort_mode == "Aspect":
             return sorted(
                 aspect_hits,
@@ -4338,6 +4386,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return sorted(
                 aspect_hits,
                 key=lambda hit: (aspect_body_sign_duration(hit.a.name), hit.exactness, hit.weight, -hit.orb_deg),
+                reverse=True,
+            )
+        if synastry_overlay_planet_weights is not None and synastry_base_planet_weights is not None:
+            normalized_overlay_weights = _normalize_planet_weight_map(synastry_overlay_planet_weights)
+            normalized_base_weights = _normalize_planet_weight_map(synastry_base_planet_weights)
+            return sorted(
+                aspect_hits,
+                key=lambda hit: (
+                    _synastry_pair_weight(
+                        hit.a.name,
+                        hit.b.name,
+                        normalized_overlay_weights,
+                        normalized_base_weights,
+                    ) * float(hit.weight) * float(hit.exactness),
+                    float(hit.exactness),
+                    -float(hit.orb_deg),
+                ),
                 reverse=True,
             )
         return sorted(
