@@ -4238,11 +4238,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 colors=colors,
                 startangle=90,
                 counterclock=False,
+                radius=0.25,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
                 textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
                 autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
-                pctdistance=0.72,
-                labeldistance=1.08,
+                pctdistance=0.66,
+                labeldistance=0.98,
             )
             analytics_ax.axis("equal")
         else:
@@ -16025,11 +16026,12 @@ class MainWindow(QMainWindow):
                 colors=colors,
                 startangle=90,
                 counterclock=False,
+                radius=0.25,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
                 textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
                 autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
-                pctdistance=0.72,
-                labeldistance=1.08,
+                pctdistance=0.66,
+                labeldistance=0.98,
             )
             analytics_ax.axis("equal")
         else:
