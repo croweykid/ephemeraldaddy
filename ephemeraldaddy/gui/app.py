@@ -4313,7 +4313,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 colors=colors,
                 startangle=90,
                 counterclock=False,
-                radius=0.25,
+                radius=0.5,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
                 textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
                 autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
@@ -4321,6 +4321,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 labeldistance=0.98,
             )
             analytics_ax.axis("equal")
+            analytics_ax.set_xlim(-1.1, 1.1)
+            analytics_ax.set_ylim(-1.1, 1.1)
         else:
             analytics_ax.text(
                 0.5,
@@ -16207,7 +16209,7 @@ class MainWindow(QMainWindow):
                 colors=colors,
                 startangle=90,
                 counterclock=False,
-                radius=0.25,
+                radius=0.5,
                 wedgeprops={"linewidth": 0.8, "edgecolor": CHART_THEME_COLORS["background"]},
                 textprops={"color": CHART_THEME_COLORS["text"], "fontsize": 8},
                 autopct=lambda pct: f"{pct:.0f}%" if total > 0 else "",
@@ -16215,6 +16217,8 @@ class MainWindow(QMainWindow):
                 labeldistance=0.98,
             )
             analytics_ax.axis("equal")
+            analytics_ax.set_xlim(-1.1, 1.1)
+            analytics_ax.set_ylim(-1.1, 1.1)
         else:
             analytics_ax.text(
                 0.5,
