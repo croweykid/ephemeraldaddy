@@ -4028,6 +4028,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "-synastry_aspect_distribution"
             ),
             weighted_score_for_entry=_weighted_synastry_score,
+            aspect_subheader=(
+                "Disclaimer: The creator of this app hasn't found Synastry aspect weighing to be useful or relevant. "
+                "It predicts harmony with all my worst enemies, success in relationships that failed and strife in "
+                "relationships that have gone well for a very long time. It may be that the objective innate "
+                "goodness or awfulness of some people is far more critical in determining relationship outcomes "
+                "than baseline 'compatibility'. Maybe there's a big difference in conflict based on being 'wired "
+                "different' vs conflict based on differing levels of emotional maturity or sociopathy. lol But I "
+                "think my algorithm is also wrong."
+            ),
         )
 
         right_layout = QVBoxLayout()
@@ -4339,6 +4348,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_entries: list[Any],
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
+        aspect_subheader: str | None = None,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -4373,6 +4383,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         analytics_export_button.setToolTip("Export aspect distribution as CSV")
         analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
         left_panel_layout.addLayout(analytics_header_layout)
+
+        if aspect_subheader:
+            aspect_subheader_label = QLabel(aspect_subheader)
+            aspect_subheader_label.setWordWrap(True)
+            aspect_subheader_label.setStyleSheet(CHART_DATA_BODY_LABEL_STYLE)
+            left_panel_layout.addWidget(aspect_subheader_label)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
         analytics_canvas = FigureCanvas(analytics_figure)
@@ -16226,6 +16242,7 @@ class MainWindow(QMainWindow):
         aspect_entries: list[Any],
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
+        aspect_subheader: str | None = None,
     ) -> QPlainTextEdit:
         left_panel_layout = QVBoxLayout()
 
@@ -16260,6 +16277,12 @@ class MainWindow(QMainWindow):
         analytics_export_button.setToolTip("Export aspect distribution as CSV")
         analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
         left_panel_layout.addLayout(analytics_header_layout)
+
+        if aspect_subheader:
+            aspect_subheader_label = QLabel(aspect_subheader)
+            aspect_subheader_label.setWordWrap(True)
+            aspect_subheader_label.setStyleSheet(CHART_DATA_BODY_LABEL_STYLE)
+            left_panel_layout.addWidget(aspect_subheader_label)
 
         analytics_figure = Figure(figsize=(4.2, 3.4))
         analytics_canvas = FigureCanvas(analytics_figure)
