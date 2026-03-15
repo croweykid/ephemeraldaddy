@@ -11602,7 +11602,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Visibility",
         )
-        visibility_section.addWidget(QLabel("Chart data panels"))
+        visibility_section.addWidget(QLabel("Chart Data Panels"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
