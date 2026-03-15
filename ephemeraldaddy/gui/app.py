@@ -11644,66 +11644,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cleanup_button.clicked.connect(self._launch_cleanup_sentiments_app)
         dev_tools_section.addWidget(cleanup_button)
 
-        self._dev_user_age_label = QLabel("User Age: unavailable")
-        self._dev_user_age_label.setWordWrap(True)
-        dev_tools_section.addWidget(self._dev_user_age_label)
-
-        age_predictor_header = QLabel("Age Distribution Predictor")
-        age_predictor_header.setStyleSheet("font-weight: 700;")
-        dev_tools_section.addWidget(age_predictor_header)
-
-        refresh_predictor_button = QPushButton("Refresh Age Predictor")
-        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
-        dev_tools_section.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
-
-        get_estimated_age_button = QPushButton("Get Estimated Age")
-        get_estimated_age_button.setToolTip(
-            "Force-estimate age from network ages, even if a self chart age exists."
-        )
-        get_estimated_age_button.clicked.connect(
-            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
-        )
-        dev_tools_section.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
-
-        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
-        predictor_figure.patch.set_facecolor("#1e1e1e")
-        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
-        self._dev_age_distribution_canvas.setMinimumHeight(230)
-        dev_tools_section.addWidget(self._dev_age_distribution_canvas)
-
-        self._refresh_dev_age_predictor()
-
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
         age_tools_section.addWidget(QLabel("Age inference tools."))
-
-        self._dev_user_age_label = QLabel("User Age: unavailable")
-        self._dev_user_age_label.setWordWrap(True)
-        age_tools_section.addWidget(self._dev_user_age_label)
-
-        age_predictor_header = QLabel("Age Distribution Predictor")
-        age_predictor_header.setStyleSheet("font-weight: 700;")
-        age_tools_section.addWidget(age_predictor_header)
-
-        refresh_predictor_button = QPushButton("Refresh Age Predictor")
-        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
-        age_tools_section.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
-
-        get_estimated_age_button = QPushButton("Get Estimated Age")
-        get_estimated_age_button.setToolTip(
-            "Force-estimate age from network ages, even if a self chart age exists."
-        )
-        get_estimated_age_button.clicked.connect(
-            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
-        )
-        age_tools_section.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
-
-        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
-        predictor_figure.patch.set_facecolor("#1e1e1e")
-        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
-        self._dev_age_distribution_canvas.setMinimumHeight(230)
-        age_tools_section.addWidget(self._dev_age_distribution_canvas)
-
-        self._refresh_dev_age_predictor()
 
         self._dev_user_age_label = QLabel("User Age: unavailable")
         self._dev_user_age_label.setWordWrap(True)
