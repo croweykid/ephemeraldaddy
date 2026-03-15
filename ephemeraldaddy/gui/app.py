@@ -11560,6 +11560,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.setStyleSheet(
             "QDialog { background-color: #181818; color: #ececec; }"
             "QLabel { color: #ececec; }"
+            "QToolButton {"
+            "background-color: #262626;"
+            "border: 1px solid #555555;"
+            "padding: 6px 10px;"
+            "font-weight: 600;"
+            "color: #ececec;"
+            "}"
             "QPushButton {"
             "background-color: #2f2f2f;"
             "border: 1px solid #666666;"
@@ -11567,6 +11574,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "color: #f0f0f0;"
             "}"
             "QPushButton:hover { background-color: #3a3a3a; }"
+            "QFrame#settings_section_content {"
+            "background-color: #202020;"
+            "border: 1px solid #4f4f4f;"
+            "}"
+            "QScrollArea { background-color: #181818; }"
         )
 
         root_layout = QVBoxLayout(dialog)
@@ -11609,18 +11621,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addSpacing(8)
         visibility_section.addWidget(QLabel("Database Metrics panel sections"))
 
-        for key in DATABASE_ANALYTICS_SECTION_KEYS:
-            section_key = key.replace("database_metrics.", "", 1)
-            label = section_key.replace("_", " ").title()
-            checkbox = QCheckBox(f"Show {label}")
-            checkbox.setChecked(self._is_database_metrics_section_expanded(section_key))
-            checkbox.toggled.connect(
-                lambda checked, section=section_key: self._set_database_metric_visibility_from_settings(
-                    section,
-                    checked,
-                )
+        species_distribution_checkbox = QCheckBox("Show Species Distribution")
+        species_distribution_checkbox.setChecked(
+            self._is_database_metrics_section_expanded("species_distribution")
+        )
+        species_distribution_checkbox.toggled.connect(
+            lambda checked: self._set_database_metric_visibility_from_settings(
+                "species_distribution",
+                checked,
             )
-            visibility_section.addWidget(checkbox)
+        )
+        visibility_section.addWidget(species_distribution_checkbox)
 
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
@@ -11634,11 +11645,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dev_tools_section.addWidget(cleanup_button)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
-        age_tools_section.addWidget(QLabel("Jump to age-related database metrics."))
+        age_tools_section.addWidget(QLabel("Age inference tools."))
 
-        open_age_metrics_button = QPushButton("Open Age distribution panel")
-        open_age_metrics_button.clicked.connect(self._open_age_distribution_panel)
-        age_tools_section.addWidget(open_age_metrics_button)
+        self._dev_user_age_label = QLabel("User Age: unavailable")
+        self._dev_user_age_label.setWordWrap(True)
+        age_tools_section.addWidget(self._dev_user_age_label)
+
+        age_predictor_header = QLabel("Age Distribution Predictor")
+        age_predictor_header.setStyleSheet("font-weight: 700;")
+        age_tools_section.addWidget(age_predictor_header)
+
+        refresh_predictor_button = QPushButton("Refresh Age Predictor")
+        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
+        age_tools_section.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
+
+        get_estimated_age_button = QPushButton("Get Estimated Age")
+        get_estimated_age_button.setToolTip(
+            "Force-estimate age from network ages, even if a self chart age exists."
+        )
+        get_estimated_age_button.clicked.connect(
+            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
+        )
+        age_tools_section.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
+
+        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
+        predictor_figure.patch.set_facecolor("#1e1e1e")
+        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
+        self._dev_age_distribution_canvas.setMinimumHeight(230)
+        age_tools_section.addWidget(self._dev_age_distribution_canvas)
+
+        self._refresh_dev_age_predictor()
 
         reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
@@ -11651,6 +11687,94 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+    def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
+        if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
+            return
+
+        try:
+            details = resolve_user_age_details(
+                force_inference=force_guess,
+                include_all_chart_types_for_inference=(
+                    self._dev_age_inference_include_all_chart_types
+                ),
+            )
+        except Exception as exc:
+            logger.exception("Dev Tools age predictor refresh failed")
+            self._dev_user_age_label.setText(f"User Age: unavailable (error: {exc})")
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            ax = figure.add_subplot(111)
+            ax.axis("off")
+            ax.text(
+                0.5,
+                0.5,
+                "Age predictor refresh failed.",
+                ha="center",
+                va="center",
+                color="#b0b0b0",
+            )
+            self._dev_age_distribution_canvas.draw_idle()
+            return
+
+        resolved_age = details.get("age")
+        source = str(details.get("source") or "unavailable")
+        chart_name = details.get("chart_name")
+
+        if not isinstance(resolved_age, int):
+            self._dev_user_age_label.setText("User Age: unavailable (no valid birth-year data in DB)")
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            ax = figure.add_subplot(111)
+            ax.axis("off")
+            ax.text(0.5, 0.5, "Not enough data for predictor.", ha="center", va="center", color="#b0b0b0")
+            self._dev_age_distribution_canvas.draw_idle()
+            return
+
+        if source == "self":
+            source_label = f"self-defined ({chart_name or 'Unnamed chart'})"
+        else:
+            inference_scope = (
+                "all chart types"
+                if self._dev_age_inference_include_all_chart_types
+                else "personal charts only"
+            )
+            source_label = f"predicted ({inference_scope}): {resolved_age}"
+
+        logger.info("Dev Tools user-age resolver: age=%s source=%s", resolved_age, source_label)
+        self._dev_user_age_label.setText(f"User Age: {resolved_age} [{source_label}]")
+
+        distribution = discrete_age_distribution(
+            float(resolved_age),
+            bin_width=1,
+            min_age=0,
+            max_age=110,
+        )
+        if not distribution:
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            self._dev_age_distribution_canvas.draw_idle()
+            return
+
+        ages = [age for age, _ in distribution]
+        probs = [prob for _, prob in distribution]
+
+        figure = self._dev_age_distribution_canvas.figure
+        figure.clear()
+        figure.patch.set_facecolor("#1e1e1e")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#232323")
+        ax.bar(ages, probs, width=0.85, color="#339933", edgecolor="#2d862d", linewidth=0.2)
+        ax.set_title("Age Distribution Predictor", fontsize=10, color="#e6e6e6")
+        ax.set_xlabel("Network age", fontsize=9, color="#d0d0d0")
+        ax.set_ylabel("Probability", fontsize=9, color="#d0d0d0")
+        ax.set_xlim(0, 110)
+        ax.tick_params(axis="both", labelsize=8, colors="#c9c9c9")
+        ax.grid(axis="y", alpha=0.25, linestyle="--", linewidth=0.6, color="#777777")
+        for spine in ax.spines.values():
+            spine.set_color("#666666")
+
+        self._dev_age_distribution_canvas.draw_idle()
 
     def _reset_interface_to_defaults(self) -> None:
         choice = QMessageBox.question(
@@ -11729,24 +11853,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
-        self._refresh_chart_preview()
+
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._refresh_chart_preview()
 
     def _set_database_metric_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_expanded(section_key, checked)
         self._refresh_charts(refresh_metrics=True)
-
-    def _open_age_distribution_panel(self) -> None:
-        self._active_left_panel = "database_metrics"
-        self.left_panel_stack.setCurrentWidget(self._left_panel_widgets[self._active_left_panel])
-        self._left_panel_visible = True
-        self.left_panel_stack.setVisible(True)
-
-        self._set_database_metrics_section_expanded("age", True)
-        self._update_sentiment_tally(
-            update_database_metrics=True,
-            update_similarities=False,
-            sections_to_refresh={"age"},
-        )
 
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
         screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
@@ -11762,13 +11876,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _toggle_size_checker(self) -> None:
         popup = self._size_checker_popup
-        if popup is not None and popup.isVisible():
-            popup.close()
-            self._size_checker_popup = None
-            main_window = self.parent()
-            if isinstance(main_window, MainWindow):
-                main_window._size_checker_popup = None
-            return
+        if popup is not None:
+            try:
+                if popup.isVisible():
+                    popup.close()
+                    self._size_checker_popup = None
+                    main_window = self.parent()
+                    if isinstance(main_window, MainWindow):
+                        main_window._size_checker_popup = None
+                    return
+            except RuntimeError:
+                popup = None
+                self._size_checker_popup = None
 
         if popup is None:
             popup = SizeCheckerPopup(
