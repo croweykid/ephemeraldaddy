@@ -2,6 +2,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from collections import Counter
 from typing import List, Tuple, Dict
 
 # ---------- helpers ----------
@@ -181,6 +182,67 @@ def discrete_age_distribution(user_age: float, *,
         bins = [(a, p / s) for a, p in bins]
     return bins
 
+def _decade_start(age: int) -> int:
+    return max(0, (age // 10) * 10)
+
+
+def _estimate_user_age_from_decade_bell_curve(
+    observed_int_ages: List[int],
+    *,
+    min_user_age: int,
+    max_user_age: int,
+) -> float | None:
+    """
+    Estimate user age from the strongest 3-decade "bell" in observed ages.
+
+    We score each center decade by summing counts in: previous + center + next
+    decades (e.g. 30-39 + 40-49 + 50-59). The center decade from the best
+    3-decade window is the primary prediction target.
+    """
+    if not observed_int_ages:
+        return None
+
+    decade_counts = Counter(_decade_start(age) for age in observed_int_ages)
+    min_decade = _decade_start(min(observed_int_ages))
+    max_decade = _decade_start(max(observed_int_ages))
+
+    best_center: int | None = None
+    best_score = -1
+    best_center_count = -1
+
+    for center in range(min_decade, max_decade + 1, 10):
+        score = (
+            decade_counts.get(center - 10, 0)
+            + decade_counts.get(center, 0)
+            + decade_counts.get(center + 10, 0)
+        )
+        center_count = decade_counts.get(center, 0)
+        if (
+            score > best_score
+            or (score == best_score and center_count > best_center_count)
+            or (
+                score == best_score
+                and center_count == best_center_count
+                and (best_center is None or center > best_center)
+            )
+        ):
+            best_score = score
+            best_center_count = center_count
+            best_center = center
+
+    if best_center is None:
+        return None
+
+    center_decade_ages = [age for age in observed_int_ages if _decade_start(age) == best_center]
+    if center_decade_ages:
+        year_counts = Counter(center_decade_ages)
+        selected_age = max(year_counts.items(), key=lambda item: (item[1], item[0]))[0]
+    else:
+        selected_age = best_center + 5
+
+    return float(clamp(float(selected_age), float(min_user_age), float(max_user_age)))
+
+
 def infer_user_age_from_alter_ages(
     alter_ages: List[float],
     *,
@@ -190,10 +252,13 @@ def infer_user_age_from_alter_ages(
     max_alter_age: int = 110,
 ) -> float | None:
     """
-    Reverse inference: estimate the most likely user age from observed alter ages.
+    Reverse inference: estimate likely user age from observed alter ages.
 
-    Uses maximum log-likelihood across a discrete user-age grid under the
-    forward model P(alter_age | user_age).
+    Primary method: choose the center decade of the strongest 3-consecutive-
+    decade window (a coarse bell-curve heuristic), then refine to an exact
+    year by the most common age inside that center decade.
+
+    Fallback method: maximum log-likelihood under P(alter_age | user_age).
     """
     if not alter_ages:
         return None
@@ -201,6 +266,15 @@ def infer_user_age_from_alter_ages(
     observed = [float(a) for a in alter_ages if min_alter_age <= float(a) <= max_alter_age]
     if not observed:
         return None
+
+    observed_int_ages = [int(round(age)) for age in observed]
+    bell_curve_estimate = _estimate_user_age_from_decade_bell_curve(
+        observed_int_ages,
+        min_user_age=min_user_age,
+        max_user_age=max_user_age,
+    )
+    if bell_curve_estimate is not None:
+        return bell_curve_estimate
 
     best_age: float | None = None
     best_ll = float("-inf")
