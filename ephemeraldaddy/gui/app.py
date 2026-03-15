@@ -2327,7 +2327,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _set_database_metrics_section_visible(self, section_key: str, visible: bool) -> None:
         self._database_metrics_section_visible[section_key] = visible
         self._visibility.set(f"database_metrics_visibility.{section_key}", visible)
-        self._sync_gen_pop_panel_visibility()
+        self._sync_database_metrics_section_visibility()
 
     def _available_sign_distribution_dropdown_options(self) -> list[tuple[str, str]]:
         if self._database_metrics_baseline_mode != "gen_pop":
@@ -2338,13 +2338,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
         ]
 
-    def _sync_gen_pop_panel_visibility(self) -> None:
+    def _sync_database_metrics_section_visibility(self) -> None:
         is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
         for section_key, section_widget in self._database_metrics_section_widgets.items():
-            hidden_for_gen_pop = is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
-            hidden_for_user_visibility = not self._is_database_metrics_section_visible(section_key)
-            section_widget.setVisible(not (hidden_for_gen_pop or hidden_for_user_visibility))
+            if is_gen_pop:
+                section_widget.setVisible(section_key not in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS)
+            else:
+                section_widget.setVisible(self._is_database_metrics_section_visible(section_key))
 
+    def _sync_gen_pop_panel_visibility(self) -> None:
         dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
         if dropdown is None:
             return
@@ -9734,6 +9736,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._database_metrics_baseline_mode,
             )
             self._sync_gen_pop_panel_visibility()
+            self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._update_sentiment_tally(
@@ -9748,6 +9751,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._database_metrics_baseline_mode,
             )
             self._sync_gen_pop_panel_visibility()
+            self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._update_sentiment_tally(
