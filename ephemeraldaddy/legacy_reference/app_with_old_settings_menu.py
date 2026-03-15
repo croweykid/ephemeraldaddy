@@ -8,7 +8,6 @@ import html
 import json
 import math
 import logging
-import numpy as np
 import os
 import random
 import statistics
@@ -16,6 +15,7 @@ import subprocess
 import sys
 import traceback
 from collections import Counter, OrderedDict
+from time import perf_counter
 from typing import Any, Callable
 from types import SimpleNamespace
 from pathlib import Path
@@ -36,6 +36,7 @@ from PySide6.QtGui import (
     QIcon,
     QKeySequence,
     QPainter,
+    QPen,
     QPixmap,
     QShortcut,
     QSyntaxHighlighter,
@@ -135,7 +136,6 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
-from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
@@ -151,6 +151,7 @@ from ephemeraldaddy.core.composite import (
     TRANSIT_ASPECT_RULES,
     assign_houses,
     compute_aspects,
+    TransitAspectWindowCancelled,
     find_transit_aspect_window_result,
     normalize_chart,
     personal_transit_orb_cap,
@@ -164,7 +165,6 @@ from ephemeraldaddy.core.curse_scoring import (
     chart_cursedness_max,
 )
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
-from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
     list_charts,
@@ -185,13 +185,6 @@ from ephemeraldaddy.core.db import (
 )
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
-from ephemeraldaddy.data.genpop import (
-    GEN_POP_ACTUAL_GENDER_CAPTION,
-    GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS,
-    gen_pop_actual_gender_counts,
-    INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
-    SUN_SIGN_DISTRIBUTION_AGGREGATED,
-)
 
 from ephemeraldaddy.core.interpretations import (
     HOUSE_KEYWORDS,
@@ -227,14 +220,11 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_RULERSHIP,
     RELATION_TYPE,
     FAMILIARITY_INDEX,
-    GENDER_GLYPHS,
-    GENDER_OPTIONS,
     max_familiarity_score,
     normalized_familiarity_score,
     RULERSHIP_WEIGHT,
     SENTIMENT_COLORS,
     SENTIMENT_OPTIONS,
-    HOUSE_COLORS,
     SIGN_COLORS,
     SIGN_ELEMENTS,
     ZODIAC_SIGNS,
@@ -246,9 +236,6 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
-    ASPECT_COLORS,
-    ASPECT_FRICTION,
-    ASPECT_TYPES,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -259,25 +246,9 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PUBLIC_DB,
     normalize_gui_source as _normalize_gui_source,
 )
-from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
-    build_popout_left_panel as _build_popout_left_panel_widget,
-    collect_aspect_category_totals as _collect_aspect_category_totals,
-    collect_aspect_type_counts as _collect_aspect_type_counts,
-    draw_popout_aspect_distribution_chart as _draw_popout_aspect_distribution_chart,
-    extract_aspect_weight as _extract_aspect_weight,
-    normalize_aspect_type as _normalize_aspect_type,
-)
-
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
     sort_natal_aspects as _sort_natal_aspects,
-)
-
-from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
-from ephemeraldaddy.gui.features.charts.transit_workers import (
-    ManagedTransitPopoutDialog,
-    TransitAspectWindowRelay,
-    TransitAspectWindowWorker,
 )
 
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -291,7 +262,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_modal_distribution_counts as _calculate_modal_distribution_counts,
     calculate_mode_weights as _calculate_mode_weights,
-    calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
     calculate_sign_prevalence_counts as _calculate_sign_prevalence_counts,
@@ -305,10 +275,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
-)
-
-from ephemeraldaddy.gui.features.charts.aspect_interpretation import (
-    build_aspect_interpretation_lines as _build_aspect_interpretation_lines,
 )
 
 from ephemeraldaddy.gui.features.charts.presentation import (
@@ -339,34 +305,11 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
     EphemerisPrefetchController,
     RetconDialogController,
 )
-from ephemeraldaddy.gui.visibility import (
-    CHART_DATA_KEYS,
-    DATABASE_ANALYTICS_SECTION_KEYS,
-    VisibilityStore,
-)
 from ephemeraldaddy.gui.features.import_export.parsing import (
     format_chart_row_datetime,
     normalize_csv_row,
     parse_datetime_value,
     trim_import_row,
-)
-
-GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES: frozenset[str] = frozenset(
-    {"Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "AS", "MC"}
-)
-GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
-    {
-        "sentiment_prevalence",
-        "relationship_prevalence",
-        "social_score_summary",
-        "sign_prevalence",
-        "dominant_signs",
-        "species_distribution",
-        "birth_time",
-        "age",
-        "birth_month",
-        "birthplace",
-    }
 )
 
 # Explicit startup validation to avoid hidden import-time side effects.
@@ -383,38 +326,19 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
-    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
-    DATABASE_VIEW_PANEL_HEADER_STYLE,
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
-    DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
-    CHART_DATA_COLON_LABELS,
-    CHART_AXES_STYLE,
-    CHART_DATA_COMMON_LABELS,
-    CHART_DATA_INFO_LABEL_STYLE,
-    CHART_DATA_POPOUT_HEADER_STYLE,
-    CHART_DATA_DIVIDER,
-    CHART_DATA_HIGHLIGHT_COLOR,
-    CHART_DATA_MONOSPACE_FONT_FAMILY,
-    CHART_DATA_SECTION_HEADERS,
-    MIDDLE_PANEL_ACCENT_COLOR,
-    MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA,
     RIGHT_PANEL_SCROLLBAR_STYLE,
-    RELATIVE_YEAR_COLORS,
     SETTINGS_APP,
     SETTINGS_ORG,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
-    PLANET_DYNAMICS_BAR_COLORS,
     STANDARD_NCV_PIE_CHART,
     STANDARD_NCV_POPOUT_LAYOUT,
-    CHART_THEME_COLORS,
-    GENDER_GUESSER_COLORS,
-    format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
@@ -462,10 +386,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             "unknown (birthtime unknown)",
         )
         self._label_format = QTextCharFormat()
-        self._label_format.setFontWeight(QFont.Bold)
-        self._label_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._label_format.setForeground(QColor("#a98467"))
         self._section_format = QTextCharFormat()
-        self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._section_format.setForeground(QColor("#c7a56a"))
         self._section_format.setFontWeight(QFont.Bold)
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
@@ -479,32 +402,24 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             "opposition": self._make_format("#c26d3a"),
         }
         self._planet_formats = {
-            planet: self._make_format(color)
+            planet: self._make_format(color, outlined=planet in OUTLINED_PLANET_KEYS)
             for planet, color in PLANET_COLORS.items()
             if color
         }
-        self._house_formats = {
-            str(house): self._make_format(color)
-            for house, color in HOUSE_COLORS.items()
-            if isinstance(house, (str, int)) and str(house).isdigit() and color
-        }
-        self._relative_year_formats = {
-            label: self._make_format(color)
-            for label, color in RELATIVE_YEAR_COLORS.items()
-            if isinstance(color, str) and color
-        }
-        self._transit_range_date_pattern = re.compile(r"\d{2}-\d{2}-(\d{4})(?:\s+\d{2}:\d{2})?\*?")
 
     @staticmethod
     def _make_format(
         color: str,
         *,
         italic: bool = False,
+        outlined: bool = False,
     ) -> QTextCharFormat:
         text_format = QTextCharFormat()
         text_format.setForeground(QColor(color))
         if italic:
             text_format.setFontItalic(True)
+        if outlined:
+            text_format.setTextOutline(QPen(QColor("#9933ff")))
         return text_format
 
     @staticmethod
@@ -525,23 +440,26 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     break
                 self.setFormat(index, len(needle), self._unknown_format)
                 start = index + len(needle)
-        stripped_text = text.strip()
-        lowered_stripped = stripped_text.lower()
-        for header in CHART_DATA_SECTION_HEADERS:
-            if stripped_text.upper() == header:
+        for header in ("Chart Info", 
+            #"For Entertainment Purposes",
+            "Positions", 
+            "Houses", 
+            "Aspects"):
+            if text.strip() == header:
                 self.setFormat(0, self._qt_len(text), self._section_format)
                 break
-        if lowered_stripped.startswith("synastry chart for "):
-            self.setFormat(0, self._qt_len(text), self._section_format)
-        if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:
-            self.setFormat(0, self._qt_len(text), self._section_format)
         for label in (
-            *CHART_DATA_COMMON_LABELS,
-            *CHART_DATA_COLON_LABELS,
-            *CHART_DATA_SECTION_HEADERS,
-            "|",
-        ):
-            self._highlight_phrase(text, label, self._label_format)
+            "Name:", 
+            "Alias:", 
+            "Birth date:", 
+            "Birth time:", 
+            "Birthplace:", 
+            #"Lat:",
+            #"Lon:"
+            ):
+            index = text.find(label)
+            if index != -1:
+                self.setFormat(index, len(label), self._label_format)
         if "🌅" in text or "🌌" in text:
             self.setFormat(0, self._qt_len(text), self._time_variant_format)
             dawn_index = text.find("🌅")
@@ -576,41 +494,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self._highlight_phrase(text, body, fmt)
         for aspect, fmt in self._aspect_formats.items():
             self._highlight_phrase(lowered, aspect, fmt)
-        house_match = re.match(r"^\s*(\d{1,2})\s*:\s+([^\d\s][^\d]*)\s+\d{2}°\d{2}'", text)
-        if house_match:
-            house_num = house_match.group(1)
-            sign_name = house_match.group(2).strip()
-            house_fmt = self._house_formats.get(house_num)
-            if house_fmt:
-                prefix_end = text.find(":") + 1
-                if prefix_end > 0:
-                    self.setFormat(0, prefix_end, house_fmt)
-            sign_fmt = self._make_format(SIGN_COLORS.get(sign_name, CHART_DATA_HIGHLIGHT_COLOR))
-            sign_start = text.find(sign_name)
-            if sign_start != -1:
-                self.setFormat(sign_start, len(sign_name), sign_fmt)
-
-        current_year = datetime.datetime.now(datetime.timezone.utc).year
-        for match in self._transit_range_date_pattern.finditer(text):
-            year = int(match.group(1))
-            year_delta = year - current_year
-            if year_delta == -2:
-                year_label = "year before last"
-            elif year_delta == -1:
-                year_label = "last year"
-            elif year_delta == 0:
-                year_label = "current"
-            elif year_delta == 1:
-                year_label = "next"
-            elif year_delta == 2:
-                year_label = "year after next"
-            else:
-                year_label = "other"
-            text_format = self._relative_year_formats.get(year_label)
-            if text_format:
-                start_qt = self._qt_index(text, match.start())
-                length_qt = self._qt_len(match.group(0))
-                self.setFormat(start_qt, length_qt, text_format)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
@@ -644,14 +527,6 @@ def _apply_minimum_screen_height(window: QWidget) -> None:
     min_height = int(geometry.height() * 0.8)
     if min_height > 0:
         window.setMinimumHeight(min_height)
-
-
-def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -> list[QObject]:
-    """Collect children for multiple widget types without passing a tuple to findChildren()."""
-    matches: list[QObject] = []
-    for widget_type in widget_types:
-        matches.extend(container.findChildren(widget_type))
-    return matches
 
 
 class TriStateCheckBox(QCheckBox):
@@ -746,13 +621,7 @@ class QuadStateSlider(QWidget):
 
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
 SEARCH_RELATIONSHIP_TYPE_OPTIONS = ["none", *RELATION_TYPE]
-SEARCH_GENDER_OPTIONS = ["none", *GENDER_OPTIONS]
-SEARCH_GENDER_GUESSED_OPTIONS = [
-    ("Any", ""),
-    ("Masculine", "masculine"),
-    ("Androgynous", "androgynous"),
-    ("Feminine", "feminine"),
-]
+
 
 
 
@@ -933,42 +802,6 @@ def _get_share_icon_path() -> str | None:
     return None
 
 
-def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
-    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
-    return token or fallback
-
-
-def _export_aspect_distribution_csv_dialog(
-    parent: QWidget,
-    aspect_counts: OrderedDict[str, float],
-    *,
-    default_file_stem: str = "aspect_distribution",
-) -> None:
-    default_filename = f"{default_file_stem}.csv"
-    file_path, _selected_filter = QFileDialog.getSaveFileName(
-        parent,
-        "Export Aspect Distribution as CSV",
-        default_filename,
-        "CSV Files (*.csv)",
-    )
-    if not file_path:
-        return
-    if not file_path.lower().endswith(".csv"):
-        file_path = f"{file_path}.csv"
-
-    try:
-        with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(["aspect_type", "count"])
-            for aspect_key, count in aspect_counts.items():
-                writer.writerow([aspect_key, count])
-    except Exception as exc:
-        QMessageBox.critical(parent, "Export failed", f"Could not write CSV file.\n\n{exc}")
-        return
-
-    QMessageBox.information(parent, "Export complete", f"Exported aspect distribution CSV to:\n{file_path}")
-
-
 
 
 
@@ -1081,7 +914,6 @@ def _display_body_name(body: str) -> str:
     return body
 
 
-
 def _format_popout_aspect_endpoint(body: Any, *, include_house: bool) -> str:
     display_name = _display_body_name(getattr(body, "name", ""))
     lon_deg = getattr(body, "lon_deg", None)
@@ -1122,42 +954,13 @@ def _aspect_pair_weight(p1: str, p2: str) -> float:
         return aspect_pair_weight(p1, p2)
 
 
-def _aspect_score(asp: dict, planet_weights: dict[str, float] | None = None) -> float:
-    return aspect_score(asp, planet_weights=planet_weights)
+def _aspect_score(asp: dict) -> float:
+    return aspect_score(asp)
 
 
 def _aspect_duration_score(asp: dict) -> float:
     return aspect_duration_score(asp)
 
-
-
-def _normalize_planet_weight_map(weights: dict[str, float] | None) -> dict[str, float]:
-    if not weights:
-        return {}
-    normalized: dict[str, float] = {}
-    total = 0.0
-    for body, raw_weight in weights.items():
-        value = max(0.0, float(raw_weight))
-        normalized[str(body)] = value
-        total += value
-    if total <= 0.0:
-        return {}
-    return {body: (value / total) for body, value in normalized.items()}
-
-
-def _synastry_pair_weight(
-    overlay_body: str,
-    base_body: str,
-    normalized_overlay_weights: dict[str, float],
-    normalized_base_weights: dict[str, float],
-) -> float:
-    """Balanced pair score for synastry using geometric mean of normalized weights."""
-    overlay_weight = float(normalized_overlay_weights.get(overlay_body, 0.0))
-    base_weight = float(normalized_base_weights.get(base_body, 0.0))
-    if overlay_weight <= 0.0 or base_weight <= 0.0:
-        # fallback to static pair weight when normalized maps are unavailable/missing
-        return _aspect_pair_weight(overlay_body, base_body)
-    return math.sqrt(overlay_weight * base_weight)
 
 
 def _is_structural_tautology(asp: dict) -> bool:
@@ -1189,9 +992,6 @@ def _is_structural_tautology(asp: dict) -> bool:
 def format_chart_text(
     chart: Chart,
     aspect_sort: str = "Priority",
-    *,
-    show_cursedness: bool = True,
-    show_dnd_species: bool = True,
 ) -> tuple[
     str,
     dict[int, list[dict[str, object]]],
@@ -1206,47 +1006,16 @@ def format_chart_text(
     use_houses = _chart_uses_houses(chart)
     angular_bodies = {"AS", "MC", "DS", "IC"}
 
-    def _degree_in_sign_text(lon_value: float) -> str:
-        lon_normalized = lon_value % 360.0
-        degrees_in_sign = lon_normalized % 30.0
-        deg = int(degrees_in_sign)
-        minutes = int(round((degrees_in_sign - deg) * 60))
-        if minutes == 60:
-            deg += 1
-            minutes = 0
-            if deg == 30:
-                deg = 0
-        return f"{deg:02d}°{minutes:02d}'"
-
-    def _format_species_variant(subtype: object) -> str:
-        subtype_text = str(subtype or "").strip()
-        if not subtype_text:
-            return ""
-        return f" ({subtype_text})"
-
     # Chart Info
     date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
-    official_time_label = "unknown" if getattr(chart, "birthtime_unknown", False) else chart.dt.strftime("%H:%M")
-    retcon_time_label = chart.dt.strftime("%H:%M") if getattr(chart, "retcon_time_used", False) else "unknown"
+    time_label = "unknown" if getattr(chart, "birthtime_unknown", False) else chart.dt.strftime("%H:%M")
     birth_place = getattr(chart, "birth_place", None) or "Unknown"
-    alias_text = getattr(chart, "alias", None) or "unknown"
-    lines.append(format_chart_header("name_alias", name=chart.name, alias=alias_text))
-    lines.append(
-        format_chart_header(
-            "date_times",
-            date=date_label,
-            official_time=official_time_label,
-            retcon_time=retcon_time_label,
-        )
-    )
-    lines.append(
-        format_chart_header(
-            "place",
-            birth_place=birth_place,
-            lat=chart.lat,
-            lon=chart.lon,
-        )
-    )
+    lines.append(f"Name:       {chart.name}")
+    if getattr(chart, "alias", None):
+        lines.append(f"Alias:      {chart.alias}")
+    lines.append(f"Birth date: {date_label}")
+    lines.append(f"Birth time: {time_label}")
+    lines.append(f"Birthplace: {birth_place}, {chart.lat:.4f}, {chart.lon:.4f}")
     houses = getattr(chart, "houses", None) if use_houses else None
     aspects = getattr(chart, "aspects", None)
     filtered_aspects: list[dict] = []
@@ -1258,8 +1027,7 @@ def format_chart_text(
                 for asp in filtered_aspects
                 if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
             ]
-    cursedness_line = ""
-    if filtered_aspects and show_cursedness:
+    if filtered_aspects:
         positions = getattr(chart, "positions", {})
         curse_aspects: list[AspectRecord] = []
         for asp in filtered_aspects:
@@ -1290,24 +1058,39 @@ def format_chart_text(
         if curse_aspects:
             cursedness = chart_cursedness(curse_aspects)
             percent = min(100.0, (cursedness["total"] / MOST_CURSED_SCORE) * 100.0)
-            cursedness_line = f"{percent:.1f}%"
+            lines.append("---------")
+            #lines.append("For Entertainment Purposes")
+            #lines.append("---------")
+            lines.append(f"Cursedness: {percent:.1f}%")
 
     try:
         species_top_three = assign_top_three_species_with_evidence(chart)
     except Exception:
         species_top_three = []
-    species_payloads: list[dict[str, object]] = []
-    if species_top_three and show_dnd_species:
+    if species_top_three:
+        species_parts: list[str] = []
+        species_entries_for_line: list[dict[str, object]] = []
+        running_len = 0
         for rank, (family, subtype, score, evidence) in enumerate(species_top_three):
-            species_payloads.append(
+            rank_part = f"{rank + 1}) {family} ({subtype}, {score:.2f})"
+            part = f"{rank_part} ⓘ"
+            species_parts.append(part)
+            icon_index = running_len + len(rank_part) + 1
+            species_entries_for_line.append(
                 {
-                    "line": f"{rank + 1}) {family}{_format_species_variant(subtype)} ⓘ",
                     "family": family,
                     "subtype": subtype,
                     "score": score,
                     "evidence": evidence,
+                    "icon_index": icon_index,
                 }
             )
+            running_len += len(part)
+            if rank < len(species_top_three) - 1:
+                running_len += len(" ... ")
+        species_summary = " ... ".join(species_parts)
+        lines.append(f"D&D species: {species_summary}")
+        species_info_map[len(lines) - 1] = species_entries_for_line
     if getattr(chart, "used_utc_fallback", False):
         lines.append("NOTE: UTC fallback was used for timezone inference.")
         lines.append("")
@@ -1315,9 +1098,9 @@ def format_chart_text(
 
 
     # Positions
-    lines.append(CHART_DATA_DIVIDER)
-    lines.append("POSITIONS")
-    lines.append(CHART_DATA_DIVIDER)
+    lines.append("---------")
+    lines.append("Positions")
+    lines.append("---------")
 
     #houses = getattr(chart, "houses", None) if use_houses else None
     time_variant_lines = _format_time_variant_signs(chart)
@@ -1369,21 +1152,18 @@ def format_chart_text(
             lines.append(time_variant["text"])
             continue
         pretty = _format_longitude(lon)
-        sign_label = _sign_for_longitude(lon)
-        degree_text = _degree_in_sign_text(lon)
         if retrogrades.get(body):
             pretty = f"{pretty} (Я)"
-            degree_text = f"{degree_text} (Я)"
         nakshatra = _get_nakshatra(lon)
         hd_text = _format_hd_annotation(lon, active_channels)
         nakshatra_with_info = f"{nakshatra} ⓘ"
-
+        
         if use_houses:
             house_num = _house_for_longitude(houses, lon)
             house_label = str(house_num) if house_num is not None else "-"
             line = (
-                f"{display_body:<10} {sign_label:<11} {degree_text:<12} "
-                f"{nakshatra_with_info:<22} {hd_text:<30} {house_label:<3}"
+                f"{display_body:<9} {pretty:<16}    {nakshatra_with_info:<22} "
+                f"{hd_text:<30} {house_label}"
             )
             entry_list = [
                 {
@@ -1406,10 +1186,7 @@ def format_chart_text(
             position_info_map[len(lines)] = entry_list
             lines.append(line)
         else:
-            line = (
-                f"{display_body:<10} {sign_label:<11} {degree_text:<12} "
-                f"{nakshatra_with_info:<22} {hd_text} ⓘ"
-            )
+            line = f"{display_body:<9} {pretty:<16}    {nakshatra_with_info:<22} {hd_text} ⓘ"
             position_info_map[len(lines)] = [
                 {
                     "kind": "nakshatra",
@@ -1429,9 +1206,15 @@ def format_chart_text(
 
     # Houses: assume chart.houses is [1st, 2nd, ..., 12th] in order
     if use_houses and houses:
-        lines.append(CHART_DATA_DIVIDER)
-        lines.append("HOUSES")
-        lines.append(CHART_DATA_DIVIDER)
+        lines.append("---------")
+        lines.append("Houses")
+        lines.append("---------")
+
+        ordinals = [
+            "1st house", "2nd house", "3rd house", "4th house",
+            "5th house", "6th house", "7th house", "8th house",
+            "9th house", "10th house", "11th house", "12th house",
+        ]
 
         # Normalise to a list of length 12
         cusps = [None] * 12
@@ -1463,18 +1246,19 @@ def format_chart_text(
             return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
         for i, v in enumerate(cusps):
+            label = ordinals[i]
             if isinstance(v, (int, float)):
-                lines.append(f"{i + 1:<2}: {_sign_for_longitude(float(v)):<11} {_degree_in_sign_text(float(v))}")
+                pretty = _format_longitude(float(v))
+                lines.append(f"{label:<11} {pretty}")
             elif v is None:
-                lines.append(f"{i + 1:<2}: -")
+                lines.append(f"{label:<11} -")
             else:
-                lines.append(f"{i + 1:<2}: {v}")
+                lines.append(f"{label:<11} {v}")
 
         lines.append("")
     elif not use_houses:
-        lines.append(CHART_DATA_DIVIDER)
-        lines.append("HOUSES")
-        lines.append(CHART_DATA_DIVIDER)
+        lines.append("Houses")
+        lines.append("------")
         lines.append("Unknown (birth time unknown)")
         lines.append("")
 
@@ -1482,9 +1266,9 @@ def format_chart_text(
     #aspects = getattr(chart, "aspects", None)
     #if aspects:
     if filtered_aspects:
-        lines.append(CHART_DATA_DIVIDER)
-        lines.append("ASPECTS")
-        lines.append(CHART_DATA_DIVIDER)
+        lines.append("---------")
+        lines.append("Aspects")
+        lines.append("---------")
         # aspects = [asp for asp in aspects if not _is_structural_tautology(asp)]
         # if not use_houses:
         #     aspects = [
@@ -1493,14 +1277,7 @@ def format_chart_text(
         #         if asp["p1"] not in angular_bodies and asp["p2"] not in angular_bodies
         #     ]
         sort_mode = aspect_sort if aspect_sort in ASPECT_SORT_OPTIONS else "Priority"
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-        sorted_aspects = _sort_natal_aspects(
-            filtered_aspects,
-            sort_mode,
-            planet_weights=dominant_planet_weights,
-        )
+        sorted_aspects = _sort_natal_aspects(filtered_aspects, sort_mode)
         positions = getattr(chart, "positions", {})
         aspect_body_labels: dict[str, str] = {}
         for asp in sorted_aspects:
@@ -1520,8 +1297,7 @@ def format_chart_text(
             p1_label = aspect_body_labels.get(p1, p1)
             p2_label = aspect_body_labels.get(p2, p2)
             line = (
-                f"{p1_label:<{label_width}} {atype:<12} {p2_label:<{label_width}} "
-                f"{_format_degree_minutes(angle, include_sign=False):>8}  (orb {_format_degree_minutes(delta)})"
+                f"{p1_label:<{label_width}} {atype:<14} {p2_label:<{label_width}} {_format_degree_minutes(angle, include_sign=False):>8}  (orb {_format_degree_minutes(delta)})"
             )
             line = f"{line} ⓘ"
             aspect_info_map[len(lines)] = {
@@ -1530,34 +1306,8 @@ def format_chart_text(
                 "type": atype,
                 "angle": angle,
                 "delta": delta,
-                "sign1": _sign_for_longitude(positions[p1]) if p1 in positions else None,
-                "sign2": _sign_for_longitude(positions[p2]) if p2 in positions else None,
-                "house1": _house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
-                "house2": _house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None,
             }
             lines.append(line)
-
-    if cursedness_line:
-        lines.append("---------")
-        lines.append("CURSEDNESS")
-        lines.append("---------")
-        lines.append(cursedness_line)
-    if species_payloads:
-        lines.append("---------")
-        lines.append("D&D SPECIES/RACE")
-        lines.append("---------")
-        for payload in species_payloads:
-            species_line_text = str(payload["line"])
-            species_info_map[len(lines)] = [
-                {
-                    "family": payload["family"],
-                    "subtype": payload["subtype"],
-                    "score": payload["score"],
-                    "evidence": payload["evidence"],
-                    "icon_index": species_line_text.find("ⓘ"),
-                }
-            ]
-            lines.append(species_line_text)
 
     return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
@@ -1566,7 +1316,7 @@ def format_transit_chart_text(chart: Chart, location_label: str) -> str:
     summary, _, _, _ = format_chart_text(chart)
     lines = summary.splitlines()
     positions_start_index = next(
-        (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
+        (idx for idx, line in enumerate(lines) if line.strip() == "Positions"),
         0,
     )
     cleaned_lines: list[str] = []
@@ -1712,6 +1462,108 @@ def _build_import_chart(
 
 
 
+class TransitAspectWindowRelay(QObject):
+    ready = Signal(str, str, str, object, object, object)
+    failed = Signal(str, str, str, str)
+
+
+class ManagedTransitPopoutDialog(QDialog):
+    """Dialog that defers close until async worker shutdown completes."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._async_shutdown: Callable[[Callable[[], None]], None] | None = None
+        self._shutdown_started = False
+        self._allow_close = False
+
+    def set_async_shutdown(self, callback: Callable[[Callable[[], None]], None]) -> None:
+        self._async_shutdown = callback
+
+    def closeEvent(self, event) -> None:
+        if self._allow_close or self._async_shutdown is None:
+            super().closeEvent(event)
+            return
+        if self._shutdown_started:
+            event.ignore()
+            return
+
+        self._shutdown_started = True
+        event.ignore()
+
+        def _complete_close() -> None:
+            if self._allow_close:
+                return
+            self._allow_close = True
+            self.close()
+
+        self._async_shutdown(_complete_close)
+
+
+class TransitAspectWindowWorker(QObject):
+    finished = Signal(str, str, str, object, object, object)
+    failed = Signal(str, str, str, str)
+
+    def __init__(
+        self,
+        natal_chart: Chart,
+        transit_datetime: datetime.datetime,
+        transit_location: tuple[float, float],
+        hit: Any,
+        rules: Any,
+        *,
+        step_hours: float,
+        precision_minutes: float,
+    ) -> None:
+        super().__init__()
+        self._natal_chart = natal_chart
+        self._transit_datetime = transit_datetime
+        self._transit_location = transit_location
+        self._hit = hit
+        self._rules = rules
+        self._step_hours = float(step_hours)
+        self._precision_minutes = float(precision_minutes)
+
+    def run(self) -> None:
+        key = (self._hit.a.name, self._hit.aspect, self._hit.b.name)
+        diagnostics: dict[str, int | float] = {}
+        started_at = perf_counter()
+        try:
+            result = find_transit_aspect_window_result(
+                self._natal_chart,
+                self._transit_datetime,
+                self._transit_location,
+                self._hit,
+                self._rules,
+                step_hours=self._step_hours,
+                precision_minutes=self._precision_minutes,
+                should_cancel=lambda: QThread.currentThread().isInterruptionRequested(),
+                diagnostics=diagnostics,
+            )
+        except TransitAspectWindowCancelled:
+            self.failed.emit(key[0], key[1], key[2], "Cancelled")
+            return
+        except Exception as exc:
+            self.failed.emit(key[0], key[1], key[2], str(exc))
+            return
+
+        if result.out_of_scope:
+            self.failed.emit(
+                key[0],
+                key[1],
+                key[2],
+                "Transit date is outside the configured ephemeris scope.",
+            )
+            return
+
+        metadata = {
+            "start_truncated_to_scope": result.start_truncated_to_scope,
+            "end_truncated_to_scope": result.end_truncated_to_scope,
+            "duration_s": round(perf_counter() - started_at, 4),
+            "diagnostics": diagnostics,
+        }
+        self.finished.emit(key[0], key[1], key[2], result.start, result.end, metadata)
+
+
 class EmojiTiledPanel(QWidget):
     """Panel container that paints a subtle tiled emoji background."""
 
@@ -1749,60 +1601,13 @@ class EmojiTiledPanel(QWidget):
                 painter.drawText(x, y + baseline_offset, self._emoji)
 
 
-class ChartListWidget(QListWidget):
-    """List widget with single-letter jump-to-name navigation."""
-
-    def keyPressEvent(self, event) -> None:
-        if self._handle_letter_jump(event):
-            return
-        super().keyPressEvent(event)
-
-    def _handle_letter_jump(self, event) -> bool:
-        if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
-            return False
-
-        typed = event.text()
-        if len(typed) != 1 or not typed.isalpha():
-            return False
-
-        letter = typed.casefold()
-        total = self.count()
-        if total <= 0:
-            return False
-
-        current_row = self.currentRow()
-        start_row = current_row if current_row >= 0 else -1
-
-        for offset in range(1, total + 1):
-            row = (start_row + offset) % total
-            item = self.item(row)
-            if item is None:
-                continue
-
-            metadata = item.data(Qt.UserRole + 1)
-            candidate_name = ""
-            if isinstance(metadata, dict):
-                candidate_name = (metadata.get("raw_name") or "").strip()
-            if not candidate_name:
-                candidate_name = item.text().strip()
-
-            if candidate_name.casefold().startswith(letter):
-                self.clearSelection()
-                item.setSelected(True)
-                self.setCurrentItem(item)
-                self.scrollToItem(item, QAbstractItemView.PositionAtCenter)
-                return True
-        return False
-
-
 # Database View / Manage Charts Window
-class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
+class ManageChartsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
-        self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
 
@@ -1828,12 +1633,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._database_metrics_section_expanded: dict[str, bool] = {}
-        self._incremental_metrics_refresh_sections: list[str] = []
-        self._incremental_metrics_refresh_changed_ids: set[int] = set()
-        self._incremental_metrics_force_full_refresh: bool = False
-        self._incremental_metrics_refresh_scheduled = False
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
-        self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
         self._sign_distribution_mode = "Sun"
         self._dominant_factors_mode = "dominant_signs"
@@ -1842,8 +1642,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._age_mode = "age_distribution"
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
-        self._gender_mode = "actual_gender"
-        self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
         # lazy changed-id refresh applies panel-wide by default.
@@ -1852,7 +1650,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_dirty_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
-        self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
         self._transit_window_metrics: dict[str, int | float] = {
@@ -1875,7 +1672,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Toggle to broaden inference source data (personal-only by default).
         self._dev_age_inference_include_all_chart_types = False
         self._restore_manage_charts_preferences()
-        self._restore_visibility_preferences()
 
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -1925,7 +1721,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.retcon_button.clicked.connect(self._on_retcon_engine)
         controls_layout.addWidget(self.retcon_button)
 
-        self.generate_composite_chart_button = QPushButton("🧬 Synastry")
+        self.generate_composite_chart_button = QPushButton("🧬 Composite")
         self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
         self.generate_composite_chart_button.clicked.connect(
             self._on_generate_composite_chart
@@ -1935,7 +1731,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         controls_layout.addStretch(1)
 
         #help button
-        self.manage_help_overlay_button = QPushButton("❓") #"Help"
+        self.manage_help_overlay_button = QPushButton("Help")
         self.manage_help_overlay_button.setObjectName("manage_help_overlay_toggle")
         self.manage_help_overlay_button.setToolTip("Open Help overlay.")
         self.manage_help_overlay_button.clicked.connect(self._on_manage_help_overlay)
@@ -1944,7 +1740,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #settings button
         self.manage_settings_button = QPushButton("⚙️")
         self.manage_settings_button.setObjectName("manage_settings_button")
-        self.manage_settings_button.setToolTip("Open Settings.")
+        self.manage_settings_button.setToolTip("Open Database View settings.")
         self.manage_settings_button.clicked.connect(self._on_open_settings)
         controls_layout.addWidget(self.manage_settings_button)
 
@@ -1962,13 +1758,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_database_metrics_panel
         )
         controls_layout.addWidget(self.database_metrics_panel_button)
-
-        self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
-        self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
-        self.gen_pop_norms_panel_button.clicked.connect(
-            self._toggle_gen_pop_norms_panel
-        )
-        controls_layout.addWidget(self.gen_pop_norms_panel_button)
 
         self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
         self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
@@ -2002,7 +1791,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.manage_settings_button,
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
-            self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
             self.edit_charts_button,
             self.search_panel_button,
@@ -2050,7 +1838,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
         self.right_panel_stack = QStackedWidget()
-        self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
@@ -2075,11 +1862,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_analysis_panel
         )
         self.left_panel_stack = QStackedWidget()
-        self.left_panel_stack.setMinimumWidth(0)
         self._left_panel_widgets = {
             "todays_transits": self.todays_transits_panel_scroll,
             "database_metrics": self.selection_sentiment_panel_scroll,
-            "gen_pop_norms": self.selection_sentiment_panel_scroll,
             "similarities": self.similarities_analysis_panel_scroll,
         }
         for widget in self._left_panel_widgets.values():
@@ -2089,7 +1874,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._left_panel_sizes = None
 
         # Database View - Center list panel (chart list).
-        self.list_widget = ChartListWidget()
+        self.list_widget = QListWidget()
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setItemDelegate(ChartRowDelegate(self.list_widget))
         self.list_widget.setStyleSheet(
@@ -2107,7 +1892,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_widget.itemDoubleClicked.connect(self._load_chart_from_item)
         self.list_widget.itemSelectionChanged.connect(self._on_selection_changed)
-        self.list_widget.installEventFilter(self)
         
         self.list_panel = QWidget()
         self.list_panel.setMinimumWidth(420)
@@ -2121,7 +1905,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_row.setLayout(list_header_layout)
 
         self.charts_header_label = QLabel("Charts Selected: 0 of 0")
-        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        self.charts_header_label.setStyleSheet("font-weight: bold; color: #f5f5f5;")
         list_header_layout.addWidget(self.charts_header_label)
         list_header_layout.addStretch(1)
         list_header_layout.addWidget(self.sort_button, alignment=Qt.AlignRight)
@@ -2132,15 +1916,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Database View - Content splitter (left panel stack, center list, right panel stack).
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
-        self._content_splitter.setChildrenCollapsible(False)
         self._content_splitter.addWidget(self.left_panel_stack)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(self.right_panel_stack)
-        self._content_splitter.setCollapsible(0, True)
-        self._content_splitter.setCollapsible(2, True)
-        self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
-        self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
-        self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
@@ -2156,7 +1934,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
         self._refresh_charts()
-        apply_default_text_tooltips(self)
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
@@ -2177,7 +1954,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if show_title:
             title = QLabel(title_text)
-            title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+            title.setStyleSheet("font-weight: bold;")
             header_layout.addWidget(title)
         header_layout.addStretch(1)
 
@@ -2201,7 +1978,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": self._age_mode,
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
-            "gender": self._gender_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2244,7 +2020,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
-        section_key: str | None = None,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -2283,8 +2058,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout.addWidget(toggle)
         section_layout.addWidget(content)
         layout.addWidget(section)
-        if section_key is not None:
-            self._database_metrics_section_widgets[section_key] = section
         return content_layout
 
     def _create_database_analytics_chart_container(self) -> tuple[QWidget, QVBoxLayout]:
@@ -2301,7 +2074,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         expanded: bool,
     ) -> None:
         self._database_metrics_section_expanded[section_key] = expanded
-        self._visibility.set(f"database_metrics.{section_key}", expanded)
         if not expanded:
             layout = self._database_metrics_chart_layouts.get(section_key)
             if layout is not None:
@@ -2309,127 +2081,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if (
             self._left_panel_visible
-            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+            and self._active_left_panel == "database_metrics"
         ):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={section_key},
             )
 
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
         return self._database_metrics_section_expanded.get(section_key, False)
-
-    def _available_sign_distribution_dropdown_options(self) -> list[tuple[str, str]]:
-        if self._database_metrics_baseline_mode != "gen_pop":
-            return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
-        return [
-            (label, value)
-            for label, value in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
-            if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
-        ]
-
-    def _sync_gen_pop_panel_visibility(self) -> None:
-        is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
-        for section_key, section_widget in self._database_metrics_section_widgets.items():
-            should_hide = is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
-            section_widget.setVisible(not should_hide)
-
-        dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
-        if dropdown is None:
-            return
-
-        options = self._available_sign_distribution_dropdown_options()
-        allowed_modes = {value for _label, value in options}
-        previous_mode = self._sign_distribution_mode
-        if previous_mode not in allowed_modes:
-            previous_mode = options[0][1] if options else "Sun"
-
-        dropdown.blockSignals(True)
-        dropdown.clear()
-        for option_label, option_value in options:
-            dropdown.addItem(option_label.upper(), option_value)
-        selected_index = dropdown.findData(previous_mode)
-        if selected_index < 0 and dropdown.count() > 0:
-            selected_index = 0
-        if selected_index >= 0:
-            dropdown.setCurrentIndex(selected_index)
-            current_mode = dropdown.currentData()
-            if isinstance(current_mode, str):
-                self._sign_distribution_mode = current_mode
-        dropdown.blockSignals(False)
-
-    def _chart_data_visibility_options(self) -> dict[str, bool]:
-        return {
-            "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_species": self._visibility.get("chart_data.dnd_species"),
-        }
-    def _expanded_database_metric_sections(self) -> list[str]:
-        section_order = [
-            "planetary_sign_prevalence",
-            "sentiment_prevalence",
-            "relationship_prevalence",
-            "social_score_summary",
-            "sign_prevalence",
-            "dominant_signs",
-            "species_distribution",
-            "birth_time",
-            "age",
-            "birth_month",
-            "birthplace",
-            "gender",
-        ]
-        return [
-            section_key
-            for section_key in section_order
-            if self._is_database_metrics_section_expanded(section_key)
-            and not (
-                self._database_metrics_baseline_mode == "gen_pop"
-                and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
-            )
-        ]
-
-    def _should_use_incremental_metrics_refresh(self) -> bool:
-        expanded_sections = self._expanded_database_metric_sections()
-        return len(expanded_sections) >= 4
-
-    def _schedule_incremental_metrics_refresh(
-        self,
-        *,
-        changed_ids: set[int] | None = None,
-        force_full_refresh: bool = False,
-    ) -> None:
-        self._incremental_metrics_refresh_sections = self._expanded_database_metric_sections()
-        self._incremental_metrics_refresh_changed_ids = set(changed_ids or set())
-        self._incremental_metrics_force_full_refresh = force_full_refresh
-        if self._incremental_metrics_refresh_scheduled:
-            return
-        self._incremental_metrics_refresh_scheduled = True
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
-
-    def _run_incremental_metrics_refresh_step(self) -> None:
-        if not self._incremental_metrics_refresh_sections:
-            self._incremental_metrics_refresh_scheduled = False
-            self._incremental_metrics_force_full_refresh = False
-            self._incremental_metrics_refresh_changed_ids.clear()
-            return
-
-        section_key = self._incremental_metrics_refresh_sections.pop(0)
-        changed_ids = (
-            set(self._incremental_metrics_refresh_changed_ids)
-            if self._incremental_metrics_force_full_refresh or self._incremental_metrics_refresh_changed_ids
-            else None
-        )
-        self._update_sentiment_tally(
-            update_database_metrics=True,
-            update_similarities=False,
-            sections_to_refresh={section_key},
-            changed_ids=changed_ids,
-            force_full_refresh=self._incremental_metrics_force_full_refresh,
-        )
-        self._incremental_metrics_force_full_refresh = False
-        self._incremental_metrics_refresh_changed_ids.clear()
-        QTimer.singleShot(0, self._run_incremental_metrics_refresh_step)
 
     def _update_position_sign_subheader(self) -> None:
         subheader = getattr(self, "position_sign_distribution_subheader", None)
@@ -2439,61 +2099,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._sign_distribution_mode,
             "Sun Sign",
         )
-        if self._database_metrics_baseline_mode == "gen_pop":
-            subheader.setText(
-                f"Distribution of {mode_label.lower()} compared to estimated general population"
-            )
-            return
         subheader.setText(f"Distribution of {mode_label.lower()} in database")
-
-
-    def _update_gender_subheader(self) -> None:
-        subheader = getattr(self, "gender_subheader", None)
-        unknown_note = getattr(self, "gender_unknown_note", None)
-        if subheader is None:
-            return
-        show_unknown_note = (
-            self._database_metrics_baseline_mode == "gen_pop"
-            and self._gender_mode == "actual_gender"
-        )
-        if show_unknown_note:
-            subheader.setText(GEN_POP_ACTUAL_GENDER_CAPTION)
-        else:
-            subheader.setText("Actual + guessed gender distribution")
-        if unknown_note is not None:
-            unknown_note.setVisible(show_unknown_note)
-
-    def _gen_pop_planet_sign_norms_for_database_size(
-        self,
-        chart_count: int,
-    ) -> dict[str, dict[str, float]]:
-        sun_norms = {
-            sign: (float(details["percent"]) / 100.0)
-            for sign, details in SUN_SIGN_DISTRIBUTION_AGGREGATED.items()
-        }
-        mercury_norms = {
-            sign: (float(details["percent"]) / 100.0)
-            for sign, details in INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED["Mercury"].items()
-        }
-        venus_norms = {
-            sign: (float(details["percent"]) / 100.0)
-            for sign, details in INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED["Venus"].items()
-        }
-        equal_norms = {sign: (1.0 / len(ZODIAC_NAMES)) for sign in ZODIAC_NAMES}
-        return {
-            "Sun": sun_norms,
-            "Mercury": mercury_norms,
-            "Venus": venus_norms,
-            "Moon": equal_norms,
-            "Mars": equal_norms,
-            "Jupiter": equal_norms,
-            "Saturn": equal_norms,
-            "Uranus": equal_norms,
-            "Neptune": equal_norms,
-            "Pluto": equal_norms,
-            "Rahu": equal_norms,
-            "Ketu": equal_norms,
-        }
 
     def _update_dominant_factors_subheader(self) -> None:
         subheader = getattr(self, "dominant_factors_subheader", None)
@@ -2523,7 +2129,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
@@ -2540,7 +2145,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
@@ -2557,7 +2161,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
@@ -2574,28 +2177,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
-
-        if chart_key == "gender":
-            dropdown = self._analysis_chart_dropdowns.get(chart_key)
-            if dropdown is not None:
-                selected_mode = dropdown.currentData()
-                if isinstance(selected_mode, str):
-                    self._gender_mode = selected_mode
-                    self._settings.setValue(
-                        "manage_charts/gender_mode",
-                        self._gender_mode,
-                    )
-            self._update_gender_subheader()
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-                sections_to_refresh={chart_key},
-            )
-            return
 
         if chart_key == "birthplace":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
@@ -2610,7 +2194,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
@@ -2625,11 +2208,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         self._sign_distribution_mode,
                     )
             self._update_position_sign_subheader()
-            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             return
 
@@ -2646,7 +2227,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
-                sections_to_refresh={chart_key},
             )
             self._update_dominant_factors_subheader()
 
@@ -2718,28 +2298,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_birthplace_mode, str):
             self._birthplace_mode = stored_birthplace_mode
-
-        stored_gender_mode = self._settings.value(
-            "manage_charts/gender_mode",
-            self._gender_mode,
-        )
-        if isinstance(stored_gender_mode, str):
-            self._gender_mode = stored_gender_mode
-
-        stored_baseline_mode = self._settings.value(
-            "manage_charts/database_metrics_baseline_mode",
-            self._database_metrics_baseline_mode,
-        )
-        if isinstance(stored_baseline_mode, str) and stored_baseline_mode in {
-            "database",
-            "gen_pop",
-        }:
-            self._database_metrics_baseline_mode = stored_baseline_mode
-
-    def _restore_visibility_preferences(self) -> None:
-        for key in DATABASE_ANALYTICS_SECTION_KEYS:
-            section_key = key.replace("database_metrics.", "", 1)
-            self._database_metrics_section_expanded[section_key] = self._visibility.get(key)
 
     def _update_sort_button_label(self) -> None:
         mode = self._sort_mode
@@ -2904,29 +2462,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
-        def add_database_subheader(text: str = "") -> QLabel:
-            subheader = QLabel(text)
-            subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-            subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
-            return subheader
-
-        self.database_metrics_panel_header_label = QLabel("Database Analytics")
-        self.database_metrics_panel_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        layout.addWidget(self.database_metrics_panel_header_label)
-
         # PLANETARY/POSITION SIGN DISTRIBUTION SECTION
         position_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
             "Sign Distribution by Placement",
-            section_key="planetary_sign_prevalence",
-            expanded=self._is_database_metrics_section_expanded("planetary_sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "planetary_sign_prevalence",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["planetary_sign_prevalence"] = self._is_database_metrics_section_expanded("planetary_sign_prevalence")
+        self._database_metrics_section_expanded["planetary_sign_prevalence"] = False
         self._create_analysis_chart_header(
             position_sign_section_layout,
             "Sign Distribution by Placement",
@@ -2935,7 +2481,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
             show_title=False,
         )
-        self.position_sign_distribution_subheader = add_database_subheader()
+        self.position_sign_distribution_subheader = QLabel()
+        self.position_sign_distribution_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         self._update_position_sign_subheader()
         position_sign_section_layout.addWidget(self.position_sign_distribution_subheader)
         (
@@ -2952,14 +2499,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Sentiment Prevalence",
-            section_key="sentiment_prevalence",
-            expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "sentiment_prevalence",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["sentiment_prevalence"] = self._is_database_metrics_section_expanded("sentiment_prevalence")
+        self._database_metrics_section_expanded["sentiment_prevalence"] = False
         #Sentiment Prevalence Chart Header
         self._create_analysis_chart_header(
             sentiment_section_layout,
@@ -2968,7 +2513,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             show_title=False,
         )
-        sentiment_subheader = add_database_subheader("Distribution of sentiments in database")
+        sentiment_subheader = QLabel("Distribution of sentiments in database")
+        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         sentiment_section_layout.addWidget(sentiment_subheader)
         #Sentiment Prevalence Chart
         (
@@ -2994,14 +2540,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Relationship Prevalence",
-            section_key="relationship_prevalence",
-            expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "relationship_prevalence",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["relationship_prevalence"] = self._is_database_metrics_section_expanded("relationship_prevalence")
+        self._database_metrics_section_expanded["relationship_prevalence"] = False
         #Relationship Prevalence Chart Header
         self._create_analysis_chart_header(
             relationship_section_layout,
@@ -3010,9 +2554,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "relationship_prevalence",
             show_title=False,
         )
-        relationship_subheader = add_database_subheader(
+        relationship_subheader = QLabel(
             "Distribution of relationship types in database"
         )
+        relationship_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         relationship_section_layout.addWidget(relationship_subheader)
 
         #Relationship Prevalence Chart
@@ -3040,13 +2585,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Social Score Summary",
-            section_key="social_score_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "social_score_summary",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["social_score_summary"] = self._is_database_metrics_section_expanded("social_score_summary")
+        self._database_metrics_section_expanded["social_score_summary"] = False
         self._create_analysis_chart_header(
             social_score_section_layout,
             "Social Score Summary",
@@ -3054,9 +2598,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "social_score_summary",
             show_title=False,
         )
-        social_score_subheader = add_database_subheader(
+        social_score_subheader = QLabel(
             "Median, average, and cumulative share of DB social score"
         )
+        social_score_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         social_score_section_layout.addWidget(social_score_subheader)
         (
             self.social_score_summary_chart_container,
@@ -3072,14 +2617,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Sign Prevalence (all positions)",
-            section_key="sign_prevalence",
-            expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "sign_prevalence",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["sign_prevalence"] = self._is_database_metrics_section_expanded("sign_prevalence")
+        self._database_metrics_section_expanded["sign_prevalence"] = False
         #Sign Prevalence Chart Header
         self._create_analysis_chart_header(
             sign_section_layout,
@@ -3088,9 +2631,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             show_title=False,
         )
-        sentiment_subheader = add_database_subheader(
+        sentiment_subheader = QLabel(
             "Distribution of signs (all positions) in database"
         )
+        sentiment_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         sign_section_layout.addWidget(sentiment_subheader)
         #Sign Prevalence Chart
         (
@@ -3107,14 +2651,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Dominant Factors",
-            section_key="dominant_signs",
-            expanded=self._is_database_metrics_section_expanded("dominant_signs"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "dominant_signs",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["dominant_signs"] = self._is_database_metrics_section_expanded("dominant_signs")
+        self._database_metrics_section_expanded["dominant_signs"] = False
         #Dominant Factors Chart Header
         self._create_analysis_chart_header(
             dominant_sign_section_layout,
@@ -3129,7 +2671,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("Dominant signs in database (by weight)")
+        self.dominant_factors_subheader = QLabel("Dominant signs in database (by weight)")
+        self.dominant_factors_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3147,14 +2690,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Species Distribution",
-            section_key="species_distribution",
-            expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "species_distribution",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["species_distribution"] = self._is_database_metrics_section_expanded("species_distribution")
+        self._database_metrics_section_expanded["species_distribution"] = False
         #Species Distribution Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
@@ -3168,7 +2709,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        species_subheader = add_database_subheader("Distribution of D&D species in database")
+        species_subheader = QLabel("Distribution of D&D species in database")
+        species_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         species_section_layout.addWidget(species_subheader)
 
         #Species Distribution Chart
@@ -3186,14 +2728,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birth Time",
-            section_key="birth_time",
-            expanded=self._is_database_metrics_section_expanded("birth_time"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birth_time",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["birth_time"] = self._is_database_metrics_section_expanded("birth_time")
+        self._database_metrics_section_expanded["birth_time"] = False
         self._create_analysis_chart_header(
             birth_time_section_layout,
             "Birth Time",
@@ -3206,7 +2746,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
+        birth_time_subheader = QLabel("Birth time summary across loaded charts")
+        birth_time_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         birth_time_section_layout.addWidget(birth_time_subheader)
         (
             self.birth_time_chart_container,
@@ -3220,14 +2761,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Age",
-            section_key="age",
-            expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "age",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
+        self._database_metrics_section_expanded["age"] = False
         self._create_analysis_chart_header(
             age_section_layout,
             "Age",
@@ -3239,7 +2778,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        age_subheader = add_database_subheader("Distribution of age and total time known")
+        age_subheader = QLabel("Distribution of age and total time known")
+        age_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         age_section_layout.addWidget(age_subheader)
         (
             self.age_chart_container,
@@ -3253,14 +2793,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birthday",
-            section_key="birth_month",
-            expanded=self._is_database_metrics_section_expanded("birth_month"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birth_month",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["birth_month"] = self._is_database_metrics_section_expanded("birth_month")
+        self._database_metrics_section_expanded["birth_month"] = False
         self._create_analysis_chart_header(
             birth_month_section_layout,
             "Birth Month",
@@ -3272,7 +2810,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
+        birth_month_subheader = QLabel("Birth month and recurring birth date patterns")
+        birth_month_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         birth_month_section_layout.addWidget(birth_month_subheader)
         (
             self.birth_month_chart_container,
@@ -3286,14 +2825,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             panel,
             layout,
             "Birthplace",
-            section_key="birthplace",
-            expanded=self._is_database_metrics_section_expanded("birthplace"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "birthplace",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["birthplace"] = self._is_database_metrics_section_expanded("birthplace")
+        self._database_metrics_section_expanded["birthplace"] = False
         self._create_analysis_chart_header(
             birth_place_section_layout,
             "Birthplace",
@@ -3306,7 +2843,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
+        birthplace_subheader = QLabel("Birthplace distribution and recurring locations")
+        birthplace_subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         birth_place_section_layout.addWidget(birthplace_subheader)
         (
             self.birthplace_chart_container,
@@ -3314,45 +2852,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
-
-        # GENDER SECTION
-        gender_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Gender",
-            section_key="gender",
-            expanded=self._is_database_metrics_section_expanded("gender"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "gender",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["gender"] = self._is_database_metrics_section_expanded("gender")
-        self._create_analysis_chart_header(
-            gender_section_layout,
-            "Gender",
-            "gender",
-            "gender",
-            dropdown_options=[
-                ("Actual Gender", "actual_gender"),
-                ("Guessed by Weight", "guessed_weight"),
-                ("Guessed by Prevalence", "guessed_prevalence"),
-            ],
-            show_title=False,
-        )
-        self.gender_subheader = add_database_subheader("Actual + guessed gender distribution")
-        gender_section_layout.addWidget(self.gender_subheader)
-        (
-            self.gender_chart_container,
-            self.gender_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["gender"] = self.gender_chart_layout
-        gender_section_layout.addWidget(self.gender_chart_container)
-        self.gender_unknown_note = add_database_subheader(
-            f"*unknown for: {', '.join(GEN_POP_ACTUAL_GENDER_UNKNOWN_LABELS)}"
-        )
-        self.gender_unknown_note.setVisible(False)
-        gender_section_layout.addWidget(self.gender_unknown_note)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -3484,10 +2983,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = self.todays_transits_output.font()
         output_font.setPointSize(9)
         self.todays_transits_output.setFont(output_font)
-        self.todays_transits_output.setTabStopDistance(6)
-        self.todays_transits_output._summary_highlighter = ChartSummaryHighlighter(
-            self.todays_transits_output.document()
-        )
         self.todays_transits_output.setPlaceholderText(
             "Transit chart summary will appear here."
         )
@@ -3842,10 +3337,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_generate_composite_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
         if len(selected_items) != 2:
-            chart_ids = self._prompt_composite_chart_selection()
-            if chart_ids is None:
-                return
-            self._generate_composite_chart_for_ids(*chart_ids)
+            QMessageBox.warning(
+                self,
+                "Generate Composite Chart",
+                "Select exactly two charts in the database roster to generate a composite chart.",
+            )
             return
 
         try:
@@ -3859,96 +3355,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        self._generate_composite_chart_for_ids(base_chart_id, overlay_chart_id)
-
-    def _prompt_composite_chart_selection(self) -> tuple[int, int] | None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Generate Composite Chart")
-        dialog.setModal(True)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        chart_lookup: dict[str, int] = {}
-        labels: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
-            if alias:
-                display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [#{chart_id}]"
-            labels.append(label)
-            chart_lookup[label] = int(chart_id)
-
-        first_chart_input = QLineEdit(dialog)
-        first_chart_input.setPlaceholderText("Select first chart")
-        first_completer = QCompleter(labels, first_chart_input)
-        first_completer.setCaseSensitivity(Qt.CaseInsensitive)
-        first_completer.setFilterMode(Qt.MatchContains)
-        first_chart_input.setCompleter(first_completer)
-        layout.addWidget(first_chart_input)
-
-        divider = QFrame(dialog)
-        divider.setFrameShape(QFrame.HLine)
-        divider.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(divider)
-
-        second_chart_input = QLineEdit(dialog)
-        second_chart_input.setPlaceholderText("Select second chart")
-        second_completer = QCompleter(labels, second_chart_input)
-        second_completer.setCaseSensitivity(Qt.CaseInsensitive)
-        second_completer.setFilterMode(Qt.MatchContains)
-        second_chart_input.setCompleter(second_completer)
-        layout.addWidget(second_chart_input)
-
-        synastrize_button = QPushButton("Synastrize!", dialog)
-        layout.addWidget(synastrize_button)
-
-        selected_chart_ids: tuple[int, int] | None = None
-
-        def _resolve_chart_id(raw_value: str) -> int | None:
-            query = raw_value.strip()
-            if not query:
-                return None
-            direct_match = chart_lookup.get(query)
-            if direct_match is not None:
-                return direct_match
-            for label, chart_id in chart_lookup.items():
-                if query.lower() == label.lower():
-                    return chart_id
-            return None
-
-        def _submit() -> None:
-            nonlocal selected_chart_ids
-            base_chart_id = _resolve_chart_id(first_chart_input.text())
-            overlay_chart_id = _resolve_chart_id(second_chart_input.text())
-            if base_chart_id is None or overlay_chart_id is None:
-                QMessageBox.warning(
-                    dialog,
-                    "Generate Composite Chart",
-                    "Select two saved charts from autocomplete before generating.",
-                )
-                return
-            if base_chart_id == overlay_chart_id:
-                QMessageBox.warning(
-                    dialog,
-                    "Generate Composite Chart",
-                    "Select two different charts.",
-                )
-                return
-            selected_chart_ids = (base_chart_id, overlay_chart_id)
-            dialog.accept()
-
-        synastrize_button.clicked.connect(_submit)
-        first_chart_input.returnPressed.connect(_submit)
-        second_chart_input.returnPressed.connect(_submit)
-
-        if dialog.exec() != QDialog.Accepted:
-            return None
-        return selected_chart_ids
-
-    def _generate_composite_chart_for_ids(self, base_chart_id: int, overlay_chart_id: int) -> None:
         try:
             base_chart = load_chart(base_chart_id)
             overlay_chart = load_chart(overlay_chart_id)
@@ -4006,47 +3412,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        normalized_overlay_weights = _normalize_planet_weight_map(
-            getattr(overlay_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(overlay_chart)
+        chart_info_layout = QVBoxLayout()
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet("font-weight: bold;")
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(
+            "Composite view: first selected chart houses with second selected chart overlay."
         )
-        normalized_base_weights = _normalize_planet_weight_map(
-            getattr(base_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(base_chart)
-        )
-
-        def _weighted_synastry_score(hit: Any) -> float:
-            if not hasattr(hit, "a") or not hasattr(hit, "b"):
-                return 0.0
-            return max(
-                0.0,
-                _synastry_pair_weight(
-                    hit.a.name,
-                    hit.b.name,
-                    normalized_overlay_weights,
-                    normalized_base_weights,
-                )
-                * float(getattr(hit, "weight", 0.0))
-                * float(getattr(hit, "exactness", 0.0)),
-            )
-
-        chart_info_output = self._build_popout_left_panel(
-            layout,
-            chart_info_placeholder="Composite view: first selected chart houses with second selected chart overlay.",
-            aspect_entries=list(aspect_hits),
-            export_file_stem=(
-                f"{_sanitize_export_token(base_chart.name)}_x_{_sanitize_export_token(overlay_chart.name)}"
-                "-synastry_aspect_distribution"
-            ),
-            weighted_score_for_entry=_weighted_synastry_score,
-            aspect_subheader=(
-                "Disclaimer: The creator of this app hasn't found Synastry aspect weighing to be useful or relevant. "
-                "It predicts harmony with all my worst enemies, success in relationships that failed and strife in "
-                "relationships that have gone well for a very long time. It may be that the objective innate "
-                "goodness or awfulness of some people is far more critical in determining relationship outcomes "
-                "than baseline 'compatibility'. Maybe there's a big difference in conflict based on being 'wired "
-                "different' vs conflict based on differing levels of emotional maturity or sociopathy. lol But I "
-                "suspect my algorithm is also wrong."
-            ),
-        )
+        chart_info_output.setMinimumWidth(250)
+        chart_info_layout.addWidget(chart_info_label)
+        chart_info_layout.addWidget(chart_info_output, 1)
+        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
@@ -4057,17 +3434,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_left = QLabel(
             "\n".join(
                 [
-                    f"Chart 1:    {base_chart.name}",
-                    format_chart_header("when_where_compact", date_time=base_chart.dt.strftime("%m.%d.%Y %H:%M"), lat=base_chart.lat, lon=base_chart.lon),
+                    f"Base chart:    {base_chart.name}",
+                    f"Base date:     {base_chart.dt.strftime('%m.%d.%Y %H:%M')}",
+                    f"Base location: {base_chart.lat:.4f}, {base_chart.lon:.4f}",
                     "",
-                    f"Chart 2: {overlay_chart.name}",
-                    format_chart_header("when_where_compact", date_time=overlay_chart.dt.strftime("%m.%d.%Y %H:%M"), lat=overlay_chart.lat, lon=overlay_chart.lon),
+                    f"Overlay chart: {overlay_chart.name}",
+                    f"Overlay date:  {overlay_chart.dt.strftime('%m.%d.%Y %H:%M')}",
+                    f"Overlay loc:   {overlay_chart.lat:.4f}, {overlay_chart.lon:.4f}",
                 ]
             )
         )
-        header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        header_left.setStyleSheet("font-weight: 600;")
         header_font = header_left.font()
-        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setFamily("Courier New")
         header_left.setFont(header_font)
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
@@ -4117,83 +3496,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_output = QPlainTextEdit()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
+        output_font.setFamily("Courier New")
         summary_output.setFont(output_font)
-        summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
-        synastry_file_stem = (
-            f"synastry_{self._sanitize_export_token(base_chart.name)}_x_{self._sanitize_export_token(overlay_chart.name)}"
-        )
-        summary_share_button = self._attach_popout_share_button(summary_output, synastry_file_stem)
-
-        popout_context_key = summary_output.viewport()
-        popout_context: dict[str, object] = {
-            "output_widget": summary_output,
-            "chart_info_output": chart_info_output,
-            "position_info_map": {},
-            "aspect_info_map": {},
-            "species_info_map": {},
-            "summary_block_offset": 0,
-            "share_button": summary_share_button,
-        }
-        self._popout_summary_contexts[popout_context_key] = popout_context
-        dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
-
-        base_dominant_planet_weights = getattr(base_chart, "dominant_planet_weights", None)
-        if not base_dominant_planet_weights:
-            base_dominant_planet_weights = _calculate_dominant_planet_weights(base_chart)
-        overlay_dominant_planet_weights = getattr(overlay_chart, "dominant_planet_weights", None)
-        if not overlay_dominant_planet_weights:
-            overlay_dominant_planet_weights = _calculate_dominant_planet_weights(overlay_chart)
-
         summary_header_lines = [
-            f"Synastry Chart for {base_chart.name} & {overlay_chart.name}",
+            "Composite Chart (Selected 2 Charts)",
             "-----------------------------------",
+            f"Base:      {base_chart.name}",
+            f"Overlay:   {overlay_chart.name}",
             "",
-            f"{overlay_chart.name}'s Aspects to {base_chart.name}:",
+            "Top Overlay Aspects to Base:",
         ]
 
         def _refresh_summary() -> None:
             sort_mode = summary_sort_combo.currentText()
             lines = list(summary_header_lines)
-            aspect_info_map: dict[int, dict[str, object]] = {}
-            sorted_hits = self._sort_popout_aspects(
-                aspect_hits,
-                sort_mode,
-                synastry_overlay_planet_weights=overlay_dominant_planet_weights,
-                synastry_base_planet_weights=base_dominant_planet_weights,
-            )
+            sorted_hits = self._sort_popout_aspects(aspect_hits, sort_mode)
             if sorted_hits:
-                for hit in sorted_hits: #for hit in sorted_hits[:80]: #<- this had previously been truncated
+                for hit in sorted_hits[:80]:
                     left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                     right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
-                    line = (
+                    lines.append(
                         f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
-                        f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False)} ⓘ"
+                        f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False)}"
                     )
-                    aspect_type = str(hit.aspect).replace(" ", "_").lower()
-                    angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
-                    aspect_info_map[len(lines)] = {
-                        "p1": hit.a.name,
-                        "p2": hit.b.name,
-                        "type": str(hit.aspect),
-                        "angle": angle,
-                        "delta": float(hit.orb_deg),
-                        "sign1": hit.a.sign,
-                        "sign2": hit.b.sign,
-                        "house1": hit.a.house,
-                        "house2": hit.b.house,
-                    }
-                    lines.append(line)
             else:
                 lines.append("- None within configured orbs.")
             summary_output.setPlainText("\n".join(lines))
-            popout_context["aspect_info_map"] = aspect_info_map
 
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         _refresh_summary()
@@ -4208,91 +3541,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else None
         )
 
-    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
-        return _normalize_aspect_type(raw_aspect)
-
-    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
-        return _extract_aspect_weight(aspect_entry)
-
-    def _collect_aspect_type_counts(
-        self,
-        aspect_entries: list[Any],
-        *,
-        weighted: bool = False,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_type_counts(
-            aspect_entries,
-            weighted=weighted,
-            weighted_score_for_entry=weighted_score_for_entry,
-        )
-
-    def _collect_aspect_category_totals(
-        self,
-        aspect_counts: OrderedDict[str, float],
-        *,
-        categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_category_totals(aspect_counts, categories=categories)
-
-    def _draw_popout_aspect_distribution_chart(
-        self,
-        analytics_ax: Any,
-        *,
-        mode: str,
-        aspect_counts: OrderedDict[str, float],
-        weighted_aspect_counts: OrderedDict[str, float],
-        type_totals: OrderedDict[str, float],
-        weighted_type_totals: OrderedDict[str, float],
-        friction_totals: OrderedDict[str, float],
-        weighted_friction_totals: OrderedDict[str, float],
-    ) -> None:
-        _draw_popout_aspect_distribution_chart(
-            analytics_ax,
-            mode=mode,
-            aspect_counts=aspect_counts,
-            weighted_aspect_counts=weighted_aspect_counts,
-            type_totals=type_totals,
-            weighted_type_totals=weighted_type_totals,
-            friction_totals=friction_totals,
-            weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
-        )
-
-    def _build_popout_left_panel(
-        self,
-        layout: QHBoxLayout,
-        *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-        aspect_subheader: str | None = None,
-    ) -> QPlainTextEdit:
-        return _build_popout_left_panel_widget(
-            layout,
-            chart_info_placeholder=chart_info_placeholder,
-            aspect_entries=aspect_entries,
-            export_file_stem=export_file_stem,
-            weighted_score_for_entry=weighted_score_for_entry,
-            aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
-        )
-
-    def _sort_popout_aspects(
-        self,
-        aspect_hits: list[Any],
-        sort_mode: str,
-        *,
-        synastry_overlay_planet_weights: dict[str, float] | None = None,
-        synastry_base_planet_weights: dict[str, float] | None = None,
-    ) -> list[Any]:
+    def _sort_popout_aspects(self, aspect_hits: list[Any], sort_mode: str) -> list[Any]:
         if sort_mode == "Aspect":
             return sorted(
                 aspect_hits,
@@ -4310,135 +3559,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 key=lambda hit: (aspect_body_sign_duration(hit.a.name), hit.exactness, hit.weight, -hit.orb_deg),
                 reverse=True,
             )
-        if synastry_overlay_planet_weights is not None and synastry_base_planet_weights is not None:
-            normalized_overlay_weights = _normalize_planet_weight_map(synastry_overlay_planet_weights)
-            normalized_base_weights = _normalize_planet_weight_map(synastry_base_planet_weights)
-            return sorted(
-                aspect_hits,
-                key=lambda hit: (
-                    _synastry_pair_weight(
-                        hit.a.name,
-                        hit.b.name,
-                        normalized_overlay_weights,
-                        normalized_base_weights,
-                    ) * float(hit.weight) * float(hit.exactness),
-                    float(hit.exactness),
-                    -float(hit.orb_deg),
-                ),
-                reverse=True,
-            )
         return sorted(
             aspect_hits,
             key=lambda hit: (hit.exactness, hit.weight, -hit.orb_deg),
             reverse=True,
         )
 
-    def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
-        return _sanitize_export_token(value, fallback)
-
-    def _build_transit_export_file_stem(
-        self,
-        transit_chart: Chart,
-        *,
-        chart_name_for_personal_transit: str | None = None,
-    ) -> str:
-        transit_timestamp = (
-            transit_chart.dt.strftime("%Y-%m-%d_%H%M")
-            if transit_chart.dt
-            else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
-        )
-        default_stem = f"transit_{transit_timestamp}"
-        return f"{default_stem}_{self._sanitize_export_token(chart_name_for_personal_transit)}"
-        # return default_stem
-
-    def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        viewport = output_widget.viewport()
-        margin = 6
-        button.move(
-            max(margin, viewport.x() + viewport.width() - button.width() - margin),
-            max(margin, viewport.y() + margin),
-        )
-        button.raise_()
-        button.show()
-
-    def _attach_popout_share_button(
-        self,
-        output_widget: QPlainTextEdit,
-        default_file_stem: str,
-        export_text_provider: Callable[[], str] | None = None,
-    ) -> QToolButton:
-        share_button = QToolButton(output_widget)
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            share_button.setIcon(QIcon(share_icon_path))
-            share_button.setIconSize(QSize(14, 14))
-        else:
-            share_button.setText("↗")
-        share_button.setAutoRaise(True)
-        share_button.setCursor(Qt.PointingHandCursor)
-        share_button.setToolTip("Export chart data output as Markdown or text")
-        share_button.clicked.connect(
-            lambda _checked=False, widget=output_widget, stem=default_file_stem: self._export_popout_chart_data_output(widget, stem)
-        )
-        share_button.resize(22, 22)
-        self._position_popout_share_button(output_widget, share_button)
-        return share_button
-
-    def _export_popout_chart_data_output(
-        self,
-        output_widget: QPlainTextEdit,
-        default_file_stem: str,
-        export_text_provider: Callable[[], str] | None = None,
-    ) -> None:
-        if callable(export_text_provider):
-            summary_text = export_text_provider().strip()
-        else:
-            summary_text = output_widget.toPlainText().strip()
-        if not summary_text:
-            QMessageBox.information(
-                self,
-                "Nothing to export",
-                "Generate or load a chart before exporting chart data output.",
-            )
-            return
-
-        safe_stem = self._sanitize_export_token(default_file_stem, fallback="chart_data_output")
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Chart Data Output",
-            f"{safe_stem}.md",
-            "Markdown Files (*.md);;Text Files (*.txt)",
-        )
-        if not file_path:
-            return
-
-        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
-        if not file_path.lower().endswith((".md", ".txt")):
-            file_path = f"{file_path}{selected_extension}"
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as output_file:
-                output_file.write(summary_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart data output:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart data output to:\n{file_path}",
-        )
-
-    def _personal_transit_priority(
-        self,
-        hit: Any,
-        mode: str,
-        natal_planet_weights: dict[str, float] | None = None,
-    ) -> float:
+    def _personal_transit_priority(self, hit: Any, mode: str) -> float:
         orb_cap = personal_transit_orb_cap(mode, hit.a.name, hit.b.name, hit.aspect)
         if orb_cap <= 0:
             return 0.0
@@ -4446,10 +3573,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_key = str(hit.aspect).replace(" ", "_").lower()
         aspect_angle = float(ASPECT_DEFS.get(aspect_key, {}).get("angle", 0.0))
         transit_weight = float(TRANSIT_WEIGHT.get(hit.a.name, 1.0))
-        if natal_planet_weights:
-            natal_weight = float(natal_planet_weights.get(hit.b.name, NATAL_WEIGHT.get(hit.b.name, 1.0)))
-        else:
-            natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
+        natal_weight = float(NATAL_WEIGHT.get(hit.b.name, 1.0))
         angle_weight = float(ANGLE_WEIGHT.get(aspect_angle, 1.0))
         return (transit_weight + natal_weight) * angle_weight * orb_factor
 
@@ -4458,16 +3582,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_hits: list[Any],
         sort_mode: str,
         mode: str,
-        natal_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Priority":
             return sorted(
                 aspect_hits,
-                key=lambda hit: self._personal_transit_priority(
-                    hit,
-                    mode,
-                    natal_planet_weights=natal_planet_weights,
-                ),
+                key=lambda hit: self._personal_transit_priority(hit, mode),
                 reverse=True,
             )
         return self._sort_popout_aspects(aspect_hits, sort_mode)
@@ -4489,42 +3608,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
-        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
-        hit_modes: dict[int, str] = {}
-        for mode_name, mode_hits in aspect_hits_by_mode.items():
-            for hit in mode_hits:
-                hit_modes[id(hit)] = mode_name
-        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(natal_chart)
-
-        def _weighted_personal_transit_score(hit: Any) -> float:
-            mode_name = hit_modes.get(id(hit), PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
-            return max(
-                0.0,
-                self._personal_transit_priority(
-                    hit,
-                    mode_name,
-                    natal_planet_weights=natal_planet_weights,
-                ),
-            )
-
-        chart_info_output = self._build_popout_left_panel(
-            layout,
-            chart_info_placeholder="Personal Transit Chart: natal houses with transit planet overlay.",
-            aspect_entries=all_hits,
-            export_file_stem=f"{_sanitize_export_token(natal_chart.name)}-transit_aspect_distribution",
-            weighted_score_for_entry=_weighted_personal_transit_score,
+        chart_info_layout = QVBoxLayout()
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet("font-weight: bold;")
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(
+            "Composite view: natal houses with transit planet overlay."
         )
+        chart_info_output.setMinimumWidth(250)
+        chart_info_layout.addWidget(chart_info_label)
+        chart_info_layout.addWidget(chart_info_output, 1)
+        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        transit_dt_local = transit_chart.dt.astimezone(local_tz)
-        date_label = transit_dt_local.strftime("%m.%d.%Y")
-        time_label = transit_dt_local.strftime("%H:%M") if include_time else "omitted"
-        timezone_label = transit_dt_local.strftime("%Z") or str(local_tz)
+        date_label = transit_chart.dt.strftime("%m.%d.%Y")
+        time_label = transit_chart.dt.strftime("%H:%M") if include_time else "omitted"
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
@@ -4532,14 +3634,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_left = QLabel(
             "\n".join(
                 [
-                    f"Name: {natal_chart.name}",
-                    format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
+                    f"Person:   {natal_chart.name}",
+                    f"Date:     {date_label}",
+                    f"Time:     {time_label}",
+                    f"Location: {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
                 ]
             )
         )
-        header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        header_left.setStyleSheet("font-weight: 600;")
         header_font = header_left.font()
-        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setFamily("Courier New")
         header_left.setFont(header_font)
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
@@ -4559,6 +3663,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         natal_for_plot = copy.deepcopy(natal_chart)
         natal_for_plot.name = transit_chart.name
         natal_for_plot.aspects = []
+        all_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
+        all_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
         overlay_aspects = _overlay_aspect_segments(all_hits)
         draw_chart_wheel(
             figure,
@@ -4593,25 +3699,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_output = QPlainTextEdit()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
+        output_font.setFamily("Courier New")
         summary_output.setFont(output_font)
-        summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
-
-        transit_timestamp = transit_chart.dt.strftime("%Y-%m-%d_%H%M") if transit_chart.dt else datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M")
-        transit_file_stem = self._build_transit_export_file_stem(
-            transit_chart,
-            chart_name_for_personal_transit=natal_chart.name,
-        )
-        summary_share_button = self._attach_popout_share_button(
-            summary_output,
-            transit_file_stem,
-            export_text_provider=lambda: _build_personal_transit_export_text(),
-        )
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
@@ -4621,15 +3715,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "aspect_info_map": {},
             "species_info_map": {},
             "summary_block_offset": 0,
-            "share_button": summary_share_button,
         }
         self._popout_summary_contexts[popout_context_key] = popout_context
 
         summary_header_lines = [
             "Personal Transit (Transit → Natal)",
             "---------------------------------",
-            f"Name:      {natal_chart.name}",
-            format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
+            f"Person:      {natal_chart.name}",
+            f"Date:        {date_label}",
+            f"Time:        {time_label}",
+            f"Location:    {location_label}, {transit_chart.lat:.4f}, {transit_chart.lon:.4f}",
             "",
         ]
         transit_location = (transit_chart.lat, transit_chart.lon)
@@ -4648,53 +3743,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scan_step_hours = transit_scan_config.scan_step_hours
         scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
-        natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None)
-        if not natal_planet_weights:
-            natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
-
-        def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
-            daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
-                aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
-            )
-            return [
-                (
-                    "Daily Vibe",
-                    "(Short-term 1-3 day personal transits)",
-                    [
-                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            daily_hits,
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                            natal_planet_weights=natal_planet_weights,
-                        )
-                    ],
-                    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                ),
-                (
-                    "Life Forecast",
-                    "(Longer-term and structural transits)",
-                    [
-                        (hit, PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-                            natal_planet_weights=natal_planet_weights,
-                        )
-                    ]
-                    + [
-                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
-                        for hit in self._sort_personal_transit_mode_aspects(
-                            rollover_hits,
-                            sort_mode,
-                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
-                            natal_planet_weights=natal_planet_weights,
-                        )
-                    ],
-                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
-                ),
-            ]
 
             #ojo: is this weird?
         def _window_cache_key(mode: str, hit_obj: Any) -> tuple[object, ...]:
@@ -4748,9 +3796,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             previous_horizontal_position = horizontal_scrollbar.value()
             sort_mode = summary_sort_combo.currentText()
             lines = list(summary_header_lines)
-            aspect_info_map: dict[int, dict[str, object]] = {}
             calendar_info_map.clear()
-            sections = _build_personal_transit_sections(sort_mode)
+            daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
+                aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
+            )
+            sections: list[tuple[str, str, list[tuple[Any, str]], str]] = [
+                (
+                    "Daily Vibe",
+                    "(Short-term 1-3 day personal transits)",
+                    [
+                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            daily_hits,
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                        )
+                    ],
+                    PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                ),
+                (
+                    "Life Forecast",
+                    "(Longer-term and structural transits)",
+                    [
+                        (hit, PERSONAL_TRANSIT_MODE_LIFE_FORECAST)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []),
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                        )
+                    ]
+                    + [
+                        (hit, PERSONAL_TRANSIT_MODE_DAILY_VIBE)
+                        for hit in self._sort_personal_transit_mode_aspects(
+                            rollover_hits,
+                            sort_mode,
+                            PERSONAL_TRANSIT_MODE_DAILY_VIBE,
+                        )
+                    ],
+                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
+                ),
+            ]
             for _section_title, _section_subtitle, entries, empty_mode in sections:
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
@@ -4783,32 +3868,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             error_text = state.get("error", "")
                             suffix = f"📆 ⚠ {error_text}" if error_text else "📆 ⚠"
                         elif state["expanded"] and state["resolved"]:
-                            suffix = _format_transit_range(
-                                state["start"],
-                                state["end"],
-                                include_time=include_time,
-                                start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
-                                end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
+                            suffix = (
+                                "📆 "
+                                + _format_transit_range(
+                                    state["start"],
+                                    state["end"],
+                                    include_time=include_time,
+                                    start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
+                                    end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
+                                )
                             )
                         left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
                         right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
                         line = (
                             f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
-                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  ⓘ {suffix}"
+                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  {suffix}"
                         )
-                        aspect_type = str(hit.aspect).replace(" ", "_").lower()
-                        angle = float(ASPECT_DEFS.get(aspect_type, {}).get("angle", 0.0))
-                        aspect_info_map[len(lines)] = {
-                            "p1": hit.a.name,
-                            "p2": hit.b.name,
-                            "type": str(hit.aspect),
-                            "angle": angle,
-                            "delta": float(hit.orb_deg),
-                            "sign1": hit.a.sign,
-                            "sign2": hit.b.sign,
-                            "house1": hit.a.house,
-                            "house2": hit.b.house,
-                        }
                         icon_index = line.rfind("📆")
                         if icon_index >= 0:
                             calendar_info_map[len(lines)] = {
@@ -4820,7 +3895,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
                 lines.append("")
             summary_output.setPlainText("\n".join(lines))
-            popout_context["aspect_info_map"] = aspect_info_map
             vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
             horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
@@ -4925,85 +3999,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }
             _on_window_ready(key, result.start, result.end, metadata)
 
-        def _build_personal_transit_export_text() -> str:
-            lines = list(summary_header_lines)
-            sort_mode = summary_sort_combo.currentText()
-            sections = _build_personal_transit_sections(sort_mode)
-            for section_title, section_subtitle, entries, empty_mode in sections:
-                lines.extend([section_title, section_subtitle, ""])
-                if entries:
-                    for hit, source_mode in entries[:80]:
-                        key = (source_mode, hit.a.name, hit.aspect, hit.b.name)
-                        state = transit_ranges.get(key, {})
-                        start_dt = state.get("start")
-                        end_dt = state.get("end")
-                        start_truncated = bool(state.get("start_truncated_to_scope", False))
-                        end_truncated = bool(state.get("end_truncated_to_scope", False))
-                        resolved = bool(state.get("resolved", False))
-                        failed = bool(state.get("failed", False))
-                        error_text = str(state.get("error", "") or "")
-
-                        if not resolved and not failed:
-                            cache_key = _window_cache_key(source_mode, hit)
-                            cached_payload = _window_cache_get(cache_key)
-                            if isinstance(cached_payload, dict):
-                                resolved = bool(cached_payload.get("resolved", False))
-                                failed = bool(cached_payload.get("failed", False))
-                                start_dt = cached_payload.get("start")
-                                end_dt = cached_payload.get("end")
-                                start_truncated = bool(cached_payload.get("start_truncated_to_scope", False))
-                                end_truncated = bool(cached_payload.get("end_truncated_to_scope", False))
-                                error_text = str(cached_payload.get("error", "") or "")
-
-                        if not resolved and not failed:
-                            try:
-                                result = find_transit_aspect_window_result(
-                                    natal_chart,
-                                    transit_chart.dt,
-                                    transit_location,
-                                    hit,
-                                    mode_rules.get(source_mode, TRANSIT_ASPECT_RULES),
-                                    step_hours=scan_step_hours,
-                                    precision_minutes=scan_precision_minutes,
-                                )
-                                if result.out_of_scope:
-                                    failed = True
-                                    error_text = "Transit date is outside the configured ephemeris scope."
-                                else:
-                                    start_dt = result.start
-                                    end_dt = result.end
-                                    start_truncated = bool(result.start_truncated_to_scope)
-                                    end_truncated = bool(result.end_truncated_to_scope)
-                                    resolved = True
-                            except Exception:
-                                failed = True
-                                error_text = "window lookup failed"
-
-                        if resolved:
-                            window_text = _format_transit_range(
-                                start_dt,
-                                end_dt,
-                                include_time=include_time,
-                                start_truncated_to_scope=start_truncated,
-                                end_truncated_to_scope=end_truncated,
-                            )
-                        elif failed:
-                            window_text = f"Unavailable ({error_text})" if error_text else "Unavailable"
-                        else:
-                            window_text = "Unavailable"
-
-                        left_label = _format_popout_aspect_endpoint(hit.a, include_house=False)
-                        right_label = _format_popout_aspect_endpoint(hit.b, include_house=True)
-                        lines.append(
-                            f"- {left_label:<26} {hit.aspect:<14} {right_label:<30} "
-                            f"orb {_format_degree_minutes(hit.orb_deg, include_sign=False):<8}  "
-                            f"window {window_text}"
-                        )
-                else:
-                    lines.append(f"- No {mode_labels.get(empty_mode, empty_mode)} aspects within configured orbs.")
-                lines.append("")
-            return "\n".join(lines)
-
         def _handle_calendar_click(cursor) -> bool:
             block_number = cursor.block().blockNumber()
             entry = calendar_info_map.get(block_number)
@@ -5016,9 +4011,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                if not bool(state["expanded"]):
-                    state["expanded"] = True
-                    _refresh_summary()
+                state["expanded"] = not bool(state["expanded"])
+                _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
@@ -5048,25 +4042,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        transit_planet_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
-
-        def _weighted_transit_score(entry: Any) -> float:
-            if isinstance(entry, dict):
-                return max(0.0, float(_aspect_score(entry, planet_weights=transit_planet_weights)))
-            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
-                return max(0.0, float(entry.exactness) * float(entry.weight))
-            return 0.0
-
-        chart_info_output = self._build_popout_left_panel(
-            layout,
-            chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
-            aspect_entries=list(getattr(chart, "aspects", []) or []),
-            export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
-            weighted_score_for_entry=_weighted_transit_score,
+        chart_info_layout = QVBoxLayout()
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet("font-weight: bold;")
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(
+            "Click the ⓘ in chart summary text to see details/interpretation."
         )
+        chart_info_output.setMinimumWidth(250)
+        chart_info_layout.addWidget(chart_info_label)
+        chart_info_layout.addWidget(chart_info_output, 1)
+        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
+
+        chart_summary, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(chart)
+        summary_lines = chart_summary.splitlines()
 
         date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
         time_label = (
@@ -5075,6 +4068,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else chart.dt.strftime("%H:%M")
         )
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
+        cursedness_line = next(
+            (line.strip() for line in summary_lines if line.strip().startswith("Cursedness:")),
+            "Cursedness: Unknown",
+        )
+        species_line = next(
+            (line.strip() for line in summary_lines if line.strip().startswith("D&D species:")),
+            "D&D species: Unknown",
+        )
 
         popout_header_layout = QHBoxLayout()
         popout_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -5083,13 +4084,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         popout_header_left = QLabel(
             "\n".join(
                 [
-                    f"When/Where:     {date_label} @ {time_label} | {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
+                    f"Date:     {date_label}",
+                    f"Time:     {time_label}",
+                    f"Location: {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
+                    cursedness_line,
+                    species_line,
                 ]
             )
         )
-        popout_header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        popout_header_left.setStyleSheet("font-weight: 600;")
         popout_header_left_font = popout_header_left.font()
-        popout_header_left_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        popout_header_left_font.setFamily("Courier New")
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
@@ -5129,20 +4134,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_output = QPlainTextEdit()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
+        output_font.setFamily("Courier New")
         summary_output.setFont(output_font)
-        summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
-
-        transit_file_stem = self._build_transit_export_file_stem(
-            chart,
-            chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
-        )
-        summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
@@ -5152,7 +4150,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "aspect_info_map": {},
             "species_info_map": {},
             "summary_block_offset": 0,
-            "share_button": summary_share_button,
         }
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
@@ -5164,11 +4161,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
                 chart,
                 aspect_sort=sort_mode,
-                **self._chart_data_visibility_options(),
             )
             summary_lines_local = chart_summary_text.splitlines()
             positions_start_index = next(
-                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "POSITIONS"),
+                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "Positions"),
                 0,
             )
             visible_summary_lines = summary_lines_local[positions_start_index:]
@@ -5221,7 +4217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title_row.setLayout(title_layout)
 
         title = QLabel("Similarities Analysis")
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        title.setStyleSheet("font-weight: bold;")
         title_layout.addWidget(title)
         title_layout.addStretch(1)
 
@@ -5345,7 +4341,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle.setArrowType(Qt.RightArrow)
         toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+        toggle.setStyleSheet("font-weight: 600; padding: 6px; text-align: left;")
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -5993,6 +4989,977 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return {species: 0 for species in SPECIES_FAMILIES}
 
     @staticmethod
+    def _set_x_limits_with_padding(
+        ax,
+        minimum: float,
+        maximum: float,
+        pad_px: float = 10.0,
+    ) -> None:
+        fig = ax.figure
+        axes_width_px = (
+            fig.get_size_inches()[0] * fig.dpi * ax.get_position().width
+        )
+        data_range = maximum - minimum
+        if axes_width_px <= (pad_px * 2) or data_range <= 0:
+            ax.set_xlim(minimum, maximum)
+            return
+        pad_ratio = pad_px / axes_width_px
+        data_pad = (pad_ratio * data_range) / max(1 - (2 * pad_ratio), 0.01)
+        ax.set_xlim(minimum - data_pad, maximum + data_pad)
+
+    @staticmethod
+    def _clear_layout(layout: QLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+
+    @staticmethod
+    def _configure_left_panel_canvas(
+        canvas: FigureCanvas,
+        figure: Figure,
+    ) -> None:
+        height = int(round(figure.get_size_inches()[1] * figure.dpi))
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        canvas.setMinimumHeight(height)
+        canvas.setMaximumHeight(height)
+        #adds trackpad scrolling & hoverstate arrow scroll:
+        canvas.setFocusPolicy(Qt.NoFocus)
+        canvas.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    @staticmethod
+    def _format_database_count_label(label: str, count: float | int) -> str:
+        if isinstance(count, float) and not float(count).is_integer():
+            count_text = f"{count:,.1f}"
+        else:
+            count_text = f"{int(round(count)):,.0f}"
+        return f"({count_text}) {label}"
+
+    def _format_selection_database_count_label(
+        self,
+        label: str,
+        database_count: float | int,
+        selected_count: float | int,
+        show_selected: bool,
+    ) -> str:
+        if not show_selected:
+            return self._format_database_count_label(label, database_count)
+        if isinstance(selected_count, float) and not float(selected_count).is_integer():
+            selected_text = f"{selected_count:,.1f}"
+        else:
+            selected_text = f"{int(round(selected_count)):,.0f}"
+        if isinstance(database_count, float) and not float(database_count).is_integer():
+            database_text = f"{database_count:,.1f}"
+        else:
+            database_text = f"{int(round(database_count)):,.0f}"
+        database_count_value = float(database_count)
+        selected_count_value = float(selected_count)
+        percent_text = (
+            _format_percent(selected_count_value / database_count_value)
+            if database_count_value
+            else "0%"
+        )
+        return f"({selected_text} of {database_text} : {percent_text}) {label}"
+
+     #DB View's Lefthand Panel: Selection Comparison Chart 2: Relationship Distribution Chart
+    def _build_relationship_distribution_chart(
+        self,
+        selection_relationships: dict[str, float],
+        database_relationships: dict[str, float],
+        selection_relationship_counts: dict[str, float],
+        database_relationship_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        relationship_figure = Figure(figsize=(4.8, 5.8))
+        relationship_figure.patch.set_facecolor("#111111")
+        relationship_ax = relationship_figure.add_subplot(111)
+        relationship_ax.set_facecolor("#111111")
+        relationship_labels = list(RELATION_TYPE)
+        relationship_display_labels = [
+            self._format_selection_database_count_label(
+                relationship,
+                database_relationship_counts.get(relationship, 0),
+                selection_relationship_counts.get(relationship, 0),
+                loaded_charts > 0,
+            )
+            for relationship in relationship_labels
+        ]
+        relationship_positions = list(range(len(relationship_labels)))
+        relationship_colors = ["#6fa8dc" for _ in relationship_labels]
+        selection_values = [
+            selection_relationships[relationship]
+            for relationship in relationship_labels
+        ]
+        database_values = [
+            database_relationships[relationship]
+            for relationship in relationship_labels
+        ]
+        if loaded_charts == 0:
+            relationship_bars = relationship_ax.barh(
+                relationship_positions,
+                database_values,
+                color=relationship_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            relationship_ax.set_xlim(0, 1)
+            relationship_ax.set_yticks(
+                relationship_positions,
+                labels=relationship_display_labels,
+            )
+            relationship_ax.invert_yaxis()
+            relationship_ax.tick_params(
+                axis="y",
+                labelsize=7.5,
+                colors="#f5f5f5",
+                pad=6,
+            )
+            relationship_ax.tick_params(
+                axis="x",
+                labelsize=7,
+                colors="#8b8b8b",
+            )
+            relationship_ax.set_xlabel("")
+            relationship_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            relationship_ax.set_xticklabels(
+                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+            )
+            for bar, database_value in zip(relationship_bars, database_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = min(database_value + 0.02, 0.95)
+                relationship_ax.text(
+                    label_x,
+                    bar_center,
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            differences = [
+                selection - database
+                for selection, database in zip(selection_values, database_values)
+            ]
+            widths = [abs(value) for value in differences]
+            relationship_bars = relationship_ax.barh(
+                relationship_positions,
+                widths,
+                left=[
+                    0 if value >= 0 else -abs(value) for value in differences
+                ],
+                color=relationship_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            relationship_ax.set_xlim(-1, 1)
+            relationship_ax.set_yticks(
+                relationship_positions,
+                labels=relationship_display_labels,
+            )
+            relationship_ax.invert_yaxis()
+            relationship_ax.tick_params(
+                axis="y",
+                labelsize=7.5,
+                colors="#f5f5f5",
+                pad=6,
+            )
+            relationship_ax.tick_params(
+                axis="x",
+                labelsize=7,
+                colors="#8b8b8b",
+            )
+            relationship_ax.set_xlabel("")
+            relationship_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            relationship_ax.set_xticklabels(
+                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+            )
+            relationship_ax.axvline(
+                0,
+                color="#444444",
+                linewidth=1.5,
+                zorder=1,
+            )
+            for bar, diff_value in zip(relationship_bars, differences):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                selection_value = bar.get_width()
+                if selection_value > 0:
+                    label_value = abs(diff_value)
+                    label_x = (
+                        selection_value if diff_value >= 0 else -selection_value
+                    )
+                    if label_x >= 0:
+                        label_x = min(label_x + 0.02, 0.95)
+                    else:
+                        label_x = max(label_x - 0.02, -0.95)
+                    relationship_ax.text(
+                        label_x,
+                        bar_center,
+                        _format_percent(label_value),
+                        va="center",
+                        ha="left" if diff_value >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in relationship_ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in relationship_ax.get_yticklabels():
+            tick_label.set_ha("right")
+        relationship_figure.tight_layout()
+        relationship_figure.subplots_adjust(
+            left=0.36,
+            bottom=0.12,
+            right=0.97,
+            top=0.96,
+        )
+
+        relationship_canvas = FigureCanvas(relationship_figure)
+        self._configure_left_panel_canvas(
+            relationship_canvas,
+            relationship_figure,
+        )
+        relationship_canvas.draw_idle()
+        return relationship_canvas
+
+    #DB View's Lefthand Panel: Selection Comparison Chart 1: Sentiment Distribution Chart
+    def _build_sentiment_chart(
+        self,
+        display_labels: list[str],
+        selection_values: list[float],
+        database_values: list[float],
+        selection_counts: list[float],
+        database_counts: list[float],
+        loaded_charts: int,
+        positive_labels: list[str],
+        negative_labels: list[str],
+        positive_total_label: str,
+        negative_total_label: str,
+    ) -> FigureCanvas:
+        # DB View's lefthand panel top graph dimensions
+        figure = Figure(figsize=(5.6, 6.8))  # graph dimensions
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+        positive_total_color = "#39ff14"
+        negative_total_color = "#ff1744"
+        negative_start_display = len(positive_labels) + 1
+        if negative_labels:
+            ax.axhspan(
+                negative_start_display - 0.5,
+                len(display_labels) - 0.5,
+                facecolor="#222222",
+                zorder=0,
+            )
+
+        colors = []
+        for label in display_labels:
+            if label == positive_total_label:
+                colors.append(positive_total_color)
+            elif label == negative_total_label:
+                colors.append(negative_total_color)
+            else:
+                colors.append(SENTIMENT_COLORS.get(label, "#6fa8dc"))
+        display_labels_with_counts = [
+            self._format_selection_database_count_label(
+                label,
+                database_count,
+                selection_count,
+                loaded_charts > 0,
+            )
+            for label, selection_count, database_count in zip(
+                display_labels,
+                selection_counts,
+                database_counts,
+            )
+        ]
+        y_positions = list(range(len(display_labels)))
+        bar_height = 0.6  # how tall (or wide for horizontal graphs) are the bars?
+        if loaded_charts == 0:
+            selection_bars = ax.barh(
+                y_positions,
+                database_values,
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            self._set_x_limits_with_padding(ax, 0, 1)
+            ax.set_yticks(y_positions, labels=display_labels_with_counts)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels(
+                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+            )
+            for bar, database_value in zip(selection_bars, database_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = min(database_value + 0.02, 0.95)
+                ax.text(
+                    label_x,
+                    bar_center,
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            difference_values = [
+                selection - database
+                for selection, database in zip(selection_values, database_values)
+            ]
+            difference_widths = [abs(value) for value in difference_values]
+            selection_bars = ax.barh(
+                y_positions,
+                difference_widths,
+                left=[
+                    0 if value >= 0 else -abs(value)
+                    for value in difference_values
+                ],
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            self._set_x_limits_with_padding(ax, -1, 1)
+            ax.set_yticks(y_positions, labels=display_labels_with_counts)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            ax.set_xticklabels(
+                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+            )
+            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, difference_value in zip(selection_bars, difference_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                selection_value = bar.get_width()
+                if selection_value > 0:
+                    label_value = abs(difference_value)
+                    label_x = (
+                        selection_value if difference_value >= 0 else -selection_value
+                    )
+                    if label_x >= 0:
+                        label_x = min(label_x + 0.02, 0.95)
+                    else:
+                        label_x = max(label_x - 0.02, -0.95)
+                    ax.text(
+                        label_x,
+                        bar_center,
+                        _format_percent(label_value),
+                        va="center",
+                        ha="left" if difference_value >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label, label in zip(ax.get_yticklabels(), display_labels):
+            tick_label.set_ha("right")
+            if label == positive_total_label:
+                tick_label.set_color(positive_total_color)
+            elif label == negative_total_label:
+                tick_label.set_color(negative_total_color)        
+        figure.tight_layout()
+        # DB View's lefthand panel's graph margins.
+        # Lower the top bound to reserve space for the title.
+        figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
+
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+                
+    #DB View's Lefthand Panel: Selection Comparison Chart 2: Sign Distribution Chart
+    def _build_sign_distribution_chart(
+        self,
+        selection_signs: dict[str, float],
+        database_signs: dict[str, float],
+        selection_sign_counts: dict[str, float],
+        database_sign_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        # DB View's lefthand panel graph dimensions (for sign graph)?
+        sign_figure = Figure(figsize=(4.8, 5.8))
+        sign_figure.patch.set_facecolor("#111111")
+        sign_ax = sign_figure.add_subplot(111)
+        sign_ax.set_facecolor("#111111")
+        sign_labels = list(ZODIAC_NAMES)
+        sign_display_labels = [
+            self._format_selection_database_count_label(
+                sign,
+                database_sign_counts.get(sign, 0),
+                selection_sign_counts.get(sign, 0),
+                loaded_charts > 0,
+            )
+            for sign in sign_labels
+        ]
+        sign_colors = [SIGN_COLORS.get(sign, "#6fa8dc") for sign in sign_labels]
+        sign_positions = list(range(len(sign_labels)))
+        selection_sign_values = [selection_signs[sign] for sign in sign_labels]
+        database_sign_values = [database_signs[sign] for sign in sign_labels]
+        if loaded_charts == 0:
+            sign_bars = sign_ax.barh(
+                sign_positions,
+                database_sign_values,
+                color=sign_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            sign_ax.set_xlim(0, 1)
+            sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
+            sign_ax.invert_yaxis()
+            sign_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            sign_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            sign_ax.set_xlabel("")
+            sign_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            sign_ax.set_xticklabels(
+                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+            )
+            for bar, database_value in zip(sign_bars, database_sign_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = min(database_value + 0.02, 0.95)
+                sign_ax.text(
+                    label_x,
+                    bar_center,
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            sign_differences = [
+                selection - database
+                for selection, database in zip(
+                    selection_sign_values,
+                    database_sign_values,
+                )
+            ]
+            sign_widths = [abs(value) for value in sign_differences]
+            sign_bars = sign_ax.barh(
+                sign_positions,
+                sign_widths,
+                left=[
+                    0 if value >= 0 else -abs(value)
+                    for value in sign_differences
+                ],
+                color=sign_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            sign_ax.set_xlim(-1, 1)
+            sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
+            sign_ax.invert_yaxis()
+            sign_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            sign_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            sign_ax.set_xlabel("")
+            sign_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            sign_ax.set_xticklabels(
+                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+            )
+            sign_ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(sign_bars, sign_differences):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                selection_value = bar.get_width()
+                if selection_value > 0:
+                    label_value = abs(diff_value)
+                    label_x = (
+                        selection_value if diff_value >= 0 else -selection_value
+                    )
+                    if label_x >= 0:
+                        label_x = min(label_x + 0.02, 0.95)
+                    else:
+                        label_x = max(label_x - 0.02, -0.95)
+                    sign_ax.text(
+                        label_x,
+                        bar_center,
+                        _format_percent(label_value),
+                        va="center",
+                        ha="left" if diff_value >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in sign_ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in sign_ax.get_yticklabels():
+            tick_label.set_ha("right")
+        sign_figure.tight_layout()
+        sign_figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
+
+        sign_canvas = FigureCanvas(sign_figure)
+        self._configure_left_panel_canvas(sign_canvas, sign_figure)
+        sign_canvas.draw_idle()
+        return sign_canvas
+
+    #DB View's Lefthand Panel: Selection Comparison Chart 3: Dominant Sign Chart
+    def _build_dominant_sign_chart(
+        self,
+        selection_signs: dict[str, float],
+        database_signs: dict[str, float],
+        selection_sign_counts: dict[str, float],
+        database_sign_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        dominant_figure = Figure(figsize=(4.8, 5.8))
+        dominant_figure.patch.set_facecolor("#111111")
+        dominant_ax = dominant_figure.add_subplot(111)
+        dominant_ax.set_facecolor("#111111")
+        sign_labels = list(ZODIAC_NAMES)
+        sign_display_labels = [
+            self._format_selection_database_count_label(
+                sign,
+                database_sign_counts.get(sign, 0),
+                selection_sign_counts.get(sign, 0),
+                loaded_charts > 0,
+            )
+            for sign in sign_labels
+        ]
+        sign_colors = [SIGN_COLORS.get(sign, "#6fa8dc") for sign in sign_labels]
+        sign_positions = list(range(len(sign_labels)))
+        selection_sign_values = [selection_signs[sign] for sign in sign_labels]
+        database_sign_values = [database_signs[sign] for sign in sign_labels]
+        if loaded_charts == 0:
+            sign_bars = dominant_ax.barh(
+                sign_positions,
+                database_sign_values,
+                color=sign_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            dominant_ax.set_xlim(0, 1)
+            dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
+            dominant_ax.invert_yaxis()
+            dominant_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            dominant_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            dominant_ax.set_xlabel("")
+            dominant_ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            dominant_ax.set_xticklabels(
+                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+            )
+            for bar, database_value in zip(sign_bars, database_sign_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = min(database_value + 0.02, 0.95)
+                dominant_ax.text(
+                    label_x,
+                    bar_center,
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            sign_differences = [
+                selection - database
+                for selection, database in zip(
+                    selection_sign_values,
+                    database_sign_values,
+                )
+            ]
+            sign_widths = [abs(value) for value in sign_differences]
+            sign_bars = dominant_ax.barh(
+                sign_positions,
+                sign_widths,
+                left=[
+                    0 if value >= 0 else -abs(value)
+                    for value in sign_differences
+                ],
+                color=sign_colors,
+                height=bar_height,
+                zorder=2,
+            )
+            dominant_ax.set_xlim(-1, 1)
+            dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
+            dominant_ax.invert_yaxis()
+            dominant_ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            dominant_ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            dominant_ax.set_xlabel("")
+            dominant_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            dominant_ax.set_xticklabels(
+                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+            )
+            dominant_ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(sign_bars, sign_differences):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                selection_value = bar.get_width()
+                if selection_value > 0:
+                    label_value = abs(diff_value)
+                    label_x = (
+                        selection_value if diff_value >= 0 else -selection_value
+                    )
+                    if label_x >= 0:
+                        label_x = min(label_x + 0.02, 0.95)
+                    else:
+                        label_x = max(label_x - 0.02, -0.95)
+                    dominant_ax.text(
+                        label_x,
+                        bar_center,
+                        _format_percent(label_value),
+                        va="center",
+                        ha="left" if diff_value >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in dominant_ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in dominant_ax.get_yticklabels():
+            tick_label.set_ha("right")
+        dominant_figure.tight_layout()
+        dominant_figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
+
+        dominant_canvas = FigureCanvas(dominant_figure)
+        self._configure_left_panel_canvas(dominant_canvas, dominant_figure)
+        dominant_canvas.draw_idle()
+        return dominant_canvas
+
+    def _build_dominant_planet_chart(
+        self,
+        selection_planets: dict[str, float],
+        database_planets: dict[str, float],
+        selection_planet_counts: dict[str, float],
+        database_planet_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, 5.8))
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+        labels = list(selection_planets.keys())
+        display_labels = [
+            self._format_selection_database_count_label(
+                label,
+                database_planet_counts.get(label, 0),
+                selection_planet_counts.get(label, 0),
+                loaded_charts > 0,
+            )
+            for label in labels
+        ]
+        colors = [PLANET_COLORS.get(label, ELEMENT_COLORS.get(label, "#6fa8dc")) for label in labels]
+        positions = list(range(len(labels)))
+        selection_values = [selection_planets[label] for label in labels]
+        database_values = [database_planets[label] for label in labels]
+        if loaded_charts == 0:
+            bars = ax.barh(positions, database_values, color=colors, height=bar_height, zorder=2)
+            ax.set_xlim(0, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels([_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]])
+            for bar, database_value in zip(bars, database_values):
+                ax.text(min(database_value + 0.02, 0.95), bar.get_y() + (bar.get_height() / 2), _format_percent(database_value), va="center", ha="left", color="#f5f5f5", fontsize=7.5)
+        else:
+            differences = [selection - database for selection, database in zip(selection_values, database_values)]
+            widths = [abs(value) for value in differences]
+            bars = ax.barh(
+                positions,
+                widths,
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            ax.set_xlim(-1, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
+            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(bars, differences):
+                width = bar.get_width()
+                if width <= 0:
+                    continue
+                label_x = width if diff_value >= 0 else -width
+                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(abs(diff_value)), va="center", ha="left" if diff_value >= 0 else "right", color="#f5f5f5", fontsize=7.5)
+
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
+    def _build_dominant_house_chart(
+        self,
+        selection_houses: dict[str, float],
+        database_houses: dict[str, float],
+        selection_house_counts: dict[str, float],
+        database_house_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        return self._build_dominant_planet_chart(
+            selection_planets=selection_houses,
+            database_planets=database_houses,
+            selection_planet_counts=selection_house_counts,
+            database_planet_counts=database_house_counts,
+            loaded_charts=loaded_charts,
+            bar_height=bar_height,
+        )
+
+    def _build_dominant_element_chart(
+        self,
+        selection_elements: dict[str, float],
+        database_elements: dict[str, float],
+        selection_element_counts: dict[str, float],
+        database_element_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        return self._build_dominant_planet_chart(
+            selection_planets=selection_elements,
+            database_planets=database_elements,
+            selection_planet_counts=selection_element_counts,
+            database_planet_counts=database_element_counts,
+            loaded_charts=loaded_charts,
+            bar_height=bar_height,
+        )
+
+    def _build_species_distribution_chart(
+        self,
+        selection_species: dict[str, float],
+        database_species: dict[str, float],
+        selection_species_counts: dict[str, float],
+        database_species_counts: dict[str, float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, 12.0))
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+        labels = list(SPECIES_FAMILIES)
+        display_labels = [
+            self._format_selection_database_count_label(
+                species,
+                database_species_counts.get(species, 0),
+                selection_species_counts.get(species, 0),
+                loaded_charts > 0,
+            )
+            for species in labels
+        ]
+        positions = list(range(len(labels)))
+        colors = ["#6fa8dc" for _ in labels]
+        selection_values = [selection_species[species] for species in labels]
+        database_values = [database_species[species] for species in labels]
+        if loaded_charts == 0:
+            species_bars = ax.barh(
+                positions,
+                database_values,
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            ax.set_xlim(0, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels(
+                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+            )
+            for bar, database_value in zip(species_bars, database_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = min(database_value + 0.02, 0.95)
+                ax.text(
+                    label_x,
+                    bar_center,
+                    _format_percent(database_value),
+                    va="center",
+                    ha="left",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            differences = [
+                selection - database
+                for selection, database in zip(selection_values, database_values)
+            ]
+            widths = [abs(value) for value in differences]
+            species_bars = ax.barh(
+                positions,
+                widths,
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            ax.set_xlim(-1, 1)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            ax.set_xticklabels(
+                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+            )
+            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(species_bars, differences):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                selection_value = bar.get_width()
+                if selection_value > 0:
+                    label_value = abs(diff_value)
+                    label_x = selection_value if diff_value >= 0 else -selection_value
+                    if label_x >= 0:
+                        label_x = min(label_x + 0.02, 0.95)
+                    else:
+                        label_x = max(label_x - 0.02, -0.95)
+                    ax.text(
+                        label_x,
+                        bar_center,
+                        _format_percent(label_value),
+                        va="center",
+                        ha="left" if diff_value >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.36, bottom=0.06, right=0.97, top=0.98)
+
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
+    def _build_social_score_summary_chart(
+        self,
+        labels: list[str],
+        selection_values: list[float],
+        database_values: list[float],
+        loaded_charts: int,
+        bar_height: float = 0.6,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, 2.8))
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+        colors = ["#6fa8dc" for _ in labels]
+
+        def _is_percent_metric(metric_label: str) -> bool:
+            return "(%)" in metric_label
+
+        def _format_metric_value(metric_label: str, value: float, *, signed: bool = False) -> str:
+            if _is_percent_metric(metric_label):
+                return f"{value:+.2f}%" if signed else f"{value:.2f}%"
+            return f"{value:+.2f}" if signed else f"{value:.2f}"
+
+        display_labels = []
+        for label, selection_value in zip(labels, selection_values):
+            if loaded_charts > 0:
+                display_labels.append(
+                    f"({_format_metric_value(label, selection_value)}) {label}"
+                )
+            else:
+                display_labels.append(label)
+
+        positions = list(range(len(labels)))
+        if loaded_charts == 0:
+            bars = ax.barh(
+                positions,
+                database_values,
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            lower_bound = min(0.0, min(database_values, default=0.0))
+            upper_bound = max(0.0, max(database_values, default=0.0))
+            self._set_x_limits_with_padding(ax, lower_bound, upper_bound)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            if lower_bound < 0 < upper_bound:
+                ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, label, database_value in zip(bars, labels, database_values):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                label_x = database_value + (0.6 if database_value >= 0 else -0.6)
+                ax.text(
+                    label_x,
+                    bar_center,
+                    _format_metric_value(label, database_value),
+                    va="center",
+                    ha="left" if database_value >= 0 else "right",
+                    color="#f5f5f5",
+                    fontsize=7.5,
+                )
+        else:
+            differences = [
+                selection - database
+                for selection, database in zip(selection_values, database_values)
+            ]
+            widths = [abs(value) for value in differences]
+            bars = ax.barh(
+                positions,
+                widths,
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=bar_height,
+                zorder=2,
+            )
+            max_abs_difference = max(1.0, max((abs(value) for value in differences), default=0.0))
+            self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
+            ax.set_yticks(positions, labels=display_labels)
+            ax.invert_yaxis()
+            ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+            ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+            ax.set_xlabel("")
+            ax.axvline(0, color="#444444", linewidth=1.5, zorder=1)
+            for bar, label, difference in zip(bars, labels, differences):
+                bar_center = bar.get_y() + (bar.get_height() / 2)
+                width = bar.get_width()
+                if width > 0:
+                    label_x = width if difference >= 0 else -width
+                    offset = max_abs_difference * 0.03
+                    if label_x >= 0:
+                        label_x += offset
+                    else:
+                        label_x -= offset
+                    ax.text(
+                        label_x,
+                        bar_center,
+                        _format_metric_value(label, difference, signed=True),
+                        va="center",
+                        ha="left" if difference >= 0 else "right",
+                        color="#f5f5f5",
+                        fontsize=7.5,
+                    )
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.36, bottom=0.16, right=0.97, top=0.95)
+
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
+    @staticmethod
     def _minutes_to_label(total_minutes: float) -> str:
         minutes = int(round(total_minutes)) % (24 * 60)
         hours, mins = divmod(minutes, 60)
@@ -6031,8 +5998,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for chart_id in chart_ids:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
-                continue
-            if bool(getattr(chart, "is_placeholder", False)):
                 continue
 
             birth_year_value = getattr(chart, "birth_year", None)
@@ -6139,6 +6104,99 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         day_label = f"{day_value:02d}" if isinstance(day_value, int) and 1 <= day_value <= 31 else "?"
         year_label = f"{year_value:04d}" if isinstance(year_value, int) and year_value > 0 else "?"
         return f"{month_label}.{day_label}.{year_label}"
+
+    def _build_single_metric_chart(
+        self,
+        label: str,
+        selection_value: float,
+        database_value: float,
+        loaded_charts: int,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, 1.8))
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+
+        display_value = selection_value if loaded_charts else database_value
+        labels = [f"({self._minutes_to_label(display_value)}) {label}"]
+        positions = [0]
+        bars = ax.barh(positions, [display_value], color="#6fa8dc", height=0.55)
+        ax.set_xlim(0, 24 * 60)
+        ax.set_yticks(positions, labels=labels)
+        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5", pad=6)
+        ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+        ax.set_xticks([0, 360, 720, 1080, 1439])
+        ax.set_xticklabels(["00:00", "06:00", "12:00", "18:00", "23:59"])
+        ax.set_xlabel("")
+        for bar in bars:
+            value = bar.get_width()
+            ax.text(
+                min(value + 20, (24 * 60) - 4),
+                bar.get_y() + (bar.get_height() / 2),
+                self._minutes_to_label(value),
+                va="center",
+                ha="left" if value < (24 * 60) - 40 else "right",
+                color="#f5f5f5",
+                fontsize=7.5,
+            )
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.30, bottom=0.24, right=0.97, top=0.9)
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
+    def _build_count_distribution_chart(
+        self,
+        labels: list[str],
+        selection_counts: list[int],
+        database_counts: list[int],
+        loaded_charts: int,
+        auto_height: bool = False,
+    ) -> FigureCanvas:
+        chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
+        figure = Figure(figsize=(4.8, chart_height))
+        figure.patch.set_facecolor("#111111")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#111111")
+
+        values = selection_counts if loaded_charts else database_counts
+        display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
+        positions = list(range(len(labels)))
+        bars = ax.barh(positions, values, color="#6fa8dc", height=0.55, zorder=2)
+        max_value = max(values, default=0)
+        self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
+        ax.set_yticks(positions, labels=display_labels)
+        ax.invert_yaxis()
+        ax.tick_params(axis="y", labelsize=7.5, colors="#f5f5f5", pad=6)
+        ax.tick_params(axis="x", labelsize=7, colors="#8b8b8b")
+        ax.set_xlabel("")
+        for bar, value in zip(bars, values):
+            ax.text(
+                bar.get_width() + 0.06,
+                bar.get_y() + (bar.get_height() / 2),
+                str(value),
+                va="center",
+                ha="left",
+                color="#f5f5f5",
+                fontsize=7.5,
+            )
+        for spine in ax.spines.values():
+            spine.set_color("#444444")
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+
+        figure.tight_layout()
+        figure.subplots_adjust(left=0.36, bottom=0.10, right=0.97, top=0.97)
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
 
     def _build_text_analysis_widget(self, lines: list[str]) -> QWidget:
         widget = QWidget()
@@ -6291,24 +6349,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["relationship_totals"][relationship] += 1
                 snapshot["relationship_total_count"] += 1
 
-        if not snapshot["is_placeholder"]:
-            try:
-                species_top_three = assign_top_three_species(chart)
-            except Exception:
-                species_top_three = []
-            if species_top_three:
-                top_species = species_top_three[0][0]
-                if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
-                    snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
-                    snapshot["species_total_count_by_mode"]["top_ranked"] += 1
-                for species_name, _subtype, _score in species_top_three[:3]:
-                    if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
-                        snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
-                        snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
-                for species_name, _subtype, _score in species_top_three[1:3]:
-                    if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
-                        snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
-                        snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
+        try:
+            species_top_three = assign_top_three_species(chart)
+        except Exception:
+            species_top_three = []
+        if species_top_three:
+            top_species = species_top_three[0][0]
+            if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
+                snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
+                snapshot["species_total_count_by_mode"]["top_ranked"] += 1
+            for species_name, _subtype, _score in species_top_three[:3]:
+                if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
+                    snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
+                    snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
+            for species_name, _subtype, _score in species_top_three[1:3]:
+                if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
+                    snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
+                    snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -6426,7 +6483,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.charts_header_label.setText(
                 f"Charts Selected: {selected_count} of {total_count}"
             )
-        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        header_color = "#c7a56a" if selected_count > 0 else "#f5f5f5"
+        self.charts_header_label.setStyleSheet(
+            f"font-weight: bold; color: {header_color};"
+        )
 
     def _has_active_chart_filters(self) -> bool:
         selected_sentiments = {
@@ -6466,26 +6526,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self.relationship_filter_checkboxes["none"].mode()
             == QuadStateSlider.MODE_FALSE
         )
-        selected_genders = {
-            name
-            for name, checkbox in self.gender_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE and name != "none"
-        }
-        excluded_genders = {
-            name
-            for name, checkbox in self.gender_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE and name != "none"
-        }
-        include_none_gender = (
-            "none" in self.gender_filter_checkboxes
-            and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_TRUE
-        )
-        exclude_none_gender = (
-            "none" in self.gender_filter_checkboxes
-            and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
-        )
-        selected_guessed_gender = str(self.gender_guessed_filter_combo.currentData() or "")
-
         active_body_filters = [
             filters
             for filters in self._search_body_filters
@@ -6532,7 +6572,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
         )
-        guessed_gender_filter = str(self.gender_guessed_filter_combo.currentData() or "")
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -6546,10 +6585,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not excluded_relationship_types
             and not include_none_relationship
             and not exclude_none_relationship
-            and not selected_genders
-            and not excluded_genders
-            and not include_none_gender
-            and not exclude_none_gender
             and not active_body_filters
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
@@ -6561,7 +6596,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and self.source_filter_combo.currentData() is None
             and self.species_filter_combo.currentData() == "Any"
-            and not guessed_gender_filter
             and not self.search_text_input.text().strip()
         )
 
@@ -6573,7 +6607,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         *,
         update_database_metrics: bool = True,
         update_similarities: bool = True,
-        sections_to_refresh: set[str] | None = None,
     ) -> None:
         if changed_ids:
             self._database_metrics_dirty_ids.update(changed_ids)
@@ -6605,18 +6638,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         positive_labels = labels[:negative_start]
         negative_labels = labels[negative_start:]
-
-        def _should_refresh_database_metric_section(section_key: str) -> bool:
-            if (
-                self._database_metrics_baseline_mode == "gen_pop"
-                and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
-            ):
-                return False
-            if not self._is_database_metrics_section_expanded(section_key):
-                return False
-            if sections_to_refresh is None:
-                return True
-            return section_key in sections_to_refresh
 
         if update_database_metrics:
             try:
@@ -6661,58 +6682,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 relationship_database_ids
             )
 
-            birth_sections_expanded = any(
-                _should_refresh_database_metric_section(section_key)
-                for section_key in ("birth_time", "birth_month", "birthplace")
-            )
-            age_section_expanded = _should_refresh_database_metric_section("age")
-            birth_selection_analytics = (
-                self._collect_birth_analytics(chart_ids)
-                if birth_sections_expanded
-                else {
-                    "birth_minutes": [],
-                    "mean_minutes": 0.0,
-                    "median_minutes": 0.0,
-                    "mode_hour_minutes": 0.0,
-                    "birth_month_counts": {},
-                    "birth_date_counts": {},
-                    "city_counts": {},
-                    "country_counts": {},
-                    "us_state_counts": {},
-                }
-            )
-            birth_database_analytics = (
-                self._collect_birth_analytics(database_cache["chart_ids"])
-                if birth_sections_expanded
-                else {
-                    "birth_minutes": [],
-                    "mean_minutes": 0.0,
-                    "median_minutes": 0.0,
-                    "mode_hour_minutes": 0.0,
-                    "birth_month_counts": {},
-                    "birth_date_counts": {},
-                    "city_counts": {},
-                    "country_counts": {},
-                    "us_state_counts": {},
-                }
-            )
-            age_selection_analytics = (
-                self._collect_age_analytics(chart_ids)
-                if age_section_expanded
-                else {
-                    "age_bracket_counts": {},
-                    "known_duration_counts": {},
-                }
-            )
-            age_database_analytics = (
-                self._collect_age_analytics(database_cache["chart_ids"])
-                if age_section_expanded
-                else {
-                    "age_bracket_counts": {},
-                    "known_duration_counts": {},
-                }
-            )
-            
+            birth_selection_analytics = self._collect_birth_analytics(chart_ids)
+            birth_database_analytics = self._collect_birth_analytics(database_cache["chart_ids"])
+            age_selection_analytics = self._collect_age_analytics(chart_ids)
+            age_database_analytics = self._collect_age_analytics(database_cache["chart_ids"])
+
         if update_database_metrics:
             loaded_charts = int(selection_cache["loaded_charts"])
             database_loaded_charts = int(database_cache["loaded_charts"])
@@ -6767,32 +6741,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for sign in ZODIAC_NAMES
             }
-            baseline_total_charts = loaded_charts if loaded_charts > 0 else database_loaded_charts
-            if self._database_metrics_baseline_mode == "gen_pop":
-                gen_pop_norms_by_body = self._gen_pop_planet_sign_norms_for_database_size(
-                    baseline_total_charts,
+            database_position_signs = {
+                sign: (
+                    database_cache["position_sign_totals_by_body"][sign_distribution_mode][sign] / database_mode_count
+                    if database_mode_count
+                    else 0
                 )
-                database_position_signs = {
-                    sign: float(gen_pop_norms_by_body.get(sign_distribution_mode, {}).get(sign, 0.0))
-                    for sign in ZODIAC_NAMES
-                }
-                baseline_position_sign_counts = {
-                    sign: database_position_signs[sign] * float(baseline_total_charts)
-                    for sign in ZODIAC_NAMES
-                }
-            else:
-                database_position_signs = {
-                    sign: (
-                        database_cache["position_sign_totals_by_body"][sign_distribution_mode][sign] / database_mode_count
-                        if database_mode_count
-                        else 0
-                    )
-                    for sign in ZODIAC_NAMES
-                }
-                baseline_position_sign_counts = {
-                    sign: float(database_cache["position_sign_totals_by_body"][sign_distribution_mode][sign])
-                    for sign in ZODIAC_NAMES
-                }
+                for sign in ZODIAC_NAMES
+            }
 
             selection_dominant_signs = {
                 sign: (selection_cache["dominant_sign_totals"][sign] / selection_cache["dominant_sign_total_weight"] if selection_cache["dominant_sign_total_weight"] else 0)
@@ -6987,7 +6943,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ]
                 + [selection_negative_count]
             )
-            if _should_refresh_database_metric_section("sentiment_prevalence"):
+            if self._is_database_metrics_section_expanded("sentiment_prevalence"):
                 sentiment_canvas = self._build_sentiment_chart(
                     display_labels=display_labels,
                     selection_values=selection_values,
@@ -7017,7 +6973,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            if _should_refresh_database_metric_section("relationship_prevalence"):
+            if self._is_database_metrics_section_expanded("relationship_prevalence"):
                 relationship_canvas = self._build_relationship_distribution_chart(
                     selection_relationships=selection_relationships,
                     database_relationships=database_relationships,
@@ -7059,8 +7015,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
             social_score_labels = [
-                "Median",
-                "Avg",
+                "Median Social Score",
+                "Average Social Score",
                 "Cumulative Share of DB (%)",
             ]
             social_score_selection_values = [
@@ -7076,7 +7032,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             social_score_selection_counts = [loaded_charts] * len(social_score_labels)
             social_score_database_counts = [database_loaded_charts] * len(social_score_labels)
 
-            if _should_refresh_database_metric_section("social_score_summary"):
+            if self._is_database_metrics_section_expanded("social_score_summary"):
                 social_score_canvas = self._build_social_score_summary_chart(
                     labels=social_score_labels,
                     selection_values=social_score_selection_values,
@@ -7100,28 +7056,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            if _should_refresh_database_metric_section("planetary_sign_prevalence"):
-                effective_loaded_charts = (
-                    loaded_charts
-                    if self._database_metrics_baseline_mode != "gen_pop" or loaded_charts > 0
-                    else 0
-                )
-                position_selection_signs = (
-                    selection_position_signs
-                    if loaded_charts > 0
-                    else database_position_signs
-                )
-                position_selection_counts = (
-                    selection_cache["position_sign_totals_by_body"][sign_distribution_mode]
-                    if loaded_charts > 0
-                    else baseline_position_sign_counts
-                )
+            if self._is_database_metrics_section_expanded("planetary_sign_prevalence"):
                 position_sign_canvas = self._build_sign_distribution_chart(
-                    selection_signs=position_selection_signs,
+                    selection_signs=selection_position_signs,
                     database_signs=database_position_signs,
-                    selection_sign_counts=position_selection_counts,
-                    database_sign_counts=baseline_position_sign_counts,
-                    loaded_charts=effective_loaded_charts,
+                    selection_sign_counts=selection_cache["position_sign_totals_by_body"][
+                        sign_distribution_mode
+                    ],
+                    database_sign_counts=database_cache["position_sign_totals_by_body"][
+                        sign_distribution_mode
+                    ],
+                    loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.position_sign_distribution_chart_layout)
                 self.position_sign_distribution_chart_layout.addWidget(
@@ -7129,37 +7074,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     0,
                     Qt.AlignHCenter,
                 )
-            export_selection_values = (
-                [selection_position_signs[sign] for sign in ZODIAC_NAMES]
-                if loaded_charts > 0
-                else [database_position_signs[sign] for sign in ZODIAC_NAMES]
-            )
-            export_selection_counts = (
-                [
-                    selection_cache["position_sign_totals_by_body"][sign_distribution_mode][sign]
-                    for sign in ZODIAC_NAMES
-                ]
-                if loaded_charts > 0
-                else [
-                    baseline_position_sign_counts[sign]
-                    for sign in ZODIAC_NAMES
-                ]
-            )
             self._analysis_chart_export_rows["planetary_sign_prevalence"] = (
                 self._build_analysis_export_rows(
                     labels=list(ZODIAC_NAMES),
-                    selection_values=export_selection_values,
+                    selection_values=[selection_position_signs[sign] for sign in ZODIAC_NAMES],
                     database_values=[database_position_signs[sign] for sign in ZODIAC_NAMES],
-                    selection_counts=export_selection_counts,
+                    selection_counts=[
+                        selection_cache["position_sign_totals_by_body"][sign_distribution_mode][sign]
+                        for sign in ZODIAC_NAMES
+                    ],
                     database_counts=[
-                        baseline_position_sign_counts[sign]
+                        database_cache["position_sign_totals_by_body"][sign_distribution_mode][sign]
                         for sign in ZODIAC_NAMES
                     ],
                     loaded_charts=loaded_charts,
                 )
             )
 
-            if _should_refresh_database_metric_section("dominant_signs"):
+            if self._is_database_metrics_section_expanded("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
                 if dominant_mode == "dominant_planets":
                     dominant_sign_canvas = self._build_dominant_planet_chart(
@@ -7231,7 +7163,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     0,
                     Qt.AlignHCenter,
                 )
-            if not _should_refresh_database_metric_section("dominant_signs"):
+            if not self._is_database_metrics_section_expanded("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
                 if dominant_mode == "dominant_planets":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -7270,7 +7202,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
 
-            if _should_refresh_database_metric_section("sign_prevalence"):
+            if self._is_database_metrics_section_expanded("sign_prevalence"):
                 sign_canvas = self._build_sign_distribution_chart(
                     selection_signs=selection_signs,
                     database_signs=database_signs,
@@ -7295,7 +7227,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            if _should_refresh_database_metric_section("species_distribution"):
+            if self._is_database_metrics_section_expanded("species_distribution"):
                 species_canvas = self._build_species_distribution_chart(
                     selection_species=selection_species,
                     database_species=database_species,
@@ -7332,115 +7264,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            gender_mode = self._gender_mode
-            if gender_mode == "actual_gender":
-                selection_gender_counts_raw: Counter[str] = Counter()
-                for chart_id in chart_ids:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-
-                if self._database_metrics_baseline_mode == "gen_pop":
-                    gender_labels = ["F", "M"]
-                    selection_gender_counts = {
-                        label: int(selection_gender_counts_raw.get(label, 0))
-                        for label in gender_labels
-                    }
-                    baseline_sample_size = loaded_charts if loaded_charts > 0 else database_loaded_charts
-                    gen_pop_counts = gen_pop_actual_gender_counts(baseline_sample_size)
-                    database_gender_counts = {label: int(gen_pop_counts.get(label, 0)) for label in gender_labels}
-                else:
-                    database_gender_counts_raw: Counter[str] = Counter()
-                    for chart_id in database_cache["chart_ids"]:
-                        chart = self._get_chart_for_filter(chart_id)
-                        if chart is None:
-                            continue
-                        raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
-
-                    known_labels = [*GENDER_OPTIONS, "Unknown"]
-                    custom_labels = sorted(
-                        label
-                        for label in {
-                            *selection_gender_counts_raw.keys(),
-                            *database_gender_counts_raw.keys(),
-                        }
-                        - set(known_labels)
-                        if selection_gender_counts_raw.get(label, 0) > 0
-                        or database_gender_counts_raw.get(label, 0) > 0
-                    )
-                    # Keep the full known gender assignment set visible (even at zero)
-                    # so this chart stays in sync with Chart View / Search dropdowns.
-                    gender_labels = [*known_labels, *custom_labels]
-                    selection_gender_counts = {label: int(selection_gender_counts_raw.get(label, 0)) for label in gender_labels}
-                    database_gender_counts = {label: int(database_gender_counts_raw.get(label, 0)) for label in gender_labels}
-            else:
-                gender_labels = ["Masculine", "Androgynous", "Feminine"]
-                selection_gender_counts = {label: 0 for label in gender_labels}
-                database_gender_counts = {label: 0 for label in gender_labels}
-                for chart_id in chart_ids:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    if gender_mode == "guessed_weight":
-                        guessed = self._classify_guessed_gender(_calculate_gender_weight_score(chart))
-                    else:
-                        guessed = self._classify_guessed_gender(_calculate_gender_prevalence_score(chart))
-                    if guessed == "masculine":
-                        selection_gender_counts["Masculine"] += 1
-                    elif guessed == "feminine":
-                        selection_gender_counts["Feminine"] += 1
-                    else:
-                        selection_gender_counts["Androgynous"] += 1
-                for chart_id in database_cache["chart_ids"]:
-                    chart = self._get_chart_for_filter(chart_id)
-                    if chart is None:
-                        continue
-                    if gender_mode == "guessed_weight":
-                        guessed = self._classify_guessed_gender(_calculate_gender_weight_score(chart))
-                    else:
-                        guessed = self._classify_guessed_gender(_calculate_gender_prevalence_score(chart))
-                    if guessed == "masculine":
-                        database_gender_counts["Masculine"] += 1
-                    elif guessed == "feminine":
-                        database_gender_counts["Feminine"] += 1
-                    else:
-                        database_gender_counts["Androgynous"] += 1
-
-            selection_gender_distribution = {
-                label: (
-                    selection_gender_counts[label] / loaded_charts if loaded_charts else 0.0
-                )
-                for label in gender_labels
-            }
-            database_gender_distribution = {
-                label: (
-                    database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
-                )
-                for label in gender_labels
-            }
-            if _should_refresh_database_metric_section("gender"):
-                gender_canvas = self._build_gender_distribution_chart(
-                    labels=gender_labels,
-                    selection_values=selection_gender_distribution,
-                    database_values=database_gender_distribution,
-                    selection_counts=selection_gender_counts,
-                    database_counts=database_gender_counts,
-                    loaded_charts=loaded_charts,
-                )
-                self._clear_layout(self.gender_chart_layout)
-                self.gender_chart_layout.addWidget(gender_canvas, 0, Qt.AlignHCenter)
-            self._analysis_chart_export_rows["gender"] = self._build_analysis_export_rows(
-                labels=gender_labels,
-                selection_values=[selection_gender_distribution[label] for label in gender_labels],
-                database_values=[database_gender_distribution[label] for label in gender_labels],
-                selection_counts=[selection_gender_counts[label] for label in gender_labels],
-                database_counts=[database_gender_counts[label] for label in gender_labels],
-                loaded_charts=loaded_charts,
-            )
-
             birth_time_mode = self._birth_time_mode
             birth_time_label_by_mode = {
                 "mean": "Mean Birth Time",
@@ -7457,7 +7280,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "mode_hour": float(birth_database_analytics["mode_hour_minutes"]),
                 "median": float(birth_database_analytics["median_minutes"]),
             }
-            if _should_refresh_database_metric_section("birth_time"):
+            if self._is_database_metrics_section_expanded("birth_time"):
                 birth_time_canvas = self._build_single_metric_chart(
                     label=birth_time_label_by_mode.get(birth_time_mode, "Birth Time"),
                     selection_value=selection_birth_time.get(birth_time_mode, 0.0),
@@ -7510,7 +7333,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     age_selection_counts.keys() if loaded_charts else age_database_counts.keys(),
                     key=int,
                 )
-            if _should_refresh_database_metric_section("age"):
+            if self._is_database_metrics_section_expanded("age"):
                 self._clear_layout(self.age_chart_layout)
                 if age_labels:
                     age_canvas = self._build_count_distribution_chart(
@@ -7547,7 +7370,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             month_selection_counts = [int(birth_selection_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
             month_database_counts = [int(birth_database_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
             if birth_month_mode == "month_distribution":
-                if _should_refresh_database_metric_section("birth_month"):
+                if self._is_database_metrics_section_expanded("birth_month"):
                     month_canvas = self._build_count_distribution_chart(
                         labels=month_labels,
                         selection_counts=month_selection_counts,
@@ -7582,7 +7405,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         key=lambda item: (-item[1], item[0]),
                     )[:6]
                 ]
-                if _should_refresh_database_metric_section("birth_month"):
+                if self._is_database_metrics_section_expanded("birth_month"):
                     self._clear_layout(self.birth_month_chart_layout)
                     if top_date_labels:
                         date_canvas = self._build_count_distribution_chart(
@@ -7643,7 +7466,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if int(value) > 0
             }
 
-            if _should_refresh_database_metric_section("birthplace"):
+            if self._is_database_metrics_section_expanded("birthplace"):
                 self._clear_layout(self.birthplace_chart_layout)
                 if birthplace_mode == "countries":
                     country_labels = [
@@ -7728,84 +7551,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
-            self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
+            self.similarities_analysis_panel.setMinimumHeight(
+                self.similarities_analysis_panel.sizeHint().height()
+            )
+            self.similarities_analysis_panel.adjustSize()
+            self.similarities_analysis_panel_scroll.widget().adjustSize()
+            self.similarities_analysis_panel.updateGeometry()
 
         if update_database_metrics:
-            self._stabilize_left_scroll_panel_layout(self.selection_sentiment_panel_scroll)
+            self.selection_sentiment_panel.setMinimumHeight(
+                self.selection_sentiment_panel.sizeHint().height()
+            )
+            self.selection_sentiment_panel.adjustSize()
+            self.selection_sentiment_panel_scroll.widget().adjustSize()
+            self.selection_sentiment_panel.updateGeometry()
 
         if left_panel_scrollbar is not None and left_panel_scroll_value is not None:
-            self._restore_scrollbar_position(
-                left_panel_scrollbar,
-                left_panel_scroll_value,
+            QTimer.singleShot(
+                0,
+                lambda: left_panel_scrollbar.setValue(left_panel_scroll_value),
             )
         if similarities_scrollbar is not None and similarities_scroll_value is not None:
-            self._restore_scrollbar_position(
-                similarities_scrollbar,
-                similarities_scroll_value,
+            QTimer.singleShot(
+                0,
+                lambda: similarities_scrollbar.setValue(similarities_scroll_value),
             )
-
-    @staticmethod
-    def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
-        pending_handler = getattr(scrollbar, "_ephemeraldaddy_restore_handler", None)
-        if pending_handler is not None:
-            try:
-                scrollbar.rangeChanged.disconnect(pending_handler)
-            except Exception:
-                pass
-
-        pending_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
-        if pending_timer is not None:
-            pending_timer.stop()
-            pending_timer.deleteLater()
-
-        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
-
-        def _apply_target() -> None:
-            bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-            scrollbar.setValue(bounded_value)
-
-        def _cleanup_handler() -> None:
-            if getattr(scrollbar, "_ephemeraldaddy_restore_handler", None) is not _on_range_changed:
-                return
-            try:
-                scrollbar.rangeChanged.disconnect(_on_range_changed)
-            except Exception:
-                pass
-            scrollbar._ephemeraldaddy_restore_handler = None
-            cleanup_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
-            if cleanup_timer is not None:
-                cleanup_timer.stop()
-                cleanup_timer.deleteLater()
-            scrollbar._ephemeraldaddy_restore_cleanup_timer = None
-
-        cleanup_timer = QTimer(scrollbar)
-        cleanup_timer.setSingleShot(True)
-        cleanup_timer.setInterval(750)
-        cleanup_timer.timeout.connect(_cleanup_handler)
-
-        def _on_range_changed(*_) -> None:
-            _apply_target()
-            cleanup_timer.start()
-
-        scrollbar._ephemeraldaddy_restore_handler = _on_range_changed
-        scrollbar._ephemeraldaddy_restore_cleanup_timer = cleanup_timer
-        scrollbar.rangeChanged.connect(_on_range_changed)
-
-        _apply_target()
-        QTimer.singleShot(0, _apply_target)
-        QTimer.singleShot(60, _apply_target)
-        QTimer.singleShot(220, _apply_target)
-        cleanup_timer.start()
-
-    @staticmethod
-    def _stabilize_left_scroll_panel_layout(scroll_area: QScrollArea) -> None:
-        panel_widget = scroll_area.widget()
-        if panel_widget is None:
-            return
-        panel_layout = panel_widget.layout()
-        if panel_layout is not None:
-            panel_layout.activate()
-        panel_widget.updateGeometry()
 
     @staticmethod
     def _wrap_right_panel(panel: QWidget) -> QScrollArea:
@@ -7843,7 +7613,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
         search_title = QLabel("Database search")
-        search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        search_title.setStyleSheet("font-weight: bold;")
         layout.addWidget(search_title)
 
         self.search_text_input = QLineEdit()
@@ -7871,6 +7641,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         astrotheme_row.addWidget(astrotheme_import_button)
         layout.addLayout(astrotheme_row)
 
+        search_mode_layout = QHBoxLayout()
+        search_mode_layout.addWidget(QLabel("Sentiment type"))
+        search_mode_layout.addStretch(1)
+        self.search_text_contains = QRadioButton("contains")
+        self.search_text_exact = QRadioButton("exact")
+        self.search_text_mode_group = QButtonGroup(self)
+        self.search_text_mode_group.setExclusive(True)
+        self.search_text_mode_group.addButton(self.search_text_contains)
+        self.search_text_mode_group.addButton(self.search_text_exact)
+        self.search_text_contains.setChecked(True)
+        self.search_text_contains.toggled.connect(self._on_filter_changed)
+        self.search_text_exact.toggled.connect(self._on_filter_changed)
+        search_mode_layout.addWidget(self.search_text_contains)
+        search_mode_layout.addWidget(self.search_text_exact)
+        layout.addLayout(search_mode_layout)
+
         divider = QFrame()
         divider.setFixedHeight(4)
         divider.setStyleSheet(
@@ -7882,7 +7668,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         header_layout = QHBoxLayout()
         title = QLabel("Search Filters")
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        title.setStyleSheet("font-weight: bold;")
         header_layout.addWidget(title)
         header_layout.addStretch(1)
         #I removed this button, since there's a "Clear Filters" button on the bottom right now.
@@ -7904,7 +7690,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             toggle.setArrowType(Qt.RightArrow)
             toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+            toggle.setStyleSheet(
+                "font-weight: bold; padding: 6px; text-align: left;"
+            )
 
             content = QWidget()
             content_layout = QVBoxLayout()
@@ -8011,6 +7799,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
         layout.addWidget(year_first_encountered_section)
 
+        species_filter_row = QHBoxLayout()
+        species_filter_row.addWidget(QLabel("D&D species (top 3)"))
+        self.species_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.species_filter_combo)
+        self.species_filter_combo.addItem("Any", "Any")
+        for species in SPECIES_FAMILIES:
+            self.species_filter_combo.addItem(species, species)
+        self.species_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        species_filter_row.addWidget(self.species_filter_combo, 1)
+        layout.addLayout(species_filter_row)
+
         sentiment_section, sentiment_group_layout = add_collapsible_section("Sentiments")
 
         sentiment_mode_layout = QHBoxLayout()
@@ -8075,47 +7874,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             relationship_layout.addWidget(checkbox, row, col)
         relationship_group_layout.addLayout(relationship_layout)
         layout.addWidget(relationship_section)
-
-        gender_section, gender_group_layout = add_collapsible_section("Gender")
-        gender_mode_layout = QHBoxLayout()
-        gender_mode_layout.addWidget(QLabel("Gender"))
-        gender_mode_layout.addStretch(1)
-        self.gender_filter_and = QRadioButton("AND")
-        self.gender_filter_or = QRadioButton("OR")
-        self.gender_filter_group = QButtonGroup(self)
-        self.gender_filter_group.setExclusive(True)
-        self.gender_filter_group.addButton(self.gender_filter_and)
-        self.gender_filter_group.addButton(self.gender_filter_or)
-        self.gender_filter_and.setChecked(True)
-        self.gender_filter_group.buttonClicked.connect(self._on_filter_changed)
-        gender_mode_layout.addWidget(self.gender_filter_and)
-        gender_mode_layout.addWidget(self.gender_filter_or)
-        gender_group_layout.addLayout(gender_mode_layout)
-
-        gender_layout = QGridLayout()
-        gender_layout.setContentsMargins(0, 0, 0, 0)
-        self.gender_filter_checkboxes = {}
-        gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
-            checkbox = QuadStateSlider(label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.gender_filter_checkboxes[label] = checkbox
-            row = idx % gender_rows
-            col = idx // gender_rows
-            gender_layout.addWidget(checkbox, row, col)
-        gender_group_layout.addLayout(gender_layout)
-
-        gender_guessed_layout = QHBoxLayout()
-        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
-        self.gender_guessed_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.gender_guessed_filter_combo)
-        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
-            self.gender_guessed_filter_combo.addItem(label, value)
-        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
-        gender_group_layout.addLayout(gender_guessed_layout)
-
-        layout.addWidget(gender_section)
 
         bodies_section, bodies_group_layout = add_collapsible_section("Planet/Angles")
 
@@ -8343,21 +8101,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(dominant_element_section)
 
-        dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&&D Species"
-        )
-        species_filter_row = QHBoxLayout()
-        species_filter_row.addWidget(QLabel("Top 3 result"))
-        self.species_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.species_filter_combo)
-        self.species_filter_combo.addItem("Any", "Any")
-        for species in SPECIES_FAMILIES:
-            self.species_filter_combo.addItem(species, species)
-        self.species_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        species_filter_row.addWidget(self.species_filter_combo, 1)
-        dnd_species_group_layout.addLayout(species_filter_row)
-        layout.addWidget(dnd_species_section)
-
         button_row = QHBoxLayout()
         button_row.addStretch(1)
         clear_button = QPushButton("Clear filters")
@@ -8402,17 +8145,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
-        list_widget = getattr(self, "list_widget", None)
-        if list_widget is not None and obj is list_widget and event.type() == QEvent.KeyPress:
-            if self._handle_list_letter_jump(event):
-                return True
         popout_context = self._popout_summary_contexts.get(obj)
         if popout_context is not None:
-            if event.type() == QEvent.Resize:
-                share_button = popout_context.get("share_button")
-                output_widget = popout_context.get("output_widget")
-                if isinstance(share_button, QToolButton) and isinstance(output_widget, QPlainTextEdit):
-                    self._position_popout_share_button(output_widget, share_button)
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 output_widget = popout_context["output_widget"]
                 cursor = output_widget.cursorForPosition(event.position().toPoint())
@@ -8450,40 +8184,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     self._show_transit_chart_popout(chart)
                     return True
         return super().eventFilter(obj, event)
-
-    def _handle_list_letter_jump(self, event) -> bool:
-        if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
-            return False
-        typed = event.text()
-        if len(typed) != 1 or not typed.isalpha():
-            return False
-
-        letter = typed.casefold()
-        total = self.list_widget.count()
-        if total <= 0:
-            return False
-
-        current_row = self.list_widget.currentRow()
-        start_row = current_row if current_row >= 0 else -1
-
-        for offset in range(1, total + 1):
-            row = (start_row + offset) % total
-            item = self.list_widget.item(row)
-            if item is None:
-                continue
-            metadata = item.data(Qt.UserRole + 1)
-            candidate_name = ""
-            if isinstance(metadata, dict):
-                candidate_name = (metadata.get("raw_name") or "").strip()
-            if not candidate_name:
-                candidate_name = item.text().strip()
-            if candidate_name.casefold().startswith(letter):
-                self.list_widget.clearSelection()
-                item.setSelected(True)
-                self.list_widget.setCurrentItem(item)
-                self.list_widget.scrollToItem(item, QAbstractItemView.PositionAtCenter)
-                return True
-        return False
 
     def _on_import_astrotheme_from_search_panel(self) -> None:
         raw_query = self.astrotheme_search_input.text().strip()
@@ -8534,11 +8234,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         chart_result = parent._build_chart_from_inputs(show_feedback=False)
         if chart_result is None:
-            parent._reset_new_chart_form()
             QMessageBox.warning(
                 self,
                 "Astrotheme import",
-                "Astrotheme import failed: chart creation could not be completed.",
+                "Astrotheme data was loaded, but chart creation failed. Please review the imported fields.",
             )
             return
         chart, place, _, _ = chart_result
@@ -8549,25 +8248,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
 
-        try:
-            chart_id = save_chart(
-                chart,
-                birth_place=place,
-                retcon_time_used=False,
-                is_placeholder=False,
-                birth_month=profile_data["birth_month"],
-                birth_day=profile_data["birth_day"],
-                birth_year=profile_data["birth_year"],
-                chart_type=SOURCE_PUBLIC_DB,
-            )
-        except Exception as exc:
-            parent._reset_new_chart_form()
-            QMessageBox.warning(
-                self,
-                "Astrotheme import",
-                f"Astrotheme import failed while saving the chart:\n{exc}",
-            )
-            return
+        chart_id = save_chart(
+            chart,
+            birth_place=place,
+            retcon_time_used=False,
+            is_placeholder=False,
+            birth_month=profile_data["birth_month"],
+            birth_day=profile_data["birth_day"],
+            birth_year=profile_data["birth_year"],
+            chart_type=SOURCE_PUBLIC_DB,
+        )
         set_current_chart(chart_id)
         parent.current_chart_id = chart_id
         parent._manage_charts_pending_changed_ids.add(chart_id)
@@ -8618,7 +8308,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         header_layout = QHBoxLayout()
         title = QLabel("Batch Edit Charts")
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        title.setStyleSheet("font-weight: bold;")
         header_layout.addWidget(title)
         header_layout.addStretch(1)
         layout.addLayout(header_layout)
@@ -8629,43 +8319,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         description.setWordWrap(True)
         layout.addWidget(description)
 
-        def add_collapsible_section(title: str) -> tuple[QWidget, QVBoxLayout]:
-            section = QWidget()
-            section_layout = QVBoxLayout()
-            section_layout.setContentsMargins(0, 0, 0, 0)
-            section.setLayout(section_layout)
-
-            toggle = QToolButton()
-            toggle.setText(title)
-            toggle.setCheckable(True)
-            toggle.setChecked(False)
-            toggle.setArrowType(Qt.RightArrow)
-            toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-            toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
-
-            content = QWidget()
-            content_layout = QVBoxLayout()
-            content_layout.setContentsMargins(8, 6, 8, 6)
-            content.setLayout(content_layout)
-            content.setVisible(False)
-
-            def toggle_content(checked: bool) -> None:
-                content.setVisible(checked)
-                toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-                content.adjustSize()
-                section.adjustSize()
-                panel.adjustSize()
-                panel.updateGeometry()
-
-            toggle.toggled.connect(toggle_content)
-
-            section_layout.addWidget(toggle)
-            section_layout.addWidget(content)
-            return section, content_layout
-
-        sentiment_section, sentiment_section_layout = add_collapsible_section("Sentiment")
-
+        sentiment_label = QLabel("Sentiment")
+        sentiment_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(sentiment_label)
         self.batch_sentiment_checkboxes = {}
         sentiment_widget = QWidget()
         sentiment_layout = QGridLayout()
@@ -8684,11 +8340,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             col = idx // sentiment_rows
             sentiment_layout.addWidget(checkbox, row, col)
         sentiment_widget.setLayout(sentiment_layout)
-        sentiment_section_layout.addWidget(sentiment_widget)
-        layout.addWidget(sentiment_section)
+        layout.addWidget(sentiment_widget)
 
-        relationship_section, relationship_section_layout = add_collapsible_section("Relationship types")
-
+        relationship_label = QLabel("Relationship types")
+        relationship_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(relationship_label)
         self.batch_relationship_type_checkboxes = {}
         relationship_widget = QWidget()
         relationship_layout = QGridLayout()
@@ -8707,10 +8363,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             col = idx // relationship_rows
             relationship_layout.addWidget(checkbox, row, col)
         relationship_widget.setLayout(relationship_layout)
-        relationship_section_layout.addWidget(relationship_widget)
-        layout.addWidget(relationship_section)
+        layout.addWidget(relationship_widget)
 
-        sentiment_metrics_section, sentiment_metrics_section_layout = add_collapsible_section("Sentiment metrics")
+        sentiment_metrics_label = QLabel("Sentiment metrics")
+        sentiment_metrics_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(sentiment_metrics_label)
 
         sentiment_metrics_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
@@ -8741,9 +8398,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
         self.batch_positive_sentiment_intensity_spin.setRange(1, 10)
         self.batch_positive_sentiment_intensity_spin.setValue(1)
-        self.batch_positive_sentiment_intensity_spin.setFixedWidth(
-            self.batch_positive_sentiment_intensity_spin.sizeHint().width() * 2
-        )
         batch_positive_button = QPushButton("Apply")
         batch_positive_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
@@ -8763,9 +8417,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_negative_sentiment_intensity_spin = QSpinBox()
         self.batch_negative_sentiment_intensity_spin.setRange(1, 10)
         self.batch_negative_sentiment_intensity_spin.setValue(1)
-        self.batch_negative_sentiment_intensity_spin.setFixedWidth(
-            self.batch_negative_sentiment_intensity_spin.sizeHint().width() * 2
-        )
         batch_negative_button = QPushButton("Apply")
         batch_negative_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
@@ -8785,9 +8436,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin = QSpinBox()
         self.batch_familiarity_spin.setRange(1, 10)
         self.batch_familiarity_spin.setValue(1)
-        self.batch_familiarity_spin.setFixedWidth(
-            self.batch_familiarity_spin.sizeHint().width() * 2
-        )
         batch_familiarity_button = QPushButton("Apply")
         batch_familiarity_button.clicked.connect(
             lambda: self._on_batch_sentiment_metric_assign(
@@ -8824,11 +8472,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click) 
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
-        sentiment_metrics_section_layout.addWidget(sentiment_metrics_widget)
-        layout.addWidget(sentiment_metrics_section)
+        layout.addWidget(sentiment_metrics_widget)
 
-        chart_type_section, chart_type_section_layout = add_collapsible_section("Chart Type")
-
+        source_label = QLabel("Chart Type")
+        source_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(source_label)
         self.batch_source_combo = QComboBox()
         self.batch_source_combo.addItem("Mixed / unchanged", "")
         for source_option_label, source_option_value in SOURCE_OPTIONS:
@@ -8836,30 +8484,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_source_combo.currentIndexChanged.connect(
             self._on_batch_source_selected
         )
-        chart_type_section_layout.addWidget(self.batch_source_combo)
-        layout.addWidget(chart_type_section)
-
-        batch_gender_section, batch_gender_section_layout = add_collapsible_section("Gender")
-
-        self.batch_gender_combo = QComboBox()
-        self.batch_gender_combo.addItem("Mixed / unchanged", "")
-        self.batch_gender_combo.addItem("blank", "__blank__")
-        for gender_option in GENDER_OPTIONS:
-            self.batch_gender_combo.addItem(gender_option, gender_option)
-        self.batch_gender_combo.currentIndexChanged.connect(
-            self._on_batch_gender_selected
-        )
-        batch_gender_section_layout.addWidget(self.batch_gender_combo)
-        layout.addWidget(batch_gender_section)
-
-        birthtime_unknown_section, birthtime_unknown_section_layout = add_collapsible_section("Birth info")
+        layout.addWidget(self.batch_source_combo)
 
         self.batch_birthtime_unknown_checkbox = QuadStateSlider("birthtime unknown")
         self.batch_birthtime_unknown_checkbox.modeChanged.connect(
             self._on_batch_birthtime_unknown_state_changed
         )
-        birthtime_unknown_section_layout.addWidget(self.batch_birthtime_unknown_checkbox)
-        layout.addWidget(birthtime_unknown_section)
+        layout.addWidget(self.batch_birthtime_unknown_checkbox)
 
         layout.addStretch(1)
 
@@ -8934,7 +8565,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         positive_intensities: list[int] = []
         negative_intensities: list[int] = []
         familiarity_values: list[int] = []
-        gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
 
         for chart_id, chart in resolved_items:
@@ -8958,9 +8588,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             familiarity_values.append(
                 int(getattr(chart, "familiarity", 1) or 1)
-            )
-            gender_values.append(
-                self._normalize_gender_value(getattr(chart, "gender", None))
             )
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
@@ -9000,21 +8627,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Selected charts have mixed chart types. Choose one to overwrite all selected charts."
             )
         self.batch_source_combo.blockSignals(False)
-
-        unique_genders = set(gender_values)
-        self.batch_gender_combo.blockSignals(True)
-        if len(unique_genders) == 1:
-            gender_value = next(iter(unique_genders))
-            gender_data = gender_value if gender_value else "__blank__"
-            gender_index = self.batch_gender_combo.findData(gender_data)
-            self.batch_gender_combo.setCurrentIndex(max(0, gender_index))
-            self.batch_gender_combo.setToolTip("")
-        else:
-            self.batch_gender_combo.setCurrentIndex(0)
-            self.batch_gender_combo.setToolTip(
-                "Selected charts have mixed genders. Choose one to overwrite all selected charts."
-            )
-        self.batch_gender_combo.blockSignals(False)
 
         if birthtime_unknown_count == 0:
             birthtime_state = QuadStateSlider.MODE_EMPTY
@@ -9525,61 +9137,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
 
-    def _on_batch_gender_selected(self, index: int) -> None:
-        gender = self.batch_gender_combo.itemData(index)
-        if gender == "":
-            return
-        resolved_gender = None if gender == "__blank__" else gender
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
-        if not chart_ids:
-            QMessageBox.information(
-                self,
-                "No charts selected",
-                "Select one or more charts before applying batch edits.",
-            )
-            self.batch_gender_combo.blockSignals(True)
-            self.batch_gender_combo.setCurrentIndex(0)
-            self.batch_gender_combo.blockSignals(False)
-            self._update_batch_edit_state()
-            return
-
-        selected_count = len(chart_ids)
-        display_gender = "blank" if resolved_gender is None else resolved_gender
-        action_label = f"Set gender to '{display_gender}' for"
-        if not self._confirm_batch_edit(action_label, selected_count):
-            self._update_batch_edit_state()
-            return
-
-        try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.gender = resolved_gender
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Batch edit error",
-                f"Could not update selected charts:\n{exc}",
-            )
-            return
-
-        changed_ids = set(chart_ids)
-        self._update_sentiment_tally(
-            show_progress=True,
-            changed_ids=changed_ids,
-        )
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
-
     def _on_batch_birthtime_unknown_toggled(self, state: int) -> None:
         if state == QuadStateSlider.MODE_MIXED:
             return
@@ -9640,14 +9197,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
-    def _is_right_panel_collapsed(self) -> bool:
-        sizes = self._content_splitter.sizes()
-        return len(sizes) >= 3 and sizes[2] <= 0
-
-    def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
+    def _set_right_panel_visible(self, visible: bool) -> None:
         if self._right_panel_visible == visible:
-            if visible and restore_default_size:
-                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
@@ -9661,19 +9212,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._content_splitter.setSizes([left_size, middle_size, 0])
             return
 
-        if restore_default_size:
-            self._content_splitter.setSizes(self._default_content_splitter_sizes())
-        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
             self._content_splitter.setSizes(self._right_panel_sizes)
 
-    def _is_left_panel_collapsed(self) -> bool:
-        sizes = self._content_splitter.sizes()
-        return len(sizes) >= 3 and sizes[0] <= 0
-
-    def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
+    def _set_left_panel_visible(self, visible: bool) -> None:
         if self._left_panel_visible == visible:
-            if visible and restore_default_size:
-                self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
         self._left_panel_visible = visible
         self.left_panel_stack.setVisible(visible)
@@ -9685,10 +9228,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 right_size = sizes[2]
                 middle_size = max(0, total - right_size)
                 self._content_splitter.setSizes([0, middle_size, right_size])
-            return
-
-        if restore_default_size:
-            self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
@@ -9706,32 +9245,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True, restore_default_size=True)
+        self._set_left_panel_visible(True)
 
         if panel_name == "database_metrics":
-            self.database_metrics_panel_header_label.setText("Database Analytics")
-            self._database_metrics_baseline_mode = "database"
-            self._settings.setValue(
-                "manage_charts/database_metrics_baseline_mode",
-                self._database_metrics_baseline_mode,
-            )
-            self._sync_gen_pop_panel_visibility()
-            self._update_position_sign_subheader()
-            self._update_gender_subheader()
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-            )
-        elif panel_name == "gen_pop_norms":
-            self.database_metrics_panel_header_label.setText("General Population")
-            self._database_metrics_baseline_mode = "gen_pop"
-            self._settings.setValue(
-                "manage_charts/database_metrics_baseline_mode",
-                self._database_metrics_baseline_mode,
-            )
-            self._sync_gen_pop_panel_visibility()
-            self._update_position_sign_subheader()
-            self._update_gender_subheader()
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
@@ -9746,39 +9262,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if (
             self._left_panel_visible
             and self._active_left_panel == "database_metrics"
-            and not self._is_left_panel_collapsed()
         ):
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("database_metrics")
 
-    def _toggle_gen_pop_norms_panel(self) -> None:
-        if (
-            self._left_panel_visible
-            and self._active_left_panel == "gen_pop_norms"
-            and not self._is_left_panel_collapsed()
-        ):
-            self._set_left_panel_visible(False)
-            return
-        self._show_left_panel("gen_pop_norms")
-
     def _toggle_todays_transits_panel(self) -> None:
-        if (
-            self._left_panel_visible
-            and self._active_left_panel == "todays_transits"
-            and not self._is_left_panel_collapsed()
-        ):
+        if self._left_panel_visible and self._active_left_panel == "todays_transits":
             self._set_left_panel_visible(False)
             return
         self._refresh_todays_transits_panel()
         self._show_left_panel("todays_transits")
 
     def _toggle_similarities_panel(self) -> None:
-        if (
-            self._left_panel_visible
-            and self._active_left_panel == "similarities"
-            and not self._is_left_panel_collapsed()
-        ):
+        if self._left_panel_visible and self._active_left_panel == "similarities":
             self._set_left_panel_visible(False)
             return
         self._show_left_panel("similarities")
@@ -9801,24 +9298,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True, restore_default_size=True)
+        self._set_right_panel_visible(True)
 
     def _toggle_search_panel(self) -> None:
-        if (
-            self._right_panel_visible
-            and self._active_right_panel == "search"
-            and not self._is_right_panel_collapsed()
-        ):
+        if self._right_panel_visible and self._active_right_panel == "search":
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("search")
 
     def _toggle_edit_panel(self) -> None:
-        if (
-            self._right_panel_visible
-            and self._active_right_panel == "edit"
-            and not self._is_right_panel_collapsed()
-        ):
+        if self._right_panel_visible and self._active_right_panel == "edit":
             self._set_right_panel_visible(False)
             return
         self._show_right_panel("edit")
@@ -9833,10 +9322,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_source_combo.setCurrentIndex(0)
         self.batch_source_combo.setToolTip("")
         self.batch_source_combo.blockSignals(False)
-        self.batch_gender_combo.blockSignals(True)
-        self.batch_gender_combo.setCurrentIndex(0)
-        self.batch_gender_combo.setToolTip("")
-        self.batch_gender_combo.blockSignals(False)
         self._set_batch_checkbox_state(
             self.batch_birthtime_unknown_checkbox,
             QuadStateSlider.MODE_EMPTY,
@@ -9853,7 +9338,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _default_content_splitter_sizes(self) -> list[int]:
-        return [387, 530, 420]
+        left_min = self._left_panel_widgets["database_metrics"].minimumWidth()
+        middle_min = self.list_panel.minimumWidth()
+        right_min = self._right_panel_widgets["search"].minimumWidth()
+
+        left_width = max(left_min, 320)
+        right_width = max(right_min, 320)
+
+        geometry = _available_screen_geometry()
+        total_min = left_width + middle_min + right_width
+        extra = 0
+        if geometry is not None:
+            extra = max(0, geometry.width() - total_min)
+        return [left_width, middle_min + extra, right_width]
 
     def _normalize_content_splitter_sizes(self, sizes: list[int]) -> list[int]:
         if len(sizes) < 3:
@@ -9899,30 +9396,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             self._content_splitter.setSizes(self._default_content_splitter_sizes())
 
-        stored_active_left_panel = self._settings.value(
-            "manage_charts/active_left_panel",
-            "todays_transits",
-        )
-        if isinstance(stored_active_left_panel, str) and stored_active_left_panel in self._left_panel_widgets:
-            self._active_left_panel = stored_active_left_panel
-        self.left_panel_stack.setCurrentWidget(self._left_panel_widgets[self._active_left_panel])
-
-        stored_left_panel_visible = self._settings.value("manage_charts/left_panel_visible", "1")
-        self._left_panel_visible = str(stored_left_panel_visible).lower() in {"1", "true", "yes"}
-        self.left_panel_stack.setVisible(self._left_panel_visible)
-
-        stored_active_right_panel = self._settings.value(
-            "manage_charts/active_right_panel",
-            "search",
-        )
-        if isinstance(stored_active_right_panel, str) and stored_active_right_panel in self._right_panel_widgets:
-            self._active_right_panel = stored_active_right_panel
-        self.right_panel_stack.setCurrentWidget(self._right_panel_widgets[self._active_right_panel])
-
-        stored_right_panel_visible = self._settings.value("manage_charts/right_panel_visible", "1")
-        self._right_panel_visible = str(stored_right_panel_visible).lower() in {"1", "true", "yes"}
-        self.right_panel_stack.setVisible(self._right_panel_visible)
-
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if hasattr(self, "_help_scrim"):
@@ -9947,11 +9420,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             "manage_charts/species_distribution_mode", self._species_distribution_mode
         )
-        self._settings.setValue("manage_charts/active_left_panel", self._active_left_panel)
-        self._settings.setValue("manage_charts/left_panel_visible", int(self._left_panel_visible))
-        self._settings.setValue("manage_charts/active_right_panel", self._active_right_panel)
-        self._settings.setValue("manage_charts/right_panel_visible", int(self._right_panel_visible))
-        self._settings.setValue("app/last_view", "database")
         super().closeEvent(event)
 
         #prevents ghost windows lingering
@@ -10065,11 +9533,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.source_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
+            self.search_text_contains.setChecked(True)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.relationship_filter_checkboxes.values():
-                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            for checkbox in self.gender_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birth_status_filter_or.setChecked(False)
             self.birth_status_filter_and.setChecked(True)
@@ -10077,9 +9544,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sentiment_filter_and.setChecked(True)
             self.relationship_filter_or.setChecked(False)
             self.relationship_filter_and.setChecked(True)
-            self.gender_filter_or.setChecked(False)
-            self.gender_filter_and.setChecked(True)
-            self.gender_guessed_filter_combo.setCurrentIndex(0)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -10114,33 +9578,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
-        active_left_scrollbar = None
-        active_left_scroll_value = None
-        if self._left_panel_visible:
-            active_left_panel = self._left_panel_widgets.get(self._active_left_panel)
-            if isinstance(active_left_panel, QScrollArea):
-                active_left_scrollbar = active_left_panel.verticalScrollBar()
-                active_left_scroll_value = active_left_scrollbar.value()
-
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
-        try:
-            self._update_sentiment_tally(
-                update_database_metrics=(
-                    self._left_panel_visible
-                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-                ),
-                update_similarities=(
-                    self._left_panel_visible
-                    and self._active_left_panel == "similarities"
-                ),
-            )
-        finally:
-            if active_left_scrollbar is not None and active_left_scroll_value is not None:
-                self._restore_scrollbar_position(
-                    active_left_scrollbar,
-                    active_left_scroll_value,
-                )
+        self._update_sentiment_tally(
+            update_database_metrics=(
+                self._left_panel_visible
+                and self._active_left_panel == "database_metrics"
+            ),
+            update_similarities=(
+                self._left_panel_visible
+                and self._active_left_panel == "similarities"
+            ),
+        )
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
@@ -10653,7 +10102,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         str | None,
         str | None,
         str | None,
-        str | None,
         int,
         int,
         int,
@@ -10670,8 +10118,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 19:
-            padded.extend([None] * (19 - len(padded)))
+        if len(padded) < 18:
+            padded.extend([None] * (18 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -10679,19 +10127,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             padded[3],
             padded[4],
             padded[5],
-            padded[6],
+            int(padded[6] or 0),
             int(padded[7] or 0),
             int(padded[8] or 0),
-            int(padded[9] or 0),
-            int(padded[10] or 1),
-            max(0, int(padded[11] or 0)),
-            int(padded[12]) if padded[12] is not None else None,
-            int(padded[13] or 0),
-            _normalize_gui_source(padded[14] if padded[14] else SOURCE_PERSONAL),
-            int(padded[15] or 0),
+            int(padded[9] or 1),
+            max(0, int(padded[10] or 0)),
+            int(padded[11]) if padded[11] is not None else None,
+            int(padded[12] or 0),
+            _normalize_gui_source(padded[13] if padded[13] else SOURCE_PERSONAL),
+            int(padded[14] or 0),
+            int(padded[15]) if padded[15] is not None else None,
             int(padded[16]) if padded[16] is not None else None,
             int(padded[17]) if padded[17] is not None else None,
-            int(padded[18]) if padded[18] is not None else None,
         )
 
     def _populate_list(
@@ -10714,7 +10161,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
         elif self._sort_mode == "birthdate":
             rows.sort(
-                key=lambda r: self._birthdate_sort_key(r[4]),
+                key=lambda r: self._birthdate_sort_key(r[3]),
                 reverse=self._sort_descending,
             )
         elif self._sort_mode == "cursedness":
@@ -10723,21 +10170,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 reverse=self._sort_descending,
             )
         elif self._sort_mode == "age":
-            rows.sort(key=lambda r: self._age_sort_key(r[4]), reverse=self._sort_descending)
+            rows.sort(key=lambda r: self._age_sort_key(r[3]), reverse=self._sort_descending)
         elif self._sort_mode == "familiarity":
-            rows.sort(key=lambda r: (r[10], (r[1] or "").lower()), reverse=self._sort_descending)
+            rows.sort(key=lambda r: (r[9], (r[1] or "").lower()), reverse=self._sort_descending)
         elif self._sort_mode == "known_duration":
             rows.sort(
                 key=lambda r: (
-                    self._known_duration_sort_key(r[12]),
+                    self._known_duration_sort_key(r[11]),
                     (r[1] or "").lower(),
                 ),
                 reverse=self._sort_descending,
             )
         elif self._sort_mode == "social_score":
-            rows.sort(key=lambda r: (r[13], (r[1] or "").lower()), reverse=self._sort_descending)
+            rows.sort(key=lambda r: (r[12], (r[1] or "").lower()), reverse=self._sort_descending)
         else:
-            rows.sort(key=lambda r: r[6], reverse=self._sort_descending)
+            rows.sort(key=lambda r: r[5], reverse=self._sort_descending)
 
         chart_positions = {
             row[0]: index for index, row in enumerate(rows, start=1)
@@ -10746,7 +10193,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             cid,
             name,
             _alias,
-            gender,
             dt_iso,
             birth_place,
             _created_at,
@@ -10802,12 +10248,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
             place = birth_place or ""
-            gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
-            place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
             label = (
                 f"#{chart_positions.get(cid, '?')}  "
                 f"{display_name}  {date_label}  {time_label}"
-                f"  {retcon_time_label}  {place_with_gender}"
+                f"  {retcon_time_label}  {place}"
             )
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, cid)
@@ -10816,11 +10260,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 {
                     "position": chart_positions.get(cid, "?"),
                     "name": display_name,
-                    "raw_name": name or "Unnamed",
                     "date": date_label,
                     "time": time_label,
                     "retcon_time": retcon_time_label,
-                    "place": place_with_gender,
+                    "place": place,
                     "is_placeholder": bool(is_placeholder),
                 },
             )
@@ -10828,26 +10271,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if selected_ids and cid in selected_ids:
                 item.setSelected(True)
         if refresh_metrics:
-            if self._should_use_incremental_metrics_refresh():
-                self._update_sentiment_tally(
-                    update_database_metrics=False,
-                    update_similarities=True,
-                )
-                self._schedule_incremental_metrics_refresh(
-                    changed_ids=changed_ids,
-                    force_full_refresh=force_full_analysis_refresh,
-                )
-            else:
-                self._update_sentiment_tally(
-                    force_full_refresh=force_full_analysis_refresh,
-                    changed_ids=changed_ids,
-                )
+            self._update_sentiment_tally(
+                force_full_refresh=force_full_analysis_refresh,
+                changed_ids=changed_ids,
+            )
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         search_text = self.search_text_input.text().strip()
+        search_exact = self.search_text_exact.isChecked()
         selected_source = self.source_filter_combo.currentData()
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
@@ -10886,27 +10320,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "none" in self.relationship_filter_checkboxes
             and self.relationship_filter_checkboxes["none"].mode()
             == QuadStateSlider.MODE_FALSE
-        )
-        selected_genders = {
-            name
-            for name, checkbox in self.gender_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_TRUE and name != "none"
-        }
-        excluded_genders = {
-            name
-            for name, checkbox in self.gender_filter_checkboxes.items()
-            if checkbox.mode() == QuadStateSlider.MODE_FALSE and name != "none"
-        }
-        include_none_gender = (
-            "none" in self.gender_filter_checkboxes
-            and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_TRUE
-        )
-        exclude_none_gender = (
-            "none" in self.gender_filter_checkboxes
-            and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
-        )
-        selected_guessed_gender = str(
-            self.gender_guessed_filter_combo.currentData() or ""
         )
         active_body_filters = [
             filters
@@ -10969,14 +10382,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             None,
         )
         if search_text:
+            pattern = re.compile(
+                rf"(?<!\w){re.escape(search_text)}(?!\w)",
+                re.IGNORECASE,
+            )
+
             def matches(value: str | None) -> bool:
-                return bool(value) and search_text.casefold() in value.casefold()
+                if not value:
+                    return False
+                if search_exact:
+                    return pattern.search(value) is not None
+                return search_text.casefold() in value.casefold()
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
-            birth_place_value = chart_row[5] if chart_row else None
-            source_value = chart_row[14] if chart_row else None
-            gender_value = chart_row[3] if chart_row else None
+            birth_place_value = chart_row[4] if chart_row else None
+            source_value = chart_row[13] if chart_row else None
             if chart_row is None:
                 chart = self._get_chart_for_filter(chart_id)
                 if chart is not None:
@@ -10984,17 +10405,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     alias_value = getattr(chart, "alias", None)
                     birth_place_value = getattr(chart, "birth_place", None)
                     source_value = getattr(chart, "source", None)
-                    gender_value = getattr(chart, "gender", None)
             if not (
                 matches(name_value)
                 or matches(alias_value)
                 or matches(birth_place_value)
                 or matches(source_value)
-                or matches(gender_value)
             ):
                 return False
         if selected_source is not None:
-            source_value = chart_row[14] if chart_row else None
+            source_value = chart_row[13] if chart_row else None
             if chart_row is None:
                 chart = self._get_chart_for_filter(chart_id)
                 source_value = getattr(chart, "source", None) if chart else None
@@ -11020,7 +10439,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             birthtime_value = None
             if chart_row and len(chart_row) > 7:
-                birthtime_value = chart_row[8]
+                birthtime_value = chart_row[7]
             else:
                 chart = self._get_chart_for_filter(chart_id)
                 birthtime_value = getattr(chart, "birthtime_unknown", False)
@@ -11028,7 +10447,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             retcon_value = None
             if chart_row and len(chart_row) > 8:
-                retcon_value = chart_row[9]
+                retcon_value = chart_row[8]
             else:
                 chart = self._get_chart_for_filter(chart_id)
                 retcon_value = getattr(chart, "retcon_time_used", False)
@@ -11051,7 +10470,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 elif not all(birth_status_filter_states):
                     return False
 
-        is_placeholder = bool(chart_row[15]) if chart_row and len(chart_row) > 15 else False
+        is_placeholder = bool(chart_row[14]) if chart_row and len(chart_row) > 14 else False
         if (
             incomplete_birthdate_state == QuadStateSlider.MODE_TRUE
             and not is_placeholder
@@ -11151,59 +10570,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             relationship_match = True
                 if not relationship_match:
                     return False
-
-        if (
-            selected_genders
-            or excluded_genders
-            or include_none_gender
-            or exclude_none_gender
-        ):
-            chart_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-            normalized_selected_genders = {
-                self._normalize_gender_value(value).casefold()
-                for value in selected_genders
-            }
-            normalized_excluded_genders = {
-                self._normalize_gender_value(value).casefold()
-                for value in excluded_genders
-            }
-            normalized_chart_gender = chart_gender.casefold()
-            if exclude_none_gender and not chart_gender:
-                return False
-            if (
-                normalized_excluded_genders
-                and normalized_chart_gender in normalized_excluded_genders
-            ):
-                return False
-            if selected_genders or include_none_gender:
-                gender_match = False
-                if include_none_gender and not chart_gender:
-                    gender_match = True
-                if normalized_selected_genders:
-                    if self.gender_filter_and.isChecked():
-                        if normalized_selected_genders.issubset({normalized_chart_gender}):
-                            gender_match = True
-                    else:
-                        if normalized_chart_gender in normalized_selected_genders:
-                            gender_match = True
-                if not gender_match:
-                    return False
-
-        if selected_guessed_gender:
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is None:
-                return False
-            guessed_by_prevalence = self._classify_guessed_gender(
-                _calculate_gender_prevalence_score(chart)
-            )
-            guessed_by_weight = self._classify_guessed_gender(
-                _calculate_gender_weight_score(chart)
-            )
-            if (
-                guessed_by_prevalence != selected_guessed_gender
-                and guessed_by_weight != selected_guessed_gender
-            ):
-                return False
 
         for filters in active_body_filters:
             body = filters["body"].currentData()
@@ -11329,28 +10695,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }
         except TypeError:
             return set()
-
-    @staticmethod
-    def _normalize_gender_value(gender: object) -> str:
-        if gender is None:
-            return ""
-        if isinstance(gender, str):
-            return gender.strip()
-        return str(gender).strip()
-
-    @staticmethod
-    def _classify_guessed_gender(score: float) -> str:
-        """Map gender score (0..10, where 5 is neutral) to a label.
-
-        We treat androgynous as a narrow neutral window of ±0.05 around 5.0,
-        which corresponds to ±0.5 percentage points around a perfect 50/50
-        balance on the UI scale.
-        """
-        if score < 4.95:
-            return "masculine"
-        if score > 5.05:
-            return "feminine"
-        return "androgynous"
 
     def _get_chart_for_filter(self, chart_id: int):
         if chart_id in self._chart_cache:
@@ -11553,13 +10897,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return self._settings_dialog
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Settings & Preferences")
+        dialog.setWindowTitle("Database View Settings")
         dialog.setWindowFlag(Qt.Window, True)
         dialog.setModal(False)
-        dialog.setMinimumSize(520, 520)
         dialog.setStyleSheet(
             "QDialog { background-color: #181818; color: #ececec; }"
             "QLabel { color: #ececec; }"
+            "QToolButton {"
+            "background-color: #262626;"
+            "border: 1px solid #555555;"
+            "padding: 6px 10px;"
+            "font-weight: 600;"
+            "color: #ececec;"
+            "}"
             "QPushButton {"
             "background-color: #2f2f2f;"
             "border: 1px solid #666666;"
@@ -11567,128 +10917,163 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "color: #f0f0f0;"
             "}"
             "QPushButton:hover { background-color: #3a3a3a; }"
+            "QFrame#settings_section_content {"
+            "background-color: #202020;"
+            "border: 1px solid #4f4f4f;"
+            "}"
+            "QScrollArea { background-color: #181818; }"
         )
 
         root_layout = QVBoxLayout(dialog)
         root_layout.setContentsMargins(12, 12, 12, 12)
-        root_layout.setSpacing(12)
 
         scroll = QScrollArea(dialog)
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         root_layout.addWidget(scroll)
 
         content = QWidget()
         scroll.setWidget(content)
 
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
+        content_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        content_layout.setSpacing(12)
 
-        visibility_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Visibility",
-        )
-        visibility_section.addWidget(QLabel("Chart data panels"))
+        appearance_content = self._add_settings_collapsible_section(content_layout, "Appearance")
+        appearance_content.addWidget(QLabel("Coming soon."))
 
-        cursedness_checkbox = QCheckBox("Show cursedness analysis")
-        cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
-        cursedness_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
-        )
-        visibility_section.addWidget(cursedness_checkbox)
+        troubleshooting_content = self._add_settings_collapsible_section(content_layout, "Troubleshooting")
+        troubleshooting_content.addWidget(QLabel("Coming soon."))
 
-        dnd_species_checkbox = QCheckBox("Show D&D species card")
-        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_species"))
-        dnd_species_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.dnd_species", checked)
-        )
-        visibility_section.addWidget(dnd_species_checkbox)
+        dev_tools_content = self._add_settings_collapsible_section(content_layout, "Dev Tools")
+        dev_tools_buttons = QHBoxLayout()
+        dev_tools_buttons.setAlignment(Qt.AlignCenter)
+        dev_tools_buttons.setSpacing(8)
+        dev_tools_content.addLayout(dev_tools_buttons)
 
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(QLabel("Database Metrics panel sections"))
-
-        for key in DATABASE_ANALYTICS_SECTION_KEYS:
-            section_key = key.replace("database_metrics.", "", 1)
-            label = section_key.replace("_", " ").title()
-            checkbox = QCheckBox(f"Show {label}")
-            checkbox.setChecked(self._is_database_metrics_section_expanded(section_key))
-            checkbox.toggled.connect(
-                lambda checked, section=section_key: self._set_database_metric_visibility_from_settings(
-                    section,
-                    checked,
-                )
-            )
-            visibility_section.addWidget(checkbox)
-
-        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
-        dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
-
-        size_checker_button = QPushButton("Toggle Size Checker")
+        size_checker_button = QPushButton("Size Checker")
+        size_checker_button.setToolTip("Show/hide a live panel-size readout popup.")
         size_checker_button.clicked.connect(self._toggle_size_checker)
-        dev_tools_section.addWidget(size_checker_button)
+        dev_tools_buttons.addWidget(size_checker_button)
 
-        cleanup_button = QPushButton("Rename Database Properties")
-        cleanup_button.clicked.connect(self._launch_cleanup_sentiments_app)
-        dev_tools_section.addWidget(cleanup_button)
+        rename_database_properties_button = QPushButton("Rename Database Properties")
+        rename_database_properties_button.clicked.connect(self._launch_cleanup_sentiments_app)
+        dev_tools_buttons.addWidget(rename_database_properties_button)
 
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
-        age_tools_section.addWidget(QLabel("Jump to age-related database metrics."))
+        self._dev_user_age_label = QLabel("User Age: unavailable")
+        self._dev_user_age_label.setWordWrap(True)
+        dev_tools_content.addWidget(self._dev_user_age_label)
 
-        open_age_metrics_button = QPushButton("Open Age distribution panel")
-        open_age_metrics_button.clicked.connect(self._open_age_distribution_panel)
-        age_tools_section.addWidget(open_age_metrics_button)
+        age_predictor_header = QLabel("Age Distribution Predictor")
+        age_predictor_header.setStyleSheet("font-weight: 700;")
+        dev_tools_content.addWidget(age_predictor_header)
 
-        reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
-        reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
+        refresh_predictor_button = QPushButton("Refresh Age Predictor")
+        refresh_predictor_button.clicked.connect(self._refresh_dev_age_predictor)
+        dev_tools_content.addWidget(refresh_predictor_button, alignment=Qt.AlignLeft)
 
-        reset_interface_button = QPushButton("Reset interface to default")
-        reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
-        reset_section.addWidget(reset_interface_button)
+        get_estimated_age_button = QPushButton("Get Estimated Age")
+        get_estimated_age_button.setToolTip("Force-estimate age from network ages, even if a self chart age exists.")
+        get_estimated_age_button.clicked.connect(
+            lambda _checked=False: self._refresh_dev_age_predictor(force_guess=True)
+        )
+        dev_tools_content.addWidget(get_estimated_age_button, alignment=Qt.AlignLeft)
+
+        predictor_figure = Figure(figsize=(5.2, 2.6), dpi=100)
+        predictor_figure.patch.set_facecolor("#1e1e1e")
+        self._dev_age_distribution_canvas = FigureCanvas(predictor_figure)
+        self._dev_age_distribution_canvas.setMinimumHeight(230)
+        dev_tools_content.addWidget(self._dev_age_distribution_canvas)
+
+        self._refresh_dev_age_predictor()
+
         content_layout.addStretch(1)
 
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
 
-    def _reset_interface_to_defaults(self) -> None:
-        choice = QMessageBox.question(
-            self,
-            "Reset interface",
-            "Reset all interface visuals and saved view state to defaults?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if choice != QMessageBox.Yes:
+    def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
+        if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
             return
 
-        self._settings.remove("manage_charts")
-        self._settings.remove("main_window")
-        self._settings.remove("app/last_view")
-        self._visibility.reset_defaults()
-        self._restore_visibility_preferences()
+        try:
+            details = resolve_user_age_details(
+                force_inference=force_guess,
+                include_all_chart_types_for_inference=(
+                    self._dev_age_inference_include_all_chart_types
+                ),
+            )
+        except Exception as exc:
+            logger.exception("Dev Tools age predictor refresh failed")
+            self._dev_user_age_label.setText(f"User Age: unavailable (error: {exc})")
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            ax = figure.add_subplot(111)
+            ax.axis("off")
+            ax.text(0.5, 0.5, "Age predictor refresh failed.", ha="center", va="center", color="#b0b0b0")
+            self._dev_age_distribution_canvas.draw_idle()
+            return
 
-        self._sort_mode = "alpha"
-        self._sort_descending = False
-        self._update_sort_button_label()
+        resolved_age = details.get("age")
+        source = str(details.get("source") or "unavailable")
+        chart_name = details.get("chart_name")
 
-        self._active_left_panel = "todays_transits"
-        self.left_panel_stack.setCurrentWidget(self._left_panel_widgets[self._active_left_panel])
-        self._left_panel_visible = True
-        self.left_panel_stack.setVisible(True)
+        if not isinstance(resolved_age, int):
+            self._dev_user_age_label.setText("User Age: unavailable (no valid birth-year data in DB)")
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            ax = figure.add_subplot(111)
+            ax.axis("off")
+            ax.text(0.5, 0.5, "Not enough data for predictor.", ha="center", va="center", color="#b0b0b0")
+            self._dev_age_distribution_canvas.draw_idle()
+            return
 
-        self._active_right_panel = "search"
-        self.right_panel_stack.setCurrentWidget(self._right_panel_widgets[self._active_right_panel])
-        self._right_panel_visible = True
-        self.right_panel_stack.setVisible(True)
-        self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        if source == "self":
+            source_label = f"self-defined ({chart_name or 'Unnamed chart'})"
+        else:
+            inference_scope = (
+                "all chart types"
+                if self._dev_age_inference_include_all_chart_types
+                else "personal charts only"
+            )
+            source_label = f"predicted ({inference_scope}): {resolved_age}"
 
-        parent = self.parent()
-        if isinstance(parent, MainWindow):
-            parent._reset_interface_layout_to_defaults()
+        logger.info("Dev Tools user-age resolver: age=%s source=%s", resolved_age, source_label)
+        self._dev_user_age_label.setText(f"User Age: {resolved_age} [{source_label}]")
 
-        QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
+        distribution = discrete_age_distribution(
+            float(resolved_age),
+            bin_width=1,
+            min_age=0,
+            max_age=110,
+        )
+        if not distribution:
+            figure = self._dev_age_distribution_canvas.figure
+            figure.clear()
+            self._dev_age_distribution_canvas.draw_idle()
+            return
+
+        ages = [age for age, _ in distribution]
+        probs = [prob for _, prob in distribution]
+
+        figure = self._dev_age_distribution_canvas.figure
+        figure.clear()
+        figure.patch.set_facecolor("#1e1e1e")
+        ax = figure.add_subplot(111)
+        ax.set_facecolor("#232323")
+        ax.bar(ages, probs, width=0.85, color="#339933", edgecolor="#2d862d", linewidth=0.2)
+        ax.set_title("Age Distribution Predictor", fontsize=10, color="#e6e6e6")
+        ax.set_xlabel("Network age", fontsize=9, color="#d0d0d0")
+        ax.set_ylabel("Probability", fontsize=9, color="#d0d0d0")
+        ax.set_xlim(0, 110)
+        ax.tick_params(axis="both", labelsize=8, colors="#c9c9c9")
+        ax.grid(axis="y", alpha=0.25, linestyle="--", linewidth=0.6, color="#777777")
+        for spine in ax.spines.values():
+            spine.set_color("#666666")
+
+        self._dev_age_distribution_canvas.draw_idle()
 
     def _add_settings_collapsible_section(
         self,
@@ -11727,35 +11112,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
         return section_content_layout
 
-    def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
-        self._visibility.set(key, checked)
-        self._refresh_chart_preview()
-
-    def _set_database_metric_visibility_from_settings(self, section_key: str, checked: bool) -> None:
-        self._set_database_metrics_section_expanded(section_key, checked)
-        self._refresh_charts(refresh_metrics=True)
-
-    def _open_age_distribution_panel(self) -> None:
-        self._active_left_panel = "database_metrics"
-        self.left_panel_stack.setCurrentWidget(self._left_panel_widgets[self._active_left_panel])
-        self._left_panel_visible = True
-        self.left_panel_stack.setVisible(True)
-
-        self._set_database_metrics_section_expanded("age", True)
-        self._update_sentiment_tally(
-            update_database_metrics=True,
-            update_similarities=False,
-            sections_to_refresh={"age"},
-        )
-
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
         screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
         if screen is None:
-            dialog.resize(520, 520)
+            dialog.resize(700, 500)
             return
         geometry = screen.availableGeometry()
-        width = min(560, geometry.width() - 40)
-        height = min(680, geometry.height() - 40)
+        width = max(520, int(geometry.width() * 0.4))
+        height = max(420, int(geometry.height() * 0.4))
         x = geometry.x() + ((geometry.width() - width) // 2)
         y = geometry.y() + ((geometry.height() - height) // 2)
         dialog.setGeometry(x, y, width, height)
@@ -11838,7 +11202,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel_layout.setContentsMargins(12, 12, 12, 12)
         panel_layout.setSpacing(8)
 
-        panel_title = QLabel("❓") #"Help"
+        panel_title = QLabel("Help")
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
         panel_layout.addWidget(panel_title)
 
@@ -11988,15 +11352,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _iter_help_target_widgets(self) -> list[QWidget]:
         targets: list[QWidget] = []
-        candidates = _find_children_for_types(
-            self,
-            QAbstractButton,
-            QLineEdit,
-            QComboBox,
-            QDateEdit,
-            QTimeEdit,
-            QSpinBox,
-        )
+        candidates = [
+            *self.findChildren(QAbstractButton),
+            *self.findChildren(QLineEdit),
+            *self.findChildren(QComboBox),
+            *self.findChildren(QDateEdit),
+            *self.findChildren(QTimeEdit),
+            *self.findChildren(QSpinBox),
+        ]
         excluded_widgets = {
             getattr(self, "_help_icon_button", None),
             getattr(self, "_help_icon_close", None),
@@ -12051,12 +11414,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     keywords=(widget.objectName(),),
                 )
             )
-
-        for entry in help_notes.search_help_entries(query):
-            if entry.title in seen_titles:
-                continue
-            seen_titles.add(entry.title)
-            entries.append(entry)
 
         needle = (query or "").strip().lower()
         if not needle:
@@ -12136,7 +11493,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Ephemeral Daddy: Astro App | Natal Chart Viewer")
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
-        self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
 
@@ -12147,9 +11503,6 @@ class MainWindow(QMainWindow):
         self._loaded_birth_place = None
         self._loaded_lat = None
         self._loaded_lon = None
-        self._searched_birth_place = None
-        self._searched_lat = None
-        self._searched_lon = None
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
         self._lucygoosey = False
@@ -12173,7 +11526,6 @@ class MainWindow(QMainWindow):
         self._metric_scroll_widgets: set[QWidget] = set()
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
-        self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
         self._chart_analysis_section_expanded: dict[str, bool] = {}
@@ -12243,21 +11595,34 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
 
-        self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
-        self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
-        self.gemstone_chartwheel_button.setEnabled(False)
-        self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
-        self.gemstone_chartwheel_button.setToolTip(
-            "Render and export a gemstone chartwheel PNG for the currently open natal chart."
-        )
-        top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
-
         #Help Button
-        self.help_overlay_button = QPushButton("❓") #"Help"
+        self.help_overlay_button = QPushButton("Help")
         self.help_overlay_button.setObjectName("help_overlay_toggle")
         self.help_overlay_button.setToolTip("Toggle Help Overlay mode.")
         self.help_overlay_button.clicked.connect(self._toggle_help_overlay)
         top_controls.addWidget(self.help_overlay_button, 0, Qt.AlignRight)
+
+        #Popout Chart Button
+        self.popout_button = QPushButton("⌞ ⌝")
+        self.popout_button.setObjectName("popout_button")
+        self.popout_button.setEnabled(False)
+        self.popout_button.clicked.connect(self.on_popout_chart)
+        self.popout_button.setToolTip("Pop Out")
+        self.popout_button.setFixedSize(36, 24)
+        self.popout_button.setStyleSheet(
+            "QPushButton {"
+            "background-color: #252525;"
+            "border: 1px solid #303030;"
+            "border-radius: 4px;"
+            "color: #a8a8a8;"
+            "font-size: 12px;"
+            "padding: 0px;"
+            "}"
+            "QPushButton:hover { background-color: #2b2b2b; color: #d0d0d0; }"
+            "QPushButton:disabled { color: #666666; background-color: #202020; border-color: #292929; }"
+        )
+        top_controls.addWidget(self.popout_button, 0, Qt.AlignRight)
+
 
         #initiates button menu layout for Natal Chart View?
         root_layout.addLayout(top_controls)
@@ -12290,7 +11655,7 @@ class MainWindow(QMainWindow):
         chart_panel_layout.addWidget(self.chart_container, 1)
 
         self.chart_info_label = QLabel("Chart Info!")
-        self.chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
+        self.chart_info_label.setStyleSheet("font-weight: bold;")
         chart_panel_layout.addWidget(self.chart_info_label, 0)
 
         # Chart info output area beneath the preview.
@@ -12300,7 +11665,6 @@ class MainWindow(QMainWindow):
             "Click the ⓘ next to a position or aspect to see details/interpretation."
         )
         self.chart_info_output.setMinimumHeight(140)
-        self._chart_info_highlighter = ChartSummaryHighlighter(self.chart_info_output.document())
         chart_panel_layout.addWidget(self.chart_info_output, 0)
         self._main_splitter.addWidget(chart_panel)
 
@@ -12328,18 +11692,11 @@ class MainWindow(QMainWindow):
         self.alias_edit.setPlaceholderText("Alias: i.e. wr.t nb.t-nfr.w ꜣḫ.t-zḥ")
         self.alias_edit.setText("Alias")
         self.alias_edit.textChanged.connect(self._mark_lucygoosey)
-        self.gender_combo = QComboBox()
-        self.gender_combo.addItem("Gender", "")
-        for gender_option in GENDER_OPTIONS:
-            self.gender_combo.addItem(gender_option, gender_option)
-        self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
         name_row = QHBoxLayout()
         #name_row.setContentsMargins(0, 0, 0, 0)
         name_row.setSpacing(8)
         name_row.addWidget(self.name_edit, 1)
-        name_row.addWidget(self.alias_edit, 0)
-        self.alias_edit.setFixedWidth(180)
-        name_row.addWidget(self.gender_combo, 0)
+        name_row.addWidget(self.alias_edit, 1)
         name_row_widget = QWidget()
         name_row_widget.setLayout(name_row)
         form.addRow(name_row_widget)
@@ -12406,7 +11763,7 @@ class MainWindow(QMainWindow):
         place_row.setSpacing(8)
         self.place_edit = QLineEdit()
         self.place_edit.setPlaceholderText("Birthplace: i.e. Alexandria, Egypt")
-        self.place_edit.textChanged.connect(self._on_place_text_changed)
+        self.place_edit.textChanged.connect(self._mark_lucygoosey)
 
         self.place_search_button = QPushButton("Search")
         self.place_search_button.setObjectName("place_search_button")
@@ -12608,7 +11965,7 @@ class MainWindow(QMainWindow):
         #Chart Type Dropdown Box
         sentiment_metrics_row_layout = QHBoxLayout()
         sentiment_metrics_row_layout.setContentsMargins(0, 0, 0, 0)
-        sentiment_metrics_row_layout.setSpacing(6)
+        sentiment_metrics_row_layout.setSpacing(18)
         sentiment_metrics_row_layout.setAlignment(Qt.AlignCenter)
         sentiment_metrics_row.setLayout(sentiment_metrics_row_layout)
 
@@ -12646,15 +12003,9 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.familiarity_spin.valueChanged.connect(self._on_sentiment_metric_changed)
-        for spinbox in (
-            self.positive_sentiment_intensity_spin,
-            self.negative_sentiment_intensity_spin,
-            self.familiarity_spin,
-        ):
-            spinbox.setFixedWidth(max(53, spinbox.sizeHint().width()))
         
         sentiment_metrics_layout.addWidget(
-            QLabel("💖:"), #positive sentiment intensity #"Intensity of 💖"
+            QLabel("Intensity of 💖:"), #positive sentiment intensity
             0,
             0,
         )
@@ -12664,7 +12015,7 @@ class MainWindow(QMainWindow):
             1,
         )
         sentiment_metrics_layout.addWidget(
-            QLabel("💔:"), #negative sentiment intensity #"Intensity of 💔
+            QLabel("Intensity of 💔:"), #negative sentiment intensity
             0,
             2,
         )
@@ -12715,10 +12066,10 @@ class MainWindow(QMainWindow):
         for widget in (
             self.name_edit,
             self.alias_edit,
-            self.gender_combo,
             self.birth_month_edit,
             self.birth_day_edit,
             self.birth_year_edit,
+            self.place_edit,
             self.time_edit,
             self.retcon_time_edit,
             self.comments_edit,
@@ -12729,7 +12080,6 @@ class MainWindow(QMainWindow):
             self.chart_source_combo,
         ):
             self._bind_enter_update(widget, self.update_button.click)
-        self.place_edit.returnPressed.connect(self.place_search_button.click)
 
         middle_layout.addLayout(self.inputs_layout)
 
@@ -12769,41 +12119,8 @@ class MainWindow(QMainWindow):
             self.output_text.document()
         )
         self.output_text.viewport().installEventFilter(self)
-        self.output_share_button = QToolButton(self.output_text.viewport())
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            self.output_share_button.setIcon(QIcon(share_icon_path))
-            self.output_share_button.setIconSize(QSize(14, 14))
-        else:
-            self.output_share_button.setText("↗")
-        self.output_share_button.setAutoRaise(True)
-        self.output_share_button.setCursor(Qt.PointingHandCursor)
-        self.output_share_button.setToolTip("Export chart data output as Markdown or text")
-        self.output_share_button.clicked.connect(self._export_chart_data_output)
-        self.output_share_button.resize(22, 22)
-        self._position_output_share_button()
         output_panel_layout.addWidget(self.output_text, 1)
         middle_layout.addWidget(output_panel, 1)
-
-        def _style_middle_panel_font(widget: QWidget) -> None:
-            widget_font = QFont(widget.font())
-            if widget_font.pointSize() > 1:
-                widget_font.setPointSize(widget_font.pointSize() - 1)
-            widget_font.setCapitalization(QFont.Capitalization.SmallCaps)
-            widget.setFont(widget_font)
-
-        for label in middle_panel.findChildren(QLabel):
-            _style_middle_panel_font(label)
-        for button in middle_panel.findChildren(QAbstractButton):
-            _style_middle_panel_font(button)
-        for line_edit in middle_panel.findChildren(QLineEdit):
-            _style_middle_panel_font(line_edit)
-
-        middle_panel.setStyleSheet(
-            f"QLabel, QAbstractButton {{ color: {MIDDLE_PANEL_ACCENT_COLOR}; }}"
-            f"QLineEdit::placeholder, QAbstractSpinBox::placeholder {{ color: {MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA}; }}"
-        )
-
         self._main_splitter.addWidget(middle_panel)
 
         # Chart Entry/Edit Window: RIGHT panel (metrics interface).
@@ -12868,25 +12185,13 @@ class MainWindow(QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
-        self.planet_dynamics_canvas = None
         self._manage_charts_dialog = None
         self._handle_database_health()
         self._configure_main_splitter()
         self._restore_window_settings()
-        self._decrease_chart_view_label_font_sizes()
         self._set_chart_analysis_panel_visible(False)
-        apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
-
-    def _decrease_chart_view_label_font_sizes(self) -> None:
-        for label in self.findChildren(QLabel):
-            font = QFont(label.font())
-            size = font.pointSizeF()
-            if size <= 0:
-                continue
-            font.setPointSizeF(max(1.0, size - 1.5))
-            label.setFont(font)
 
     def _mark_lucygoosey(self, *args, **kwargs) -> None:
         if self._suppress_lucygoosey:
@@ -12982,8 +12287,6 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(self._latest_chart)
         elif chart_key == "gender_guesser":
             self._render_gender_guesser(self._latest_chart)
-        elif chart_key == "planet_dynamics":
-            self._render_planet_dynamics(self._latest_chart)
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -13027,32 +12330,6 @@ class MainWindow(QMainWindow):
             return [
                 ["Gender Prevalence", round(_calculate_gender_prevalence_score(chart), 2)],
                 ["Gender Weights", round(_calculate_gender_weight_score(chart), 2)],
-            ]
-        if chart_key == "planet_dynamics":
-            selected_planet = self._chart_analysis_selected_mode(chart_key, "")
-            scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-            if not selected_planet or selected_planet not in scores:
-                selected_planet = next(iter(scores), "")
-            if not selected_planet:
-                return []
-            metric_scores = scores.get(selected_planet, {})
-            metric_label_map = {
-                "stability": "Groundedness",
-                "constructiveness": "Productivity",
-                "volatility": "Reactivity",
-                "fragility": "Fragility",
-                "adaptability": "Resilience",
-            }
-            metric_order = (
-                "stability",
-                "constructiveness",
-                "volatility",
-                "fragility",
-                "adaptability",
-            )
-            return [["planet", selected_planet]] + [
-                [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
-                for metric in metric_order
             ]
         return []
 
@@ -13227,13 +12504,12 @@ class MainWindow(QMainWindow):
             "Nakshatra Prevalence": (9.0, 6.6),
             "Modes": (8.0, 5.4),
             "Gender Guesser": (8.0, 4.2),
-            "Planet Dynamics": (8.5, 5.0),
         }
         figsize = size_by_title.get(title, (8.5, 4.6))
         figure = Figure(figsize=figsize)
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor("#111111")
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor("#111111")
         if title == "Signs":
             self._draw_sign_tally(ax, chart)
         elif title == "Planets":
@@ -13248,8 +12524,6 @@ class MainWindow(QMainWindow):
             self._draw_modal_distribution(ax, chart)
         elif title == "Gender Guesser":
             self._draw_gender_guesser(ax, chart)
-        elif title == "Planet Dynamics":
-            self._draw_planet_dynamics(ax, chart)
         return figure
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
@@ -13267,7 +12541,6 @@ class MainWindow(QMainWindow):
         bars = ax.bar(signs, values, color=colors)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
-        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -13284,11 +12557,11 @@ class MainWindow(QMainWindow):
                 glyph,
                 ha="center",
                 va="bottom",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=7.5,
             )
         for spine in ax.spines.values():
-            spine.set_color(CHART_THEME_COLORS["spine"])
+            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) # spine.set_color("#444444")
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.12, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -13336,11 +12609,11 @@ class MainWindow(QMainWindow):
                 PLANET_GLYPHS.get(label, label),
                 ha="center",
                 va="bottom",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=9,
             )
         for spine in ax.spines.values():
-            spine.set_color(CHART_THEME_COLORS["spine"])
+            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) # spine.set_color("#444444")
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.24, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -13385,15 +12658,13 @@ class MainWindow(QMainWindow):
                 "Houses unavailable",
                 ha="center",
                 va="center",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=10,
             )
             ax.set_axis_off()
             return
 
-        house_labels = [str(num) for num in house_numbers]
-        house_colors = [HOUSE_COLORS.get(label, "#6fa8dc") for label in house_labels]
-        bars = ax.bar(house_labels, values, color=house_colors)
+        bars = ax.bar([str(num) for num in house_numbers], values, color="#6fa8dc")
         ax.set_ylim(0, max(1, max_value + 1))
         ax.margins(x=0.03)
         ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5")
@@ -13409,7 +12680,7 @@ class MainWindow(QMainWindow):
                 str(label),
                 ha="center",
                 va="bottom",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=8,
             )
         for spine in ax.spines.values():
@@ -13435,7 +12706,7 @@ class MainWindow(QMainWindow):
                 "No element data",
                 ha="center",
                 va="center",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -13448,9 +12719,8 @@ class MainWindow(QMainWindow):
             startangle=STANDARD_NCV_PIE_CHART["start_angle"], # startangle=90,
             wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]}, # wedgeprops={"edgecolor": "#111111"},
         )
-        legend_label_format = STANDARD_NCV_PIE_CHART["legend_label_format"]
         legend_labels = [
-            legend_label_format.format(percent=(value / total) * 100, label=element)
+            f"{round((value / total) * 100):.0f}% {element}"
             for element, value in zip(elements, values, strict=True)
         ]
         legend_handles = [
@@ -13495,7 +12765,7 @@ class MainWindow(QMainWindow):
                 "No nakshatra data",
                 ha="center",
                 va="center",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -13529,7 +12799,7 @@ class MainWindow(QMainWindow):
         #ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
         ax.set_anchor("W")
         for spine in ax.spines.values():
-            spine.set_color(CHART_THEME_COLORS["spine"])
+            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"]) #spine.set_color("#444444")
         ax.figure.tight_layout()
         # ax.figure.subplots_adjust(left=0.18, bottom=0.46, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
@@ -13571,7 +12841,7 @@ class MainWindow(QMainWindow):
                 "No modal data",
                 ha="center",
                 va="center",
-                color=CHART_THEME_COLORS["text"],
+                color="#f5f5f5",
                 fontsize=10,
             )
             ax.set_axis_off()
@@ -13584,14 +12854,9 @@ class MainWindow(QMainWindow):
             startangle=STANDARD_NCV_PIE_CHART["start_angle"], #startangle=90,
             wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]}, #wedgeprops={"edgecolor": "#111111"},
         )
-        legend_label_format = STANDARD_NCV_PIE_CHART["legend_label_format"]
-        legend_labels = [
-            legend_label_format.format(percent=(value / total) * 100, label=mode.capitalize())
-            for mode, value in zip(modal_order, values, strict=True)
-        ]
         legend_handles = [
-            Patch(facecolor=color, label=label)
-            for label, color in zip(legend_labels, colors, strict=True)
+            Patch(facecolor=color, label=mode.capitalize())
+            for mode, color in zip(modal_order, colors, strict=True)
         ]
         ax.legend(
             handles=legend_handles,
@@ -13619,152 +12884,63 @@ class MainWindow(QMainWindow):
             axis="x",
             labelrotation=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_label_rotation"],
             labelsize=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_label_size"],
-            colors=CHART_AXES_STYLE["x_tick"]["colors"],
+            colors=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_color"],
             pad=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_pad"],
         )
         ax.tick_params(
             axis="y",
             labelsize=STANDARD_NCV_HORIZONTAL_BAR_CHART["y_tick_label_size"],
-            colors=CHART_AXES_STYLE["y_tick"]["colors"],
+            colors=STANDARD_NCV_HORIZONTAL_BAR_CHART["y_tick_color"],
         )
 
     def _draw_gender_guesser(self, ax, chart: Chart) -> None:
-        prevalence_score = _calculate_gender_prevalence_score(chart)
-        weighted_score = _calculate_gender_weight_score(chart)
-
-        def _format_gender_delta(score: float, *, mode_label: str) -> str:
-            delta_pct = (abs(float(score) - 5.0) / 5.0) * 100.0
-            if math.isclose(delta_pct, 0.0, abs_tol=1e-9):
-                return f"0.0% androgynous by {mode_label}"
-            polarity = "♀" if score > 5.0 else "♂"
-            return f"{delta_pct:.1f}% more {polarity} by {mode_label}"
-
-        prevalence_label = _format_gender_delta(prevalence_score, mode_label="prevalence")
-        weighted_label = _format_gender_delta(weighted_score, mode_label="weight")
-
-        def _gender_label_color(score: float) -> str:
-            if score < 5.0:
-                return GENDER_GUESSER_COLORS["masculine"]
-            if score > 5.0:
-                return GENDER_GUESSER_COLORS["feminine"]
-            return CHART_THEME_COLORS["text"]
-
-        prevalence_label_color = _gender_label_color(prevalence_score)
-        weighted_label_color = _gender_label_color(weighted_score)
-
-        gradient = np.linspace(0, 1, 256).reshape(1, -1)
-        ax.imshow(
-            gradient,
-            extent=(0, 10, -0.08, 0.08),
-            cmap="RdYlGn",
-            aspect="auto",
-            zorder=1,
-        )
-
-        ax.scatter(
-            prevalence_score,
-            0,
-            s=82,
-            facecolors="#ffffff",
-            edgecolors="#111111",
-            linewidths=1.3,
-            zorder=3,
-        )
-        ax.scatter(
-            weighted_score,
-            0,
-            s=82,
-            facecolors="none",
-            edgecolors="#ffffff",
-            linewidths=1.7,
-            zorder=4,
-        )
-
-        ax.text(0, -0.18, "♂", color=GENDER_GUESSER_COLORS["masculine"], ha="left", va="top", fontsize=8) #"Masculine"
-        ax.text(10, -0.18, "♀", color=GENDER_GUESSER_COLORS["feminine"], ha="right", va="top", fontsize=8) #"Feminine"
-        ax.text(
-            0.015,
-            1.05,
-            f"● {prevalence_label}",
-            color=prevalence_label_color,
-            transform=ax.transAxes,
-            ha="left",
-            va="bottom",
-            fontsize=8,
-        )
-        ax.text(
-            0.015,
-            0.95,
-            f"○ {weighted_label}",
-            color=weighted_label_color,
-            transform=ax.transAxes,
-            ha="left",
-            va="bottom",
-            fontsize=8,
-        )
-
-        ax.set_xlim(0, 10)
-        ax.set_ylim(-0.35, 0.35)
-        ax.set_xticks([0, 2.5, 7.5, 10], labels=["0%", "25%", "75%", "100%"])
-        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        ax.grid(False)
-        ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.09, bottom=0.34, top=0.83, right=0.97)
-
-    def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-        selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
-        if not selected_planet or selected_planet not in scores:
-            selected_planet = next(iter(scores), "")
-
-        if not selected_planet:
-            ax.text(0.5, 0.5, "No planet dynamics data", ha="center", va="center", color="#f5f5f5", fontsize=10)
-            ax.set_axis_off()
-            return
-
-        metric_order = [
-            "stability",
-            "constructiveness",
-            "volatility",
-            "fragility",
-            "adaptability",
+        labels = ["Gender Prevalence", "Gender Weights"]
+        values = [
+            _calculate_gender_prevalence_score(chart),
+            _calculate_gender_weight_score(chart),
         ]
-        metric_labels = ["Groundedness", "Productivity", "Reactivity", "Fragility", "Resilience"]
-        values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
-        bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
+        x_positions = [0, 1]
 
-        bars = ax.bar(metric_labels, values, color=bar_colors)
-        self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
-        ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
-        max_value = max(values) if values else 0.0
-        ax.set_ylim(0, max(10.0, max_value + 0.8))
-        ax.set_anchor("W")
-
-        label_offset = max(0.12, (max_value * 0.02) if max_value else 0.12)
-        for bar, value in zip(bars, values, strict=True):
+        ax.plot(
+            x_positions,
+            values,
+            marker="o",
+            markersize=7,
+            linewidth=2,
+            color="#d38eff",
+        )
+        ax.axhline(5, color="#888888", linestyle="--", linewidth=1)
+        ax.text(
+            1.02,
+            5,
+            "median",
+            transform=ax.get_yaxis_transform(),
+            color="#bbbbbb",
+            va="center",
+            fontsize=8,
+        )
+        for x_pos, value in zip(x_positions, values, strict=True):
             ax.text(
-                bar.get_x() + (bar.get_width() / 2),
-                value + label_offset,
-                f"{value:.1f}",
+                x_pos,
+                value + 0.2,
+                f"{value:.2f}",
+                color="#f5f5f5",
                 ha="center",
                 va="bottom",
-                color="#f5f5f5",
-                fontsize=8,
+                fontsize=9,
             )
 
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(labels, color="#f5f5f5", fontsize=8)
+        ax.set_xlim(-0.2, 1.2)
+        ax.set_ylim(0, 10)
+        ax.set_yticks([0, 2.5, 5, 7.5, 10])
+        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
+        ax.grid(axis="y", color="#333333", linestyle=":", linewidth=0.7)
         for spine in ax.spines.values():
-            spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
-        ax.set_title(f"{_display_body_name(selected_planet)} Dynamics", color="#f5f5f5", fontsize=10, pad=8)
+            spine.set_color("#444444")
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(
-            left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
-            right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
-        )
+        ax.figure.subplots_adjust(left=0.12, bottom=0.23, top=0.92, right=0.98)
 
     def _set_lucygoosey(self, is_lucygoosey: bool) -> None:
         self._lucygoosey = is_lucygoosey
@@ -13774,12 +12950,6 @@ class MainWindow(QMainWindow):
             return self.aspects_sort_combo.currentText()
         return "Priority"
 
-    def _chart_data_visibility_options(self) -> dict[str, bool]:
-        return {
-            "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_species": self._visibility.get("chart_data.dnd_species"),
-        }
-
     def _refresh_chart_summary(self, chart: Chart | None = None) -> None:
         if chart is None:
             chart = self._latest_chart
@@ -13788,7 +12958,6 @@ class MainWindow(QMainWindow):
         summary, position_info_map, aspect_info_map, species_info_map = format_chart_text(
             chart,
             aspect_sort=self._current_aspect_sort(),
-            **self._chart_data_visibility_options(),
         )
         self.output_text.setPlainText(summary)
         self._position_info_map = position_info_map
@@ -13877,13 +13046,7 @@ class MainWindow(QMainWindow):
                 for asp in filtered_aspects
                 if asp.get("p1") not in angular_bodies and asp.get("p2") not in angular_bodies
             ]
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-        filtered_aspects.sort(
-            key=lambda asp: _aspect_score(asp, planet_weights=dominant_planet_weights),
-            reverse=True,
-        )
+        filtered_aspects.sort(key=_aspect_score, reverse=True)
         if not filtered_aspects:
             lines.append("| — | — | — | — | — | — |")
         for asp in filtered_aspects:
@@ -13891,7 +13054,7 @@ class MainWindow(QMainWindow):
                 "| "
                 f"{asp.get('p1', '?')} | {_aspect_label(asp.get('type', ''))} | {asp.get('p2', '?')} | "
                 f"{_format_degree_minutes(float(asp.get('angle', 0.0)), include_sign=False)} | {_format_degree_minutes(float(asp.get('delta', 0.0)))} | "
-                f"{_aspect_score(asp, planet_weights=dominant_planet_weights):.2f} |"
+                f"{_aspect_score(asp):.2f} |"
             )
 
         lines.extend([
@@ -13950,149 +13113,8 @@ class MainWindow(QMainWindow):
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
 
-
-
-
-
-    def _show_gemstone_chartwheel_popout(self, image_path: str) -> None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Gemstone Chartwheel Preview")
-        dialog.resize(720, 760)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        image_label = QLabel()
-        image_label.setAlignment(Qt.AlignCenter)
-        image_label.setMinimumSize(640, 640)
-
-        pixmap = QPixmap(image_path)
-        if pixmap.isNull():
-            image_label.setText("Could not load generated chartwheel image preview.")
-        else:
-            image_label.setPixmap(
-                pixmap.scaled(
-                    680,
-                    680,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
-                )
-            )
-
-        path_label = QLabel(f"Saved to: {image_path}")
-        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-
-        layout.addWidget(image_label, 1)
-        layout.addWidget(path_label, 0)
-
-        self._register_popout_shortcuts(dialog)
-        self._gemstone_chartwheel_popouts.append(dialog)
-        dialog.destroyed.connect(
-            lambda _=None, d=dialog: self._gemstone_chartwheel_popouts.remove(d)
-            if d in self._gemstone_chartwheel_popouts
-            else None
-        )
-
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
-
-    def on_create_gemstone_chartwheel(self) -> None:
-        chart = self._latest_chart
-        if chart is None:
-            QMessageBox.information(
-                self,
-                "No chart loaded",
-                "Generate or load a chart before creating a gemstone chartwheel.",
-            )
-            return
-
-        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
-        default_filename = f"{chart_name}-natal_chart-wheel_by-ephemeraldaddy.png"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Gemstone Chartwheel",
-            default_filename,
-            "PNG Files (*.png)",
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".png"):
-            file_path = f"{file_path}.png"
-
-        try:
-            draw_chartwheel(Path(file_path), chart_positions=chart.positions)
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Gemstone chartwheel export failed",
-                f"Could not create gemstone chartwheel:\n{exc}",
-            )
-            return
-
-        self._show_gemstone_chartwheel_popout(file_path)
-        QMessageBox.information(
-            self,
-            "Gemstone chartwheel exported",
-            f"Saved gemstone chartwheel to:\n{file_path}",
-        )
-
     def _on_aspects_sort_changed(self, _value: str) -> None:
         self._refresh_chart_summary()
-
-    def _position_output_share_button(self) -> None:
-        if not hasattr(self, "output_share_button") or not hasattr(self, "output_text"):
-            return
-        viewport = self.output_text.viewport()
-        button = self.output_share_button
-        margin = 6
-        button.move(
-            max(margin, viewport.width() - button.width() - margin),
-            margin,
-        )
-
-    def _export_chart_data_output(self) -> None:
-        summary_text = self.output_text.toPlainText().strip()
-        if not summary_text:
-            QMessageBox.information(
-                self,
-                "Nothing to export",
-                "Generate or load a chart before exporting chart data output.",
-            )
-            return
-
-        export_date = datetime.date.today().isoformat()
-        default_filename = f"chart-data-output-{export_date}.md"
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Chart Data Output",
-            default_filename,
-            "Markdown Files (*.md);;Text Files (*.txt)",
-        )
-        if not file_path:
-            return
-
-        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
-        if not file_path.lower().endswith((".md", ".txt")):
-            file_path = f"{file_path}{selected_extension}"
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as output_file:
-                output_file.write(summary_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart data output:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart data output to:\n{file_path}",
-        )
 
     def _handle_summary_info_click(
         self,
@@ -14156,10 +13178,6 @@ class MainWindow(QMainWindow):
                         aspect_info["type"],
                         aspect_info["angle"],
                         aspect_info["delta"],
-                        sign1=aspect_info.get("sign1"),
-                        sign2=aspect_info.get("sign2"),
-                        house1=aspect_info.get("house1"),
-                        house2=aspect_info.get("house2"),
                     )
                     return True
             return False
@@ -14168,8 +13186,6 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event) -> bool:
         popout_context = self._popout_summary_contexts.get(obj)
-        output_text = getattr(self, "output_text", None)
-        chart_canvas = getattr(self, "chart_canvas", None)
         if popout_context is not None:
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 output_widget = popout_context["output_widget"]
@@ -14185,13 +13201,10 @@ class MainWindow(QMainWindow):
                 )
             return False
         if obj is self.output_text.viewport():
-            if event.type() == QEvent.Resize:
-                self._position_output_share_button()
-        if output_text is not None and obj is output_text.viewport():
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-                cursor = output_text.cursorForPosition(event.position().toPoint())
+                cursor = self.output_text.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
-                    output_text,
+                    self.output_text,
                     cursor,
                     self._position_info_map,
                     self._aspect_info_map,
@@ -14212,15 +13225,6 @@ class MainWindow(QMainWindow):
                 and event.button() == Qt.LeftButton
             ):
                 self._show_metric_canvas_popout(obj, self._metric_chart_titles[obj])
-                return True
-        if chart_canvas is not None and obj is chart_canvas:
-            if event.type() == QEvent.Enter:
-                obj.setCursor(Qt.PointingHandCursor)
-            if (
-                event.type() == QEvent.MouseButtonRelease
-                and event.button() == Qt.LeftButton
-            ):
-                self.on_popout_chart()
                 return True
         return super().eventFilter(obj, event)
 
@@ -14270,7 +13274,7 @@ class MainWindow(QMainWindow):
                     attempts += 1
                     continue
                 seen.add(combo)
-                unique_lines.append(f"• {verb} {noun} {adverb}")
+                unique_lines.append(f"+ {verb} {noun} {adverb}")
                 attempts += 1
         if house_num is None:
             verb_choices = verbs_only or verbs
@@ -14285,15 +13289,7 @@ class MainWindow(QMainWindow):
         self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
-        formatted_text = _format_nakshatra_description_text(nakshatra)
-        lines = formatted_text.splitlines()
-        if len(lines) <= 1:
-            self.chart_info_output.setPlainText(formatted_text)
-            return
-
-        title = lines[0]
-        bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
-        self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
+        self.chart_info_output.setPlainText(_format_nakshatra_description_text(nakshatra))
 
     def _show_species_info(
         self,
@@ -14308,7 +13304,7 @@ class MainWindow(QMainWindow):
             self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
+            "\n".join([header, "", "Evidence is unavailable for this species assignment."])
         )
 
     def _show_aspect_info(
@@ -14318,11 +13314,6 @@ class MainWindow(QMainWindow):
         atype: str,
         angle: float,
         delta: float,
-        *,
-        sign1: str | None = None,
-        sign2: str | None = None,
-        house1: int | None = None,
-        house2: int | None = None,
     ) -> None:
         aspect_keywords = ASPECT_KEYWORDS.get(atype, [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
@@ -14333,19 +13324,23 @@ class MainWindow(QMainWindow):
             )
             return
 
-        unique_lines = _build_aspect_interpretation_lines(
-            p1_nouns=p1_nouns,
-            p2_nouns=p2_nouns,
-            aspect_keywords=aspect_keywords,
-            sign1=sign1,
-            sign2=sign2,
-            house1=house1,
-            house2=house2,
-        )
+        unique_lines: list[str] = []
+        seen: set[tuple[str, str, str]] = set()
+        attempts = 0
+        while len(unique_lines) < 6 and attempts < 200:
+            noun1 = random.choice(p1_nouns)
+            noun2 = random.choice(p2_nouns)
+            keyword = random.choice(aspect_keywords)
+            combo = (noun1, keyword, noun2)
+            if combo in seen:
+                attempts += 1
+                continue
+            seen.add(combo)
+            unique_lines.append(f"{noun1} {keyword} {noun2}")
+            attempts += 1
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
-        bullet_lines = [f"• {line}" for line in unique_lines]
-        self.chart_info_output.setPlainText("\n".join([header, ""] + bullet_lines))
+        self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
 
     def _confirm_discard_or_save(self) -> bool:
         if not self._lucygoosey:
@@ -14389,8 +13384,6 @@ class MainWindow(QMainWindow):
     def _autosave_checkbox_state(self) -> None:
         if self._suppress_lucygoosey or self.current_chart_id is None:
             return
-        if not self._lucygoosey:
-            return
         if not self._ensure_current_chart_still_exists():
             return
         self.on_update_chart(show_dialog=False, recalculate_chart=False)
@@ -14411,11 +13404,8 @@ class MainWindow(QMainWindow):
             self._metadata_autosave_timer.start(2000)
 
     def _flush_pending_metadata_save(self) -> None:
-        had_pending_metadata_save = self._metadata_autosave_timer.isActive()
-        if had_pending_metadata_save:
+        if self._metadata_autosave_timer.isActive():
             self._metadata_autosave_timer.stop()
-        if not had_pending_metadata_save and not self._lucygoosey:
-            return
         self._autosave_checkbox_state()
 
     def _open_chart_familiarity_calculator(self) -> None:
@@ -14443,11 +13433,8 @@ class MainWindow(QMainWindow):
         self._sentiment_metrics_autosave_timer.start(2000)
 
     def _flush_pending_sentiment_metrics_save(self) -> None:
-        had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
-        if had_pending_metric_save:
+        if self._sentiment_metrics_autosave_timer.isActive():
             self._sentiment_metrics_autosave_timer.stop()
-        if not had_pending_metric_save and not self._lucygoosey:
-            return
         if not self._should_auto_update_sentiments():
             return
         if not self._ensure_current_chart_still_exists():
@@ -14519,18 +13506,13 @@ class MainWindow(QMainWindow):
         self._mark_lucygoosey()
 
     def _configure_main_splitter(self) -> None:
-        base_left = 366
-        base_middle = 750
-        base_right = 316
+        base_left = 320 #was 420
+        base_middle = int(505 * 1.2) #was 520 * 1.3
+        base_right = 220 #was 240
         self._main_splitter.setSizes([base_left, base_middle, base_right])
         self._main_splitter.setStretchFactor(0, 1)
         self._main_splitter.setStretchFactor(1, 2)
         self._main_splitter.setStretchFactor(2, 1)
-
-    def _reset_interface_layout_to_defaults(self) -> None:
-        self._settings.remove("main_window")
-        self.resize(1432, self.height())
-        self._configure_main_splitter()
 
     def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
         panel = getattr(self, "metrics_panel", None)
@@ -14554,7 +13536,16 @@ class MainWindow(QMainWindow):
         if sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
         else:
-            self._main_splitter.setSizes([366, 750, 316])
+            left_width = 320
+            middle_width = int(505 * 1.2)
+            right_width = 220
+            total_min = left_width + middle_width + right_width
+            extra = 0
+            if geometry is not None:
+                extra = max(0, geometry.width() - total_min)
+            self._main_splitter.setSizes(
+                [left_width, middle_width + extra, right_width]
+            )
 
     def _raise_manage_charts_dialog(self) -> None:
         dialog = self._manage_charts_dialog
@@ -14639,16 +13630,6 @@ class MainWindow(QMainWindow):
             )
         elif dialog.clickedButton() == continue_button:
             return
-
-    def _clear_searched_birth_place(self) -> None:
-        self._searched_birth_place = None
-        self._searched_lat = None
-        self._searched_lon = None
-
-    def _on_place_text_changed(self, _text: str) -> None:
-        self._clear_searched_birth_place()
-        self._mark_lucygoosey()
-
     def on_search_place(self):
         """Search for location candidates and let the user pick one."""
         query = self.place_edit.text().strip()
@@ -14689,18 +13670,7 @@ class MainWindow(QMainWindow):
             False,  # editable = False
         )
         if ok and choice:
-            selected_lat = None
-            selected_lon = None
-            for label, lat, lon in candidates:
-                if label == choice:
-                    selected_lat = float(lat)
-                    selected_lon = float(lon)
-                    break
             self.place_edit.setText(choice)
-            if selected_lat is not None and selected_lon is not None:
-                self._searched_birth_place = choice
-                self._searched_lat = selected_lat
-                self._searched_lon = selected_lon
 
     def _quit_app(self):
         app = QApplication.instance()
@@ -14714,8 +13684,6 @@ class MainWindow(QMainWindow):
             callback_owner = focus_widget
             while callback_owner is not None:
                 callback = getattr(callback_owner, "_batch_enter_apply_callback", None)
-                if not callable(callback):
-                    callback = getattr(callback_owner, "_enter_update_callback", None)
                 if callable(callback):
                     callback()
                     return
@@ -14781,17 +13749,6 @@ class MainWindow(QMainWindow):
         return True
 
     def _resolve_location(self, place: str):
-        if (
-            self._searched_birth_place
-            and place == self._searched_birth_place
-            and self._searched_lat is not None
-            and self._searched_lon is not None
-        ):
-            location_msg = (
-                f"Using selected coordinates for {place} "
-                f"({self._searched_lat:.4f}, {self._searched_lon:.4f})"
-            )
-            return self._searched_lat, self._searched_lon, location_msg, None, True
         if (
             self._loaded_birth_place
             and place == self._loaded_birth_place
@@ -14875,7 +13832,6 @@ class MainWindow(QMainWindow):
         placeholder = SimpleNamespace()
         placeholder.name = self.name_edit.text().strip() or "Anonymous"
         placeholder.alias = self.alias_edit.text().strip() or None
-        placeholder.gender = self.gender_combo.currentData() or None
         placeholder.dt = dt_local.replace(tzinfo=ZoneInfo("UTC"))
         placeholder.lat = 0.0
         placeholder.lon = 0.0
@@ -14913,7 +13869,6 @@ class MainWindow(QMainWindow):
         self._clear_required_field_highlights()
         name = self.name_edit.text().strip() or "Anonymous"
         alias = self.alias_edit.text().strip() or None
-        gender = self.gender_combo.currentData() or None
         place = self.place_edit.text().strip() or "Chicago, IL, USA"
 
         qdate = self._birth_date_from_fields()
@@ -14988,7 +13943,6 @@ class MainWindow(QMainWindow):
         # Build chart
         try:
             chart = Chart(name, dt_local, lat, lon, tz=tz_override, alias=alias)
-            chart.gender = gender
             print("DEBUG houses:", chart.houses)
             print("Asc ~", chart.houses[0])
             print("MC  ~", chart.houses[9])
@@ -15082,25 +14036,11 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _bind_enter_update(widget: QWidget, callback: Callable[[], None]) -> None:
         shortcut = QShortcut(QKeySequence("Return"), widget)
-        shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut.activated.connect(callback)
         widget._enter_update_shortcut = shortcut
-
         shortcut2 = QShortcut(QKeySequence("Enter"), widget)
-        shortcut2.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut2.activated.connect(callback)
         widget._enter_update_shortcut2 = shortcut2
-
-        widget._enter_update_callback = callback
-
-        if isinstance(widget, QLineEdit):
-            widget.returnPressed.connect(callback)
-
-        line_edit_getter = getattr(widget, "lineEdit", None)
-        if callable(line_edit_getter):
-            inner_line_edit = line_edit_getter()
-            if isinstance(inner_line_edit, QLineEdit):
-                inner_line_edit.returnPressed.connect(callback)
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
@@ -15143,7 +14083,6 @@ class MainWindow(QMainWindow):
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
-                chart.gender = self.gender_combo.currentData() or None
                 chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -15243,7 +14182,6 @@ class MainWindow(QMainWindow):
 
         self.current_chart_id = chart_id
         self._manage_charts_pending_changed_ids.add(chart_id)
-        self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
         self._loaded_lat = chart.lat
         self._loaded_lon = chart.lon
@@ -15289,14 +14227,13 @@ class MainWindow(QMainWindow):
         self._loaded_lat = None
         self._loaded_lon = None
         self._latest_chart = None
+        self.popout_button.setEnabled(False)
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
-        self.gemstone_chartwheel_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
         self.alias_edit.clear()
-        self.gender_combo.setCurrentIndex(0)
         self.place_edit.clear()
         self.placeholder_chart_checkbox.setChecked(False)
         self._set_sentiment_selection([])
@@ -15479,9 +14416,6 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         self.name_edit.setText(chart.name or "")
         self.alias_edit.setText(getattr(chart, "alias", "") or "")
-        gender_value = getattr(chart, "gender", None) or ""
-        gender_index = self.gender_combo.findData(gender_value)
-        self.gender_combo.setCurrentIndex(max(0, gender_index))
         self.place_edit.setText(chart.birth_place or "")
         placeholder_checked = bool(getattr(chart, "is_placeholder", False))
         placeholder_blocker = QSignalBlocker(self.placeholder_chart_checkbox)
@@ -15570,25 +14504,8 @@ class MainWindow(QMainWindow):
             self._manage_charts_dialog.setWindowModality(Qt.NonModal)
         return self._manage_charts_dialog
 
-    def _refresh_manage_charts_in_background(self, changed_ids: set[int]) -> None:
-        if not changed_ids:
-            return
-        manage_dialog = self._manage_charts_dialog
-        if manage_dialog is None:
-            return
-        if not manage_dialog.isVisible():
-            return
-        if not getattr(manage_dialog, "_chart_rows", None):
-            return
-        manage_dialog._refresh_charts(
-            refresh_metrics=True,
-            changed_ids=set(changed_ids),
-        )
-        self._manage_charts_pending_changed_ids.difference_update(changed_ids)
-
     def on_manage_charts(self):
         self._flush_pending_sentiment_metrics_save()
-        self._settings.setValue("app/last_view", "database")
         opened = self._charts_controller.open_manage_charts()
         if not opened:
             return
@@ -15628,9 +14545,9 @@ class MainWindow(QMainWindow):
             return
         self._orphan_current_chart_reference()
         self._latest_chart = None
+        self.popout_button.setEnabled(False)
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
-        self.gemstone_chartwheel_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -15766,7 +14683,6 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
-        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -15778,7 +14694,6 @@ class MainWindow(QMainWindow):
                 "nakshatra",
                 "modal",
                 "gender",
-                "planet_dynamics",
                 "wheel",
             }
         self._pending_render_sections.update(sections)
@@ -15810,8 +14725,6 @@ class MainWindow(QMainWindow):
             self._render_modal_distribution(chart)
         if "gender" in sections:
             self._render_gender_guesser(chart)
-        if "planet_dynamics" in sections:
-            self._render_planet_dynamics(chart)
         if "wheel" in sections:
             self._render_chart(chart)
 
@@ -15828,9 +14741,9 @@ class MainWindow(QMainWindow):
         canvas = getattr(self, canvas_attr)
         if canvas is None:
             figure = Figure(figsize=figsize)
-            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+            figure.patch.set_facecolor("#111111")
             ax = figure.add_subplot(111)
-            ax.set_facecolor(CHART_THEME_COLORS["background"])
+            ax.set_facecolor("#111111")
             canvas = FigureCanvas(figure)
             self._apply_metric_chart_sizing(canvas)
             setattr(self, canvas_attr, canvas)
@@ -15841,22 +14754,21 @@ class MainWindow(QMainWindow):
             figure = canvas.figure
             ax = figure.gca()
             ax.clear()
-            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
-            ax.set_facecolor(CHART_THEME_COLORS["background"])
+            figure.patch.set_facecolor("#111111")
+            ax.set_facecolor("#111111")
 
         draw_fn(ax, chart)
         canvas.draw_idle()
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
+        self.popout_button.setEnabled(True)
         self.export_chart_button.setEnabled(True)
         self.current_transits_button.setEnabled(True)
-        self.gemstone_chartwheel_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
             canvas = FigureCanvas(figure)
-            canvas.installEventFilter(self)
             self._clear_layout_widgets(self.chart_canvas_container_layout)
             self.chart_canvas_container_layout.addWidget(canvas)
             self.chart_canvas = canvas
@@ -15886,7 +14798,6 @@ class MainWindow(QMainWindow):
             self.nakshatra_wordcloud_container_layout,
             self.modal_distribution_container_layout,
             self.gender_guesser_container_layout,
-            self.planet_dynamics_container_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -15905,7 +14816,6 @@ class MainWindow(QMainWindow):
         self.nakshatra_wordcloud_canvas = None
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
-        self.planet_dynamics_canvas = None
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
@@ -15978,107 +14888,6 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
 
-    def _render_planet_dynamics(self, chart: Chart) -> None:
-        dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-        if dropdown is not None:
-            current = dropdown.currentData()
-            dropdown.blockSignals(True)
-            dropdown.clear()
-            for body in _dominant_planet_keys(chart):
-                if body in scores:
-                    dropdown.addItem(_display_body_name(body).upper(), body)
-            if dropdown.count() > 0:
-                current_index = dropdown.findData(current)
-                dropdown.setCurrentIndex(current_index if current_index >= 0 else 0)
-            dropdown.blockSignals(False)
-
-        self._render_metric_panel(
-            canvas_attr="planet_dynamics_canvas",
-            container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.4), #width & height of "Planet Dynamics" graph
-            title="Planet Dynamics",
-            draw_fn=self._draw_planet_dynamics,
-            chart=chart,
-        )
-
-    def _normalize_aspect_type(self, raw_aspect: Any) -> str:
-        return _normalize_aspect_type(raw_aspect)
-
-    def _extract_aspect_weight(self, aspect_entry: Any) -> float:
-        return _extract_aspect_weight(aspect_entry)
-
-    def _collect_aspect_type_counts(
-        self,
-        aspect_entries: list[Any],
-        *,
-        weighted: bool = False,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_type_counts(
-            aspect_entries,
-            weighted=weighted,
-            weighted_score_for_entry=weighted_score_for_entry,
-        )
-
-    def _collect_aspect_category_totals(
-        self,
-        aspect_counts: OrderedDict[str, float],
-        *,
-        categories: dict[str, dict[str, Any]],
-    ) -> OrderedDict[str, float]:
-        return _collect_aspect_category_totals(aspect_counts, categories=categories)
-
-    def _draw_popout_aspect_distribution_chart(
-        self,
-        analytics_ax: Any,
-        *,
-        mode: str,
-        aspect_counts: OrderedDict[str, float],
-        weighted_aspect_counts: OrderedDict[str, float],
-        type_totals: OrderedDict[str, float],
-        weighted_type_totals: OrderedDict[str, float],
-        friction_totals: OrderedDict[str, float],
-        weighted_friction_totals: OrderedDict[str, float],
-    ) -> None:
-        _draw_popout_aspect_distribution_chart(
-            analytics_ax,
-            mode=mode,
-            aspect_counts=aspect_counts,
-            weighted_aspect_counts=weighted_aspect_counts,
-            type_totals=type_totals,
-            weighted_type_totals=weighted_type_totals,
-            friction_totals=friction_totals,
-            weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
-        )
-
-    def _build_popout_left_panel(
-        self,
-        layout: QHBoxLayout,
-        *,
-        chart_info_placeholder: str,
-        aspect_entries: list[Any],
-        export_file_stem: str,
-        weighted_score_for_entry: Callable[[Any], float] | None = None,
-        aspect_subheader: str | None = None,
-    ) -> QPlainTextEdit:
-        return _build_popout_left_panel_widget(
-            layout,
-            chart_info_placeholder=chart_info_placeholder,
-            aspect_entries=aspect_entries,
-            export_file_stem=export_file_stem,
-            weighted_score_for_entry=weighted_score_for_entry,
-            aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
-        )
-
     def on_popout_chart(self) -> None:
         if self._latest_chart is None:
             QMessageBox.information(
@@ -16095,30 +14904,23 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        natal_planet_weights = getattr(self._latest_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(self._latest_chart)
-
-        def _weighted_natal_score(entry: Any) -> float:
-            if isinstance(entry, dict):
-                return max(0.0, float(_aspect_score(entry, planet_weights=natal_planet_weights)))
-            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
-                return max(0.0, float(entry.exactness) * float(entry.weight))
-            return 0.0
-
-        chart_info_output = self._build_popout_left_panel(
-            layout,
-            chart_info_placeholder="Click the ⓘ next to a position or aspect to see details/interpretation.",
-            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
-            export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
-            weighted_score_for_entry=_weighted_natal_score,
+        chart_info_layout = QVBoxLayout()
+        chart_info_label = QLabel("Chart Info!")
+        chart_info_label.setStyleSheet("font-weight: bold;")
+        chart_info_output = QPlainTextEdit()
+        chart_info_output.setReadOnly(True)
+        chart_info_output.setPlaceholderText(
+            "Click the ⓘ next to a position or aspect to see details/interpretation."
         )
+        chart_info_output.setMinimumWidth(260)
+        chart_info_layout.addWidget(chart_info_label)
+        chart_info_layout.addWidget(chart_info_output, 1)
+        layout.addLayout(chart_info_layout, 1)
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        chart_summary, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(
-            self._latest_chart,
-            **self._chart_data_visibility_options(),
-        )
+        chart_summary, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(self._latest_chart)
         summary_lines = chart_summary.splitlines()
 
         date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
@@ -16128,25 +14930,13 @@ class MainWindow(QMainWindow):
             else self._latest_chart.dt.strftime("%H:%M")
         )
         birth_place = getattr(self._latest_chart, "birth_place", None) or "Unknown"
-        cursedness_value = next(
-            (
-                line.strip().removeprefix("CURSEDNESS:").strip()
-                for line in summary_lines
-                if line.strip().startswith("CURSEDNESS:")
-            ),
-            next(
-                (
-                    line.strip()
-                    for line in summary_lines
-                    if line.strip().endswith("%") and line.strip() != "%"
-                ),
-                "Unknown",
-            ),
+        cursedness_line = next(
+            (line.strip() for line in summary_lines if line.strip().startswith("Cursedness:")),
+            "Cursedness: Unknown",
         )
-        cursedness_line = f"CURSEDNESS: {cursedness_value}"
         species_line = next(
-            (line.strip() for line in summary_lines if line.strip().startswith("D&D SPECIES/RACE:")),
-            "D&D SPECIES/RACE: Unknown",
+            (line.strip() for line in summary_lines if line.strip().startswith("D&D species:")),
+            "D&D species: Unknown",
         )
 
         popout_header_layout = QHBoxLayout()
@@ -16165,9 +14955,9 @@ class MainWindow(QMainWindow):
                 ]
             )
         )
-        popout_header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        popout_header_left.setStyleSheet("font-weight: 600;")
         popout_header_left_font = popout_header_left.font()
-        popout_header_left_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        popout_header_left_font.setFamily("Courier New")
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
@@ -16207,9 +14997,8 @@ class MainWindow(QMainWindow):
         summary_output = QPlainTextEdit()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
+        output_font.setFamily("Courier New")
         summary_output.setFont(output_font)
-        summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -16238,7 +15027,7 @@ class MainWindow(QMainWindow):
             )
             summary_lines_local = chart_summary_text.splitlines()
             positions_start_index = next(
-                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "POSITIONS"),
+                (idx for idx, line in enumerate(summary_lines_local) if line.strip() == "Positions"),
                 0,
             )
             visible_summary_lines = summary_lines_local[positions_start_index:]
@@ -16293,34 +15082,27 @@ class MainWindow(QMainWindow):
         default_location = self._settings.value("main_window/transit_last_location", "")
         if not isinstance(default_location, str):
             default_location = ""
-        prompt_value = default_location.strip()
-        while True:
-            raw_location, accepted = QInputDialog.getText(
-                self,
-                "Get Current Transits",
-                "Transit location (city or lat,lon):",
-                text=prompt_value,
+        raw_location, accepted = QInputDialog.getText(
+            self,
+            "Get Current Transits",
+            "Transit location (city or lat,lon):",
+            text=default_location.strip(),
+        )
+        if not accepted:
+            return
+
+        try:
+            transit_lat, transit_lon, location_label = self._resolve_current_transit_location(
+                raw_location
             )
-            if not accepted:
-                return
-            prompt_value = raw_location.strip()
-            try:
-                transit_lat, transit_lon, location_label = self._resolve_current_transit_location(
-                    raw_location
-                )
-                break
-            except (LocationLookupError, ValueError) as exc:
-                QMessageBox.warning(
-                    self,
-                    "Get Current Transits",
-                    f"{exc}\n\nPlease try another location.",
-                )
+        except (LocationLookupError, ValueError) as exc:
+            QMessageBox.warning(self, "Get Current Transits", str(exc))
+            return
 
         self._settings.setValue("main_window/transit_last_location", raw_location.strip())
 
         transit_datetime_utc = datetime.datetime.now(datetime.timezone.utc)
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        timestamp_label = transit_datetime_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M %Z")
+        timestamp_label = transit_datetime_utc.strftime("%Y-%m-%d %H:%M UTC")
         natal_chart = copy.deepcopy(self._latest_chart)
         personal_transit_name = (
             f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {location_label}"
@@ -16385,8 +15167,6 @@ class MainWindow(QMainWindow):
         if self._manage_charts_dialog is not None:
             self._manage_charts_dialog._size_checker_popup = None
         self._settings.setValue("main_window/geometry", self.saveGeometry())
-        self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
-        self._settings.setValue("app/last_view", "chart")
         super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
@@ -16432,7 +15212,7 @@ class MainWindow(QMainWindow):
         panel_layout.setContentsMargins(12, 12, 12, 12)
         panel_layout.setSpacing(8)
 
-        panel_title = QLabel("❓") #"Help"
+        panel_title = QLabel("Help")
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
         panel_layout.addWidget(panel_title)
 
@@ -16641,19 +15421,13 @@ def main():
         )
         raise SystemExit(1) from exc
     window = MainWindow()
-    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     icon_path = _get_app_icon_path()
     if icon_path:
         app.setWindowIcon(QIcon(icon_path))
         window.setWindowIcon(QIcon(icon_path))
-
-    last_view = settings.value("app/last_view", "database")
-    if isinstance(last_view, str) and last_view == "chart":
-        window.show()
-    else:
-        # Default view on launch: Database View / Manage Charts Window.
-        window.on_manage_charts()
-        window.hide()
+    # Default view on launch: Database View / Manage Charts Window.
+    window.on_manage_charts()
+    window.hide()
 
     if not getattr(app, "_edd_running", False):
         app._edd_running = True
