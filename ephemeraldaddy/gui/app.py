@@ -4046,6 +4046,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "different' vs conflict based on differing levels of emotional maturity or sociopathy. lol But I "
                 "suspect my algorithm is also wrong."
             ),
+            show_aspect_distribution=self._visibility.get("popout.synastry_aspect_weights"),
         )
 
         right_layout = QVBoxLayout()
@@ -4268,6 +4269,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
+        show_aspect_distribution: bool = True,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4283,6 +4285,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
+            show_aspect_distribution=show_aspect_distribution,
         )
 
     def _sort_popout_aspects(
@@ -11618,6 +11621,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
+        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
+        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
+        synastry_aspect_weights_checkbox.toggled.connect(
+            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
+        )
+        visibility_section.addWidget(synastry_aspect_weights_checkbox)
+
         visibility_section.addSpacing(8)
         visibility_section.addWidget(QLabel("Database Metrics panel sections"))
 
@@ -11857,6 +11867,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._refresh_chart_preview()
+
+    def _set_popout_visibility(self, key: str, checked: bool) -> None:
+        self._visibility.set(key, checked)
 
     def _set_database_metric_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_expanded(section_key, checked)
@@ -16181,6 +16194,7 @@ class MainWindow(QMainWindow):
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
+        show_aspect_distribution: bool = True,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,

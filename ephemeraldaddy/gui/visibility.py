@@ -11,6 +11,7 @@ SETTINGS_GROUP = "visibility"
 CHART_DATA_KEYS: dict[str, bool] = {
     "chart_data.cursedness": True,
     "chart_data.dnd_species": True,
+    "popout.synastry_aspect_weights": False,
 }
 
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
