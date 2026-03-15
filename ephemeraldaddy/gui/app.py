@@ -1828,6 +1828,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._database_metrics_section_expanded: dict[str, bool] = {}
+        self._database_metrics_section_visible: dict[str, bool] = {}
         self._incremental_metrics_refresh_sections: list[str] = []
         self._incremental_metrics_refresh_changed_ids: set[int] = set()
         self._incremental_metrics_force_full_refresh: bool = False
@@ -2320,6 +2321,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _is_database_metrics_section_expanded(self, section_key: str) -> bool:
         return self._database_metrics_section_expanded.get(section_key, False)
 
+    def _is_database_metrics_section_visible(self, section_key: str) -> bool:
+        return self._database_metrics_section_visible.get(section_key, True)
+
+    def _set_database_metrics_section_visible(self, section_key: str, visible: bool) -> None:
+        self._database_metrics_section_visible[section_key] = visible
+        self._visibility.set(f"database_metrics_visibility.{section_key}", visible)
+        self._sync_database_metrics_section_visibility()
+
     def _available_sign_distribution_dropdown_options(self) -> list[tuple[str, str]]:
         if self._database_metrics_baseline_mode != "gen_pop":
             return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
@@ -2329,12 +2338,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
         ]
 
-    def _sync_gen_pop_panel_visibility(self) -> None:
+    def _sync_database_metrics_section_visibility(self) -> None:
         is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
         for section_key, section_widget in self._database_metrics_section_widgets.items():
-            should_hide = is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
-            section_widget.setVisible(not should_hide)
+            if is_gen_pop:
+                section_widget.setVisible(section_key not in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS)
+            else:
+                section_widget.setVisible(self._is_database_metrics_section_visible(section_key))
 
+    def _sync_gen_pop_panel_visibility(self) -> None:
         dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
         if dropdown is None:
             return
@@ -2740,6 +2752,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for key in DATABASE_ANALYTICS_SECTION_KEYS:
             section_key = key.replace("database_metrics.", "", 1)
             self._database_metrics_section_expanded[section_key] = self._visibility.get(key)
+
+        self._database_metrics_section_visible["species_distribution"] = self._visibility.get(
+            "database_metrics_visibility.species_distribution"
+        )
 
     def _update_sort_button_label(self) -> None:
         mode = self._sort_mode
@@ -3155,6 +3171,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ),
         )
         self._database_metrics_section_expanded["species_distribution"] = self._is_database_metrics_section_expanded("species_distribution")
+        self._database_metrics_section_visible["species_distribution"] = self._is_database_metrics_section_visible("species_distribution")
         #Species Distribution Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
@@ -4046,6 +4063,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "different' vs conflict based on differing levels of emotional maturity or sociopathy. lol But I "
                 "suspect my algorithm is also wrong."
             ),
+            show_aspect_distribution=self._visibility.get("popout.synastry_aspect_weights"),
         )
 
         right_layout = QVBoxLayout()
@@ -4268,6 +4286,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
+        show_aspect_distribution: bool = True,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4283,6 +4302,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
+            show_aspect_distribution=show_aspect_distribution,
         )
 
     def _sort_popout_aspects(
@@ -9716,6 +9736,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._database_metrics_baseline_mode,
             )
             self._sync_gen_pop_panel_visibility()
+            self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._update_sentiment_tally(
@@ -9730,6 +9751,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._database_metrics_baseline_mode,
             )
             self._sync_gen_pop_panel_visibility()
+            self._sync_database_metrics_section_visibility()
             self._update_position_sign_subheader()
             self._update_gender_subheader()
             self._update_sentiment_tally(
@@ -11618,15 +11640,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
+        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
+        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
+        synastry_aspect_weights_checkbox.toggled.connect(
+            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
+        )
+        visibility_section.addWidget(synastry_aspect_weights_checkbox)
+
+        planet_dynamics_checkbox = QCheckBox("Show Planet Dynamics (Chart Analytics)")
+        parent = self.parent()
+        planet_dynamics_checkbox.setChecked(
+            isinstance(parent, MainWindow)
+            and parent._is_chart_analysis_section_visible("planet_dynamics")
+        )
+        planet_dynamics_checkbox.toggled.connect(
+            lambda checked: self._set_chart_analytics_visibility_from_settings(
+                "planet_dynamics",
+                checked,
+            )
+        )
+        visibility_section.addWidget(planet_dynamics_checkbox)
+
         visibility_section.addSpacing(8)
         visibility_section.addWidget(QLabel("Database Metrics panel sections"))
 
         species_distribution_checkbox = QCheckBox("Show Species Distribution")
         species_distribution_checkbox.setChecked(
-            self._is_database_metrics_section_expanded("species_distribution")
+            self._is_database_metrics_section_visible("species_distribution")
         )
         species_distribution_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_visibility_from_settings(
+            lambda checked: self._set_database_metric_section_visibility_from_settings(
                 "species_distribution",
                 checked,
             )
@@ -11810,6 +11853,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         parent = self.parent()
         if isinstance(parent, MainWindow):
+            parent._chart_analysis_section_visible["planet_dynamics"] = parent._visibility.get(
+                "chart_analytics.planet_dynamics"
+            )
+            parent._sync_chart_analysis_section_visibility()
             parent._reset_interface_layout_to_defaults()
 
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
@@ -11858,8 +11905,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(parent, MainWindow):
             parent._refresh_chart_preview()
 
-    def _set_database_metric_visibility_from_settings(self, section_key: str, checked: bool) -> None:
-        self._set_database_metrics_section_expanded(section_key, checked)
+    def _set_popout_visibility(self, key: str, checked: bool) -> None:
+        self._visibility.set(key, checked)
+
+    def _set_chart_analytics_visibility_from_settings(self, section_key: str, checked: bool) -> None:
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._set_chart_analysis_section_visible(section_key, checked)
+
+    def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
+        self._set_database_metrics_section_visible(section_key, checked)
         self._refresh_charts(refresh_metrics=True)
 
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:
@@ -12296,7 +12351,9 @@ class MainWindow(QMainWindow):
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
         self._chart_analysis_section_expanded: dict[str, bool] = {}
+        self._chart_analysis_section_visible: dict[str, bool] = {}
         self._chart_analysis_section_layouts: dict[str, QVBoxLayout] = {}
+        self._chart_analysis_section_widgets: dict[str, QWidget] = {}
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
@@ -12963,7 +13020,12 @@ class MainWindow(QMainWindow):
             get_share_icon_path=_get_share_icon_path,
         )
 
+        self._chart_analysis_section_visible["planet_dynamics"] = self._visibility.get(
+            "chart_analytics.planet_dynamics"
+        )
+
         self._create_chart_analysis_sections(metrics_content)
+        self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
 
         # Shortcuts
@@ -13033,6 +13095,18 @@ class MainWindow(QMainWindow):
 
     def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
         self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+
+    def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
+        return self._chart_analysis_section_visible.get(section_key, True)
+
+    def _set_chart_analysis_section_visible(self, section_key: str, visible: bool) -> None:
+        self._chart_analysis_section_visible[section_key] = visible
+        self._visibility.set(f"chart_analytics.{section_key}", visible)
+        self._sync_chart_analysis_section_visibility()
+
+    def _sync_chart_analysis_section_visibility(self) -> None:
+        for section_key, section_widget in self._chart_analysis_section_widgets.items():
+            section_widget.setVisible(self._is_chart_analysis_section_visible(section_key))
 
     def _add_chart_analysis_collapsible_section(
         self,
@@ -16181,6 +16255,7 @@ class MainWindow(QMainWindow):
         export_file_stem: str,
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
+        show_aspect_distribution: bool = True,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,

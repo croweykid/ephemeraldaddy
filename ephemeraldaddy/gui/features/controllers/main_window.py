@@ -124,6 +124,7 @@ class ChartAnalysisSectionsController:
         title: str,
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
+        section_key: str | None = None,
     ) -> QVBoxLayout:
         section = QWidget()
         section_layout = QVBoxLayout()
@@ -162,6 +163,8 @@ class ChartAnalysisSectionsController:
         section_layout.addWidget(toggle)
         section_layout.addWidget(content)
         layout.addWidget(section)
+        if section_key is not None:
+            self._owner._chart_analysis_section_widgets[section_key] = section
         return content_layout
 
     def add_section(
@@ -188,6 +191,7 @@ class ChartAnalysisSectionsController:
                 key,
                 checked,
             ),
+            section_key=section_key,
         )
         self._owner._chart_analysis_section_expanded[section_key] = expanded
 

@@ -11,6 +11,12 @@ SETTINGS_GROUP = "visibility"
 CHART_DATA_KEYS: dict[str, bool] = {
     "chart_data.cursedness": True,
     "chart_data.dnd_species": True,
+    "popout.synastry_aspect_weights": False,
+    "chart_analytics.planet_dynamics": False,
+}
+
+DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
+    "database_metrics_visibility.species_distribution": False,
 }
 
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
@@ -31,6 +37,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
 DEFAULT_VISIBILITY: dict[str, bool] = {
     **CHART_DATA_KEYS,
     **DATABASE_ANALYTICS_SECTION_KEYS,
+    **DATABASE_ANALYTICS_VISIBILITY_KEYS,
 }
 
 
