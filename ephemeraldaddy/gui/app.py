@@ -11624,7 +11624,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Visibility",
         )
-        visibility_section.addWidget(QLabel("Chart Data Panels"))
+        visibility_section.addWidget(QLabel("Chart Data Panel (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -11640,12 +11640,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
+        visibility_section.addWidget(QLabel("Synastry Charts (Popout Charts)"))
+
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
         synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
         synastry_aspect_weights_checkbox.toggled.connect(
             lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
+
+        visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Planet Dynamics (Chart Analytics)")
         parent = self.parent()
@@ -11662,7 +11666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(planet_dynamics_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(QLabel("Database Metrics panel sections"))
+        visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)"))
 
         species_distribution_checkbox = QCheckBox("Show Species Distribution")
         species_distribution_checkbox.setChecked(
