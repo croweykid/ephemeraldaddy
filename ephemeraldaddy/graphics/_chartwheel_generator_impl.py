@@ -302,7 +302,9 @@ def draw_chartwheel(
 
     ax.set_xlim(-max_radius, max_radius)
     ax.set_ylim(-max_radius, max_radius)
-    ax.set_aspect("equal")
+    # Keep equal scaling while preserving explicit bounds without Matplotlib
+    # auto-adjusting data limits (which emits noisy runtime warnings).
+    ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
