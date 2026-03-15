@@ -12,6 +12,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "chart_data.cursedness": True,
     "chart_data.dnd_species": True,
     "popout.synastry_aspect_weights": False,
+    "chart_analytics.planet_dynamics": False,
 }
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {

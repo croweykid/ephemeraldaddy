@@ -11647,6 +11647,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
+        planet_dynamics_checkbox = QCheckBox("Show Planet Dynamics (Chart Analytics)")
+        parent = self.parent()
+        planet_dynamics_checkbox.setChecked(
+            isinstance(parent, MainWindow)
+            and parent._is_chart_analysis_section_visible("planet_dynamics")
+        )
+        planet_dynamics_checkbox.toggled.connect(
+            lambda checked: self._set_chart_analytics_visibility_from_settings(
+                "planet_dynamics",
+                checked,
+            )
+        )
+        visibility_section.addWidget(planet_dynamics_checkbox)
+
         visibility_section.addSpacing(8)
         visibility_section.addWidget(QLabel("Database Metrics panel sections"))
 
@@ -11839,6 +11853,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         parent = self.parent()
         if isinstance(parent, MainWindow):
+            parent._chart_analysis_section_visible["planet_dynamics"] = parent._visibility.get(
+                "chart_analytics.planet_dynamics"
+            )
+            parent._sync_chart_analysis_section_visibility()
             parent._reset_interface_layout_to_defaults()
 
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
@@ -11889,6 +11907,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
+
+    def _set_chart_analytics_visibility_from_settings(self, section_key: str, checked: bool) -> None:
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._set_chart_analysis_section_visible(section_key, checked)
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
@@ -12328,7 +12351,9 @@ class MainWindow(QMainWindow):
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
         self._chart_analysis_section_expanded: dict[str, bool] = {}
+        self._chart_analysis_section_visible: dict[str, bool] = {}
         self._chart_analysis_section_layouts: dict[str, QVBoxLayout] = {}
+        self._chart_analysis_section_widgets: dict[str, QWidget] = {}
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
@@ -12995,7 +13020,12 @@ class MainWindow(QMainWindow):
             get_share_icon_path=_get_share_icon_path,
         )
 
+        self._chart_analysis_section_visible["planet_dynamics"] = self._visibility.get(
+            "chart_analytics.planet_dynamics"
+        )
+
         self._create_chart_analysis_sections(metrics_content)
+        self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
 
         # Shortcuts
@@ -13065,6 +13095,18 @@ class MainWindow(QMainWindow):
 
     def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
         self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+
+    def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
+        return self._chart_analysis_section_visible.get(section_key, True)
+
+    def _set_chart_analysis_section_visible(self, section_key: str, visible: bool) -> None:
+        self._chart_analysis_section_visible[section_key] = visible
+        self._visibility.set(f"chart_analytics.{section_key}", visible)
+        self._sync_chart_analysis_section_visibility()
+
+    def _sync_chart_analysis_section_visibility(self) -> None:
+        for section_key, section_widget in self._chart_analysis_section_widgets.items():
+            section_widget.setVisible(self._is_chart_analysis_section_visible(section_key))
 
     def _add_chart_analysis_collapsible_section(
         self,
