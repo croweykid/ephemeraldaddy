@@ -61,6 +61,17 @@ def _normalize_source(value: Optional[str]) -> str:
     return normalize_chart_type(value)
 
 
+def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
+    """
+    Return True only for explicit personal chart types used in age inference.
+
+    Unknown/blank chart types are intentionally excluded so that non-personal
+    records are never accidentally treated as personal.
+    """
+    normalized = (value or "").strip().lower().replace(" ", "_")
+    return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
+
+
 SCHEMA_VERSION = 8
 
 _SENTIMENT_CANONICAL_BY_KEY = {
@@ -746,12 +757,21 @@ def resolve_user_age_details(
     now = reference_dt or datetime.utcnow()
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT name, relationship_types, birth_year, birth_month, datetime_iso, chart_type FROM charts"
+        """
+        SELECT
+            name,
+            relationship_types,
+            birth_year,
+            birth_month,
+            datetime_iso,
+            COALESCE(NULLIF(chart_type, ''), source, '') AS inference_chart_type
+        FROM charts
+        """
     ).fetchall()
     conn.close()
 
     alter_ages: list[int] = []
-    for name, relationship_types, birth_year, birth_month, datetime_iso, chart_type in rows:
+    for name, relationship_types, birth_year, birth_month, datetime_iso, inference_chart_type in rows:
         year = birth_year
         month = birth_month
         if year is None:
@@ -768,9 +788,8 @@ def resolve_user_age_details(
         age = now.year - int(year)
         if now.month < int(month):
             age -= 1
-        normalized_chart_type = normalize_chart_type(chart_type)
         include_for_inference = include_all_chart_types_for_inference or (
-            normalized_chart_type == CHART_TYPE_PERSONAL
+            _is_personal_chart_type_for_age_inference(inference_chart_type)
         )
 
         if include_for_inference and 0 <= age <= 120:
