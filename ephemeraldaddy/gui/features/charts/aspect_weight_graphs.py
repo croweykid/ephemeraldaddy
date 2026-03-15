@@ -183,6 +183,7 @@ def build_popout_left_panel(
     chart_data_info_label_style: str,
     database_analytics_dropdown_style: str,
     chart_theme_colors: dict[str, str],
+    show_aspect_distribution: bool = True,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
@@ -218,10 +219,15 @@ def build_popout_left_panel(
     analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
     left_panel_layout.addLayout(analytics_header_layout)
 
+    analytics_label.setVisible(show_aspect_distribution)
+    analytics_view_dropdown.setVisible(show_aspect_distribution)
+    analytics_export_button.setVisible(show_aspect_distribution)
+
     if aspect_subheader:
         aspect_subheader_label = QLabel(aspect_subheader)
         aspect_subheader_label.setWordWrap(True)
         aspect_subheader_label.setStyleSheet(f"color: {chart_theme_colors['text']};")
+        aspect_subheader_label.setVisible(show_aspect_distribution)
         left_panel_layout.addWidget(aspect_subheader_label)
 
     analytics_figure = Figure(figsize=(4.2, 3.4))
@@ -290,6 +296,7 @@ def build_popout_left_panel(
     _render_analytics_chart()
     analytics_canvas.setMinimumHeight(220)
     analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    analytics_canvas.setVisible(show_aspect_distribution)
     left_panel_layout.addWidget(analytics_canvas, 2)
 
     chart_info_label = QLabel("Chart Info!")
