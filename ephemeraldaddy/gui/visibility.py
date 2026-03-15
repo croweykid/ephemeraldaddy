@@ -14,6 +14,10 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "popout.synastry_aspect_weights": False,
 }
 
+DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
+    "database_metrics_visibility.species_distribution": False,
+}
+
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.planetary_sign_prevalence": False,
     "database_metrics.sentiment_prevalence": False,
@@ -32,6 +36,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
 DEFAULT_VISIBILITY: dict[str, bool] = {
     **CHART_DATA_KEYS,
     **DATABASE_ANALYTICS_SECTION_KEYS,
+    **DATABASE_ANALYTICS_VISIBILITY_KEYS,
 }
 
 
