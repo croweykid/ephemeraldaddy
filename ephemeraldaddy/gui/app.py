@@ -350,6 +350,9 @@ from ephemeraldaddy.gui.features.import_export.parsing import (
     parse_datetime_value,
     trim_import_row,
 )
+from ephemeraldaddy.gui.features.import_export.pattern import (
+    build_pattern_import_chart,
+)
 
 GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES: frozenset[str] = frozenset(
     {"Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "AS", "MC"}
@@ -1905,9 +1908,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.delete_button.clicked.connect(self._on_delete)
         controls_layout.addWidget(self.delete_button)
 
-        self.import_button = QPushButton("📥 from CSV") #Import from CSV
+        self.import_button = QPushButton("📥 Import CSV")
         self.import_button.setObjectName("manage_import_csv_button")
-        self.import_button.clicked.connect(self._on_import_csv)
+        self.import_menu = QMenu(self.import_button)
+        self.import_menu.addAction("Import CSV Type 1", self._on_import_csv_type_1)
+        self.import_menu.addAction("Import CSV from The Pattern", self._on_import_csv_pattern)
+        self.import_button.setMenu(self.import_menu)
         controls_layout.addWidget(self.import_button)
 
         self.export_button = QPushButton("📤 Selected to CSV") #Export Selected to CSV
@@ -10300,7 +10306,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"Exported {len(chart_ids)} chart(s) to:\n{file_path}",
         )
 
-    def _on_import_csv(self) -> None:
+    def _on_import_csv_type_1(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Import charts from CSV",
@@ -10416,6 +10422,144 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             ),
         )
+
+    def _on_import_csv_pattern(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import charts from The Pattern CSV",
+            "",
+            "CSV Files (*.csv)",
+        )
+        if not file_path:
+            return
+
+        imported = 0
+        warnings = 0
+        backup_path = None
+
+        try:
+            backup_path = backup_database()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Backup failed",
+                f"Fumbled the database backup prior to import:\n{e}",
+            )
+            return
+
+        progress = QProgressDialog(
+            "Importing charts...",
+            "Cancel",
+            0,
+            0,
+            self,
+        )
+        progress.setWindowTitle("Importing charts")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        try:
+            geocode_cache: dict[str, tuple[float, float, str]] = {}
+            with open(file_path, "r", newline="", encoding="utf-8") as csv_file:
+                sample = csv_file.read(2048)
+                csv_file.seek(0)
+                try:
+                    dialect = csv.Sniffer().sniff(sample)
+                except csv.Error:
+                    dialect = csv.excel
+
+                reader = csv.reader(csv_file, dialect)
+                header: list[str] | None = None
+                column_index_map: dict[str, int] = {}
+
+                for idx, raw_row in enumerate(reader, start=1):
+                    if progress.wasCanceled():
+                        break
+                    if not raw_row or all(not cell.strip() for cell in raw_row):
+                        continue
+
+                    row = normalize_csv_row(raw_row)
+                    if not row or all(not cell for cell in row):
+                        continue
+
+                    if header is None:
+                        header = [cell.casefold() for cell in row]
+                        column_index_map = {label: i for i, label in enumerate(header)}
+                        required = {
+                            "full name",
+                            "birthday",
+                            "birth time",
+                            "gender",
+                            "birthtimezone",
+                        }
+                        if not required.issubset(column_index_map):
+                            missing = sorted(required - set(column_index_map))
+                            raise ValueError(
+                                "Missing required columns for Pattern import: "
+                                + ", ".join(missing)
+                            )
+                        continue
+
+                    chart, birth_place, used_fallback = build_pattern_import_chart(
+                        row,
+                        column_index_map=column_index_map,
+                        geocode_cache=geocode_cache,
+                    )
+                    chart.source = SOURCE_PUBLIC_DB
+                    chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+                    chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart_id = save_chart(
+                        chart,
+                        birth_place=birth_place,
+                        retcon_time_used=getattr(chart, "retcon_time_used", False),
+                        chart_type=SOURCE_PUBLIC_DB,
+                    )
+                    imported += 1
+                    if used_fallback:
+                        warnings += 1
+                    set_current_chart(chart_id)
+                    progress.setLabelText(f"Importing charts... processed {idx}")
+                    QApplication.processEvents()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Import error",
+                f"Shucks. Couldn't import those dang charts:\n{e}",
+            )
+            return
+
+        self._refresh_charts(force_full_analysis_refresh=True)
+        if progress.wasCanceled():
+            QMessageBox.information(
+                self,
+                "Import canceled",
+                (
+                    f"Imported {imported} chart(s) before canceling.\n"
+                    f"{warnings} chart(s) need edits to resolve correctly.\n"
+                    f"Database backup: {backup_path}"
+                    if warnings
+                    else (
+                        f"Imported {imported} chart(s) before canceling.\n"
+                        f"Database backup: {backup_path}"
+                    )
+                ),
+            )
+            return
+        QMessageBox.information(
+            self,
+            "Import complete",
+            (
+                f"Imported {imported} chart(s).\n"
+                f"{warnings} chart(s) need edits to resolve correctly.\n"
+                f"Database backup: {backup_path}"
+                if warnings
+                else (
+                    f"Imported {imported} chart(s).\n"
+                    f"Database backup: {backup_path}"
+                )
+            ),
+        )
+
     def _on_export_database(self) -> None:
         timestamp = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
         file_path, _ = QFileDialog.getSaveFileName(
