@@ -803,10 +803,18 @@ def _register_packaged_symbol_fonts() -> None:
 
 def _configure_matplotlib_info_marker_font() -> None:
     """Prefer chart-safe default fonts while allowing targeted symbol-font overrides."""
+
+    def _collect_codepoints(symbols: list[str] | tuple[str, ...] | set[str]) -> set[int]:
+        codepoints: set[int] = set()
+        for symbol in symbols:
+            for char in str(symbol):
+                codepoints.add(ord(char))
+        return codepoints
+
     required_codepoints = {
         # transit/chart glyphs we actually render in wheel + text output
-        *(ord(symbol) for symbol in ZODIAC_SIGNS),
-        *(ord(symbol) for symbol in PLANET_GLYPHS.values()),
+        *_collect_codepoints(ZODIAC_SIGNS),
+        *_collect_codepoints(set(PLANET_GLYPHS.values())),
         0x24D8,  # ⓘ
         0x26B3,  # ⚳ Ceres
         0x26B4,  # ⚴ Pallas
