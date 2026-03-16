@@ -800,8 +800,19 @@ def _register_packaged_symbol_fonts() -> None:
 
 def _configure_matplotlib_info_marker_font() -> None:
     """Prefer chart-safe default fonts while allowing targeted symbol-font overrides."""
+
+    def _collect_codepoints(symbols: list[str] | tuple[str, ...] | set[str]) -> set[int]:
+        codepoints: set[int] = set()
+        for symbol in symbols:
+            for char in str(symbol):
+                codepoints.add(ord(char))
+        return codepoints
+
     required_codepoints = {
-        #0x24D8,  # ⓘ
+        # transit/chart glyphs we actually render in wheel + text output
+        *_collect_codepoints(ZODIAC_SIGNS),
+        *_collect_codepoints(set(PLANET_GLYPHS.values())),
+        0x24D8,  # ⓘ
         0x26B3,  # ⚳ Ceres
         0x26B4,  # ⚴ Pallas
         0x26B5,  # ⚵ Juno
@@ -810,14 +821,23 @@ def _configure_matplotlib_info_marker_font() -> None:
         0x26B8,  # ⚸ Lilith
     }
 
-    # Prefer Arial Unicode MS first for robust text + symbol coverage.
-    candidates = [
-        "Arial Unicode MS",
-        "Segoe UI Symbol",
-        "Apple Symbols",
-        "DejaVu Sans",
-        "Symbola",
-    ]
+    # Prefer platform-native symbol fonts first.
+    if sys.platform == "win32":
+        candidates = [
+            "Segoe UI Symbol",
+            "Arial Unicode MS",
+            "DejaVu Sans",
+            "Symbola",
+            "Apple Symbols",
+        ]
+    else:
+        candidates = [
+            "Arial Unicode MS",
+            "Apple Symbols",
+            "Segoe UI Symbol",
+            "DejaVu Sans",
+            "Symbola",
+        ]
     try:
         entries = list(mpl_font_manager.fontManager.ttflist)
     except Exception:
@@ -16822,6 +16842,7 @@ class MainWindow(QMainWindow):
 
 def main():
     _maybe_reexec_with_macos_app_name()
+    _register_packaged_symbol_fonts()
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
