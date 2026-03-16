@@ -879,6 +879,16 @@ def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
     app = QApplication.instance()
     if app is None:
+        if sys.platform == "win32":
+            # Ensure Windows treats this process as the Ephemeral Daddy app
+            # so the taskbar uses our icon/name instead of Python's defaults.
+            try:
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+                    "ephemeraldaddy.desktop"
+                )
+            except Exception:
+                pass
+
         if sys.platform == "darwin":
             # On macOS, process naming for interpreter-launched GUI apps can default
             # to "Python". Setting the low-level process name before constructing
