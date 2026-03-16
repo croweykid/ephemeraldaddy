@@ -34,7 +34,7 @@ def _missing_dependency_message(pkg_name: str, module_name: str) -> str:
         f"Missing dependency '{pkg_name}' (import '{module_name}'). "
         "Install project dependencies before launching (example: `pip install -r requirements.txt` "
         "or `pip install -e .`), or run a bundled desktop build generated via "
-        "`python tools/build_desktop_app.py`."
+        "`python tools/build_desktop_app.py --onefile`."
     )
 
 
