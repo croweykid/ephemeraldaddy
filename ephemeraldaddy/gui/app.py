@@ -6549,6 +6549,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self.gender_filter_checkboxes["none"].mode() == QuadStateSlider.MODE_FALSE
         )
         selected_guessed_gender = str(self.gender_guessed_filter_combo.currentData() or "")
+        selected_chart_types = {
+            source
+            for source, checkbox in self.chart_type_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_chart_types = {
+            source
+            for source, checkbox in self.chart_type_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
 
         active_body_filters = [
             filters
@@ -6623,7 +6633,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not year_first_encountered_latest
             and year_first_encountered_blank_state == QuadStateSlider.MODE_EMPTY
             and dominant_element_secondary == "Any"
-            and self.source_filter_combo.currentData() is None
+            and not selected_chart_types
+            and not excluded_chart_types
             and self.species_filter_combo.currentData() == "Any"
             and not guessed_gender_filter
             and not self.search_text_input.text().strip()
@@ -8028,16 +8039,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_info_status_layout.addLayout(birth_filters_row)
         layout.addWidget(birth_info_status_section)
 
-        source_filter_row = QHBoxLayout()
-        source_filter_row.addWidget(QLabel("Chart Type"))
-        self.source_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.source_filter_combo)
-        self.source_filter_combo.addItem("Any", None)
-        for source_label, source_value in SOURCE_OPTIONS:
-            self.source_filter_combo.addItem(source_label, source_value)
-        self.source_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        source_filter_row.addWidget(self.source_filter_combo, 1)
-        layout.addLayout(source_filter_row)
+        chart_type_section, chart_type_group_layout = add_collapsible_section(
+            "Chart Type"
+        )
+        chart_type_layout = QGridLayout()
+        chart_type_layout.setContentsMargins(0, 0, 0, 0)
+        self.chart_type_filter_checkboxes = {}
+        chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
+        for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
+            checkbox = QuadStateSlider(source_label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.chart_type_filter_checkboxes[source_value] = checkbox
+            row = idx % chart_type_rows
+            col = idx // chart_type_rows
+            chart_type_layout.addWidget(checkbox, row, col)
+        chart_type_group_layout.addLayout(chart_type_layout)
+        layout.addWidget(chart_type_section)
 
         year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
             "Year 1st Encountered"
@@ -10128,7 +10145,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            self.source_filter_combo.setCurrentIndex(0)
+            for checkbox in self.chart_type_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
             for checkbox in self.sentiment_filter_checkboxes.values():
@@ -11052,7 +11070,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
         search_text = self.search_text_input.text().strip()
-        selected_source = self.source_filter_combo.currentData()
+        selected_chart_types = {
+            source
+            for source, checkbox in self.chart_type_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_chart_types = {
+            source
+            for source, checkbox in self.chart_type_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
             name
@@ -11197,12 +11224,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or matches(gender_value)
             ):
                 return False
-        if selected_source is not None:
+        if selected_chart_types or excluded_chart_types:
             source_value = chart_row[14] if chart_row else None
             if chart_row is None:
                 chart = self._get_chart_for_filter(chart_id)
                 source_value = getattr(chart, "source", None) if chart else None
-            if source_value != selected_source:
+            if source_value in excluded_chart_types:
+                return False
+            if selected_chart_types and source_value not in selected_chart_types:
                 return False
 
         if selected_species != "Any":
