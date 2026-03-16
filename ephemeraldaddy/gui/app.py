@@ -1055,7 +1055,7 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
             dawn_hd = _format_hd_annotation(dawn_lon, active_channels_midnight)
             dusk_hd = _format_hd_annotation(dusk_lon, active_channels_pre_noon)
             text = (
-                f"{body:<9} 🌅{dawn_pretty} ({dawn_nakshatra} | {dawn_hd})ⓘ -> "
+                f"{_display_body_with_glyph(body):<11} 🌅{dawn_pretty} ({dawn_nakshatra} | {dawn_hd})ⓘ -> "
                 f"🌌{dusk_pretty} ({dusk_nakshatra} | {dusk_hd})ⓘ"
             )
             lines[body] = {
@@ -1104,6 +1104,14 @@ def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
     if lon is None:
         return display_body
     return f"{display_body} ({_sign_for_longitude(lon)})"
+
+
+def _display_body_with_glyph(body: str) -> str:
+    display_body = _display_body_name(body)
+    glyph = PLANET_GLYPHS.get(body) or PLANET_GLYPHS.get(display_body)
+    if not glyph:
+        return display_body
+    return f"{glyph} {display_body}"
 
 
 def _display_body_name(body: str) -> str:
@@ -1388,7 +1396,7 @@ def format_chart_text(
     ]
     active_channels = get_active_channels(visible_longitudes)
     for body in ordered_bodies:
-        display_body = _display_body_name(body)
+        display_body = _display_body_with_glyph(body)
         lon = chart.positions.get(body)
         if lon is None:
             lines.append(f"{display_body:<9} Unknown")
