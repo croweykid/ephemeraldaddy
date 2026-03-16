@@ -10035,6 +10035,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/active_right_panel", self._active_right_panel)
         self._settings.setValue("manage_charts/right_panel_visible", int(self._right_panel_visible))
         self._settings.setValue("app/last_view", "database")
+
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent.allow_close_for_app_exit()
+
         super().closeEvent(event)
 
         #prevents ghost windows lingering
@@ -12527,6 +12532,7 @@ class MainWindow(QMainWindow):
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
+        self._allow_app_exit_close = False
         _apply_minimum_screen_height(self)
 
         # Chart Entry Window vs Chart Edit Window:
@@ -15115,6 +15121,9 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.quit()
 
+    def allow_close_for_app_exit(self) -> None:
+        self._allow_app_exit_close = True
+
     def keyPressEvent(self, event):
         # Hitting Enter/Return updates the current chart, or generates a new one.
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
@@ -16784,6 +16793,11 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event) -> None:
+        if not self._allow_app_exit_close:
+            self.on_manage_charts()
+            event.ignore()
+            return
+
         self._flush_pending_sentiment_metrics_save()
         if not self._confirm_discard_or_save():
             event.ignore()
