@@ -1,9 +1,17 @@
 # Python bytecode/cache
 __pycache__/
 **/__pycache__/
+io/__pycache__/
 *.py[cod]
 *.pyc
+**.pyc
 *.cpython-*.pyc
+
+#venv
+venv/
+
+#python itself
+python
 
 # macOS Finder metadata
 .DS_Store
