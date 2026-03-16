@@ -1859,6 +1859,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self.living_checkbox = None
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
@@ -6612,6 +6613,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+            and (self.living_checkbox is None or self.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
             and not selected_sentiments
             and not excluded_sentiments
             and not include_none_sentiment
@@ -8038,6 +8040,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_filters_row.addStretch(1)
         birth_info_status_layout.addLayout(birth_filters_row)
         layout.addWidget(birth_info_status_section)
+
+        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
+        mortality_row = QHBoxLayout()
+        self.living_checkbox = QuadStateSlider("living")
+        self.living_checkbox.modeChanged.connect(self._on_filter_changed)
+        mortality_row.addWidget(self.living_checkbox)
+        mortality_row.addStretch(1)
+        mortality_section_layout.addLayout(mortality_row)
+        layout.addWidget(mortality_section)
 
         chart_type_section, chart_type_group_layout = add_collapsible_section(
             "Chart Type"
@@ -10150,6 +10161,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self.living_checkbox is not None:
+                self.living_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.species_filter_combo.setCurrentIndex(0)
@@ -10890,6 +10903,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         int,
         str,
         int,
+        int,
         int | None,
         int | None,
         int | None,
@@ -10897,8 +10911,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not row:
             return None
         padded = list(row)
-        if len(padded) < 19:
-            padded.extend([None] * (19 - len(padded)))
+        if len(padded) < 20:
+            padded.extend([None] * (20 - len(padded)))
         return (
             int(padded[0]),
             padded[1],
@@ -10916,9 +10930,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             int(padded[13] or 0),
             _normalize_gui_source(padded[14] if padded[14] else SOURCE_PERSONAL),
             int(padded[15] or 0),
-            int(padded[16]) if padded[16] is not None else None,
+            int(padded[16] or 0),
             int(padded[17]) if padded[17] is not None else None,
             int(padded[18]) if padded[18] is not None else None,
+            int(padded[19]) if padded[19] is not None else None,
         )
 
     def _populate_list(
@@ -10986,6 +11001,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _social_score,
             _source,
             is_placeholder,
+            is_deceased,
             _birth_month,
             _birth_day,
             _birth_year,
@@ -11031,8 +11047,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             place = birth_place or ""
             gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
             place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
+            row_prefix = "💀  " if bool(is_deceased) else ""
             label = (
-                f"#{chart_positions.get(cid, '?')}  "
+                f"{row_prefix}#{chart_positions.get(cid, '?')}  "
                 f"{display_name}  {date_label}  {time_label}"
                 f"  {retcon_time_label}  {place_with_gender}"
             )
@@ -11049,6 +11066,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     "retcon_time": retcon_time_label,
                     "place": place_with_gender,
                     "is_placeholder": bool(is_placeholder),
+                    "is_deceased": bool(is_deceased),
                 },
             )
             self.list_widget.addItem(item)
@@ -11074,6 +11092,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
         birthtime_unknown_state = self.birthtime_unknown_checkbox.mode()
         retconned_state = self.retconned_checkbox.mode()
+        living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
         search_text = self.search_text_input.text().strip()
         selected_chart_types = {
             source
@@ -11300,6 +11319,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and is_placeholder
         ):
             return False
+
+        if living_state != QuadStateSlider.MODE_EMPTY:
+            deceased_value = chart_row[16] if chart_row and len(chart_row) > 16 else None
+            if deceased_value is None:
+                chart_for_mortality = self._get_chart_for_filter(chart_id)
+                deceased_value = bool(getattr(chart_for_mortality, "is_deceased", False)) if chart_for_mortality is not None else False
+            is_living = not bool(deceased_value)
+            if living_state == QuadStateSlider.MODE_TRUE and not is_living:
+                return False
+            if living_state == QuadStateSlider.MODE_FALSE and is_living:
+                return False
 
         chart = self._get_chart_for_filter(chart_id)
         if chart is None:
@@ -12849,6 +12879,10 @@ class MainWindow(QMainWindow):
         )
         self.year_first_encountered_edit.textChanged.connect(self._on_sentiment_metric_changed)
 
+        self.deceased_checkbox = QCheckBox("💀")
+        self.deceased_checkbox.setToolTip("Mark this chart as deceased")
+        self.deceased_checkbox.toggled.connect(self._mark_lucygoosey)
+
         birth_time_row = QHBoxLayout()
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
@@ -12858,6 +12892,7 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_year_widget, 0)
+        birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addWidget(QLabel("Time"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
@@ -15315,6 +15350,7 @@ class MainWindow(QMainWindow):
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
         placeholder.is_placeholder = True
+        placeholder.is_deceased = self.deceased_checkbox.isChecked()
         placeholder.birth_month = month
         placeholder.birth_day = day
         placeholder.birth_year = year
@@ -15455,6 +15491,7 @@ class MainWindow(QMainWindow):
         chart.birth_day = qdate.day()
         chart.birth_year = qdate.year()
         chart.is_placeholder = False
+        chart.is_deceased = self.deceased_checkbox.isChecked()
         return chart, place, location_msg, tz_override
 
     def on_generate(self):
@@ -15564,6 +15601,7 @@ class MainWindow(QMainWindow):
                 chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
+                chart.is_deceased = self.deceased_checkbox.isChecked()
                 is_placeholder = chart.is_placeholder
                 chart.birth_month = getattr(chart, "birth_month", None)
                 chart.birth_day = getattr(chart, "birth_day", None)
@@ -15646,6 +15684,7 @@ class MainWindow(QMainWindow):
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
             is_placeholder=is_placeholder,
+            is_deceased=getattr(chart, "is_deceased", False),
             birth_month=getattr(chart, "birth_month", None),
             birth_day=getattr(chart, "birth_day", None),
             birth_year=getattr(chart, "birth_year", None),
@@ -15723,6 +15762,7 @@ class MainWindow(QMainWindow):
         self.time_edit.setTime(QTime(12, 0))
         self.time_unknown_checkbox.setChecked(False)
         self.retcon_time_checkbox.setChecked(False)
+        self.deceased_checkbox.setChecked(False)
         self.retcon_time_edit.setTime(QTime(12, 0))
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
@@ -15821,6 +15861,7 @@ class MainWindow(QMainWindow):
             cid,
             name,
             _alias,
+            _gender,
             dt_iso,
             birth_place,
             _created_at,
@@ -15833,6 +15874,7 @@ class MainWindow(QMainWindow):
             _social_score,
             _source,
             is_placeholder,
+            is_deceased,
             _birth_month,
             _birth_day,
             _birth_year,
@@ -15953,6 +15995,7 @@ class MainWindow(QMainWindow):
         if chart.birthtime_unknown:
             self.time_edit.setTime(default_noon)
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
+        self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
         if chart.retcon_time_used:
             self.retcon_time_edit.setTime(qtime)
         else:
