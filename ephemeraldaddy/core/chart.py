@@ -32,6 +32,7 @@ class Chart:
         self.birthtime_unknown = False
         self.dt_local = dt_local
         self.retcon_time_used = False
+        self.is_deceased = False
         self._explicit_tz = tz
         self.used_utc_fallback = False  # will be set if tz inference falls back to UTC
         # # Now self.dt is guaranteed tz-aware:
