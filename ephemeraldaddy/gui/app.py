@@ -444,6 +444,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.country_lookup import resolve_country
 
 class ResizablePixmapLabel(QLabel):
@@ -13210,6 +13211,15 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
 
+        self.interpret_astro_age_button = QPushButton("Interpret Astro Age")
+        self.interpret_astro_age_button.setObjectName("interpret_astro_age_button")
+        self.interpret_astro_age_button.setEnabled(False)
+        self.interpret_astro_age_button.clicked.connect(self.on_interpret_astro_age)
+        self.interpret_astro_age_button.setToolTip(
+            "Open an astro-age interpretation popout for the currently open chart."
+        )
+        top_controls.addWidget(self.interpret_astro_age_button, 0, Qt.AlignRight)
+
         #Help Button
         self.help_overlay_button = QPushButton("❓") #"Help"
         self.help_overlay_button.setObjectName("help_overlay_toggle")
@@ -14978,6 +14988,87 @@ class MainWindow(QMainWindow):
         dialog.raise_()
         dialog.activateWindow()
 
+    def on_interpret_astro_age(self) -> None:
+        chart = self._latest_chart
+        if chart is None:
+            QMessageBox.information(
+                self,
+                "No chart loaded",
+                "Generate or load a chart before interpreting astro age.",
+            )
+            return
+
+        planet_weights = (
+            getattr(chart, "dominant_planet_weights", None)
+            or _calculate_dominant_planet_weights(chart)
+        )
+        astro_age = chart_age_from_positions(
+            getattr(chart, "positions", {}),
+            _sign_for_longitude,
+            planet_strengths=planet_weights,
+        )
+        breakdown = astro_age.get("breakdown", [])
+        if not breakdown:
+            QMessageBox.information(
+                self,
+                "Astro age unavailable",
+                "No supported planetary placements were found for astro age interpretation.",
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
+        dialog.setWindowTitle(f"Astro Age Interpretation • {chart_name}")
+        dialog.resize(640, 760)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        summary_label = QLabel(
+            "\n".join(
+                [
+                    f"Chart: {chart_name}",
+                    f"Weighted mean age: {astro_age['mean_age']:.2f}",
+                    f"Weighted median age: {astro_age['median_age']:.2f}",
+                    f"Weighted std dev: {astro_age['std_age']:.2f}",
+                ]
+            )
+        )
+        summary_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        summary_font = summary_label.font()
+        summary_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        summary_label.setFont(summary_font)
+        layout.addWidget(summary_label, 0)
+
+        breakdown_output = QPlainTextEdit()
+        breakdown_output.setReadOnly(True)
+        breakdown_font = breakdown_output.font()
+        breakdown_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        breakdown_output.setFont(breakdown_font)
+        breakdown_output.setPlaceholderText("Astro age breakdown unavailable.")
+
+        lines = [
+            "POSITION-LEVEL ASTRO AGE BREAKDOWN",
+            "",
+            f"{'Planet':<18} {'Sign':<12} {'Age':>8} {'Weight':>8} {'Contribution':>14}",
+            "-" * 70,
+        ]
+        for entry in breakdown:
+            lines.append(
+                f"{entry['planet']:<18} {entry['sign']:<12} "
+                f"{entry['placement_age']:>8.2f} {entry['weight']:>8.2f} "
+                f"{entry['weighted_contribution']:>14.2f}"
+            )
+        breakdown_output.setPlainText("\n".join(lines))
+        layout.addWidget(breakdown_output, 1)
+
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def on_create_gemstone_chartwheel(self) -> None:
         chart = self._latest_chart
         if chart is None:
@@ -16279,6 +16370,7 @@ class MainWindow(QMainWindow):
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
         self.gemstone_chartwheel_button.setEnabled(False)
+        self.interpret_astro_age_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -16622,6 +16714,7 @@ class MainWindow(QMainWindow):
         self.export_chart_button.setEnabled(False)
         self.current_transits_button.setEnabled(False)
         self.gemstone_chartwheel_button.setEnabled(False)
+        self.interpret_astro_age_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -16843,6 +16936,7 @@ class MainWindow(QMainWindow):
         self.export_chart_button.setEnabled(True)
         self.current_transits_button.setEnabled(True)
         self.gemstone_chartwheel_button.setEnabled(True)
+        self.interpret_astro_age_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
