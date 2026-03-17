@@ -1860,6 +1860,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._chart_cache = {}
         self._search_body_filters = []
+        self._aspect_filters = []
         self._dominant_sign_filters = []
         self._dominant_planet_filters = []
         self._dominant_mode_filters = []
@@ -6617,6 +6618,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if filters["sign"].currentText() != "Any"
             or filters["house"].currentText() != "Any"
         ]
+        active_aspect_filters = [
+            filters
+            for filters in self._aspect_filters
+            if str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
+        ]
         active_dominant_sign_filters = [
             filters
             for filters in self._dominant_sign_filters
@@ -6677,6 +6685,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not include_none_gender
             and not exclude_none_gender
             and not active_body_filters
+            and not active_aspect_filters
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
             and not active_dominant_mode_filters
@@ -8343,6 +8352,76 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             bodies_layout.addRow(filter_row)
 
         layout.addWidget(bodies_section)
+
+        aspect_section, aspect_group_layout = add_collapsible_section("Search by Aspect")
+
+        aspect_layout = QFormLayout()
+        aspect_layout.setLabelAlignment(Qt.AlignLeft)
+        aspect_group_layout.addLayout(aspect_layout)
+
+        aspect_options = [("Any", "Any")]
+        for aspect_name in sorted(ASPECT_DEFS):
+            aspect_options.append((aspect_name.replace("_", " ").title(), aspect_name))
+
+        searchable_planets = [
+            (label, key)
+            for label, key in self._searchable_bodies()
+            if key not in {"AS", "IC", "DS", "MC"}
+        ]
+
+        for _ in range(3):
+            aspect_row = QWidget()
+            aspect_row_layout = QHBoxLayout()
+            aspect_row_layout.setContentsMargins(0, 0, 0, 0)
+            aspect_row.setLayout(aspect_row_layout)
+
+            planet_1_combo = QComboBox()
+            apply_default_dropdown_style(planet_1_combo)
+            planet_1_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_1_combo.addItem(label, key)
+            planet_1_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            aspect_combo = QComboBox()
+            apply_default_dropdown_style(aspect_combo)
+            for label, key in aspect_options:
+                aspect_combo.addItem(label, key)
+            aspect_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            planet_2_combo = QComboBox()
+            apply_default_dropdown_style(planet_2_combo)
+            planet_2_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_2_combo.addItem(label, key)
+            planet_2_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(aspect_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            aspect_row_layout.addWidget(planet_1_combo, 1)
+            aspect_row_layout.addWidget(aspect_combo, 1)
+            aspect_row_layout.addWidget(planet_2_combo, 1)
+            aspect_row_layout.addWidget(filter_and)
+            aspect_row_layout.addWidget(filter_or)
+
+            self._aspect_filters.append(
+                {
+                    "planet_1": planet_1_combo,
+                    "aspect": aspect_combo,
+                    "planet_2": planet_2_combo,
+                    "and": filter_and,
+                    "or": filter_or,
+                }
+            )
+            aspect_layout.addRow(aspect_row)
+
+        layout.addWidget(aspect_section)
 
         dominant_section, dominant_group_layout = add_collapsible_section(
             "Dominant Sign"
@@ -10191,6 +10270,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return True
         if any(
+            str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
+            for filters in self._aspect_filters
+        ):
+            return True
+        if any(
             filters["sign"].currentText() != "Any"
             for filters in self._dominant_sign_filters
         ):
@@ -10263,6 +10349,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
                 filters["house"].setCurrentIndex(0)
+                filters["or"].setChecked(False)
+                filters["and"].setChecked(True)
+            for filters in self._aspect_filters:
+                filters["planet_1"].setCurrentIndex(0)
+                filters["aspect"].setCurrentIndex(0)
+                filters["planet_2"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_sign_filters:
@@ -11256,6 +11348,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if filters["sign"].currentText() != "Any"
             or filters["house"].currentText() != "Any"
         ]
+        active_aspect_filters = [
+            filters
+            for filters in self._aspect_filters
+            if str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
+        ]
         active_dominant_sign_filters = [
             filters
             for filters in self._dominant_sign_filters
@@ -11591,6 +11690,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not self._chart_body_matches(chart, body, "Any", house_value):
                     return False
 
+        if active_aspect_filters:
+            aspect_and_filters = [
+                filters for filters in active_aspect_filters if filters["and"].isChecked()
+            ]
+            aspect_or_filters = [
+                filters for filters in active_aspect_filters if filters["or"].isChecked()
+            ]
+            for filters in aspect_and_filters:
+                if not self._chart_aspect_matches(
+                    chart,
+                    str(filters["planet_1"].currentData()),
+                    str(filters["aspect"].currentData()),
+                    str(filters["planet_2"].currentData()),
+                ):
+                    return False
+            if aspect_or_filters:
+                if not any(
+                    self._chart_aspect_matches(
+                        chart,
+                        str(filters["planet_1"].currentData()),
+                        str(filters["aspect"].currentData()),
+                        str(filters["planet_2"].currentData()),
+                    )
+                    for filters in aspect_or_filters
+                ):
+                    return False
+
         if active_dominant_sign_filters:
             dominant_and_filters = [
                 filters for filters in active_dominant_sign_filters
@@ -11756,6 +11882,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return False
 
         return True
+
+    def _chart_aspect_matches(
+        self,
+        chart: Chart,
+        planet_1: str,
+        aspect_name: str,
+        planet_2: str,
+    ) -> bool:
+        aspects = getattr(chart, "aspects", None) or []
+        for aspect in aspects:
+            left = str(aspect.get("p1", ""))
+            right = str(aspect.get("p2", ""))
+            current_aspect = str(aspect.get("type", "")).replace(" ", "_").lower()
+
+            if aspect_name != "Any" and current_aspect != aspect_name:
+                continue
+
+            direct_match = (
+                (planet_1 == "Any" or planet_1 == left)
+                and (planet_2 == "Any" or planet_2 == right)
+            )
+            reverse_match = (
+                (planet_1 == "Any" or planet_1 == right)
+                and (planet_2 == "Any" or planet_2 == left)
+            )
+            if direct_match or reverse_match:
+                return True
+        return False
 
     def _chart_dominant_sign_matches(
         self,
