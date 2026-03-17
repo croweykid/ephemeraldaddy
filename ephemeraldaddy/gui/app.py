@@ -8274,7 +8274,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_group_layout.addLayout(sentiment_layout)
 
         sentiment_intensity_row = QHBoxLayout()
-        sentiment_intensity_row.addWidget(QLabel("💖 Sentiment"))
+        sentiment_intensity_row.addWidget(QLabel("💖"))
         self._positive_sentiment_intensity_min_input = QLineEdit()
         self._positive_sentiment_intensity_min_input.setFixedWidth(44)
         self._positive_sentiment_intensity_min_input.setMaxLength(2)
@@ -8291,7 +8291,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._positive_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
         sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_max_input)
         sentiment_intensity_row.addSpacing(10)
-        sentiment_intensity_row.addWidget(QLabel("💔 Sentiment"))
+        sentiment_intensity_row.addWidget(QLabel("💔"))
         self._negative_sentiment_intensity_min_input = QLineEdit()
         self._negative_sentiment_intensity_min_input.setFixedWidth(44)
         self._negative_sentiment_intensity_min_input.setMaxLength(2)
@@ -8311,7 +8311,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_group_layout.addLayout(sentiment_intensity_row)
 
         familiarity_row = QHBoxLayout()
-        familiarity_row.addWidget(QLabel("Familiarity:"))
+        familiarity_row.addWidget(QLabel("Familiarity"))
         self._familiarity_min_input = QLineEdit()
         self._familiarity_min_input.setFixedWidth(44)
         self._familiarity_min_input.setMaxLength(2)
