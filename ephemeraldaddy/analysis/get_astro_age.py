@@ -1,16 +1,16 @@
 import math
 
 PLANET_AGES = {
-    "Sun": 22,
-    "Moon": 4,
-    "Mercury": 9,
-    "Venus": 15,
-    "Mars": 19,
-    "Jupiter": 38,
-    "Saturn": 58,
-    "Uranus": 67,
-    "Neptune": 84,
-    "Pluto": 72,
+    "Moon": 1, #very early life
+    "Mercury": 7, #childhood/adolescence
+    "Venus": 13, #teens, early adult bonding/socializing
+    "Sun": 18, #identity consolidation / early adulthood
+    "Mars": 13, #young adulthood / assertion era
+    "Jupiter": 40, #expansion/expanded adulthood
+    "Saturn": 56, #later maturity/full accountability
+    "Uranus": 65, #transpersonal eras, late life, generational
+    "Neptune": 72, #transpersonal eras, late life, generational
+    "Pluto": 100, #transpersonal eras, late life, generational
 }
 
 SIGN_AGES = {
@@ -27,6 +27,19 @@ SIGN_AGES = {
     "Aquarius": 60,
     "Pisces": 120,
 }
+
+#not yet deployed
+AGE_BANDS = [
+    ("infantile", 0, 6),
+    ("childlike", 7, 12),
+    ("adolescent", 13, 17),
+    ("emerging_adult", 18, 25),
+    ("young_adult", 26, 39),
+    ("established_adult", 40, 59),
+    ("elder", 60, 89),
+    ("ancient", 90, 200),
+]
+
 
 def placement_age(planet: str, sign: str,
                   planet_coeff: float = 0.65,
