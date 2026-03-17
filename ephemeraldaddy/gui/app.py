@@ -134,7 +134,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
-from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
+from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
@@ -171,6 +171,7 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
+    apply_metadata_label_change,
     save_chart,
     list_charts,
     load_chart,
@@ -181,6 +182,7 @@ from ephemeraldaddy.core.db import (
     set_current_chart,
     parse_sentiments,
     parse_relationship_types,
+    get_metadata_label_usage,
     backup_database,
     restore_database,
     check_database_health,
@@ -251,6 +253,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
+    GENERATIONAL_COHORTS,
     ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_TYPES,
@@ -375,6 +378,16 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birth_month",
         "birthplace",
     }
+)
+
+GENERATION_UNKNOWN_OPTION = "unknown"
+GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
+    [
+        cohort["name"]
+        for cohort in GENERATIONAL_COHORTS
+        if isinstance(cohort.get("name"), str)
+    ]
+    + [GENERATION_UNKNOWN_OPTION]
 )
 
 # Explicit startup validation to avoid hidden import-time side effects.
@@ -1866,13 +1879,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._chart_cache = {}
         self._search_body_filters = []
+        self._aspect_filters = []
         self._dominant_sign_filters = []
         self._dominant_planet_filters = []
         self._dominant_mode_filters = []
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self._positive_sentiment_intensity_min_input = None
+        self._positive_sentiment_intensity_max_input = None
+        self._negative_sentiment_intensity_min_input = None
+        self._negative_sentiment_intensity_max_input = None
+        self._familiarity_min_input = None
+        self._familiarity_max_input = None
         self.living_checkbox = None
+        self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
@@ -6100,6 +6121,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return label
         return None
 
+    @staticmethod
+    def _generation_for_birth_year(birth_year: int | None) -> str | None:
+        if not isinstance(birth_year, int):
+            return None
+        for cohort in GENERATIONAL_COHORTS:
+            start_year = cohort.get("start_year")
+            end_year = cohort.get("end_year")
+            if not isinstance(start_year, int) or not isinstance(end_year, int):
+                continue
+            if start_year <= birth_year <= end_year:
+                cohort_name = cohort.get("name")
+                return str(cohort_name) if cohort_name else None
+        return None
+
+    @staticmethod
+    def _chart_birth_year_for_filters(chart_row: tuple[Any, ...] | None, chart: Chart | None) -> int | None:
+        if chart_row and len(chart_row) > 19 and isinstance(chart_row[19], int):
+            return int(chart_row[19])
+
+        # Placeholders with unspecified birth year should remain generation-unknown.
+        if chart_row and len(chart_row) > 19 and bool(chart_row[15]) and chart_row[19] is None:
+            return None
+
+        if chart_row and len(chart_row) > 4:
+            dt_value = parse_datetime_value(chart_row[4])
+            if isinstance(dt_value, datetime.datetime):
+                return int(dt_value.year)
+        if chart is None:
+            return None
+        birth_year = getattr(chart, "birth_year", None)
+        if isinstance(birth_year, int):
+            return int(birth_year)
+
+        if bool(getattr(chart, "is_placeholder", False)) and birth_year is None:
+            return None
+
+        dt_value = getattr(chart, "dt", None)
+        if isinstance(dt_value, datetime.datetime):
+            return int(dt_value.year)
+        return None
+
     def _collect_age_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
         now_year = datetime.datetime.now(datetime.timezone.utc).year
         age_counts: Counter[int] = Counter()
@@ -6573,12 +6635,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
 
         active_body_filters = [
             filters
             for filters in self._search_body_filters
             if filters["sign"].currentText() != "Any"
             or filters["house"].currentText() != "Any"
+        ]
+        active_aspect_filters = [
+            filters
+            for filters in self._aspect_filters
+            if str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
         ]
         active_dominant_sign_filters = [
             filters
@@ -6621,6 +6700,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else QuadStateSlider.MODE_EMPTY
         )
         guessed_gender_filter = str(self.gender_guessed_filter_combo.currentData() or "")
+        positive_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_min_input.text()
+            if self._positive_sentiment_intensity_min_input is not None
+            else ""
+        )
+        positive_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_max_input.text()
+            if self._positive_sentiment_intensity_max_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_min_input.text()
+            if self._negative_sentiment_intensity_min_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_max_input.text()
+            if self._negative_sentiment_intensity_max_input is not None
+            else ""
+        )
+        familiarity_min = self._parse_integer_filter_text(
+            self._familiarity_min_input.text()
+            if self._familiarity_min_input is not None
+            else ""
+        )
+        familiarity_max = self._parse_integer_filter_text(
+            self._familiarity_max_input.text()
+            if self._familiarity_max_input is not None
+            else ""
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -6640,6 +6749,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not include_none_gender
             and not exclude_none_gender
             and not active_body_filters
+            and not active_aspect_filters
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
             and not active_dominant_mode_filters
@@ -6650,8 +6760,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and not selected_chart_types
             and not excluded_chart_types
+            and not selected_generations
+            and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
             and not guessed_gender_filter
+            and positive_sentiment_intensity_min is None
+            and positive_sentiment_intensity_max is None
+            and negative_sentiment_intensity_min is None
+            and negative_sentiment_intensity_max is None
+            and familiarity_min is None
+            and familiarity_max is None
             and not self.search_text_input.text().strip()
         )
 
@@ -8061,6 +8179,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         mortality_row.addWidget(self.living_checkbox)
         mortality_row.addStretch(1)
         mortality_section_layout.addLayout(mortality_row)
+
+        generation_divider = QFrame()
+        generation_divider.setFrameShape(QFrame.HLine)
+        generation_divider.setStyleSheet("color: #2f2f2f;")
+        mortality_section_layout.addWidget(generation_divider)
+
+        generation_header = QLabel("Generation")
+        generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        mortality_section_layout.addWidget(generation_header)
+
+        generation_layout = QGridLayout()
+        generation_layout.setContentsMargins(0, 0, 0, 0)
+        self.generation_filter_checkboxes = {}
+        generation_rows = (len(GENERATION_FILTER_OPTIONS) + 1) // 2
+        for idx, generation_name in enumerate(GENERATION_FILTER_OPTIONS):
+            checkbox = QuadStateSlider(generation_name)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.generation_filter_checkboxes[generation_name] = checkbox
+            row = idx % generation_rows
+            col = idx // generation_rows
+            generation_layout.addWidget(checkbox, row, col)
+        mortality_section_layout.addLayout(generation_layout)
+
         layout.addWidget(mortality_section)
 
         chart_type_section, chart_type_group_layout = add_collapsible_section(
@@ -8146,7 +8287,64 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             col = idx // sentiment_rows
             sentiment_layout.addWidget(checkbox, row, col)
         sentiment_group_layout.addLayout(sentiment_layout)
-        
+
+        sentiment_intensity_row = QHBoxLayout()
+        sentiment_intensity_row.addWidget(QLabel("💖"))
+        self._positive_sentiment_intensity_min_input = QLineEdit()
+        self._positive_sentiment_intensity_min_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_min_input.setMaxLength(2)
+        self._positive_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._positive_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._positive_sentiment_intensity_max_input = QLineEdit()
+        self._positive_sentiment_intensity_max_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_max_input.setMaxLength(2)
+        self._positive_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._positive_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_max_input)
+        sentiment_intensity_row.addSpacing(10)
+        sentiment_intensity_row.addWidget(QLabel("💔"))
+        self._negative_sentiment_intensity_min_input = QLineEdit()
+        self._negative_sentiment_intensity_min_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_min_input.setMaxLength(2)
+        self._negative_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._negative_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._negative_sentiment_intensity_max_input = QLineEdit()
+        self._negative_sentiment_intensity_max_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_max_input.setMaxLength(2)
+        self._negative_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._negative_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_max_input)
+        sentiment_intensity_row.addStretch(1)
+        sentiment_group_layout.addLayout(sentiment_intensity_row)
+
+        familiarity_row = QHBoxLayout()
+        familiarity_row.addWidget(QLabel("Familiarity"))
+        self._familiarity_min_input = QLineEdit()
+        self._familiarity_min_input.setFixedWidth(44)
+        self._familiarity_min_input.setMaxLength(2)
+        self._familiarity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_min_input.setPlaceholderText("min")
+        self._familiarity_min_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_min_input)
+        familiarity_row.addWidget(QLabel("max"))
+        self._familiarity_max_input = QLineEdit()
+        self._familiarity_max_input.setFixedWidth(44)
+        self._familiarity_max_input.setMaxLength(2)
+        self._familiarity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_max_input.setPlaceholderText("max")
+        self._familiarity_max_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_max_input)
+        familiarity_row.addStretch(1)
+        sentiment_group_layout.addLayout(familiarity_row)
+
         layout.addWidget(sentiment_section)
 
         relationship_section, relationship_group_layout = add_collapsible_section(
@@ -8281,6 +8479,76 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             bodies_layout.addRow(filter_row)
 
         layout.addWidget(bodies_section)
+
+        aspect_section, aspect_group_layout = add_collapsible_section("Search by Aspect")
+
+        aspect_layout = QFormLayout()
+        aspect_layout.setLabelAlignment(Qt.AlignLeft)
+        aspect_group_layout.addLayout(aspect_layout)
+
+        aspect_options = [("Any", "Any")]
+        for aspect_name in sorted(ASPECT_DEFS):
+            aspect_options.append((aspect_name.replace("_", " ").title(), aspect_name))
+
+        searchable_planets = [
+            (label, key)
+            for label, key in self._searchable_bodies()
+            if key not in {"AS", "IC", "DS", "MC"}
+        ]
+
+        for _ in range(3):
+            aspect_row = QWidget()
+            aspect_row_layout = QHBoxLayout()
+            aspect_row_layout.setContentsMargins(0, 0, 0, 0)
+            aspect_row.setLayout(aspect_row_layout)
+
+            planet_1_combo = QComboBox()
+            apply_default_dropdown_style(planet_1_combo)
+            planet_1_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_1_combo.addItem(label, key)
+            planet_1_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            aspect_combo = QComboBox()
+            apply_default_dropdown_style(aspect_combo)
+            for label, key in aspect_options:
+                aspect_combo.addItem(label, key)
+            aspect_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            planet_2_combo = QComboBox()
+            apply_default_dropdown_style(planet_2_combo)
+            planet_2_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_2_combo.addItem(label, key)
+            planet_2_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(aspect_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            aspect_row_layout.addWidget(planet_1_combo, 1)
+            aspect_row_layout.addWidget(aspect_combo, 1)
+            aspect_row_layout.addWidget(planet_2_combo, 1)
+            aspect_row_layout.addWidget(filter_and)
+            aspect_row_layout.addWidget(filter_or)
+
+            self._aspect_filters.append(
+                {
+                    "planet_1": planet_1_combo,
+                    "aspect": aspect_combo,
+                    "planet_2": planet_2_combo,
+                    "and": filter_and,
+                    "or": filter_or,
+                }
+            )
+            aspect_layout.addRow(aspect_row)
+
+        layout.addWidget(aspect_section)
 
         dominant_section, dominant_group_layout = add_collapsible_section(
             "Dominant Sign"
@@ -8966,6 +9234,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_section_layout.addWidget(self.batch_birthtime_unknown_checkbox)
         layout.addWidget(birthtime_unknown_section)
 
+        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
+
+        self.batch_deceased_checkbox = QuadStateSlider("💀")
+        self.batch_deceased_checkbox.modeChanged.connect(
+            self._on_batch_mortality_state_changed
+        )
+        mortality_section_layout.addWidget(self.batch_deceased_checkbox)
+        layout.addWidget(mortality_section)
+
         layout.addStretch(1)
 
         self.clear_batch_edit_button = QPushButton("Clear")
@@ -9035,6 +9312,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label: 0 for label in self.batch_relationship_type_checkboxes
         }
         birthtime_unknown_count = 0
+        deceased_count = 0
         source_values: list[str] = []
         positive_intensities: list[int] = []
         negative_intensities: list[int] = []
@@ -9053,6 +9331,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     relationship_counts[label] += 1
             if getattr(chart, "birthtime_unknown", False):
                 birthtime_unknown_count += 1
+            if bool(getattr(chart, "is_deceased", False)):
+                deceased_count += 1
             source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
             source_values.append(source_value)
             positive_intensities.append(
@@ -9131,6 +9411,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_birthtime_unknown_checkbox,
             birthtime_state,
         )
+        if deceased_count == 0:
+            deceased_state = QuadStateSlider.MODE_EMPTY
+        elif deceased_count == selected_count:
+            deceased_state = QuadStateSlider.MODE_TRUE
+        else:
+            deceased_state = QuadStateSlider.MODE_MIXED
+        self._set_batch_checkbox_state(
+            self.batch_deceased_checkbox,
+            deceased_state,
+        )
         self._set_batch_metric_spin_state(
             self.batch_positive_sentiment_intensity_spin,
             positive_intensities,
@@ -9150,6 +9440,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
+        value = (raw_value or "").strip()
+        if value == "":
+            return None
+        if value.isdigit():
+            return int(value)
+        return None
+
+    @staticmethod
+    def _parse_integer_filter_text(raw_value: str | None) -> int | None:
         value = (raw_value or "").strip()
         if value == "":
             return None
@@ -9745,6 +10044,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
+    def _on_batch_deceased_toggled(self, state: int) -> None:
+        if state == QuadStateSlider.MODE_MIXED:
+            return
+        checked = state == QuadStateSlider.MODE_TRUE
+        chart_ids = [
+            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+        ]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Select one or more charts before applying batch edits.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        selected_count = len(chart_ids)
+        action_label = "Mark as dead 💀 for" if checked else "Mark as living for"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                chart.is_deceased = checked
+                update_chart(
+                    chart_id,
+                    chart,
+                    is_deceased=checked,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"Couldn't update selected charts:\n{exc}",
+            )
+            return
+
+        changed_ids = set(chart_ids)
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
+
+    def _on_batch_mortality_state_changed(self, state: int) -> None:
+        if state == QuadStateSlider.MODE_MIXED:
+            return
+        self._on_batch_deceased_toggled(state)
+
     def _is_right_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
@@ -9948,6 +10301,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_birthtime_unknown_checkbox,
             QuadStateSlider.MODE_EMPTY,
         )
+        self._set_batch_checkbox_state(
+            self.batch_deceased_checkbox,
+            QuadStateSlider.MODE_EMPTY,
+        )
         self.batch_positive_sentiment_intensity_spin.setValue(1)
         self.batch_positive_sentiment_intensity_spin.setToolTip("")
         self.batch_negative_sentiment_intensity_spin.setValue(1)
@@ -10129,6 +10486,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return True
         if any(
+            str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
+            for filters in self._aspect_filters
+        ):
+            return True
+        if any(
             filters["sign"].currentText() != "Any"
             for filters in self._dominant_sign_filters
         ):
@@ -10176,12 +10540,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
                 self.living_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in self.generation_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._positive_sentiment_intensity_min_input is not None:
+                self._positive_sentiment_intensity_min_input.setText("")
+            if self._positive_sentiment_intensity_max_input is not None:
+                self._positive_sentiment_intensity_max_input.setText("")
+            if self._negative_sentiment_intensity_min_input is not None:
+                self._negative_sentiment_intensity_min_input.setText("")
+            if self._negative_sentiment_intensity_max_input is not None:
+                self._negative_sentiment_intensity_max_input.setText("")
+            if self._familiarity_min_input is not None:
+                self._familiarity_min_input.setText("")
+            if self._familiarity_max_input is not None:
+                self._familiarity_max_input.setText("")
             for checkbox in self.relationship_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
@@ -10199,6 +10577,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
                 filters["house"].setCurrentIndex(0)
+                filters["or"].setChecked(False)
+                filters["and"].setChecked(True)
+            for filters in self._aspect_filters:
+                filters["planet_1"].setCurrentIndex(0)
+                filters["aspect"].setCurrentIndex(0)
+                filters["planet_2"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_sign_filters:
@@ -11117,6 +11501,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
             name
@@ -11182,6 +11576,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if filters["sign"].currentText() != "Any"
             or filters["house"].currentText() != "Any"
         ]
+        active_aspect_filters = [
+            filters
+            for filters in self._aspect_filters
+            if str(filters["planet_1"].currentData()) != "Any"
+            or str(filters["aspect"].currentData()) != "Any"
+            or str(filters["planet_2"].currentData()) != "Any"
+        ]
         active_dominant_sign_filters = [
             filters
             for filters in self._dominant_sign_filters
@@ -11221,6 +11622,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._year_first_encountered_blank_checkbox.mode()
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
+        )
+        positive_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_min_input.text()
+            if self._positive_sentiment_intensity_min_input is not None
+            else ""
+        )
+        positive_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_max_input.text()
+            if self._positive_sentiment_intensity_max_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_min_input.text()
+            if self._negative_sentiment_intensity_min_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_max_input.text()
+            if self._negative_sentiment_intensity_max_input is not None
+            else ""
+        )
+        familiarity_min = self._parse_integer_filter_text(
+            self._familiarity_min_input.text()
+            if self._familiarity_min_input is not None
+            else ""
+        )
+        familiarity_max = self._parse_integer_filter_text(
+            self._familiarity_max_input.text()
+            if self._familiarity_max_input is not None
+            else ""
         )
 
         if not self._has_active_chart_filters():
@@ -11269,6 +11700,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if source_value in excluded_chart_types:
                 return False
             if selected_chart_types and source_value not in selected_chart_types:
+                return False
+
+        if selected_generations or excluded_generations:
+            chart_for_generation = self._get_chart_for_filter(chart_id)
+            chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_generation)
+            generation_name = self._generation_for_birth_year(chart_birth_year) or GENERATION_UNKNOWN_OPTION
+            if generation_name in excluded_generations:
+                return False
+            if selected_generations and generation_name not in selected_generations:
                 return False
 
         if selected_species != "Any":
@@ -11370,6 +11810,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif year_first_encountered_blank_state == QuadStateSlider.MODE_FALSE:
             if chart_year_first_encountered is None:
                 return False
+
+        chart_positive_sentiment_intensity = int(
+            getattr(chart, "positive_sentiment_intensity", 1) or 1
+        )
+        chart_negative_sentiment_intensity = int(
+            getattr(chart, "negative_sentiment_intensity", 1) or 1
+        )
+        chart_familiarity = int(getattr(chart, "familiarity", 1) or 1)
+
+        if positive_sentiment_intensity_min is not None and (
+            chart_positive_sentiment_intensity < positive_sentiment_intensity_min
+        ):
+            return False
+        if positive_sentiment_intensity_max is not None and (
+            chart_positive_sentiment_intensity > positive_sentiment_intensity_max
+        ):
+            return False
+        if negative_sentiment_intensity_min is not None and (
+            chart_negative_sentiment_intensity < negative_sentiment_intensity_min
+        ):
+            return False
+        if negative_sentiment_intensity_max is not None and (
+            chart_negative_sentiment_intensity > negative_sentiment_intensity_max
+        ):
+            return False
+        if familiarity_min is not None and chart_familiarity < familiarity_min:
+            return False
+        if familiarity_max is not None and chart_familiarity > familiarity_max:
+            return False
 
         # if bool(getattr(chart, "is_placeholder", False)):
         #     return incomplete_birthdate_state != Qt.PartiallyChecked
@@ -11506,6 +11975,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     return False
             elif house_active:
                 if not self._chart_body_matches(chart, body, "Any", house_value):
+                    return False
+
+        if active_aspect_filters:
+            aspect_and_filters = [
+                filters for filters in active_aspect_filters if filters["and"].isChecked()
+            ]
+            aspect_or_filters = [
+                filters for filters in active_aspect_filters if filters["or"].isChecked()
+            ]
+            for filters in aspect_and_filters:
+                if not self._chart_aspect_matches(
+                    chart,
+                    str(filters["planet_1"].currentData()),
+                    str(filters["aspect"].currentData()),
+                    str(filters["planet_2"].currentData()),
+                ):
+                    return False
+            if aspect_or_filters:
+                if not any(
+                    self._chart_aspect_matches(
+                        chart,
+                        str(filters["planet_1"].currentData()),
+                        str(filters["aspect"].currentData()),
+                        str(filters["planet_2"].currentData()),
+                    )
+                    for filters in aspect_or_filters
+                ):
                     return False
 
         if active_dominant_sign_filters:
@@ -11673,6 +12169,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return False
 
         return True
+
+    def _chart_aspect_matches(
+        self,
+        chart: Chart,
+        planet_1: str,
+        aspect_name: str,
+        planet_2: str,
+    ) -> bool:
+        aspects = getattr(chart, "aspects", None) or []
+        for aspect in aspects:
+            left = str(aspect.get("p1", ""))
+            right = str(aspect.get("p2", ""))
+            current_aspect = str(aspect.get("type", "")).replace(" ", "_").lower()
+
+            if aspect_name != "Any" and current_aspect != aspect_name:
+                continue
+
+            direct_match = (
+                (planet_1 == "Any" or planet_1 == left)
+                and (planet_2 == "Any" or planet_2 == right)
+            )
+            reverse_match = (
+                (planet_1 == "Any" or planet_1 == right)
+                and (planet_2 == "Any" or planet_2 == left)
+            )
+            if direct_match or reverse_match:
+                return True
+        return False
 
     def _chart_dominant_sign_matches(
         self,
@@ -11946,8 +12470,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
 
-        cleanup_button = QPushButton("Rename Database Properties")
-        cleanup_button.clicked.connect(self._launch_cleanup_sentiments_app)
+        cleanup_button = QPushButton("Manage sentiments")
+        cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
         dev_tools_section.addWidget(cleanup_button)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
@@ -12225,23 +12749,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
 
-    def _launch_cleanup_sentiments_app(self) -> None:
-        script_path = Path(__file__).resolve().parents[2] / "tools" / "cleanup_sentiments.py"
-        if not script_path.exists():
-            QMessageBox.warning(
-                self,
-                "Rename Database Properties",
-                f"Could not find cleanup app at:\n{script_path}",
-            )
-            return
-        try:
-            subprocess.Popen([sys.executable, str(script_path)], cwd=str(script_path.parent.parent))
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Rename Database Properties",
-                f"Could not launch cleanup app:\n{exc}",
-            )
+    def _launch_manage_metadata_dialog(self) -> None:
+        all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
+        max_len = max((len(value) for value in all_labels), default=32)
+        dialog = ManageMetadataLabelsDialog(
+            parent=self,
+            load_usage=get_metadata_label_usage,
+            apply_change=apply_metadata_label_change,
+            label_limit=max_len,
+        )
+        dialog.exec()
+        self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
