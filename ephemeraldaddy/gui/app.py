@@ -9221,7 +9221,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
 
-        self.batch_deceased_checkbox = QuadStateSlider("dead 💀")
+        self.batch_deceased_checkbox = QuadStateSlider("💀")
         self.batch_deceased_checkbox.modeChanged.connect(
             self._on_batch_mortality_state_changed
         )
