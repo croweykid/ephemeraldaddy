@@ -414,6 +414,40 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
         _sync_year_first_encountered_from_age(conn)
 
 
+def _backfill_non_placeholder_birth_date_parts(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT id, datetime_iso, birth_year, birth_month, birth_day
+        FROM charts
+        WHERE datetime_iso IS NOT NULL
+          AND datetime_iso != ''
+          AND (birth_year IS NULL OR birth_month IS NULL OR birth_day IS NULL)
+          AND COALESCE(is_placeholder, 0) = 0
+        """
+    ).fetchall()
+    if not rows:
+        return
+
+    for chart_id, datetime_iso, birth_year, birth_month, birth_day in rows:
+        try:
+            parsed = datetime.fromisoformat(str(datetime_iso))
+        except Exception:
+            continue
+
+        resolved_year = int(birth_year) if birth_year is not None else int(parsed.year)
+        resolved_month = int(birth_month) if birth_month is not None else int(parsed.month)
+        resolved_day = int(birth_day) if birth_day is not None else int(parsed.day)
+
+        conn.execute(
+            """
+            UPDATE charts
+            SET birth_year = ?,
+                birth_month = ?,
+                birth_day = ?
+            WHERE id = ?
+            """,
+            (resolved_year, resolved_month, resolved_day, int(chart_id)),
+        )
 
 def _sync_year_first_encountered_from_age(conn: sqlite3.Connection) -> None:
     rows = conn.execute(
@@ -477,12 +511,14 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     # user_version but still be missing columns from partial/failed migrations.
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
+        _backfill_non_placeholder_birth_date_parts(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
             _create_charts_table(conn)
         else:
             _migrate_charts_columns(conn)
+        _backfill_non_placeholder_birth_date_parts(conn)
         _create_indexes(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
