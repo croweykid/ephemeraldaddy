@@ -11,6 +11,17 @@ PLANET_AGES = {
     "Uranus": 65, #transpersonal eras, late life, generational
     "Neptune": 72, #transpersonal eras, late life, generational
     "Pluto": 100, #transpersonal eras, late life, generational
+    "Rahu": 65,
+    "Ketu": 65,
+    "Lilith": 45,
+    "Part of Fortune": 30,
+}
+
+PLANET_NAME_ALIASES = {
+    "North Node": "Rahu",
+    "South Node": "Ketu",
+    "Lilith (mean)": "Lilith",
+    "Fortune": "Part of Fortune",
 }
 
 SIGN_AGES = {
@@ -44,10 +55,15 @@ AGE_BANDS = [
 def placement_age(planet: str, sign: str,
                   planet_coeff: float = 0.65,
                   sign_coeff: float = 0.35) -> float:
+    planet = PLANET_NAME_ALIASES.get(planet, planet)
     return (
         planet_coeff * PLANET_AGES[planet]
         + sign_coeff * SIGN_AGES[sign]
     )
+
+
+def normalize_planet_name(planet: str) -> str:
+    return PLANET_NAME_ALIASES.get(planet, planet)
 
 def weighted_mean(items):
     total_w = sum(weight for _, weight in items)
@@ -92,8 +108,10 @@ def chart_age(placements, planet_strengths):
     breakdown = []
 
     for p in placements:
-        planet = p["planet"]
+        planet = normalize_planet_name(p["planet"])
         sign = p["sign"]
+        if planet not in PLANET_AGES or sign not in SIGN_AGES:
+            continue
         age = placement_age(planet, sign)
         weight = planet_strengths.get(planet, 1.0)
         items.append((age, weight))
@@ -111,3 +129,23 @@ def chart_age(placements, planet_strengths):
         "std_age": weighted_std(items),
         "breakdown": breakdown,
     }
+
+
+def chart_age_from_positions(positions, sign_for_longitude, planet_strengths=None):
+    """Compute astro age metrics directly from an app `positions` mapping.
+
+    positions should be a dict[str, float] keyed by planet/body name.
+    sign_for_longitude should convert longitude (float) into zodiac sign name.
+    """
+    placements = []
+    for body, longitude in (positions or {}).items():
+        if longitude is None:
+            continue
+        normalized = normalize_planet_name(str(body))
+        if normalized not in PLANET_AGES:
+            continue
+        sign = sign_for_longitude(float(longitude))
+        if sign not in SIGN_AGES:
+            continue
+        placements.append({"planet": normalized, "sign": sign})
+    return chart_age(placements, planet_strengths or {})
