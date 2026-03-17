@@ -133,6 +133,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             chart_type        TEXT NOT NULL DEFAULT 'personal',
             source            TEXT NOT NULL DEFAULT 'personal',
             is_placeholder    INTEGER NOT NULL DEFAULT 0,
+            is_deceased       INTEGER NOT NULL DEFAULT 0,
             birth_month       INTEGER,
             birth_day         INTEGER,
             birth_year        INTEGER,
@@ -332,6 +333,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN is_placeholder INTEGER NOT NULL DEFAULT 0
             """
         )
+    if "is_deceased" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN is_deceased INTEGER NOT NULL DEFAULT 0
+            """
+        )
     if "birth_month" not in columns:
         conn.execute(
             """
@@ -406,6 +414,39 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
         _sync_year_first_encountered_from_age(conn)
 
 
+def _backfill_birth_date_parts_from_datetime_iso(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT id, datetime_iso, birth_year, birth_month, birth_day
+        FROM charts
+        WHERE datetime_iso IS NOT NULL
+          AND datetime_iso != ''
+          AND (birth_year IS NULL OR birth_month IS NULL OR birth_day IS NULL)
+        """
+    ).fetchall()
+    if not rows:
+        return
+
+    for chart_id, datetime_iso, birth_year, birth_month, birth_day in rows:
+        try:
+            parsed = datetime.fromisoformat(str(datetime_iso))
+        except Exception:
+            continue
+
+        resolved_year = int(birth_year) if birth_year is not None else int(parsed.year)
+        resolved_month = int(birth_month) if birth_month is not None else int(parsed.month)
+        resolved_day = int(birth_day) if birth_day is not None else int(parsed.day)
+
+        conn.execute(
+            """
+            UPDATE charts
+            SET birth_year = ?,
+                birth_month = ?,
+                birth_day = ?
+            WHERE id = ?
+            """,
+            (resolved_year, resolved_month, resolved_day, int(chart_id)),
+        )
 
 def _sync_year_first_encountered_from_age(conn: sqlite3.Connection) -> None:
     rows = conn.execute(
@@ -469,12 +510,14 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     # user_version but still be missing columns from partial/failed migrations.
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
+        _backfill_birth_date_parts_from_datetime_iso(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
             _create_charts_table(conn)
         else:
             _migrate_charts_columns(conn)
+        _backfill_birth_date_parts_from_datetime_iso(conn)
         _create_indexes(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
@@ -902,6 +945,7 @@ def save_chart(
     chart_type: Optional[str] = None,
     source: Optional[str] = None,
     is_placeholder: Optional[bool] = None,
+    is_deceased: Optional[bool] = None,
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
@@ -932,11 +976,12 @@ def save_chart(
                  chart_type,
                  source,
                  is_placeholder,
+                 is_deceased,
                  birth_month,
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1005,6 +1050,11 @@ def save_chart(
                     if is_placeholder is not None
                     else bool(getattr(chart, "is_placeholder", False))
                 ),
+                int(
+                    is_deceased
+                    if is_deceased is not None
+                    else bool(getattr(chart, "is_deceased", False))
+                ),
                 birth_month,
                 birth_day,
                 birth_year,
@@ -1029,6 +1079,7 @@ def update_chart(
     chart_type: Optional[str] = None,
     source: Optional[str] = None,
     is_placeholder: Optional[bool] = None,
+    is_deceased: Optional[bool] = None,
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
@@ -1076,6 +1127,7 @@ def update_chart(
                 chart_type = ?,
                 source = ?,
                 is_placeholder = ?,
+                is_deceased = ?,
                 birth_month = ?,
                 birth_day = ?,
                 birth_year = ?
@@ -1148,6 +1200,11 @@ def update_chart(
                     if is_placeholder is not None
                     else bool(getattr(chart, "is_placeholder", False))
                 ),
+                int(
+                    is_deceased
+                    if is_deceased is not None
+                    else bool(getattr(chart, "is_deceased", False))
+                ),
                 birth_month,
                 birth_day,
                 birth_year,
@@ -1175,6 +1232,7 @@ def list_charts() -> List[
         int,
         str,
         int,
+        int,
         Optional[int],
         Optional[int],
         Optional[int],
@@ -1185,7 +1243,7 @@ def list_charts() -> List[
     (id, name, alias, gender, datetime_iso, birth_place, created_at,
     used_utc_fallback, birthtime_unknown, retcon_time_used,
     familiarity, age_when_first_met, year_first_encountered,
-    social_score, chart_type, is_placeholder,
+    social_score, chart_type, is_placeholder, is_deceased,
     birth_month, birth_day, birth_year)
     """
     conn = _get_conn()
@@ -1209,6 +1267,7 @@ def list_charts() -> List[
                negative_sentiment_intensity,
                COALESCE(chart_type, source),
                is_placeholder,
+               is_deceased,
                birth_month,
                birth_day,
                birth_year
@@ -1237,6 +1296,7 @@ def list_charts() -> List[
             int,
             str,
             int,
+            int,
             Optional[int],
             Optional[int],
             Optional[int],
@@ -1261,6 +1321,7 @@ def list_charts() -> List[
         negative_sentiment_intensity,
         chart_type,
         is_placeholder,
+        is_deceased,
         birth_month,
         birth_day,
         birth_year,
@@ -1293,6 +1354,7 @@ def list_charts() -> List[
                 resolved_social_score,
                 _normalize_chart_type(chart_type),
                 int(is_placeholder or 0),
+                int(is_deceased or 0),
                 int(birth_month) if birth_month is not None else None,
                 int(birth_day) if birth_day is not None else None,
                 int(birth_year) if birth_year is not None else None,
@@ -1368,7 +1430,7 @@ def load_chart(chart_id: int):
                familiarity, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
                retcon_time_used,
                dominant_sign_weights, dominant_planet_weights, COALESCE(chart_type, source),
-               is_placeholder, birth_month, birth_day, birth_year
+               is_placeholder, is_deceased, birth_month, birth_day, birth_year
         FROM charts
         WHERE id = ?
         """,
@@ -1405,6 +1467,7 @@ def load_chart(chart_id: int):
         dominant_planet_weights,
         chart_type,
         is_placeholder,
+        is_deceased,
         birth_month,
         birth_day,
         birth_year,
@@ -1447,6 +1510,7 @@ def load_chart(chart_id: int):
         placeholder.chart_type = normalized_chart_type
         placeholder.source = normalized_chart_type
         placeholder.is_placeholder = True
+        placeholder.is_deceased = bool(is_deceased)
         placeholder.birth_month = birth_month
         placeholder.birth_day = birth_day
         placeholder.birth_year = birth_year
@@ -1489,6 +1553,7 @@ def load_chart(chart_id: int):
     chart.chart_type = normalized_chart_type
     chart.source = normalized_chart_type
     chart.is_placeholder = bool(is_placeholder)
+    chart.is_deceased = bool(is_deceased)
     chart.birth_month = birth_month
     chart.birth_day = birth_day
     chart.birth_year = birth_year
