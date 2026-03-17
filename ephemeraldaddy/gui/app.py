@@ -12746,7 +12746,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label_limit=max_len,
         )
         dialog.exec()
-        self._refresh_charts(refresh_metrics=True)
+        self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
