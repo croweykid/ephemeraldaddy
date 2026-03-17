@@ -373,10 +373,14 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 
+GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
-    cohort["name"]
-    for cohort in GENERATIONAL_COHORTS
-    if isinstance(cohort.get("name"), str)
+    [
+        cohort["name"]
+        for cohort in GENERATIONAL_COHORTS
+        if isinstance(cohort.get("name"), str)
+    ]
+    + [GENERATION_UNKNOWN_OPTION]
 )
 
 # Explicit startup validation to avoid hidden import-time side effects.
@@ -6114,6 +6118,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _chart_birth_year_for_filters(chart_row: tuple[Any, ...] | None, chart: Chart | None) -> int | None:
         if chart_row and len(chart_row) > 19 and isinstance(chart_row[19], int):
             return int(chart_row[19])
+
+        # Placeholders with unspecified birth year should remain generation-unknown.
+        if chart_row and len(chart_row) > 19 and bool(chart_row[15]) and chart_row[19] is None:
+            return None
+
         if chart_row and len(chart_row) > 4:
             dt_value = parse_datetime_value(chart_row[4])
             if isinstance(dt_value, datetime.datetime):
@@ -6123,6 +6132,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_year = getattr(chart, "birth_year", None)
         if isinstance(birth_year, int):
             return int(birth_year)
+
+        if bool(getattr(chart, "is_placeholder", False)) and birth_year is None:
+            return None
+
         dt_value = getattr(chart, "dt", None)
         if isinstance(dt_value, datetime.datetime):
             return int(dt_value.year)
@@ -11527,7 +11540,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if selected_generations or excluded_generations:
             chart_for_generation = self._get_chart_for_filter(chart_id)
             chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_generation)
-            generation_name = self._generation_for_birth_year(chart_birth_year)
+            generation_name = self._generation_for_birth_year(chart_birth_year) or GENERATION_UNKNOWN_OPTION
             if generation_name in excluded_generations:
                 return False
             if selected_generations and generation_name not in selected_generations:
