@@ -136,6 +136,11 @@ from ephemeraldaddy.gui.astrotheme_search import (
 )
 from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
+from ephemeraldaddy.gui.window_chrome import (
+    APP_DISPLAY_NAME,
+    configure_application_identity,
+    configure_main_window_chrome,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
@@ -894,7 +899,7 @@ def _maybe_reexec_with_macos_app_name() -> None:
     env["EPHEMERALDADDY_APPNAME_REEXEC"] = "1"
     os.execve(
         sys.executable,
-        ["Ephemeral Daddy", "-m", "ephemeraldaddy.gui.app", *sys.argv[1:]],
+        [APP_DISPLAY_NAME, "-m", "ephemeraldaddy.gui.app", *sys.argv[1:]],
         env,
     )
 
@@ -922,7 +927,7 @@ def _get_qapp():
                 if setprogname is not None:
                     setprogname.argtypes = [ctypes.c_char_p]
                     setprogname.restype = None
-                    setprogname(b"Ephemeral Daddy")
+                    setprogname(APP_DISPLAY_NAME.encode())
             except Exception:
                 pass
 
@@ -930,22 +935,20 @@ def _get_qapp():
             try:
                 from Foundation import NSBundle, NSProcessInfo  # type: ignore
 
-                NSProcessInfo.processInfo().setProcessName_("Ephemeral Daddy")
+                NSProcessInfo.processInfo().setProcessName_(APP_DISPLAY_NAME)
                 bundle_info = NSBundle.mainBundle().infoDictionary()
                 if bundle_info is not None:
-                    bundle_info["CFBundleName"] = "Ephemeral Daddy"
-                    bundle_info["CFBundleDisplayName"] = "Ephemeral Daddy"
+                    bundle_info["CFBundleName"] = APP_DISPLAY_NAME
+                    bundle_info["CFBundleDisplayName"] = APP_DISPLAY_NAME
             except Exception:
                 pass
 
         # On macOS, Qt may derive Dock/app labeling from argv[0] when launched from
         # a Python interpreter. Provide an explicit program name so it does not show
         # up as "Python" in the Dock/taskbar hover label.
-        qt_argv = ["Ephemeral Daddy", *sys.argv[1:]]
+        qt_argv = [APP_DISPLAY_NAME, *sys.argv[1:]]
         app = QApplication(qt_argv)
-    app.setApplicationName("Ephemeral Daddy")
-    app.setApplicationDisplayName("Ephemeral Daddy")
-    app.setOrganizationName("Ephemeral Daddy")
+    configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
@@ -12557,7 +12560,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Ephemeral Daddy: Astro App | Natal Chart Viewer")
+        configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
