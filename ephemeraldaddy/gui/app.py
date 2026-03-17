@@ -246,6 +246,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
+    GENERATIONAL_COHORTS,
     ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_TYPES,
@@ -370,6 +371,12 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birth_month",
         "birthplace",
     }
+)
+
+GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
+    cohort["name"]
+    for cohort in GENERATIONAL_COHORTS
+    if isinstance(cohort.get("name"), str)
 )
 
 # Explicit startup validation to avoid hidden import-time side effects.
@@ -1860,6 +1867,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
         self.living_checkbox = None
+        self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
@@ -6087,6 +6095,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return label
         return None
 
+    @staticmethod
+    def _generation_for_birth_year(birth_year: int | None) -> str | None:
+        if not isinstance(birth_year, int):
+            return None
+        for cohort in GENERATIONAL_COHORTS:
+            start_year = cohort.get("start_year")
+            end_year = cohort.get("end_year")
+            if not isinstance(start_year, int) or not isinstance(end_year, int):
+                continue
+            if start_year <= birth_year <= end_year:
+                cohort_name = cohort.get("name")
+                return str(cohort_name) if cohort_name else None
+        return None
+
+    @staticmethod
+    def _chart_birth_year_for_filters(chart_row: tuple[Any, ...] | None, chart: Chart | None) -> int | None:
+        if chart_row and len(chart_row) > 19 and isinstance(chart_row[19], int):
+            return int(chart_row[19])
+        if chart_row and len(chart_row) > 4:
+            dt_value = parse_datetime_value(chart_row[4])
+            if isinstance(dt_value, datetime.datetime):
+                return int(dt_value.year)
+        if chart is None:
+            return None
+        birth_year = getattr(chart, "birth_year", None)
+        if isinstance(birth_year, int):
+            return int(birth_year)
+        dt_value = getattr(chart, "dt", None)
+        if isinstance(dt_value, datetime.datetime):
+            return int(dt_value.year)
+        return None
+
     def _collect_age_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
         now_year = datetime.datetime.now(datetime.timezone.utc).year
         age_counts: Counter[int] = Counter()
@@ -6560,6 +6600,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
 
         active_body_filters = [
             filters
@@ -6637,6 +6687,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and not selected_chart_types
             and not excluded_chart_types
+            and not selected_generations
+            and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
             and not guessed_gender_filter
             and not self.search_text_input.text().strip()
@@ -8048,6 +8100,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         mortality_row.addWidget(self.living_checkbox)
         mortality_row.addStretch(1)
         mortality_section_layout.addLayout(mortality_row)
+
+        generation_divider = QFrame()
+        generation_divider.setFrameShape(QFrame.HLine)
+        generation_divider.setStyleSheet("color: #2f2f2f;")
+        mortality_section_layout.addWidget(generation_divider)
+
+        generation_header = QLabel("Generation")
+        generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        mortality_section_layout.addWidget(generation_header)
+
+        generation_layout = QGridLayout()
+        generation_layout.setContentsMargins(0, 0, 0, 0)
+        self.generation_filter_checkboxes = {}
+        generation_rows = (len(GENERATION_FILTER_OPTIONS) + 1) // 2
+        for idx, generation_name in enumerate(GENERATION_FILTER_OPTIONS):
+            checkbox = QuadStateSlider(generation_name)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.generation_filter_checkboxes[generation_name] = checkbox
+            row = idx % generation_rows
+            col = idx // generation_rows
+            generation_layout.addWidget(checkbox, row, col)
+        mortality_section_layout.addLayout(generation_layout)
+
         layout.addWidget(mortality_section)
 
         chart_type_section, chart_type_group_layout = add_collapsible_section(
@@ -10163,6 +10238,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self.living_checkbox is not None:
                 self.living_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in self.generation_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.species_filter_combo.setCurrentIndex(0)
@@ -11104,6 +11181,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_generations = {
+            name
+            for name, checkbox in self.generation_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_species = self.species_filter_combo.currentData()
         selected_sentiments = {
             name
@@ -11256,6 +11343,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if source_value in excluded_chart_types:
                 return False
             if selected_chart_types and source_value not in selected_chart_types:
+                return False
+
+        if selected_generations or excluded_generations:
+            chart_for_generation = self._get_chart_for_filter(chart_id)
+            chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_generation)
+            generation_name = self._generation_for_birth_year(chart_birth_year)
+            if generation_name in excluded_generations:
+                return False
+            if selected_generations and generation_name not in selected_generations:
                 return False
 
         if selected_species != "Any":
