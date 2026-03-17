@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,10 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart Viewer")
 
     menu_bar = window.menuBar()
+    if sys.platform == "darwin":
+        # Keep a visible, window-owned menu bar on macOS instead of inheriting
+        # the interpreter-level app menu title ("Python") in the global menu bar.
+        menu_bar.setNativeMenuBar(False)
     menu_bar.clear()
 
     file_menu = menu_bar.addMenu("File")

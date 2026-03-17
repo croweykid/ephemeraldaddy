@@ -956,6 +956,16 @@ def _get_qapp():
             except Exception:
                 pass
 
+            # Try updating the running application's localized UI name in Dock/menu.
+            try:
+                from AppKit import NSRunningApplication  # type: ignore
+
+                running = NSRunningApplication.currentApplication()
+                if running is not None:
+                    running.setLocalizedName_(APP_DISPLAY_NAME)
+            except Exception:
+                pass
+
         # On macOS, Qt may derive Dock/app labeling from argv[0] when launched from
         # a Python interpreter. Provide an explicit program name so it does not show
         # up as "Python" in the Dock/taskbar hover label.
