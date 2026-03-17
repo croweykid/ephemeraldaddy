@@ -6114,6 +6114,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _chart_birth_year_for_filters(chart_row: tuple[Any, ...] | None, chart: Chart | None) -> int | None:
         if chart_row and len(chart_row) > 19 and isinstance(chart_row[19], int):
             return int(chart_row[19])
+        if chart_row and len(chart_row) > 4:
+            dt_value = parse_datetime_value(chart_row[4])
+            if isinstance(dt_value, datetime.datetime):
+                return int(dt_value.year)
         if chart is None:
             return None
         birth_year = getattr(chart, "birth_year", None)
@@ -11441,7 +11445,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return False
 
         if selected_generations or excluded_generations:
-            chart_for_generation = self._get_chart_for_filter(chart_id) if chart_row is None else None
+            chart_for_generation = self._get_chart_for_filter(chart_id)
             chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_generation)
             generation_name = self._generation_for_birth_year(chart_birth_year)
             if generation_name in excluded_generations:
