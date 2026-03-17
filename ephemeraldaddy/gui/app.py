@@ -9103,6 +9103,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birthtime_unknown_section_layout.addWidget(self.batch_birthtime_unknown_checkbox)
         layout.addWidget(birthtime_unknown_section)
 
+        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
+
+        self.batch_deceased_checkbox = QuadStateSlider("dead 💀")
+        self.batch_deceased_checkbox.modeChanged.connect(
+            self._on_batch_mortality_state_changed
+        )
+        mortality_section_layout.addWidget(self.batch_deceased_checkbox)
+        layout.addWidget(mortality_section)
+
         layout.addStretch(1)
 
         self.clear_batch_edit_button = QPushButton("Clear")
@@ -9172,6 +9181,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label: 0 for label in self.batch_relationship_type_checkboxes
         }
         birthtime_unknown_count = 0
+        deceased_count = 0
         source_values: list[str] = []
         positive_intensities: list[int] = []
         negative_intensities: list[int] = []
@@ -9190,6 +9200,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     relationship_counts[label] += 1
             if getattr(chart, "birthtime_unknown", False):
                 birthtime_unknown_count += 1
+            if bool(getattr(chart, "is_deceased", False)):
+                deceased_count += 1
             source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
             source_values.append(source_value)
             positive_intensities.append(
@@ -9267,6 +9279,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_checkbox_state(
             self.batch_birthtime_unknown_checkbox,
             birthtime_state,
+        )
+        if deceased_count == 0:
+            deceased_state = QuadStateSlider.MODE_EMPTY
+        elif deceased_count == selected_count:
+            deceased_state = QuadStateSlider.MODE_TRUE
+        else:
+            deceased_state = QuadStateSlider.MODE_MIXED
+        self._set_batch_checkbox_state(
+            self.batch_deceased_checkbox,
+            deceased_state,
         )
         self._set_batch_metric_spin_state(
             self.batch_positive_sentiment_intensity_spin,
@@ -9882,6 +9904,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_birthtime_unknown_toggled(state)
 
+    def _on_batch_deceased_toggled(self, state: int) -> None:
+        if state == QuadStateSlider.MODE_MIXED:
+            return
+        checked = state == QuadStateSlider.MODE_TRUE
+        chart_ids = [
+            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+        ]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Select one or more charts before applying batch edits.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        selected_count = len(chart_ids)
+        action_label = "Mark as dead 💀 for" if checked else "Mark as living for"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                chart.is_deceased = checked
+                update_chart(
+                    chart_id,
+                    chart,
+                    is_deceased=checked,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"Couldn't update selected charts:\n{exc}",
+            )
+            return
+
+        changed_ids = set(chart_ids)
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
+
+    def _on_batch_mortality_state_changed(self, state: int) -> None:
+        if state == QuadStateSlider.MODE_MIXED:
+            return
+        self._on_batch_deceased_toggled(state)
+
     def _is_right_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
@@ -10083,6 +10159,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_gender_combo.blockSignals(False)
         self._set_batch_checkbox_state(
             self.batch_birthtime_unknown_checkbox,
+            QuadStateSlider.MODE_EMPTY,
+        )
+        self._set_batch_checkbox_state(
+            self.batch_deceased_checkbox,
             QuadStateSlider.MODE_EMPTY,
         )
         self.batch_positive_sentiment_intensity_spin.setValue(1)
