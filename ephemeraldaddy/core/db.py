@@ -12,7 +12,7 @@ from typing import List, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.interpretations import SENTIMENT_OPTIONS
+from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
 
 
 DB_DIR = Path.home() / ".ephemeraldaddy"
@@ -735,6 +735,107 @@ def parse_relationship_types(value: Optional[str]) -> list[str]:
     if not value:
         return []
     return [value.strip() for value in value.split(",") if value.strip()]
+
+
+def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
+    """Return sentiment + relationship labels with usage counts.
+
+    Includes both current canonical options and any legacy labels currently stored
+    in the database.
+    """
+    sentiment_counts: dict[str, int] = {label: 0 for label in SENTIMENT_OPTIONS}
+    relationship_counts: dict[str, int] = {label: 0 for label in RELATION_TYPE}
+
+    with _get_conn() as conn:
+        rows = conn.execute(
+            "SELECT sentiments, relationship_types FROM charts"
+        ).fetchall()
+
+    for raw_sentiments, raw_relationship_types in rows:
+        for sentiment in parse_sentiments(raw_sentiments):
+            sentiment_counts[sentiment] = sentiment_counts.get(sentiment, 0) + 1
+        for relationship in parse_relationship_types(raw_relationship_types):
+            relationship_counts[relationship] = relationship_counts.get(relationship, 0) + 1
+
+    def _format_rows(counts: dict[str, int]) -> list[dict[str, int | str]]:
+        return [
+            {"label": label, "count": counts[label]}
+            for label in sorted(counts, key=lambda value: (value.lower(), value))
+        ]
+
+    return {
+        "sentiments": _format_rows(sentiment_counts),
+        "relationship_types": _format_rows(relationship_counts),
+    }
+
+
+def apply_metadata_label_change(
+    *,
+    field: str,
+    old_label: str,
+    new_label: Optional[str],
+    create_backup: bool = True,
+) -> dict[str, int]:
+    """Rename or delete a sentiment/relationship label across all charts."""
+    normalized_old = (old_label or "").strip()
+    normalized_new = (new_label or "").strip() if new_label is not None else ""
+    if not normalized_old:
+        return {"rows_scanned": 0, "rows_updated": 0, "occurrences_updated": 0}
+
+    if field == "sentiments":
+        parser = parse_sentiments
+        serializer = _serialize_sentiments
+        column = "sentiments"
+    elif field == "relationship_types":
+        parser = parse_relationship_types
+        serializer = _serialize_relationship_types
+        column = "relationship_types"
+    else:
+        raise ValueError(f"Unsupported metadata field: {field}")
+
+    if create_backup:
+        backup_database()
+
+    rows_scanned = 0
+    rows_updated = 0
+    occurrences_updated = 0
+    with _get_conn() as conn:
+        rows = conn.execute(f"SELECT id, {column} FROM charts").fetchall()
+        for row_id, raw_value in rows:
+            rows_scanned += 1
+            parsed = parser(raw_value)
+            if not parsed:
+                continue
+
+            rebuilt: list[str] = []
+            seen: set[str] = set()
+            row_changed = False
+            for value in parsed:
+                replacement = value
+                if value == normalized_old:
+                    occurrences_updated += 1
+                    row_changed = True
+                    replacement = normalized_new
+
+                if not replacement or replacement in seen:
+                    continue
+                rebuilt.append(replacement)
+                seen.add(replacement)
+
+            if not row_changed:
+                continue
+
+            conn.execute(
+                f"UPDATE charts SET {column} = ? WHERE id = ?",
+                (serializer(rebuilt), row_id),
+            )
+            rows_updated += 1
+
+    return {
+        "rows_scanned": rows_scanned,
+        "rows_updated": rows_updated,
+        "occurrences_updated": occurrences_updated,
+    }
 
 
 def _contains_self_relationship(value: Optional[str]) -> bool:

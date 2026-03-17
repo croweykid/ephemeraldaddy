@@ -6,8 +6,15 @@ from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QTextEdit,
@@ -155,3 +162,172 @@ class SizeCheckerPopup(QDialog):
 
     def _copy_readout(self) -> None:
         QApplication.clipboard().setText(self._readout.toPlainText())
+
+
+class _RenameLabelDialog(QDialog):
+    def __init__(self, *, parent: QWidget, title: str, old_label: str, max_length: int) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(360, 130)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Rename '{old_label}' to:"))
+
+        self._line_edit = QLineEdit(self)
+        self._line_edit.setMaxLength(max_length)
+        self._line_edit.setPlaceholderText(f"Max {max_length} characters")
+        self._line_edit.setText(old_label)
+        self._line_edit.selectAll()
+        layout.addWidget(self._line_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def value(self) -> str:
+        return self._line_edit.text().strip()
+
+
+class ManageMetadataLabelsDialog(QDialog):
+    FIELD_SENTIMENTS = "sentiments"
+    FIELD_RELATIONSHIPS = "relationship_types"
+
+    def __init__(
+        self,
+        *,
+        parent: QWidget,
+        load_usage,
+        apply_change,
+        label_limit: int,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Manage sentiments & relationship types")
+        self.resize(580, 520)
+        self._load_usage = load_usage
+        self._apply_change = apply_change
+        self._label_limit = max(1, label_limit)
+        self._usage_data: dict[str, list[dict[str, int | str]]] = {}
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Current + legacy labels found in database (including unused/orphaned)."))
+
+        self._field_selector = QComboBox(self)
+        self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
+        self._field_selector.addItem("Relationship types", self.FIELD_RELATIONSHIPS)
+        self._field_selector.currentIndexChanged.connect(self._refresh_list)
+        layout.addWidget(self._field_selector)
+
+        self._list_widget = QListWidget(self)
+        layout.addWidget(self._list_widget)
+
+        button_row = QHBoxLayout()
+        self._rename_button = QPushButton("Rename selected")
+        self._rename_button.clicked.connect(self._rename_selected)
+        self._delete_button = QPushButton("Delete selected")
+        self._delete_button.clicked.connect(self._delete_selected)
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self._reload_usage)
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+
+        button_row.addWidget(self._rename_button)
+        button_row.addWidget(self._delete_button)
+        button_row.addStretch(1)
+        button_row.addWidget(refresh_button)
+        button_row.addWidget(close_button)
+        layout.addLayout(button_row)
+
+        self._reload_usage()
+
+    def _active_field(self) -> str:
+        value = self._field_selector.currentData()
+        return str(value or self.FIELD_SENTIMENTS)
+
+    def _reload_usage(self) -> None:
+        try:
+            self._usage_data = self._load_usage()
+        except Exception as exc:
+            QMessageBox.critical(self, "Manage metadata", f"Could not load labels:\n{exc}")
+            self._usage_data = {self.FIELD_SENTIMENTS: [], self.FIELD_RELATIONSHIPS: []}
+        self._refresh_list()
+
+    def _refresh_list(self) -> None:
+        field = self._active_field()
+        rows = self._usage_data.get(field, [])
+        self._list_widget.clear()
+        for row in rows:
+            label = str(row.get("label", "")).strip()
+            count = int(row.get("count", 0) or 0)
+            item = QListWidgetItem(f"{label}  ({count} charts)")
+            item.setData(Qt.UserRole, label)
+            self._list_widget.addItem(item)
+
+    def _selected_label(self) -> str:
+        item = self._list_widget.currentItem()
+        if item is None:
+            return ""
+        return str(item.data(Qt.UserRole) or "").strip()
+
+    def _rename_selected(self) -> None:
+        old_label = self._selected_label()
+        if not old_label:
+            QMessageBox.information(self, "Manage metadata", "Select a label to rename.")
+            return
+
+        editor = _RenameLabelDialog(
+            parent=self,
+            title="Rename label",
+            old_label=old_label,
+            max_length=self._label_limit,
+        )
+        if editor.exec() != QDialog.Accepted:
+            return
+
+        new_label = editor.value()
+        if not new_label:
+            QMessageBox.warning(self, "Manage metadata", "New label cannot be empty.")
+            return
+        if new_label == old_label:
+            return
+
+        summary = self._apply_change(
+            field=self._active_field(),
+            old_label=old_label,
+            new_label=new_label,
+        )
+        QMessageBox.information(
+            self,
+            "Rename complete",
+            f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
+            f"{summary.get('rows_updated', 0)} chart(s).",
+        )
+        self._reload_usage()
+
+    def _delete_selected(self) -> None:
+        old_label = self._selected_label()
+        if not old_label:
+            QMessageBox.information(self, "Manage metadata", "Select a label to delete.")
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Delete label",
+            f"Delete '{old_label}' from all charts?\n\nThis cannot be undone except by restoring a backup.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        summary = self._apply_change(
+            field=self._active_field(),
+            old_label=old_label,
+            new_label="",
+        )
+        QMessageBox.information(
+            self,
+            "Delete complete",
+            f"Removed {summary.get('occurrences_updated', 0)} occurrences across "
+            f"{summary.get('rows_updated', 0)} chart(s).",
+        )
+        self._reload_usage()

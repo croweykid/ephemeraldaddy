@@ -134,7 +134,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
-from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
+from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
@@ -166,6 +166,7 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
+    apply_metadata_label_change,
     save_chart,
     list_charts,
     load_chart,
@@ -176,6 +177,7 @@ from ephemeraldaddy.core.db import (
     set_current_chart,
     parse_sentiments,
     parse_relationship_types,
+    get_metadata_label_usage,
     backup_database,
     restore_database,
     check_database_health,
@@ -12455,8 +12457,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
 
-        cleanup_button = QPushButton("Rename Database Properties")
-        cleanup_button.clicked.connect(self._launch_cleanup_sentiments_app)
+        cleanup_button = QPushButton("Manage sentiments")
+        cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
         dev_tools_section.addWidget(cleanup_button)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
@@ -12734,23 +12736,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
 
-    def _launch_cleanup_sentiments_app(self) -> None:
-        script_path = Path(__file__).resolve().parents[2] / "tools" / "cleanup_sentiments.py"
-        if not script_path.exists():
-            QMessageBox.warning(
-                self,
-                "Rename Database Properties",
-                f"Could not find cleanup app at:\n{script_path}",
-            )
-            return
-        try:
-            subprocess.Popen([sys.executable, str(script_path)], cwd=str(script_path.parent.parent))
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Rename Database Properties",
-                f"Could not launch cleanup app:\n{exc}",
-            )
+    def _launch_manage_metadata_dialog(self) -> None:
+        all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
+        max_len = max((len(value) for value in all_labels), default=32)
+        dialog = ManageMetadataLabelsDialog(
+            parent=self,
+            load_usage=get_metadata_label_usage,
+            apply_change=apply_metadata_label_change,
+            label_limit=max_len,
+        )
+        dialog.exec()
+        self._refresh_charts(refresh_metrics=True)
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
