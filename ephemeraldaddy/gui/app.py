@@ -1859,6 +1859,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self._positive_sentiment_intensity_min_input = None
+        self._positive_sentiment_intensity_max_input = None
+        self._negative_sentiment_intensity_min_input = None
+        self._negative_sentiment_intensity_max_input = None
+        self._familiarity_min_input = None
+        self._familiarity_max_input = None
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
@@ -6607,6 +6613,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else QuadStateSlider.MODE_EMPTY
         )
         guessed_gender_filter = str(self.gender_guessed_filter_combo.currentData() or "")
+        positive_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_min_input.text()
+            if self._positive_sentiment_intensity_min_input is not None
+            else ""
+        )
+        positive_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_max_input.text()
+            if self._positive_sentiment_intensity_max_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_min_input.text()
+            if self._negative_sentiment_intensity_min_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_max_input.text()
+            if self._negative_sentiment_intensity_max_input is not None
+            else ""
+        )
+        familiarity_min = self._parse_integer_filter_text(
+            self._familiarity_min_input.text()
+            if self._familiarity_min_input is not None
+            else ""
+        )
+        familiarity_max = self._parse_integer_filter_text(
+            self._familiarity_max_input.text()
+            if self._familiarity_max_input is not None
+            else ""
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -6637,6 +6673,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not excluded_chart_types
             and self.species_filter_combo.currentData() == "Any"
             and not guessed_gender_filter
+            and positive_sentiment_intensity_min is None
+            and positive_sentiment_intensity_max is None
+            and negative_sentiment_intensity_min is None
+            and negative_sentiment_intensity_max is None
+            and familiarity_min is None
+            and familiarity_max is None
             and not self.search_text_input.text().strip()
         )
 
@@ -8122,7 +8164,64 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             col = idx // sentiment_rows
             sentiment_layout.addWidget(checkbox, row, col)
         sentiment_group_layout.addLayout(sentiment_layout)
-        
+
+        sentiment_intensity_row = QHBoxLayout()
+        sentiment_intensity_row.addWidget(QLabel("💖 Sentiment"))
+        self._positive_sentiment_intensity_min_input = QLineEdit()
+        self._positive_sentiment_intensity_min_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_min_input.setMaxLength(2)
+        self._positive_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._positive_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._positive_sentiment_intensity_max_input = QLineEdit()
+        self._positive_sentiment_intensity_max_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_max_input.setMaxLength(2)
+        self._positive_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._positive_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_max_input)
+        sentiment_intensity_row.addSpacing(10)
+        sentiment_intensity_row.addWidget(QLabel("💔 Sentiment"))
+        self._negative_sentiment_intensity_min_input = QLineEdit()
+        self._negative_sentiment_intensity_min_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_min_input.setMaxLength(2)
+        self._negative_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._negative_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._negative_sentiment_intensity_max_input = QLineEdit()
+        self._negative_sentiment_intensity_max_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_max_input.setMaxLength(2)
+        self._negative_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._negative_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_max_input)
+        sentiment_intensity_row.addStretch(1)
+        sentiment_group_layout.addLayout(sentiment_intensity_row)
+
+        familiarity_row = QHBoxLayout()
+        familiarity_row.addWidget(QLabel("Familiarity:"))
+        self._familiarity_min_input = QLineEdit()
+        self._familiarity_min_input.setFixedWidth(44)
+        self._familiarity_min_input.setMaxLength(2)
+        self._familiarity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_min_input.setPlaceholderText("min")
+        self._familiarity_min_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_min_input)
+        familiarity_row.addWidget(QLabel("max"))
+        self._familiarity_max_input = QLineEdit()
+        self._familiarity_max_input.setFixedWidth(44)
+        self._familiarity_max_input.setMaxLength(2)
+        self._familiarity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_max_input.setPlaceholderText("max")
+        self._familiarity_max_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_max_input)
+        familiarity_row.addStretch(1)
+        sentiment_group_layout.addLayout(familiarity_row)
+
         layout.addWidget(sentiment_section)
 
         relationship_section, relationship_group_layout = add_collapsible_section(
@@ -9126,6 +9225,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
+        value = (raw_value or "").strip()
+        if value == "":
+            return None
+        if value.isdigit():
+            return int(value)
+        return None
+
+    @staticmethod
+    def _parse_integer_filter_text(raw_value: str | None) -> int | None:
         value = (raw_value or "").strip()
         if value == "":
             return None
@@ -10156,6 +10264,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_text_input.setText("")
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._positive_sentiment_intensity_min_input is not None:
+                self._positive_sentiment_intensity_min_input.setText("")
+            if self._positive_sentiment_intensity_max_input is not None:
+                self._positive_sentiment_intensity_max_input.setText("")
+            if self._negative_sentiment_intensity_min_input is not None:
+                self._negative_sentiment_intensity_min_input.setText("")
+            if self._negative_sentiment_intensity_max_input is not None:
+                self._negative_sentiment_intensity_max_input.setText("")
+            if self._familiarity_min_input is not None:
+                self._familiarity_min_input.setText("")
+            if self._familiarity_max_input is not None:
+                self._familiarity_max_input.setText("")
             for checkbox in self.relationship_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
@@ -11190,6 +11310,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._year_first_encountered_blank_checkbox is not None
             else QuadStateSlider.MODE_EMPTY
         )
+        positive_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_min_input.text()
+            if self._positive_sentiment_intensity_min_input is not None
+            else ""
+        )
+        positive_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._positive_sentiment_intensity_max_input.text()
+            if self._positive_sentiment_intensity_max_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_min = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_min_input.text()
+            if self._negative_sentiment_intensity_min_input is not None
+            else ""
+        )
+        negative_sentiment_intensity_max = self._parse_integer_filter_text(
+            self._negative_sentiment_intensity_max_input.text()
+            if self._negative_sentiment_intensity_max_input is not None
+            else ""
+        )
+        familiarity_min = self._parse_integer_filter_text(
+            self._familiarity_min_input.text()
+            if self._familiarity_min_input is not None
+            else ""
+        )
+        familiarity_max = self._parse_integer_filter_text(
+            self._familiarity_max_input.text()
+            if self._familiarity_max_input is not None
+            else ""
+        )
 
         if not self._has_active_chart_filters():
             return True
@@ -11327,6 +11477,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif year_first_encountered_blank_state == QuadStateSlider.MODE_FALSE:
             if chart_year_first_encountered is None:
                 return False
+
+        chart_positive_sentiment_intensity = int(
+            getattr(chart, "positive_sentiment_intensity", 1) or 1
+        )
+        chart_negative_sentiment_intensity = int(
+            getattr(chart, "negative_sentiment_intensity", 1) or 1
+        )
+        chart_familiarity = int(getattr(chart, "familiarity", 1) or 1)
+
+        if positive_sentiment_intensity_min is not None and (
+            chart_positive_sentiment_intensity < positive_sentiment_intensity_min
+        ):
+            return False
+        if positive_sentiment_intensity_max is not None and (
+            chart_positive_sentiment_intensity > positive_sentiment_intensity_max
+        ):
+            return False
+        if negative_sentiment_intensity_min is not None and (
+            chart_negative_sentiment_intensity < negative_sentiment_intensity_min
+        ):
+            return False
+        if negative_sentiment_intensity_max is not None and (
+            chart_negative_sentiment_intensity > negative_sentiment_intensity_max
+        ):
+            return False
+        if familiarity_min is not None and chart_familiarity < familiarity_min:
+            return False
+        if familiarity_max is not None and chart_familiarity > familiarity_max:
+            return False
 
         # if bool(getattr(chart, "is_placeholder", False)):
         #     return incomplete_birthdate_state != Qt.PartiallyChecked
