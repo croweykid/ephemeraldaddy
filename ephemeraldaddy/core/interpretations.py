@@ -459,6 +459,19 @@ TRIPLICITY_WEIGHT = 3
 DETRIMENT_WEIGHT = -5
 FALL_WEIGHT = -4
 
+PLANET_MATURITY_AGE = {
+    "Moon": 1, #very early life
+    "Mercury": 7, #childhood/adolescence
+    "Venus": 13, #teens, early adult bonding/socializing
+    "Sun": 18, #identity consolidation / early adulthood
+    "Mars": 13, #young adulthood / assertion era
+    "Jupiter": 40, #expansion/expanded adulthood
+    "Saturn": 56, #later maturity/full accountability
+    "Uranus": 65, #transpersonal eras, late life, generational
+    "Neptune": 72, #transpersonal eras, late life, generational
+    "Pluto": 100, #transpersonal eras, late life, generational
+}
+
 NATURAL_HOUSE_SIGNS = {
     1: "Aries",
     2: "Taurus",
