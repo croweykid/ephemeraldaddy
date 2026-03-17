@@ -19,6 +19,7 @@ class ChartRowDelegate(QStyledItemDelegate):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._segment_colors = {
+            "status": QColor("#ff6b6b"),
             "chart": QColor("#c7a56a"),
             "name": QColor(MIDDLE_PANEL_ACCENT_COLOR),
             "date": QColor("#8d6e63"),
@@ -58,10 +59,12 @@ class ChartRowDelegate(QStyledItemDelegate):
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
         place_text = str(segment_data.get("place", ""))
+        status_text = "💀" if bool(segment_data.get("is_deceased", False)) else ""
 
         is_placeholder = bool(segment_data.get("is_placeholder", False))
 
         segments = [
+            ("status", status_text),
             ("chart", chart_text),
             ("name", name_text),
             ("date", date_text),
@@ -92,4 +95,3 @@ class ChartRowDelegate(QStyledItemDelegate):
                 break
 
         painter.restore()
-
