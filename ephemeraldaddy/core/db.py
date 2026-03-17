@@ -414,7 +414,7 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
         _sync_year_first_encountered_from_age(conn)
 
 
-def _backfill_birth_date_parts_from_datetime_iso(conn: sqlite3.Connection) -> None:
+def _backfill_non_placeholder_birth_date_parts(conn: sqlite3.Connection) -> None:
     rows = conn.execute(
         """
         SELECT id, datetime_iso, birth_year, birth_month, birth_day
@@ -422,6 +422,7 @@ def _backfill_birth_date_parts_from_datetime_iso(conn: sqlite3.Connection) -> No
         WHERE datetime_iso IS NOT NULL
           AND datetime_iso != ''
           AND (birth_year IS NULL OR birth_month IS NULL OR birth_day IS NULL)
+          AND COALESCE(is_placeholder, 0) = 0
         """
     ).fetchall()
     if not rows:
@@ -510,14 +511,14 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     # user_version but still be missing columns from partial/failed migrations.
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
-        _backfill_birth_date_parts_from_datetime_iso(conn)
+        _backfill_non_placeholder_birth_date_parts(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
             _create_charts_table(conn)
         else:
             _migrate_charts_columns(conn)
-        _backfill_birth_date_parts_from_datetime_iso(conn)
+        _backfill_non_placeholder_birth_date_parts(conn)
         _create_indexes(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         return
