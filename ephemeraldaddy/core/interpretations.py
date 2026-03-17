@@ -459,7 +459,7 @@ TRIPLICITY_WEIGHT = 3
 DETRIMENT_WEIGHT = -5
 FALL_WEIGHT = -4
 
-PLANET_MATURITY_AGE = {
+PLANET_AGES = {
     "Moon": 1, #very early life
     "Mercury": 7, #childhood/adolescence
     "Venus": 13, #teens, early adult bonding/socializing
@@ -471,6 +471,32 @@ PLANET_MATURITY_AGE = {
     "Neptune": 72, #transpersonal eras, late life, generational
     "Pluto": 100, #transpersonal eras, late life, generational
 }
+
+SIGN_AGES = {
+    "Aries": 1,
+    "Taurus": 3,
+    "Gemini": 7,
+    "Cancer": 12,
+    "Leo": 16,
+    "Virgo": 18,
+    "Libra": 20,
+    "Scorpio": 30,
+    "Sagittarius": 40,
+    "Capricorn": 50,
+    "Aquarius": 60,
+    "Pisces": 120,
+}
+
+AGE_BANDS = [
+    ("infantile", 0, 6),
+    ("childlike", 7, 12),
+    ("adolescent", 13, 17),
+    ("emerging_adult", 18, 25),
+    ("young_adult", 26, 39),
+    ("established_adult", 40, 59),
+    ("elder", 60, 89),
+    ("ancient", 90, 200),
+]
 
 NATURAL_HOUSE_SIGNS = {
     1: "Aries",
