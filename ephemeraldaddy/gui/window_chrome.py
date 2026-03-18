@@ -41,7 +41,7 @@ def _configure_menu_bar_visibility(menu_bar) -> None:
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:
     """Show About dialog content sourced from ONBOARDING.md."""
-    from PySide6.QtWidgets import QMessageBox
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMessageBox, QPlainTextEdit, QVBoxLayout
 
     onboarding_path = Path(__file__).resolve().parents[2] / "ONBOARDING.md"
     title = f"About {APP_DISPLAY_NAME}"
@@ -53,7 +53,26 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     content = onboarding_path.read_text(encoding="utf-8").strip()
     if not content:
         content = "ONBOARDING.md is empty."
-    QMessageBox.information(owner, title, content)
+
+    dialog = QDialog(owner)
+    dialog.setWindowTitle(title)
+    dialog.resize(720, 560)
+
+    layout = QVBoxLayout(dialog)
+    intro = QLabel("Content sourced from ONBOARDING.md")
+    intro.setStyleSheet("font-weight: 600;")
+    layout.addWidget(intro)
+
+    content_view = QPlainTextEdit(dialog)
+    content_view.setReadOnly(True)
+    content_view.setPlainText(content)
+    layout.addWidget(content_view, 1)
+
+    buttons = QDialogButtonBox(QDialogButtonBox.Ok, parent=dialog)
+    buttons.accepted.connect(dialog.accept)
+    layout.addWidget(buttons)
+
+    dialog.exec()
 
 
 def configure_application_identity(app: "QApplication") -> None:
