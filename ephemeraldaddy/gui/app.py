@@ -10246,6 +10246,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_left_panel("similarities")
 
+    def _show_database_analytics_panel(self) -> None:
+        self._show_left_panel("database_metrics")
+
+    def _show_current_transits_panel(self) -> None:
+        self._refresh_todays_transits_panel()
+        self._show_left_panel("todays_transits")
+
+    def _show_similarities_panel(self) -> None:
+        self._show_left_panel("similarities")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -13074,6 +13084,63 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
+
+    def _on_edit_chart_from_menu(self) -> None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected = self.list_widget.selectedItems()
+            if selected:
+                item = selected[0]
+        if item is None:
+            QMessageBox.warning(
+                self,
+                "Edit chart",
+                "Select a chart in the list before choosing Edit chart.",
+            )
+            return
+        self._load_chart_from_item(item)
+
+    def _on_generate_personal_transit_for_selected_chart(self) -> None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected = self.list_widget.selectedItems()
+            if selected:
+                item = selected[0]
+        if item is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "Select a chart in the list before generating a personal transit chart.",
+            )
+            return
+
+        chart_id = item.data(Qt.UserRole)
+        if chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "The selected row does not reference a saved chart.",
+            )
+            return
+
+        self._refresh_personal_transit_chart_options()
+        selected_label = None
+        suffix = f"[#{int(chart_id)}]"
+        for label in self._personal_transit_chart_lookup:
+            if label.endswith(suffix):
+                selected_label = label
+                break
+        if selected_label is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "Unable to resolve the selected chart for transit generation.",
+            )
+            return
+
+        self.personal_transit_chart_input.setText(selected_label)
+        self._show_current_transits_panel()
+        self._on_generate_personal_transit()
 
     def _on_index_double_clicked(self, index: QModelIndex) -> None:
         item = self.list_widget.itemFromIndex(index)

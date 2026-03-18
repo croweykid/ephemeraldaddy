@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -36,6 +37,23 @@ def _configure_menu_bar_visibility(menu_bar) -> None:
     """Force a visible in-window menu bar on macOS interpreter launches."""
     if sys.platform == "darwin":
         menu_bar.setNativeMenuBar(False)
+
+
+def _show_about_from_onboarding(owner: "QWidget") -> None:
+    """Show About dialog content sourced from ONBOARDING.md."""
+    from PySide6.QtWidgets import QMessageBox
+
+    onboarding_path = Path(__file__).resolve().parents[2] / "ONBOARDING.md"
+    title = f"About {APP_DISPLAY_NAME}"
+
+    if not onboarding_path.exists():
+        QMessageBox.information(owner, title, "ONBOARDING.md was not found.")
+        return
+
+    content = onboarding_path.read_text(encoding="utf-8").strip()
+    if not content:
+        content = "ONBOARDING.md is empty."
+    QMessageBox.information(owner, title, content)
 
 
 def configure_application_identity(app: "QApplication") -> None:
@@ -73,7 +91,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
 
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
-    """Attach a menu bar for the Database View (Manage Charts dialog)."""
+    """Attach a Database View menu bar matching the requested hierarchy."""
     from PySide6.QtWidgets import QMenuBar
 
     dialog.setWindowTitle(f"{APP_DISPLAY_NAME} | Database View")
@@ -81,23 +99,34 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar = QMenuBar(dialog)
     _configure_menu_bar_visibility(menu_bar)
 
-    app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
-    _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
-    _bind_menu_action(app_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
-    app_menu.addSeparator()
-    app_menu.addAction("Close", dialog.close)
-
     file_menu = menu_bar.addMenu("File")
-    _bind_menu_action(file_menu, "New Chart", dialog, "_on_new_chart", "on_new_chart")
-    _bind_menu_action(file_menu, "Delete Selected", dialog, "_on_delete", "on_delete")
+    import_menu = file_menu.addMenu("Import from CSV")
+    _bind_menu_action(import_menu, "Import from CSV (Type 1)", dialog, "_on_import_csv_type_1")
+    _bind_menu_action(import_menu, "Import from CSV (The Pattern app)", dialog, "_on_import_csv_pattern")
+    _bind_menu_action(file_menu, "Export Selection to CSV", dialog, "_on_export_selected")
+    _bind_menu_action(file_menu, "Backup Database", dialog, "_on_export_database")
+    _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
+    _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
     file_menu.addSeparator()
-    _bind_menu_action(file_menu, "Export Selected to CSV", dialog, "_on_export_selected")
+    _bind_menu_action(file_menu, "Settings & Preferences", dialog, "_on_open_settings", "on_open_settings")
+
+    charts_menu = menu_bar.addMenu("Charts")
+    _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
+    _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
+    _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
+    _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
+    _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
-    _bind_menu_action(tools_menu, "Synastry", dialog, "_on_generate_composite_chart")
+
+    view_menu = menu_bar.addMenu("View")
+    _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
+    _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
+    _bind_menu_action(view_menu, "Current Transits", dialog, "_show_current_transits_panel")
 
     help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help Overlay", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
+    _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
+    help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
 
     layout.setMenuBar(menu_bar)
