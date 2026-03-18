@@ -266,7 +266,6 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
     normalize_gui_source as _normalize_gui_source,
-    populate_chart_source_combo,
 )
 from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     build_popout_left_panel as _build_popout_left_panel_widget,
@@ -8209,12 +8208,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_type_section, chart_type_group_layout = add_collapsible_section(
             "Chart Type"
         )
-        self.chart_type_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.chart_type_filter_combo)
-        populate_chart_source_combo(self.chart_type_filter_combo, any_label="Any")
-        self.chart_type_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        chart_type_group_layout.addWidget(self.chart_type_filter_combo)
-
         chart_type_layout = QGridLayout()
         chart_type_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_type_filter_checkboxes = {}
@@ -9211,7 +9204,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_type_section, chart_type_section_layout = add_collapsible_section("Chart Type")
 
         self.batch_source_combo = QComboBox()
-        populate_chart_source_combo(self.batch_source_combo, any_label="Mixed / unchanged")
+        self.batch_source_combo.addItem("Mixed / unchanged", "")
+        for source_option_label, source_option_value in SOURCE_OPTIONS:
+            self.batch_source_combo.addItem(source_option_label, source_option_value)
         self.batch_source_combo.currentIndexChanged.connect(
             self._on_batch_source_selected
         )
@@ -10550,7 +10545,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            self.chart_type_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
             for checkbox in self.sentiment_filter_checkboxes.values():
@@ -11498,7 +11492,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
         search_text = self.search_text_input.text().strip()
-        selected_chart_type_value = str(self.chart_type_filter_combo.currentData() or "")
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -11700,17 +11693,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or matches(gender_value)
             ):
                 return False
-        if selected_chart_type_value or selected_chart_types or excluded_chart_types:
+        if selected_chart_types or excluded_chart_types:
             source_value = chart_row[14] if chart_row else None
             if chart_row is None:
                 chart = self._get_chart_for_filter(chart_id)
                 source_value = getattr(chart, "source", None) if chart else None
-            normalized_source = _normalize_gui_source(source_value)
-            if selected_chart_type_value and normalized_source != selected_chart_type_value:
+            if source_value in excluded_chart_types:
                 return False
-            if normalized_source in excluded_chart_types:
-                return False
-            if selected_chart_types and normalized_source not in selected_chart_types:
+            if selected_chart_types and source_value not in selected_chart_types:
                 return False
 
         if selected_generations or excluded_generations:
@@ -13468,7 +13458,8 @@ class MainWindow(QMainWindow):
         form.addRow(comments_row_widget)
 
         self.chart_source_combo = QComboBox()
-        populate_chart_source_combo(self.chart_source_combo)
+        for source_label, source_value in SOURCE_OPTIONS:
+            self.chart_source_combo.addItem(source_label, source_value)
         self._chart_type_previous_index = self.chart_source_combo.currentIndex()
         self.chart_source_combo.currentIndexChanged.connect(self._on_chart_type_changed)
 
