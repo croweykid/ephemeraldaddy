@@ -12828,7 +12828,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_entry_detail.setStyleSheet(
             "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
         )
-        panel_layout.addWidget(self._help_entry_detail)
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -13000,6 +13005,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._help_results_list.setCurrentRow(0)
         else:
             self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _search_help_entries_for_current_view(
         self,
@@ -13042,11 +13048,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if row < 0 or row >= len(self._help_search_results_cache):
             self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
             return
         entry = self._help_search_results_cache[row]
         keywords = ", ".join(entry.keywords)
         suffix = f"\n\nKeywords: {keywords}" if keywords else ""
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _on_retcon_engine(self) -> None:
         parent = self.parent()
@@ -17630,7 +17638,12 @@ class MainWindow(QMainWindow):
         self._help_entry_detail.setStyleSheet(
             "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
         )
-        panel_layout.addWidget(self._help_entry_detail)
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -17786,17 +17799,20 @@ class MainWindow(QMainWindow):
             self._help_results_list.setCurrentRow(0)
         else:
             self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _show_selected_help_entry(self, row: int) -> None:
         if not hasattr(self, "_help_search_results_cache"):
             return
         if row < 0 or row >= len(self._help_search_results_cache):
             self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
             return
         entry = self._help_search_results_cache[row]
         keywords = ", ".join(entry.keywords)
         suffix = f"\n\nKeywords: {keywords}" if keywords else ""
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
 def main():
     _maybe_reexec_with_macos_app_name()
