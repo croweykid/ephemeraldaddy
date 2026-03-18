@@ -1546,7 +1546,7 @@ SIGN_KEYWORDS = {
         "best": [
             "complex", "reflective", "enigmatic", "thoughtful", "layered", "analytical",
             "symbolic", "philosophical", "composed", "deep", "intentional", "ritualized",
-            "contained", "coded", "structured", "interpretive", "analytic", "saturated",
+            "contained", "coded", "consciously structured", "interpretive", "analytic", "saturated",
         ],
         "worst": [
             "abstracted", "emotionally inaccessible", "obscure", "aloof", "grandiose",

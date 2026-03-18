@@ -99,7 +99,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     menu_bar = QMenuBar(dialog)
     _configure_menu_bar_visibility(menu_bar)
 
-    file_menu = menu_bar.addMenu("File")
+    file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
     _bind_menu_action(import_menu, "Import from CSV (Type 1)", dialog, "_on_import_csv_type_1")
     _bind_menu_action(import_menu, "Import from CSV (The Pattern app)", dialog, "_on_import_csv_pattern")
@@ -108,7 +108,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
     file_menu.addSeparator()
-    _bind_menu_action(file_menu, "Settings & Preferences", dialog, "_on_open_settings", "on_open_settings")
+    _bind_menu_action(file_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
 
     charts_menu = menu_bar.addMenu("Charts")
     _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
