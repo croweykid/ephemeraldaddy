@@ -15030,9 +15030,8 @@ class MainWindow(QMainWindow):
             "\n".join(
                 [
                     f"Chart: {chart_name}",
-                    f"Weighted mean age: {astro_age['mean_age']:.2f}",
-                    f"Weighted median age: {astro_age['median_age']:.2f}",
-                    f"Weighted std dev: {astro_age['std_age']:.2f}",
+                    f"Weighted mean age: {round(astro_age['mean_age'])}",
+                    f"Weighted median age: {round(astro_age['median_age'])}",
                 ]
             )
         )
@@ -15049,17 +15048,24 @@ class MainWindow(QMainWindow):
         breakdown_output.setFont(breakdown_font)
         breakdown_output.setPlaceholderText("Astro age breakdown unavailable.")
 
+        planet_label_overrides = {
+            "Sun": "Sun (Identity):",
+            "Moon": "Moon (Emotionally):",
+            "Rising": "Rising (1st Impression Given):",
+        }
+
         lines = [
             "POSITION-LEVEL ASTRO AGE BREAKDOWN",
             "",
-            f"{'Planet':<18} {'Sign':<12} {'Age':>8} {'Weight':>8} {'Contribution':>14}",
-            "-" * 70,
+            f"{'Planet Key':<34} {'Sign':<12} {'Age':>6} {'Band':<20} {'Weight':>7} {'Contribution':>13}",
+            "-" * 98,
         ]
         for entry in breakdown:
+            label = planet_label_overrides.get(entry["planet"], entry["planet"])
             lines.append(
-                f"{entry['planet']:<18} {entry['sign']:<12} "
-                f"{entry['placement_age']:>8.2f} {entry['weight']:>8.2f} "
-                f"{entry['weighted_contribution']:>14.2f}"
+                f"{label:<34} {entry['sign']:<12} "
+                f"{round(entry['placement_age']):>6} {entry['age_band']:<20} "
+                f"{round(entry['weight']):>7} {round(entry['weighted_contribution']):>13}"
             )
         breakdown_output.setPlainText("\n".join(lines))
         layout.addWidget(breakdown_output, 1)

@@ -1,5 +1,3 @@
-import math
-
 PLANET_AGES = {
     "Moon": 1, #very early life
     "Mercury": 7, #childhood/adolescence
@@ -83,13 +81,12 @@ def weighted_median(items):
             return age
     return sorted_items[-1][0]
 
-def weighted_std(items):
-    if not items:
-        return 0.0
-    mu = weighted_mean(items)
-    total_w = sum(weight for _, weight in items)
-    variance = sum(weight * (age - mu) ** 2 for age, weight in items) / total_w
-    return math.sqrt(variance)
+def age_band_for_age(age: float) -> str:
+    for label, low, high in AGE_BANDS:
+        if low <= age <= high:
+            return label.replace("_", " ")
+    return "unknown"
+
 
 def chart_age(placements, planet_strengths):
     """
@@ -110,10 +107,22 @@ def chart_age(placements, planet_strengths):
     for p in placements:
         planet = normalize_planet_name(p["planet"])
         sign = p["sign"]
-        if planet not in PLANET_AGES or sign not in SIGN_AGES:
+        if sign not in SIGN_AGES:
             continue
-        age = placement_age(planet, sign)
-        weight = planet_strengths.get(planet, 1.0)
+
+        planet_coeff = float(p.get("planet_coeff", 0.65))
+        sign_coeff = float(p.get("sign_coeff", 0.35))
+        if planet in PLANET_AGES:
+            age = placement_age(
+                planet,
+                sign,
+                planet_coeff=planet_coeff,
+                sign_coeff=sign_coeff,
+            )
+        else:
+            age = sign_coeff * SIGN_AGES[sign]
+
+        weight = float(p.get("weight", planet_strengths.get(planet, 1.0)))
         items.append((age, weight))
         breakdown.append({
             "planet": planet,
@@ -121,12 +130,12 @@ def chart_age(placements, planet_strengths):
             "placement_age": age,
             "weight": weight,
             "weighted_contribution": age * weight,
+            "age_band": age_band_for_age(age),
         })
 
     return {
         "mean_age": weighted_mean(items),
         "median_age": weighted_median(items),
-        "std_age": weighted_std(items),
         "breakdown": breakdown,
     }
 
@@ -138,7 +147,8 @@ def chart_age_from_positions(positions, sign_for_longitude, planet_strengths=Non
     sign_for_longitude should convert longitude (float) into zodiac sign name.
     """
     placements = []
-    for body, longitude in (positions or {}).items():
+    source_positions = positions or {}
+    for body, longitude in source_positions.items():
         if longitude is None:
             continue
         normalized = normalize_planet_name(str(body))
@@ -148,4 +158,19 @@ def chart_age_from_positions(positions, sign_for_longitude, planet_strengths=Non
         if sign not in SIGN_AGES:
             continue
         placements.append({"planet": normalized, "sign": sign})
+
+    rising_lon = source_positions.get("AS")
+    if rising_lon is not None:
+        rising_sign = sign_for_longitude(float(rising_lon))
+        if rising_sign in SIGN_AGES:
+            placements.append(
+                {
+                    "planet": "Rising",
+                    "sign": rising_sign,
+                    "planet_coeff": 0.0,
+                    "sign_coeff": 1.0,
+                    "weight": 1.0,
+                }
+            )
+
     return chart_age(placements, planet_strengths or {})
