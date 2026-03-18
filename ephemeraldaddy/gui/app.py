@@ -140,6 +140,7 @@ from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
     configure_application_identity,
     configure_main_window_chrome,
+    configure_manage_dialog_chrome,
 )
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
@@ -1957,6 +1958,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
+        configure_manage_dialog_chrome(self, layout)
 
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(4)
