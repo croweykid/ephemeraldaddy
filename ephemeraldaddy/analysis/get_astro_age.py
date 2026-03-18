@@ -39,6 +39,32 @@ SIGN_AGES = {
     "Pisces": 120,
 }
 
+
+ASPECT_AGE_SHIFT = {
+    ("Saturn", "Moon", "conjunction"): 8,
+    ("Saturn", "Moon", "square"): 7,
+    ("Saturn", "Moon", "opposition"): 7,
+    ("Saturn", "Moon", "trine"): 4,
+    ("Saturn", "Moon", "sextile"): 3,
+
+    ("Saturn", "Sun", "conjunction"): 7,
+    ("Saturn", "Sun", "square"): 6,
+    ("Saturn", "Sun", "opposition"): 6,
+
+    ("Saturn", "Mercury", "conjunction"): 5,
+    ("Saturn", "Mercury", "square"): 4,
+
+    ("Moon", "Mars", "conjunction"): -3,
+    ("Moon", "Mars", "square"): -4,
+
+    ("Mercury", "Uranus", "conjunction"): -4,
+    ("Mercury", "Uranus", "trine"): -2,
+
+    ("Venus", "Neptune", "conjunction"): -2,
+}
+
+#shift = base_shift * exactness * ((p1_strength + p2_strength) / 2.0)
+
 #not yet deployed
 AGE_BANDS = [
     ("infantile", 0, 6),
