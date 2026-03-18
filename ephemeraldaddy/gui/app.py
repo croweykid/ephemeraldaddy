@@ -15049,9 +15049,19 @@ class MainWindow(QMainWindow):
         breakdown_output.setPlaceholderText("Astro age breakdown unavailable.")
 
         planet_label_overrides = {
-            "Sun": "Sun (Identity):",
-            "Moon": "Moon (Emotionally):",
-            "Rising": "Rising (1st Impression Given):",
+            "Sun": "Identity:",
+            "Moon": "Emotionally:",
+            "Rising": "1st Impression Given:",
+            "Mercury":"Mentally:",
+            "Venus":"Romantically:",
+            "Mars":"Energetically/Confrontationally:",
+            "Jupiter":"Luckwise:",
+            "Saturn":"Responsibilities:",
+            "Uranus":"Rebellion (Generational):",
+            "Neptune":"Ideals (Generational):",
+            "Pluto":"Power & crises (Generational):",
+            "Rahu":"Becoming:",
+            "Ketu":"Leaving behind behavior that's:",
         }
 
         lines = [
