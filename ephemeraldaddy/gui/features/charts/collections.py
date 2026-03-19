@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.provenance import (
+    SOURCE_PARASOCIAL,
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
     normalize_gui_source,
@@ -56,7 +57,7 @@ def chart_belongs_to_collection(
 
     normalized_source = normalize_gui_source(source or getattr(chart, "source", SOURCE_PERSONAL))
     relationship_types = _normalized_relationship_types(chart)
-    is_parasocial = "parasocial" in relationship_types
+    is_parasocial = (normalized_source == SOURCE_PARASOCIAL) or ("parasocial" in relationship_types)
     is_public = normalized_source == SOURCE_PUBLIC_DB
 
     if normalized_collection_id == DEFAULT_COLLECTION_PERSONAL:
