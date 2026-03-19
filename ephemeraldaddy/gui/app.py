@@ -375,6 +375,14 @@ from ephemeraldaddy.gui.features.import_export.pattern import (
 GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES: frozenset[str] = frozenset(
     {"Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "AS", "MC"}
 )
+GENDER_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("Actual Gender", "actual_gender"),
+    ("Guessed by Weight", "guessed_weight"),
+    ("Guessed by Prevalence", "guessed_prevalence"),
+)
+GEN_POP_UNSUPPORTED_GENDER_MODES: frozenset[str] = frozenset(
+    {"guessed_weight", "guessed_prevalence"}
+)
 GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     {
         "sentiment_prevalence",
@@ -2401,6 +2409,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if value not in GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES
         ]
 
+    def _available_gender_dropdown_options(self) -> list[tuple[str, str]]:
+        if self._database_metrics_baseline_mode != "gen_pop":
+            return list(GENDER_DROPDOWN_OPTIONS)
+        return [
+            (label, value)
+            for label, value in GENDER_DROPDOWN_OPTIONS
+            if value not in GEN_POP_UNSUPPORTED_GENDER_MODES
+        ]
+
     def _sync_database_metrics_section_visibility(self) -> None:
         is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
         for section_key, section_widget in self._database_metrics_section_widgets.items():
@@ -2410,29 +2427,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 section_widget.setVisible(self._is_database_metrics_section_visible(section_key))
 
     def _sync_gen_pop_panel_visibility(self) -> None:
-        dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
-        if dropdown is None:
-            return
+        sign_dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
+        if sign_dropdown is not None:
+            options = self._available_sign_distribution_dropdown_options()
+            allowed_modes = {value for _label, value in options}
+            previous_mode = self._sign_distribution_mode
+            if previous_mode not in allowed_modes:
+                previous_mode = options[0][1] if options else "Sun"
 
-        options = self._available_sign_distribution_dropdown_options()
-        allowed_modes = {value for _label, value in options}
-        previous_mode = self._sign_distribution_mode
-        if previous_mode not in allowed_modes:
-            previous_mode = options[0][1] if options else "Sun"
+            sign_dropdown.blockSignals(True)
+            sign_dropdown.clear()
+            for option_label, option_value in options:
+                sign_dropdown.addItem(option_label.upper(), option_value)
+            selected_index = sign_dropdown.findData(previous_mode)
+            if selected_index < 0 and sign_dropdown.count() > 0:
+                selected_index = 0
+            if selected_index >= 0:
+                sign_dropdown.setCurrentIndex(selected_index)
+                current_mode = sign_dropdown.currentData()
+                if isinstance(current_mode, str):
+                    self._sign_distribution_mode = current_mode
+            sign_dropdown.blockSignals(False)
 
-        dropdown.blockSignals(True)
-        dropdown.clear()
-        for option_label, option_value in options:
-            dropdown.addItem(option_label.upper(), option_value)
-        selected_index = dropdown.findData(previous_mode)
-        if selected_index < 0 and dropdown.count() > 0:
-            selected_index = 0
-        if selected_index >= 0:
-            dropdown.setCurrentIndex(selected_index)
-            current_mode = dropdown.currentData()
-            if isinstance(current_mode, str):
-                self._sign_distribution_mode = current_mode
-        dropdown.blockSignals(False)
+        gender_dropdown = self._analysis_chart_dropdowns.get("gender")
+        if gender_dropdown is not None:
+            options = self._available_gender_dropdown_options()
+            allowed_modes = {value for _label, value in options}
+            previous_mode = self._gender_mode
+            if previous_mode not in allowed_modes:
+                previous_mode = options[0][1] if options else "actual_gender"
+
+            gender_dropdown.blockSignals(True)
+            gender_dropdown.clear()
+            for option_label, option_value in options:
+                gender_dropdown.addItem(option_label.upper(), option_value)
+            selected_index = gender_dropdown.findData(previous_mode)
+            if selected_index < 0 and gender_dropdown.count() > 0:
+                selected_index = 0
+            if selected_index >= 0:
+                gender_dropdown.setCurrentIndex(selected_index)
+                current_mode = gender_dropdown.currentData()
+                if isinstance(current_mode, str):
+                    self._gender_mode = current_mode
+            gender_dropdown.blockSignals(False)
 
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
@@ -3519,11 +3556,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Gender",
             "gender",
             "gender",
-            dropdown_options=[
-                ("Actual Gender", "actual_gender"),
-                ("Guessed by Weight", "guessed_weight"),
-                ("Guessed by Prevalence", "guessed_prevalence"),
-            ],
+            dropdown_options=self._available_gender_dropdown_options(),
             show_title=False,
         )
         self.gender_subheader = add_database_subheader("Actual + guessed gender distribution")
@@ -7806,15 +7839,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     else:
                         database_gender_counts["Androgynous"] += 1
 
+            selection_gender_total = sum(selection_gender_counts.values())
+            database_gender_total = sum(database_gender_counts.values())
             selection_gender_distribution = {
                 label: (
-                    selection_gender_counts[label] / loaded_charts if loaded_charts else 0.0
+                    selection_gender_counts[label] / selection_gender_total
+                    if selection_gender_total
+                    else 0.0
                 )
                 for label in gender_labels
             }
             database_gender_distribution = {
                 label: (
-                    database_gender_counts[label] / database_loaded_charts if database_loaded_charts else 0.0
+                    database_gender_counts[label] / database_gender_total
+                    if database_gender_total
+                    else 0.0
                 )
                 for label in gender_labels
             }
