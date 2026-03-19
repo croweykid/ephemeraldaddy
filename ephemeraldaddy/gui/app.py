@@ -1974,94 +1974,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setLayout(layout)
         configure_manage_dialog_chrome(self, layout)
 
-        # controls_layout = QHBoxLayout()
-        # controls_layout.setSpacing(4)
-        # layout.addLayout(controls_layout)
+        self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
+        self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
+        self.todays_transits_panel_button.clicked.connect(
+            self._toggle_todays_transits_panel
+        )
 
-        # self.new_chart_button = QPushButton("✚ New Chart") #New Chart
-        # self.new_chart_button.setObjectName("manage_new_chart_button")
-        # self.new_chart_button.clicked.connect(self._on_new_chart)
-        # controls_layout.addWidget(self.new_chart_button)
+        self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
+        self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
+        self.database_metrics_panel_button.clicked.connect(
+            self._toggle_database_metrics_panel
+        )
 
-        # self.delete_button = QPushButton("❌ Chart(s)") #Delete Chart(s)
-        # self.delete_button.setObjectName("manage_delete_chart_button")
-        # self.delete_button.clicked.connect(self._on_delete)
-        # controls_layout.addWidget(self.delete_button)
+        self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
+        self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
+        self.gen_pop_norms_panel_button.clicked.connect(
+            self._toggle_gen_pop_norms_panel
+        )
 
-        # self.generate_composite_chart_button = QPushButton("🧬 Synastry")
-        # self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
-        # self.generate_composite_chart_button.clicked.connect(
-        #     self._on_generate_composite_chart
-        # )
-        # controls_layout.addWidget(self.generate_composite_chart_button)
+        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
+        self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
+        self.similarities_panel_button.clicked.connect(
+            self._toggle_similarities_panel
+        )
 
-        # controls_layout.addStretch(1)
+        self.manage_collections_button = QPushButton("Manage Collections")
+        self.manage_collections_button.setObjectName(
+            "manage_toggle_collections_panel_button"
+        )
+        self.manage_collections_button.clicked.connect(
+            self._toggle_manage_collections_panel
+        )
 
-        # #transits button
-        # self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
-        # self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
-        # self.todays_transits_panel_button.clicked.connect(
-        #     self._toggle_todays_transits_panel
-        # )
-        # controls_layout.addWidget(self.todays_transits_panel_button)
+        self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
+        self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
+        self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
-        # self.manage_collections_button = QPushButton("Manage Collections")
-        # self.manage_collections_button.setObjectName(
-        #     "manage_toggle_collections_panel_button"
-        # )
-        # self.manage_collections_button.clicked.connect(
-        #     self._toggle_manage_collections_panel
-        # )
-        # controls_layout.addWidget(self.manage_collections_button)
-        # self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
-        # self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
-        # self.database_metrics_panel_button.clicked.connect(
-        #     self._toggle_database_metrics_panel
-        # )
-        # controls_layout.addWidget(self.database_metrics_panel_button)
+        self.search_panel_button = QPushButton("🔎")
+        self.search_panel_button.setObjectName("manage_toggle_search_panel_button")
+        self.search_panel_button.clicked.connect(self._toggle_search_panel)
 
-        # self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
-        # self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
-        # self.gen_pop_norms_panel_button.clicked.connect(
-        #     self._toggle_gen_pop_norms_panel
-        # )
-        # controls_layout.addWidget(self.gen_pop_norms_panel_button)
-
-        # self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
-        # self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
-        # self.similarities_panel_button.clicked.connect(
-        #     self._toggle_similarities_panel
-        # )
-        # controls_layout.addWidget(self.similarities_panel_button)
-
-
-        # self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
-        # self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
-        # self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
-        # controls_layout.addWidget(self.edit_charts_button)
-
-        # self.search_panel_button = QPushButton("🔎")
-        # self.search_panel_button.setObjectName("manage_toggle_search_panel_button")
-        # self.search_panel_button.clicked.connect(self._toggle_search_panel)
-        # controls_layout.addWidget(self.search_panel_button)
-
-        # for control_button in (
-        #     self.new_chart_button,
-        #     self.delete_button,
-        #     self.generate_composite_chart_button,
-        #     self.todays_transits_panel_button,
-        #     self.manage_collections_button,
-        #     self.database_metrics_panel_button,
-        #     self.gen_pop_norms_panel_button,
-        #     self.similarities_panel_button,
-        #     self.edit_charts_button,
-        #     self.search_panel_button,
-        # ):
-        #     control_button.setAutoDefault(False)
-        #     control_button.setDefault(False)
-        #     control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-        #     control_button.setMinimumWidth(0)
-        #     control_button.setStyleSheet("padding: 2px 6px;")
+        for control_button in (
+            self.todays_transits_panel_button,
+            self.database_metrics_panel_button,
+            self.gen_pop_norms_panel_button,
+            self.similarities_panel_button,
+            self.manage_collections_button,
+            self.edit_charts_button,
+            self.search_panel_button,
+        ):
+            control_button.setAutoDefault(False)
+            control_button.setDefault(False)
+            control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+            control_button.setMinimumWidth(0)
+            control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
 
         self.sort_button = QPushButton("Sort: Alphabetical") #default sorting method pt 2/2
         self.sort_button.setObjectName("manage_sort_button")
@@ -2143,6 +2109,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._active_left_panel = "todays_transits"
         self._left_panel_sizes = None
 
+        left_panel_container = QWidget()
+        left_panel_container_layout = QVBoxLayout()
+        left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        left_panel_container_layout.setSpacing(4)
+        left_panel_container.setLayout(left_panel_container_layout)
+
+        left_controls_row = QWidget()
+        left_controls_layout = QHBoxLayout()
+        left_controls_layout.setContentsMargins(0, 0, 0, 0)
+        left_controls_layout.setSpacing(4)
+        left_controls_row.setLayout(left_controls_layout)
+        left_controls_layout.addWidget(self.todays_transits_panel_button)
+        left_controls_layout.addWidget(self.database_metrics_panel_button)
+        left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
+        left_controls_layout.addWidget(self.similarities_panel_button)
+        left_controls_layout.addStretch(1)
+        left_panel_container_layout.addWidget(left_controls_row)
+        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
+
+        right_panel_container = QWidget()
+        right_panel_container_layout = QVBoxLayout()
+        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_container_layout.setSpacing(4)
+        right_panel_container.setLayout(right_panel_container_layout)
+
+        right_controls_row = QWidget()
+        right_controls_layout = QHBoxLayout()
+        right_controls_layout.setContentsMargins(0, 0, 0, 0)
+        right_controls_layout.setSpacing(4)
+        right_controls_row.setLayout(right_controls_layout)
+        right_controls_layout.addWidget(self.search_panel_button)
+        right_controls_layout.addWidget(self.edit_charts_button)
+        right_controls_layout.addWidget(self.manage_collections_button)
+        right_controls_layout.addStretch(1)
+        right_panel_container_layout.addWidget(right_controls_row)
+        right_panel_container_layout.addWidget(self.right_panel_stack, 1)
+
         # Database View - Center list panel (chart list).
         self.list_widget = ChartListWidget()
         self.list_widget.setAlternatingRowColors(True)
@@ -2192,14 +2195,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
         self._content_splitter.setChildrenCollapsible(False)
-        self._content_splitter.addWidget(self.left_panel_stack)
+        self._content_splitter.addWidget(left_panel_container)
         self._content_splitter.addWidget(self.list_panel)
-        self._content_splitter.addWidget(self.right_panel_stack)
+        self._content_splitter.addWidget(right_panel_container)
         self._content_splitter.setCollapsible(0, True)
         self._content_splitter.setCollapsible(2, True)
-        self.left_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        left_panel_container.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self.list_panel.setAttribute(Qt.WA_AlwaysStackOnTop, False)
-        self.right_panel_stack.setAttribute(Qt.WA_AlwaysStackOnTop, False)
+        right_panel_container.setAttribute(Qt.WA_AlwaysStackOnTop, False)
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
