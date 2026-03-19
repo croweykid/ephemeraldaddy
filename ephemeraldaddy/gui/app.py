@@ -233,6 +233,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_GLYPHS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
+    PLANET_RULERSHIP_CLASSICAL,
     RELATION_TYPE,
     FAMILIARITY_INDEX,
     GENDER_GLYPHS,
@@ -13018,6 +13019,7 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_layouts: dict[str, QVBoxLayout] = {}
         self._chart_analysis_section_widgets: dict[str, QWidget] = {}
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
+        self._chart_analysis_footer_labels: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
@@ -13727,6 +13729,7 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
+        self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
         self._configure_main_splitter()
@@ -17002,6 +17005,43 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_planet_tally,
             chart=chart,
         )
+        self._update_chart_ruler_footer(chart)
+
+    def _chart_ruler_planets(self, chart: Chart) -> list[str]:
+        asc_longitude = None
+        positions = getattr(chart, "positions", None) or {}
+        if "AS" in positions:
+            asc_longitude = positions.get("AS")
+        if asc_longitude is None:
+            houses = getattr(chart, "houses", None)
+            if houses and len(houses) >= 1:
+                asc_longitude = houses[0]
+        if asc_longitude is None:
+            return []
+
+        ascendant_sign = _sign_for_longitude(float(asc_longitude))
+        rulers = [
+            planet
+            for planet, ruled_signs in PLANET_RULERSHIP.items()
+            if ascendant_sign in ruled_signs
+        ]
+        for planet, ruled_signs in PLANET_RULERSHIP_CLASSICAL.items():
+            if ascendant_sign in ruled_signs and planet not in rulers:
+                rulers.append(planet)
+        return rulers
+
+    def _update_chart_ruler_footer(self, chart: Chart | None) -> None:
+        chart_ruler_label = self._chart_analysis_footer_labels.get("dominant_planets")
+        if chart_ruler_label is None:
+            return
+        if chart is None:
+            chart_ruler_label.setText("Chart Ruler: Unknown")
+            return
+        rulers = self._chart_ruler_planets(chart)
+        if not rulers:
+            chart_ruler_label.setText("Chart Ruler: Unknown")
+            return
+        chart_ruler_label.setText(f"Chart Ruler: {' & '.join(rulers)}")
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
