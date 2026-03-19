@@ -9,13 +9,15 @@ from typing import Any
 from ephemeraldaddy.analysis.dnd.species_assigner import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.composite import aspect_duration_score, aspect_pair_weight, aspect_score
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
 from ephemeraldaddy.core.ephemeris import planetary_positions, planetary_retrogrades
 from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.interpretations import (
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
+    aspect_duration_score,
+    aspect_pair_weight,
+    aspect_score,
     PLANET_GLYPHS,
     PLANET_ORDER,
 )
