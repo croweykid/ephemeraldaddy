@@ -10642,14 +10642,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return normalized
 
     def _restore_window_settings(self) -> None:
-        geometry_key = "manage_charts/geometry"
         splitter_key = "manage_charts/splitter_sizes"
-        geometry = _available_screen_geometry()
-        if self._settings.contains(geometry_key):
-            self.restoreGeometry(self._settings.value(geometry_key))
-        elif geometry is not None:
-            self.resize(geometry.width(), geometry.height())
-
         sizes = self._settings.value(splitter_key)
         if sizes:
             restored_sizes = [int(size) for size in sizes]
@@ -10682,6 +10675,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         stored_right_panel_visible = self._settings.value("manage_charts/right_panel_visible", "1")
         self._right_panel_visible = str(stored_right_panel_visible).lower() in {"1", "true", "yes"}
         self.right_panel_stack.setVisible(self._right_panel_visible)
+        self.apply_launch_window_policy()
+
+    def apply_launch_window_policy(self) -> None:
+        geometry = _available_screen_geometry()
+        if geometry is not None:
+            self.setGeometry(geometry)
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+        )
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -10696,7 +10698,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if self._size_checker_popup is not None:
             self._size_checker_popup.close()
             self._size_checker_popup = None
-        self._settings.setValue("manage_charts/geometry", self.saveGeometry())
+        self._settings.remove("manage_charts/geometry")
         self._settings.setValue(
             "manage_charts/splitter_sizes", self._content_splitter.sizes()
         )
@@ -16127,7 +16129,10 @@ class MainWindow(QMainWindow):
         if self._settings.contains(geometry_key):
             self.restoreGeometry(self._settings.value(geometry_key))
         elif geometry is not None:
-            self.resize(geometry.width(), geometry.height())
+            self.setGeometry(geometry)
+            self.setWindowState(
+                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+            )
         sizes = self._settings.value(splitter_key)
         if sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
