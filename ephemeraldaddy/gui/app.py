@@ -345,6 +345,9 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
     SIGN_DISTRIBUTION_MODE_LABELS,
 )
+from ephemeraldaddy.gui.features.charts.exporters import (
+    export_aspect_distribution_csv_dialog as _export_aspect_distribution_csv_dialog,
+)
 from ephemeraldaddy.gui.features.charts.text_summary import (
     _aspect_body_with_sign,
     _aspect_duration_score,
@@ -1038,35 +1041,6 @@ def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
     return token or fallback
 
 
-def _export_aspect_distribution_csv_dialog(
-    parent: QWidget,
-    aspect_counts: OrderedDict[str, float],
-    *,
-    default_file_stem: str = "aspect_distribution",
-) -> None:
-    default_filename = f"{default_file_stem}.csv"
-    file_path, _selected_filter = QFileDialog.getSaveFileName(
-        parent,
-        "Export Aspect Distribution as CSV",
-        default_filename,
-        "CSV Files (*.csv)",
-    )
-    if not file_path:
-        return
-    if not file_path.lower().endswith(".csv"):
-        file_path = f"{file_path}.csv"
-
-    try:
-        with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(["aspect_type", "count"])
-            for aspect_key, count in aspect_counts.items():
-                writer.writerow([aspect_key, count])
-    except Exception as exc:
-        QMessageBox.critical(parent, "Export failed", f"Could not write CSV file.\n\n{exc}")
-        return
-
-    QMessageBox.information(parent, "Export complete", f"Exported aspect distribution CSV to:\n{file_path}")
 
 
 
