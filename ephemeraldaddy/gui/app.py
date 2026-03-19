@@ -490,6 +490,11 @@ from ephemeraldaddy.analysis.dnd.species_assigner import (
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.analysis.country_lookup import resolve_country
+from ephemeraldaddy.gui.features.charts.bazi_window import (
+    BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE,
+    create_bazi_window_dialog,
+    validate_chart_for_bazi,
+)
 
 class ResizablePixmapLabel(QLabel):
     def __init__(self, pixmap: QPixmap, parent: QWidget | None = None) -> None:
@@ -15079,42 +15084,25 @@ class MainWindow(QMainWindow):
         self._interpret_astro_age(self._latest_chart)
 
     def _open_bazi_window(self, chart: Chart | None) -> None:
-        if chart is None:
-            QMessageBox.information(
-                self,
-                "No chart loaded",
-                "Please select a chart first.",
+        validation_error = validate_chart_for_bazi(chart)
+        if validation_error is not None:
+            title = "No chart loaded" if chart is None else "BaZi unavailable"
+            message = (
+                BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
+                if chart is not None and validation_error != "Please select a chart first."
+                else validation_error
             )
+            QMessageBox.information(self, title, message)
             return
 
-        if bool(getattr(chart, "is_placeholder", False)):
-            QMessageBox.information(
-                self,
-                "BaZi unavailable",
-                "BaZi calculation is not possible without complete birth info (date, time, and place).",
-            )
-            return
-
-        birth_place = str(getattr(chart, "birth_place", "") or "").strip()
-        chart_dt = getattr(chart, "dt", None)
-        birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
-        if chart_dt is None or birthtime_unknown or not birth_place:
-            QMessageBox.information(
-                self,
-                "BaZi unavailable",
-                "BaZi calculation is not possible without complete birth info (date, time, and place).",
-            )
-            return
-
-        dt_local = getattr(chart, "dt_local", None)
-        if dt_local is None:
-            if chart_dt.tzinfo is not None:
-                dt_local = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
-            else:
-                dt_local = chart_dt
-
+        assert chart is not None
         try:
-            bazi_data = build_bazi_chart_data(dt_local)
+            dialog = create_bazi_window_dialog(
+                self,
+                chart,
+                header_style=CHART_DATA_POPOUT_HEADER_STYLE,
+                monospace_font_family=CHART_DATA_MONOSPACE_FONT_FAMILY,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -15122,79 +15110,6 @@ class MainWindow(QMainWindow):
                 f"Unable to calculate BaZi chart:\n{exc}",
             )
             return
-
-        chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
-        dialog = QDialog(self)
-        dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setWindowTitle(f"Bazi Window • {chart_name}")
-        dialog.resize(700, 760)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        summary_label = QLabel(
-            "\n".join(
-                [
-                    f"Chart: {chart_name}",
-                    f"Birth place: {birth_place}",
-                    f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
-                    f"Lunar date: {bazi_data.lunar_date_str}",
-                    f"Year zodiac: {bazi_data.zodiac_animal}",
-                    (
-                        "Four Pillars: "
-                        f"{bazi_data.year_pillar} / {bazi_data.month_pillar} / "
-                        f"{bazi_data.day_pillar} / {bazi_data.hour_pillar}"
-                    ),
-                ]
-            )
-        )
-        summary_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
-        summary_font = summary_label.font()
-        summary_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
-        summary_label.setFont(summary_font)
-        layout.addWidget(summary_label, 0)
-
-        details_output = QPlainTextEdit()
-        details_output.setReadOnly(True)
-        details_font = details_output.font()
-        details_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
-        details_output.setFont(details_font)
-        details_output.setPlaceholderText("BaZi chart details unavailable.")
-
-        lines = [
-            "BAZI CHART DETAILS",
-            "",
-            "Heavenly Stems:",
-            f"  Year : {bazi_data.heavenly_stems['year']}",
-            f"  Month: {bazi_data.heavenly_stems['month']}",
-            f"  Day  : {bazi_data.heavenly_stems['day']}",
-            f"  Hour : {bazi_data.heavenly_stems['hour']}",
-            "",
-            "Earthly Branches:",
-            f"  Year : {bazi_data.earthly_branches['year']}",
-            f"  Month: {bazi_data.earthly_branches['month']}",
-            f"  Day  : {bazi_data.earthly_branches['day']}",
-            f"  Hour : {bazi_data.earthly_branches['hour']}",
-            "",
-            "Five Elements / Na Yin:",
-            f"  Year : {bazi_data.five_elements_summary['year']}",
-            f"  Month: {bazi_data.five_elements_summary['month']}",
-            f"  Day  : {bazi_data.five_elements_summary['day']}",
-            f"  Hour : {bazi_data.five_elements_summary['hour']}",
-            f"  Na Yin (Year): {bazi_data.five_elements_summary['na_yin']['year']}",
-            f"  Na Yin (Month): {bazi_data.five_elements_summary['na_yin']['month']}",
-            f"  Na Yin (Day): {bazi_data.five_elements_summary['na_yin']['day']}",
-            f"  Na Yin (Hour): {bazi_data.five_elements_summary['na_yin']['hour']}",
-            "",
-            "Ten Gods (relative to Day Master):",
-            f"  Year stem : {bazi_data.ten_gods_summary['year']}",
-            f"  Month stem: {bazi_data.ten_gods_summary['month']}",
-            f"  Hour stem : {bazi_data.ten_gods_summary['hour']}",
-            f"  Day branch main: {bazi_data.ten_gods_summary['day_branch_main']}",
-        ]
-        details_output.setPlainText("\n".join(lines))
-        layout.addWidget(details_output, 1)
 
         self._register_popout_shortcuts(dialog)
         dialog.show()
