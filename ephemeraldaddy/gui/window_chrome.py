@@ -5,6 +5,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ephemeraldaddy.gui.style import WINDOW_CHROME_MENU_STYLE
+
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
@@ -88,6 +90,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
 
     menu_bar = window.menuBar()
     _configure_menu_bar_visibility(menu_bar)
+    menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
     menu_bar.clear()
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
@@ -117,6 +120,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     menu_bar = QMenuBar(dialog)
     _configure_menu_bar_visibility(menu_bar)
+    menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
