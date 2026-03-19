@@ -33,6 +33,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
+    QGuiApplication,
     QIcon,
     QKeySequence,
     QPainter,
@@ -969,6 +970,7 @@ def _maybe_reexec_with_macos_app_name() -> None:
 
 def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
+    _configure_qt_input_scaling()
     app = QApplication.instance()
     if app is None:
         if sys.platform == "win32":
@@ -1027,6 +1029,17 @@ def _get_qapp():
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
     return app
+
+
+def _configure_qt_input_scaling() -> None:
+    """Align Qt's input hit-testing with fractional desktop scale factors."""
+    try:
+        QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
+    except Exception:
+        # Best-effort compatibility guard for older Qt/PySide combinations.
+        pass
 
 def _get_app_icon_path() -> str | None:
     module_root = Path(__file__).resolve().parents[1]
