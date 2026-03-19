@@ -525,6 +525,21 @@ class ResizablePixmapLabel(QLabel):
         self.setPixmap(scaled)
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
+    _NAKSHATRA_INFO_FIELD_LABELS = (
+        "Symbol:",
+        "Shakti:",
+        "Essence:",
+        "Quality:",
+        "Favorable Activities:",
+        "Sidereal Sign:",
+        "Archetypes:",
+        "Deity:",
+        "Ruler:",
+        "Planetary Associations:",
+        "Notes A:",
+        "Notes B:",
+    )
+
     def __init__(self, document) -> None:
         super().__init__(document)
         self._unknown_format = QTextCharFormat()
@@ -537,6 +552,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._label_format = QTextCharFormat()
         self._label_format.setFontWeight(QFont.Bold)
         self._label_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._nakshatra_header_formats = {}
+        for nakshatra, (_planet, color) in NAKSHATRA_PLANET_COLOR.items():
+            header_format = QTextCharFormat(self._label_format)
+            header_format.setForeground(QColor(color or CHART_DATA_HIGHLIGHT_COLOR))
+            self._nakshatra_header_formats[nakshatra] = header_format
         self._section_format = QTextCharFormat()
         self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._section_format.setFontWeight(QFont.Bold)
@@ -612,9 +632,14 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             *CHART_DATA_COMMON_LABELS,
             *CHART_DATA_COLON_LABELS,
             *CHART_DATA_SECTION_HEADERS,
+            *self._NAKSHATRA_INFO_FIELD_LABELS,
             "|",
         ):
             self._highlight_phrase(text, label, self._label_format)
+        for nakshatra, header_format in self._nakshatra_header_formats.items():
+            if stripped_text == nakshatra:
+                self.setFormat(0, self._qt_len(text), header_format)
+                break
         if "🌅" in text or "🌌" in text:
             self.setFormat(0, self._qt_len(text), self._time_variant_format)
             dawn_index = text.find("🌅")
