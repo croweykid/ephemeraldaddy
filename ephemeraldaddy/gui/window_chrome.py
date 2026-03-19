@@ -146,6 +146,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
+    _bind_menu_action(tools_menu, "Open BaZi Window", dialog, "_on_menu_open_bazi_window")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
 
     view_menu = menu_bar.addMenu("View")
