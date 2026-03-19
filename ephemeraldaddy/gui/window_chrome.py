@@ -101,20 +101,16 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_menu_action(app_menu, "Settings", window, "_on_open_settings", "on_open_settings")
     _bind_menu_action(app_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay")
-    app_menu.addSeparator()
-    app_menu.addAction("Exit", window.close)
+    app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
 
-    file_menu = menu_bar.addMenu("File")
-    _bind_menu_action(file_menu, "New Chart", window, "on_new_chart")
-    _bind_menu_action(file_menu, "Manage Charts", window, "on_manage_charts")
-    file_menu.addSeparator()
-    file_menu.addAction("Exit", window.close)
+    chart_menu = menu_bar.addMenu("Chart")
+    _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
+    _bind_menu_action(chart_menu, "Export Chart", window, "on_export_chart")
 
     tools_menu = menu_bar.addMenu("Tools")
-    _bind_menu_action(tools_menu, "Settings", window, "_on_open_settings", "on_open_settings")
-
-    help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help Overlay", window, "_on_manage_help_overlay", "on_manage_help_overlay")
+    _bind_menu_action(tools_menu, "Get Transit", window, "on_get_current_transits")
+    _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
+    _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
 
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
@@ -127,6 +123,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _configure_menu_bar_visibility(menu_bar)
     menu_bar.setStyleSheet(WINDOW_CHROME_MENU_STYLE)
 
+    app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
+    _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
+
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
     _bind_menu_action(import_menu, "Import from CSV (Type 1)", dialog, "_on_import_csv_type_1")
@@ -136,9 +135,6 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
     _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
-    file_menu.addSeparator()
-    _bind_menu_action(file_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
-
     charts_menu = menu_bar.addMenu("Charts")
     _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
     _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
