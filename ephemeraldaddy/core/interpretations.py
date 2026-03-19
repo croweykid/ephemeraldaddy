@@ -909,8 +909,8 @@ NAKSHATRA_DESCRIPTIONS = {
         "comments_B": ""
     },
 
-    "Vishaka": {
-        "name": "Vishaka",
+    "Vishakha": {
+        "name": "Vishakha",
         "symbol": "Trident – Archway – Star of Purpose",
         "shakti": "The power to achieve many things in life.",
         "essence": "Connecting to the will and drive of spirit.",
