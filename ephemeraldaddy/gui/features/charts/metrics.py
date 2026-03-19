@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import (
-    ASPECT_SCORE_MULTIPLIERS,
+    ASPECT_SCORE_WEIGHTS,
     DETRIMENT_WEIGHT,
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
@@ -37,6 +37,8 @@ HOUSE_CUSP_BLEND_DEGREES = 8.0
 DISPOSITOR_PLANET_ATTENUATION = 0.35
 DISPOSITOR_SIGN_ATTENUATION = 0.30
 DISPOSITOR_MAX_DEPTH = 2
+CHART_RULER_BONUS = 4.0
+TIGHT_ASPECT_ORB_DEGREES = 1.0
 
 PLANET_DYNAMICS_METRICS = (
     "stability",
@@ -404,9 +406,15 @@ def planet_weight(
     return weight
 
 
-def _aspect_multiplier(aspect_type: str) -> float:
-    normalized_type = aspect_type.replace(" ", "_").lower()
-    return float(ASPECT_SCORE_MULTIPLIERS.get(normalized_type, 0.0))
+def _aspect_strength(aspect: dict) -> float:
+    normalized_type = str(aspect.get("type", "")).replace(" ", "_").lower()
+    aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(normalized_type, 0.0))
+    if aspect_weight <= 0:
+        return 0.0
+    orb_factor = _aspect_orb_factor(aspect)
+    if orb_factor <= 0:
+        return 0.0
+    return aspect_weight * orb_factor
 
 def dominant_planet_keys(chart: Chart) -> list[str]:
     planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT]
@@ -447,7 +455,7 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
 
     for chart_ruler in _chart_ruler_planets(chart):
         if chart_ruler in subtotal_weights:
-            subtotal_weights[chart_ruler] += 3.0
+            subtotal_weights[chart_ruler] += CHART_RULER_BONUS
 
     snapshot_weights = dict(subtotal_weights)
     dispositor_transfers = {body: 0.0 for body in subtotal_weights}
@@ -472,18 +480,14 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
         p2 = normalize_body_name(str(aspect.get("p2", "")))
         if p1 not in subtotal_weights or p2 not in subtotal_weights:
             continue
-        multiplier = _aspect_multiplier(str(aspect.get("type", "")))
-        if multiplier <= 0:
+        aspect_strength = _aspect_strength(aspect)
+        if aspect_strength <= 0:
             continue
-        orb_factor = _aspect_orb_factor(aspect)
-        if orb_factor <= 0:
-            continue
-        final_weights[p1] += subtotal_weights[p2] * multiplier * orb_factor
-        final_weights[p2] += subtotal_weights[p1] * multiplier * orb_factor
-        # p1_scale = _aspect_receiver_scale(p1)
-        # p2_scale = _aspect_receiver_scale(p2)
-        # final_weights[p1] += subtotal_weights[p2] * multiplier * orb_factor * p1_scale
-        # final_weights[p2] += subtotal_weights[p1] * multiplier * orb_factor * p2_scale
+        final_weights[p1] += aspect_strength
+        final_weights[p2] += aspect_strength
+        if abs(float(aspect.get("delta", 0.0))) < TIGHT_ASPECT_ORB_DEGREES:
+            final_weights[p1] += aspect_strength
+            final_weights[p2] += aspect_strength
 
     return final_weights
 
@@ -505,6 +509,21 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
         for sign_name, transfer in transfers.items():
             weighted_counts[sign_name] += transfer
 
+    for aspect in getattr(chart, "aspects", []) or []:
+        p1 = normalize_body_name(str(aspect.get("p1", "")))
+        p2 = normalize_body_name(str(aspect.get("p2", "")))
+        if p1 not in chart.positions or p2 not in chart.positions:
+            continue
+        aspect_strength = _aspect_strength(aspect)
+        if aspect_strength <= 0:
+            continue
+        sign_1 = sign_for_longitude(chart.positions[p1])
+        sign_2 = sign_for_longitude(chart.positions[p2])
+        weighted_counts[sign_1] += aspect_strength
+        weighted_counts[sign_2] += aspect_strength
+        if abs(float(aspect.get("delta", 0.0))) < TIGHT_ASPECT_ORB_DEGREES:
+            weighted_counts[sign_1] += aspect_strength
+            weighted_counts[sign_2] += aspect_strength
 
     sign_prevalence_counts = calculate_sign_prevalence_counts(chart)
     for sign, count in sign_prevalence_counts.items():
