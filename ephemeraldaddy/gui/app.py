@@ -11673,6 +11673,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         force_full_analysis_refresh: bool = False,
     ) -> None:
         self._refresh_personal_transit_chart_options()
+        list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
 
         rows = [
@@ -11714,94 +11715,97 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_positions = {
             row[0]: index for index, row in enumerate(rows, start=1)
         }
-        for (
-            cid,
-            name,
-            _alias,
-            gender,
-            dt_iso,
-            birth_place,
-            _created_at,
-            used_fallback,
-            birthtime_unknown,
-            retcon_time_used,
-            _familiarity,
-            _age_when_first_met,
-            _year_first_encountered,
-            _social_score,
-            _source,
-            is_placeholder,
-            is_deceased,
-            _birth_month,
-            _birth_day,
-            _birth_year,
-        ) in rows:
-            try:
-                matches_filters = self._chart_matches_filters(cid)
-            except Exception:
-                matches_filters = False
-            if not matches_filters:
-                continue
-            display_name = name or "Unnamed"
-            if used_fallback:
-                display_name = f"⚠️ {display_name}"
-            date_label, time_label = format_chart_row_datetime(
+        try:
+            for (
+                cid,
+                name,
+                _alias,
+                gender,
                 dt_iso,
-                birthtime_unknown=bool(birthtime_unknown),
-            )
-            if is_placeholder:
-                chart = self._get_chart_for_filter(cid)
-                if chart is not None:
-                    date_label = self._format_partial_birth_date(
-                        getattr(chart, "birth_month", None),
-                        getattr(chart, "birth_day", None),
-                        getattr(chart, "birth_year", None),
-                    )
-            retcon_date_label, retcon_time_value = format_chart_row_datetime(
-                dt_iso,
-                birthtime_unknown=False,
-            )
-            has_known_retcon_time = (
-                retcon_date_label != "??.??.????"
-                and retcon_time_value not in {"??:??", "unknown"}
-            )
-            retcon_date_label, retcon_time_value = format_chart_row_datetime(
-                dt_iso,
-                birthtime_unknown=False,
-            )
-            has_known_retcon_time = (
-                retcon_date_label != "??.??.????"
-                and retcon_time_value not in {"??:??", "unknown"}
-            )
-            retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
-            place = birth_place or ""
-            gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
-            place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
-            row_prefix = "💀  " if bool(is_deceased) else ""
-            label = (
-                f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                f"{display_name}  {date_label}  {time_label}"
-                f"  {retcon_time_label}  {place_with_gender}"
-            )
-            item = QListWidgetItem(label)
-            item.setData(Qt.UserRole, cid)
-            item.setData(
-                Qt.UserRole + 1,
-                {
-                    "position": chart_positions.get(cid, "?"),
-                    "name": display_name,
-                    "raw_name": name or "Unnamed",
-                    "date": date_label,
-                    "time": time_label,
-                    "retcon_time": retcon_time_label,
-                    "place": place_with_gender,
-                    "is_placeholder": bool(is_placeholder),
-                    "is_deceased": bool(is_deceased),
-                },
-            )
-            self.list_widget.addItem(item)
-            if selected_ids and cid in selected_ids:
-                item.setSelected(True)
+                birth_place,
+                _created_at,
+                used_fallback,
+                birthtime_unknown,
+                retcon_time_used,
+                _familiarity,
+                _age_when_first_met,
+                _year_first_encountered,
+                _social_score,
+                _source,
+                is_placeholder,
+                is_deceased,
+                _birth_month,
+                _birth_day,
+                _birth_year,
+            ) in rows:
+                try:
+                    matches_filters = self._chart_matches_filters(cid)
+                except Exception:
+                    matches_filters = False
+                if not matches_filters:
+                    continue
+                display_name = name or "Unnamed"
+                if used_fallback:
+                    display_name = f"⚠️ {display_name}"
+                date_label, time_label = format_chart_row_datetime(
+                    dt_iso,
+                    birthtime_unknown=bool(birthtime_unknown),
+                )
+                if is_placeholder:
+                    chart = self._get_chart_for_filter(cid)
+                    if chart is not None:
+                        date_label = self._format_partial_birth_date(
+                            getattr(chart, "birth_month", None),
+                            getattr(chart, "birth_day", None),
+                            getattr(chart, "birth_year", None),
+                        )
+                retcon_date_label, retcon_time_value = format_chart_row_datetime(
+                    dt_iso,
+                    birthtime_unknown=False,
+                )
+                has_known_retcon_time = (
+                    retcon_date_label != "??.??.????"
+                    and retcon_time_value not in {"??:??", "unknown"}
+                )
+                retcon_date_label, retcon_time_value = format_chart_row_datetime(
+                    dt_iso,
+                    birthtime_unknown=False,
+                )
+                has_known_retcon_time = (
+                    retcon_date_label != "??.??.????"
+                    and retcon_time_value not in {"??:??", "unknown"}
+                )
+                retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
+                place = birth_place or ""
+                gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
+                place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
+                row_prefix = "💀  " if bool(is_deceased) else ""
+                label = (
+                    f"{row_prefix}#{chart_positions.get(cid, '?')}  "
+                    f"{display_name}  {date_label}  {time_label}"
+                    f"  {retcon_time_label}  {place_with_gender}"
+                )
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, cid)
+                item.setData(
+                    Qt.UserRole + 1,
+                    {
+                        "position": chart_positions.get(cid, "?"),
+                        "name": display_name,
+                        "raw_name": name or "Unnamed",
+                        "date": date_label,
+                        "time": time_label,
+                        "retcon_time": retcon_time_label,
+                        "place": place_with_gender,
+                        "is_placeholder": bool(is_placeholder),
+                        "is_deceased": bool(is_deceased),
+                    },
+                )
+                self.list_widget.addItem(item)
+                if selected_ids and cid in selected_ids:
+                    item.setSelected(True)
+        finally:
+            del list_signal_blocker
         if refresh_metrics:
             if self._should_use_incremental_metrics_refresh():
                 self._update_sentiment_tally(
@@ -11817,6 +11821,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     force_full_refresh=force_full_analysis_refresh,
                     changed_ids=changed_ids,
                 )
+        self._update_collection_membership_buttons()
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
