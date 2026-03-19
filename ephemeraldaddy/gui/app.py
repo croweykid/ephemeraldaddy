@@ -15806,7 +15806,6 @@ class MainWindow(QMainWindow):
                 self._configure_main_splitter()
 
     def _restore_window_settings(self) -> None:
-        geometry_key = "main_window/geometry"
         splitter_key = "main_window/splitter_sizes"
         customized_key = "main_window/layout_customized"
         restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
@@ -15817,13 +15816,11 @@ class MainWindow(QMainWindow):
         self._window_layout_customized = restored_customized
         geometry = _available_screen_geometry()
         self._restoring_window_layout = True
-        if restored_customized and self._settings.contains(geometry_key):
-            self.restoreGeometry(self._settings.value(geometry_key))
-        elif geometry is not None:
+        if geometry is not None:
             self.setGeometry(geometry)
-            self.setWindowState(
-                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-            )
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+        )
         sizes = self._settings.value(splitter_key)
         if restored_customized and sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
