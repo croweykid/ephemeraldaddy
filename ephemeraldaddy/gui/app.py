@@ -8569,9 +8569,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
         self.lower()
 
         QMessageBox.information(
@@ -12306,9 +12309,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         parent.on_new_chart()
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
@@ -13043,9 +13049,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not loaded:
             return
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
@@ -15867,6 +15876,18 @@ class MainWindow(QMainWindow):
         dialog.activateWindow()
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
+    def _show_chart_view_maximized(self) -> None:
+        self.setWindowState(
+            (
+                self.windowState()
+                & ~Qt.WindowFullScreen
+                & ~Qt.WindowMinimized
+            )
+            | Qt.WindowMaximized
+        )
+        self.raise_()
+        self.activateWindow()
+
     def _apply_dark_theme(self):
         self.setStyleSheet("""
             QMainWindow {
@@ -16670,9 +16691,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Retcon Engine", "Selected match has invalid date/time.")
             return
 
-        self.showNormal()
-        self.raise_()
-        self.activateWindow()
+        self._show_chart_view_maximized()
 
         self.place_edit.setText(place_label)
         if lat is not None and lon is not None:
