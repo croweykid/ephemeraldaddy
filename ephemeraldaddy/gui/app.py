@@ -487,6 +487,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner import (
     assign_top_three_species_with_evidence,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
+from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.analysis.country_lookup import resolve_country
 
 class ResizablePixmapLabel(QLabel):
@@ -9811,6 +9812,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_export_chart(self) -> None:
         self._run_main_window_chart_action("export_chart")
 
+    def _on_menu_open_bazi_window(self) -> None:
+        self._run_main_window_chart_action("open_bazi_window")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -13100,6 +13104,15 @@ class MainWindow(QMainWindow):
         )
         top_controls.addWidget(self.interpret_astro_age_button, 0, Qt.AlignRight)
 
+        self.open_bazi_window_button = QPushButton("Open BaZi Window")
+        self.open_bazi_window_button.setObjectName("open_bazi_window_button")
+        self.open_bazi_window_button.setEnabled(False)
+        self.open_bazi_window_button.clicked.connect(self.on_open_bazi_window)
+        self.open_bazi_window_button.setToolTip(
+            "Open a BaZi chart window for the currently open chart when complete birth data is available."
+        )
+        top_controls.addWidget(self.open_bazi_window_button, 0, Qt.AlignRight)
+
         #Help Button
         # self.help_overlay_button = QPushButton("❓") #"Help"
         # self.help_overlay_button.setObjectName("help_overlay_toggle")
@@ -14843,6 +14856,12 @@ class MainWindow(QMainWindow):
         self,
         requester: QWidget | None = None,
     ) -> tuple[Chart | None, int | None]:
+        """Get Active Chart Rule for cross-window chart actions.
+
+        - If Natal Chart View is active: use the currently selected/open chart there.
+        - If Database View is active: use the selected chart in the middle chart list.
+        - If no chart is selected in the active context: return (None, None).
+        """
         manage_dialog = self._manage_charts_dialog
         chart_view_active = requester is self or self.isActiveWindow()
         database_view_active = (
@@ -14904,6 +14923,8 @@ class MainWindow(QMainWindow):
             self._generate_current_transits_for_chart(chart, chart_id)
         elif action_name == "export_chart":
             self._export_chart(chart)
+        elif action_name == "open_bazi_window":
+            self._open_bazi_window(chart)
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
@@ -15053,6 +15074,132 @@ class MainWindow(QMainWindow):
 
     def on_interpret_astro_age(self) -> None:
         self._interpret_astro_age(self._latest_chart)
+
+    def _open_bazi_window(self, chart: Chart | None) -> None:
+        if chart is None:
+            QMessageBox.information(
+                self,
+                "No chart loaded",
+                "Please select a chart first.",
+            )
+            return
+
+        if bool(getattr(chart, "is_placeholder", False)):
+            QMessageBox.information(
+                self,
+                "BaZi unavailable",
+                "BaZi calculation is not possible without complete birth info (date, time, and place).",
+            )
+            return
+
+        birth_place = str(getattr(chart, "birth_place", "") or "").strip()
+        chart_dt = getattr(chart, "dt", None)
+        birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
+        if chart_dt is None or birthtime_unknown or not birth_place:
+            QMessageBox.information(
+                self,
+                "BaZi unavailable",
+                "BaZi calculation is not possible without complete birth info (date, time, and place).",
+            )
+            return
+
+        dt_local = getattr(chart, "dt_local", None)
+        if dt_local is None:
+            if chart_dt.tzinfo is not None:
+                dt_local = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
+            else:
+                dt_local = chart_dt
+
+        try:
+            bazi_data = build_bazi_chart_data(dt_local)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "BaZi error",
+                f"Unable to calculate BaZi chart:\n{exc}",
+            )
+            return
+
+        chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowTitle(f"Bazi Window • {chart_name}")
+        dialog.resize(700, 760)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        summary_label = QLabel(
+            "\n".join(
+                [
+                    f"Chart: {chart_name}",
+                    f"Birth place: {birth_place}",
+                    f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"Lunar date: {bazi_data.lunar_date_str}",
+                    f"Year zodiac: {bazi_data.zodiac_animal}",
+                    (
+                        "Four Pillars: "
+                        f"{bazi_data.year_pillar} / {bazi_data.month_pillar} / "
+                        f"{bazi_data.day_pillar} / {bazi_data.hour_pillar}"
+                    ),
+                ]
+            )
+        )
+        summary_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        summary_font = summary_label.font()
+        summary_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        summary_label.setFont(summary_font)
+        layout.addWidget(summary_label, 0)
+
+        details_output = QPlainTextEdit()
+        details_output.setReadOnly(True)
+        details_font = details_output.font()
+        details_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        details_output.setFont(details_font)
+        details_output.setPlaceholderText("BaZi chart details unavailable.")
+
+        lines = [
+            "BAZI CHART DETAILS",
+            "",
+            "Heavenly Stems:",
+            f"  Year : {bazi_data.heavenly_stems['year']}",
+            f"  Month: {bazi_data.heavenly_stems['month']}",
+            f"  Day  : {bazi_data.heavenly_stems['day']}",
+            f"  Hour : {bazi_data.heavenly_stems['hour']}",
+            "",
+            "Earthly Branches:",
+            f"  Year : {bazi_data.earthly_branches['year']}",
+            f"  Month: {bazi_data.earthly_branches['month']}",
+            f"  Day  : {bazi_data.earthly_branches['day']}",
+            f"  Hour : {bazi_data.earthly_branches['hour']}",
+            "",
+            "Five Elements / Na Yin:",
+            f"  Year : {bazi_data.five_elements_summary['year']}",
+            f"  Month: {bazi_data.five_elements_summary['month']}",
+            f"  Day  : {bazi_data.five_elements_summary['day']}",
+            f"  Hour : {bazi_data.five_elements_summary['hour']}",
+            f"  Na Yin (Year): {bazi_data.five_elements_summary['na_yin']['year']}",
+            f"  Na Yin (Month): {bazi_data.five_elements_summary['na_yin']['month']}",
+            f"  Na Yin (Day): {bazi_data.five_elements_summary['na_yin']['day']}",
+            f"  Na Yin (Hour): {bazi_data.five_elements_summary['na_yin']['hour']}",
+            "",
+            "Ten Gods (relative to Day Master):",
+            f"  Year stem : {bazi_data.ten_gods_summary['year']}",
+            f"  Month stem: {bazi_data.ten_gods_summary['month']}",
+            f"  Hour stem : {bazi_data.ten_gods_summary['hour']}",
+            f"  Day branch main: {bazi_data.ten_gods_summary['day_branch_main']}",
+        ]
+        details_output.setPlainText("\n".join(lines))
+        layout.addWidget(details_output, 1)
+
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def on_open_bazi_window(self) -> None:
+        self._open_bazi_window(self._latest_chart)
 
     def _create_gemstone_chartwheel(self, chart: Chart | None) -> None:
         if chart is None:
@@ -16361,6 +16508,7 @@ class MainWindow(QMainWindow):
         self.current_transits_button.setEnabled(False)
         self.gemstone_chartwheel_button.setEnabled(False)
         self.interpret_astro_age_button.setEnabled(False)
+        self.open_bazi_window_button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -16705,6 +16853,7 @@ class MainWindow(QMainWindow):
         self.current_transits_button.setEnabled(False)
         self.gemstone_chartwheel_button.setEnabled(False)
         self.interpret_astro_age_button.setEnabled(False)
+        self.open_bazi_window_button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -16927,6 +17076,7 @@ class MainWindow(QMainWindow):
         self.current_transits_button.setEnabled(True)
         self.gemstone_chartwheel_button.setEnabled(True)
         self.interpret_astro_age_button.setEnabled(True)
+        self.open_bazi_window_button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
