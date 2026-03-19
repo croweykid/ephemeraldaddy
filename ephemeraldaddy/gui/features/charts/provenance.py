@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ephemeraldaddy.core.db import (
     SOURCE_EVENT,
+    SOURCE_NONHUMAN_ENTITY,
     SOURCE_PARASOCIAL,
     SOURCE_PERSONAL,
     SOURCE_PERSONAL_TRANSIT,
@@ -17,6 +18,7 @@ SOURCE_OPTIONS: list[tuple[str, str]] = [
     ("Personal", SOURCE_PERSONAL),
     ("Parasocial", SOURCE_PARASOCIAL),
     ("Event", SOURCE_EVENT),
+    ("Nonhuman Entity", SOURCE_NONHUMAN_ENTITY),
     ("Synastry", SOURCE_SYNASTRY),
     ("Personal Transit", SOURCE_PERSONAL_TRANSIT),
 ]
