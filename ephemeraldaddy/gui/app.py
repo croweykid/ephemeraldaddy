@@ -1972,94 +1972,94 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setLayout(layout)
         configure_manage_dialog_chrome(self, layout)
 
-        controls_layout = QHBoxLayout()
-        controls_layout.setSpacing(4)
-        layout.addLayout(controls_layout)
+        # controls_layout = QHBoxLayout()
+        # controls_layout.setSpacing(4)
+        # layout.addLayout(controls_layout)
 
-        self.new_chart_button = QPushButton("✚ New Chart") #New Chart
-        self.new_chart_button.setObjectName("manage_new_chart_button")
-        self.new_chart_button.clicked.connect(self._on_new_chart)
-        controls_layout.addWidget(self.new_chart_button)
+        # self.new_chart_button = QPushButton("✚ New Chart") #New Chart
+        # self.new_chart_button.setObjectName("manage_new_chart_button")
+        # self.new_chart_button.clicked.connect(self._on_new_chart)
+        # controls_layout.addWidget(self.new_chart_button)
 
-        self.delete_button = QPushButton("❌ Chart(s)") #Delete Chart(s)
-        self.delete_button.setObjectName("manage_delete_chart_button")
-        self.delete_button.clicked.connect(self._on_delete)
-        controls_layout.addWidget(self.delete_button)
+        # self.delete_button = QPushButton("❌ Chart(s)") #Delete Chart(s)
+        # self.delete_button.setObjectName("manage_delete_chart_button")
+        # self.delete_button.clicked.connect(self._on_delete)
+        # controls_layout.addWidget(self.delete_button)
 
-        self.generate_composite_chart_button = QPushButton("🧬 Synastry")
-        self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
-        self.generate_composite_chart_button.clicked.connect(
-            self._on_generate_composite_chart
-        )
-        controls_layout.addWidget(self.generate_composite_chart_button)
+        # self.generate_composite_chart_button = QPushButton("🧬 Synastry")
+        # self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
+        # self.generate_composite_chart_button.clicked.connect(
+        #     self._on_generate_composite_chart
+        # )
+        # controls_layout.addWidget(self.generate_composite_chart_button)
 
-        controls_layout.addStretch(1)
+        # controls_layout.addStretch(1)
 
-        #transits button
-        self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
-        self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
-        self.todays_transits_panel_button.clicked.connect(
-            self._toggle_todays_transits_panel
-        )
-        controls_layout.addWidget(self.todays_transits_panel_button)
+        # #transits button
+        # self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
+        # self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
+        # self.todays_transits_panel_button.clicked.connect(
+        #     self._toggle_todays_transits_panel
+        # )
+        # controls_layout.addWidget(self.todays_transits_panel_button)
 
-        self.manage_collections_button = QPushButton("Manage Collections")
-        self.manage_collections_button.setObjectName(
-            "manage_toggle_collections_panel_button"
-        )
-        self.manage_collections_button.clicked.connect(
-            self._toggle_manage_collections_panel
-        )
-        controls_layout.addWidget(self.manage_collections_button)
-        self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
-        self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
-        self.database_metrics_panel_button.clicked.connect(
-            self._toggle_database_metrics_panel
-        )
-        controls_layout.addWidget(self.database_metrics_panel_button)
+        # self.manage_collections_button = QPushButton("Manage Collections")
+        # self.manage_collections_button.setObjectName(
+        #     "manage_toggle_collections_panel_button"
+        # )
+        # self.manage_collections_button.clicked.connect(
+        #     self._toggle_manage_collections_panel
+        # )
+        # controls_layout.addWidget(self.manage_collections_button)
+        # self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
+        # self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
+        # self.database_metrics_panel_button.clicked.connect(
+        #     self._toggle_database_metrics_panel
+        # )
+        # controls_layout.addWidget(self.database_metrics_panel_button)
 
-        self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
-        self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
-        self.gen_pop_norms_panel_button.clicked.connect(
-            self._toggle_gen_pop_norms_panel
-        )
-        controls_layout.addWidget(self.gen_pop_norms_panel_button)
+        # self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
+        # self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
+        # self.gen_pop_norms_panel_button.clicked.connect(
+        #     self._toggle_gen_pop_norms_panel
+        # )
+        # controls_layout.addWidget(self.gen_pop_norms_panel_button)
 
-        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
-        self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
-        self.similarities_panel_button.clicked.connect(
-            self._toggle_similarities_panel
-        )
-        controls_layout.addWidget(self.similarities_panel_button)
+        # self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
+        # self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
+        # self.similarities_panel_button.clicked.connect(
+        #     self._toggle_similarities_panel
+        # )
+        # controls_layout.addWidget(self.similarities_panel_button)
 
 
-        self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
-        self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
-        self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
-        controls_layout.addWidget(self.edit_charts_button)
+        # self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
+        # self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
+        # self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
+        # controls_layout.addWidget(self.edit_charts_button)
 
-        self.search_panel_button = QPushButton("🔎")
-        self.search_panel_button.setObjectName("manage_toggle_search_panel_button")
-        self.search_panel_button.clicked.connect(self._toggle_search_panel)
-        controls_layout.addWidget(self.search_panel_button)
+        # self.search_panel_button = QPushButton("🔎")
+        # self.search_panel_button.setObjectName("manage_toggle_search_panel_button")
+        # self.search_panel_button.clicked.connect(self._toggle_search_panel)
+        # controls_layout.addWidget(self.search_panel_button)
 
-        for control_button in (
-            self.new_chart_button,
-            self.delete_button,
-            self.generate_composite_chart_button,
-            self.todays_transits_panel_button,
-            self.manage_collections_button,
-            self.database_metrics_panel_button,
-            self.gen_pop_norms_panel_button,
-            self.similarities_panel_button,
-            self.edit_charts_button,
-            self.search_panel_button,
-        ):
-            control_button.setAutoDefault(False)
-            control_button.setDefault(False)
-            control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-            control_button.setMinimumWidth(0)
-            control_button.setStyleSheet("padding: 2px 6px;")
+        # for control_button in (
+        #     self.new_chart_button,
+        #     self.delete_button,
+        #     self.generate_composite_chart_button,
+        #     self.todays_transits_panel_button,
+        #     self.manage_collections_button,
+        #     self.database_metrics_panel_button,
+        #     self.gen_pop_norms_panel_button,
+        #     self.similarities_panel_button,
+        #     self.edit_charts_button,
+        #     self.search_panel_button,
+        # ):
+        #     control_button.setAutoDefault(False)
+        #     control_button.setDefault(False)
+        #     control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        #     control_button.setMinimumWidth(0)
+        #     control_button.setStyleSheet("padding: 2px 6px;")
 
         self.sort_button = QPushButton("Sort: Alphabetical") #default sorting method pt 2/2
         self.sort_button.setObjectName("manage_sort_button")
@@ -13593,11 +13593,11 @@ class MainWindow(QMainWindow):
         top_controls.addWidget(self.interpret_astro_age_button, 0, Qt.AlignRight)
 
         #Help Button
-        self.help_overlay_button = QPushButton("❓") #"Help"
-        self.help_overlay_button.setObjectName("help_overlay_toggle")
-        self.help_overlay_button.setToolTip("Toggle Help Overlay mode.")
-        self.help_overlay_button.clicked.connect(self._toggle_help_overlay)
-        top_controls.addWidget(self.help_overlay_button, 0, Qt.AlignRight)
+        # self.help_overlay_button = QPushButton("❓") #"Help"
+        # self.help_overlay_button.setObjectName("help_overlay_toggle")
+        # self.help_overlay_button.setToolTip("Toggle Help Overlay mode.")
+        # self.help_overlay_button.clicked.connect(self._toggle_help_overlay)
+        # top_controls.addWidget(self.help_overlay_button, 0, Qt.AlignRight)
 
         #initiates button menu layout for Natal Chart View?
         root_layout.addLayout(top_controls)
