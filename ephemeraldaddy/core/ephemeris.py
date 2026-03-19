@@ -155,6 +155,84 @@ _SWE_PLANET_FALLBACK_IDS = {
     "Pluto": ("SE_PLUTO", "PLUTO"),
 }
 
+_SWE_NAMED_BODY_IDS = {
+    "Sun": ("SE_SUN", "SUN"),
+    "Moon": ("SE_MOON", "MOON"),
+    "Mercury": ("SE_MERCURY", "MERCURY"),
+    "Venus": ("SE_VENUS", "VENUS"),
+    "Mars": ("SE_MARS", "MARS"),
+    "Jupiter": ("SE_JUPITER", "JUPITER"),
+    "Saturn": ("SE_SATURN", "SATURN"),
+    "Uranus": ("SE_URANUS", "URANUS"),
+    "Neptune": ("SE_NEPTUNE", "NEPTUNE"),
+    "Pluto": ("SE_PLUTO", "PLUTO"),
+    "Chiron": ("SE_CHIRON", "CHIRON"),
+    "Ceres": ("SE_CERES", "CERES"),
+    "Pallas": ("SE_PALLAS", "PALLAS"),
+    "Juno": ("SE_JUNO", "JUNO"),
+    "Vesta": ("SE_VESTA", "VESTA"),
+    "Rahu": ("SE_TRUE_NODE", "TRUE_NODE"),
+    "Lilith": ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE"),
+}
+
+
+def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | None:
+    """
+    Fast Swiss-Ephemeris-only longitude lookup for a single named body.
+
+    Returns ``None`` when the body is unsupported or no finite longitude
+    could be resolved for the timestamp.
+    """
+    if dt_aware.tzinfo is None:
+        raise ValueError("planetary_longitude expects a timezone-aware datetime")
+
+    normalized_name = str(body_name or "").strip()
+    if not normalized_name:
+        return None
+    if normalized_name == "Ketu":
+        rahu = planetary_longitude(dt_aware, "Rahu")
+        return None if rahu is None else (rahu + 180.0) % 360.0
+
+    names = _SWE_NAMED_BODY_IDS.get(normalized_name)
+    if not names:
+        return None
+
+    _configure_swiss_ephemeris()
+    _ensure_swiss_ephemeris_data({normalized_name}, allow_download=not is_offline_mode())
+
+    dt_utc = dt_aware.astimezone(datetime.timezone.utc)
+    hour = (
+        dt_utc.hour
+        + dt_utc.minute / 60.0
+        + dt_utc.second / 3600.0
+        + dt_utc.microsecond / 3_600_000_000.0
+    )
+    jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, hour)
+
+    body_id = None
+    for candidate in names:
+        if hasattr(swe, candidate):
+            body_id = getattr(swe, candidate)
+            break
+    if body_id is None:
+        return None
+
+    lon = None
+    try:
+        lon, _ret = swe.calc_ut(jd_ut, body_id)
+    except Exception:
+        lon = None
+
+    if lon is None or not math.isfinite(lon[0]):
+        try:
+            lon, _ret = swe.calc_ut(jd_ut, body_id, swe.FLG_MOSEPH)
+        except Exception:
+            lon = None
+
+    if lon is None or not math.isfinite(lon[0]):
+        return None
+    return float(lon[0]) % 360.0
+
 def planetary_positions(dt_aware, lat, lon):
     """
     dt_aware must be a timezone-aware datetime.

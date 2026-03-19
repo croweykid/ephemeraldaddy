@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable, Mapping
 
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
     ASTEROIDS,
     EPHEMERIS_MAX_DATE,
@@ -485,12 +486,19 @@ def find_transit_aspect_window_result(
         if should_cancel is not None and should_cancel():
             raise TransitAspectWindowCancelled()
 
+    transit_lon_cache: dict[datetime, float | None] = {}
+
     def _orb_gap(at_time: datetime) -> float | None:
         _cancel_if_requested()
         if diagnostics is not None:
             diagnostics["orb_gap_calls"] = int(diagnostics.get("orb_gap_calls", 0)) + 1
-        chart = compute_chart(at_time, transit_location, name="Transit aspect scan")
-        transit_lon = chart.positions.get(transit_name)
+        transit_lon = transit_lon_cache.get(at_time)
+        if at_time not in transit_lon_cache:
+            transit_lon = planetary_longitude(at_time, transit_name)
+            if transit_lon is None:
+                chart = compute_chart(at_time, transit_location, name="Transit aspect scan")
+                transit_lon = chart.positions.get(transit_name)
+            transit_lon_cache[at_time] = transit_lon
         if transit_lon is None:
             return None
         delta = angular_distance(float(transit_lon), float(natal_lon))
