@@ -10349,6 +10349,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Uranus", "Uranus"),
             ("Neptune", "Neptune"),
             ("Pluto", "Pluto"),
+            ("Rahu", "Rahu"),
+            ("Ketu", "Ketu"),
             ("AS", "AS"),
             ("IC", "IC"),
             ("DS", "DS"),
@@ -12210,15 +12212,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart.dominant_planet_weights = dominant_planet_weights
         if not dominant_planet_weights:
             return False
-        max_weight = max(dominant_planet_weights.values(), default=None)
-        if max_weight is None:
+        numeric_weights = [
+            float(weight)
+            for weight in dominant_planet_weights.values()
+            if isinstance(weight, (int, float))
+        ]
+        if not numeric_weights:
             return False
-        dominant_planets = {
-            weighted_planet
-            for weighted_planet, weight in dominant_planet_weights.items()
-            if weight == max_weight
-        }
-        return planet in dominant_planets
+        median_weight = statistics.median(numeric_weights)
+        if median_weight <= 0:
+            median_weight = max(numeric_weights)
+        if median_weight <= 0:
+            return False
+        dominant_threshold = median_weight * 1.25
+        planet_weight = dominant_planet_weights.get(planet)
+        if not isinstance(planet_weight, (int, float)):
+            return False
+        return float(planet_weight) >= dominant_threshold
 
     def _chart_ranked_dominant_elements(self, chart: Chart) -> list[str]:
         dominant_element_weights = _calculate_dominant_element_weights(chart)
