@@ -1878,7 +1878,7 @@ class ChartListWidget(QListWidget):
                 self.clearSelection()
                 item.setSelected(True)
                 self.setCurrentItem(item)
-                self.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+                self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
                 return True
         return False
 
@@ -9084,7 +9084,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.list_widget.clearSelection()
                 item.setSelected(True)
                 self.list_widget.setCurrentItem(item)
-                self.list_widget.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+                self.list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
                 return True
         return False
 
