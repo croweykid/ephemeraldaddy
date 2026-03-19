@@ -998,7 +998,7 @@ def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
     _configure_qt_input_scaling()
     QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
-    QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
+    #QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     app = QApplication.instance()
     if app is None:
