@@ -780,6 +780,7 @@ class QuadStateSlider(QWidget):
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
 SEARCH_RELATIONSHIP_TYPE_OPTIONS = ["none", *RELATION_TYPE]
 SEARCH_GENDER_OPTIONS = ["none", *GENDER_OPTIONS]
+SEARCH_GENDER_BLANK_ALIASES = {"", "none", "unknown", "blank", "undefined", "__blank__"}
 SEARCH_GENDER_GUESSED_OPTIONS = [
     ("Any", ""),
     ("Masculine", "masculine"),
@@ -7734,7 +7735,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if chart is None:
                         continue
                     raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                    selection_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+                    selection_gender_counts_raw[raw_gender if raw_gender else "blank"] += 1
 
                 if self._database_metrics_baseline_mode == "gen_pop":
                     gender_labels = ["F", "M"]
@@ -7752,9 +7753,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         if chart is None:
                             continue
                         raw_gender = self._normalize_gender_value(getattr(chart, "gender", None))
-                        database_gender_counts_raw[raw_gender if raw_gender else "Unknown"] += 1
+                        database_gender_counts_raw[raw_gender if raw_gender else "blank"] += 1
 
-                    known_labels = [*GENDER_OPTIONS, "Unknown"]
+                    known_labels = ["blank", *GENDER_OPTIONS]
                     custom_labels = sorted(
                         label
                         for label in {
@@ -8586,7 +8587,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.gender_filter_checkboxes = {}
         gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
         for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
-            checkbox = QuadStateSlider(label)
+            checkbox_label = "blank" if label == "none" else label
+            checkbox = QuadStateSlider(checkbox_label)
             checkbox.modeChanged.connect(self._on_filter_changed)
             self.gender_filter_checkboxes[label] = checkbox
             row = idx % gender_rows
@@ -12624,8 +12626,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if gender is None:
             return ""
         if isinstance(gender, str):
-            return gender.strip()
-        return str(gender).strip()
+            normalized = gender.strip()
+        else:
+            normalized = str(gender).strip()
+        if normalized.casefold() in SEARCH_GENDER_BLANK_ALIASES:
+            return ""
+        return normalized
 
     @staticmethod
     def _classify_guessed_gender(score: float) -> str:
