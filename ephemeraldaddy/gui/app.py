@@ -8576,9 +8576,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
         self.lower()
 
         QMessageBox.information(
@@ -12292,9 +12295,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         parent.on_new_chart()
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
@@ -13029,9 +13035,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not loaded:
             return
         if isinstance(parent, QWidget):
-            parent.showNormal()
-            parent.raise_()
-            parent.activateWindow()
+            if isinstance(parent, MainWindow):
+                parent._show_chart_view_maximized()
+            else:
+                parent.showNormal()
+                parent.raise_()
+                parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
@@ -15806,7 +15815,6 @@ class MainWindow(QMainWindow):
                 self._configure_main_splitter()
 
     def _restore_window_settings(self) -> None:
-        geometry_key = "main_window/geometry"
         splitter_key = "main_window/splitter_sizes"
         customized_key = "main_window/layout_customized"
         restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
@@ -15817,13 +15825,11 @@ class MainWindow(QMainWindow):
         self._window_layout_customized = restored_customized
         geometry = _available_screen_geometry()
         self._restoring_window_layout = True
-        if restored_customized and self._settings.contains(geometry_key):
-            self.restoreGeometry(self._settings.value(geometry_key))
-        elif geometry is not None:
+        if geometry is not None:
             self.setGeometry(geometry)
-            self.setWindowState(
-                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-            )
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+        )
         sizes = self._settings.value(splitter_key)
         if restored_customized and sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
@@ -15844,6 +15850,18 @@ class MainWindow(QMainWindow):
         dialog.raise_()
         dialog.activateWindow()
         dialog.setFocus(Qt.ActiveWindowFocusReason)
+
+    def _show_chart_view_maximized(self) -> None:
+        self.setWindowState(
+            (
+                self.windowState()
+                & ~Qt.WindowFullScreen
+                & ~Qt.WindowMinimized
+            )
+            | Qt.WindowMaximized
+        )
+        self.raise_()
+        self.activateWindow()
 
     def _apply_dark_theme(self):
         self.setStyleSheet("""
@@ -16644,9 +16662,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Retcon Engine", "Selected match has invalid date/time.")
             return
 
-        self.showNormal()
-        self.raise_()
-        self.activateWindow()
+        self._show_chart_view_maximized()
 
         self.place_edit.setText(place_label)
         if lat is not None and lon is not None:
