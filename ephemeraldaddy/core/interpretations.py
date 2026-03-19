@@ -410,14 +410,15 @@ PLANET_RULERSHIP_CLASSICAL = {
     "Saturn": {"Capricorn","Aquarius"},
 }
 
+#not sure if I should use both signs or not.
 PLANET_RULERSHIP = {
     "Sun": {"Leo"},
     "Moon": {"Cancer"},
     "Mercury": {"Gemini", "Virgo"},
     "Venus": {"Taurus", "Libra"},
-    "Mars": {"Aries"}, #"Scorpio"
-    "Jupiter": {"Sagittarius"}, #"Pisces"
-    "Saturn": {"Capricorn"}, #"Aquarius"
+    "Mars": {"Aries","Scorpio"}, #"Scorpio"
+    "Jupiter": {"Sagittarius","Pisces"}, #"Pisces"
+    "Saturn": {"Capricorn","Aquarius"}, #"Aquarius"
     "Neptune": {"Pisces"},
     "Uranus": {"Aquarius"},
     "Pluto": {"Scorpio"},
