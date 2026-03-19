@@ -126,6 +126,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(file_menu, "Backup Database", dialog, "_on_export_database")
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
+    _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
     file_menu.addSeparator()
     _bind_menu_action(file_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
 
@@ -150,6 +151,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "General Population Comparison", dialog, "_show_gen_pop_comparison_panel")
     _bind_menu_action(view_menu, "Manage Collections", dialog, "_show_manage_collections_panel")
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
+    _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
 
     help_menu = menu_bar.addMenu("Help")
     _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
