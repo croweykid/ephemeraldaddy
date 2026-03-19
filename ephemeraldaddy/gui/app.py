@@ -235,7 +235,6 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_GLYPHS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
-    PLANET_RULERSHIP,
     RELATION_TYPE,
     FAMILIARITY_INDEX,
     GENDER_GLYPHS,
@@ -17247,9 +17246,6 @@ class MainWindow(QMainWindow):
             for planet, ruled_signs in PLANET_RULERSHIP.items()
             if ascendant_sign in ruled_signs
         ]
-        for planet, ruled_signs in PLANET_RULERSHIP.items():
-            if ascendant_sign in ruled_signs and planet not in rulers:
-                rulers.append(planet)
         return rulers
 
     def _update_chart_ruler_footer(self, chart: Chart | None) -> None:

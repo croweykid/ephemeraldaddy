@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
     DETRIMENT_WEIGHT,
     EXALTATION_WEIGHT,
@@ -39,6 +40,8 @@ DISPOSITOR_SIGN_ATTENUATION = 0.30
 DISPOSITOR_MAX_DEPTH = 2
 CHART_RULER_BONUS = 4.0
 TIGHT_ASPECT_ORB_DEGREES = 1.0
+TIGHT_ASPECT_INTENSITY_MIN = 1.2
+TIGHT_ASPECT_INTENSITY_MAX = 1.4
 
 PLANET_DYNAMICS_METRICS = (
     "stability",
@@ -271,7 +274,22 @@ def _aspect_orb_factor(aspect: dict) -> float:
     if allowance <= 0:
         return 0.0
     orb = abs(float(aspect.get("delta", 0.0)))
-    return max(0.0, (allowance - orb) / allowance)
+    ratio = orb / allowance
+    return max(0.0, 1.0 - (ratio * ratio))
+
+
+def _aspect_multiplier(aspect_type: str) -> float:
+    normalized_type = str(aspect_type).replace(" ", "_").lower()
+    return float(ASPECT_SCORE_MULTIPLIERS.get(normalized_type, 0.0))
+
+
+def _tight_aspect_intensity_bonus(aspect: dict) -> float:
+    orb = abs(float(aspect.get("delta", 0.0)))
+    if orb >= TIGHT_ASPECT_ORB_DEGREES:
+        return 1.0
+    normalized = 1.0 - (orb / TIGHT_ASPECT_ORB_DEGREES)
+    spread = TIGHT_ASPECT_INTENSITY_MAX - TIGHT_ASPECT_INTENSITY_MIN
+    return TIGHT_ASPECT_INTENSITY_MIN + (normalized * spread)
 
 
 # This is slightly overweighting outer planets:
@@ -414,7 +432,8 @@ def _aspect_strength(aspect: dict) -> float:
     orb_factor = _aspect_orb_factor(aspect)
     if orb_factor <= 0:
         return 0.0
-    return aspect_weight * orb_factor
+    intensity_bonus = _tight_aspect_intensity_bonus(aspect)
+    return aspect_weight * orb_factor * intensity_bonus
 
 def dominant_planet_keys(chart: Chart) -> list[str]:
     planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT]
@@ -480,14 +499,16 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
         p2 = normalize_body_name(str(aspect.get("p2", "")))
         if p1 not in subtotal_weights or p2 not in subtotal_weights:
             continue
-        aspect_strength = _aspect_strength(aspect)
-        if aspect_strength <= 0:
+        aspect_multiplier = _aspect_multiplier(str(aspect.get("type", "")))
+        if aspect_multiplier <= 0:
             continue
-        final_weights[p1] += aspect_strength
-        final_weights[p2] += aspect_strength
-        if abs(float(aspect.get("delta", 0.0))) < TIGHT_ASPECT_ORB_DEGREES:
-            final_weights[p1] += aspect_strength
-            final_weights[p2] += aspect_strength
+        orb_factor = _aspect_orb_factor(aspect)
+        if orb_factor <= 0:
+            continue
+        intensity_bonus = _tight_aspect_intensity_bonus(aspect)
+        gain = (subtotal_weights[p1] + subtotal_weights[p2]) * aspect_multiplier * orb_factor * intensity_bonus
+        final_weights[p1] += gain
+        final_weights[p2] += gain
 
     return final_weights
 
