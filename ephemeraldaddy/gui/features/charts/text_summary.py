@@ -142,6 +142,10 @@ def _display_body_with_glyph(body: str) -> str:
     glyph = PLANET_GLYPHS.get(body) or PLANET_GLYPHS.get(display_body)
     if not glyph:
         return display_body
+    # Angle "glyphs" are intentionally plain-text abbreviations (AS/MC/DS/IC).
+    # Avoid rendering duplicates like "AS AS" in chart output.
+    if str(glyph).strip().casefold() == str(display_body).strip().casefold():
+        return display_body
     return f"{glyph} {display_body}"
 
 
