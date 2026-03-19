@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -10,7 +11,7 @@ from ephemeraldaddy.gui.style import WINDOW_CHROME_MENU_STYLE
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
-APP_DISPLAY_NAME = "EphemeralDaddy"
+APP_DISPLAY_NAME = "Ephemeral Daddy"
 
 
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:
@@ -36,8 +37,12 @@ def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) 
 
 
 def _configure_menu_bar_visibility(menu_bar) -> None:
-    """Force a visible in-window menu bar on macOS interpreter launches."""
-    if sys.platform == "darwin":
+    """Prefer native menu positioning; allow opt-in in-window menu bars on macOS."""
+    if (
+        sys.platform == "darwin"
+        and not getattr(sys, "frozen", False)
+        and os.environ.get("EPHEMERALDADDY_FORCE_IN_WINDOW_MENUBAR") == "1"
+    ):
         menu_bar.setNativeMenuBar(False)
 
 
