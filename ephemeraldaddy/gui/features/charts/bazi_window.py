@@ -87,8 +87,19 @@ _TEN_GODS_TRANSLATIONS: dict[str, str] = {
 }
 
 
-def _english_gloss(text: str) -> str:
-    normalized = (text or "").strip()
+def _normalize_bazi_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, tuple, set)):
+        parts = [str(part).strip() for part in value if str(part).strip()]
+        return ", ".join(parts)
+    return str(value).strip()
+
+
+def _english_gloss(value: Any) -> str:
+    normalized = _normalize_bazi_value(value)
     if not normalized:
         return ""
     if normalized in _TEN_GODS_TRANSLATIONS:
@@ -119,11 +130,12 @@ def _english_gloss(text: str) -> str:
     return ", ".join(translated_parts)
 
 
-def _bilingual(text: str) -> str:
-    gloss = _english_gloss(text)
+def _bilingual(value: Any) -> str:
+    normalized = _normalize_bazi_value(value)
+    gloss = _english_gloss(normalized)
     if not gloss:
-        return text
-    return f"{text} ({gloss})"
+        return normalized
+    return f"{normalized} ({gloss})"
 
 
 def validate_chart_for_bazi(chart: Chart | None) -> str | None:
