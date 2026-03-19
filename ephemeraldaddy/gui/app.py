@@ -1836,6 +1836,44 @@ class EmojiTiledPanel(QWidget):
             for x in range(0, self.width() + tile_width, tile_width):
                 painter.drawText(x, y + baseline_offset, self._emoji)
 
+def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
+    """Select the next item whose name starts with the typed letter."""
+    if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
+        return False
+
+    typed = event.text()
+    if len(typed) != 1 or not typed.isalpha():
+        return False
+
+    letter = typed.casefold()
+    total = list_widget.count()
+    if total <= 0:
+        return False
+
+    current_row = list_widget.currentRow()
+    start_row = current_row if current_row >= 0 else -1
+
+    for offset in range(1, total + 1):
+        row = (start_row + offset) % total
+        item = list_widget.item(row)
+        if item is None:
+            continue
+
+        metadata = item.data(Qt.UserRole + 1)
+        candidate_name = ""
+        if isinstance(metadata, dict):
+            candidate_name = (metadata.get("raw_name") or "").strip()
+        if not candidate_name:
+            candidate_name = item.text().strip()
+
+        if candidate_name.casefold().startswith(letter):
+            list_widget.clearSelection()
+            item.setSelected(True)
+            list_widget.setCurrentItem(item)
+            list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+            return True
+
+    return False
 
 class ChartListWidget(QListWidget):
     """List widget with single-letter jump-to-name navigation."""
@@ -1846,42 +1884,7 @@ class ChartListWidget(QListWidget):
         super().keyPressEvent(event)
 
     def _handle_letter_jump(self, event) -> bool:
-        if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
-            return False
-
-        typed = event.text()
-        if len(typed) != 1 or not typed.isalpha():
-            return False
-
-        letter = typed.casefold()
-        total = self.count()
-        if total <= 0:
-            return False
-
-        current_row = self.currentRow()
-        start_row = current_row if current_row >= 0 else -1
-
-        for offset in range(1, total + 1):
-            row = (start_row + offset) % total
-            item = self.item(row)
-            if item is None:
-                continue
-
-            metadata = item.data(Qt.UserRole + 1)
-            candidate_name = ""
-            if isinstance(metadata, dict):
-                candidate_name = (metadata.get("raw_name") or "").strip()
-            if not candidate_name:
-                candidate_name = item.text().strip()
-
-            if candidate_name.casefold().startswith(letter):
-                self.clearSelection()
-                item.setSelected(True)
-                self.setCurrentItem(item)
-                self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
-                return True
-        return False
-
+        return _handle_list_letter_jump(self, event)
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
@@ -9055,38 +9058,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return super().eventFilter(obj, event)
 
     def _handle_list_letter_jump(self, event) -> bool:
-        if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
-            return False
-        typed = event.text()
-        if len(typed) != 1 or not typed.isalpha():
-            return False
-
-        letter = typed.casefold()
-        total = self.list_widget.count()
-        if total <= 0:
-            return False
-
-        current_row = self.list_widget.currentRow()
-        start_row = current_row if current_row >= 0 else -1
-
-        for offset in range(1, total + 1):
-            row = (start_row + offset) % total
-            item = self.list_widget.item(row)
-            if item is None:
-                continue
-            metadata = item.data(Qt.UserRole + 1)
-            candidate_name = ""
-            if isinstance(metadata, dict):
-                candidate_name = (metadata.get("raw_name") or "").strip()
-            if not candidate_name:
-                candidate_name = item.text().strip()
-            if candidate_name.casefold().startswith(letter):
-                self.list_widget.clearSelection()
-                item.setSelected(True)
-                self.list_widget.setCurrentItem(item)
-                self.list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
-                return True
-        return False
+        return _handle_list_letter_jump(self.list_widget, event)
 
     def _on_import_astrotheme_from_search_panel(self) -> None:
         raw_query = self.astrotheme_search_input.text().strip()
