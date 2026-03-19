@@ -13206,58 +13206,66 @@ class MainWindow(QMainWindow):
         self.manage_button.setToolTip("Back to Database View")
         self.manage_button.setFixedSize(36, 24)
         top_controls.addWidget(self.manage_button, 0, Qt.AlignLeft)
+        # Commented out per request: remove the top-row Chart View action buttons
+        # and rely on window_chrome menus/actions instead.
+        # top_controls.addStretch(1)
+        #
+        # # New Chart Button
+        # self.new_chart_button = QPushButton("New Chart")
+        # self.new_chart_button.setObjectName("new_chart_button")
+        # self.new_chart_button.clicked.connect(self.on_new_chart)
+        # top_controls.addWidget(self.new_chart_button, 0, Qt.AlignRight)
+        #
+        # # Export Charts Button
+        # self.export_chart_button = QPushButton("Export Chart")
+        # self.export_chart_button.setObjectName("export_chart_button")
+        # self.export_chart_button.setEnabled(False)
+        # self.export_chart_button.clicked.connect(self.on_export_chart)
+        # top_controls.addWidget(self.export_chart_button, 0, Qt.AlignRight)
+        #
+        # # Get Current Transits button (makes current chart into a transit chart)
+        # self.current_transits_button = QPushButton("Get Transit")
+        # self.current_transits_button.setObjectName("current_transits_button")
+        # self.current_transits_button.setEnabled(False)
+        # self.current_transits_button.clicked.connect(self.on_get_current_transits)
+        # self.current_transits_button.setToolTip(
+        #     "Open a personal transit popout for this chart at the current UTC time."
+        # )
+        # top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
+        #
+        # self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
+        # self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
+        # self.gemstone_chartwheel_button.setEnabled(False)
+        # self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
+        # self.gemstone_chartwheel_button.setToolTip(
+        #     "Render and export a gemstone chartwheel PNG for the currently open natal chart."
+        # )
+        # top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
+        #
+        # self.interpret_astro_age_button = QPushButton("Interpret Astro Age")
+        # self.interpret_astro_age_button.setObjectName("interpret_astro_age_button")
+        # self.interpret_astro_age_button.setEnabled(False)
+        # self.interpret_astro_age_button.clicked.connect(self.on_interpret_astro_age)
+        # self.interpret_astro_age_button.setToolTip(
+        #     "Open an astro-age interpretation popout for the currently open chart."
+        # )
+        # top_controls.addWidget(self.interpret_astro_age_button, 0, Qt.AlignRight)
+        #
+        # self.open_bazi_window_button = QPushButton("Open BaZi Window")
+        # self.open_bazi_window_button.setObjectName("open_bazi_window_button")
+        # self.open_bazi_window_button.setEnabled(False)
+        # self.open_bazi_window_button.clicked.connect(self.on_open_bazi_window)
+        # self.open_bazi_window_button.setToolTip(
+        #     "Open a BaZi chart window for the currently open chart when complete birth data is available."
+        # )
+        # top_controls.addWidget(self.open_bazi_window_button, 0, Qt.AlignRight)
 
-        top_controls.addStretch(1)
-
-        #New Chart Button
-        self.new_chart_button = QPushButton("New Chart")
-        self.new_chart_button.setObjectName("new_chart_button")
-        self.new_chart_button.clicked.connect(self.on_new_chart)
-        top_controls.addWidget(self.new_chart_button, 0, Qt.AlignRight)
-
-        #Export Charts Button
-        self.export_chart_button = QPushButton("Export Chart")
-        self.export_chart_button.setObjectName("export_chart_button")
-        self.export_chart_button.setEnabled(False)
-        self.export_chart_button.clicked.connect(self.on_export_chart)
-        top_controls.addWidget(self.export_chart_button, 0, Qt.AlignRight)
-
-        #Get Current Transits button
-        self.current_transits_button = QPushButton("Get Transit") #Makes current chart into a transit chart
-        self.current_transits_button.setObjectName("current_transits_button")
-        self.current_transits_button.setEnabled(False)
-        self.current_transits_button.clicked.connect(self.on_get_current_transits)
-        self.current_transits_button.setToolTip(
-            "Open a personal transit popout for this chart at the current UTC time."
-        )
-        top_controls.addWidget(self.current_transits_button, 0, Qt.AlignRight)
-
-        self.gemstone_chartwheel_button = QPushButton("Create Gemstone Chartwheel")
-        self.gemstone_chartwheel_button.setObjectName("gemstone_chartwheel_button")
-        self.gemstone_chartwheel_button.setEnabled(False)
-        self.gemstone_chartwheel_button.clicked.connect(self.on_create_gemstone_chartwheel)
-        self.gemstone_chartwheel_button.setToolTip(
-            "Render and export a gemstone chartwheel PNG for the currently open natal chart."
-        )
-        top_controls.addWidget(self.gemstone_chartwheel_button, 0, Qt.AlignRight)
-
-        self.interpret_astro_age_button = QPushButton("Interpret Astro Age")
-        self.interpret_astro_age_button.setObjectName("interpret_astro_age_button")
-        self.interpret_astro_age_button.setEnabled(False)
-        self.interpret_astro_age_button.clicked.connect(self.on_interpret_astro_age)
-        self.interpret_astro_age_button.setToolTip(
-            "Open an astro-age interpretation popout for the currently open chart."
-        )
-        top_controls.addWidget(self.interpret_astro_age_button, 0, Qt.AlignRight)
-
-        self.open_bazi_window_button = QPushButton("Open BaZi Window")
-        self.open_bazi_window_button.setObjectName("open_bazi_window_button")
-        self.open_bazi_window_button.setEnabled(False)
-        self.open_bazi_window_button.clicked.connect(self.on_open_bazi_window)
-        self.open_bazi_window_button.setToolTip(
-            "Open a BaZi chart window for the currently open chart when complete birth data is available."
-        )
-        top_controls.addWidget(self.open_bazi_window_button, 0, Qt.AlignRight)
+        self.new_chart_button = None
+        self.export_chart_button = None
+        self.current_transits_button = None
+        self.gemstone_chartwheel_button = None
+        self.interpret_astro_age_button = None
+        self.open_bazi_window_button = None
 
         #Help Button
         # self.help_overlay_button = QPushButton("❓") #"Help"
@@ -15259,6 +15267,9 @@ class MainWindow(QMainWindow):
     def on_open_bazi_window(self) -> None:
         self._open_bazi_window(self._latest_chart)
 
+    def on_show_chart_analytics_panel(self) -> None:
+        self._set_chart_analysis_panel_visible(True)
+
     def _create_gemstone_chartwheel(self, chart: Chart | None) -> None:
         if chart is None:
             QMessageBox.information(
@@ -16580,11 +16591,15 @@ class MainWindow(QMainWindow):
         self._loaded_lat = None
         self._loaded_lon = None
         self._latest_chart = None
-        self.export_chart_button.setEnabled(False)
-        self.current_transits_button.setEnabled(False)
-        self.gemstone_chartwheel_button.setEnabled(False)
-        self.interpret_astro_age_button.setEnabled(False)
-        self.open_bazi_window_button.setEnabled(False)
+        for button in (
+            self.export_chart_button,
+            self.current_transits_button,
+            self.gemstone_chartwheel_button,
+            self.interpret_astro_age_button,
+            self.open_bazi_window_button,
+        ):
+            if button is not None:
+                button.setEnabled(False)
 
         self._suppress_lucygoosey = True
         self.name_edit.clear()
@@ -16925,11 +16940,15 @@ class MainWindow(QMainWindow):
             return
         self._orphan_current_chart_reference()
         self._latest_chart = None
-        self.export_chart_button.setEnabled(False)
-        self.current_transits_button.setEnabled(False)
-        self.gemstone_chartwheel_button.setEnabled(False)
-        self.interpret_astro_age_button.setEnabled(False)
-        self.open_bazi_window_button.setEnabled(False)
+        for button in (
+            self.export_chart_button,
+            self.current_transits_button,
+            self.gemstone_chartwheel_button,
+            self.interpret_astro_age_button,
+            self.open_bazi_window_button,
+        ):
+            if button is not None:
+                button.setEnabled(False)
 
     def _create_retcon_dialog(self, parent: QWidget) -> RetconEngineDialog:
         dialog = RetconEngineDialog(parent)
@@ -17148,11 +17167,15 @@ class MainWindow(QMainWindow):
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
-        self.export_chart_button.setEnabled(True)
-        self.current_transits_button.setEnabled(True)
-        self.gemstone_chartwheel_button.setEnabled(True)
-        self.interpret_astro_age_button.setEnabled(True)
-        self.open_bazi_window_button.setEnabled(True)
+        for button in (
+            self.export_chart_button,
+            self.current_transits_button,
+            self.gemstone_chartwheel_button,
+            self.interpret_astro_age_button,
+            self.open_bazi_window_button,
+        ):
+            if button is not None:
+                button.setEnabled(True)
 
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
