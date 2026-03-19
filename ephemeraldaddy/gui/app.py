@@ -1986,40 +1986,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.delete_button.clicked.connect(self._on_delete)
         controls_layout.addWidget(self.delete_button)
 
-        self.import_button = QPushButton("📥 Import CSV")
-        self.import_button.setObjectName("manage_import_csv_button")
-        self.import_menu = QMenu(self.import_button)
-        self.import_menu.addAction("Import CSV Type 1", self._on_import_csv_type_1)
-        self.import_menu.addAction("Import CSV from The Pattern", self._on_import_csv_pattern)
-        self.import_button.setMenu(self.import_menu)
-        controls_layout.addWidget(self.import_button)
-
-        self.export_button = QPushButton("📤 Selected to CSV") #Export Selected to CSV
-        self.export_button.setObjectName("manage_export_selected_csv_button")
-        self.export_button.clicked.connect(self._on_export_selected)
-        controls_layout.addWidget(self.export_button)
-
-        self.backup_button = QPushButton("Backup ⛁") #Backup Database
-        self.backup_button.setObjectName("manage_backup_database_button")
-        self.backup_button.clicked.connect(self._on_export_database)
-        controls_layout.addWidget(self.backup_button)
-
-        self.restore_button = QPushButton("Restore ⛁") #Restore Database
-        self.restore_button.setObjectName("manage_restore_database_button")
-        self.restore_button.clicked.connect(self._on_import_database)
-        controls_layout.addWidget(self.restore_button)
-
-        self.force_refresh_button = QPushButton("🔄⛁")
-        self.force_refresh_button.setObjectName("manage_force_refresh_button")
-        self.force_refresh_button.setToolTip("Force refresh entire database analysis")
-        self.force_refresh_button.clicked.connect(self._on_force_refresh_database_analysis)
-        controls_layout.addWidget(self.force_refresh_button)
-
-        self.retcon_button = QPushButton("📅 Retcon Engine")
-        self.retcon_button.setObjectName("manage_retcon_engine_button")
-        self.retcon_button.clicked.connect(self._on_retcon_engine)
-        controls_layout.addWidget(self.retcon_button)
-
         self.generate_composite_chart_button = QPushButton("🧬 Synastry")
         self.generate_composite_chart_button.setObjectName("manage_composite_chart_button")
         self.generate_composite_chart_button.clicked.connect(
@@ -2028,20 +1994,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         controls_layout.addWidget(self.generate_composite_chart_button)
 
         controls_layout.addStretch(1)
-
-        #help button
-        self.manage_help_overlay_button = QPushButton("❓") #"Help"
-        self.manage_help_overlay_button.setObjectName("manage_help_overlay_toggle")
-        self.manage_help_overlay_button.setToolTip("Open Help overlay.")
-        self.manage_help_overlay_button.clicked.connect(self._on_manage_help_overlay)
-        controls_layout.addWidget(self.manage_help_overlay_button)
-
-        #settings button
-        self.manage_settings_button = QPushButton("⚙️")
-        self.manage_settings_button.setObjectName("manage_settings_button")
-        self.manage_settings_button.setToolTip("Open Settings.")
-        self.manage_settings_button.clicked.connect(self._on_open_settings)
-        controls_layout.addWidget(self.manage_settings_button)
 
         #transits button
         self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
@@ -2094,15 +2046,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for control_button in (
             self.new_chart_button,
             self.delete_button,
-            self.retcon_button,
-            self.import_button,
-            self.export_button,
-            self.backup_button,
-            self.restore_button,
-            self.force_refresh_button,
             self.generate_composite_chart_button,
-            self.manage_help_overlay_button,
-            self.manage_settings_button,
             self.todays_transits_panel_button,
             self.manage_collections_button,
             self.database_metrics_panel_button,
@@ -13179,7 +13123,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_entry_detail.setStyleSheet(
             "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
         )
-        panel_layout.addWidget(self._help_entry_detail)
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -13351,6 +13300,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._help_results_list.setCurrentRow(0)
         else:
             self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _search_help_entries_for_current_view(
         self,
@@ -13393,11 +13343,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if row < 0 or row >= len(self._help_search_results_cache):
             self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
             return
         entry = self._help_search_results_cache[row]
         keywords = ", ".join(entry.keywords)
         suffix = f"\n\nKeywords: {keywords}" if keywords else ""
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _on_retcon_engine(self) -> None:
         parent = self.parent()
@@ -17981,7 +17933,12 @@ class MainWindow(QMainWindow):
         self._help_entry_detail.setStyleSheet(
             "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
         )
-        panel_layout.addWidget(self._help_entry_detail)
+        self._help_entry_detail_scroll = QScrollArea()
+        self._help_entry_detail_scroll.setWidgetResizable(True)
+        self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
+        panel_layout.addWidget(self._help_entry_detail_scroll)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -18137,17 +18094,20 @@ class MainWindow(QMainWindow):
             self._help_results_list.setCurrentRow(0)
         else:
             self._help_entry_detail.setText("No help entries matched your search.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
     def _show_selected_help_entry(self, row: int) -> None:
         if not hasattr(self, "_help_search_results_cache"):
             return
         if row < 0 or row >= len(self._help_search_results_cache):
             self._help_entry_detail.setText("Select an entry to view details.")
+            self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
             return
         entry = self._help_search_results_cache[row]
         keywords = ", ".join(entry.keywords)
         suffix = f"\n\nKeywords: {keywords}" if keywords else ""
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
+        self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
 def main():
     _maybe_reexec_with_macos_app_name()
