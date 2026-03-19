@@ -13074,6 +13074,8 @@ class MainWindow(QMainWindow):
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
+        self._restoring_window_layout = False
+        self._window_layout_customized = False
         _apply_minimum_screen_height(self)
 
         # Chart Entry Window vs Chart Edit Window:
@@ -13223,6 +13225,7 @@ class MainWindow(QMainWindow):
 
         self._main_splitter = QSplitter(Qt.Horizontal)
         self._main_splitter.setHandleWidth(6)
+        self._main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
         root_layout.addWidget(self._main_splitter)
 
         # Chart Entry/Edit Window: LEFT panel (chart preview interface).
@@ -15741,6 +15744,8 @@ class MainWindow(QMainWindow):
 
     def _reset_interface_layout_to_defaults(self) -> None:
         self._settings.remove("main_window")
+        self._settings.setValue("main_window/layout_customized", 0)
+        self._window_layout_customized = False
         geometry = _available_screen_geometry()
         if geometry is not None:
             self.setGeometry(geometry)
@@ -15762,8 +15767,16 @@ class MainWindow(QMainWindow):
     def _restore_window_settings(self) -> None:
         geometry_key = "main_window/geometry"
         splitter_key = "main_window/splitter_sizes"
+        customized_key = "main_window/layout_customized"
+        restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        self._window_layout_customized = restored_customized
         geometry = _available_screen_geometry()
-        if self._settings.contains(geometry_key):
+        self._restoring_window_layout = True
+        if restored_customized and self._settings.contains(geometry_key):
             self.restoreGeometry(self._settings.value(geometry_key))
         elif geometry is not None:
             self.setGeometry(geometry)
@@ -15771,10 +15784,16 @@ class MainWindow(QMainWindow):
                 (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
             )
         sizes = self._settings.value(splitter_key)
-        if sizes:
+        if restored_customized and sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
         else:
             self._main_splitter.setSizes([366, 750, 316])
+        self._restoring_window_layout = False
+
+    def _on_main_splitter_moved(self, *_args) -> None:
+        if self._restoring_window_layout:
+            return
+        self._window_layout_customized = True
 
     def _raise_manage_charts_dialog(self) -> None:
         dialog = self._manage_charts_dialog
@@ -17674,8 +17693,16 @@ class MainWindow(QMainWindow):
         if self._manage_charts_dialog is not None:
             self._manage_charts_dialog._size_checker_popup = None
         if self.isVisible():
-            self._settings.setValue("main_window/geometry", self.saveGeometry())
-            self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
+            if not self.isMaximized() and not self.isFullScreen():
+                self._window_layout_customized = True
+            if self._window_layout_customized:
+                self._settings.setValue("main_window/geometry", self.saveGeometry())
+                self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
+                self._settings.setValue("main_window/layout_customized", 1)
+            else:
+                self._settings.remove("main_window/geometry")
+                self._settings.remove("main_window/splitter_sizes")
+                self._settings.setValue("main_window/layout_customized", 0)
             self._settings.setValue("app/last_view", "chart")
         super().closeEvent(event)
 
