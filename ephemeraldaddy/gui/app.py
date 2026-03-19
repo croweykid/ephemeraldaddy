@@ -1928,6 +1928,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
         self._sign_distribution_mode = "Sun"
+        self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "dominant_signs"
         self._species_distribution_mode = "top_ranked"
         self._birth_time_mode = "mean"
@@ -2254,6 +2255,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown.addItem(option_label.upper(), option_value)
         preferred_mode_by_chart = {
             "planetary_sign_prevalence": self._sign_distribution_mode,
+            "sign_prevalence": self._prevalence_mode,
             "dominant_signs": self._dominant_factors_mode,
             "species_distribution": self._species_distribution_mode,
             "birth_time": self._birth_time_mode,
@@ -2577,6 +2579,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["dominant_signs"]))
 
+    def _update_prevalence_subheader(self) -> None:
+        subheader = getattr(self, "prevalence_subheader", None)
+        if subheader is None:
+            return
+        label_by_mode = {
+            "sign_prevalence": "Distribution of signs (all positions) in database",
+            "house_prevalence": "Distribution of houses (all positions) in database",
+            "elemental_prevalence": "Distribution of elements in database",
+        }
+        subheader.setText(
+            label_by_mode.get(self._prevalence_mode, label_by_mode["sign_prevalence"])
+        )
+
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
@@ -2703,6 +2718,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "sign_prevalence":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._prevalence_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/prevalence_mode",
+                        self._prevalence_mode,
+                    )
+            self._update_prevalence_subheader()
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "dominant_signs":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2746,6 +2779,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_sign_mode, str):
             self._sign_distribution_mode = stored_sign_mode
+
+        stored_prevalence_mode = self._settings.value(
+            "manage_charts/prevalence_mode",
+            self._prevalence_mode,
+        )
+        if isinstance(stored_prevalence_mode, str):
+            self._prevalence_mode = stored_prevalence_mode
 
         stored_dominant_factors_mode = self._settings.value(
             "manage_charts/dominant_factors_mode",
@@ -3177,7 +3217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         social_score_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Social Score Summary",
+            "Social Score",
             section_key="social_score_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "social_score_summary",
@@ -3187,13 +3227,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["social_score_summary"] = self._is_database_metrics_section_expanded("social_score_summary")
         self._create_analysis_chart_header(
             social_score_section_layout,
-            "Social Score Summary",
+            "Social Score",
             "social_score_summary",
             "social_score_summary",
             show_title=False,
         )
         social_score_subheader = add_database_subheader(
-            "Median, average, and cumulative share of DB social score"
+            "Median and average social score"
         )
         social_score_section_layout.addWidget(social_score_subheader)
         (
@@ -3209,7 +3249,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Sign Prevalence (all positions)",
+            "Prevalence",
             section_key="sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3221,15 +3261,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Sign Prevalence Chart Header
         self._create_analysis_chart_header(
             sign_section_layout,
-            "Sign Prevalence (all positions)",
+            "Prevalence",
             "sign_prevalence",
             "sign_prevalence",
+            dropdown_options=[
+                ("Sign Prevalence", "sign_prevalence"),
+                ("House Prevalence", "house_prevalence"),
+                ("Elemental Prevalence", "elemental_prevalence"),
+            ],
             show_title=False,
         )
-        sentiment_subheader = add_database_subheader(
-            "Distribution of signs (all positions) in database"
-        )
-        sign_section_layout.addWidget(sentiment_subheader)
+        self.prevalence_subheader = add_database_subheader()
+        self._update_prevalence_subheader()
+        sign_section_layout.addWidget(self.prevalence_subheader)
         #Sign Prevalence Chart
         (
             self.sign_distribution_chart_container,
@@ -6346,6 +6390,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "negative_count": 0,
             "sign_totals": {sign: 0 for sign in ZODIAC_NAMES},
             "sign_total_count": 0.0,
+            "house_prevalence_totals": {house_num: 0.0 for house_num in range(1, 13)},
+            "house_prevalence_total_count": 0.0,
+            "element_prevalence_totals": {
+                element: 0.0 for element in ("Fire", "Earth", "Air", "Water")
+            },
+            "element_prevalence_total_count": 0.0,
             "position_sign_totals_by_body": {
                 body: {sign: 0 for sign in ZODIAC_NAMES}
                 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -6409,6 +6459,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sign = _sign_for_longitude(chart.positions[body])
             snapshot["sign_totals"][sign] += 1
             snapshot["sign_total_count"] += 1
+
+        house_prevalence_counts = _calculate_house_prevalence_counts(chart)
+        for house_num in range(1, 13):
+            count = float(house_prevalence_counts.get(house_num, 0.0))
+            snapshot["house_prevalence_totals"][house_num] += count
+            snapshot["house_prevalence_total_count"] += count
+
+        element_prevalence_counts = _calculate_element_prevalence_counts(chart)
+        for element in ("Fire", "Earth", "Air", "Water"):
+            count = float(element_prevalence_counts.get(element, 0.0))
+            snapshot["element_prevalence_totals"][element] += count
+            snapshot["element_prevalence_total_count"] += count
 
         for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS:
             if not use_houses and body in {"AS", "MC", "DS", "IC"}:
@@ -6517,9 +6579,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for body in totals["dominant_planet_totals"]:
             totals["dominant_planet_totals"][body] += direction * float(snapshot["dominant_planet_totals"].get(body, 0.0))
         for house_num in range(1, 13):
+            totals["house_prevalence_totals"][house_num] += direction * float(
+                snapshot["house_prevalence_totals"].get(house_num, 0.0)
+            )
             totals["dominant_house_totals"][house_num] += direction * float(snapshot["dominant_house_totals"].get(house_num, 0.0))
+        totals["house_prevalence_total_count"] += direction * float(
+            snapshot.get("house_prevalence_total_count", 0.0)
+        )
         for element in ("Fire", "Earth", "Air", "Water"):
+            totals["element_prevalence_totals"][element] += direction * float(
+                snapshot["element_prevalence_totals"].get(element, 0.0)
+            )
             totals["dominant_element_totals"][element] += direction * float(snapshot["dominant_element_totals"].get(element, 0.0))
+        totals["element_prevalence_total_count"] += direction * float(
+            snapshot.get("element_prevalence_total_count", 0.0)
+        )
         for body, sign_totals in snapshot.get("position_sign_totals_by_body", {}).items():
             for sign in ZODIAC_NAMES:
                 totals["position_sign_totals_by_body"][body][sign] += direction * int(sign_totals.get(sign, 0))
@@ -7160,11 +7234,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if database_social_scores
                 else 0.0
             )
-            selection_cumulative_share_of_database = (
-                (selection_social_total / database_social_total) * 100
-                if database_social_total
-                else 0.0
-            )
             selection_species = {
                 species: (selection_cache["species_totals_by_mode"][species_mode][species] / selection_cache["species_total_count_by_mode"][species_mode] if selection_cache["species_total_count_by_mode"][species_mode] else 0)
                 for species in SPECIES_FAMILIES
@@ -7312,17 +7381,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             social_score_labels = [
                 "Median",
                 "Avg",
-                "Cumulative Share of DB (%)",
             ]
             social_score_selection_values = [
                 selection_social_median,
                 selection_social_average,
-                selection_cumulative_share_of_database,
             ]
             social_score_database_values = [
                 database_social_median,
                 database_social_average,
-                100.0,
             ]
             social_score_selection_counts = [loaded_charts] * len(social_score_labels)
             social_score_database_counts = [database_loaded_charts] * len(social_score_labels)
@@ -7521,14 +7587,91 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
 
+            prevalence_mode = self._prevalence_mode
+            if prevalence_mode == "house_prevalence":
+                prevalence_labels = [str(num) for num in range(1, 13)]
+                selection_prevalence = {
+                    label: (
+                        selection_cache["house_prevalence_totals"][int(label)]
+                        / selection_cache["house_prevalence_total_count"]
+                        if selection_cache["house_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                database_prevalence = {
+                    label: (
+                        database_cache["house_prevalence_totals"][int(label)]
+                        / database_cache["house_prevalence_total_count"]
+                        if database_cache["house_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                selection_prevalence_counts = {
+                    label: selection_cache["house_prevalence_totals"][int(label)]
+                    for label in prevalence_labels
+                }
+                database_prevalence_counts = {
+                    label: database_cache["house_prevalence_totals"][int(label)]
+                    for label in prevalence_labels
+                }
+            elif prevalence_mode == "elemental_prevalence":
+                prevalence_labels = ["Fire", "Earth", "Air", "Water"]
+                selection_prevalence = {
+                    label: (
+                        selection_cache["element_prevalence_totals"][label]
+                        / selection_cache["element_prevalence_total_count"]
+                        if selection_cache["element_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                database_prevalence = {
+                    label: (
+                        database_cache["element_prevalence_totals"][label]
+                        / database_cache["element_prevalence_total_count"]
+                        if database_cache["element_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                selection_prevalence_counts = {
+                    label: selection_cache["element_prevalence_totals"][label]
+                    for label in prevalence_labels
+                }
+                database_prevalence_counts = {
+                    label: database_cache["element_prevalence_totals"][label]
+                    for label in prevalence_labels
+                }
+            else:
+                prevalence_labels = list(ZODIAC_NAMES)
+                selection_prevalence = {label: selection_signs[label] for label in prevalence_labels}
+                database_prevalence = {label: database_signs[label] for label in prevalence_labels}
+                selection_prevalence_counts = {
+                    label: selection_cache["sign_totals"][label] for label in prevalence_labels
+                }
+                database_prevalence_counts = {
+                    label: database_cache["sign_totals"][label] for label in prevalence_labels
+                }
+
             if _should_refresh_database_metric_section("sign_prevalence"):
-                sign_canvas = self._build_sign_distribution_chart(
-                    selection_signs=selection_signs,
-                    database_signs=database_signs,
-                    selection_sign_counts=selection_cache["sign_totals"],
-                    database_sign_counts=database_cache["sign_totals"],
-                    loaded_charts=loaded_charts,
-                )
+                if prevalence_mode == "sign_prevalence":
+                    sign_canvas = self._build_sign_distribution_chart(
+                        selection_signs=selection_prevalence,
+                        database_signs=database_prevalence,
+                        selection_sign_counts=selection_prevalence_counts,
+                        database_sign_counts=database_prevalence_counts,
+                        loaded_charts=loaded_charts,
+                    )
+                else:
+                    sign_canvas = self._build_dominant_planet_chart(
+                        selection_planets=selection_prevalence,
+                        database_planets=database_prevalence,
+                        selection_planet_counts=selection_prevalence_counts,
+                        database_planet_counts=database_prevalence_counts,
+                        loaded_charts=loaded_charts,
+                    )
                 self._clear_layout(self.sign_distribution_chart_layout)
                 self.sign_distribution_chart_layout.addWidget(
                     sign_canvas,
@@ -7537,11 +7680,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             self._analysis_chart_export_rows["sign_prevalence"] = (
                 self._build_analysis_export_rows(
-                    labels=list(ZODIAC_NAMES),
-                    selection_values=[selection_signs[sign] for sign in ZODIAC_NAMES],
-                    database_values=[database_signs[sign] for sign in ZODIAC_NAMES],
-                    selection_counts=[selection_cache["sign_totals"][sign] for sign in ZODIAC_NAMES],
-                    database_counts=[database_cache["sign_totals"][sign] for sign in ZODIAC_NAMES],
+                    labels=prevalence_labels,
+                    selection_values=[selection_prevalence[label] for label in prevalence_labels],
+                    database_values=[database_prevalence[label] for label in prevalence_labels],
+                    selection_counts=[selection_prevalence_counts[label] for label in prevalence_labels],
+                    database_counts=[database_prevalence_counts[label] for label in prevalence_labels],
                     loaded_charts=loaded_charts,
                 )
             )
