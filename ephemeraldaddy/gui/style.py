@@ -104,6 +104,26 @@ QComboBox QAbstractItemView {
 }
 """
 
+WINDOW_CHROME_MENU_STYLE = """
+QMenu {
+    background-color: #000000;
+    color: #f0f0f0;
+    border: 1px solid #2a2a2a;
+}
+QMenu::item {
+    background-color: transparent;
+    padding: 4px 22px;
+}
+QMenu::item:selected {
+    background-color: #2f2f2f;
+}
+QMenu::separator {
+    background: #2a2a2a;
+    height: 1px;
+    margin: 4px 10px;
+}
+"""
+
 INACTIVE_ACTION_BUTTON_STYLE = """
 QPushButton {
     background-color: #2b2b2b;
