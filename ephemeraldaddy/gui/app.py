@@ -103,6 +103,7 @@ from PySide6.QtCore import (
     Signal,
     QEventLoop,
     QRegularExpression,
+    QItemSelectionModel,
 )
 from PySide6.QtPositioning import QGeoPositionInfoSource
 
@@ -1867,10 +1868,26 @@ def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
             candidate_name = item.text().strip()
 
         if candidate_name.casefold().startswith(letter):
-            list_widget.clearSelection()
-            item.setSelected(True)
-            list_widget.setCurrentItem(item)
-            list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+            index = list_widget.indexFromItem(item)
+            selection_model = list_widget.selectionModel()
+            if selection_model is not None and index.isValid():
+                selection_model.setCurrentIndex(
+                    index,
+                    QItemSelectionModel.SelectionFlag.ClearAndSelect
+                    | QItemSelectionModel.SelectionFlag.Rows,
+                )
+                list_widget.scrollTo(
+                    index,
+                    QAbstractItemView.ScrollHint.PositionAtCenter,
+                )
+            else:
+                list_widget.clearSelection()
+                item.setSelected(True)
+                list_widget.setCurrentItem(item)
+                list_widget.scrollToItem(
+                    item,
+                    QAbstractItemView.ScrollHint.PositionAtCenter,
+                )
             return True
 
     return False
