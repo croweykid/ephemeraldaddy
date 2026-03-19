@@ -5903,16 +5903,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot["dominant_sign_totals"][sign] += 1.0
             snapshot["dominant_sign_total_weight"] += 1.0
 
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
-        ranked_planets = sorted(
-            snapshot["dominant_planet_totals"].keys(),
-            key=lambda body: (
-                -float(dominant_planet_weights.get(body, 0)),
-                PLANET_ORDER.index(body) if body in PLANET_ORDER else len(PLANET_ORDER),
-            ),
-        )
-        for body in ranked_planets[:3]:
-            if float(dominant_planet_weights.get(body, 0)) <= 0:
+        dominant_planets = self._chart_dominant_planets(chart)
+        for body in snapshot["dominant_planet_totals"].keys():
+            if body not in dominant_planets:
                 continue
             snapshot["dominant_planet_totals"][body] += 1.0
             snapshot["dominant_planet_total_weight"] += 1.0
@@ -12206,29 +12199,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> bool:
         if planet == "Any":
             return True
+        return planet in self._chart_dominant_planets(chart)
+
+    def _chart_dominant_planets(self, chart: Chart) -> set[str]:
         dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
         if not dominant_planet_weights:
             dominant_planet_weights = _calculate_dominant_planet_weights(chart)
             chart.dominant_planet_weights = dominant_planet_weights
         if not dominant_planet_weights:
-            return False
+            return set()
         numeric_weights = [
             float(weight)
             for weight in dominant_planet_weights.values()
             if isinstance(weight, (int, float))
         ]
         if not numeric_weights:
-            return False
+            return set()
         median_weight = statistics.median(numeric_weights)
         if median_weight <= 0:
             median_weight = max(numeric_weights)
         if median_weight <= 0:
-            return False
+            return set()
         dominant_threshold = median_weight * 1.25
-        planet_weight = dominant_planet_weights.get(planet)
-        if not isinstance(planet_weight, (int, float)):
-            return False
-        return float(planet_weight) >= dominant_threshold
+        return {
+            weighted_planet
+            for weighted_planet, weight in dominant_planet_weights.items()
+            if isinstance(weight, (int, float)) and float(weight) >= dominant_threshold
+        }
 
     def _chart_ranked_dominant_elements(self, chart: Chart) -> list[str]:
         dominant_element_weights = _calculate_dominant_element_weights(chart)
