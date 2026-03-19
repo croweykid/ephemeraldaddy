@@ -1930,7 +1930,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         label_by_mode = {
             "dominant_signs": "Dominant signs in database (by weight)",
-            "dominant_planets": "Dominant planets in database (by weight)",
+            "dominant_planets": "Dominant bodies in database (by weight)",
             "dominant_houses": "Dominant houses in database (by weight)",
             "dominant_elements": "Dominant elements in database (by weight)",
         }
@@ -2664,7 +2664,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "dominant_signs",
             dropdown_options=[
                 ("Dominant Signs", "dominant_signs"),
-                ("Dominant Planets", "dominant_planets"),
+                ("Dominant Bodies", "dominant_planets"),
                 ("Dominant Houses", "dominant_houses"),
                 ("Dominant Elements", "dominant_elements"),
             ],
@@ -8237,7 +8237,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_section)
 
         dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-            "Dominant Planets"
+            "Dominant Bodies"
         )
 
         dominant_planet_layout = QFormLayout()
@@ -10344,6 +10344,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Pluto", "Pluto"),
             ("Rahu", "Rahu"),
             ("Ketu", "Ketu"),
+            ("Chiron", "Chiron"),
+            ("Ceres", "Ceres"),
+            ("Pallas", "Pallas"),
+            ("Juno", "Juno"),
+            ("Vesta", "Vesta"),
+            ("Lilith", "Lilith"),
+            ("Part of Fortune", "Part of Fortune"),
             ("AS", "AS"),
             ("IC", "IC"),
             ("DS", "DS"),
