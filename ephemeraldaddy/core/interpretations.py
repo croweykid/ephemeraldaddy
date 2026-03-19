@@ -91,15 +91,15 @@ NATAL_WEIGHT = { #aka NATAL_WEIGHT - use for calculating sign/planet/house/eleme
     "Uranus": 6,
     "Neptune": 6,
     "Pluto": 6,
-    "Rahu": 6,
-    "Ketu": 6,
-    "Chiron": 3,
-    "Ceres": 3,
-    "Lilith": 3,
-    "Juno": 3,
-    "Vesta": 3,
-    "Pallas": 3,
-    "Part of Fortune": 2,
+    "Rahu": 4,
+    "Ketu": 4,
+    "Chiron": 2,
+    "Ceres": 2,
+    "Lilith": 2,
+    "Juno": 2,
+    "Vesta": 2,
+    "Pallas": 2,
+    "Part of Fortune": 1,
 }
 
 # Back-compat alias used by aspect scoring helpers.
@@ -150,11 +150,11 @@ ANGLE_WEIGHT = {
 }
 
 ASPECT_SCORE_WEIGHTS = {
-    "conjunction": 8,
-    "opposition": 8,
-    "trine": 7,
-    "square": 7,
-    "sextile": 5,
+    "conjunction": 9,
+    "opposition": 9,
+    "trine": 8,
+    "square": 9,
+    "sextile": 8,
     "quincunx": 3,
     "semisextile": 2,
     "semisquare": 2,
@@ -165,16 +165,16 @@ ASPECT_SCORE_WEIGHTS = {
 
 ASPECT_SCORE_MULTIPLIERS = {
     "conjunction": 1, #1.3
-    "opposition": .9, #1.2
-    "trine": .85, #1.15
-    "square": .8, #1
-    "sextile": .7, #.8
-    "quincunx": .2, #.75
-    "semisextile": .1, #.65
-    "semisquare": .1, #.7
-    "sesquiquadrate": .1, #.5
-    "quintile": .1, #.6
-    "biquintile": .1, #.65
+    "opposition": 1, #1.2
+    "trine": 0.85, #1.15
+    "square": 1, #1
+    "sextile": 0.85, #.8
+    "quincunx": 0.2, #.75
+    "semisextile": 0.3, #.65
+    "semisquare": 0.3, #.7
+    "sesquiquadrate": 0.3, #.5
+    "quintile": 0.3, #.6
+    "biquintile": 0.3, #.65
 }
 
 
@@ -400,15 +400,15 @@ MODES = {
     "fixed": {"Taurus","Leo","Scorpio","Aquarius"},
 }
 
-PLANET_RULERSHIP_CLASSICAL = {
-    "Sun": {"Leo"},
-    "Moon": {"Cancer"},
-    "Mercury": {"Gemini", "Virgo"},
-    "Venus": {"Taurus", "Libra"},
-    "Mars": {"Aries","Scorpio"},
-    "Jupiter": {"Sagittarius","Pisces"},
-    "Saturn": {"Capricorn","Aquarius"},
-}
+# PLANET_RULERSHIP_CLASSICAL = {
+#     "Sun": {"Leo"},
+#     "Moon": {"Cancer"},
+#     "Mercury": {"Gemini", "Virgo"},
+#     "Venus": {"Taurus", "Libra"},
+#     "Mars": {"Aries","Scorpio"},
+#     "Jupiter": {"Sagittarius","Pisces"},
+#     "Saturn": {"Capricorn","Aquarius"},
+# }
 
 #not sure if I should use both signs or not.
 PLANET_RULERSHIP = {
