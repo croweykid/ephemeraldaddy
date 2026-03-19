@@ -104,6 +104,14 @@ QComboBox QAbstractItemView {
 }
 """
 
+INACTIVE_ACTION_BUTTON_STYLE = """
+QPushButton {
+    background-color: #2b2b2b;
+    color: #b8b8b8;
+    border: 1px solid #3a3a3a;
+}
+"""
+
 DATABASE_ANALYTICS_DROPDOWN_STYLE = DEFAULT_DROPDOWN_STYLE
 DATABASE_ANALYTICS_HEADER_SPACING = 6
 DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING = 6

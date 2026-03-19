@@ -445,6 +445,7 @@ from ephemeraldaddy.gui.style import (
     STANDARD_NCV_POPOUT_LAYOUT,
     CHART_THEME_COLORS,
     GENDER_GUESSER_COLORS,
+    INACTIVE_ACTION_BUTTON_STYLE,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
@@ -10160,6 +10161,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self.collections_list_widget = QListWidget()
         self.collections_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.collections_list_widget.itemSelectionChanged.connect(
+            self._update_collection_membership_buttons
+        )
         panel_layout.addWidget(self.collections_list_widget, 1)
 
         actions_row = QHBoxLayout()
@@ -10182,6 +10186,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         membership_row.addWidget(self.collection_add_selected_button)
         membership_row.addWidget(self.collection_remove_selected_button)
         panel_layout.addLayout(membership_row)
+        self._update_collection_membership_buttons()
 
         return panel
 
@@ -10454,6 +10459,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             item = QListWidgetItem(custom_collection.name)
             item.setData(Qt.UserRole, custom_collection.collection_id)
             self.collections_list_widget.addItem(item)
+        self._update_collection_membership_buttons()
+
+    def _update_collection_membership_buttons(self) -> None:
+        selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
+        selected_collection = self.collections_list_widget.currentItem()
+        selected_collection_name = (
+            selected_collection.text().strip()
+            if selected_collection is not None
+            else ""
+        )
+        can_manage_membership = selected_count > 0 and bool(selected_collection_name)
+
+        if can_manage_membership:
+            self.collection_add_selected_button.setText(
+                f"Add {selected_count} to {selected_collection_name}"
+            )
+        else:
+            self.collection_add_selected_button.setText("Add Selected Charts")
+
+        self.collection_add_selected_button.setEnabled(can_manage_membership)
+        self.collection_remove_selected_button.setEnabled(can_manage_membership)
+
+        inactive_style = INACTIVE_ACTION_BUTTON_STYLE if not can_manage_membership else ""
+        self.collection_add_selected_button.setStyleSheet(inactive_style)
+        self.collection_remove_selected_button.setStyleSheet(inactive_style)
 
     def _on_collection_changed(self, index: int) -> None:
         collection_id = normalize_collection_id(self.collection_combo.itemData(index))
@@ -10921,6 +10951,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
+        self._update_collection_membership_buttons()
         try:
             self._update_sentiment_tally(
                 update_database_metrics=(
