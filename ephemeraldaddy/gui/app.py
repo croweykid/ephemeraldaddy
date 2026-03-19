@@ -268,6 +268,15 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PUBLIC_DB,
     normalize_gui_source as _normalize_gui_source,
 )
+from ephemeraldaddy.gui.features.charts.collections import (
+    DEFAULT_COLLECTION_ALL,
+    DEFAULT_COLLECTION_IDS,
+    DEFAULT_COLLECTION_OPTIONS,
+    CustomCollection,
+    chart_belongs_to_collection,
+    normalize_collection_id,
+    sanitize_collection_name,
+)
 from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     build_popout_left_panel as _build_popout_left_panel_widget,
     collect_aspect_category_totals as _collect_aspect_category_totals,
@@ -1899,6 +1908,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
+        self._custom_collections: dict[str, CustomCollection] = {}
+        self._active_collection_id = DEFAULT_COLLECTION_ALL
+        self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
             str,
             list[tuple[str, float, float, float, int, int, float]],
@@ -1991,6 +2003,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         controls_layout.addWidget(self.todays_transits_panel_button)
 
+        self.manage_collections_button = QPushButton("Manage Collections")
+        self.manage_collections_button.setObjectName(
+            "manage_toggle_collections_panel_button"
+        )
+        self.manage_collections_button.clicked.connect(
+            self._toggle_manage_collections_panel
+        )
+        controls_layout.addWidget(self.manage_collections_button)
         self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
         self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
         self.database_metrics_panel_button.clicked.connect(
@@ -2028,6 +2048,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.delete_button,
             self.generate_composite_chart_button,
             self.todays_transits_panel_button,
+            self.manage_collections_button,
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
@@ -2074,13 +2095,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Database View - Right Panel stack (search/edit interface panels).
         self.search_panel = self._build_search_panel()
         self.edit_panel = self._build_edit_panel()
+        self.manage_collections_panel = self._build_manage_collections_panel()
         self.search_panel_scroll = self._wrap_right_panel(self.search_panel)
         self.edit_panel_scroll = self._wrap_right_panel(self.edit_panel)
+        self.manage_collections_panel_scroll = self._wrap_right_panel(
+            self.manage_collections_panel
+        )
         self.right_panel_stack = QStackedWidget()
         self.right_panel_stack.setMinimumWidth(0)
         self._right_panel_widgets = {
             "search": self.search_panel_scroll,
             "edit": self.edit_panel_scroll,
+            "manage_collections": self.manage_collections_panel_scroll,
         }
         for widget in self._right_panel_widgets.values():
             self.right_panel_stack.addWidget(widget)
@@ -2147,14 +2173,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_layout.setSpacing(8)
         list_header_row.setLayout(list_header_layout)
 
-        self.charts_header_label = QLabel("Charts Selected: 0 of 0")
-        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        list_header_layout.addWidget(self.charts_header_label)
-        list_header_layout.addStretch(1)
+        self.collection_combo = QComboBox()
+        for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
+            self.collection_combo.addItem(collection_label, collection_id)
+        self.collection_combo.currentIndexChanged.connect(self._on_collection_changed)
+        list_header_layout.addWidget(self.collection_combo)
         list_header_layout.addWidget(self.sort_button, alignment=Qt.AlignRight)
         self._update_sort_button_label()
         list_layout.addWidget(list_header_row)
         list_layout.addWidget(self.list_widget, 1)
+        self.charts_header_label = QLabel("Charts Selected: 0 of 0")
+        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        list_layout.addWidget(self.charts_header_label)
 
         # Database View - Content splitter (left panel stack, center list, right panel stack).
         self._content_splitter = QSplitter(Qt.Horizontal)
@@ -2180,6 +2210,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._initial_progress_pending = True
         self._restore_window_settings()
+        self._refresh_collection_controls()
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
         self._refresh_charts()
@@ -2773,6 +2804,70 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "gen_pop",
         }:
             self._database_metrics_baseline_mode = stored_baseline_mode
+
+        self._custom_collections = self._load_custom_collections_from_settings()
+        stored_collection_id = self._settings.value(
+            "manage_charts/active_collection_id",
+            DEFAULT_COLLECTION_ALL,
+        )
+        self._active_collection_id = self._coerce_active_collection_id(stored_collection_id)
+
+    def _load_custom_collections_from_settings(self) -> dict[str, CustomCollection]:
+        raw_value = self._settings.value("manage_charts/custom_collections", "[]")
+        parsed: object = []
+        if isinstance(raw_value, str):
+            try:
+                parsed = json.loads(raw_value)
+            except json.JSONDecodeError:
+                parsed = []
+        elif isinstance(raw_value, list):
+            parsed = raw_value
+
+        collections: dict[str, CustomCollection] = {}
+        if not isinstance(parsed, list):
+            return collections
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            raw_name = entry.get("name")
+            raw_id = entry.get("id")
+            if raw_name is None:
+                continue
+            name = sanitize_collection_name(raw_name)
+            collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
+            if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
+                continue
+            raw_chart_ids = entry.get("chart_ids", [])
+            chart_ids: set[int] = set()
+            if isinstance(raw_chart_ids, list):
+                for value in raw_chart_ids:
+                    try:
+                        chart_ids.add(int(value))
+                    except (TypeError, ValueError):
+                        continue
+            collections[collection_id] = CustomCollection(
+                collection_id=collection_id,
+                name=name,
+                chart_ids=frozenset(chart_ids),
+            )
+        return collections
+
+    def _save_custom_collections_to_settings(self) -> None:
+        payload = [
+            {
+                "id": collection.collection_id,
+                "name": collection.name,
+                "chart_ids": sorted(collection.chart_ids),
+            }
+            for collection in self._custom_collections.values()
+        ]
+        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
+    def _coerce_active_collection_id(self, value: object) -> str:
+        candidate = normalize_collection_id(value)
+        if candidate in DEFAULT_COLLECTION_IDS or candidate in self._custom_collections:
+            return candidate
+        return DEFAULT_COLLECTION_ALL
 
     def _restore_visibility_preferences(self) -> None:
         for key in DATABASE_ANALYTICS_SECTION_KEYS:
@@ -6503,7 +6598,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_selection_header(self) -> None:
         selected_count = len(self.list_widget.selectedItems())
         shown_count = self.list_widget.count()
-        total_count = len(self._chart_rows)
+        total_count = self._active_collection_total_count
 
         if selected_count == 0 and self._has_active_chart_filters():
             self.charts_header_label.setText(
@@ -10045,6 +10140,51 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._on_batch_deceased_toggled(state)
 
+    def _build_manage_collections_panel(self) -> QWidget:
+        panel = QWidget()
+        panel_layout = QVBoxLayout()
+        panel_layout.setContentsMargins(6, 6, 6, 6)
+        panel_layout.setSpacing(8)
+        panel.setLayout(panel_layout)
+
+        header_label = QLabel("Manage Collections")
+        header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        panel_layout.addWidget(header_label)
+
+        detail_label = QLabel(
+            "Default collections are auto-generated by chart type.\n"
+            "Create custom collections and add/remove selected charts."
+        )
+        detail_label.setWordWrap(True)
+        panel_layout.addWidget(detail_label)
+
+        self.collections_list_widget = QListWidget()
+        self.collections_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        panel_layout.addWidget(self.collections_list_widget, 1)
+
+        actions_row = QHBoxLayout()
+        self.collection_create_button = QPushButton("New")
+        self.collection_create_button.clicked.connect(self._on_create_custom_collection)
+        self.collection_rename_button = QPushButton("Rename")
+        self.collection_rename_button.clicked.connect(self._on_rename_custom_collection)
+        self.collection_delete_button = QPushButton("Delete")
+        self.collection_delete_button.clicked.connect(self._on_delete_custom_collection)
+        actions_row.addWidget(self.collection_create_button)
+        actions_row.addWidget(self.collection_rename_button)
+        actions_row.addWidget(self.collection_delete_button)
+        panel_layout.addLayout(actions_row)
+
+        membership_row = QHBoxLayout()
+        self.collection_add_selected_button = QPushButton("Add Selected Charts")
+        self.collection_add_selected_button.clicked.connect(self._on_add_selection_to_collection)
+        self.collection_remove_selected_button = QPushButton("Remove Selected Charts")
+        self.collection_remove_selected_button.clicked.connect(self._on_remove_selection_from_collection)
+        membership_row.addWidget(self.collection_add_selected_button)
+        membership_row.addWidget(self.collection_remove_selected_button)
+        panel_layout.addLayout(membership_row)
+
+        return panel
+
     def _is_right_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
@@ -10205,6 +10345,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             widget = self.search_panel_scroll
         elif panel_name == "edit":
             widget = self.edit_panel_scroll
+        elif panel_name == "manage_collections":
+            widget = self.manage_collections_panel_scroll
         else:
             raise ValueError(f"Unknown panel name: {panel_name}")
         if self.right_panel_stack.indexOf(widget) == -1:
@@ -10240,6 +10382,175 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_right_panel("edit")
         self._update_batch_edit_state()
+
+    def _toggle_manage_collections_panel(self) -> None:
+        if (
+            self._right_panel_visible
+            and self._active_right_panel == "manage_collections"
+            and not self._is_right_panel_collapsed()
+        ):
+            self._set_right_panel_visible(False)
+            return
+        self._show_right_panel("manage_collections")
+
+    def _refresh_collection_controls(self) -> None:
+        active_collection_id = self._coerce_active_collection_id(self._active_collection_id)
+        self._active_collection_id = active_collection_id
+        self.collection_combo.blockSignals(True)
+        self.collection_combo.clear()
+        for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
+            self.collection_combo.addItem(collection_label, collection_id)
+        for custom_collection in sorted(
+            self._custom_collections.values(),
+            key=lambda collection: collection.name.casefold(),
+        ):
+            self.collection_combo.addItem(custom_collection.name, custom_collection.collection_id)
+        active_index = self.collection_combo.findData(active_collection_id)
+        self.collection_combo.setCurrentIndex(max(0, active_index))
+        self.collection_combo.blockSignals(False)
+        self._refresh_collection_list_widget()
+
+    def _refresh_collection_list_widget(self) -> None:
+        if not hasattr(self, "collections_list_widget"):
+            return
+        self.collections_list_widget.clear()
+        for collection_label, _collection_id in DEFAULT_COLLECTION_OPTIONS:
+            item = QListWidgetItem(f"{collection_label} (default)")
+            item.setData(Qt.UserRole, "")
+            item.setFlags(Qt.ItemIsEnabled)
+            self.collections_list_widget.addItem(item)
+        for custom_collection in sorted(
+            self._custom_collections.values(),
+            key=lambda collection: collection.name.casefold(),
+        ):
+            item = QListWidgetItem(custom_collection.name)
+            item.setData(Qt.UserRole, custom_collection.collection_id)
+            self.collections_list_widget.addItem(item)
+
+    def _on_collection_changed(self, index: int) -> None:
+        collection_id = normalize_collection_id(self.collection_combo.itemData(index))
+        self._active_collection_id = self._coerce_active_collection_id(collection_id)
+        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        self._populate_list()
+
+    def _selected_custom_collection_id(self) -> str | None:
+        current_item = self.collections_list_widget.currentItem()
+        if current_item is None:
+            return None
+        value = current_item.data(Qt.UserRole)
+        collection_id = normalize_collection_id(value)
+        if not collection_id or collection_id in DEFAULT_COLLECTION_IDS:
+            return None
+        if collection_id not in self._custom_collections:
+            return None
+        return collection_id
+
+    def _on_create_custom_collection(self) -> None:
+        name, accepted = QInputDialog.getText(self, "New Collection", "Collection name:")
+        if not accepted:
+            return
+        clean_name = sanitize_collection_name(name)
+        base_id = normalize_collection_id(clean_name.replace(" ", "_"))
+        candidate = base_id
+        suffix = 2
+        while candidate in DEFAULT_COLLECTION_IDS or candidate in self._custom_collections:
+            candidate = f"{base_id}_{suffix}"
+            suffix += 1
+        self._custom_collections[candidate] = CustomCollection(
+            collection_id=candidate,
+            name=clean_name,
+            chart_ids=frozenset(),
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+
+    def _on_rename_custom_collection(self) -> None:
+        collection_id = self._selected_custom_collection_id()
+        if collection_id is None:
+            QMessageBox.information(self, "Rename Collection", "Select a custom collection first.")
+            return
+        collection = self._custom_collections[collection_id]
+        name, accepted = QInputDialog.getText(
+            self,
+            "Rename Collection",
+            "Collection name:",
+            text=collection.name,
+        )
+        if not accepted:
+            return
+        clean_name = sanitize_collection_name(name)
+        self._custom_collections[collection_id] = CustomCollection(
+            collection_id=collection.collection_id,
+            name=clean_name,
+            chart_ids=collection.chart_ids,
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+
+    def _on_delete_custom_collection(self) -> None:
+        collection_id = self._selected_custom_collection_id()
+        if collection_id is None:
+            QMessageBox.information(self, "Delete Collection", "Select a custom collection first.")
+            return
+        collection = self._custom_collections[collection_id]
+        answer = QMessageBox.question(
+            self,
+            "Delete Collection",
+            f"Delete '{collection.name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        self._custom_collections.pop(collection_id, None)
+        if self._active_collection_id == collection_id:
+            self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
+
+    def _on_add_selection_to_collection(self) -> None:
+        collection_id = self._selected_custom_collection_id()
+        if collection_id is None:
+            QMessageBox.information(self, "Collections", "Select a custom collection first.")
+            return
+        chart_ids = {item.data(Qt.UserRole) for item in self.list_widget.selectedItems()}
+        if not chart_ids:
+            QMessageBox.information(self, "Collections", "Select one or more charts first.")
+            return
+        collection = self._custom_collections[collection_id]
+        updated_ids = set(collection.chart_ids)
+        updated_ids.update(int(chart_id) for chart_id in chart_ids)
+        self._custom_collections[collection_id] = CustomCollection(
+            collection_id=collection.collection_id,
+            name=collection.name,
+            chart_ids=frozenset(updated_ids),
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
+
+    def _on_remove_selection_from_collection(self) -> None:
+        collection_id = self._selected_custom_collection_id()
+        if collection_id is None:
+            QMessageBox.information(self, "Collections", "Select a custom collection first.")
+            return
+        chart_ids = {item.data(Qt.UserRole) for item in self.list_widget.selectedItems()}
+        if not chart_ids:
+            QMessageBox.information(self, "Collections", "Select one or more charts first.")
+            return
+        collection = self._custom_collections[collection_id]
+        updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
+        updated_ids.difference_update(int(chart_id) for chart_id in chart_ids)
+        self._custom_collections[collection_id] = CustomCollection(
+            collection_id=collection.collection_id,
+            name=collection.name,
+            chart_ids=frozenset(updated_ids),
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
 
     def _clear_batch_edits(self) -> None:
         for checkbox in self.batch_sentiment_checkboxes.values():
@@ -10372,6 +10683,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/left_panel_visible", int(self._left_panel_visible))
         self._settings.setValue("manage_charts/active_right_panel", self._active_right_panel)
         self._settings.setValue("manage_charts/right_panel_visible", int(self._right_panel_visible))
+        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        self._save_custom_collections_to_settings()
         self._settings.setValue("app/last_view", "database")
 
         parent = self.parent()
@@ -11306,6 +11619,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
+        rows = [row for row in rows if self._chart_in_active_collection(row)]
+        self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
         elif self._sort_mode == "birthdate":
@@ -12045,6 +12360,42 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     return False
 
         return True
+
+    def _chart_in_active_collection(
+        self,
+        normalized_row: tuple[
+            int,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            int,
+            int,
+            int,
+            int,
+            int,
+            int | None,
+            int,
+            str,
+            int,
+            int,
+            int | None,
+            int | None,
+            int | None,
+        ],
+    ) -> bool:
+        chart_id = normalized_row[0]
+        chart_source = normalized_row[14]
+        chart = self._get_chart_for_filter(chart_id)
+        return chart_belongs_to_collection(
+            self._active_collection_id,
+            chart=chart,
+            source=chart_source,
+            custom_collections=self._custom_collections,
+            chart_id=chart_id,
+        )
 
     @staticmethod
     def _normalize_relationship_types(chart: Chart | None) -> set[str]:
