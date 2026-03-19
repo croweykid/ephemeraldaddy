@@ -6,9 +6,13 @@ from dataclasses import dataclass
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.provenance import (
+    SOURCE_EVENT,
+    SOURCE_NONHUMAN_ENTITY,
     SOURCE_PARASOCIAL,
     SOURCE_PERSONAL,
+    SOURCE_PERSONAL_TRANSIT,
     SOURCE_PUBLIC_DB,
+    SOURCE_SYNASTRY,
     normalize_gui_source,
 )
 
@@ -16,11 +20,19 @@ DEFAULT_COLLECTION_ALL = "all"
 DEFAULT_COLLECTION_PERSONAL = "personal"
 DEFAULT_COLLECTION_PARASOCIAL = "parasocial"
 DEFAULT_COLLECTION_PUBLIC = "public"
+DEFAULT_COLLECTION_EVENT = "event"
+DEFAULT_COLLECTION_SYNASTRY = "synastry"
+DEFAULT_COLLECTION_PERSONAL_TRANSIT = "personal_transit"
+DEFAULT_COLLECTION_NONHUMAN_ENTITY = "nonhuman_entity"
 
 DEFAULT_COLLECTION_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Personal", DEFAULT_COLLECTION_PERSONAL),
     ("Parasocial", DEFAULT_COLLECTION_PARASOCIAL),
     ("Public", DEFAULT_COLLECTION_PUBLIC),
+    ("Events", DEFAULT_COLLECTION_EVENT),
+    ("Synastry", DEFAULT_COLLECTION_SYNASTRY),
+    ("Personal Transit", DEFAULT_COLLECTION_PERSONAL_TRANSIT),
+    ("Nonhuman Entity", DEFAULT_COLLECTION_NONHUMAN_ENTITY),
     ("All", DEFAULT_COLLECTION_ALL),
 )
 DEFAULT_COLLECTION_IDS = {value for _label, value in DEFAULT_COLLECTION_OPTIONS}
@@ -66,6 +78,14 @@ def chart_belongs_to_collection(
         return is_parasocial
     if normalized_collection_id == DEFAULT_COLLECTION_PUBLIC:
         return is_public
+    if normalized_collection_id == DEFAULT_COLLECTION_EVENT:
+        return normalized_source == SOURCE_EVENT
+    if normalized_collection_id == DEFAULT_COLLECTION_SYNASTRY:
+        return normalized_source == SOURCE_SYNASTRY
+    if normalized_collection_id == DEFAULT_COLLECTION_PERSONAL_TRANSIT:
+        return normalized_source == SOURCE_PERSONAL_TRANSIT
+    if normalized_collection_id == DEFAULT_COLLECTION_NONHUMAN_ENTITY:
+        return normalized_source == SOURCE_NONHUMAN_ENTITY
 
     if custom_collections is None or chart_id is None:
         return False

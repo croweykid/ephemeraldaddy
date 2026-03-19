@@ -55,7 +55,7 @@ SIGN_FERTILITY = ("fruitful", "barren")
 SPECIES_FAMILIES = [
     "Aasimar",
     "Birdfolk",
-    "Canids (Dogfolk)",
+    "Canids",
     "Cosmids",
     "Cyborgs",
     "Cyclops",
@@ -69,7 +69,7 @@ SPECIES_FAMILIES = [
     "Half-orcs",
     "Halfling",
     "Human",
-    "Tabaxi (Feline Anthro)",
+    "Tabaxi",
     "Lizardfolk (Reptilians)",
     "Merfolk",
     "Minotaur",
@@ -785,18 +785,18 @@ class SpeciesAssigner:
         # H) Beastfolk buckets (Canids / Tabaxi / Rodentfolk / Yuan-Ti / Lizardfolk)
         # Canids: Moon+Mars+Saturn blend; pack/service houses if available
         if is_prominent("Moon") and is_prominent("Mars"):
-            scores["Canids (Dogfolk)"] += 1.1 * moon_boost + 0.9 * mars_boost
-            reasons["Canids (Dogfolk)"].append("Moon+Mars present (bond + drive).")
+            scores["Canids"] += 1.1 * moon_boost + 0.9 * mars_boost
+            reasons["Canids"].append("Moon+Mars present (bond + drive).")
         if is_prominent("Saturn"):
-            scores["Canids (Dogfolk)"] += 0.5 * sat_boost
-        scores["Canids (Dogfolk)"] += 0.35 * self._clamp01((quadrupedian_ratio - 0.18) / 0.30)
+            scores["Canids"] += 0.5 * sat_boost
+        scores["Canids"] += 0.35 * self._clamp01((quadrupedian_ratio - 0.18) / 0.30)
 
         # Tabaxi: Mercury/Venus + fire/air
         if is_prominent("Mercury") and is_prominent("Venus"):
-            scores["Tabaxi (Feline Anthro)"] += 1.0 + 0.6 * (venus_boost - 1.0)
-            reasons["Tabaxi (Feline Anthro)"].append("Mercury+Venus present (quick social + aesthetic).")
-        scores["Tabaxi (Feline Anthro)"] += 0.7 * (fire + air) / total_elem
-        scores["Tabaxi (Feline Anthro)"] += 0.25 * self._clamp01((feral_ratio - 0.12) / 0.30)
+            scores["Tabaxi"] += 1.0 + 0.6 * (venus_boost - 1.0)
+            reasons["Tabaxi"].append("Mercury+Venus present (quick social + aesthetic).")
+        scores["Tabaxi"] += 0.7 * (fire + air) / total_elem
+        scores["Tabaxi"] += 0.25 * self._clamp01((feral_ratio - 0.12) / 0.30)
 
         # Rodentfolk: Mercury dominance + air/earth; complexity
         if is_prominent("Mercury"):
@@ -1088,7 +1088,7 @@ class SpeciesAssigner:
             "Skeleton": 1.10,
             "Cosmids": 1.00,
             "Robots": 1.08,
-            "Tabaxi (Feline Anthro)": 1.08,
+            "Tabaxi": 1.08,
             "Dwarf": 0.94,
             "Rodentfolk": 1.18,
             "Nymph": 1.22,
@@ -1172,7 +1172,7 @@ class SpeciesAssigner:
                 return "Aarakocra", evidence
             return "Other (non-owl, non-kenku, non-aarakocra)", evidence
 
-        if family == "Canids (Dogfolk)":
+        if family == "Canids":
             # Shepherd Dogs: Saturn + Moon + 6/10; Wolfkin: Moon+Mars + 8/12; Houndfolk: Jupiter+Moon mutable proxy; Gnolls: Mars+Uranus hard
             h_moon = positions.get("Moon", {}).get("house")
             if (positions.get("Saturn", {}).get("house") in (6, 10) or tight("Saturn", "Moon")) and (h_moon in (6, 10) or positions.get("Moon", {}).get("house") is not None):
@@ -1323,7 +1323,7 @@ class SpeciesAssigner:
                 return "Variant", evidence
             return "Standard", evidence
 
-        if family == "Tabaxi (Feline Anthro)":
+        if family == "Tabaxi":
             if tight("Venus", "Pluto") or (positions.get("Pluto", {}).get("house") in (1, 8) and positions.get("Venus", {}).get("house") in (1, 5, 7)):
                 return "Pantherkin", evidence
             if positions.get("Sun", {}).get("sign") in ("Leo",) or positions.get("Mars", {}).get("sign") in ("Leo", "Aries"):

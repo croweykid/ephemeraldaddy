@@ -23,6 +23,7 @@ CHART_TYPE_PARASOCIAL = "parasocial"
 CHART_TYPE_EVENT = "event"
 CHART_TYPE_SYNASTRY = "synastry"
 CHART_TYPE_PERSONAL_TRANSIT = "personal_transit"
+CHART_TYPE_NONHUMAN_ENTITY = "nonhuman_entity"
 SOURCE_USER_SUBMITTED = "user_submitted"  # legacy alias
 
 # Backwards-compatibility aliases for legacy `source` naming.
@@ -32,6 +33,7 @@ SOURCE_PARASOCIAL = CHART_TYPE_PARASOCIAL
 SOURCE_EVENT = CHART_TYPE_EVENT
 SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
 SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
+SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
 
 
 def normalize_chart_type(value: Optional[str]) -> str:
@@ -46,6 +48,8 @@ def normalize_chart_type(value: Optional[str]) -> str:
         return CHART_TYPE_SYNASTRY
     if normalized == CHART_TYPE_PERSONAL_TRANSIT:
         return CHART_TYPE_PERSONAL_TRANSIT
+    if normalized == CHART_TYPE_NONHUMAN_ENTITY:
+        return CHART_TYPE_NONHUMAN_ENTITY
     if normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}:
         return CHART_TYPE_PERSONAL
     return CHART_TYPE_PERSONAL
