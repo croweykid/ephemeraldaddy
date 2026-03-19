@@ -37,6 +37,7 @@ HOUSE_CUSP_BLEND_DEGREES = 8.0
 DISPOSITOR_PLANET_ATTENUATION = 0.35
 DISPOSITOR_SIGN_ATTENUATION = 0.30
 DISPOSITOR_MAX_DEPTH = 2
+CHART_RULER_BONUS = 4.0
 
 PLANET_DYNAMICS_METRICS = (
     "stability",
@@ -447,7 +448,7 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
 
     for chart_ruler in _chart_ruler_planets(chart):
         if chart_ruler in subtotal_weights:
-            subtotal_weights[chart_ruler] += 3.0
+            subtotal_weights[chart_ruler] += CHART_RULER_BONUS
 
     snapshot_weights = dict(subtotal_weights)
     dispositor_transfers = {body: 0.0 for body in subtotal_weights}
