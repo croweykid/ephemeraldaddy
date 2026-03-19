@@ -15741,7 +15741,12 @@ class MainWindow(QMainWindow):
 
     def _reset_interface_layout_to_defaults(self) -> None:
         self._settings.remove("main_window")
-        self.resize(1432, self.height())
+        geometry = _available_screen_geometry()
+        if geometry is not None:
+            self.setGeometry(geometry)
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+        )
         self._configure_main_splitter()
 
     def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
@@ -17668,9 +17673,10 @@ class MainWindow(QMainWindow):
             self._size_checker_popup = None
         if self._manage_charts_dialog is not None:
             self._manage_charts_dialog._size_checker_popup = None
-        self._settings.setValue("main_window/geometry", self.saveGeometry())
-        self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
-        self._settings.setValue("app/last_view", "chart")
+        if self.isVisible():
+            self._settings.setValue("main_window/geometry", self.saveGeometry())
+            self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
+            self._settings.setValue("app/last_view", "chart")
         super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
