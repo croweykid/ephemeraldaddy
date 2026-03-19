@@ -6692,99 +6692,113 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for species in SPECIES_FAMILIES
             }
 
-            positive_total_label = "POSITIVE TOTAL"
-            negative_total_label = "NEGATIVE TOTAL"
-            positive_total_selection = (
-                selection_positive_count / sentiment_loaded_charts
-                if sentiment_loaded_charts
-                else 0
-            )
-            negative_total_selection = (
-                selection_negative_count / sentiment_loaded_charts
-                if sentiment_loaded_charts
-                else 0
-            )
-            positive_total_database = (
-                database_positive_count / sentiment_database_loaded_charts
-                if sentiment_database_loaded_charts
-                else 0
-            )
-            negative_total_database = (
-                database_negative_count / sentiment_database_loaded_charts
-                if sentiment_database_loaded_charts
-                else 0
-            )
-            display_labels = (
-                positive_labels
-                + [positive_total_label]
-                + negative_labels
-                + [negative_total_label]
-            )
-            selection_values = (
-                [selection_averages[label] for label in positive_labels]
-                + [positive_total_selection]
-                + [selection_averages[label] for label in negative_labels]
-                + [negative_total_selection]
-            )
-            database_values = (
-                [database_averages[label] for label in positive_labels]
-                + [positive_total_database]
-                + [database_averages[label] for label in negative_labels]
-                + [negative_total_database]
-            )
-            database_counts = (
-                [
-                    sentiment_database_cache["sentiment_totals"][label]
-                    for label in positive_labels
-                ]
-                + [database_positive_count]
-                + [
-                    sentiment_database_cache["sentiment_totals"][label]
-                    for label in negative_labels
-                ]
-                + [database_negative_count]
-            )
-            selection_counts = (
-                [
-                    sentiment_selection_cache["sentiment_totals"][label]
-                    for label in positive_labels
-                ]
-                + [selection_positive_count]
-                + [
-                    sentiment_selection_cache["sentiment_totals"][label]
-                    for label in negative_labels
-                ]
-                + [selection_negative_count]
-            )
-            if _should_refresh_database_metric_section("sentiment_prevalence"):
-                sentiment_canvas = self._build_sentiment_chart(
-                    display_labels=display_labels,
-                    selection_values=selection_values,
-                    database_values=database_values,
-                    selection_counts=selection_counts,
-                    database_counts=database_counts,
-                    loaded_charts=sentiment_loaded_charts,
-                    positive_labels=positive_labels,
-                    negative_labels=negative_labels,
-                    positive_total_label=positive_total_label,
-                    negative_total_label=negative_total_label,
+            try:
+                positive_total_label = "POSITIVE TOTAL"
+                negative_total_label = "NEGATIVE TOTAL"
+                positive_total_selection = (
+                    selection_positive_count / sentiment_loaded_charts
+                    if sentiment_loaded_charts
+                    else 0
                 )
-                self._clear_layout(self.sentiment_chart_layout)
-                self.sentiment_chart_layout.addWidget(
-                    sentiment_canvas,
-                    0,
-                    Qt.AlignHCenter,
+                negative_total_selection = (
+                    selection_negative_count / sentiment_loaded_charts
+                    if sentiment_loaded_charts
+                    else 0
                 )
-            self._analysis_chart_export_rows["sentiment_prevalence"] = (
-                self._build_analysis_export_rows(
-                    labels=display_labels,
-                    selection_values=selection_values,
-                    database_values=database_values,
-                    selection_counts=selection_counts,
-                    database_counts=database_counts,
-                    loaded_charts=sentiment_loaded_charts,
+                positive_total_database = (
+                    database_positive_count / sentiment_database_loaded_charts
+                    if sentiment_database_loaded_charts
+                    else 0
                 )
-            )
+                negative_total_database = (
+                    database_negative_count / sentiment_database_loaded_charts
+                    if sentiment_database_loaded_charts
+                    else 0
+                )
+                display_labels = (
+                    positive_labels
+                    + [positive_total_label]
+                    + negative_labels
+                    + [negative_total_label]
+                )
+                selection_values = (
+                    [selection_averages[label] for label in positive_labels]
+                    + [positive_total_selection]
+                    + [selection_averages[label] for label in negative_labels]
+                    + [negative_total_selection]
+                )
+                database_values = (
+                    [database_averages[label] for label in positive_labels]
+                    + [positive_total_database]
+                    + [database_averages[label] for label in negative_labels]
+                    + [negative_total_database]
+                )
+                database_counts = (
+                    [
+                        sentiment_database_cache["sentiment_totals"][label]
+                        for label in positive_labels
+                    ]
+                    + [database_positive_count]
+                    + [
+                        sentiment_database_cache["sentiment_totals"][label]
+                        for label in negative_labels
+                    ]
+                    + [database_negative_count]
+                )
+                selection_counts = (
+                    [
+                        sentiment_selection_cache["sentiment_totals"][label]
+                        for label in positive_labels
+                    ]
+                    + [selection_positive_count]
+                    + [
+                        sentiment_selection_cache["sentiment_totals"][label]
+                        for label in negative_labels
+                    ]
+                    + [selection_negative_count]
+                )
+                if _should_refresh_database_metric_section("sentiment_prevalence"):
+                    sentiment_canvas = self._build_sentiment_chart(
+                        display_labels=display_labels,
+                        selection_values=selection_values,
+                        database_values=database_values,
+                        selection_counts=selection_counts,
+                        database_counts=database_counts,
+                        loaded_charts=sentiment_loaded_charts,
+                        positive_labels=positive_labels,
+                        negative_labels=negative_labels,
+                        positive_total_label=positive_total_label,
+                        negative_total_label=negative_total_label,
+                    )
+                    self._clear_layout(self.sentiment_chart_layout)
+                    self.sentiment_chart_layout.addWidget(
+                        sentiment_canvas,
+                        0,
+                        Qt.AlignHCenter,
+                    )
+                self._analysis_chart_export_rows["sentiment_prevalence"] = (
+                    self._build_analysis_export_rows(
+                        labels=display_labels,
+                        selection_values=selection_values,
+                        database_values=database_values,
+                        selection_counts=selection_counts,
+                        database_counts=database_counts,
+                        loaded_charts=sentiment_loaded_charts,
+                    )
+                )
+            except Exception as exc:
+                logger.exception("Failed to render sentiment prevalence section: %s", exc)
+                self._analysis_chart_export_rows["sentiment_prevalence"] = []
+                if _should_refresh_database_metric_section("sentiment_prevalence"):
+                    self._clear_layout(self.sentiment_chart_layout)
+                    self.sentiment_chart_layout.addWidget(
+                        self._build_text_analysis_widget([
+                            "Unable to render Sentiment Prevalence.",
+                            f"Error: {exc}",
+                        ]),
+                        0,
+                        Qt.AlignTop,
+                    )
 
             if _should_refresh_database_metric_section("relationship_prevalence"):
                 relationship_canvas = self._build_relationship_distribution_chart(
