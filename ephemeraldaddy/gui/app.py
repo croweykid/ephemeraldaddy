@@ -136,6 +136,12 @@ from ephemeraldaddy.gui.astrotheme_search import (
 )
 from ephemeraldaddy.gui.dev_tools import SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
+from ephemeraldaddy.gui.window_chrome import (
+    APP_DISPLAY_NAME,
+    configure_application_identity,
+    configure_main_window_chrome,
+    configure_manage_dialog_chrome,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
@@ -894,7 +900,7 @@ def _maybe_reexec_with_macos_app_name() -> None:
     env["EPHEMERALDADDY_APPNAME_REEXEC"] = "1"
     os.execve(
         sys.executable,
-        ["Ephemeral Daddy", "-m", "ephemeraldaddy.gui.app", *sys.argv[1:]],
+        [APP_DISPLAY_NAME, "-m", "ephemeraldaddy.gui.app", *sys.argv[1:]],
         env,
     )
 
@@ -922,7 +928,7 @@ def _get_qapp():
                 if setprogname is not None:
                     setprogname.argtypes = [ctypes.c_char_p]
                     setprogname.restype = None
-                    setprogname(b"Ephemeral Daddy")
+                    setprogname(APP_DISPLAY_NAME.encode())
             except Exception:
                 pass
 
@@ -930,22 +936,30 @@ def _get_qapp():
             try:
                 from Foundation import NSBundle, NSProcessInfo  # type: ignore
 
-                NSProcessInfo.processInfo().setProcessName_("Ephemeral Daddy")
+                NSProcessInfo.processInfo().setProcessName_(APP_DISPLAY_NAME)
                 bundle_info = NSBundle.mainBundle().infoDictionary()
                 if bundle_info is not None:
-                    bundle_info["CFBundleName"] = "Ephemeral Daddy"
-                    bundle_info["CFBundleDisplayName"] = "Ephemeral Daddy"
+                    bundle_info["CFBundleName"] = APP_DISPLAY_NAME
+                    bundle_info["CFBundleDisplayName"] = APP_DISPLAY_NAME
+            except Exception:
+                pass
+
+            # Try updating the running application's localized UI name in Dock/menu.
+            try:
+                from AppKit import NSRunningApplication  # type: ignore
+
+                running = NSRunningApplication.currentApplication()
+                if running is not None:
+                    running.setLocalizedName_(APP_DISPLAY_NAME)
             except Exception:
                 pass
 
         # On macOS, Qt may derive Dock/app labeling from argv[0] when launched from
         # a Python interpreter. Provide an explicit program name so it does not show
         # up as "Python" in the Dock/taskbar hover label.
-        qt_argv = ["Ephemeral Daddy", *sys.argv[1:]]
+        qt_argv = [APP_DISPLAY_NAME, *sys.argv[1:]]
         app = QApplication(qt_argv)
-    app.setApplicationName("Ephemeral Daddy")
-    app.setApplicationDisplayName("Ephemeral Daddy")
-    app.setOrganizationName("Ephemeral Daddy")
+    configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
@@ -1922,6 +1936,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
+        configure_manage_dialog_chrome(self, layout)
 
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(4)
@@ -9877,6 +9892,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._show_left_panel("similarities")
 
+    def _show_database_analytics_panel(self) -> None:
+        self._show_left_panel("database_metrics")
+
+    def _show_current_transits_panel(self) -> None:
+        self._refresh_todays_transits_panel()
+        self._show_left_panel("todays_transits")
+
+    def _show_similarities_panel(self) -> None:
+        self._show_left_panel("similarities")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -12541,6 +12566,145 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 parent._retarget_size_checker_to_main_view()
         self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
 
+    def _selected_chart_id_for_menu(self) -> int | None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected = self.list_widget.selectedItems()
+            if selected:
+                item = selected[0]
+        if item is None:
+            return None
+        chart_id = item.data(Qt.UserRole)
+        if chart_id is None:
+            return None
+        return int(chart_id)
+
+    def _run_parent_chart_view_action(self, action_name: str, prompt_title: str) -> bool:
+        parent = self.parent()
+        if parent is None or not isinstance(parent, MainWindow):
+            QMessageBox.warning(self, prompt_title, "Unable to find Chart View window.")
+            return False
+
+        active_window = QApplication.activeWindow()
+        if active_window is parent and parent.current_chart_id is not None:
+            action = getattr(parent, action_name, None)
+            if callable(action):
+                action()
+                return True
+            return False
+
+        chart_id = self._selected_chart_id_for_menu()
+        if chart_id is None:
+            QMessageBox.information(self, prompt_title, "Please select a chart first.")
+            return False
+
+        if not parent.load_chart_by_id(chart_id):
+            QMessageBox.warning(
+                self,
+                prompt_title,
+                "Unable to load the selected chart in Chart View.",
+            )
+            return False
+
+        parent.showNormal()
+        parent.raise_()
+        parent.activateWindow()
+
+        action = getattr(parent, action_name, None)
+        if callable(action):
+            action()
+            return True
+        return False
+
+    def _on_menu_tools_interpret_astro_age(self) -> None:
+        self._run_parent_chart_view_action(
+            "on_menu_interpret_astro_age_active_chart",
+            "Interpret Astro Age",
+        )
+
+    def _on_menu_create_gemstone_chart(self) -> None:
+        self._run_parent_chart_view_action(
+            "on_menu_create_gemstone_chart_active_chart",
+            "Create Gemstone Chart",
+        )
+
+    def _on_menu_get_personal_transit(self) -> None:
+        self._run_parent_chart_view_action(
+            "on_menu_get_personal_transit_active_chart",
+            "Get Personal Transit",
+        )
+
+    def _on_menu_export_chart_md_txt(self) -> None:
+        self._run_parent_chart_view_action(
+            "on_menu_export_chart_as_md_txt_active_chart",
+            "Export Chart as MD/TXT",
+        )
+
+    def _on_menu_manage_collections(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_menu_general_population_comparison(self) -> None:
+        self._show_left_panel("gen_pop_norms")
+
+    def _on_edit_chart_from_menu(self) -> None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected = self.list_widget.selectedItems()
+            if selected:
+                item = selected[0]
+        if item is None:
+            QMessageBox.warning(
+                self,
+                "Edit chart",
+                "Select a chart in the list before choosing Edit chart.",
+            )
+            return
+        self._load_chart_from_item(item)
+
+    def _on_generate_personal_transit_for_selected_chart(self) -> None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected = self.list_widget.selectedItems()
+            if selected:
+                item = selected[0]
+        if item is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "Select a chart in the list before generating a personal transit chart.",
+            )
+            return
+
+        chart_id = item.data(Qt.UserRole)
+        if chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "The selected row does not reference a saved chart.",
+            )
+            return
+
+        self._refresh_personal_transit_chart_options()
+        selected_label = None
+        suffix = f"[#{int(chart_id)}]"
+        for label in self._personal_transit_chart_lookup:
+            if label.endswith(suffix):
+                selected_label = label
+                break
+        if selected_label is None:
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "Unable to resolve the selected chart for transit generation.",
+            )
+            return
+
+        self.personal_transit_chart_input.setText(selected_label)
+        self._show_current_transits_panel()
+        self._on_generate_personal_transit()
+
     def _on_index_double_clicked(self, index: QModelIndex) -> None:
         item = self.list_widget.itemFromIndex(index)
         if item is None:
@@ -12557,7 +12721,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Ephemeral Daddy: Astro App | Natal Chart Viewer")
+        configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
@@ -14399,9 +14563,40 @@ class MainWindow(QMainWindow):
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
 
+    def _menu_requires_active_chart(self, title: str) -> bool:
+        if self.current_chart_id is None or self._latest_chart is None:
+            QMessageBox.information(self, title, "Please select a chart first.")
+            return False
+        return True
 
+    def on_menu_get_personal_transit_active_chart(self) -> None:
+        if not self._menu_requires_active_chart("Get Personal Transit"):
+            return
+        self.on_get_current_transits()
 
+    def on_menu_export_chart_as_md_txt_active_chart(self) -> None:
+        if not self._menu_requires_active_chart("Export Chart as MD/TXT"):
+            return
+        self._export_chart_data_output()
 
+    def on_menu_create_gemstone_chart_active_chart(self) -> None:
+        if not self._menu_requires_active_chart("Create Gemstone Chart"):
+            return
+        self.on_create_gemstone_chartwheel()
+
+    def on_menu_interpret_astro_age_active_chart(self) -> None:
+        if not self._menu_requires_active_chart("Interpret Astro Age"):
+            return
+        self._on_open_settings()
+        self._refresh_dev_age_predictor(force_guess=True)
+
+    def on_menu_open_general_population_comparison(self) -> None:
+        self.on_manage_charts()
+        dialog = self._get_or_create_manage_charts_dialog()
+        dialog._show_left_panel("gen_pop_norms")
+
+    def on_menu_manage_collections(self) -> None:
+        self.on_manage_charts()
 
     def _show_gemstone_chartwheel_popout(self, image_path: str) -> None:
         dialog = QDialog(self)
