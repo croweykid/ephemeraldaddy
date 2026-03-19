@@ -1945,6 +1945,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence": "Distribution of signs (all positions) in database",
             "house_prevalence": "Distribution of houses (all positions) in database",
             "elemental_prevalence": "Distribution of elements in database",
+            "nakshatra_prevalence": "Distribution of nakshatras in database",
         }
         subheader.setText(
             label_by_mode.get(self._prevalence_mode, label_by_mode["sign_prevalence"])
@@ -2626,6 +2627,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Sign Prevalence", "sign_prevalence"),
                 ("House Prevalence", "house_prevalence"),
                 ("Elemental Prevalence", "elemental_prevalence"),
+                ("Nakshatra Prevalence", "nakshatra_prevalence"),
             ],
             show_title=False,
         )
@@ -5750,6 +5752,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 element: 0.0 for element in ("Fire", "Earth", "Air", "Water")
             },
             "element_prevalence_total_count": 0.0,
+            "nakshatra_prevalence_totals": {
+                name: 0.0 for name, *_ in NAKSHATRA_RANGES
+            },
+            "nakshatra_prevalence_total_count": 0.0,
             "position_sign_totals_by_body": {
                 body: {sign: 0 for sign in ZODIAC_NAMES}
                 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -5825,6 +5831,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             count = float(element_prevalence_counts.get(element, 0.0))
             snapshot["element_prevalence_totals"][element] += count
             snapshot["element_prevalence_total_count"] += count
+
+        nakshatra_prevalence_counts = _calculate_nakshatra_prevalence_counts(chart)
+        for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            count = float(nakshatra_prevalence_counts.get(nakshatra_name, 0.0))
+            snapshot["nakshatra_prevalence_totals"][nakshatra_name] += count
+            snapshot["nakshatra_prevalence_total_count"] += count
 
         for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS:
             if not use_houses and body in {"AS", "MC", "DS", "IC"}:
@@ -5948,6 +5960,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["element_prevalence_total_count"] += direction * float(
             snapshot.get("element_prevalence_total_count", 0.0)
         )
+        totals["nakshatra_prevalence_total_count"] += direction * float(
+            snapshot.get("nakshatra_prevalence_total_count", 0.0)
+        )
+        for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            totals["nakshatra_prevalence_totals"][nakshatra_name] += direction * float(
+                snapshot["nakshatra_prevalence_totals"].get(nakshatra_name, 0.0)
+            )
         for body, sign_totals in snapshot.get("position_sign_totals_by_body", {}).items():
             for sign in ZODIAC_NAMES:
                 totals["position_sign_totals_by_body"][body][sign] += direction * int(sign_totals.get(sign, 0))
@@ -7010,6 +7029,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 }
                 database_prevalence_counts = {
                     label: database_cache["element_prevalence_totals"][label]
+                    for label in prevalence_labels
+                }
+            elif prevalence_mode == "nakshatra_prevalence":
+                prevalence_labels = [name for name, *_ in NAKSHATRA_RANGES]
+                selection_prevalence = {
+                    label: (
+                        selection_cache["nakshatra_prevalence_totals"][label]
+                        / selection_cache["nakshatra_prevalence_total_count"]
+                        if selection_cache["nakshatra_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                database_prevalence = {
+                    label: (
+                        database_cache["nakshatra_prevalence_totals"][label]
+                        / database_cache["nakshatra_prevalence_total_count"]
+                        if database_cache["nakshatra_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                selection_prevalence_counts = {
+                    label: selection_cache["nakshatra_prevalence_totals"][label]
+                    for label in prevalence_labels
+                }
+                database_prevalence_counts = {
+                    label: database_cache["nakshatra_prevalence_totals"][label]
                     for label in prevalence_labels
                 }
             else:
