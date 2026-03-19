@@ -235,7 +235,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_GLYPHS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
-    PLANET_RULERSHIP_CLASSICAL,
+    PLANET_RULERSHIP,
     RELATION_TYPE,
     FAMILIARITY_INDEX,
     GENDER_GLYPHS,
@@ -4366,7 +4366,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
             horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
-            transit_workers.pop(key, None)
+            worker_entry = transit_workers.pop(key, None)
+            if worker_entry is not None:
+                thread, worker = worker_entry
+                try:
+                    thread.quit()
+                except RuntimeError:
+                    pass
+                thread.deleteLater()
+                worker.deleteLater()
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -4387,9 +4395,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if isinstance(cache_key, tuple):
                 _window_cache_put(cache_key, {"resolved": True, "failed": False, "start": start_dt, "end": end_dt, "start_truncated_to_scope": bool(state["start_truncated_to_scope"]), "end_truncated_to_scope": bool(state["end_truncated_to_scope"]), "error": ""})
             _refresh_summary()
+            _drain_preload_queue()
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
-            transit_workers.pop(key, None)
+            worker_entry = transit_workers.pop(key, None)
+            if worker_entry is not None:
+                thread, worker = worker_entry
+                try:
+                    thread.quit()
+                except RuntimeError:
+                    pass
+                thread.deleteLater()
+                worker.deleteLater()
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -4404,6 +4421,62 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if error_text != "Cancelled" and isinstance(cache_key, tuple):
                 _window_cache_put(cache_key, {"resolved": False, "failed": True, "start": None, "end": None, "start_truncated_to_scope": False, "end_truncated_to_scope": False, "error": error_text})
             _refresh_summary()
+            _drain_preload_queue()
+
+        MAX_TRANSIT_WINDOW_WORKERS = 2
+        preload_queue: list[tuple[str, str, str, str]] = []
+
+        def _start_window_worker(key: tuple[str, str, str, str], state: dict[str, object], *, refresh: bool) -> None:
+            hit = state.get("hit")
+            mode = str(state.get("mode", PERSONAL_TRANSIT_MODE_LIFE_FORECAST))
+            if hit is None:
+                return
+
+            state["resolving"] = True
+            state["failed"] = False
+            state["error"] = ""
+            state["start_truncated_to_scope"] = False
+            state["end_truncated_to_scope"] = False
+            if refresh:
+                _refresh_summary()
+
+            thread = QThread(dialog)
+            worker = TransitAspectWindowWorker(
+                natal_chart,
+                transit_chart.dt,
+                transit_location,
+                hit,
+                mode_rules.get(mode, TRANSIT_ASPECT_RULES),
+                step_hours=scan_step_hours,
+                precision_minutes=scan_precision_minutes,
+            )
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.finished.connect(
+                lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
+                    (mode, a, b, c),
+                    start_dt,
+                    end_dt,
+                    metadata,
+                )
+            )
+            worker.failed.connect(
+                lambda a, b, c, error_text, mode=mode: _on_window_failed((mode, a, b, c), error_text)
+            )
+            transit_workers[key] = (thread, worker)
+            thread.start()
+
+        def _drain_preload_queue() -> None:
+            while preload_queue and len(transit_workers) < MAX_TRANSIT_WINDOW_WORKERS:
+                queue_key = preload_queue.pop(0)
+                state = transit_ranges.get(queue_key)
+                if state is None:
+                    continue
+                if state.get("resolved") or state.get("resolving") or state.get("failed"):
+                    continue
+                _start_window_worker(queue_key, state, refresh=False)
+            if not transit_workers:
+                _refresh_summary()
 
         def _ensure_window_async(key: tuple[str, str, str, str], state: dict[str, object]) -> None:
             if state["resolved"]:
@@ -4432,40 +4505,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     _refresh_summary()
                     return
 
-            state["resolving"] = True
-            state["failed"] = False
-            state["error"] = ""
-            state["start_truncated_to_scope"] = False
-            state["end_truncated_to_scope"] = False
-            _refresh_summary()
-
-            try:
-                result = find_transit_aspect_window_result(
-                    natal_chart,
-                    transit_chart.dt,
-                    transit_location,
-                    hit,
-                    mode_rules.get(mode, TRANSIT_ASPECT_RULES),
-                    step_hours=scan_step_hours,
-                    precision_minutes=scan_precision_minutes,
-                )
-            except Exception as exc:
-                logger.exception("Transit window lookup failed for %s", key)
-                #_on_window_failed(key[0], key[1], key[2], str(exc)) #ojo: not sure if I wanted this to change.
-                _on_window_failed(key, str(exc))
-                return
-
-            if result.out_of_scope:
-                _on_window_failed(key, "Transit date is outside the configured ephemeris scope.")
-                return
-
-            metadata = {
-                "start_truncated_to_scope": result.start_truncated_to_scope,
-                "end_truncated_to_scope": result.end_truncated_to_scope,
-                # "duration_s": round(perf_counter() - started_at, 4), #ojo: might have wanted to keep this
-                # "diagnostics": diagnostics, #ojo: might have wanted to keep this
-            }
-            _on_window_ready(key, result.start, result.end, metadata)
+            _start_window_worker(key, state, refresh=True)
 
         def _build_personal_transit_export_text() -> str:
             lines = list(summary_header_lines)
@@ -4569,6 +4609,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         _refresh_summary()
+        preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
+        _drain_preload_queue()
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
@@ -17205,7 +17247,7 @@ class MainWindow(QMainWindow):
             for planet, ruled_signs in PLANET_RULERSHIP.items()
             if ascendant_sign in ruled_signs
         ]
-        for planet, ruled_signs in PLANET_RULERSHIP_CLASSICAL.items():
+        for planet, ruled_signs in PLANET_RULERSHIP.items():
             if ascendant_sign in ruled_signs and planet not in rulers:
                 rulers.append(planet)
         return rulers
