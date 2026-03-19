@@ -12284,7 +12284,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(cursedness_checkbox)
 
-        dnd_species_checkbox = QCheckBox("Show D&D species card")
+        dnd_species_checkbox = QCheckBox("Show D&&D species card")
         dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_species"))
         dnd_species_checkbox.toggled.connect(
             lambda checked: self._set_chart_data_visibility("chart_data.dnd_species", checked)
