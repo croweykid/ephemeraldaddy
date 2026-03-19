@@ -10340,6 +10340,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _show_similarities_panel(self) -> None:
         self._show_left_panel("similarities")
 
+    def _show_gen_pop_comparison_panel(self) -> None:
+        self._show_left_panel("gen_pop_norms")
+
+    def _show_manage_collections_panel(self) -> None:
+        self._show_right_panel("manage_collections")
+
+    def _show_search_database_panel(self) -> None:
+        self._show_right_panel("search")
+
+    def _run_main_window_chart_action(self, action_name: str) -> None:
+        parent = self.parent()
+        if parent is None or not hasattr(parent, "_run_chart_action_from_active_context"):
+            QMessageBox.warning(self, "Chart action", "Unable to access chart actions.")
+            return
+        parent._run_chart_action_from_active_context(action_name, requester=self)
+
+    def _on_menu_interpret_astro_age(self) -> None:
+        self._run_main_window_chart_action("interpret_astro_age")
+
+    def _on_menu_create_gemstone_chart(self) -> None:
+        self._run_main_window_chart_action("create_gemstone_chartwheel")
+
+    def _on_menu_get_personal_transit(self) -> None:
+        self._run_main_window_chart_action("get_personal_transit")
+
+    def _on_menu_export_chart(self) -> None:
+        self._run_main_window_chart_action("export_chart")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -15312,6 +15340,93 @@ class MainWindow(QMainWindow):
     def on_export_chart(self) -> None:
         self._export_chart(self._latest_chart)
 
+    def _selected_chart_id_from_manage_view(self) -> int | None:
+        manage_dialog = self._manage_charts_dialog
+        if manage_dialog is None or not hasattr(manage_dialog, "list_widget"):
+            return None
+        item = manage_dialog.list_widget.currentItem()
+        if item is None:
+            selected_items = manage_dialog.list_widget.selectedItems()
+            if selected_items:
+                item = selected_items[0]
+        if item is None:
+            return None
+        raw_chart_id = item.data(Qt.UserRole)
+        if raw_chart_id is None:
+            return None
+        try:
+            return int(raw_chart_id)
+        except (TypeError, ValueError):
+            return None
+
+    def _resolve_chart_for_active_action(
+        self,
+        requester: QWidget | None = None,
+    ) -> tuple[Chart | None, int | None]:
+        manage_dialog = self._manage_charts_dialog
+        chart_view_active = requester is self or self.isActiveWindow()
+        database_view_active = (
+            requester is manage_dialog
+            or (
+                manage_dialog is not None
+                and manage_dialog.isVisible()
+                and manage_dialog.isActiveWindow()
+            )
+        )
+        if chart_view_active and self._latest_chart is not None:
+            return self._latest_chart, self.current_chart_id
+
+        if database_view_active:
+            chart_id = self._selected_chart_id_from_manage_view()
+            if chart_id is None:
+                return None, None
+            try:
+                return load_chart(chart_id), chart_id
+            except Exception as exc:
+                QMessageBox.critical(
+                    self,
+                    "Chart action",
+                    f"Could not load the selected chart:\n{exc}",
+                )
+                return None, None
+
+        if self._latest_chart is not None:
+            return self._latest_chart, self.current_chart_id
+
+        chart_id = self._selected_chart_id_from_manage_view()
+        if chart_id is None:
+            return None, None
+        try:
+            return load_chart(chart_id), chart_id
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Chart action",
+                f"Could not load the selected chart:\n{exc}",
+            )
+            return None, None
+
+    def _run_chart_action_from_active_context(
+        self,
+        action_name: str,
+        requester: QWidget | None = None,
+    ) -> None:
+        chart, chart_id = self._resolve_chart_for_active_action(requester=requester)
+        if chart is None:
+            QMessageBox.information(self, "No chart selected", "Please select a chart first.")
+            return
+
+        if action_name == "interpret_astro_age":
+            self._interpret_astro_age(chart)
+        elif action_name == "create_gemstone_chartwheel":
+            self._create_gemstone_chartwheel(chart)
+        elif action_name == "get_personal_transit":
+            self._generate_current_transits_for_chart(chart, chart_id)
+        elif action_name == "export_chart":
+            self._export_chart(chart)
+        else:
+            QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
+
 
 
 
@@ -15360,8 +15475,7 @@ class MainWindow(QMainWindow):
         dialog.raise_()
         dialog.activateWindow()
 
-    def on_interpret_astro_age(self) -> None:
-        chart = self._latest_chart
+    def _interpret_astro_age(self, chart: Chart | None) -> None:
         if chart is None:
             QMessageBox.information(
                 self,
@@ -15457,8 +15571,10 @@ class MainWindow(QMainWindow):
         dialog.raise_()
         dialog.activateWindow()
 
-    def on_create_gemstone_chartwheel(self) -> None:
-        chart = self._latest_chart
+    def on_interpret_astro_age(self) -> None:
+        self._interpret_astro_age(self._latest_chart)
+
+    def _create_gemstone_chartwheel(self, chart: Chart | None) -> None:
         if chart is None:
             QMessageBox.information(
                 self,
@@ -15496,6 +15612,9 @@ class MainWindow(QMainWindow):
             "Gemstone chartwheel exported",
             f"Saved gemstone chartwheel to:\n{file_path}",
         )
+
+    def on_create_gemstone_chartwheel(self) -> None:
+        self._create_gemstone_chartwheel(self._latest_chart)
 
     def _on_aspects_sort_changed(self, _value: str) -> None:
         self._refresh_chart_summary()
@@ -17755,8 +17874,12 @@ class MainWindow(QMainWindow):
         lat, lon, resolved_label = geocode_location(location_value)
         return float(lat), float(lon), resolved_label
 
-    def on_get_current_transits(self) -> None:
-        if self._latest_chart is None:
+    def _generate_current_transits_for_chart(
+        self,
+        chart: Chart | None,
+        chart_id: int | None,
+    ) -> None:
+        if chart is None:
             QMessageBox.information(
                 self,
                 "No chart",
@@ -17795,7 +17918,7 @@ class MainWindow(QMainWindow):
         transit_datetime_utc = datetime.datetime.now(datetime.timezone.utc)
         local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
         timestamp_label = transit_datetime_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M %Z")
-        natal_chart = copy.deepcopy(self._latest_chart)
+        natal_chart = copy.deepcopy(chart)
         personal_transit_name = (
             f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {location_label}"
         )
@@ -17810,8 +17933,8 @@ class MainWindow(QMainWindow):
         transit_chart.retcon_time_used = False
 
         natal_kwargs: dict[str, Any] = {"chart_type": "natal"}
-        if self.current_chart_id is not None:
-            natal_kwargs["chart_id"] = self.current_chart_id
+        if chart_id is not None:
+            natal_kwargs["chart_id"] = chart_id
         natal_normalized = normalize_chart(natal_chart, **natal_kwargs)
         transit_normalized = normalize_chart(transit_chart, chart_type="transit")
         transit_in_natal = assign_houses(
@@ -17847,6 +17970,9 @@ class MainWindow(QMainWindow):
             },
             include_time=True,
         )
+
+    def on_get_current_transits(self) -> None:
+        self._generate_current_transits_for_chart(self._latest_chart, self.current_chart_id)
 
     def closeEvent(self, event) -> None:
         if not self._allow_app_exit_close:

@@ -135,14 +135,21 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
     _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
     _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
+    _bind_menu_action(charts_menu, "Get Personal Transit", dialog, "_on_menu_get_personal_transit")
+    _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
+    _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
     _bind_menu_action(view_menu, "Current Transits", dialog, "_show_current_transits_panel")
+    _bind_menu_action(view_menu, "General Population Comparison", dialog, "_show_gen_pop_comparison_panel")
+    _bind_menu_action(view_menu, "Manage Collections", dialog, "_show_manage_collections_panel")
+    _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
 
     help_menu = menu_bar.addMenu("Help")
     _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
