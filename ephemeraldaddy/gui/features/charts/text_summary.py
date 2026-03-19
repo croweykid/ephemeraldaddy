@@ -634,6 +634,33 @@ def format_chart_text(
     return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
 
+
+TRANSIT_HEADER_ALIASES: dict[str, tuple[str, ...]] = {
+    "name": ("Name:",),
+    "alias": ("Alias:",),
+    "date": ("Birth date:", "Date:"),
+    "time": ("Birth time:", "Official Time:", "Time:"),
+    "place": ("Birthplace:", "Place:", "Location:"),
+}
+
+
+def _starts_with_any_prefix(line: str, prefixes: tuple[str, ...]) -> bool:
+    stripped = line.strip()
+    return any(stripped.startswith(prefix) for prefix in prefixes)
+
+
+def _replace_first_matching_prefix(
+    line: str,
+    prefixes: tuple[str, ...],
+    replacement: str,
+) -> str:
+    stripped = line.strip()
+    for prefix in prefixes:
+        if stripped.startswith(prefix):
+            return line.replace(prefix, replacement, 1)
+    return line
+
+
 def format_transit_chart_text(chart: Chart, location_label: str) -> str:
     summary, _, _, _ = format_chart_text(chart)
     lines = summary.splitlines()
@@ -643,16 +670,30 @@ def format_transit_chart_text(chart: Chart, location_label: str) -> str:
     )
     cleaned_lines: list[str] = []
     for line in lines[positions_start_index:]:
-        stripped = line.strip()
-        if stripped.startswith("Name:") or stripped.startswith("Alias:"):
+        if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["name"]) or _starts_with_any_prefix(
+            line,
+            TRANSIT_HEADER_ALIASES["alias"],
+        ):
             continue
-        if stripped.startswith("Birth date:"):
-            cleaned_lines.append(line.replace("Birth date:", "Date:", 1))
+        if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["date"]):
+            cleaned_lines.append(
+                _replace_first_matching_prefix(
+                    line,
+                    TRANSIT_HEADER_ALIASES["date"],
+                    "Date:",
+                )
+            )
             continue
-        if stripped.startswith("Birth time:"):
-            cleaned_lines.append(line.replace("Birth time:", "Time:", 1))
+        if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["time"]):
+            cleaned_lines.append(
+                _replace_first_matching_prefix(
+                    line,
+                    TRANSIT_HEADER_ALIASES["time"],
+                    "Time:",
+                )
+            )
             continue
-        if stripped.startswith("Birthplace:"):
+        if _starts_with_any_prefix(line, TRANSIT_HEADER_ALIASES["place"]):
             cleaned_lines.append(
                 f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}"
             )
