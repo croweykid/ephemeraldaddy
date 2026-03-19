@@ -386,6 +386,9 @@ class ChartsController:
             # while still skipping passive refreshes when nothing changed.
             dialog._refresh_charts(refresh_metrics=True)
         self._clear_pending_changed_ids()
+        apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
+        if callable(apply_launch_window_policy):
+            apply_launch_window_policy()
         if dialog.isVisible():
             self._raise_manage_dialog()
         else:
