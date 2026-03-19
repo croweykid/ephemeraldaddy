@@ -11,7 +11,7 @@ from ephemeraldaddy.gui.style import WINDOW_CHROME_MENU_STYLE
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
-APP_DISPLAY_NAME = "EphemeralDaddy"
+APP_DISPLAY_NAME = "Ephemeral Daddy"
 
 
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:

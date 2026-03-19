@@ -91,6 +91,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     Qt,
     QObject,
+    QCoreApplication,
     QSize,
     QPoint,
     QDate,
@@ -971,6 +972,9 @@ def _maybe_reexec_with_macos_app_name() -> None:
 def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
     _configure_qt_input_scaling()
+    QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
+    QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
+    QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     app = QApplication.instance()
     if app is None:
         if sys.platform == "win32":
