@@ -180,6 +180,7 @@ class ChartAnalysisSectionsController:
         chart_layout_attr: str,
         dropdown_options: list[tuple[str, str]] | None = None,
         subtitle_by_mode: dict[str, str] | None = None,
+        footer_text: str | None = None,
         expanded: bool = True,
     ) -> None:
         section_layout = self.add_collapsible_section(
@@ -222,6 +223,13 @@ class ChartAnalysisSectionsController:
         setattr(self._owner, chart_container_attr, chart_container)
         setattr(self._owner, chart_layout_attr, chart_layout)
 
+        if footer_text is not None:
+            footer_label = QLabel(footer_text)
+            footer_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            footer_label.setWordWrap(True)
+            section_layout.addWidget(footer_label)
+            self._owner._chart_analysis_footer_labels[section_key] = footer_label
+
     def create_sections(self, panel: QWidget) -> None:
         self.add_section(
             panel=panel,
@@ -258,6 +266,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Planets", "dominant_planets"),
                 ("Sidereal Planet Prevalence", "sidereal_planet_prevalence"),
             ],
+            footer_text="Chart Ruler: Unknown",
         )
         self.add_section(
             panel=panel,
