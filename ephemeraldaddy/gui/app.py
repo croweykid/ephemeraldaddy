@@ -534,7 +534,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Archetypes:",
         "Deity:",
         "Ruler:",
-        "Planetary Associations:",
+        "Body Associations:",
         "Notes A:",
         "Notes B:",
     )
@@ -8062,7 +8062,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(gender_section)
 
-        bodies_section, bodies_group_layout = add_collapsible_section("Planet/Angles")
+        bodies_section, bodies_group_layout = add_collapsible_section("Bodies/Angles")
 
         bodies_layout = QFormLayout()
         bodies_layout.setLabelAlignment(Qt.AlignLeft)
@@ -12404,7 +12404,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)"))
 
-        planet_dynamics_checkbox = QCheckBox("Show Planet Dynamics (Chart Analytics)")
+        planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self.parent()
         planet_dynamics_checkbox.setChecked(
             isinstance(parent, MainWindow)
@@ -14267,13 +14267,13 @@ class MainWindow(QMainWindow):
     def _build_metric_popout_figure(self, title: str, chart: Chart) -> Figure:
         size_by_title = {
             "Signs": (8.5, 4.2),
-            "Planets": (8.5, 4.2),
+            "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Modes": (8.0, 5.4),
             "Gender Guesser": (8.0, 4.2),
-            "Planet Dynamics": (8.5, 5.0),
+            "Body Dynamics": (8.5, 5.0),
         }
         figsize = size_by_title.get(title, (8.5, 4.6))
         figure = Figure(figsize=figsize)
@@ -14282,7 +14282,7 @@ class MainWindow(QMainWindow):
         ax.set_facecolor(CHART_THEME_COLORS["background"])
         if title == "Signs":
             self._draw_sign_tally(ax, chart)
-        elif title == "Planets":
+        elif title == "Bodies":
             self._draw_planet_tally(ax, chart)
         elif title == "Houses":
             self._draw_house_tally(ax, chart)
@@ -14294,7 +14294,7 @@ class MainWindow(QMainWindow):
             self._draw_modal_distribution(ax, chart)
         elif title == "Gender Guesser":
             self._draw_gender_guesser(ax, chart)
-        elif title == "Planet Dynamics":
+        elif title == "Body Dynamics":
             self._draw_planet_dynamics(ax, chart)
         return figure
 
@@ -17254,7 +17254,7 @@ class MainWindow(QMainWindow):
             canvas_attr="planet_chart_canvas",
             container_layout=self.planet_chart_container_layout,
             figsize=(5.5, 3.2),
-            title="Planets",
+            title="Bodies",
             draw_fn=self._draw_planet_tally,
             chart=chart,
         )
@@ -17363,8 +17363,8 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="planet_dynamics_canvas",
             container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.4), #width & height of "Planet Dynamics" graph
-            title="Planet Dynamics",
+            figsize=(5.5, 3.4), #width & height of "Body Dynamics" graph
+            title="Body Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
         )
