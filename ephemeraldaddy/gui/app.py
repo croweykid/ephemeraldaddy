@@ -15877,14 +15877,8 @@ class MainWindow(QMainWindow):
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(self) -> None:
-        self.setWindowState(
-            (
-                self.windowState()
-                & ~Qt.WindowFullScreen
-                & ~Qt.WindowMinimized
-            )
-            | Qt.WindowMaximized
-        )
+        self.show()
+        self.showMaximized()
         self.raise_()
         self.activateWindow()
 
