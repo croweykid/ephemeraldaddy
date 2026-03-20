@@ -27,6 +27,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    configure_collapsible_header_toggle,
 )
 
 
@@ -133,13 +134,12 @@ class ChartAnalysisSectionsController:
         section.setLayout(section_layout)
 
         toggle = QToolButton()
-        toggle.setText(title)
-        toggle.setCheckable(True)
-        toggle.setChecked(expanded)
-        toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        toggle.setStyleSheet(DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=expanded,
+            style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+        )
 
         content = QWidget()
         content_layout = QVBoxLayout()
