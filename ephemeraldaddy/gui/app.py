@@ -16273,7 +16273,8 @@ class MainWindow(QMainWindow):
         except Exception:
             dt_year, dt_month, dt_day = 1990, 1, 1
 
-        qtime = self.retcon_time_edit.time() if self.retcon_time_checkbox.isChecked() else QTime(12, 0)
+        retcon_qtime = self.retcon_time_edit.time()
+        qtime = retcon_qtime if self.retcon_time_checkbox.isChecked() else QTime(12, 0)
         dt_local = datetime.datetime(dt_year, dt_month, dt_day, qtime.hour(), qtime.minute())
         placeholder = SimpleNamespace()
         placeholder.name = self.name_edit.text().strip() or "Anonymous"
@@ -16285,6 +16286,8 @@ class MainWindow(QMainWindow):
         placeholder.used_utc_fallback = False
         placeholder.birthtime_unknown = True
         placeholder.retcon_time_used = self.retcon_time_checkbox.isChecked()
+        placeholder.retcon_hour = retcon_qtime.hour()
+        placeholder.retcon_minute = retcon_qtime.minute()
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
@@ -16437,6 +16440,8 @@ class MainWindow(QMainWindow):
 
         chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
+        chart.retcon_hour = self.retcon_time_edit.time().hour()
+        chart.retcon_minute = self.retcon_time_edit.time().minute()
         chart.birth_place = place
         chart.birth_month = qdate.month()
         chart.birth_day = qdate.day()
@@ -16551,6 +16556,8 @@ class MainWindow(QMainWindow):
                 chart.gender = self.gender_combo.currentData() or None
                 chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
+                chart.retcon_hour = self.retcon_time_edit.time().hour()
+                chart.retcon_minute = self.retcon_time_edit.time().minute()
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
                 chart.is_deceased = self.deceased_checkbox.isChecked()
                 is_placeholder = chart.is_placeholder
@@ -16634,6 +16641,8 @@ class MainWindow(QMainWindow):
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
+            retcon_hour=self.retcon_time_edit.time().hour(),
+            retcon_minute=self.retcon_time_edit.time().minute(),
             is_placeholder=is_placeholder,
             is_deceased=getattr(chart, "is_deceased", False),
             birth_month=getattr(chart, "birth_month", None),
@@ -16951,16 +16960,18 @@ class MainWindow(QMainWindow):
             self.time_edit.setTime(default_noon)
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
-        if chart.retcon_time_used:
+        stored_retcon_hour = getattr(chart, "retcon_hour", None)
+        stored_retcon_minute = getattr(chart, "retcon_minute", None)
+        if stored_retcon_hour is not None and stored_retcon_minute is not None:
+            self.retcon_time_edit.setTime(QTime(int(stored_retcon_hour), int(stored_retcon_minute)))
+        elif chart.retcon_time_used:
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
-        self._retcon_time_user_overridden = (
-            chart.retcon_time_used and qtime != default_noon
-        )
+        self._retcon_time_user_overridden = self.retcon_time_edit.time() != default_noon
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
