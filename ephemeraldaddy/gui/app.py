@@ -18322,7 +18322,9 @@ class MainWindow(QMainWindow):
                 self._settings.remove("main_window/geometry")
                 self._settings.remove("main_window/splitter_sizes")
                 self._settings.setValue("main_window/layout_customized", 0)
-            self._settings.setValue("app/last_view", "chart")
+            # Startup is intentionally Database View-first; persist that contract
+            # so older installs carrying `app/last_view=chart` do not regress.
+            self._settings.setValue("app/last_view", "database")
         super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
@@ -18597,7 +18599,6 @@ def main():
     # canvas while heavy initialization catches up (more pronounced on Windows).
     # Keeping launch deterministic avoids that startup race without changing
     # intended user-facing behavior (Database View first, Chart View on demand).
-    settings.setValue("app/last_view", "database")
     window.on_manage_charts()
     window.hide()
 
