@@ -1237,6 +1237,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
+        self._filter_refresh_running = False
+        self._filter_refresh_pending = False
+        self._filter_refresh_timer = QTimer(self)
+        self._filter_refresh_timer.setSingleShot(True)
+        self._filter_refresh_timer.setInterval(75)
+        self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._active_collection_total_count = 0
@@ -10378,6 +10384,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_filter_changed(self, *_: object) -> None:
         if self._suppress_filter_refresh:
             return
+        self._filter_refresh_pending = True
+        self._filter_refresh_timer.start()
+
+    def _run_scheduled_filter_refresh(self) -> None:
+        if self._suppress_filter_refresh:
+            return
+        if self._filter_refresh_running:
+            self._filter_refresh_pending = True
+            self._filter_refresh_timer.start()
+            return
+        if not self._filter_refresh_pending:
+            return
+        self._filter_refresh_pending = False
+        self._filter_refresh_running = True
         try:
             if self.list_widget.selectedItems():
                 blocker = QSignalBlocker(self.list_widget)
@@ -10391,6 +10411,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Filter error",
                 f"Could not apply filters:\n{exc}",
             )
+        finally:
+            self._filter_refresh_running = False
+        if self._filter_refresh_pending:
+            self._filter_refresh_timer.start()
 
     def _on_astrological_filter_changed(self, *_: object) -> None:
         self._auto_exclude_placeholders_for_astrological_filters()
