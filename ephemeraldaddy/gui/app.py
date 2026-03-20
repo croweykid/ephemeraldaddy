@@ -367,6 +367,9 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_chart_text,
     format_transit_chart_text,
 )
+from ephemeraldaddy.gui.features.charts.right_panel_stack import (
+    build_chart_right_panel_stack,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -13547,7 +13550,7 @@ class MainWindow(QMainWindow):
         sentiment_layout = QGridLayout()
         #sentiment_layout.setContentsMargins(0, 0, 0, 0)
         sentiment_options = SENTIMENT_OPTIONS
-        sentiment_columns = 3
+        sentiment_columns = 2
         sentiment_rows = (len(sentiment_options) + sentiment_columns - 1) // sentiment_columns
         for idx, label in enumerate(sentiment_options):
             checkbox = QCheckBox(label)
@@ -13563,7 +13566,7 @@ class MainWindow(QMainWindow):
         relationship_widget = QWidget()
         relationship_layout = QGridLayout()
         #relationship_layout.setContentsMargins(0, 0, 0, 0)
-        relationship_columns = 3
+        relationship_columns = 2
         relationship_rows = (len(RELATION_TYPE) + relationship_columns - 1) // relationship_columns
         for idx, label in enumerate(RELATION_TYPE):
             checkbox = QCheckBox(label)
@@ -13576,13 +13579,13 @@ class MainWindow(QMainWindow):
 
         self.sentiment_relation_row_widget = QWidget()
         self.sentiment_relation_row_widget.setSizePolicy(
-            QSizePolicy.Maximum,
+            QSizePolicy.Expanding,
             QSizePolicy.Preferred,
         )
-        sentiment_relation_layout = QHBoxLayout()
-        #sentiment_relation_layout.setContentsMargins(0, 0, 0, 0)
-        sentiment_relation_layout.setSpacing(12)
-        sentiment_relation_layout.setAlignment(Qt.AlignCenter)
+        sentiment_relation_layout = QVBoxLayout()
+        sentiment_relation_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_relation_layout.setSpacing(8)
+        sentiment_relation_layout.setAlignment(Qt.AlignTop)
         self.sentiment_relation_row_widget.setLayout(sentiment_relation_layout)
 
         # Sentiment group box container.
@@ -13598,6 +13601,7 @@ class MainWindow(QMainWindow):
         sentiment_box_layout.setContentsMargins(8, 8, 8, 8)
         sentiment_box_layout.setSpacing(6)
         sentiment_box.setLayout(sentiment_box_layout)
+        sentiment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.sentiment_panel_toggle = QToolButton()
         self.sentiment_panel_toggle.setText("Sentiment Types")
@@ -13629,6 +13633,7 @@ class MainWindow(QMainWindow):
         relationship_box_layout.setContentsMargins(8, 8, 8, 8)
         relationship_box_layout.setSpacing(6)
         relationship_box.setLayout(relationship_box_layout)
+        relationship_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.relationship_panel_toggle = QToolButton()
         self.relationship_panel_toggle.setText("Relationship Types")
@@ -13647,9 +13652,8 @@ class MainWindow(QMainWindow):
         relationship_widget.setVisible(False)
         relationship_box_layout.addWidget(relationship_widget)
 
-        sentiment_relation_layout.addWidget(sentiment_box, 1)
-        sentiment_relation_layout.addWidget(relationship_box, 1)
-        self.inputs_layout.addWidget(self.sentiment_relation_row_widget, 0, Qt.AlignHCenter)
+        sentiment_relation_layout.addWidget(sentiment_box)
+        sentiment_relation_layout.addWidget(relationship_box)
 
         sentiment_metrics_row = QWidget()
         sentiment_metrics_row.setSizePolicy(
@@ -13856,58 +13860,7 @@ class MainWindow(QMainWindow):
 
         self._main_splitter.addWidget(middle_panel)
 
-        # Chart Entry/Edit Window: RIGHT panel (analytics + subjective notes).
-        metrics_panel = QWidget()
-        metrics_layout = QVBoxLayout()
-        metrics_layout.setContentsMargins(0, 0, 0, 0)
-        metrics_layout.setSpacing(4)
-        metrics_panel.setLayout(metrics_layout)
-        self.metrics_panel = metrics_panel
-        metrics_panel.setMinimumWidth(200)
-
-        self.chart_analytics_panel_button = QPushButton("📊")
-        self.chart_analytics_panel_button.setObjectName("chart_view_toggle_analytics_panel_button")
-        self.chart_analytics_panel_button.clicked.connect(
-            lambda: self._set_chart_right_panel("analytics")
-        )
-        self.subjective_notes_panel_button = QPushButton("📝")
-        self.subjective_notes_panel_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
-        self.subjective_notes_panel_button.clicked.connect(
-            lambda: self._set_chart_right_panel("subjective_notes")
-        )
-        for control_button in (
-            self.chart_analytics_panel_button,
-            self.subjective_notes_panel_button,
-        ):
-            control_button.setCheckable(True)
-            control_button.setAutoDefault(False)
-            control_button.setDefault(False)
-            control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-            control_button.setMinimumWidth(0)
-            control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
-
-        chart_right_controls_row = QWidget()
-        chart_right_controls_layout = QHBoxLayout()
-        chart_right_controls_layout.setContentsMargins(0, 0, 0, 0)
-        chart_right_controls_layout.setSpacing(4)
-        chart_right_controls_row.setLayout(chart_right_controls_layout)
-        chart_right_controls_layout.addWidget(self.chart_analytics_panel_button)
-        chart_right_controls_layout.addWidget(self.subjective_notes_panel_button)
-        chart_right_controls_layout.addStretch(1)
-        metrics_layout.addWidget(chart_right_controls_row)
-
-        self.chart_right_panel_stack = QStackedWidget()
-        self.chart_right_panel_stack.setMinimumWidth(0)
-
-        # Chart Analytics scroll area container.
-        metrics_scroll = QScrollArea()
-        metrics_scroll.setWidgetResizable(True)
-        metrics_scroll.setFrameShape(QScrollArea.NoFrame)
-        metrics_scroll.setMinimumWidth(240)
-        metrics_scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
-        metrics_scroll.setFocusPolicy(Qt.StrongFocus)
-
-        # Metrics scroll content panel.
+        # Chart Analytics scroll content panel.
         metrics_content = QWidget()
         metrics_content.setFocusPolicy(Qt.StrongFocus)
         self.metrics_layout = QVBoxLayout()
@@ -13915,35 +13868,32 @@ class MainWindow(QMainWindow):
         self.metrics_layout.setContentsMargins(6, 6, 6, 6)
         self.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         metrics_content.setLayout(self.metrics_layout)
-        metrics_scroll.setWidget(metrics_content)
-
-        self.chart_analytics_panel_scroll = metrics_scroll
-        self.chart_right_panel_stack.addWidget(self.chart_analytics_panel_scroll)
 
         subjective_notes_panel = QWidget()
         subjective_notes_layout = QVBoxLayout()
         subjective_notes_layout.setContentsMargins(6, 6, 6, 6)
         subjective_notes_layout.setSpacing(6)
         subjective_notes_panel.setLayout(subjective_notes_layout)
-        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget, 0, Qt.AlignHCenter)
-        subjective_notes_layout.addWidget(self.sentiment_metrics_widget, 0, Qt.AlignHCenter)
+        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
+        subjective_notes_layout.addWidget(self.sentiment_metrics_widget)
         subjective_notes_layout.addStretch(1)
+        chart_right_panel = build_chart_right_panel_stack(
+            analytics_content_widget=metrics_content,
+            subjective_notes_content_widget=subjective_notes_panel,
+            on_show_analytics=lambda: self._set_chart_right_panel("analytics"),
+            on_show_subjective_notes=lambda: self._set_chart_right_panel("subjective_notes"),
+            scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
+        )
+        self.metrics_panel = chart_right_panel.container
+        self.chart_analytics_panel_button = chart_right_panel.analytics_button
+        self.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
+        self.chart_right_panel_stack = chart_right_panel.stack
+        self.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
+        self.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
 
-        subjective_notes_scroll = QScrollArea()
-        subjective_notes_scroll.setWidgetResizable(True)
-        subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
-        subjective_notes_scroll.setMinimumWidth(240)
-        subjective_notes_scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
-        subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
-        subjective_notes_scroll.setWidget(subjective_notes_panel)
-
-        self.subjective_notes_panel_scroll = subjective_notes_scroll
-        self.chart_right_panel_stack.addWidget(self.subjective_notes_panel_scroll)
-
-        metrics_layout.addWidget(self.chart_right_panel_stack, 1)
-        self._main_splitter.addWidget(metrics_panel)
-        self.metrics_scroll = metrics_scroll
-        self._register_metric_scroll_widget(metrics_scroll)
+        self._main_splitter.addWidget(self.metrics_panel)
+        self.metrics_scroll = self.chart_analytics_panel_scroll
+        self._register_metric_scroll_widget(self.chart_analytics_panel_scroll)
         self._register_metric_scroll_widget(metrics_content)
 
         self._chart_analysis_sections_controller = ChartAnalysisSectionsController(
