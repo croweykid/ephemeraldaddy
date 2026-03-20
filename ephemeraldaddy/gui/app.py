@@ -9018,6 +9018,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
+        self._batch_metric_programmatic_update = False
+        self._batch_last_selection_ids: set[int] = set()
+        self._batch_metric_dirty: dict[str, bool] = {
+            "positive_sentiment_intensity": False,
+            "negative_sentiment_intensity": False,
+            "familiarity": False,
+            "year_first_encountered": False,
+        }
         
         self.batch_year_first_encountered_edit = QLineEdit()
         self.batch_year_first_encountered_edit.setPlaceholderText("blank")
@@ -9044,6 +9052,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
         self.batch_positive_sentiment_intensity_spin.setRange(1, 10)
         self.batch_positive_sentiment_intensity_spin.setValue(1)
+        self.batch_positive_sentiment_intensity_spin.valueChanged.connect(
+            lambda _value: self._on_batch_metric_field_edited("positive_sentiment_intensity")
+        )
         self.batch_positive_sentiment_intensity_spin.setFixedWidth(
             self.batch_positive_sentiment_intensity_spin.sizeHint().width() * 2
         )
@@ -9066,6 +9077,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_negative_sentiment_intensity_spin = QSpinBox()
         self.batch_negative_sentiment_intensity_spin.setRange(1, 10)
         self.batch_negative_sentiment_intensity_spin.setValue(1)
+        self.batch_negative_sentiment_intensity_spin.valueChanged.connect(
+            lambda _value: self._on_batch_metric_field_edited("negative_sentiment_intensity")
+        )
         self.batch_negative_sentiment_intensity_spin.setFixedWidth(
             self.batch_negative_sentiment_intensity_spin.sizeHint().width() * 2
         )
@@ -9088,6 +9102,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin = QSpinBox()
         self.batch_familiarity_spin.setRange(1, 10)
         self.batch_familiarity_spin.setValue(1)
+        self.batch_familiarity_spin.valueChanged.connect(
+            lambda _value: self._on_batch_metric_field_edited("familiarity")
+        )
         self.batch_familiarity_spin.setFixedWidth(
             self.batch_familiarity_spin.sizeHint().width() * 2
         )
@@ -9125,6 +9142,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._bind_batch_enter_apply(self.batch_negative_sentiment_intensity_spin, batch_negative_button.click)
         self._bind_batch_enter_apply(self.batch_familiarity_spin, batch_familiarity_button.click)
         self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click) 
+        self.batch_year_first_encountered_edit.textEdited.connect(
+            lambda _text: self._on_batch_metric_field_edited("year_first_encountered")
+        )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
         sentiment_metrics_section_layout.addWidget(sentiment_metrics_widget)
@@ -9209,6 +9229,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_items = self.list_widget.selectedItems()
         self._update_batch_edit_action_buttons()
         chart_ids = [item.data(Qt.UserRole) for item in selected_items]
+        chart_id_set = {int(chart_id) for chart_id in chart_ids if isinstance(chart_id, int)}
+        preserve_unsaved_metrics = (
+            bool(chart_id_set)
+            and bool(self._batch_last_selection_ids)
+            and bool(chart_id_set.intersection(self._batch_last_selection_ids))
+        )
         if not chart_ids:
             self._clear_batch_edits()
             return
@@ -9353,21 +9379,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             deceased_state,
         )
         self._set_batch_metric_spin_state(
+            "positive_sentiment_intensity",
             self.batch_positive_sentiment_intensity_spin,
             positive_intensities,
+            preserve_unsaved=preserve_unsaved_metrics,
         )
         self._set_batch_metric_spin_state(
+            "negative_sentiment_intensity",
             self.batch_negative_sentiment_intensity_spin,
             negative_intensities,
+            preserve_unsaved=preserve_unsaved_metrics,
         )
         self._set_batch_metric_spin_state(
+            "familiarity",
             self.batch_familiarity_spin,
             familiarity_values,
+            preserve_unsaved=preserve_unsaved_metrics,
         )
         self._set_batch_year_field_state(
+            "year_first_encountered",
             self.batch_year_first_encountered_edit,
             year_first_encountered_values,
+            preserve_unsaved=preserve_unsaved_metrics,
         )
+        self._batch_last_selection_ids = chart_id_set
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
@@ -9387,16 +9422,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(value)
         return None
 
-    @staticmethod
-    def _set_batch_year_field_state(line_edit: QLineEdit, values: list[int | None]) -> None:
+    def _set_batch_year_field_state(
+        self,
+        field_key: str,
+        line_edit: QLineEdit,
+        values: list[int | None],
+        *,
+        preserve_unsaved: bool = False,
+    ) -> None:
         if not values:
+            self._batch_metric_programmatic_update = True
             line_edit.setText("")
+            self._batch_metric_programmatic_update = False
+            self._set_batch_metric_dirty_state(field_key, False)
             line_edit.setToolTip("")
             return
+        if preserve_unsaved and self._batch_metric_dirty.get(field_key, False):
+            return
         first_value = values[0]
+        self._batch_metric_programmatic_update = True
         line_edit.blockSignals(True)
         line_edit.setText("" if first_value is None else str(first_value))
         line_edit.blockSignals(False)
+        self._batch_metric_programmatic_update = False
+        self._set_batch_metric_dirty_state(field_key, False)
         if len({value for value in values}) > 1:
             line_edit.setToolTip(
                 "Selected charts have mixed values. Applying will overwrite all selected charts."
@@ -9414,15 +9463,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         widget._batch_apply_enter_shortcut2 = shortcut2
         widget._batch_enter_apply_callback = callback
 
-    @staticmethod
-    def _set_batch_metric_spin_state(spinbox: QSpinBox, values: list[int]) -> None:
+    def _set_batch_metric_spin_state(
+        self,
+        field_key: str,
+        spinbox: QSpinBox,
+        values: list[int],
+        *,
+        preserve_unsaved: bool = False,
+    ) -> None:
         if not values:
+            self._batch_metric_programmatic_update = True
             spinbox.setValue(1)
+            self._batch_metric_programmatic_update = False
+            self._set_batch_metric_dirty_state(field_key, False)
             spinbox.setToolTip("")
             return
+        if preserve_unsaved and self._batch_metric_dirty.get(field_key, False):
+            return
+        self._batch_metric_programmatic_update = True
         spinbox.blockSignals(True)
         spinbox.setValue(values[0])
         spinbox.blockSignals(False)
+        self._batch_metric_programmatic_update = False
+        self._set_batch_metric_dirty_state(field_key, False)
         if len(set(values)) > 1:
             spinbox.setToolTip(
                 "Selected charts have mixed values. Applying will overwrite all selected charts."
@@ -9782,8 +9845,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             show_progress=True,
             changed_ids=changed_ids,
         )
+        self._set_batch_metric_dirty_state(metric_attr, False)
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
+
+    def _on_batch_metric_field_edited(self, field_key: str) -> None:
+        if self._batch_metric_programmatic_update:
+            return
+        self._set_batch_metric_dirty_state(field_key, True)
+
+    def _batch_metric_widget_for_key(self, field_key: str) -> QWidget | None:
+        mapping: dict[str, QWidget] = {
+            "positive_sentiment_intensity": self.batch_positive_sentiment_intensity_spin,
+            "negative_sentiment_intensity": self.batch_negative_sentiment_intensity_spin,
+            "familiarity": self.batch_familiarity_spin,
+            "year_first_encountered": self.batch_year_first_encountered_edit,
+        }
+        return mapping.get(field_key)
+
+    def _set_batch_metric_dirty_state(self, field_key: str, is_dirty: bool) -> None:
+        self._batch_metric_dirty[field_key] = is_dirty
+        widget = self._batch_metric_widget_for_key(field_key)
+        if widget is None:
+            return
+        style = (
+            "color: #a9a9a9; font-style: italic;"
+            if is_dirty
+            else ""
+        )
+        widget.setStyleSheet(style)
+        if isinstance(widget, QSpinBox):
+            line_edit = widget.lineEdit()
+            if line_edit is not None:
+                line_edit.setStyleSheet(style)
 
     def _on_batch_sentiment_state_changed(
         self,
@@ -10502,6 +10596,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._populate_list()
 
     def _clear_batch_edits(self) -> None:
+        if hasattr(self, "_batch_last_selection_ids"):
+            self._batch_last_selection_ids = set()
         for checkbox in self.batch_sentiment_checkboxes.values():
             self._set_batch_checkbox_state(checkbox, QuadStateSlider.MODE_EMPTY)
         for checkbox in self.batch_relationship_type_checkboxes.values():
@@ -10530,6 +10626,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
+        if hasattr(self, "_batch_metric_dirty"):
+            for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered"):
+                self._set_batch_metric_dirty_state(metric_key, False)
 
 
 
