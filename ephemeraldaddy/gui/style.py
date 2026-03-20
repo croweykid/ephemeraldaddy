@@ -1,4 +1,6 @@
 """Shared GUI styling and interface constants."""
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QToolButton, QSizePolicy
 
 DARK_THEME = {
     "background": "#111111",
@@ -202,6 +204,23 @@ CHART_DATA_COMMON_LABELS = (
 )
 CHART_DATA_INFO_LABEL_STYLE = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
 CHART_DATA_POPOUT_HEADER_STYLE = "font-weight: 600;"
+
+
+def configure_collapsible_header_toggle(
+    toggle: QToolButton,
+    *,
+    title: str,
+    expanded: bool,
+    style_sheet: str,
+) -> None:
+    """Apply default shared behavior for collapsible/expandable section headers."""
+    toggle.setText(title)
+    toggle.setCheckable(True)
+    toggle.setChecked(expanded)
+    toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+    toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    toggle.setStyleSheet(style_sheet)
 
 # About dialog typography/color hierarchy (aligned to Database View middle panel palette).
 ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"

@@ -486,6 +486,7 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     GENDER_GUESSER_COLORS,
     INACTIVE_ACTION_BUTTON_STYLE,
+    configure_collapsible_header_toggle,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
 )
@@ -1726,13 +1727,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section.setLayout(section_layout)
 
         toggle = QToolButton()
-        toggle.setText(title)
-        toggle.setCheckable(True)
-        toggle.setChecked(expanded)
-        toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        toggle.setStyleSheet(DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=expanded,
+            style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+        )
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -5055,13 +5055,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section.setLayout(section_layout)
 
         toggle = QToolButton()
-        toggle.setText(title)
-        toggle.setCheckable(True)
-        toggle.setChecked(False)
-        toggle.setArrowType(Qt.RightArrow)
-        toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -7964,13 +7963,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section.setLayout(section_layout)
 
             toggle = QToolButton()
-            toggle.setText(title)
-            toggle.setCheckable(True)
-            toggle.setChecked(False)
-            toggle.setArrowType(Qt.RightArrow)
-            toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-            toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+            configure_collapsible_header_toggle(
+                toggle,
+                title=title,
+                expanded=False,
+                style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            )
 
             content = QWidget()
             content_layout = QVBoxLayout()
@@ -8842,13 +8840,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section.setLayout(section_layout)
 
             toggle = QToolButton()
-            toggle.setText(title)
-            toggle.setCheckable(True)
-            toggle.setChecked(False)
-            toggle.setArrowType(Qt.RightArrow)
-            toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-            toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            toggle.setStyleSheet(DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE)
+            configure_collapsible_header_toggle(
+                toggle,
+                title=title,
+                expanded=False,
+                style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            )
 
             content = QWidget()
             content_layout = QVBoxLayout()
@@ -12883,11 +12880,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout.setSpacing(4)
 
         toggle = QToolButton()
-        toggle.setText(title)
-        toggle.setCheckable(True)
-        toggle.setChecked(True)
-        toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        toggle.setArrowType(Qt.DownArrow)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=True,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         container_layout.addWidget(toggle)
 
@@ -13839,11 +13837,12 @@ class MainWindow(QMainWindow):
         sentiment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.sentiment_panel_toggle = QToolButton()
-        self.sentiment_panel_toggle.setText("Sentiment Types")
-        self.sentiment_panel_toggle.setCheckable(True)
-        self.sentiment_panel_toggle.setChecked(False)
-        self.sentiment_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.sentiment_panel_toggle.setArrowType(Qt.RightArrow)
+        configure_collapsible_header_toggle(
+            self.sentiment_panel_toggle,
+            title="Sentiment Types",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
         self.sentiment_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.sentiment_panel_toggle,
@@ -13851,7 +13850,7 @@ class MainWindow(QMainWindow):
                 expanded,
             )
         )
-        sentiment_box_layout.addWidget(self.sentiment_panel_toggle, 0, Qt.AlignLeft)
+        sentiment_box_layout.addWidget(self.sentiment_panel_toggle)
         sentiment_widget.setVisible(False)
         sentiment_box_layout.addWidget(sentiment_widget)
 
@@ -13871,11 +13870,12 @@ class MainWindow(QMainWindow):
         relationship_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         self.relationship_panel_toggle = QToolButton()
-        self.relationship_panel_toggle.setText("Relationship Types")
-        self.relationship_panel_toggle.setCheckable(True)
-        self.relationship_panel_toggle.setChecked(False)
-        self.relationship_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.relationship_panel_toggle.setArrowType(Qt.RightArrow)
+        configure_collapsible_header_toggle(
+            self.relationship_panel_toggle,
+            title="Relationship Types",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
         self.relationship_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.relationship_panel_toggle,
@@ -13883,7 +13883,7 @@ class MainWindow(QMainWindow):
                 expanded,
             )
         )
-        relationship_box_layout.addWidget(self.relationship_panel_toggle, 0, Qt.AlignLeft)
+        relationship_box_layout.addWidget(self.relationship_panel_toggle)
         relationship_widget.setVisible(False)
         relationship_box_layout.addWidget(relationship_widget)
 
@@ -13943,11 +13943,12 @@ class MainWindow(QMainWindow):
         relevance_box.setLayout(relevance_box_layout)
 
         self.relevance_panel_toggle = QToolButton()
-        self.relevance_panel_toggle.setText("Relevance")
-        self.relevance_panel_toggle.setCheckable(True)
-        self.relevance_panel_toggle.setChecked(False)
-        self.relevance_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.relevance_panel_toggle.setArrowType(Qt.RightArrow)
+        configure_collapsible_header_toggle(
+            self.relevance_panel_toggle,
+            title="Relevance",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
 
         relevance_content_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
@@ -13963,7 +13964,7 @@ class MainWindow(QMainWindow):
                 expanded,
             )
         )
-        relevance_box_layout.addWidget(self.relevance_panel_toggle, 0, Qt.AlignLeft)
+        relevance_box_layout.addWidget(self.relevance_panel_toggle)
         relevance_content_widget.setVisible(False)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
@@ -14055,11 +14056,12 @@ class MainWindow(QMainWindow):
         alignment_box.setLayout(alignment_box_layout)
 
         self.alignment_panel_toggle = QToolButton()
-        self.alignment_panel_toggle.setText("Alignment")
-        self.alignment_panel_toggle.setCheckable(True)
-        self.alignment_panel_toggle.setChecked(True)
-        self.alignment_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.alignment_panel_toggle.setArrowType(Qt.RightArrow)
+        configure_collapsible_header_toggle(
+            self.alignment_panel_toggle,
+            title="Alignment",
+            expanded=True,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
 
         alignment_content_widget = QWidget()
         alignment_content_layout = QVBoxLayout()
@@ -14078,7 +14080,7 @@ class MainWindow(QMainWindow):
                 expanded,
             )
         )
-        alignment_box_layout.addWidget(self.alignment_panel_toggle, 0, Qt.AlignLeft)
+        alignment_box_layout.addWidget(self.alignment_panel_toggle)
         alignment_content_widget.setVisible(True)
         alignment_box_layout.addWidget(alignment_content_widget)
         self._toggle_chart_panel_content(
