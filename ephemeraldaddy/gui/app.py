@@ -16837,7 +16837,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
-            self._set_chart_analysis_panel_visible(False)
+            self._set_chart_analysis_panel_visible(True)
             self._clear_chart_displays()
         else:
             self._set_chart_analysis_panel_visible(True)
@@ -17156,7 +17156,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
-            self._set_chart_analysis_panel_visible(False)
+            self._set_chart_analysis_panel_visible(True)
             self._clear_chart_displays()
         else:
             self._set_chart_analysis_panel_visible(True)
