@@ -8833,6 +8833,105 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         description.setWordWrap(True)
         layout.addWidget(description)
 
+        action_button_style = (
+            "QPushButton {"
+            "padding: 2px 6px;"
+            "font-size: 11px;"
+            "border: 1px solid #3f3f3f;"
+            "background-color: #1a1a1a;"
+            "color: #f0f0f0;"
+            "}"
+            "QPushButton:hover { background-color: #262626; }"
+            "QPushButton:disabled { background-color: #202020; color: #666666; border-color: #2f2f2f; }"
+        )
+
+        actions_row_top = QWidget()
+        actions_row_top_layout = QHBoxLayout(actions_row_top)
+        actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
+        actions_row_top_layout.setSpacing(4)
+
+        self.batch_new_chart_button = QPushButton("+ New Chart")
+        self.batch_new_chart_button.clicked.connect(self._on_new_chart)
+        self.batch_new_chart_button.setStyleSheet(
+            action_button_style + "QPushButton { color: #6fe06f; font-weight: 600; }"
+        )
+        actions_row_top_layout.addWidget(self.batch_new_chart_button)
+
+        self.batch_delete_chart_button = QPushButton("❌ Delete 0 Charts")
+        self.batch_delete_chart_button.clicked.connect(self._on_delete)
+        self.batch_delete_chart_button.setStyleSheet(
+            action_button_style + "QPushButton { color: #ff7b7b; font-weight: 600; }"
+        )
+        actions_row_top_layout.addWidget(self.batch_delete_chart_button)
+
+        self.batch_rename_chart_button = QPushButton("Rename chart")
+        self.batch_rename_chart_button.setStyleSheet(INACTIVE_ACTION_BUTTON_STYLE)
+        self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
+        actions_row_top_layout.addWidget(self.batch_rename_chart_button)
+
+        self.batch_synastry_chart_button = QPushButton("Synastry Chart")
+        self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
+        self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
+        self.batch_synastry_chart_button.setStyleSheet(action_button_style)
+        actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
+        actions_row_top_layout.addStretch(1)
+        layout.addWidget(actions_row_top)
+
+        divider_top = QFrame()
+        divider_top.setFrameShape(QFrame.HLine)
+        divider_top.setFrameShadow(QFrame.Sunken)
+        divider_top.setStyleSheet("color: #2f2f2f;")
+        layout.addWidget(divider_top)
+
+        actions_row_bottom = QWidget()
+        actions_row_bottom_layout = QHBoxLayout(actions_row_bottom)
+        actions_row_bottom_layout.setContentsMargins(0, 2, 0, 2)
+        actions_row_bottom_layout.setSpacing(4)
+
+        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
+        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
+        self.batch_export_selection_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
+
+        self.batch_import_csv_button = QPushButton("Import from CSV")
+        self.batch_import_csv_button.clicked.connect(self._on_import_csv)
+        self.batch_import_csv_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
+
+        self.batch_backup_database_button = QPushButton("Backup Database")
+        self.batch_backup_database_button.clicked.connect(self._on_export_database)
+        self.batch_backup_database_button.setObjectName("manage_backup_database_button")
+        self.batch_backup_database_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_backup_database_button)
+
+        self.batch_restore_database_button = QPushButton("Restore Database")
+        self.batch_restore_database_button.clicked.connect(self._on_import_database)
+        self.batch_restore_database_button.setObjectName("manage_restore_database_button")
+        self.batch_restore_database_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_restore_database_button)
+
+        self.batch_append_database_button = QPushButton("Append Database")
+        self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
+        self.batch_append_database_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_append_database_button)
+
+        self.batch_refresh_database_button = QPushButton("Refresh Database")
+        self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
+        self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
+        self.batch_refresh_database_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_refresh_database_button)
+
+        actions_row_bottom_layout.addStretch(1)
+        layout.addWidget(actions_row_bottom)
+
+        divider_bottom = QFrame()
+        divider_bottom.setFrameShape(QFrame.HLine)
+        divider_bottom.setFrameShadow(QFrame.Sunken)
+        divider_bottom.setStyleSheet("color: #2f2f2f;")
+        layout.addWidget(divider_bottom)
+
+        self._update_batch_edit_action_buttons()
+
         def add_collapsible_section(title: str) -> tuple[QWidget, QVBoxLayout]:
             section = QWidget()
             section_layout = QVBoxLayout()
@@ -9107,6 +9206,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _update_batch_edit_state(self) -> None:
         selected_items = self.list_widget.selectedItems()
+        self._update_batch_edit_action_buttons()
         chart_ids = [item.data(Qt.UserRole) for item in selected_items]
         if not chart_ids:
             self._clear_batch_edits()
@@ -10770,6 +10870,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
+        self._update_batch_edit_action_buttons()
         self._update_collection_membership_buttons()
         try:
             self._update_sentiment_tally(
@@ -10788,6 +10889,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     active_left_scrollbar,
                     active_left_scroll_value,
                 )
+
+    def _update_batch_edit_action_buttons(self) -> None:
+        selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
+        if hasattr(self, "batch_delete_chart_button"):
+            chart_label = "Chart" if selected_count == 1 else "Charts"
+            self.batch_delete_chart_button.setText(
+                f"❌ Delete {selected_count} {chart_label}"
+            )
+        if hasattr(self, "batch_rename_chart_button"):
+            rename_enabled = selected_count == 1
+            self.batch_rename_chart_button.setEnabled(rename_enabled)
+            self.batch_rename_chart_button.setStyleSheet(
+                "" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE
+            )
+
+    def _on_import_csv(self) -> None:
+        self._on_import_csv_type_1()
+
+    def _on_append_database_placeholder(self) -> None:
+        QMessageBox.information(
+            self,
+            "Append Database",
+            "Append Database isn't wired up yet. Placeholder button added for now.",
+        )
+
+    def _on_rename_selected_chart(self) -> None:
+        if len(self.list_widget.selectedItems()) != 1:
+            return
+        self._on_edit_chart_from_menu()
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
