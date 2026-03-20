@@ -13419,6 +13419,7 @@ class MainWindow(QMainWindow):
         self._render_flush_timer.setSingleShot(True)
         self._render_flush_timer.timeout.connect(self._flush_scheduled_chart_render)
         self.update_button = None
+        self.delete_this_chart_button = None
         self._metric_scroll_widgets: set[QWidget] = set()
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
@@ -14101,6 +14102,19 @@ class MainWindow(QMainWindow):
             lambda: self.on_update_chart(show_dialog=True)
         )
         buttons_layout.addWidget(self.update_button, 0, 0)
+        self.delete_this_chart_button = QPushButton("❌ Delete This Chart")
+        self.delete_this_chart_button.setObjectName("delete_this_chart_button")
+        self.delete_this_chart_button.setStyleSheet(
+            "QPushButton {"
+            "color: #ff6b6b;"
+            "font-weight: 700;"
+            "}"
+        )
+        self.delete_this_chart_button.setToolTip(
+            "Delete the currently open chart and return to Database View."
+        )
+        self.delete_this_chart_button.clicked.connect(self._on_delete_this_chart)
+        buttons_layout.addWidget(self.delete_this_chart_button, 0, 1)
         self.inputs_layout.addLayout(buttons_layout)
 
         #keybinds for text input fields - makes hitting Enter work        
@@ -17178,6 +17192,42 @@ class MainWindow(QMainWindow):
         self.output_text.clear()
         self._clear_chart_displays()
         self._set_chart_right_panel_container_visible(False)
+
+    def _on_delete_this_chart(self) -> None:
+        chart_id = self.current_chart_id
+        if chart_id is None:
+            QMessageBox.information(
+                self,
+                "Delete this chart",
+                "No saved chart is currently open.",
+            )
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Confirm delete",
+            "Delete this chart and return to Database View?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            delete_charts([chart_id])
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Delete error",
+                f"Could not delete chart #{chart_id}:\n{e}",
+            )
+            return
+
+        self._on_charts_deleted({chart_id})
+        self._manage_charts_pending_changed_ids.add(chart_id)
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        manage_dialog._refresh_charts(changed_ids={chart_id})
+        self.on_manage_charts()
 
 
     def _start_swiss_ephemeris_prefetch(self) -> None:
