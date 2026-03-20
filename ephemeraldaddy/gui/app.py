@@ -855,6 +855,7 @@ class AlignmentEmojiSlider(QSlider):
         self.setPageStep(1)
         self.setTickInterval(5)
         self.setValue(0)
+        self.setMinimumHeight(34)
         self.setStyleSheet(
             "QSlider::groove:horizontal {"
             "height: 12px;"
@@ -906,7 +907,7 @@ class AlignmentEmojiSlider(QSlider):
             self,
         )
         x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
-        y = handle_rect.top() - self._emoji_marker.height() - 2
+        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
         self._emoji_marker.move(x, y)
 
 
@@ -13878,25 +13879,54 @@ class MainWindow(QMainWindow):
             2,
             1,
         )
-        alignment_label = QLabel("Alignment:")
-        alignment_label.setToolTip("Red is most evil (-10), blue is most altruistic (+10).")
-        sentiment_metrics_layout.addWidget(
-            alignment_label,
-            3,
-            0,
+        alignment_box = QFrame()
+        alignment_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
         )
-        alignment_widget = QWidget()
-        alignment_layout = QVBoxLayout()
-        alignment_layout.setContentsMargins(0, 0, 0, 0)
-        alignment_layout.setSpacing(2)
-        alignment_layout.addWidget(self.alignment_slider)
-        alignment_layout.addWidget(self.alignment_score_label)
-        alignment_widget.setLayout(alignment_layout)
-        sentiment_metrics_layout.addWidget(
-            alignment_widget,
-            3,
-            1,
+        alignment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        alignment_box_layout = QVBoxLayout()
+        alignment_box_layout.setContentsMargins(8, 8, 8, 8)
+        alignment_box_layout.setSpacing(6)
+        alignment_box.setLayout(alignment_box_layout)
+
+        self.alignment_panel_toggle = QToolButton()
+        self.alignment_panel_toggle.setText("Alignment")
+        self.alignment_panel_toggle.setCheckable(True)
+        self.alignment_panel_toggle.setChecked(True)
+        self.alignment_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.alignment_panel_toggle.setArrowType(Qt.RightArrow)
+
+        alignment_content_widget = QWidget()
+        alignment_content_layout = QVBoxLayout()
+        alignment_content_layout.setContentsMargins(0, 0, 0, 0)
+        alignment_content_layout.setSpacing(4)
+        alignment_content_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
         )
+        alignment_content_layout.addWidget(self.alignment_slider)
+        alignment_content_layout.addWidget(self.alignment_score_label)
+        alignment_content_widget.setLayout(alignment_content_layout)
+        self.alignment_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.alignment_panel_toggle,
+                alignment_content_widget,
+                expanded,
+            )
+        )
+        alignment_box_layout.addWidget(self.alignment_panel_toggle, 0, Qt.AlignLeft)
+        alignment_content_widget.setVisible(True)
+        alignment_box_layout.addWidget(alignment_content_widget)
+        self._toggle_chart_panel_content(
+            self.alignment_panel_toggle,
+            alignment_content_widget,
+            True,
+        )
+        sentiment_metrics_container_layout.addWidget(alignment_box)
+
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
         self._apply_chart_type_ui_state(self.chart_source_combo.currentData())
