@@ -48,7 +48,7 @@ def _configure_menu_bar_visibility(menu_bar) -> None:
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:
     """Show About dialog content sourced from ONBOARDING.md."""
-    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMessageBox, QPlainTextEdit, QVBoxLayout
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMessageBox, QTextBrowser, QVBoxLayout
 
     onboarding_path = Path(__file__).resolve().parents[2] / "ONBOARDING.md"
     title = f"About {APP_DISPLAY_NAME}"
@@ -70,9 +70,9 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     intro.setStyleSheet("font-weight: 600;")
     layout.addWidget(intro)
 
-    content_view = QPlainTextEdit(dialog)
-    content_view.setReadOnly(True)
-    content_view.setPlainText(content)
+    content_view = QTextBrowser(dialog)
+    content_view.setOpenExternalLinks(True)
+    content_view.setMarkdown(content)
     layout.addWidget(content_view, 1)
 
     buttons = QDialogButtonBox(QDialogButtonBox.Ok, parent=dialog)
