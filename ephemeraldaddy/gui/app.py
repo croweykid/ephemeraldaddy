@@ -18592,13 +18592,14 @@ def main():
         app.setWindowIcon(QIcon(icon_path))
         window.setWindowIcon(QIcon(icon_path))
 
-    last_view = settings.value("app/last_view", "database")
-    if isinstance(last_view, str) and last_view == "chart":
-        window.show()
-    else:
-        # Default view on launch: Database View / Manage Charts Window.
-        window.on_manage_charts()
-        window.hide()
+    # Always launch into Database View. Persisted "last_view" state previously
+    # allowed cold-start entry into Chart View, which can present a blank chart
+    # canvas while heavy initialization catches up (more pronounced on Windows).
+    # Keeping launch deterministic avoids that startup race without changing
+    # intended user-facing behavior (Database View first, Chart View on demand).
+    settings.setValue("app/last_view", "database")
+    window.on_manage_charts()
+    window.hide()
 
     if not getattr(app, "_edd_running", False):
         app._edd_running = True
