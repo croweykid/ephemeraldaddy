@@ -7924,7 +7924,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         astrotheme_row = QHBoxLayout()
         self.astrotheme_search_input = QLineEdit()
         self.astrotheme_search_input.setPlaceholderText(
-            "Search Astrotheme.com's public database"
+            "Search Astrotheme.com's public 📚"
         )
         self.astrotheme_search_input.returnPressed.connect(
             self._on_import_astrotheme_from_search_panel
@@ -8899,24 +8899,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
 
-        self.batch_backup_database_button = QPushButton("Backup Database")
+        self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
         self.batch_backup_database_button.clicked.connect(self._on_export_database)
         self.batch_backup_database_button.setObjectName("manage_backup_database_button")
         self.batch_backup_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_backup_database_button)
 
-        self.batch_restore_database_button = QPushButton("Restore Database")
+        self.batch_restore_database_button = QPushButton("Restore 📚") #Restore Database
         self.batch_restore_database_button.clicked.connect(self._on_import_database)
         self.batch_restore_database_button.setObjectName("manage_restore_database_button")
         self.batch_restore_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_restore_database_button)
 
-        self.batch_append_database_button = QPushButton("Append Database")
+        self.batch_append_database_button = QPushButton("Append 📚") #Append Database
         self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
         self.batch_append_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_append_database_button)
 
-        self.batch_refresh_database_button = QPushButton("Refresh Database")
+        self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
         self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
         self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
         self.batch_refresh_database_button.setStyleSheet(action_button_style)
