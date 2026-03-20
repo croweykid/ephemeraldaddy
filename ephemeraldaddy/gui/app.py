@@ -1217,6 +1217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
         self._sort_descending = False
         self._chart_rows = []
+        self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
         self._search_body_filters = []
         self._aspect_filters = []
@@ -11294,6 +11295,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
         rows = [row for row in rows if self._chart_in_active_collection(row)]
+        self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
@@ -11607,16 +11609,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not self._has_active_chart_filters():
             return True
 
-        chart_row = next(
-            (
-                normalized
-                for row in self._chart_rows
-                if row
-                if row[0] == chart_id
-                if (normalized := self._normalize_chart_row(row)) is not None
-            ),
-            None,
-        )
+        chart_row = self._active_chart_rows_by_id.get(int(chart_id))
         if search_text:
             def matches(value: str | None) -> bool:
                 return bool(value) and search_text.casefold() in value.casefold()
