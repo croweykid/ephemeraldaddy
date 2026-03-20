@@ -13516,13 +13516,13 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_year_widget, 0)
-        birth_time_row.addWidget(self.deceased_checkbox, 0)
-        birth_time_row.addWidget(QLabel("Time"), 0)
+        birth_time_row.addWidget(QLabel("Birth Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
         birth_time_row.addWidget(self.retcon_time_checkbox, 0)
-        birth_time_row.addWidget(QLabel("Retcon Time"), 0)
+        birth_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
         birth_time_row.addWidget(self.retcon_time_edit, 0)
+        birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
         self._update_time_input_text_colors()
@@ -14945,7 +14945,7 @@ class MainWindow(QMainWindow):
             f"| Birthplace | {birth_place} |",
             f"| Latitude / Longitude | {chart.lat:.4f} / {chart.lon:.4f} |",
             f"| Birth time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
-            f"| Retcon time used | {getattr(chart, 'retcon_time_used', False)} |",
+            f"| Rectified time used | {getattr(chart, 'retcon_time_used', False)} |",
             f"| UTC fallback used | {getattr(chart, 'used_utc_fallback', False)} |",
         ]
 
@@ -16765,7 +16765,7 @@ class MainWindow(QMainWindow):
         self._reset_new_chart_form()
         match_dt = match.get("datetime")
         if not isinstance(match_dt, datetime.datetime):
-            QMessageBox.warning(self, "Retcon Engine", "Selected match has invalid date/time.")
+            QMessageBox.warning(self, "Rectification Engine", "Selected match has invalid date/time.")
             return
 
         self._show_chart_view_maximized()
@@ -16777,7 +16777,7 @@ class MainWindow(QMainWindow):
             self._loaded_lon = lon
 
         if not self.name_edit.text().strip():
-            self.name_edit.setText(f"Retcon Candidate {match_dt.strftime('%Y-%m-%d %H:%M')}")
+            self.name_edit.setText(f"Rectified Candidate {match_dt.strftime('%Y-%m-%d %H:%M')}")
 
         self._set_birth_date_fields_from_qdate(QDate(match_dt.year, match_dt.month, match_dt.day))
         self.time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
