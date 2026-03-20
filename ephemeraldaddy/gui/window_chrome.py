@@ -138,7 +138,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
     app_menu.addAction("Minimize", lambda: _minimize_window(window))
     app_menu.addSeparator()
-    app_menu.addAction(f"{APP_DISPLAY_NAME} Exit", _quit_application)
+    app_menu.addAction(f"Exit", _quit_application)
 
     chart_menu = menu_bar.addMenu("Chart")
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
@@ -171,7 +171,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
     app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
     app_menu.addSeparator()
-    app_menu.addAction(f"{APP_DISPLAY_NAME} Exit", _quit_application)
+    app_menu.addAction(f"Exit", _quit_application)
 
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
