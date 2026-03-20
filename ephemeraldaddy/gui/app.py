@@ -14602,13 +14602,14 @@ class MainWindow(QMainWindow):
         candidates: list[tuple[int, Chart]] = []
         for row in rows:
             chart_id = int(row[0])
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
             if self.current_chart_id is not None and chart_id == self.current_chart_id:
+                continue
+            if is_placeholder:
                 continue
             try:
                 candidate = load_chart(chart_id)
             except Exception:
-                continue
-            if getattr(candidate, "is_placeholder", False):
                 continue
             candidates.append((chart_id, candidate))
 
@@ -17813,7 +17814,6 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
-        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -17829,6 +17829,8 @@ class MainWindow(QMainWindow):
                 "similar_charts",
                 "wheel",
             }
+        if "planet_dynamics" in sections:
+            chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
@@ -17860,10 +17862,10 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(chart)
         if "planet_dynamics" in sections:
             self._render_planet_dynamics(chart)
-        if "similar_charts" in sections:
-            self._render_similar_charts(chart)
         if "wheel" in sections:
             self._render_chart(chart)
+        if "similar_charts" in sections:
+            self._render_similar_charts(chart)
 
     def _render_metric_panel(
         self,
