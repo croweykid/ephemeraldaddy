@@ -13749,7 +13749,6 @@ class MainWindow(QMainWindow):
             5,
         )
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
-        sentiment_metrics_row_layout.addWidget(self.sentiment_metrics_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
         self._apply_chart_type_ui_state(self.chart_source_combo.currentData())
 
@@ -13857,14 +13856,50 @@ class MainWindow(QMainWindow):
 
         self._main_splitter.addWidget(middle_panel)
 
-        # Chart Entry/Edit Window: RIGHT panel (metrics interface).
+        # Chart Entry/Edit Window: RIGHT panel (analytics + subjective notes).
         metrics_panel = QWidget()
         metrics_layout = QVBoxLayout()
+        metrics_layout.setContentsMargins(0, 0, 0, 0)
+        metrics_layout.setSpacing(4)
         metrics_panel.setLayout(metrics_layout)
         self.metrics_panel = metrics_panel
         metrics_panel.setMinimumWidth(200)
 
-        # Metrics scroll area container.
+        self.chart_analytics_panel_button = QPushButton("📊")
+        self.chart_analytics_panel_button.setObjectName("chart_view_toggle_analytics_panel_button")
+        self.chart_analytics_panel_button.clicked.connect(
+            lambda: self._set_chart_right_panel("analytics")
+        )
+        self.subjective_notes_panel_button = QPushButton("📝")
+        self.subjective_notes_panel_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
+        self.subjective_notes_panel_button.clicked.connect(
+            lambda: self._set_chart_right_panel("subjective_notes")
+        )
+        for control_button in (
+            self.chart_analytics_panel_button,
+            self.subjective_notes_panel_button,
+        ):
+            control_button.setCheckable(True)
+            control_button.setAutoDefault(False)
+            control_button.setDefault(False)
+            control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+            control_button.setMinimumWidth(0)
+            control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
+
+        chart_right_controls_row = QWidget()
+        chart_right_controls_layout = QHBoxLayout()
+        chart_right_controls_layout.setContentsMargins(0, 0, 0, 0)
+        chart_right_controls_layout.setSpacing(4)
+        chart_right_controls_row.setLayout(chart_right_controls_layout)
+        chart_right_controls_layout.addWidget(self.chart_analytics_panel_button)
+        chart_right_controls_layout.addWidget(self.subjective_notes_panel_button)
+        chart_right_controls_layout.addStretch(1)
+        metrics_layout.addWidget(chart_right_controls_row)
+
+        self.chart_right_panel_stack = QStackedWidget()
+        self.chart_right_panel_stack.setMinimumWidth(0)
+
+        # Chart Analytics scroll area container.
         metrics_scroll = QScrollArea()
         metrics_scroll.setWidgetResizable(True)
         metrics_scroll.setFrameShape(QScrollArea.NoFrame)
@@ -13882,7 +13917,30 @@ class MainWindow(QMainWindow):
         metrics_content.setLayout(self.metrics_layout)
         metrics_scroll.setWidget(metrics_content)
 
-        metrics_layout.addWidget(metrics_scroll, 1)
+        self.chart_analytics_panel_scroll = metrics_scroll
+        self.chart_right_panel_stack.addWidget(self.chart_analytics_panel_scroll)
+
+        subjective_notes_panel = QWidget()
+        subjective_notes_layout = QVBoxLayout()
+        subjective_notes_layout.setContentsMargins(6, 6, 6, 6)
+        subjective_notes_layout.setSpacing(6)
+        subjective_notes_panel.setLayout(subjective_notes_layout)
+        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget, 0, Qt.AlignHCenter)
+        subjective_notes_layout.addWidget(self.sentiment_metrics_widget, 0, Qt.AlignHCenter)
+        subjective_notes_layout.addStretch(1)
+
+        subjective_notes_scroll = QScrollArea()
+        subjective_notes_scroll.setWidgetResizable(True)
+        subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
+        subjective_notes_scroll.setMinimumWidth(240)
+        subjective_notes_scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
+        subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
+        subjective_notes_scroll.setWidget(subjective_notes_panel)
+
+        self.subjective_notes_panel_scroll = subjective_notes_scroll
+        self.chart_right_panel_stack.addWidget(self.subjective_notes_panel_scroll)
+
+        metrics_layout.addWidget(self.chart_right_panel_stack, 1)
         self._main_splitter.addWidget(metrics_panel)
         self.metrics_scroll = metrics_scroll
         self._register_metric_scroll_widget(metrics_scroll)
@@ -13902,6 +13960,8 @@ class MainWindow(QMainWindow):
         self._create_chart_analysis_sections(metrics_content)
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
+        self._active_chart_right_panel = "analytics"
+        self._set_chart_right_panel("analytics")
 
         # Shortcuts
         self._shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -15298,6 +15358,7 @@ class MainWindow(QMainWindow):
         self._open_bazi_window(self._latest_chart)
 
     def on_show_chart_analytics_panel(self) -> None:
+        self._set_chart_right_panel("analytics")
         self._set_chart_analysis_panel_visible(True)
 
     def _create_gemstone_chartwheel(self, chart: Chart | None) -> None:
@@ -15852,6 +15913,19 @@ class MainWindow(QMainWindow):
             sizes = self._main_splitter.sizes()
             if len(sizes) >= 3 and sizes[2] == 0:
                 self._configure_main_splitter()
+
+    def _set_chart_right_panel(self, panel_key: str) -> None:
+        panel_stack = getattr(self, "chart_right_panel_stack", None)
+        if panel_stack is None:
+            return
+        if panel_key == "subjective_notes":
+            panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
+        else:
+            panel_key = "analytics"
+            panel_stack.setCurrentWidget(self.chart_analytics_panel_scroll)
+        self._active_chart_right_panel = panel_key
+        self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
+        self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
 
     def _restore_window_settings(self) -> None:
         splitter_key = "main_window/splitter_sizes"
