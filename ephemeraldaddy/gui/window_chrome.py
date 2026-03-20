@@ -81,6 +81,20 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
 
     dialog.exec()
 
+def _minimize_window(owner: "QWidget") -> None:
+    """Minimize the provided top-level window to the taskbar/dock."""
+    if hasattr(owner, "showMinimized"):
+        owner.showMinimized()
+
+
+def _quit_application() -> None:
+    """Request a full application shutdown via QApplication."""
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is not None:
+        app.quit()
+
 
 def configure_application_identity(app: "QApplication") -> None:
     """Set a consistent application identity shown by the OS shell and Qt."""
@@ -101,6 +115,9 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_menu_action(app_menu, "Settings", window, "_on_open_settings", "on_open_settings")
     app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
+    app_menu.addAction("Minimize", lambda: _minimize_window(window))
+    app_menu.addSeparator()
+    app_menu.addAction(f"{APP_DISPLAY_NAME} Exit", _quit_application)
 
     chart_menu = menu_bar.addMenu("Chart")
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
@@ -131,6 +148,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _bind_menu_action(app_menu, "Settings", dialog, "_on_open_settings", "on_open_settings")
+    app_menu.addAction("Minimize", lambda: _minimize_window(dialog))
+    app_menu.addSeparator()
+    app_menu.addAction(f"{APP_DISPLAY_NAME} Exit", _quit_application)
 
     file_menu = menu_bar.addMenu("Database")
     import_menu = file_menu.addMenu("Import from CSV")
