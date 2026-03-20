@@ -13212,16 +13212,14 @@ class MainWindow(QMainWindow):
         root_layout = QVBoxLayout()
         central.setLayout(root_layout)
 
-        top_controls = QHBoxLayout()
-        top_controls.setContentsMargins(0, 0, 0, 0)
-
         # Back button (returns to Database View / Manage Charts window).
+        # NOTE: intentionally no longer housed in a top controls row; it now overlays
+        # the chart panel so Chart View can reclaim vertical space.
         self.manage_button = QPushButton("↩")
         self.manage_button.setObjectName("manage_button")
         self.manage_button.clicked.connect(self.on_manage_charts)
         self.manage_button.setToolTip("Back to Database View")
         self.manage_button.setFixedSize(36, 24)
-        top_controls.addWidget(self.manage_button, 0, Qt.AlignLeft)
         # Commented out per request: remove the top-row Chart View action buttons
         # and rely on window_chrome menus/actions instead.
         # top_controls.addStretch(1)
@@ -13290,8 +13288,9 @@ class MainWindow(QMainWindow):
         # self.help_overlay_button.clicked.connect(self._toggle_help_overlay)
         # top_controls.addWidget(self.help_overlay_button, 0, Qt.AlignRight)
 
-        #initiates button menu layout for Natal Chart View?
-        root_layout.addLayout(top_controls)
+        # Top controls row intentionally disabled so Chart View content can shift up.
+        # The one remaining back button is overlaid on the chart canvas instead.
+        # root_layout.addLayout(top_controls)
 
         QTimer.singleShot(0, self._start_swiss_ephemeris_prefetch)
 
@@ -13317,7 +13316,22 @@ class MainWindow(QMainWindow):
         self.chart_canvas_container_layout.setSpacing(0)
         self.chart_canvas_container_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_canvas_container.setLayout(self.chart_canvas_container_layout)
-        self.chart_container_layout.addWidget(self.chart_canvas_container, 1)
+
+        self.chart_canvas_overlay_container = QWidget()
+        self.chart_canvas_overlay_layout = QGridLayout()
+        self.chart_canvas_overlay_layout.setContentsMargins(0, 0, 0, 0)
+        self.chart_canvas_overlay_layout.setSpacing(0)
+        self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
+        self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
+        self.chart_canvas_overlay_layout.addWidget(
+            self.manage_button,
+            0,
+            0,
+            alignment=Qt.AlignTop | Qt.AlignLeft,
+        )
+        self.chart_canvas_overlay_layout.setContentsMargins(6, 6, 0, 0)
+        self.manage_button.raise_()
+        self.chart_container_layout.addWidget(self.chart_canvas_overlay_container, 1)
         self.chart_container.setLayout(self.chart_container_layout)
         chart_panel_layout.addWidget(self.chart_container, 1)
 
