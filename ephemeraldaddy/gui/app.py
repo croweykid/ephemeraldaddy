@@ -180,6 +180,7 @@ from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
     save_chart,
+    find_chart_name_matches_by_birth_day,
     list_charts,
     load_chart,
     load_dominant_sign_weights,
@@ -17212,6 +17213,38 @@ class MainWindow(QMainWindow):
             return int(value)
         return None
 
+    def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
+        month = getattr(chart, "birth_month", None)
+        day = getattr(chart, "birth_day", None)
+        if month is None or day is None:
+            dt = getattr(chart, "dt", None)
+            month = getattr(dt, "month", None)
+            day = getattr(dt, "day", None)
+        if month is None or day is None:
+            return True
+
+        matches = find_chart_name_matches_by_birth_day(month, day)
+        if not matches:
+            return True
+
+        preview_limit = 12
+        preview_names = matches[:preview_limit]
+        extra_count = max(0, len(matches) - len(preview_names))
+        lines = [f"Found {len(matches)} chart(s) with this birthday ({int(month):02d}/{int(day):02d}):", ""]
+        lines.extend(f"• {name}" for name in preview_names)
+        if extra_count:
+            lines.append(f"• ...and {extra_count} more")
+        lines.extend(["", "Continue and save this chart anyway?"])
+
+        choice = QMessageBox.question(
+            self,
+            "Possible duplicate birthdays",
+            "\n".join(lines),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return choice == QMessageBox.Yes
+
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -17343,6 +17376,8 @@ class MainWindow(QMainWindow):
         )
 
         if is_new_chart:
+            if not self._confirm_birth_day_duplicate_save(chart):
+                return
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
         else:
