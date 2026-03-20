@@ -1217,6 +1217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
         self._sort_descending = False
         self._chart_rows = []
+        self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
         self._search_body_filters = []
         self._aspect_filters = []
@@ -1237,6 +1238,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
+        self._filter_refresh_running = False
+        self._filter_refresh_pending = False
+        self._filter_refresh_timer = QTimer(self)
+        self._filter_refresh_timer.setSingleShot(True)
+        self._filter_refresh_timer.setInterval(75)
+        self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._active_collection_total_count = 0
@@ -10378,6 +10385,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_filter_changed(self, *_: object) -> None:
         if self._suppress_filter_refresh:
             return
+        self._filter_refresh_pending = True
+        self._filter_refresh_timer.start()
+
+    def _run_scheduled_filter_refresh(self) -> None:
+        if self._suppress_filter_refresh:
+            return
+        if self._filter_refresh_running:
+            self._filter_refresh_pending = True
+            self._filter_refresh_timer.start()
+            return
+        if not self._filter_refresh_pending:
+            return
+        self._filter_refresh_pending = False
+        self._filter_refresh_running = True
         try:
             if self.list_widget.selectedItems():
                 blocker = QSignalBlocker(self.list_widget)
@@ -10391,6 +10412,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Filter error",
                 f"Could not apply filters:\n{exc}",
             )
+        finally:
+            self._filter_refresh_running = False
+        if self._filter_refresh_pending:
+            self._filter_refresh_timer.start()
 
     def _on_astrological_filter_changed(self, *_: object) -> None:
         self._auto_exclude_placeholders_for_astrological_filters()
@@ -11270,6 +11295,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
         rows = [row for row in rows if self._chart_in_active_collection(row)]
+        self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
@@ -11583,16 +11609,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not self._has_active_chart_filters():
             return True
 
-        chart_row = next(
-            (
-                normalized
-                for row in self._chart_rows
-                if row
-                if row[0] == chart_id
-                if (normalized := self._normalize_chart_row(row)) is not None
-            ),
-            None,
-        )
+        chart_row = self._active_chart_rows_by_id.get(int(chart_id))
         if search_text:
             def matches(value: str | None) -> bool:
                 return bool(value) and search_text.casefold() in value.casefold()
