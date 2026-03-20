@@ -1277,6 +1277,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
+        self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
@@ -12564,7 +12565,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
-        self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
+        self.hide()
 
     def _on_manage_help_overlay(self) -> None:
         self._toggle_help_overlay()
@@ -13304,7 +13305,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 parent.activateWindow()
             if isinstance(parent, MainWindow):
                 parent._retarget_size_checker_to_main_view()
-        self.lower() #this moves the current window to the background (n this case, the Database View / Manage Charts window)
+        self.hide()
 
     def _on_edit_chart_from_menu(self) -> None:
         item = self.list_widget.currentItem()
@@ -16382,6 +16383,7 @@ class MainWindow(QMainWindow):
 
     def _show_chart_view_maximized(self) -> None:
         self.show()
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
         self.showMaximized()
         self.raise_()
         self.activateWindow()
