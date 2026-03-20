@@ -1441,6 +1441,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_birthdate = self.sort_menu.addAction("Birthdate (month/day)")
         self.sort_action_familiarity = self.sort_menu.addAction("Familiarity")
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
+        self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
@@ -1456,6 +1457,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_known_duration.triggered.connect(
             lambda: self._set_sort_mode("known_duration")
+        )
+        self.sort_action_alignment.triggered.connect(
+            lambda: self._set_sort_mode("alignment")
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
@@ -2202,6 +2206,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "cursedness",
                 "familiarity",
                 "known_duration",
+                "alignment",
                 "social_score",
                 "date",
             }
@@ -2371,6 +2376,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Familiarity {direction}")
         elif mode == "known_duration": #should we rename this to time_known?
             self.sort_button.setText(f"Sort: Time Known {direction}")
+        elif mode == "alignment":
+            self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
         else:
@@ -11152,6 +11159,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": False,
             "birthdate": False,
             "familiarity": True,
+            "alignment": True,
             "social_score": True,
             "known_duration": True,
         }
@@ -11249,6 +11257,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not curse_aspects:
             return float("-inf")
         return float(chart_cursedness(curse_aspects).get("total", 0.0))
+
+    def _alignment_score_for_chart(self, chart_id: int) -> int:
+        chart = self._get_chart_for_filter(chart_id)
+        if chart is None:
+            return 0
+        try:
+            return int(getattr(chart, "alignment_score", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
 
     def _refresh_charts(
         self,
@@ -11384,6 +11401,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rows.sort(
                 key=lambda r: (
                     self._known_duration_sort_key(r[12]),
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
+        elif self._sort_mode == "alignment":
+            rows.sort(
+                key=lambda r: (
+                    self._alignment_score_for_chart(r[0]),
+                    r[13],
                     (r[1] or "").lower(),
                 ),
                 reverse=self._sort_descending,
