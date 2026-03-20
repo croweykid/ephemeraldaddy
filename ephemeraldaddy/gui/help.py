@@ -255,7 +255,7 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
     "manage_toggle_similarities_panel_button": "Toggle the Similarities panel in the left sidebar.",
     "manage_toggle_batch_edit_panel_button": "Toggle the Batch Edit panel for multi-chart updates.",
     "manage_toggle_search_panel_button": "Toggle the Search/Filter panel on the right.",
-    "manage_sort_button": "Sort the chart list (date, alphabetical, cursedness, age, birthdate, familiarity, time known, or social score).",
+    "manage_sort_button": "Sort the chart list (date, alphabetical, cursedness, age, birthdate, familiarity, time known, alignment, or social score).",
 }
 
 _TOOLTIP_BY_TEXT: dict[str, str] = {

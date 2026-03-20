@@ -126,12 +126,15 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             familiarity INTEGER NOT NULL DEFAULT 1,
+            alignment_score INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
             social_score INTEGER NOT NULL DEFAULT 0,
             birthtime_unknown INTEGER NOT NULL DEFAULT 0,
             retcon_time_used  INTEGER NOT NULL DEFAULT 0,
+            retcon_hour       INTEGER,
+            retcon_minute     INTEGER,
             dominant_sign_weights TEXT,
             dominant_planet_weights TEXT,
             chart_type        TEXT NOT NULL DEFAULT 'personal',
@@ -234,6 +237,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN familiarity INTEGER NOT NULL DEFAULT 1
             """
         )
+    if "alignment_score" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN alignment_score INTEGER NOT NULL DEFAULT 0
+            """
+        )
     #indent?
     if "sentiment_confidence" in columns:
         conn.execute(
@@ -297,6 +307,34 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             SET retcon_time_used = 1
             WHERE birthtime_unknown = 1
               AND strftime('%H:%M', datetime_iso) != '12:00'
+            """
+        )
+    if "retcon_hour" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN retcon_hour INTEGER
+            """
+        )
+        conn.execute(
+            """
+            UPDATE charts
+            SET retcon_hour = CAST(strftime('%H', datetime_iso) AS INTEGER)
+            WHERE datetime_iso IS NOT NULL
+            """
+        )
+    if "retcon_minute" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN retcon_minute INTEGER
+            """
+        )
+        conn.execute(
+            """
+            UPDATE charts
+            SET retcon_minute = CAST(strftime('%M', datetime_iso) AS INTEGER)
+            WHERE datetime_iso IS NOT NULL
             """
         )
 
@@ -683,6 +721,16 @@ def _normalize_sentiment_metric(value: Optional[int]) -> int:
     return 1
 
 
+def _normalize_alignment_score(value: Optional[int]) -> int:
+    if value is None:
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(-10, min(10, parsed))
+
+
 def calculate_social_score(
     positive_sentiment_intensity: Optional[int],
     negative_sentiment_intensity: Optional[int],
@@ -1055,6 +1103,8 @@ def save_chart(
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
+    retcon_hour: Optional[int] = None,
+    retcon_minute: Optional[int] = None,
 ) -> int:
     """
     Persist a chart to the local DB.
@@ -1076,9 +1126,9 @@ def save_chart(
                  lat, lon, used_utc_fallback, sentiments, relationship_types,
                  comments,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
+                 familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
                  birthtime_unknown,
-                 retcon_time_used, dominant_sign_weights, dominant_planet_weights,
+                 retcon_time_used, retcon_hour, retcon_minute, dominant_sign_weights, dominant_planet_weights,
                  chart_type,
                  source,
                  is_placeholder,
@@ -1087,7 +1137,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1119,6 +1169,9 @@ def save_chart(
                 _normalize_sentiment_metric(
                     getattr(chart, "familiarity", None)
                 ),
+                _normalize_alignment_score(
+                    getattr(chart, "alignment_score", None)
+                ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
                 ),
@@ -1139,6 +1192,8 @@ def save_chart(
                     if retcon_time_used is not None
                     else bool(getattr(chart, "retcon_time_used", False))
                 ),
+                int(retcon_hour) if retcon_hour is not None else getattr(chart, "retcon_hour", None),
+                int(retcon_minute) if retcon_minute is not None else getattr(chart, "retcon_minute", None),
                 _serialize_weight_map(
                     dominant_sign_weights
                     if dominant_sign_weights is not None
@@ -1189,6 +1244,8 @@ def update_chart(
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
+    retcon_hour: Optional[int] = None,
+    retcon_minute: Optional[int] = None,
 ) -> None:
     """Update a saved chart by id."""
     resolved_birth_place = (
@@ -1222,12 +1279,15 @@ def update_chart(
                 positive_sentiment_intensity = ?,
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
+                alignment_score = ?,
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
                 social_score = ?,
                 birthtime_unknown = ?,
                 retcon_time_used = ?,
+                retcon_hour = ?,
+                retcon_minute = ?,
                 dominant_sign_weights = ?,
                 dominant_planet_weights = ?,
                 chart_type = ?,
@@ -1269,6 +1329,9 @@ def update_chart(
                 _normalize_sentiment_metric(
                     getattr(chart, "familiarity", None)
                 ),
+                _normalize_alignment_score(
+                    getattr(chart, "alignment_score", None)
+                ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
                 ),
@@ -1289,6 +1352,8 @@ def update_chart(
                     if retcon_time_used is not None
                     else bool(getattr(chart, "retcon_time_used", False))
                 ),
+                int(retcon_hour) if retcon_hour is not None else getattr(chart, "retcon_hour", None),
+                int(retcon_minute) if retcon_minute is not None else getattr(chart, "retcon_minute", None),
                 _serialize_weight_map(
                     dominant_sign_weights
                     if dominant_sign_weights is not None
@@ -1533,8 +1598,8 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                comments,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
-               retcon_time_used,
+               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
+               retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
         FROM charts
@@ -1564,11 +1629,14 @@ def load_chart(chart_id: int):
         positive_sentiment_intensity,
         negative_sentiment_intensity,
         familiarity,
+        alignment_score,
         familiarity_factors,
         age_when_first_met,
         year_first_encountered,
         birthtime_unknown,
         retcon_time_used,
+        retcon_hour,
+        retcon_minute,
         dominant_sign_weights,
         dominant_planet_weights,
         chart_type,
@@ -1602,6 +1670,7 @@ def load_chart(chart_id: int):
         )
         normalized_familiarity = _normalize_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
+        placeholder.alignment_score = _normalize_alignment_score(alignment_score)
         placeholder.sentiment_confidence = normalized_familiarity
         placeholder.familiarity_factors = parse_familiarity_factors(
             familiarity_factors
@@ -1610,6 +1679,8 @@ def load_chart(chart_id: int):
         placeholder.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
         placeholder.birthtime_unknown = bool(birthtime_unknown)
         placeholder.retcon_time_used = bool(retcon_time_used)
+        placeholder.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
+        placeholder.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
         placeholder.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
         normalized_chart_type = _normalize_chart_type(chart_type)
@@ -1646,6 +1717,7 @@ def load_chart(chart_id: int):
         negative_sentiment_intensity
     )
     chart.familiarity = _normalize_sentiment_metric(familiarity)
+    chart.alignment_score = _normalize_alignment_score(alignment_score)
     chart.familiarity_factors = parse_familiarity_factors(
         familiarity_factors
     )
@@ -1653,6 +1725,8 @@ def load_chart(chart_id: int):
     chart.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
     chart.birthtime_unknown = bool(birthtime_unknown)
     chart.retcon_time_used = bool(retcon_time_used)
+    chart.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
+    chart.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
     chart.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
     normalized_chart_type = _normalize_chart_type(chart_type)

@@ -20,6 +20,7 @@ class Chart:
         self.positive_sentiment_intensity = 1
         self.negative_sentiment_intensity = 1
         self.familiarity = 1
+        self.alignment_score = 0
         self.familiarity_factors = []
         self.age_when_first_met = 0
         self.year_first_encountered = None
@@ -32,6 +33,8 @@ class Chart:
         self.birthtime_unknown = False
         self.dt_local = dt_local
         self.retcon_time_used = False
+        self.retcon_hour = None
+        self.retcon_minute = None
         self.is_deceased = False
         self._explicit_tz = tz
         self.used_utc_fallback = False  # will be set if tz inference falls back to UTC
@@ -89,6 +92,7 @@ class Chart:
             "positive_sentiment_intensity": self.positive_sentiment_intensity,
             "negative_sentiment_intensity": self.negative_sentiment_intensity,
             "familiarity": self.familiarity,
+            "alignment_score": self.alignment_score,
             "familiarity_factors": self.familiarity_factors,
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,

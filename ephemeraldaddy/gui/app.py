@@ -86,7 +86,9 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
+    QStyleOptionSlider,
     QAbstractButton,
+    QSlider,
 )
 from PySide6.QtCore import (
     Qt,
@@ -146,6 +148,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_manage_dialog_chrome,
 )
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.analysis.get_astro_twin import find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
     planetary_retrogrades,
@@ -416,6 +419,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "sentiment_prevalence",
         "relationship_prevalence",
         "social_score_summary",
+        "alignment_summary",
         "sign_prevalence",
         "dominant_signs",
         "species_distribution",
@@ -843,6 +847,71 @@ class QuadStateSlider(QWidget):
             "}"
         )
 
+class AlignmentEmojiSlider(QSlider):
+    """Horizontal alignment slider with an emoji marker that tracks thresholds."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(Qt.Horizontal, parent)
+        self.setRange(-10, 10)
+        self.setSingleStep(1)
+        self.setPageStep(1)
+        self.setTickInterval(5)
+        self.setValue(0)
+        self.setMinimumHeight(34)
+        self.setStyleSheet(
+            "QSlider::groove:horizontal {"
+            "height: 12px;"
+            "border-radius: 6px;"
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #c62828, stop:0.5 #7f7f7f, stop:1 #1565c0);"
+            "}"
+            "QSlider::handle:horizontal {"
+            "background: transparent;"
+            "border: none;"
+            "width: 20px;"
+            "margin: -8px 0px;"
+            "}"
+        )
+        self._emoji_marker = QLabel(self)
+        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._emoji_marker.setAlignment(Qt.AlignCenter)
+        self._emoji_marker.setFixedSize(24, 24)
+        self._refresh_emoji()
+        self.valueChanged.connect(self._refresh_emoji)
+
+    @staticmethod
+    def _emoji_for_value(value: int) -> str:
+        if value <= -10:
+            return "😈"
+        if value <= -5:
+            return "😠"
+        if value < 5:
+            return "⚖️"
+        if value < 10:
+            return "🙂"
+        return "😇"
+
+    def _refresh_emoji(self) -> None:
+        self._emoji_marker.setText(self._emoji_for_value(self.value()))
+        self._position_emoji_marker()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._position_emoji_marker()
+
+    def _position_emoji_marker(self) -> None:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        handle_rect = self.style().subControlRect(
+            QStyle.CC_Slider,
+            opt,
+            QStyle.SC_SliderHandle,
+            self,
+        )
+        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
+        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
+        self._emoji_marker.move(x, y)
+
 
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
 SEARCH_RELATIONSHIP_TYPE_OPTIONS = ["none", *RELATION_TYPE]
@@ -1217,6 +1286,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
         self._sort_descending = False
         self._chart_rows = []
+        self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
         self._search_body_filters = []
         self._aspect_filters = []
@@ -1237,6 +1307,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_element_primary_combo = None
         self._dominant_element_secondary_combo = None
         self._suppress_filter_refresh = False
+        self._filter_refresh_running = False
+        self._filter_refresh_pending = False
+        self._filter_refresh_timer = QTimer(self)
+        self._filter_refresh_timer.setSingleShot(True)
+        self._filter_refresh_timer.setInterval(75)
+        self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._active_collection_total_count = 0
@@ -1367,6 +1443,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_birthdate = self.sort_menu.addAction("Birthdate (month/day)")
         self.sort_action_familiarity = self.sort_menu.addAction("Familiarity")
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
+        self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
@@ -1382,6 +1459,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_known_duration.triggered.connect(
             lambda: self._set_sort_mode("known_duration")
+        )
+        self.sort_action_alignment.triggered.connect(
+            lambda: self._set_sort_mode("alignment")
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
@@ -1802,6 +1882,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             "relationship_prevalence",
             "social_score_summary",
+            "alignment_summary",
             "sign_prevalence",
             "dominant_signs",
             "species_distribution",
@@ -2128,6 +2209,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "cursedness",
                 "familiarity",
                 "known_duration",
+                "alignment",
                 "social_score",
                 "date",
             }
@@ -2297,6 +2379,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Familiarity {direction}")
         elif mode == "known_duration": #should we rename this to time_known?
             self.sort_button.setText(f"Sort: Time Known {direction}")
+        elif mode == "alignment":
+            self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
         else:
@@ -2605,6 +2689,51 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.social_score_summary_chart_layout
         )
         social_score_section_layout.addWidget(self.social_score_summary_chart_container)
+
+        #ALIGNMENT SUMMARY SECTION
+        alignment_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Alignment",
+            section_key="alignment_summary",
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "alignment_summary",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
+        self._create_analysis_chart_header(
+            alignment_section_layout,
+            "Alignment",
+            "alignment_summary",
+            "alignment_summary",
+            show_title=False,
+        )
+        alignment_norms_subheader = add_database_subheader(
+            "Median and average alignment score"
+        )
+        alignment_section_layout.addWidget(alignment_norms_subheader)
+        (
+            self.alignment_summary_chart_container,
+            self.alignment_summary_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary"] = (
+            self.alignment_summary_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
+
+        alignment_cumulative_subheader = add_database_subheader(
+            "Cumulative alignment of current selection"
+        )
+        alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        (
+            self.alignment_cumulative_chart_container,
+            self.alignment_cumulative_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
+            self.alignment_cumulative_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
 
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
@@ -5831,6 +5960,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_two_three_only": 0,
             },
             "social_score_total": 0.0,
+            "alignment_score_total": 0.0,
         }
 
     def _build_chart_metric_snapshot(self, chart_id: int) -> dict[str, Any]:
@@ -5843,6 +5973,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         snapshot["loaded"] = 1
         snapshot["is_placeholder"] = bool(getattr(chart, "is_placeholder", False))
         snapshot["social_score"] = float(getattr(chart, "social_score", 0) or 0)
+        snapshot["alignment_score"] = float(getattr(chart, "alignment_score", 0) or 0)
         sentiments = set(getattr(chart, "sentiments", []) or [])
         for sentiment in sentiments:
             if sentiment in snapshot["sentiment_totals"]:
@@ -5970,6 +6101,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
+        totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
             totals["position_sign_count_by_body"][body] += direction * float(count)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
@@ -6624,13 +6756,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 float(snapshot.get("social_score", 0.0))
                 for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
             ]
+            selection_alignment_scores = [
+                float(snapshot.get("alignment_score", 0.0))
+                for snapshot in self._iter_database_metric_snapshots(chart_ids)
+            ]
+            database_alignment_scores = [
+                float(snapshot.get("alignment_score", 0.0))
+                for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
+            ]
             selection_social_total = float(sum(selection_social_scores))
             database_social_total = float(sum(database_social_scores))
+            selection_alignment_total = float(sum(selection_alignment_scores))
+            database_alignment_total = float(sum(database_alignment_scores))
             selection_social_average = (
                 selection_social_total / loaded_charts if loaded_charts else 0.0
             )
             database_social_average = (
                 database_social_total / database_loaded_charts
+                if database_loaded_charts
+                else 0.0
+            )
+            selection_alignment_average = (
+                selection_alignment_total / loaded_charts if loaded_charts else 0.0
+            )
+            database_alignment_average = (
+                database_alignment_total / database_loaded_charts
                 if database_loaded_charts
                 else 0.0
             )
@@ -6642,6 +6792,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_social_median = (
                 float(statistics.median(database_social_scores))
                 if database_social_scores
+                else 0.0
+            )
+            selection_alignment_median = (
+                float(statistics.median(selection_alignment_scores))
+                if selection_alignment_scores
+                else 0.0
+            )
+            database_alignment_median = (
+                float(statistics.median(database_alignment_scores))
+                if database_alignment_scores
                 else 0.0
             )
             selection_species = {
@@ -6837,6 +6997,59 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_values=social_score_database_values,
                     selection_counts=social_score_selection_counts,
                     database_counts=social_score_database_counts,
+                    loaded_charts=loaded_charts,
+                )
+            )
+
+            alignment_labels = [
+                "Median",
+                "Avg",
+                "Cumulative",
+            ]
+            alignment_selection_values = [
+                selection_alignment_median,
+                selection_alignment_average,
+                selection_alignment_total,
+            ]
+            alignment_database_values = [
+                database_alignment_median,
+                database_alignment_average,
+                database_alignment_total,
+            ]
+            alignment_selection_counts = [loaded_charts] * len(alignment_labels)
+            alignment_database_counts = [database_loaded_charts] * len(alignment_labels)
+            if _should_refresh_database_metric_section("alignment_summary"):
+                alignment_summary_canvas = self._build_social_score_summary_chart(
+                    labels=alignment_labels[:2],
+                    selection_values=alignment_selection_values[:2],
+                    database_values=alignment_database_values[:2],
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.alignment_summary_chart_layout)
+                self.alignment_summary_chart_layout.addWidget(
+                    alignment_summary_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+                alignment_cumulative_canvas = self._build_alignment_cumulative_chart(
+                    selection_cumulative=selection_alignment_total,
+                    selection_average=selection_alignment_average,
+                    database_average=database_alignment_average,
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.alignment_cumulative_chart_layout)
+                self.alignment_cumulative_chart_layout.addWidget(
+                    alignment_cumulative_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+            self._analysis_chart_export_rows["alignment_summary"] = (
+                self._build_analysis_export_rows(
+                    labels=alignment_labels,
+                    selection_values=alignment_selection_values,
+                    database_values=alignment_database_values,
+                    selection_counts=alignment_selection_counts,
+                    database_counts=alignment_database_counts,
                     loaded_charts=loaded_charts,
                 )
             )
@@ -10378,6 +10591,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_filter_changed(self, *_: object) -> None:
         if self._suppress_filter_refresh:
             return
+        self._filter_refresh_pending = True
+        self._filter_refresh_timer.start()
+
+    def _run_scheduled_filter_refresh(self) -> None:
+        if self._suppress_filter_refresh:
+            return
+        if self._filter_refresh_running:
+            self._filter_refresh_pending = True
+            self._filter_refresh_timer.start()
+            return
+        if not self._filter_refresh_pending:
+            return
+        self._filter_refresh_pending = False
+        self._filter_refresh_running = True
         try:
             if self.list_widget.selectedItems():
                 blocker = QSignalBlocker(self.list_widget)
@@ -10391,6 +10618,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Filter error",
                 f"Could not apply filters:\n{exc}",
             )
+        finally:
+            self._filter_refresh_running = False
+        if self._filter_refresh_pending:
+            self._filter_refresh_timer.start()
 
     def _on_astrological_filter_changed(self, *_: object) -> None:
         self._auto_exclude_placeholders_for_astrological_filters()
@@ -11060,6 +11291,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": False,
             "birthdate": False,
             "familiarity": True,
+            "alignment": True,
             "social_score": True,
             "known_duration": True,
         }
@@ -11157,6 +11389,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not curse_aspects:
             return float("-inf")
         return float(chart_cursedness(curse_aspects).get("total", 0.0))
+
+    def _alignment_score_for_chart(self, chart_id: int) -> int:
+        chart = self._get_chart_for_filter(chart_id)
+        if chart is None:
+            return 0
+        try:
+            return int(getattr(chart, "alignment_score", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
 
     def _refresh_charts(
         self,
@@ -11270,6 +11511,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
         rows = [row for row in rows if self._chart_in_active_collection(row)]
+        self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
@@ -11291,6 +11533,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rows.sort(
                 key=lambda r: (
                     self._known_duration_sort_key(r[12]),
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
+        elif self._sort_mode == "alignment":
+            rows.sort(
+                key=lambda r: (
+                    self._alignment_score_for_chart(r[0]),
+                    r[13],
                     (r[1] or "").lower(),
                 ),
                 reverse=self._sort_descending,
@@ -11583,16 +11834,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not self._has_active_chart_filters():
             return True
 
-        chart_row = next(
-            (
-                normalized
-                for row in self._chart_rows
-                if row
-                if row[0] == chart_id
-                if (normalized := self._normalize_chart_row(row)) is not None
-            ),
-            None,
-        )
+        chart_row = self._active_chart_rows_by_id.get(int(chart_id))
         if search_text:
             def matches(value: str | None) -> bool:
                 return bool(value) and search_text.casefold() in value.casefold()
@@ -13191,6 +13433,8 @@ class MainWindow(QMainWindow):
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
         self._chart_analysis_footer_labels: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
+        self._similar_charts_summary_label: QLabel | None = None
+        self._similar_charts_list_label: QLabel | None = None
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -13517,13 +13761,13 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_year_widget, 0)
-        birth_time_row.addWidget(self.deceased_checkbox, 0)
-        birth_time_row.addWidget(QLabel("Time"), 0)
+        birth_time_row.addWidget(QLabel("Birth Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
         birth_time_row.addWidget(self.retcon_time_checkbox, 0)
-        birth_time_row.addWidget(QLabel("Retcon Time"), 0)
+        birth_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
         birth_time_row.addWidget(self.retcon_time_edit, 0)
+        birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
         self._update_time_input_text_colors()
@@ -13740,6 +13984,10 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.familiarity_spin.valueChanged.connect(self._on_sentiment_metric_changed)
+        self.alignment_slider = AlignmentEmojiSlider()
+        self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
+        self.alignment_score_label = QLabel()
+        self._update_alignment_score_label(self.alignment_slider.value())
         for spinbox in (
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
@@ -13791,6 +14039,54 @@ class MainWindow(QMainWindow):
             2,
             1,
         )
+        alignment_box = QFrame()
+        alignment_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        alignment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        alignment_box_layout = QVBoxLayout()
+        alignment_box_layout.setContentsMargins(8, 8, 8, 8)
+        alignment_box_layout.setSpacing(6)
+        alignment_box.setLayout(alignment_box_layout)
+
+        self.alignment_panel_toggle = QToolButton()
+        self.alignment_panel_toggle.setText("Alignment")
+        self.alignment_panel_toggle.setCheckable(True)
+        self.alignment_panel_toggle.setChecked(True)
+        self.alignment_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.alignment_panel_toggle.setArrowType(Qt.RightArrow)
+
+        alignment_content_widget = QWidget()
+        alignment_content_layout = QVBoxLayout()
+        alignment_content_layout.setContentsMargins(0, 0, 0, 0)
+        alignment_content_layout.setSpacing(4)
+        alignment_content_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
+        )
+        alignment_content_layout.addWidget(self.alignment_slider)
+        alignment_content_layout.addWidget(self.alignment_score_label)
+        alignment_content_widget.setLayout(alignment_content_layout)
+        self.alignment_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.alignment_panel_toggle,
+                alignment_content_widget,
+                expanded,
+            )
+        )
+        alignment_box_layout.addWidget(self.alignment_panel_toggle, 0, Qt.AlignLeft)
+        alignment_content_widget.setVisible(True)
+        alignment_box_layout.addWidget(alignment_content_widget)
+        self._toggle_chart_panel_content(
+            self.alignment_panel_toggle,
+            alignment_content_widget,
+            True,
+        )
+        sentiment_metrics_container_layout.addWidget(alignment_box)
+
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
         self._apply_chart_type_ui_state(self.chart_source_combo.currentData())
@@ -13817,6 +14113,7 @@ class MainWindow(QMainWindow):
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
+            self.alignment_slider,
             self.year_first_encountered_edit,
             self.chart_source_combo,
         ):
@@ -13954,6 +14251,7 @@ class MainWindow(QMainWindow):
         )
 
         self._create_chart_analysis_sections(metrics_content)
+        self._create_similar_charts_section(metrics_content)
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
         self._active_chart_right_panel = "analytics"
@@ -14089,6 +14387,33 @@ class MainWindow(QMainWindow):
     def _create_chart_analysis_sections(self, panel: QWidget) -> None:
         self._chart_analysis_sections_controller.create_sections(panel)
 
+    def _create_similar_charts_section(self, panel: QWidget) -> None:
+        section_layout = self._add_chart_analysis_collapsible_section(
+            panel=panel,
+            layout=self.metrics_layout,
+            title="Similar Charts",
+            expanded=True,
+            on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
+                "similar_charts",
+                checked,
+            ),
+        )
+        self._chart_analysis_section_expanded["similar_charts"] = True
+
+        summary_label = QLabel(
+            "Finds the top 3 closest matches from saved database charts."
+        )
+        summary_label.setWordWrap(True)
+        summary_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        section_layout.addWidget(summary_label)
+        self._similar_charts_summary_label = summary_label
+
+        list_label = QLabel("Generate or load a chart to search for matches.")
+        list_label.setWordWrap(True)
+        list_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        section_layout.addWidget(list_label)
+        self._similar_charts_list_label = list_label
+
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
         if self._latest_chart is None:
@@ -14109,6 +14434,67 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(self._latest_chart)
         elif chart_key == "planet_dynamics":
             self._render_planet_dynamics(self._latest_chart)
+
+    def _render_similar_charts(self, chart: Chart) -> None:
+        if self._similar_charts_list_label is None:
+            return
+        if getattr(chart, "is_placeholder", False):
+            self._similar_charts_list_label.setText(
+                "Similar chart matching is disabled for placeholder charts."
+            )
+            return
+
+        try:
+            rows = list_charts()
+        except Exception as exc:
+            self._similar_charts_list_label.setText(
+                f"Could not read saved charts for twin matching:\n{exc}"
+            )
+            return
+
+        candidates: list[tuple[int, Chart]] = []
+        for row in rows:
+            chart_id = int(row[0])
+            if self.current_chart_id is not None and chart_id == self.current_chart_id:
+                continue
+            try:
+                candidate = load_chart(chart_id)
+            except Exception:
+                continue
+            if getattr(candidate, "is_placeholder", False):
+                continue
+            candidates.append((chart_id, candidate))
+
+        if not candidates:
+            self._similar_charts_list_label.setText(
+                "Need at least one additional non-placeholder saved chart in the database."
+            )
+            return
+
+        matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=3,
+            exclude_chart_id=self.current_chart_id,
+        )
+        if not matches:
+            self._similar_charts_list_label.setText("No similar charts found.")
+            return
+
+        lines: list[str] = []
+        for rank, match in enumerate(matches, start=1):
+            lines.extend(
+                [
+                    f"{rank}. #{match.chart_id} — {match.chart_name}",
+                    (
+                        f"   Similarity {match.score * 100.0:.1f}%"
+                        f"  (placements {match.placement_score * 100.0:.0f}%,"
+                        f" aspects {match.aspect_score * 100.0:.0f}%,"
+                        f" distribution {match.distribution_score * 100.0:.0f}%)"
+                    ),
+                ]
+            )
+        self._similar_charts_list_label.setText("\n".join(lines))
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -14946,7 +15332,7 @@ class MainWindow(QMainWindow):
             f"| Birthplace | {birth_place} |",
             f"| Latitude / Longitude | {chart.lat:.4f} / {chart.lon:.4f} |",
             f"| Birth time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
-            f"| Retcon time used | {getattr(chart, 'retcon_time_used', False)} |",
+            f"| Rectified time used | {getattr(chart, 'retcon_time_used', False)} |",
             f"| UTC fallback used | {getattr(chart, 'used_utc_fallback', False)} |",
         ]
 
@@ -15805,6 +16191,13 @@ class MainWindow(QMainWindow):
             return
         self._sentiment_metrics_autosave_timer.start(2000)
 
+    def _update_alignment_score_label(self, value: int) -> None:
+        self.alignment_score_label.setText(f"Alignment score: {int(value)}")
+
+    def _on_alignment_changed(self, value: int) -> None:
+        self._update_alignment_score_label(value)
+        self._on_sentiment_metric_changed(value)
+
     def _flush_pending_sentiment_metrics_save(self) -> None:
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
@@ -15825,6 +16218,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
+        self.alignment_slider.setValue(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -16300,7 +16694,8 @@ class MainWindow(QMainWindow):
         except Exception:
             dt_year, dt_month, dt_day = 1990, 1, 1
 
-        qtime = self.retcon_time_edit.time() if self.retcon_time_checkbox.isChecked() else QTime(12, 0)
+        retcon_qtime = self.retcon_time_edit.time()
+        qtime = retcon_qtime if self.retcon_time_checkbox.isChecked() else QTime(12, 0)
         dt_local = datetime.datetime(dt_year, dt_month, dt_day, qtime.hour(), qtime.minute())
         placeholder = SimpleNamespace()
         placeholder.name = self.name_edit.text().strip() or "Anonymous"
@@ -16312,6 +16707,8 @@ class MainWindow(QMainWindow):
         placeholder.used_utc_fallback = False
         placeholder.birthtime_unknown = True
         placeholder.retcon_time_used = self.retcon_time_checkbox.isChecked()
+        placeholder.retcon_hour = retcon_qtime.hour()
+        placeholder.retcon_minute = retcon_qtime.minute()
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
@@ -16319,6 +16716,7 @@ class MainWindow(QMainWindow):
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
+        placeholder.alignment_score = self.alignment_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
         placeholder.age_when_first_met = 0
@@ -16456,6 +16854,8 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
+        if hasattr(chart, "alignment_score"):
+            chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
             chart.age_when_first_met = 0
@@ -16464,6 +16864,8 @@ class MainWindow(QMainWindow):
 
         chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
+        chart.retcon_hour = self.retcon_time_edit.time().hour()
+        chart.retcon_minute = self.retcon_time_edit.time().minute()
         chart.birth_place = place
         chart.birth_month = qdate.month()
         chart.birth_day = qdate.day()
@@ -16571,6 +16973,7 @@ class MainWindow(QMainWindow):
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
+                chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
                 chart.age_when_first_met = 0
@@ -16578,6 +16981,8 @@ class MainWindow(QMainWindow):
                 chart.gender = self.gender_combo.currentData() or None
                 chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
+                chart.retcon_hour = self.retcon_time_edit.time().hour()
+                chart.retcon_minute = self.retcon_time_edit.time().minute()
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
                 chart.is_deceased = self.deceased_checkbox.isChecked()
                 is_placeholder = chart.is_placeholder
@@ -16661,6 +17066,8 @@ class MainWindow(QMainWindow):
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
+            retcon_hour=self.retcon_time_edit.time().hour(),
+            retcon_minute=self.retcon_time_edit.time().minute(),
             is_placeholder=is_placeholder,
             is_deceased=getattr(chart, "is_deceased", False),
             birth_month=getattr(chart, "birth_month", None),
@@ -16755,6 +17162,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
+        self.alignment_slider.setValue(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -16793,7 +17201,7 @@ class MainWindow(QMainWindow):
         self._reset_new_chart_form()
         match_dt = match.get("datetime")
         if not isinstance(match_dt, datetime.datetime):
-            QMessageBox.warning(self, "Retcon Engine", "Selected match has invalid date/time.")
+            QMessageBox.warning(self, "Rectification Engine", "Selected match has invalid date/time.")
             return
 
         self._show_chart_view_maximized()
@@ -16805,7 +17213,7 @@ class MainWindow(QMainWindow):
             self._loaded_lon = lon
 
         if not self.name_edit.text().strip():
-            self.name_edit.setText(f"Retcon Candidate {match_dt.strftime('%Y-%m-%d %H:%M')}")
+            self.name_edit.setText(f"Rectified Candidate {match_dt.strftime('%Y-%m-%d %H:%M')}")
 
         self._set_birth_date_fields_from_qdate(QDate(match_dt.year, match_dt.month, match_dt.day))
         self.time_edit.setTime(QTime(match_dt.hour, match_dt.minute))
@@ -16943,6 +17351,9 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
         )
+        self.alignment_slider.setValue(
+            int(getattr(chart, "alignment_score", 0) or 0)
+        )
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []
         )
@@ -16979,16 +17390,18 @@ class MainWindow(QMainWindow):
             self.time_edit.setTime(default_noon)
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
-        if chart.retcon_time_used:
+        stored_retcon_hour = getattr(chart, "retcon_hour", None)
+        stored_retcon_minute = getattr(chart, "retcon_minute", None)
+        if stored_retcon_hour is not None and stored_retcon_minute is not None:
+            self.retcon_time_edit.setTime(QTime(int(stored_retcon_hour), int(stored_retcon_minute)))
+        elif chart.retcon_time_used:
             self.retcon_time_edit.setTime(qtime)
         else:
             self.retcon_time_edit.setTime(default_noon)
         self._birth_time_user_overridden = (
             not chart.birthtime_unknown and qtime != default_noon
         )
-        self._retcon_time_user_overridden = (
-            chart.retcon_time_used and qtime != default_noon
-        )
+        self._retcon_time_user_overridden = self.retcon_time_edit.time() != default_noon
         self._update_time_input_text_colors()
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
@@ -17229,6 +17642,7 @@ class MainWindow(QMainWindow):
                 "modal",
                 "gender",
                 "planet_dynamics",
+                "similar_charts",
                 "wheel",
             }
         self._pending_render_sections.update(sections)
@@ -17262,6 +17676,8 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(chart)
         if "planet_dynamics" in sections:
             self._render_planet_dynamics(chart)
+        if "similar_charts" in sections:
+            self._render_similar_charts(chart)
         if "wheel" in sections:
             self._render_chart(chart)
 
@@ -17362,6 +17778,10 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
+        if self._similar_charts_list_label is not None:
+            self._similar_charts_list_label.setText(
+                "Generate or load a chart to search for matches."
+            )
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
