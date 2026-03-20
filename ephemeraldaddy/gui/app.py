@@ -13171,6 +13171,7 @@ class MainWindow(QMainWindow):
         # Suppress startup widget signal noise while we populate default values.
         self._suppress_lucygoosey = True
         self._latest_chart = None
+        self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._pending_render_sections: set[str] = set()
         self._render_flush_timer = QTimer(self)
@@ -15353,6 +15354,8 @@ class MainWindow(QMainWindow):
         self._open_bazi_window(self._latest_chart)
 
     def on_show_chart_analytics_panel(self) -> None:
+        if not self.chart_analytics_panel_button.isEnabled():
+            return
         self._set_chart_right_panel("analytics")
         self._set_chart_analysis_panel_visible(True)
 
@@ -15913,6 +15916,12 @@ class MainWindow(QMainWindow):
         panel_stack = getattr(self, "chart_right_panel_stack", None)
         if panel_stack is None:
             return
+        analytics_enabled = bool(
+            getattr(self, "chart_analytics_panel_button", None)
+            and self.chart_analytics_panel_button.isEnabled()
+        )
+        if panel_key == "analytics" and not analytics_enabled:
+            panel_key = "subjective_notes"
         if panel_key == "subjective_notes":
             panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
         else:
@@ -15921,6 +15930,15 @@ class MainWindow(QMainWindow):
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
+
+    def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
+        analytics_button = getattr(self, "chart_analytics_panel_button", None)
+        if analytics_button is None:
+            return
+        is_placeholder = bool(chart is not None and getattr(chart, "is_placeholder", False))
+        analytics_button.setEnabled(not is_placeholder)
+        if is_placeholder:
+            self._set_chart_right_panel("subjective_notes")
 
     def _restore_window_settings(self) -> None:
         splitter_key = "main_window/splitter_sizes"
@@ -16668,6 +16686,7 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
+        self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
             self._set_chart_analysis_panel_visible(False)
             self._clear_chart_displays()
@@ -16982,6 +17001,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             self._set_chart_analysis_panel_visible(False)
             self._clear_chart_displays()
