@@ -4,10 +4,19 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QLabel, QPlainTextEdit, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QLabel, QPlainTextEdit, QVBoxLayout, QWidget, QHBoxLayout
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib.patches import Patch
 
 from ephemeraldaddy.analysis.bazi_getter import BaziChartData, build_bazi_chart_data
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS
+from ephemeraldaddy.gui.style import (
+    CHART_THEME_COLORS,
+    STANDARD_NCV_HORIZONTAL_BAR_CHART,
+    STANDARD_NCV_PIE_CHART,
+)
 
 BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE = (
     "BaZi calculation is not possible without complete birth info (date, time, and place)."
@@ -85,6 +94,49 @@ _TEN_GODS_TRANSLATIONS: dict[str, str] = {
     "偏印": "Indirect Resource",
     "正印": "Direct Resource",
 }
+
+_ELEMENT_CHAR_TO_NAME: dict[str, str] = {
+    "木": "wood",
+    "火": "fire",
+    "土": "earth",
+    "金": "metal",
+    "水": "water",
+}
+
+_ZODIAC_ORDER: list[str] = [
+    "Rat",
+    "Ox",
+    "Tiger",
+    "Rabbit",
+    "Dragon",
+    "Snake",
+    "Horse",
+    "Goat",
+    "Monkey",
+    "Rooster",
+    "Dog",
+    "Pig",
+]
+
+_BRANCH_TO_ZODIAC: dict[str, str] = {
+    "子": "Rat",
+    "丑": "Ox",
+    "寅": "Tiger",
+    "卯": "Rabbit",
+    "辰": "Dragon",
+    "巳": "Snake",
+    "午": "Horse",
+    "未": "Goat",
+    "申": "Monkey",
+    "酉": "Rooster",
+    "戌": "Dog",
+    "亥": "Pig",
+}
+
+_YANG_STEMS: set[str] = {"甲", "丙", "戊", "庚", "壬"}
+_YIN_STEMS: set[str] = {"乙", "丁", "己", "辛", "癸"}
+_YANG_BRANCHES: set[str] = {"子", "寅", "辰", "午", "申", "戌"}
+_YIN_BRANCHES: set[str] = {"丑", "卯", "巳", "未", "酉", "亥"}
 
 
 def _normalize_bazi_value(value: Any) -> str:
@@ -197,6 +249,177 @@ def build_bazi_details_lines(bazi_data: BaziChartData) -> list[str]:
     ]
 
 
+def _build_five_element_counts(bazi_data: BaziChartData) -> dict[str, int]:
+    counts = {element: 0 for element in _ELEMENT_CHAR_TO_NAME.values()}
+    for pillar in ("year", "month", "day", "hour"):
+        wuxing_value = str(bazi_data.five_elements_summary.get(pillar, "") or "")
+        for char in wuxing_value:
+            element = _ELEMENT_CHAR_TO_NAME.get(char)
+            if element:
+                counts[element] += 1
+    return counts
+
+
+def _build_zodiac_counts(bazi_data: BaziChartData) -> dict[str, int]:
+    counts = {animal: 0 for animal in _ZODIAC_ORDER}
+    for branch in bazi_data.earthly_branches.values():
+        zodiac = _BRANCH_TO_ZODIAC.get(str(branch))
+        if zodiac:
+            counts[zodiac] += 1
+    return counts
+
+
+def _build_yin_yang_counts(bazi_data: BaziChartData) -> dict[str, int]:
+    yin = 0
+    yang = 0
+    for stem in bazi_data.heavenly_stems.values():
+        if stem in _YANG_STEMS:
+            yang += 1
+        elif stem in _YIN_STEMS:
+            yin += 1
+    for branch in bazi_data.earthly_branches.values():
+        if branch in _YANG_BRANCHES:
+            yang += 1
+        elif branch in _YIN_BRANCHES:
+            yin += 1
+    return {"yin": yin, "yang": yang}
+
+
+def _style_chart_axes(ax: Any) -> None:
+    ax.set_facecolor(CHART_THEME_COLORS["background"])
+    for spine in ax.spines.values():
+        spine.set_color(CHART_THEME_COLORS["spine"])
+
+
+def _build_elements_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
+    counts = _build_five_element_counts(bazi_data)
+    labels = ["wood", "water", "earth", "fire", "metal"]
+    values = [counts[label] for label in labels]
+    colors = [BAZI_ELEMENTS[label] for label in labels]
+
+    figure = Figure(figsize=(3.4, 2.4))
+    figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+    ax = figure.add_subplot(111)
+    _style_chart_axes(ax)
+    total = sum(values)
+    if total <= 0:
+        ax.text(0.5, 0.5, "No element data", ha="center", va="center", color=CHART_THEME_COLORS["text"])
+        ax.set_axis_off()
+    else:
+        ax.pie(
+            values,
+            colors=colors,
+            startangle=STANDARD_NCV_PIE_CHART["start_angle"],
+            wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]},
+        )
+        legend_handles = [
+            Patch(
+                facecolor=color,
+                label=STANDARD_NCV_PIE_CHART["legend_label_format"].format(
+                    percent=(value / total) * 100,
+                    label=label.capitalize(),
+                ),
+            )
+            for label, color, value in zip(labels, colors, values, strict=True)
+        ]
+        ax.legend(
+            handles=legend_handles,
+            loc=STANDARD_NCV_PIE_CHART["legend_loc"],
+            bbox_to_anchor=STANDARD_NCV_PIE_CHART["legend_anchor"],
+            frameon=False,
+            labelcolor=STANDARD_NCV_PIE_CHART["legend_label_color"],
+            fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"],
+            ncol=STANDARD_NCV_PIE_CHART["legend_ncol"],
+        )
+        ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"])
+    return FigureCanvas(figure)
+
+
+def _build_zodiac_bar_canvas(bazi_data: BaziChartData) -> FigureCanvas:
+    counts = _build_zodiac_counts(bazi_data)
+    labels = list(_ZODIAC_ORDER)
+    values = [counts[label] for label in labels]
+
+    figure = Figure(figsize=(3.4, 2.7))
+    figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+    ax = figure.add_subplot(111)
+    _style_chart_axes(ax)
+
+    bars = ax.bar(labels, values, color="#6fa8dc")
+    ax.set_ylim(0, max(1, (max(values) if values else 0) + 1))
+    ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"])
+    ax.tick_params(
+        axis="x",
+        labelrotation=90,
+        labelsize=7,
+        colors=CHART_THEME_COLORS["text"],
+        pad=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_pad"],
+    )
+    ax.tick_params(axis="y", labelsize=7, colors=CHART_THEME_COLORS["text"])
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + (bar.get_width() / 2),
+            height + 0.05,
+            f"{int(height)}",
+            ha="center",
+            va="bottom",
+            color=CHART_THEME_COLORS["text"],
+            fontsize=6.5,
+        )
+    ax.figure.subplots_adjust(
+        left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
+        bottom=0.38,
+        top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+        right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
+    )
+    return FigureCanvas(figure)
+
+
+def _build_yin_yang_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
+    counts = _build_yin_yang_counts(bazi_data)
+    labels = ["yang", "yin"]
+    values = [counts["yang"], counts["yin"]]
+    colors = ["#ff0000", "#00aa00"]
+
+    figure = Figure(figsize=(3.4, 2.3))
+    figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+    ax = figure.add_subplot(111)
+    _style_chart_axes(ax)
+    total = sum(values)
+    if total <= 0:
+        ax.text(0.5, 0.5, "No yin/yang data", ha="center", va="center", color=CHART_THEME_COLORS["text"])
+        ax.set_axis_off()
+    else:
+        ax.pie(
+            values,
+            colors=colors,
+            startangle=STANDARD_NCV_PIE_CHART["start_angle"],
+            wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]},
+        )
+        legend_handles = [
+            Patch(
+                facecolor=color,
+                label=STANDARD_NCV_PIE_CHART["legend_label_format"].format(
+                    percent=(value / total) * 100,
+                    label=label.capitalize(),
+                ),
+            )
+            for label, color, value in zip(labels, colors, values, strict=True)
+        ]
+        ax.legend(
+            handles=legend_handles,
+            loc=STANDARD_NCV_PIE_CHART["legend_loc"],
+            bbox_to_anchor=STANDARD_NCV_PIE_CHART["legend_anchor"],
+            frameon=False,
+            labelcolor=STANDARD_NCV_PIE_CHART["legend_label_color"],
+            fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"],
+            ncol=STANDARD_NCV_PIE_CHART["legend_ncol"],
+        )
+        ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"])
+    return FigureCanvas(figure)
+
+
 def create_bazi_window_dialog(
     parent: Any,
     chart: Chart,
@@ -212,11 +435,16 @@ def create_bazi_window_dialog(
     dialog = QDialog(parent)
     dialog.setAttribute(Qt.WA_DeleteOnClose)
     dialog.setWindowTitle(f"Bazi Window • {chart_name}")
-    dialog.resize(700, 760)
+    dialog.resize(1080, 760)
 
-    layout = QVBoxLayout(dialog)
+    layout = QHBoxLayout(dialog)
     layout.setContentsMargins(12, 12, 12, 12)
-    layout.setSpacing(8)
+    layout.setSpacing(10)
+
+    left_panel = QWidget(dialog)
+    left_layout = QVBoxLayout(left_panel)
+    left_layout.setContentsMargins(0, 0, 0, 0)
+    left_layout.setSpacing(8)
 
     summary_label = QLabel(
         "\n".join(
@@ -238,7 +466,7 @@ def create_bazi_window_dialog(
     summary_font = summary_label.font()
     summary_font.setFamily(monospace_font_family)
     summary_label.setFont(summary_font)
-    layout.addWidget(summary_label, 0)
+    left_layout.addWidget(summary_label, 0)
 
     details_output = QPlainTextEdit()
     details_output.setReadOnly(True)
@@ -247,6 +475,33 @@ def create_bazi_window_dialog(
     details_output.setFont(details_font)
     details_output.setPlaceholderText("BaZi chart details unavailable.")
     details_output.setPlainText("\n".join(build_bazi_details_lines(bazi_data)))
-    layout.addWidget(details_output, 1)
+    left_layout.addWidget(details_output, 1)
+
+    right_panel = QWidget(dialog)
+    right_layout = QVBoxLayout(right_panel)
+    right_layout.setContentsMargins(0, 0, 0, 0)
+    right_layout.setSpacing(6)
+
+    charts_header = QLabel("BaZi Analytics")
+    charts_header.setStyleSheet(header_style)
+    right_layout.addWidget(charts_header, 0)
+
+    elements_title = QLabel("Five Elements")
+    elements_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    right_layout.addWidget(elements_title, 0)
+    right_layout.addWidget(_build_elements_pie_canvas(bazi_data), 1)
+
+    zodiac_title = QLabel("12 Zodiac Animals")
+    zodiac_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    right_layout.addWidget(zodiac_title, 0)
+    right_layout.addWidget(_build_zodiac_bar_canvas(bazi_data), 1)
+
+    yin_yang_title = QLabel("Yin / Yang Balance")
+    yin_yang_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    right_layout.addWidget(yin_yang_title, 0)
+    right_layout.addWidget(_build_yin_yang_pie_canvas(bazi_data), 1)
+
+    layout.addWidget(left_panel, 3)
+    layout.addWidget(right_panel, 2)
 
     return dialog
