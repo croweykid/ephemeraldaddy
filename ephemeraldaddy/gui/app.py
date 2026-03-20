@@ -8779,7 +8779,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent._latest_chart = chart
         parent.update_button.setText("Update Chart")
         parent._set_lucygoosey(False)
-        parent._set_chart_analysis_panel_visible(True)
+        parent._set_chart_right_panel_container_visible(True)
         parent._schedule_chart_render(chart)
         self._refresh_charts(
             selected_ids={chart_id},
@@ -14285,7 +14285,7 @@ class MainWindow(QMainWindow):
         self._configure_main_splitter()
         self._restore_window_settings()
         self._decrease_chart_view_label_font_sizes()
-        self._set_chart_analysis_panel_visible(False)
+        self._set_chart_right_panel_container_visible(False)
         apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
@@ -15743,7 +15743,7 @@ class MainWindow(QMainWindow):
         if not self.chart_analytics_panel_button.isEnabled():
             return
         self._set_chart_right_panel("analytics")
-        self._set_chart_analysis_panel_visible(True)
+        self._set_chart_right_panel_container_visible(True)
 
     def _create_gemstone_chartwheel(self, chart: Chart | None) -> None:
         if chart is None:
@@ -16296,7 +16296,12 @@ class MainWindow(QMainWindow):
         )
         self._configure_main_splitter()
 
-    def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
+    def _set_chart_right_panel_container_visible(self, visible: bool) -> None:
+        """Show/hide Chart View's entire right-hand panel container.
+
+        This controls the whole right-side column (toggle buttons + panel stack),
+        not just the Chart Analytics sub-panel.
+        """
         panel = getattr(self, "metrics_panel", None)
         if panel is None:
             return
@@ -16305,6 +16310,10 @@ class MainWindow(QMainWindow):
             sizes = self._main_splitter.sizes()
             if len(sizes) >= 3 and sizes[2] == 0:
                 self._configure_main_splitter()
+
+    def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
+        """Backward-compatible alias for _set_chart_right_panel_container_visible."""
+        self._set_chart_right_panel_container_visible(visible)
 
     def _set_chart_right_panel(self, panel_key: str) -> None:
         panel_stack = getattr(self, "chart_right_panel_stack", None)
@@ -16879,7 +16888,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
-        self._set_chart_analysis_panel_visible(True)
+        self._set_chart_right_panel_container_visible(True)
         self._schedule_chart_render(chart, sections={
             "summary",
             "signs",
@@ -17086,10 +17095,10 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
-            self._set_chart_analysis_panel_visible(True)
+            self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays()
         else:
-            self._set_chart_analysis_panel_visible(True)
+            self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart, sections={
                 "summary",
                 "signs",
@@ -17164,7 +17173,7 @@ class MainWindow(QMainWindow):
         self.update_button.setText("Save Chart")
         self.output_text.clear()
         self._clear_chart_displays()
-        self._set_chart_analysis_panel_visible(False)
+        self._set_chart_right_panel_container_visible(False)
 
 
     def _start_swiss_ephemeris_prefetch(self) -> None:
@@ -17405,10 +17414,10 @@ class MainWindow(QMainWindow):
         self._latest_chart = chart
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
-            self._set_chart_analysis_panel_visible(True)
+            self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays()
         else:
-            self._set_chart_analysis_panel_visible(True)
+            self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
         return True
 
