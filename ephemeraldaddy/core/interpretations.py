@@ -2592,8 +2592,8 @@ TIME_TOGETHER = [ #how time together is spent
 
 #Relation_State is not yet deployed
 RELATION_STATE = [
-    "current: active",
-    "current: intermittent",
+    "active: constant",
+    "active: frequent",
     "as-needed: transactional",
     "gated: hard to access",
     "inherited: fatefully bounded (work/family)" #work/family
@@ -2606,13 +2606,14 @@ RELATION_STATE = [
 
 #Relation_State is not yet deployed
 ALIGNMENT = [
-    "actively harmful", #you might love them, but they could still be a problem
-    "destructive",
+    "gleefully malevolent", #you might love them, but they could still be a problem
+    "consciously destructive",
+    "enabler of enemies",
     "misguided",
     "mixed bag / irrelevant",
-    "broadly aligned",
-    "supportive",
-    "co-agent",
+    "some overlapping concerns",
+    "broadly supportive",
+    "bloodsworn united front",
     "unspecified",
 ]
 
