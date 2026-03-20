@@ -6,7 +6,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ephemeraldaddy.gui.style import WINDOW_CHROME_MENU_STYLE
+from ephemeraldaddy.gui.style import (
+    ABOUT_DIALOG_INTRO_STYLE,
+    ABOUT_DIALOG_MARKDOWN_STYLESHEET,
+    WINDOW_CHROME_MENU_STYLE,
+)
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
@@ -61,18 +65,35 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     if not content:
         content = "ONBOARDING.md is empty."
 
+    styled_content_lines: list[str] = []
+    for line in content.splitlines():
+        stripped = line.lstrip()
+        prefix_whitespace = line[: len(line) - len(stripped)]
+        if stripped.startswith("Q."):
+            styled_content_lines.append(
+                f"{prefix_whitespace}<span class='about-question'>{stripped}</span>"
+            )
+        elif stripped.startswith("A."):
+            styled_content_lines.append(
+                f"{prefix_whitespace}<span class='about-answer'>{stripped}</span>"
+            )
+        else:
+            styled_content_lines.append(line)
+    styled_content = "\n".join(styled_content_lines)
+
     dialog = QDialog(owner)
     dialog.setWindowTitle(title)
     dialog.resize(720, 560)
 
     layout = QVBoxLayout(dialog)
     intro = QLabel("Content sourced from ONBOARDING.md")
-    intro.setStyleSheet("font-weight: 600;")
+    intro.setStyleSheet(ABOUT_DIALOG_INTRO_STYLE)
     layout.addWidget(intro)
 
     content_view = QTextBrowser(dialog)
     content_view.setOpenExternalLinks(True)
-    content_view.setMarkdown(content)
+    content_view.document().setDefaultStyleSheet(ABOUT_DIALOG_MARKDOWN_STYLESHEET)
+    content_view.setMarkdown(styled_content)
     layout.addWidget(content_view, 1)
 
     buttons = QDialogButtonBox(QDialogButtonBox.Ok, parent=dialog)
