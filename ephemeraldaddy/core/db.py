@@ -126,6 +126,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             familiarity INTEGER NOT NULL DEFAULT 1,
+            alignment_score INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
@@ -234,6 +235,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN familiarity INTEGER NOT NULL DEFAULT 1
+            """
+        )
+    if "alignment_score" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN alignment_score INTEGER NOT NULL DEFAULT 0
             """
         )
     #indent?
@@ -713,6 +721,16 @@ def _normalize_sentiment_metric(value: Optional[int]) -> int:
     return 1
 
 
+def _normalize_alignment_score(value: Optional[int]) -> int:
+    if value is None:
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(-10, min(10, parsed))
+
+
 def calculate_social_score(
     positive_sentiment_intensity: Optional[int],
     negative_sentiment_intensity: Optional[int],
@@ -1108,7 +1126,7 @@ def save_chart(
                  lat, lon, used_utc_fallback, sentiments, relationship_types,
                  comments,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
+                 familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
                  birthtime_unknown,
                  retcon_time_used, retcon_hour, retcon_minute, dominant_sign_weights, dominant_planet_weights,
                  chart_type,
@@ -1119,7 +1137,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1150,6 +1168,9 @@ def save_chart(
                 ),
                 _normalize_sentiment_metric(
                     getattr(chart, "familiarity", None)
+                ),
+                _normalize_alignment_score(
+                    getattr(chart, "alignment_score", None)
                 ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
@@ -1258,6 +1279,7 @@ def update_chart(
                 positive_sentiment_intensity = ?,
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
+                alignment_score = ?,
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
@@ -1306,6 +1328,9 @@ def update_chart(
                 ),
                 _normalize_sentiment_metric(
                     getattr(chart, "familiarity", None)
+                ),
+                _normalize_alignment_score(
+                    getattr(chart, "alignment_score", None)
                 ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
@@ -1573,7 +1598,7 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                comments,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
+               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
@@ -1604,6 +1629,7 @@ def load_chart(chart_id: int):
         positive_sentiment_intensity,
         negative_sentiment_intensity,
         familiarity,
+        alignment_score,
         familiarity_factors,
         age_when_first_met,
         year_first_encountered,
@@ -1644,6 +1670,7 @@ def load_chart(chart_id: int):
         )
         normalized_familiarity = _normalize_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
+        placeholder.alignment_score = _normalize_alignment_score(alignment_score)
         placeholder.sentiment_confidence = normalized_familiarity
         placeholder.familiarity_factors = parse_familiarity_factors(
             familiarity_factors
@@ -1690,6 +1717,7 @@ def load_chart(chart_id: int):
         negative_sentiment_intensity
     )
     chart.familiarity = _normalize_sentiment_metric(familiarity)
+    chart.alignment_score = _normalize_alignment_score(alignment_score)
     chart.familiarity_factors = parse_familiarity_factors(
         familiarity_factors
     )

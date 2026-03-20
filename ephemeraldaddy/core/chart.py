@@ -20,6 +20,7 @@ class Chart:
         self.positive_sentiment_intensity = 1
         self.negative_sentiment_intensity = 1
         self.familiarity = 1
+        self.alignment_score = 0
         self.familiarity_factors = []
         self.age_when_first_met = 0
         self.year_first_encountered = None
@@ -91,6 +92,7 @@ class Chart:
             "positive_sentiment_intensity": self.positive_sentiment_intensity,
             "negative_sentiment_intensity": self.negative_sentiment_intensity,
             "familiarity": self.familiarity,
+            "alignment_score": self.alignment_score,
             "familiarity_factors": self.familiarity_factors,
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
