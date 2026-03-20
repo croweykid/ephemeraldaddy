@@ -13677,12 +13677,50 @@ class MainWindow(QMainWindow):
 
         # Chart metadata controls (hidden for Event chart type).
         self.sentiment_metrics_widget = QWidget()
+        sentiment_metrics_container_layout = QVBoxLayout()
+        sentiment_metrics_container_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_metrics_container_layout.setSpacing(6)
+        self.sentiment_metrics_widget.setLayout(sentiment_metrics_container_layout)
 
-        #Sentiment Intensity Boxes begin here:
+        relevance_box = QFrame()
+        relevance_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        relevance_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        relevance_box_layout = QVBoxLayout()
+        relevance_box_layout.setContentsMargins(8, 8, 8, 8)
+        relevance_box_layout.setSpacing(6)
+        relevance_box.setLayout(relevance_box_layout)
+
+        self.relevance_panel_toggle = QToolButton()
+        self.relevance_panel_toggle.setText("Relevance")
+        self.relevance_panel_toggle.setCheckable(True)
+        self.relevance_panel_toggle.setChecked(False)
+        self.relevance_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.relevance_panel_toggle.setArrowType(Qt.RightArrow)
+
+        relevance_content_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
         sentiment_metrics_layout.setHorizontalSpacing(12)
-        sentiment_metrics_layout.setAlignment(Qt.AlignCenter)
-        self.sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
+        sentiment_metrics_layout.setVerticalSpacing(8)
+        sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_metrics_layout.setAlignment(Qt.AlignTop)
+        relevance_content_widget.setLayout(sentiment_metrics_layout)
+        self.relevance_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.relevance_panel_toggle,
+                relevance_content_widget,
+                expanded,
+            )
+        )
+        relevance_box_layout.addWidget(self.relevance_panel_toggle, 0, Qt.AlignLeft)
+        relevance_content_widget.setVisible(False)
+        relevance_box_layout.addWidget(relevance_content_widget)
+        sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
         self.positive_sentiment_intensity_spin.setRange(1, 10)
         self.positive_sentiment_intensity_spin.setValue(1)
@@ -13709,7 +13747,7 @@ class MainWindow(QMainWindow):
             spinbox.setFixedWidth(max(53, spinbox.sizeHint().width()))
         
         sentiment_metrics_layout.addWidget(
-            QLabel("💖:"), #positive sentiment intensity #"Intensity of 💖"
+            QLabel("💖 Positive Sentiment Intensity:"),
             0,
             0,
         )
@@ -13719,14 +13757,14 @@ class MainWindow(QMainWindow):
             1,
         )
         sentiment_metrics_layout.addWidget(
-            QLabel("💔:"), #negative sentiment intensity #"Intensity of 💔
+            QLabel("💔 Negative Sentiment Intensity:"),
+            1,
             0,
-            2,
         )
         sentiment_metrics_layout.addWidget(
             self.negative_sentiment_intensity_spin,
-            0,
-            3,
+            1,
+            1,
         )
         familiarity_label_widget = QWidget()
         familiarity_label_layout = QHBoxLayout()
@@ -13744,13 +13782,13 @@ class MainWindow(QMainWindow):
         familiarity_label_widget.setLayout(familiarity_label_layout)
         sentiment_metrics_layout.addWidget(
             familiarity_label_widget,
+            2,
             0,
-            4,
         )
         sentiment_metrics_layout.addWidget(
             self.familiarity_spin,
-            0,
-            5,
+            2,
+            1,
         )
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
