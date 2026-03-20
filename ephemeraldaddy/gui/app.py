@@ -10860,6 +10860,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        self._cancel_inline_chart_rename()
         active_left_scrollbar = None
         active_left_scroll_value = None
         if self._left_panel_visible:
@@ -10915,9 +10916,127 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _on_rename_selected_chart(self) -> None:
-        if len(self.list_widget.selectedItems()) != 1:
+        selected_items = self.list_widget.selectedItems()
+        if len(selected_items) != 1:
             return
-        self._on_edit_chart_from_menu()
+        self._start_inline_chart_rename(selected_items[0])
+
+    def _start_inline_chart_rename(self, item: QListWidgetItem) -> None:
+        chart_id = item.data(Qt.UserRole)
+        if chart_id is None:
+            return
+
+        active_chart_id = getattr(self, "_inline_rename_chart_id", None)
+        active_editor = getattr(self, "_inline_rename_editor", None)
+        if active_chart_id == chart_id and isinstance(active_editor, QLineEdit):
+            active_editor.setFocus()
+            active_editor.selectAll()
+            return
+
+        self._cancel_inline_chart_rename()
+
+        metadata = item.data(Qt.UserRole + 1) or {}
+        current_name = str(metadata.get("raw_name", "")).strip() or "Unnamed"
+        original_text = item.text()
+
+        inline_editor = QLineEdit(current_name)
+        inline_editor.setPlaceholderText("Chart name")
+        inline_editor.setMinimumHeight(24)
+        inline_editor.setStyleSheet(
+            "QLineEdit {"
+            "background-color: #121212;"
+            "border: 1px solid #2f7f2f;"
+            "color: #e8ffe8;"
+            "padding: 2px 6px;"
+            "}"
+        )
+
+        save_button = QPushButton("✅")
+        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_button.setToolTip("Save chart name")
+        save_button.setFixedWidth(34)
+        save_button.setStyleSheet(
+            "QPushButton {"
+            "background-color: #1f6f1f;"
+            "border: 1px solid #2f9f2f;"
+            "color: #d8ffd8;"
+            "font-weight: 700;"
+            "padding: 0px;"
+            "}"
+            "QPushButton:hover { background-color: #2a8a2a; }"
+        )
+
+        inline_container = QWidget(self.list_widget)
+        inline_layout = QHBoxLayout(inline_container)
+        inline_layout.setContentsMargins(4, 2, 4, 2)
+        inline_layout.setSpacing(4)
+        inline_layout.addWidget(inline_editor, 1)
+        inline_layout.addWidget(save_button, 0)
+        inline_container.setLayout(inline_layout)
+
+        item.setText("")
+        self.list_widget.setItemWidget(item, inline_container)
+        self.list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
+
+        self._inline_rename_item = item
+        self._inline_rename_chart_id = int(chart_id)
+        self._inline_rename_original_text = original_text
+        self._inline_rename_editor = inline_editor
+
+        save_button.clicked.connect(self._commit_inline_chart_rename)
+        inline_editor.returnPressed.connect(self._commit_inline_chart_rename)
+
+        inline_editor.setFocus()
+        inline_editor.selectAll()
+
+    def _cancel_inline_chart_rename(self) -> None:
+        item = getattr(self, "_inline_rename_item", None)
+        if item is not None:
+            try:
+                self.list_widget.removeItemWidget(item)
+                item.setText(getattr(self, "_inline_rename_original_text", item.text()))
+            except RuntimeError:
+                pass
+
+        self._inline_rename_item = None
+        self._inline_rename_chart_id = None
+        self._inline_rename_original_text = None
+        self._inline_rename_editor = None
+
+    def _commit_inline_chart_rename(self) -> None:
+        chart_id = getattr(self, "_inline_rename_chart_id", None)
+        editor = getattr(self, "_inline_rename_editor", None)
+        if chart_id is None or not isinstance(editor, QLineEdit):
+            return
+
+        new_name = editor.text().strip()
+        if not new_name:
+            QMessageBox.warning(self, "Rename chart", "Chart name can't be blank.")
+            editor.setFocus()
+            editor.selectAll()
+            return
+
+        try:
+            chart = load_chart(int(chart_id))
+            chart.name = new_name
+            chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+            chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            update_chart(
+                int(chart_id),
+                chart,
+                retcon_time_used=getattr(chart, "retcon_time_used", False),
+            )
+            self._chart_cache[int(chart_id)] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Rename chart",
+                f"Could not rename the selected chart:\n{exc}",
+            )
+            return
+
+        self._cancel_inline_chart_rename()
+        self._refresh_filters_after_batch_edit({int(chart_id)})
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
