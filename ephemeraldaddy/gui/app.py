@@ -8515,7 +8515,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         profile_time = QTime(profile_data["birth_hour"], profile_data["birth_minute"])
         parent.time_edit.setTime(profile_time)
         parent.retcon_time_edit.setTime(profile_time)
-        parent.comments_edit.setText(f"Astrotheme profile: {profile_data['profile_url']}")
+        parent.comments_edit.setPlainText(
+            f"Astrotheme profile: {profile_data['profile_url']}"
+        )
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
 
@@ -13381,6 +13383,7 @@ class MainWindow(QMainWindow):
         self.gender_combo.addItem("Gender", "")
         for gender_option in GENDER_OPTIONS:
             self.gender_combo.addItem(gender_option, gender_option)
+        self.gender_combo.setFixedWidth(120)
         self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
         name_row = QHBoxLayout()
         #name_row.setContentsMargins(0, 0, 0, 0)
@@ -13388,7 +13391,6 @@ class MainWindow(QMainWindow):
         name_row.addWidget(self.name_edit, 1)
         name_row.addWidget(self.alias_edit, 0)
         self.alias_edit.setFixedWidth(180)
-        name_row.addWidget(self.gender_combo, 0)
         name_row_widget = QWidget()
         name_row_widget.setLayout(name_row)
         form.addRow(name_row_widget)
@@ -13521,22 +13523,9 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(self.retcon_time_checkbox, 0)
         birth_time_row.addWidget(QLabel("Retcon Time"), 0)
         birth_time_row.addWidget(self.retcon_time_edit, 0)
-        birth_time_row.addWidget(QLabel("1st Encounter"), 0)
-        birth_time_row.addWidget(self.year_first_encountered_edit, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
         self._update_time_input_text_colors()
-
-        self.comments_edit = QLineEdit()
-        self.comments_edit.setPlaceholderText("Comments")
-        self.comments_edit.textChanged.connect(self._mark_lucygoosey)
-        comments_row = QHBoxLayout()
-        comments_row.setSpacing(8)
-        comments_row.addWidget(self.comments_edit, 1)
-        comments_row.addSpacing(self.place_search_button.width())
-        comments_row_widget = QWidget()
-        comments_row_widget.setLayout(comments_row)
-        form.addRow(comments_row_widget)
 
         self.chart_source_combo = QComboBox()
         for source_label, source_value in SOURCE_OPTIONS:
@@ -13673,16 +13662,65 @@ class MainWindow(QMainWindow):
         source_controls_layout.setSpacing(6)
         source_controls_layout.addWidget(QLabel("Chart Type:"))
         source_controls_layout.addWidget(self.chart_source_combo)
+        source_controls_layout.addWidget(QLabel("Gender:"))
+        source_controls_layout.addWidget(self.gender_combo)
+        source_controls_layout.addWidget(QLabel("1st Encounter:"))
+        source_controls_layout.addWidget(self.year_first_encountered_edit)
+        source_controls_layout.addStretch(1)
         source_controls_widget.setLayout(source_controls_layout)
+
+        self.comments_edit = QTextEdit()
+        self.comments_edit.setPlaceholderText("Comments")
+        self.comments_edit.textChanged.connect(self._mark_lucygoosey)
+        comment_line_height = self.comments_edit.fontMetrics().lineSpacing()
+        self.comments_edit.setFixedHeight((comment_line_height * 3) + 14)
 
         # Chart metadata controls (hidden for Event chart type).
         self.sentiment_metrics_widget = QWidget()
+        sentiment_metrics_container_layout = QVBoxLayout()
+        sentiment_metrics_container_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_metrics_container_layout.setSpacing(6)
+        self.sentiment_metrics_widget.setLayout(sentiment_metrics_container_layout)
 
-        #Sentiment Intensity Boxes begin here:
+        relevance_box = QFrame()
+        relevance_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        relevance_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        relevance_box_layout = QVBoxLayout()
+        relevance_box_layout.setContentsMargins(8, 8, 8, 8)
+        relevance_box_layout.setSpacing(6)
+        relevance_box.setLayout(relevance_box_layout)
+
+        self.relevance_panel_toggle = QToolButton()
+        self.relevance_panel_toggle.setText("Relevance")
+        self.relevance_panel_toggle.setCheckable(True)
+        self.relevance_panel_toggle.setChecked(False)
+        self.relevance_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.relevance_panel_toggle.setArrowType(Qt.RightArrow)
+
+        relevance_content_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
         sentiment_metrics_layout.setHorizontalSpacing(12)
-        sentiment_metrics_layout.setAlignment(Qt.AlignCenter)
-        self.sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
+        sentiment_metrics_layout.setVerticalSpacing(8)
+        sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
+        sentiment_metrics_layout.setAlignment(Qt.AlignTop)
+        relevance_content_widget.setLayout(sentiment_metrics_layout)
+        self.relevance_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.relevance_panel_toggle,
+                relevance_content_widget,
+                expanded,
+            )
+        )
+        relevance_box_layout.addWidget(self.relevance_panel_toggle, 0, Qt.AlignLeft)
+        relevance_content_widget.setVisible(False)
+        relevance_box_layout.addWidget(relevance_content_widget)
+        sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
         self.positive_sentiment_intensity_spin.setRange(1, 10)
         self.positive_sentiment_intensity_spin.setValue(1)
@@ -13709,7 +13747,7 @@ class MainWindow(QMainWindow):
             spinbox.setFixedWidth(max(53, spinbox.sizeHint().width()))
         
         sentiment_metrics_layout.addWidget(
-            QLabel("💖:"), #positive sentiment intensity #"Intensity of 💖"
+            QLabel("💖 Positive Sentiment Intensity:"),
             0,
             0,
         )
@@ -13719,14 +13757,14 @@ class MainWindow(QMainWindow):
             1,
         )
         sentiment_metrics_layout.addWidget(
-            QLabel("💔:"), #negative sentiment intensity #"Intensity of 💔
+            QLabel("💔 Negative Sentiment Intensity:"),
+            1,
             0,
-            2,
         )
         sentiment_metrics_layout.addWidget(
             self.negative_sentiment_intensity_spin,
-            0,
-            3,
+            1,
+            1,
         )
         familiarity_label_widget = QWidget()
         familiarity_label_layout = QHBoxLayout()
@@ -13744,13 +13782,13 @@ class MainWindow(QMainWindow):
         familiarity_label_widget.setLayout(familiarity_label_layout)
         sentiment_metrics_layout.addWidget(
             familiarity_label_widget,
+            2,
             0,
-            4,
         )
         sentiment_metrics_layout.addWidget(
             self.familiarity_spin,
-            0,
-            5,
+            2,
+            1,
         )
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
@@ -13775,7 +13813,6 @@ class MainWindow(QMainWindow):
             self.birth_year_edit,
             self.time_edit,
             self.retcon_time_edit,
-            self.comments_edit,
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
@@ -13876,7 +13913,15 @@ class MainWindow(QMainWindow):
         subjective_notes_panel.setLayout(subjective_notes_layout)
         subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
         subjective_notes_layout.addWidget(self.sentiment_metrics_widget)
+        comments_panel = QWidget()
+        comments_panel_layout = QVBoxLayout()
+        comments_panel_layout.setContentsMargins(4, 4, 4, 4)
+        comments_panel_layout.setSpacing(4)
+        comments_panel.setLayout(comments_panel_layout)
+        comments_panel_layout.addWidget(QLabel("Comments"))
+        comments_panel_layout.addWidget(self.comments_edit)
         subjective_notes_layout.addStretch(1)
+        subjective_notes_layout.addWidget(comments_panel)
         chart_right_panel = build_chart_right_panel_stack(
             analytics_content_widget=metrics_content,
             subjective_notes_content_widget=subjective_notes_panel,
@@ -16243,7 +16288,7 @@ class MainWindow(QMainWindow):
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
-        placeholder.comments = self.comments_edit.text().strip()
+        placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
@@ -16376,7 +16421,7 @@ class MainWindow(QMainWindow):
             else:
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
-            chart.comments = self.comments_edit.text().strip()
+            chart.comments = self.comments_edit.toPlainText().strip()
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -16495,7 +16540,7 @@ class MainWindow(QMainWindow):
                 is_event_chart = chart_type_value == SOURCE_EVENT
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
-                chart.comments = self.comments_edit.text().strip()
+                chart.comments = self.comments_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
@@ -16860,7 +16905,7 @@ class MainWindow(QMainWindow):
         self._set_relationship_type_selection(
             getattr(chart, "relationship_types", []),
         )
-        self.comments_edit.setText(getattr(chart, "comments", "") or "")
+        self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
             getattr(chart, "positive_sentiment_intensity", 1) or 1
         )
