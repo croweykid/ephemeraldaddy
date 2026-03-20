@@ -524,6 +524,14 @@ ELEMENT_COLORS = {
     "Water": "#5f5f8f", #was 2d2d5c
 }
 
+BAZI_ELEMENTS = {
+    "wood": "#cccc00",
+    "water": "#3333ff",
+    "earth": "#009900",
+    "fire": "#ff3300",
+    "metal": "#669999",
+}
+
 SIGN_COLORS = {
     "Aries": ELEMENT_COLORS["Fire"],
     "Leo": ELEMENT_COLORS["Fire"],
