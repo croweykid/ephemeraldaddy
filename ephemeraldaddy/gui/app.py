@@ -148,6 +148,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_manage_dialog_chrome,
 )
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.analysis.get_astro_twin import find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
     planetary_retrogrades,
@@ -13275,6 +13276,8 @@ class MainWindow(QMainWindow):
         self._chart_analysis_subtitles: dict[str, QLabel] = {}
         self._chart_analysis_footer_labels: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
+        self._similar_charts_summary_label: QLabel | None = None
+        self._similar_charts_list_label: QLabel | None = None
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -14091,6 +14094,7 @@ class MainWindow(QMainWindow):
         )
 
         self._create_chart_analysis_sections(metrics_content)
+        self._create_similar_charts_section(metrics_content)
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
         self._active_chart_right_panel = "analytics"
@@ -14226,6 +14230,33 @@ class MainWindow(QMainWindow):
     def _create_chart_analysis_sections(self, panel: QWidget) -> None:
         self._chart_analysis_sections_controller.create_sections(panel)
 
+    def _create_similar_charts_section(self, panel: QWidget) -> None:
+        section_layout = self._add_chart_analysis_collapsible_section(
+            panel=panel,
+            layout=self.metrics_layout,
+            title="Similar Charts",
+            expanded=True,
+            on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
+                "similar_charts",
+                checked,
+            ),
+        )
+        self._chart_analysis_section_expanded["similar_charts"] = True
+
+        summary_label = QLabel(
+            "Finds the top 3 closest matches from saved database charts."
+        )
+        summary_label.setWordWrap(True)
+        summary_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        section_layout.addWidget(summary_label)
+        self._similar_charts_summary_label = summary_label
+
+        list_label = QLabel("Generate or load a chart to search for matches.")
+        list_label.setWordWrap(True)
+        list_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        section_layout.addWidget(list_label)
+        self._similar_charts_list_label = list_label
+
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
         if self._latest_chart is None:
@@ -14246,6 +14277,67 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(self._latest_chart)
         elif chart_key == "planet_dynamics":
             self._render_planet_dynamics(self._latest_chart)
+
+    def _render_similar_charts(self, chart: Chart) -> None:
+        if self._similar_charts_list_label is None:
+            return
+        if getattr(chart, "is_placeholder", False):
+            self._similar_charts_list_label.setText(
+                "Similar chart matching is disabled for placeholder charts."
+            )
+            return
+
+        try:
+            rows = list_charts()
+        except Exception as exc:
+            self._similar_charts_list_label.setText(
+                f"Could not read saved charts for twin matching:\n{exc}"
+            )
+            return
+
+        candidates: list[tuple[int, Chart]] = []
+        for row in rows:
+            chart_id = int(row[0])
+            if self.current_chart_id is not None and chart_id == self.current_chart_id:
+                continue
+            try:
+                candidate = load_chart(chart_id)
+            except Exception:
+                continue
+            if getattr(candidate, "is_placeholder", False):
+                continue
+            candidates.append((chart_id, candidate))
+
+        if not candidates:
+            self._similar_charts_list_label.setText(
+                "Need at least one additional non-placeholder saved chart in the database."
+            )
+            return
+
+        matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=3,
+            exclude_chart_id=self.current_chart_id,
+        )
+        if not matches:
+            self._similar_charts_list_label.setText("No similar charts found.")
+            return
+
+        lines: list[str] = []
+        for rank, match in enumerate(matches, start=1):
+            lines.extend(
+                [
+                    f"{rank}. #{match.chart_id} — {match.chart_name}",
+                    (
+                        f"   Similarity {match.score * 100.0:.1f}%"
+                        f"  (placements {match.placement_score * 100.0:.0f}%,"
+                        f" aspects {match.aspect_score * 100.0:.0f}%,"
+                        f" distribution {match.distribution_score * 100.0:.0f}%)"
+                    ),
+                ]
+            )
+        self._similar_charts_list_label.setText("\n".join(lines))
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -17384,6 +17476,7 @@ class MainWindow(QMainWindow):
                 "modal",
                 "gender",
                 "planet_dynamics",
+                "similar_charts",
                 "wheel",
             }
         self._pending_render_sections.update(sections)
@@ -17417,6 +17510,8 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(chart)
         if "planet_dynamics" in sections:
             self._render_planet_dynamics(chart)
+        if "similar_charts" in sections:
+            self._render_similar_charts(chart)
         if "wheel" in sections:
             self._render_chart(chart)
 
@@ -17517,6 +17612,10 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
+        if self._similar_charts_list_label is not None:
+            self._similar_charts_list_label.setText(
+                "Generate or load a chart to search for matches."
+            )
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
