@@ -86,7 +86,9 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
+    QStyleOptionSlider,
     QAbstractButton,
+    QSlider,
 )
 from PySide6.QtCore import (
     Qt,
@@ -842,6 +844,71 @@ class QuadStateSlider(QWidget):
             "border-radius: 10px; font-weight: bold; padding: 2px 0px;"
             "}"
         )
+
+class AlignmentEmojiSlider(QSlider):
+    """Horizontal alignment slider with an emoji marker that tracks thresholds."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(Qt.Horizontal, parent)
+        self.setRange(-10, 10)
+        self.setSingleStep(1)
+        self.setPageStep(1)
+        self.setTickInterval(5)
+        self.setValue(0)
+        self.setMinimumHeight(34)
+        self.setStyleSheet(
+            "QSlider::groove:horizontal {"
+            "height: 12px;"
+            "border-radius: 6px;"
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #c62828, stop:0.5 #7f7f7f, stop:1 #1565c0);"
+            "}"
+            "QSlider::handle:horizontal {"
+            "background: transparent;"
+            "border: none;"
+            "width: 20px;"
+            "margin: -8px 0px;"
+            "}"
+        )
+        self._emoji_marker = QLabel(self)
+        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._emoji_marker.setAlignment(Qt.AlignCenter)
+        self._emoji_marker.setFixedSize(24, 24)
+        self._refresh_emoji()
+        self.valueChanged.connect(self._refresh_emoji)
+
+    @staticmethod
+    def _emoji_for_value(value: int) -> str:
+        if value <= -10:
+            return "😈"
+        if value <= -5:
+            return "😠"
+        if value < 5:
+            return "⚖️"
+        if value < 10:
+            return "🙂"
+        return "😇"
+
+    def _refresh_emoji(self) -> None:
+        self._emoji_marker.setText(self._emoji_for_value(self.value()))
+        self._position_emoji_marker()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._position_emoji_marker()
+
+    def _position_emoji_marker(self) -> None:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        handle_rect = self.style().subControlRect(
+            QStyle.CC_Slider,
+            opt,
+            QStyle.SC_SliderHandle,
+            self,
+        )
+        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
+        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
+        self._emoji_marker.move(x, y)
 
 
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
@@ -13757,6 +13824,10 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.familiarity_spin.valueChanged.connect(self._on_sentiment_metric_changed)
+        self.alignment_slider = AlignmentEmojiSlider()
+        self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
+        self.alignment_score_label = QLabel()
+        self._update_alignment_score_label(self.alignment_slider.value())
         for spinbox in (
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
@@ -13808,6 +13879,54 @@ class MainWindow(QMainWindow):
             2,
             1,
         )
+        alignment_box = QFrame()
+        alignment_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        alignment_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        alignment_box_layout = QVBoxLayout()
+        alignment_box_layout.setContentsMargins(8, 8, 8, 8)
+        alignment_box_layout.setSpacing(6)
+        alignment_box.setLayout(alignment_box_layout)
+
+        self.alignment_panel_toggle = QToolButton()
+        self.alignment_panel_toggle.setText("Alignment")
+        self.alignment_panel_toggle.setCheckable(True)
+        self.alignment_panel_toggle.setChecked(True)
+        self.alignment_panel_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.alignment_panel_toggle.setArrowType(Qt.RightArrow)
+
+        alignment_content_widget = QWidget()
+        alignment_content_layout = QVBoxLayout()
+        alignment_content_layout.setContentsMargins(0, 0, 0, 0)
+        alignment_content_layout.setSpacing(4)
+        alignment_content_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
+        )
+        alignment_content_layout.addWidget(self.alignment_slider)
+        alignment_content_layout.addWidget(self.alignment_score_label)
+        alignment_content_widget.setLayout(alignment_content_layout)
+        self.alignment_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.alignment_panel_toggle,
+                alignment_content_widget,
+                expanded,
+            )
+        )
+        alignment_box_layout.addWidget(self.alignment_panel_toggle, 0, Qt.AlignLeft)
+        alignment_content_widget.setVisible(True)
+        alignment_box_layout.addWidget(alignment_content_widget)
+        self._toggle_chart_panel_content(
+            self.alignment_panel_toggle,
+            alignment_content_widget,
+            True,
+        )
+        sentiment_metrics_container_layout.addWidget(alignment_box)
+
         sentiment_metrics_row_layout.addWidget(source_controls_widget, 0)
         self.inputs_layout.addWidget(sentiment_metrics_row, 0, Qt.AlignHCenter)
         self._apply_chart_type_ui_state(self.chart_source_combo.currentData())
@@ -13834,6 +13953,7 @@ class MainWindow(QMainWindow):
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
+            self.alignment_slider,
             self.year_first_encountered_edit,
             self.chart_source_combo,
         ):
@@ -15822,6 +15942,13 @@ class MainWindow(QMainWindow):
             return
         self._sentiment_metrics_autosave_timer.start(2000)
 
+    def _update_alignment_score_label(self, value: int) -> None:
+        self.alignment_score_label.setText(f"Alignment score: {int(value)}")
+
+    def _on_alignment_changed(self, value: int) -> None:
+        self._update_alignment_score_label(value)
+        self._on_sentiment_metric_changed(value)
+
     def _flush_pending_sentiment_metrics_save(self) -> None:
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
         if had_pending_metric_save:
@@ -15842,6 +15969,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
+        self.alignment_slider.setValue(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -16330,6 +16458,7 @@ class MainWindow(QMainWindow):
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
+        placeholder.alignment_score = self.alignment_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
         placeholder.age_when_first_met = 0
@@ -16467,6 +16596,8 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
+        if hasattr(chart, "alignment_score"):
+            chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
             chart.age_when_first_met = 0
@@ -16584,6 +16715,7 @@ class MainWindow(QMainWindow):
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
+                chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
                 chart.age_when_first_met = 0
@@ -16772,6 +16904,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
+        self.alignment_slider.setValue(0)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -16959,6 +17092,9 @@ class MainWindow(QMainWindow):
         )
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
+        )
+        self.alignment_slider.setValue(
+            int(getattr(chart, "alignment_score", 0) or 0)
         )
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []
