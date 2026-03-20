@@ -203,6 +203,31 @@ CHART_DATA_COMMON_LABELS = (
 CHART_DATA_INFO_LABEL_STYLE = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
 CHART_DATA_POPOUT_HEADER_STYLE = "font-weight: 600;"
 
+# About dialog typography/color hierarchy (aligned to Database View middle panel palette).
+ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"
+ABOUT_DIALOG_MARKDOWN_STYLESHEET = f"""
+h1 {{
+    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    font-weight: 700;
+}}
+h2 {{
+    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    font-weight: 650;
+}}
+h3, h4, h5, h6 {{
+    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    font-weight: 600;
+}}
+.about-question {{
+    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    font-weight: 650;
+}}
+.about-answer {{
+    color: {MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA};
+    font-weight: 600;
+}}
+"""
+
 # Standardized Natal Chart View chart layout/style references.
 STANDARD_NCV_HORIZONTAL_BAR_CHART = {
     "background": "#111111",
