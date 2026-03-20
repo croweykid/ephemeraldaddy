@@ -116,7 +116,7 @@ def format_nakshatra_description_text(nakshatra: str) -> str:
         ("archetypes", "Archetypes"),
         ("deity", "Deity"),
         ("ruler", "Ruler"),
-        ("planetary_associations", "Planetary Associations"),
+        ("planetary_associations", "Body Associations"),
         ("comments_A", "Notes A"),
         ("comments_B", "Notes B"),
     ]

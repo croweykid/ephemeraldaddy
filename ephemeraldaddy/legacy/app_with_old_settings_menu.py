@@ -2107,7 +2107,7 @@ class ManageChartsDialog(QDialog):
             return
         label_by_mode = {
             "dominant_signs": "Dominant signs in database (by weight)",
-            "dominant_planets": "Dominant planets in database (by weight)",
+            "dominant_planets": "Dominant bodies in database (by weight)",
             "dominant_houses": "Dominant houses in database (by weight)",
             "dominant_elements": "Dominant elements in database (by weight)",
         }
@@ -2665,7 +2665,7 @@ class ManageChartsDialog(QDialog):
             "dominant_signs",
             dropdown_options=[
                 ("Dominant Signs", "dominant_signs"),
-                ("Dominant Planets", "dominant_planets"),
+                ("Dominant Bodies", "dominant_planets"),
                 ("Dominant Houses", "dominant_houses"),
                 ("Dominant Elements", "dominant_elements"),
             ],
@@ -7875,7 +7875,7 @@ class ManageChartsDialog(QDialog):
         relationship_group_layout.addLayout(relationship_layout)
         layout.addWidget(relationship_section)
 
-        bodies_section, bodies_group_layout = add_collapsible_section("Planet/Angles")
+        bodies_section, bodies_group_layout = add_collapsible_section("Bodies/Angles")
 
         bodies_layout = QFormLayout()
         bodies_layout.setLabelAlignment(Qt.AlignLeft)
@@ -7980,7 +7980,7 @@ class ManageChartsDialog(QDialog):
         layout.addWidget(dominant_section)
 
         dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-            "Dominant Planets"
+            "Dominant Bodies"
         )
 
         dominant_planet_layout = QFormLayout()
@@ -12498,7 +12498,7 @@ class MainWindow(QMainWindow):
     def _build_metric_popout_figure(self, title: str, chart: Chart) -> Figure:
         size_by_title = {
             "Signs": (8.5, 4.2),
-            "Planets": (8.5, 4.2),
+            "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
@@ -12512,7 +12512,7 @@ class MainWindow(QMainWindow):
         ax.set_facecolor("#111111")
         if title == "Signs":
             self._draw_sign_tally(ax, chart)
-        elif title == "Planets":
+        elif title == "Bodies":
             self._draw_planet_tally(ax, chart)
         elif title == "Houses":
             self._draw_house_tally(ax, chart)
@@ -14833,7 +14833,7 @@ class MainWindow(QMainWindow):
             canvas_attr="planet_chart_canvas",
             container_layout=self.planet_chart_container_layout,
             figsize=(5.5, 3.2),
-            title="Planets",
+            title="Bodies",
             draw_fn=self._draw_planet_tally,
             chart=chart,
         )
