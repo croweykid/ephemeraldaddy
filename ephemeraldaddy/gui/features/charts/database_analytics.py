@@ -1093,6 +1093,86 @@ class DatabaseAnalyticsChartsMixin:
         canvas.draw_idle()
         return canvas
 
+    def _build_alignment_cumulative_chart(
+        self,
+        selection_cumulative: float,
+        selection_average: float,
+        database_average: float,
+        loaded_charts: int,
+    ) -> FigureCanvas:
+        figure = Figure(figsize=(4.8, 1.6))
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        ax = figure.add_subplot(111)
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
+
+        ax.hlines(
+            y=0,
+            xmin=-10,
+            xmax=10,
+            color=CHART_THEME_COLORS["spine"],
+            linewidth=6,
+            zorder=1,
+            alpha=0.6,
+        )
+        ax.hlines(y=0, xmin=-10, xmax=0, color="#c62828", linewidth=4, zorder=2, alpha=0.85)
+        ax.hlines(y=0, xmin=0, xmax=10, color="#1565c0", linewidth=4, zorder=2, alpha=0.85)
+        ax.vlines(0, -0.3, 0.3, color=CHART_THEME_COLORS["text"], linewidth=1.0, zorder=3)
+
+        db_avg_clamped = max(-10.0, min(10.0, float(database_average)))
+        ax.scatter(
+            [db_avg_clamped],
+            [0],
+            marker="|",
+            s=260,
+            linewidths=2.0,
+            color="#f4d35e",
+            zorder=4,
+        )
+
+        if loaded_charts > 0:
+            selection_avg_clamped = max(-10.0, min(10.0, float(selection_average)))
+            ax.scatter(
+                [selection_avg_clamped],
+                [0],
+                marker="o",
+                s=44,
+                color="#6fa8dc",
+                edgecolors=CHART_THEME_COLORS["text"],
+                linewidths=0.8,
+                zorder=5,
+            )
+            subtitle = (
+                f"Selection cumulative: {selection_cumulative:+.1f} | "
+                f"Selection avg: {selection_average:+.2f} | "
+                f"Database avg: {database_average:+.2f}"
+            )
+        else:
+            subtitle = f"Database avg alignment: {database_average:+.2f}"
+
+        ax.text(
+            0,
+            -0.62,
+            subtitle,
+            ha="center",
+            va="center",
+            color=CHART_THEME_COLORS["text"],
+            fontsize=7.5,
+        )
+
+        ax.set_xlim(-10.7, 10.7)
+        ax.set_ylim(-0.8, 0.8)
+        ax.set_yticks([])
+        ax.set_xticks([-10, -5, 0, 5, 10])
+        ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        figure.tight_layout()
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
     @staticmethod
     def _minutes_to_label(total_minutes: float) -> str:
         minutes = int(round(total_minutes)) % (24 * 60)

@@ -24,6 +24,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.sentiment_prevalence": False,
     "database_metrics.relationship_prevalence": False,
     "database_metrics.social_score_summary": False,
+    "database_metrics.alignment_summary": False,
     "database_metrics.sign_prevalence": False,
     "database_metrics.dominant_signs": False,
     "database_metrics.species_distribution": False,

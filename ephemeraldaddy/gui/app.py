@@ -418,6 +418,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "sentiment_prevalence",
         "relationship_prevalence",
         "social_score_summary",
+        "alignment_summary",
         "sign_prevalence",
         "dominant_signs",
         "species_distribution",
@@ -1441,6 +1442,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_birthdate = self.sort_menu.addAction("Birthdate (month/day)")
         self.sort_action_familiarity = self.sort_menu.addAction("Familiarity")
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
+        self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
@@ -1456,6 +1458,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_known_duration.triggered.connect(
             lambda: self._set_sort_mode("known_duration")
+        )
+        self.sort_action_alignment.triggered.connect(
+            lambda: self._set_sort_mode("alignment")
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
@@ -1876,6 +1881,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sentiment_prevalence",
             "relationship_prevalence",
             "social_score_summary",
+            "alignment_summary",
             "sign_prevalence",
             "dominant_signs",
             "species_distribution",
@@ -2202,6 +2208,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "cursedness",
                 "familiarity",
                 "known_duration",
+                "alignment",
                 "social_score",
                 "date",
             }
@@ -2371,6 +2378,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Familiarity {direction}")
         elif mode == "known_duration": #should we rename this to time_known?
             self.sort_button.setText(f"Sort: Time Known {direction}")
+        elif mode == "alignment":
+            self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
         else:
@@ -2679,6 +2688,51 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.social_score_summary_chart_layout
         )
         social_score_section_layout.addWidget(self.social_score_summary_chart_container)
+
+        #ALIGNMENT SUMMARY SECTION
+        alignment_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Alignment",
+            section_key="alignment_summary",
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "alignment_summary",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
+        self._create_analysis_chart_header(
+            alignment_section_layout,
+            "Alignment",
+            "alignment_summary",
+            "alignment_summary",
+            show_title=False,
+        )
+        alignment_norms_subheader = add_database_subheader(
+            "Median and average alignment score"
+        )
+        alignment_section_layout.addWidget(alignment_norms_subheader)
+        (
+            self.alignment_summary_chart_container,
+            self.alignment_summary_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary"] = (
+            self.alignment_summary_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
+
+        alignment_cumulative_subheader = add_database_subheader(
+            "Cumulative alignment of current selection"
+        )
+        alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        (
+            self.alignment_cumulative_chart_container,
+            self.alignment_cumulative_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
+            self.alignment_cumulative_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
 
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
@@ -5905,6 +5959,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_two_three_only": 0,
             },
             "social_score_total": 0.0,
+            "alignment_score_total": 0.0,
         }
 
     def _build_chart_metric_snapshot(self, chart_id: int) -> dict[str, Any]:
@@ -5917,6 +5972,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         snapshot["loaded"] = 1
         snapshot["is_placeholder"] = bool(getattr(chart, "is_placeholder", False))
         snapshot["social_score"] = float(getattr(chart, "social_score", 0) or 0)
+        snapshot["alignment_score"] = float(getattr(chart, "alignment_score", 0) or 0)
         sentiments = set(getattr(chart, "sentiments", []) or [])
         for sentiment in sentiments:
             if sentiment in snapshot["sentiment_totals"]:
@@ -6044,6 +6100,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
+        totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
             totals["position_sign_count_by_body"][body] += direction * float(count)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
@@ -6698,13 +6755,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 float(snapshot.get("social_score", 0.0))
                 for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
             ]
+            selection_alignment_scores = [
+                float(snapshot.get("alignment_score", 0.0))
+                for snapshot in self._iter_database_metric_snapshots(chart_ids)
+            ]
+            database_alignment_scores = [
+                float(snapshot.get("alignment_score", 0.0))
+                for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
+            ]
             selection_social_total = float(sum(selection_social_scores))
             database_social_total = float(sum(database_social_scores))
+            selection_alignment_total = float(sum(selection_alignment_scores))
+            database_alignment_total = float(sum(database_alignment_scores))
             selection_social_average = (
                 selection_social_total / loaded_charts if loaded_charts else 0.0
             )
             database_social_average = (
                 database_social_total / database_loaded_charts
+                if database_loaded_charts
+                else 0.0
+            )
+            selection_alignment_average = (
+                selection_alignment_total / loaded_charts if loaded_charts else 0.0
+            )
+            database_alignment_average = (
+                database_alignment_total / database_loaded_charts
                 if database_loaded_charts
                 else 0.0
             )
@@ -6716,6 +6791,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_social_median = (
                 float(statistics.median(database_social_scores))
                 if database_social_scores
+                else 0.0
+            )
+            selection_alignment_median = (
+                float(statistics.median(selection_alignment_scores))
+                if selection_alignment_scores
+                else 0.0
+            )
+            database_alignment_median = (
+                float(statistics.median(database_alignment_scores))
+                if database_alignment_scores
                 else 0.0
             )
             selection_species = {
@@ -6911,6 +6996,59 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_values=social_score_database_values,
                     selection_counts=social_score_selection_counts,
                     database_counts=social_score_database_counts,
+                    loaded_charts=loaded_charts,
+                )
+            )
+
+            alignment_labels = [
+                "Median",
+                "Avg",
+                "Cumulative",
+            ]
+            alignment_selection_values = [
+                selection_alignment_median,
+                selection_alignment_average,
+                selection_alignment_total,
+            ]
+            alignment_database_values = [
+                database_alignment_median,
+                database_alignment_average,
+                database_alignment_total,
+            ]
+            alignment_selection_counts = [loaded_charts] * len(alignment_labels)
+            alignment_database_counts = [database_loaded_charts] * len(alignment_labels)
+            if _should_refresh_database_metric_section("alignment_summary"):
+                alignment_summary_canvas = self._build_social_score_summary_chart(
+                    labels=alignment_labels[:2],
+                    selection_values=alignment_selection_values[:2],
+                    database_values=alignment_database_values[:2],
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.alignment_summary_chart_layout)
+                self.alignment_summary_chart_layout.addWidget(
+                    alignment_summary_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+                alignment_cumulative_canvas = self._build_alignment_cumulative_chart(
+                    selection_cumulative=selection_alignment_total,
+                    selection_average=selection_alignment_average,
+                    database_average=database_alignment_average,
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.alignment_cumulative_chart_layout)
+                self.alignment_cumulative_chart_layout.addWidget(
+                    alignment_cumulative_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+            self._analysis_chart_export_rows["alignment_summary"] = (
+                self._build_analysis_export_rows(
+                    labels=alignment_labels,
+                    selection_values=alignment_selection_values,
+                    database_values=alignment_database_values,
+                    selection_counts=alignment_selection_counts,
+                    database_counts=alignment_database_counts,
                     loaded_charts=loaded_charts,
                 )
             )
@@ -11152,6 +11290,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": False,
             "birthdate": False,
             "familiarity": True,
+            "alignment": True,
             "social_score": True,
             "known_duration": True,
         }
@@ -11249,6 +11388,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not curse_aspects:
             return float("-inf")
         return float(chart_cursedness(curse_aspects).get("total", 0.0))
+
+    def _alignment_score_for_chart(self, chart_id: int) -> int:
+        chart = self._get_chart_for_filter(chart_id)
+        if chart is None:
+            return 0
+        try:
+            return int(getattr(chart, "alignment_score", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
 
     def _refresh_charts(
         self,
@@ -11384,6 +11532,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rows.sort(
                 key=lambda r: (
                     self._known_duration_sort_key(r[12]),
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
+        elif self._sort_mode == "alignment":
+            rows.sort(
+                key=lambda r: (
+                    self._alignment_score_for_chart(r[0]),
+                    r[13],
                     (r[1] or "").lower(),
                 ),
                 reverse=self._sort_descending,
