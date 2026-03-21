@@ -180,6 +180,7 @@ from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
     save_chart,
+    find_chart_name_matches_by_birth_day,
     list_charts,
     load_chart,
     load_dominant_sign_weights,
@@ -7923,7 +7924,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         astrotheme_row = QHBoxLayout()
         self.astrotheme_search_input = QLineEdit()
         self.astrotheme_search_input.setPlaceholderText(
-            "Search Astrotheme.com's public database"
+            "Search Astrotheme.com's public 📚"
         )
         self.astrotheme_search_input.returnPressed.connect(
             self._on_import_astrotheme_from_search_panel
@@ -8898,24 +8899,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
 
-        self.batch_backup_database_button = QPushButton("Backup Database")
+        self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
         self.batch_backup_database_button.clicked.connect(self._on_export_database)
         self.batch_backup_database_button.setObjectName("manage_backup_database_button")
         self.batch_backup_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_backup_database_button)
 
-        self.batch_restore_database_button = QPushButton("Restore Database")
+        self.batch_restore_database_button = QPushButton("Restore 📚") #Restore Database
         self.batch_restore_database_button.clicked.connect(self._on_import_database)
         self.batch_restore_database_button.setObjectName("manage_restore_database_button")
         self.batch_restore_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_restore_database_button)
 
-        self.batch_append_database_button = QPushButton("Append Database")
+        self.batch_append_database_button = QPushButton("Append 📚") #Append Database
         self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
         self.batch_append_database_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_append_database_button)
 
-        self.batch_refresh_database_button = QPushButton("Refresh Database")
+        self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
         self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
         self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
         self.batch_refresh_database_button.setStyleSheet(action_button_style)
@@ -10959,6 +10960,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_filter_changed()
 
     def _on_selection_changed(self) -> None:
+        self._cancel_inline_chart_rename()
         active_left_scrollbar = None
         active_left_scroll_value = None
         if self._left_panel_visible:
@@ -11014,9 +11016,127 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _on_rename_selected_chart(self) -> None:
-        if len(self.list_widget.selectedItems()) != 1:
+        selected_items = self.list_widget.selectedItems()
+        if len(selected_items) != 1:
             return
-        self._on_edit_chart_from_menu()
+        self._start_inline_chart_rename(selected_items[0])
+
+    def _start_inline_chart_rename(self, item: QListWidgetItem) -> None:
+        chart_id = item.data(Qt.UserRole)
+        if chart_id is None:
+            return
+
+        active_chart_id = getattr(self, "_inline_rename_chart_id", None)
+        active_editor = getattr(self, "_inline_rename_editor", None)
+        if active_chart_id == chart_id and isinstance(active_editor, QLineEdit):
+            active_editor.setFocus()
+            active_editor.selectAll()
+            return
+
+        self._cancel_inline_chart_rename()
+
+        metadata = item.data(Qt.UserRole + 1) or {}
+        current_name = str(metadata.get("raw_name", "")).strip() or "Unnamed"
+        original_text = item.text()
+
+        inline_editor = QLineEdit(current_name)
+        inline_editor.setPlaceholderText("Chart name")
+        inline_editor.setMinimumHeight(24)
+        inline_editor.setStyleSheet(
+            "QLineEdit {"
+            "background-color: #121212;"
+            "border: 1px solid #2f7f2f;"
+            "color: #e8ffe8;"
+            "padding: 2px 6px;"
+            "}"
+        )
+
+        save_button = QPushButton("✅")
+        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_button.setToolTip("Save chart name")
+        save_button.setFixedWidth(34)
+        save_button.setStyleSheet(
+            "QPushButton {"
+            "background-color: #1f6f1f;"
+            "border: 1px solid #2f9f2f;"
+            "color: #d8ffd8;"
+            "font-weight: 700;"
+            "padding: 0px;"
+            "}"
+            "QPushButton:hover { background-color: #2a8a2a; }"
+        )
+
+        inline_container = QWidget(self.list_widget)
+        inline_layout = QHBoxLayout(inline_container)
+        inline_layout.setContentsMargins(4, 2, 4, 2)
+        inline_layout.setSpacing(4)
+        inline_layout.addWidget(inline_editor, 1)
+        inline_layout.addWidget(save_button, 0)
+        inline_container.setLayout(inline_layout)
+
+        item.setText("")
+        self.list_widget.setItemWidget(item, inline_container)
+        self.list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.EnsureVisible)
+
+        self._inline_rename_item = item
+        self._inline_rename_chart_id = int(chart_id)
+        self._inline_rename_original_text = original_text
+        self._inline_rename_editor = inline_editor
+
+        save_button.clicked.connect(self._commit_inline_chart_rename)
+        inline_editor.returnPressed.connect(self._commit_inline_chart_rename)
+
+        inline_editor.setFocus()
+        inline_editor.selectAll()
+
+    def _cancel_inline_chart_rename(self) -> None:
+        item = getattr(self, "_inline_rename_item", None)
+        if item is not None:
+            try:
+                self.list_widget.removeItemWidget(item)
+                item.setText(getattr(self, "_inline_rename_original_text", item.text()))
+            except RuntimeError:
+                pass
+
+        self._inline_rename_item = None
+        self._inline_rename_chart_id = None
+        self._inline_rename_original_text = None
+        self._inline_rename_editor = None
+
+    def _commit_inline_chart_rename(self) -> None:
+        chart_id = getattr(self, "_inline_rename_chart_id", None)
+        editor = getattr(self, "_inline_rename_editor", None)
+        if chart_id is None or not isinstance(editor, QLineEdit):
+            return
+
+        new_name = editor.text().strip()
+        if not new_name:
+            QMessageBox.warning(self, "Rename chart", "Chart name can't be blank.")
+            editor.setFocus()
+            editor.selectAll()
+            return
+
+        try:
+            chart = load_chart(int(chart_id))
+            chart.name = new_name
+            chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+            chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            update_chart(
+                int(chart_id),
+                chart,
+                retcon_time_used=getattr(chart, "retcon_time_used", False),
+            )
+            self._chart_cache[int(chart_id)] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Rename chart",
+                f"Could not rename the selected chart:\n{exc}",
+            )
+            return
+
+        self._cancel_inline_chart_rename()
+        self._refresh_filters_after_batch_edit({int(chart_id)})
 
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
@@ -14701,13 +14821,14 @@ class MainWindow(QMainWindow):
         candidates: list[tuple[int, Chart]] = []
         for row in rows:
             chart_id = int(row[0])
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
             if self.current_chart_id is not None and chart_id == self.current_chart_id:
+                continue
+            if is_placeholder:
                 continue
             try:
                 candidate = load_chart(chart_id)
             except Exception:
-                continue
-            if getattr(candidate, "is_placeholder", False):
                 continue
             candidates.append((chart_id, candidate))
 
@@ -17192,6 +17313,38 @@ class MainWindow(QMainWindow):
             return int(value)
         return None
 
+    def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
+        month = getattr(chart, "birth_month", None)
+        day = getattr(chart, "birth_day", None)
+        if month is None or day is None:
+            dt = getattr(chart, "dt", None)
+            month = getattr(dt, "month", None)
+            day = getattr(dt, "day", None)
+        if month is None or day is None:
+            return True
+
+        matches = find_chart_name_matches_by_birth_day(month, day)
+        if not matches:
+            return True
+
+        preview_limit = 12
+        preview_names = matches[:preview_limit]
+        extra_count = max(0, len(matches) - len(preview_names))
+        lines = [f"Found {len(matches)} chart(s) with this birthday ({int(month):02d}/{int(day):02d}):", ""]
+        lines.extend(f"• {name}" for name in preview_names)
+        if extra_count:
+            lines.append(f"• ...and {extra_count} more")
+        lines.extend(["", "Continue and save this chart anyway?"])
+
+        choice = QMessageBox.question(
+            self,
+            "Possible duplicate birthdays",
+            "\n".join(lines),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return choice == QMessageBox.Yes
+
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
@@ -17323,6 +17476,8 @@ class MainWindow(QMainWindow):
         )
 
         if is_new_chart:
+            if not self._confirm_birth_day_duplicate_save(chart):
+                return
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
         else:
@@ -17912,7 +18067,6 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
-        chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -17928,6 +18082,8 @@ class MainWindow(QMainWindow):
                 "similar_charts",
                 "wheel",
             }
+        if "planet_dynamics" in sections:
+            chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
@@ -17959,10 +18115,10 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(chart)
         if "planet_dynamics" in sections:
             self._render_planet_dynamics(chart)
-        if "similar_charts" in sections:
-            self._render_similar_charts(chart)
         if "wheel" in sections:
             self._render_chart(chart)
+        if "similar_charts" in sections:
+            self._render_similar_charts(chart)
 
     def _render_metric_panel(
         self,

@@ -1,0 +1,39 @@
+# Upon first launch (for Windows)
+
+1. Windows is fussy about using python 3.11 for some reason. As of this writing, the current version is Python 3.14. You should get the Python Install Manager here: https://www.python.org/downloads/release/python-3110/ - install it. Note: it probably won't automatically install 3.11; it'll just install the most recent Python release.
+
+2. Open Terminal & type: cd ~/Documents/ephemeraldaddy #or wherever you put your ephemeraldaddy download - this needs to get you to the parent folder (yes, there is a nested child folder called 'ephemeraldaddy' - you want the parent!)
+
+3. In Terminal, type: py list
+py -V:3.11 --version #if it shows as installed, proceed to step 5. If not, proceed to step 4.
+
+4. py install 3.11 #tells your shiny new Python Manager to install 3.11
+
+5. py -V:3.11 -m venv venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder.
+
+6. rmdir /s /q venv
+py -V:3.11 -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m ephemeraldaddy.gui.app
+
+
+
+# Upon first launch (for Mac):
+-----------------------------------
+cd ~/Documents/ephemeraldaddy #or wherever you put your ephemeraldaddy download - this needs to get you to the parent folder (yes, there is a nested child folder called 'ephemeraldaddy' - you want the parent!)
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m ephemeraldaddy.gui.app
+
+
+
+# Then, for later launches, just use:
+-----------------------------------
+cd ~/Documents/ephemeraldaddy
+source venv/bin/activate
+python -m ephemeraldaddy.gui.app

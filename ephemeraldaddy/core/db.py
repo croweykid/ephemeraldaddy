@@ -76,7 +76,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -160,6 +160,12 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_charts_is_current
         ON charts(is_current)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_charts_birth_month_day
+        ON charts(birth_month, birth_day)
         """
     )
 
@@ -603,6 +609,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 8:
         _migrate_charts_columns(conn)
         conn.execute("PRAGMA user_version = 8")
+        user_version = 8
+
+    if user_version < 9:
+        _create_indexes(conn)
+        conn.execute("PRAGMA user_version = 9")
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -1225,6 +1236,33 @@ def save_chart(
         chart_id = cur.lastrowid
     conn.close()
     return chart_id
+
+
+def find_chart_name_matches_by_birth_day(
+    birth_month: Optional[int],
+    birth_day: Optional[int],
+) -> list[str]:
+    """
+    Return chart names matching the supplied birth month/day.
+
+    Results are ordered newest-first for fast, relevant duplicate checks.
+    """
+    if birth_month is None or birth_day is None:
+        return []
+
+    conn = _get_conn()
+    rows = conn.execute(
+        """
+        SELECT name
+        FROM charts
+        WHERE birth_month = ?
+          AND birth_day = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (int(birth_month), int(birth_day)),
+    ).fetchall()
+    conn.close()
+    return [str(row[0]).strip() for row in rows if row and row[0]]
 
 
 def update_chart(
