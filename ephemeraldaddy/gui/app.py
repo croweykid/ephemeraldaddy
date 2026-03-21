@@ -9020,7 +9020,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
         self._batch_metric_programmatic_update = False
         self._batch_last_selection_ids: set[int] = set()
-        self._batch_metric_dirty: dict[str, bool] = {
+        self._batch_metric_lucygoosey: dict[str, bool] = {
             "positive_sentiment_intensity": False,
             "negative_sentiment_intensity": False,
             "familiarity": False,
@@ -9053,7 +9053,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_positive_sentiment_intensity_spin.setRange(1, 10)
         self.batch_positive_sentiment_intensity_spin.setValue(1)
         self.batch_positive_sentiment_intensity_spin.valueChanged.connect(
-            lambda _value: self._on_batch_metric_field_edited("positive_sentiment_intensity")
+            lambda _value: self._on_batch_metric_field_lucygoosey("positive_sentiment_intensity")
         )
         self.batch_positive_sentiment_intensity_spin.setFixedWidth(
             self.batch_positive_sentiment_intensity_spin.sizeHint().width() * 2
@@ -9078,7 +9078,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_negative_sentiment_intensity_spin.setRange(1, 10)
         self.batch_negative_sentiment_intensity_spin.setValue(1)
         self.batch_negative_sentiment_intensity_spin.valueChanged.connect(
-            lambda _value: self._on_batch_metric_field_edited("negative_sentiment_intensity")
+            lambda _value: self._on_batch_metric_field_lucygoosey("negative_sentiment_intensity")
         )
         self.batch_negative_sentiment_intensity_spin.setFixedWidth(
             self.batch_negative_sentiment_intensity_spin.sizeHint().width() * 2
@@ -9103,7 +9103,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setRange(1, 10)
         self.batch_familiarity_spin.setValue(1)
         self.batch_familiarity_spin.valueChanged.connect(
-            lambda _value: self._on_batch_metric_field_edited("familiarity")
+            lambda _value: self._on_batch_metric_field_lucygoosey("familiarity")
         )
         self.batch_familiarity_spin.setFixedWidth(
             self.batch_familiarity_spin.sizeHint().width() * 2
@@ -9143,7 +9143,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._bind_batch_enter_apply(self.batch_familiarity_spin, batch_familiarity_button.click)
         self._bind_batch_enter_apply(self.batch_year_first_encountered_edit, batch_year_first_encountered_button.click) 
         self.batch_year_first_encountered_edit.textEdited.connect(
-            lambda _text: self._on_batch_metric_field_edited("year_first_encountered")
+            lambda _text: self._on_batch_metric_field_lucygoosey("year_first_encountered")
         )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
@@ -9230,7 +9230,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_batch_edit_action_buttons()
         chart_ids = [item.data(Qt.UserRole) for item in selected_items]
         chart_id_set = {int(chart_id) for chart_id in chart_ids if isinstance(chart_id, int)}
-        preserve_unsaved_metrics = (
+        preserve_lucygoosey_metrics = (
             bool(chart_id_set)
             and bool(self._batch_last_selection_ids)
             and bool(chart_id_set.intersection(self._batch_last_selection_ids))
@@ -9382,25 +9382,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "positive_sentiment_intensity",
             self.batch_positive_sentiment_intensity_spin,
             positive_intensities,
-            preserve_unsaved=preserve_unsaved_metrics,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._set_batch_metric_spin_state(
             "negative_sentiment_intensity",
             self.batch_negative_sentiment_intensity_spin,
             negative_intensities,
-            preserve_unsaved=preserve_unsaved_metrics,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._set_batch_metric_spin_state(
             "familiarity",
             self.batch_familiarity_spin,
             familiarity_values,
-            preserve_unsaved=preserve_unsaved_metrics,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._set_batch_year_field_state(
             "year_first_encountered",
             self.batch_year_first_encountered_edit,
             year_first_encountered_values,
-            preserve_unsaved=preserve_unsaved_metrics,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._batch_last_selection_ids = chart_id_set
 
@@ -9428,16 +9428,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         line_edit: QLineEdit,
         values: list[int | None],
         *,
-        preserve_unsaved: bool = False,
+        preserve_lucygoosey: bool = False,
     ) -> None:
         if not values:
             self._batch_metric_programmatic_update = True
             line_edit.setText("")
             self._batch_metric_programmatic_update = False
-            self._set_batch_metric_dirty_state(field_key, False)
+            self._set_batch_metric_lucygoosey_state(field_key, False)
             line_edit.setToolTip("")
             return
-        if preserve_unsaved and self._batch_metric_dirty.get(field_key, False):
+        if preserve_lucygoosey and self._batch_metric_lucygoosey.get(field_key, False):
             return
         first_value = values[0]
         self._batch_metric_programmatic_update = True
@@ -9445,7 +9445,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         line_edit.setText("" if first_value is None else str(first_value))
         line_edit.blockSignals(False)
         self._batch_metric_programmatic_update = False
-        self._set_batch_metric_dirty_state(field_key, False)
+        self._set_batch_metric_lucygoosey_state(field_key, False)
         if len({value for value in values}) > 1:
             line_edit.setToolTip(
                 "Selected charts have mixed values. Applying will overwrite all selected charts."
@@ -9469,23 +9469,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         spinbox: QSpinBox,
         values: list[int],
         *,
-        preserve_unsaved: bool = False,
+        preserve_lucygoosey: bool = False,
     ) -> None:
         if not values:
             self._batch_metric_programmatic_update = True
             spinbox.setValue(1)
             self._batch_metric_programmatic_update = False
-            self._set_batch_metric_dirty_state(field_key, False)
+            self._set_batch_metric_lucygoosey_state(field_key, False)
             spinbox.setToolTip("")
             return
-        if preserve_unsaved and self._batch_metric_dirty.get(field_key, False):
+        if preserve_lucygoosey and self._batch_metric_lucygoosey.get(field_key, False):
             return
         self._batch_metric_programmatic_update = True
         spinbox.blockSignals(True)
         spinbox.setValue(values[0])
         spinbox.blockSignals(False)
         self._batch_metric_programmatic_update = False
-        self._set_batch_metric_dirty_state(field_key, False)
+        self._set_batch_metric_lucygoosey_state(field_key, False)
         if len(set(values)) > 1:
             spinbox.setToolTip(
                 "Selected charts have mixed values. Applying will overwrite all selected charts."
@@ -9845,14 +9845,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             show_progress=True,
             changed_ids=changed_ids,
         )
-        self._set_batch_metric_dirty_state(metric_attr, False)
+        self._set_batch_metric_lucygoosey_state(metric_attr, False)
         self._update_batch_edit_state()
         self._refresh_filters_after_batch_edit(changed_ids)
 
-    def _on_batch_metric_field_edited(self, field_key: str) -> None:
+    def _on_batch_metric_field_lucygoosey(self, field_key: str) -> None:
         if self._batch_metric_programmatic_update:
             return
-        self._set_batch_metric_dirty_state(field_key, True)
+        self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _batch_metric_widget_for_key(self, field_key: str) -> QWidget | None:
         mapping: dict[str, QWidget] = {
@@ -9863,14 +9863,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         return mapping.get(field_key)
 
-    def _set_batch_metric_dirty_state(self, field_key: str, is_dirty: bool) -> None:
-        self._batch_metric_dirty[field_key] = is_dirty
+    def _set_batch_metric_lucygoosey_state(self, field_key: str, is_lucygoosey: bool) -> None:
+        self._batch_metric_lucygoosey[field_key] = is_lucygoosey
         widget = self._batch_metric_widget_for_key(field_key)
         if widget is None:
             return
         style = (
             "color: #a9a9a9; font-style: italic;"
-            if is_dirty
+            if is_lucygoosey
             else ""
         )
         widget.setStyleSheet(style)
@@ -10626,9 +10626,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
-        if hasattr(self, "_batch_metric_dirty"):
+        if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered"):
-                self._set_batch_metric_dirty_state(metric_key, False)
+                self._set_batch_metric_lucygoosey_state(metric_key, False)
 
 
 
