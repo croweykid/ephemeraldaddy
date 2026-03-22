@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Tuple, Optional
+from typing import Any, List, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import Chart
@@ -1074,6 +1074,216 @@ def restore_database(source: Path) -> None:
         raise FileNotFoundError(f"Backup file not found: {source}")
     DB_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, DB_PATH)
+
+
+def append_database(source: Path) -> dict[str, Any]:
+    """Append charts from another SQLite database into the active database."""
+    source = Path(source)
+    if not source.exists():
+        raise FileNotFoundError(f"Database file not found: {source}")
+
+    source_conn = sqlite3.connect(source)
+    source_conn.row_factory = sqlite3.Row
+    target_conn = _get_conn()
+
+    issues: list[dict[str, Any]] = []
+    imported = 0
+    skipped = 0
+    warned = 0
+
+    try:
+        if not _charts_table_exists(source_conn):
+            raise ValueError("The selected database has no 'charts' table to append.")
+
+        source_columns = _table_columns(source_conn, "charts")
+        target_max_id_row = target_conn.execute("SELECT COALESCE(MAX(id), 0) FROM charts").fetchone()
+        target_max_id = int(target_max_id_row[0] or 0) if target_max_id_row else 0
+
+        source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
+        now_iso = datetime.utcnow().isoformat(timespec="seconds")
+
+        with target_conn:
+            for row_index, row in enumerate(source_rows, start=1):
+                source_id_raw = row["id"] if "id" in source_columns else row_index
+                try:
+                    source_id = int(source_id_raw)
+                    if source_id <= 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    source_id = row_index
+                    issues.append(
+                        {
+                            "chart_id": None,
+                            "name": str(row["name"] or "Unnamed") if "name" in source_columns else "Unnamed",
+                            "severity": "warning",
+                            "error": "Invalid source chart_id; assigned a sequential fallback id.",
+                        }
+                    )
+
+                new_chart_id = target_max_id + source_id
+
+                chart_name = (
+                    str(row["name"]).strip()
+                    if "name" in source_columns and row["name"] is not None
+                    else ""
+                )
+                if not chart_name:
+                    chart_name = "Unnamed"
+                    issues.append(
+                        {
+                            "chart_id": new_chart_id,
+                            "name": chart_name,
+                            "severity": "warning",
+                            "error": "Missing name; backfilled as 'Unnamed'.",
+                        }
+                    )
+
+                datetime_iso = (
+                    str(row["datetime_iso"]).strip()
+                    if "datetime_iso" in source_columns and row["datetime_iso"] is not None
+                    else ""
+                )
+                if not datetime_iso:
+                    skipped += 1
+                    issues.append(
+                        {
+                            "chart_id": new_chart_id,
+                            "name": chart_name,
+                            "severity": "error",
+                            "error": "Missing required datetime_iso; row skipped.",
+                        }
+                    )
+                    continue
+
+                try:
+                    parsed_dt = datetime.fromisoformat(datetime_iso)
+                except Exception:
+                    parsed_dt = None
+
+                lat = row["lat"] if "lat" in source_columns else None
+                lon = row["lon"] if "lon" in source_columns else None
+                if lat is None or lon is None:
+                    skipped += 1
+                    issues.append(
+                        {
+                            "chart_id": new_chart_id,
+                            "name": chart_name,
+                            "severity": "error",
+                            "error": "Missing required latitude/longitude; row skipped.",
+                        }
+                    )
+                    continue
+
+                concerns_for_row = 0
+
+                def _row_value(column: str, default: Any = None) -> Any:
+                    return row[column] if column in source_columns else default
+
+                birth_month = _row_value("birth_month")
+                birth_day = _row_value("birth_day")
+                birth_year = _row_value("birth_year")
+                if parsed_dt is not None:
+                    if birth_month is None:
+                        birth_month = parsed_dt.month
+                        concerns_for_row += 1
+                    if birth_day is None:
+                        birth_day = parsed_dt.day
+                        concerns_for_row += 1
+                    if birth_year is None:
+                        birth_year = parsed_dt.year
+                        concerns_for_row += 1
+                elif any(value is None for value in (birth_month, birth_day, birth_year)):
+                    concerns_for_row += 1
+
+                pos_intensity = _normalize_sentiment_metric(_row_value("positive_sentiment_intensity"))
+                neg_intensity = _normalize_sentiment_metric(_row_value("negative_sentiment_intensity"))
+                familiarity = _normalize_sentiment_metric(_row_value("familiarity"))
+                social_score = _row_value("social_score")
+                if social_score is None:
+                    social_score = calculate_social_score(pos_intensity, neg_intensity, familiarity)
+                    concerns_for_row += 1
+
+                resolved_chart_type = _normalize_chart_type(
+                    _row_value("chart_type")
+                    or _row_value("source")
+                    or CHART_TYPE_PERSONAL
+                )
+
+                used_utc_fallback = int(_row_value("used_utc_fallback") or 0)
+                if concerns_for_row > 0:
+                    used_utc_fallback = 1
+                    warned += 1
+                    issues.append(
+                        {
+                            "chart_id": new_chart_id,
+                            "name": chart_name,
+                            "severity": "warning",
+                            "error": "Schema/data backfill applied; row flagged with ⚠️ for review.",
+                        }
+                    )
+
+                target_conn.execute(
+                    """
+                    INSERT INTO charts
+                        (id, name, alias, gender, birth_place, datetime_iso, tz_name,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, comments,
+                         positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
+                         alignment_score, familiarity_factors, age_when_first_met, year_first_encountered,
+                         social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
+                         dominant_sign_weights, dominant_planet_weights, chart_type, source,
+                         is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        new_chart_id,
+                        chart_name,
+                        _row_value("alias"),
+                        _row_value("gender"),
+                        _row_value("birth_place"),
+                        datetime_iso,
+                        _row_value("tz_name"),
+                        float(lat),
+                        float(lon),
+                        used_utc_fallback,
+                        _row_value("sentiments"),
+                        _row_value("relationship_types"),
+                        _row_value("comments"),
+                        pos_intensity,
+                        neg_intensity,
+                        familiarity,
+                        _normalize_alignment_score(_row_value("alignment_score")),
+                        _row_value("familiarity_factors"),
+                        max(0, int(_row_value("age_when_first_met") or 0)),
+                        _normalize_year_first_encountered(_row_value("year_first_encountered")),
+                        int(social_score),
+                        int(_row_value("birthtime_unknown") or 0),
+                        int(_row_value("retcon_time_used") or 0),
+                        int(_row_value("retcon_hour")) if _row_value("retcon_hour") is not None else None,
+                        int(_row_value("retcon_minute")) if _row_value("retcon_minute") is not None else None,
+                        _row_value("dominant_sign_weights"),
+                        _row_value("dominant_planet_weights"),
+                        resolved_chart_type,
+                        resolved_chart_type,
+                        int(_row_value("is_placeholder") or 0),
+                        int(_row_value("is_deceased") or 0),
+                        int(birth_month) if birth_month is not None else None,
+                        int(birth_day) if birth_day is not None else None,
+                        int(birth_year) if birth_year is not None else None,
+                        _row_value("created_at") or now_iso,
+                        0,
+                    ),
+                )
+                imported += 1
+    finally:
+        source_conn.close()
+        target_conn.close()
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "warnings": warned,
+        "issues": issues,
+    }
 
 
 def check_database_health() -> tuple[bool, str]:
