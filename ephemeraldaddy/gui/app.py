@@ -8829,12 +8829,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_layout.addStretch(1)
         layout.addLayout(header_layout)
 
-        description = QLabel(
-            "Apply changes to all selected charts at once."
-        )
-        description.setWordWrap(True)
-        layout.addWidget(description)
-
         action_button_style = (
             "QPushButton {"
             "padding: 2px 6px;"
@@ -8910,6 +8904,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         actions_row_database_layout.setHorizontalSpacing(4)
         actions_row_database_layout.setVerticalSpacing(4)
 
+        #Database Actions Buttons: should be a single row
         self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
         self.batch_backup_database_button.clicked.connect(self._on_export_database)
         self.batch_backup_database_button.setObjectName("manage_backup_database_button")
@@ -8925,15 +8920,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_append_database_button = QPushButton("Append 📚") #Append Database
         self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
         self.batch_append_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_append_database_button, 1, 0)
+        actions_row_database_layout.addWidget(self.batch_append_database_button, 0, 2)
 
         self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
         self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
         self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
         self.batch_refresh_database_button.setStyleSheet(action_button_style)
-        actions_row_database_layout.addWidget(self.batch_refresh_database_button, 1, 1)
+        actions_row_database_layout.addWidget(self.batch_refresh_database_button, 0, 3)
+        #single row of database action buttons end here
 
-        actions_row_database_layout.setColumnStretch(2, 1)
+        actions_row_database_layout.setColumnStretch(1, 1)
         layout.addWidget(actions_row_database)
 
         divider_bottom = QFrame()
@@ -8943,6 +8939,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(divider_bottom)
 
         self._update_batch_edit_action_buttons()
+
+        description = QLabel(
+            "Apply changes to all selected charts at once."
+        )
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
 
         def add_collapsible_section(title: str) -> tuple[QWidget, QVBoxLayout]:
             section = QWidget()
