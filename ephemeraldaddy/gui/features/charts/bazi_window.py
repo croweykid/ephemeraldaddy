@@ -322,16 +322,28 @@ def _build_elements_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
             )
             for label, color, value in zip(labels, colors, values, strict=True)
         ]
-        ax.legend(
-            handles=legend_handles,
-            loc=STANDARD_NCV_PIE_CHART["legend_loc"],
-            bbox_to_anchor=STANDARD_NCV_PIE_CHART["legend_anchor"],
+        # Keep this legend in two rows (2 items on top, 3 on bottom) so all
+        # keys remain visible in the right-hand BaZi panel.
+        top_row_legend = ax.legend(
+            handles=legend_handles[:2],
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.03),
             frameon=False,
             labelcolor=STANDARD_NCV_PIE_CHART["legend_label_color"],
             fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"],
-            ncol=STANDARD_NCV_PIE_CHART["legend_ncol"],
+            ncol=2,
         )
-        ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"])
+        ax.add_artist(top_row_legend)
+        ax.legend(
+            handles=legend_handles[2:],
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.12),
+            frameon=False,
+            labelcolor=STANDARD_NCV_PIE_CHART["legend_label_color"],
+            fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"],
+            ncol=3,
+        )
+        ax.figure.subplots_adjust(left=0.12, right=0.88, bottom=0.36, top=0.92)
     return FigureCanvas(figure)
 
 
