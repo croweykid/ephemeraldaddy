@@ -14850,9 +14850,18 @@ class MainWindow(QMainWindow):
 
         list_label = QLabel("Generate or load a chart to search for matches.")
         list_label.setWordWrap(True)
-        list_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        list_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        list_label.setOpenExternalLinks(False)
+        list_label.linkActivated.connect(self._on_similar_chart_link_activated)
         section_layout.addWidget(list_label)
         self._similar_charts_list_label = list_label
+
+    def _on_similar_chart_link_activated(self, target: str) -> None:
+        try:
+            chart_id = int(target)
+        except (TypeError, ValueError):
+            return
+        self.load_chart_by_id(chart_id)
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -14924,9 +14933,10 @@ class MainWindow(QMainWindow):
 
         lines: list[str] = []
         for rank, match in enumerate(matches, start=1):
+            safe_name = html.escape(match.chart_name)
             lines.extend(
                 [
-                    f"{rank}. #{match.chart_id} — {match.chart_name}",
+                    f'{rank}. #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a>',
                     (
                         f"   Similarity {match.score * 100.0:.1f}%"
                         f"  (placements {match.placement_score * 100.0:.0f}%,"
