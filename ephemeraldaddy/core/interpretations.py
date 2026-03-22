@@ -2647,3 +2647,10 @@ ENNEAGRAM = [
     "8",
     "9",
 ]
+
+MBTI_ELEMENTS = [
+{"element":"fire","E":10,"S":10,"F":5,"P":5},
+{"element":"water","E":0,"S":2.5,"F":10,"P":5},
+{"element":"air","E":7.5,"S":0,"F":0,"P":10},
+{"element":"earth","E":2.5,"S":7.5,"F":5,"P":0},
+]

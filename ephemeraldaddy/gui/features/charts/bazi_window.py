@@ -454,11 +454,11 @@ def create_bazi_window_dialog(
                 f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
                 f"Lunar date: {_bilingual(bazi_data.lunar_date_str)}",
                 f"Year zodiac: {_bilingual(bazi_data.zodiac_animal)}",
-                (
-                    "Four Pillars: "
-                    f"{_bilingual(bazi_data.year_pillar)} / {_bilingual(bazi_data.month_pillar)} / "
-                    f"{_bilingual(bazi_data.day_pillar)} / {_bilingual(bazi_data.hour_pillar)}"
-                ),
+                # (
+                #     "Four Pillars: "
+                #     f"{_bilingual(bazi_data.year_pillar)} / {_bilingual(bazi_data.month_pillar)} / "
+                #     f"{_bilingual(bazi_data.day_pillar)} / {_bilingual(bazi_data.hour_pillar)}"
+                # ),
             ]
         )
     )
