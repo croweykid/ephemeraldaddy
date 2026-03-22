@@ -8823,7 +8823,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel.setLayout(layout)
 
         header_layout = QHBoxLayout()
-        title = QLabel("Batch Edit Charts")
+        title = QLabel("Database Manager")
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         header_layout.addWidget(title)
         header_layout.addStretch(1)
