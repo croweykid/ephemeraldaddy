@@ -14937,18 +14937,24 @@ class MainWindow(QMainWindow):
         lines: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
+            rank_label = (
+                f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
+                f"{rank}."
+                "</span>"
+            )
             lines.extend(
                 [
-                    f'{rank}. #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a>',
+                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a>',
                     (
                         f"   Similarity {match.score * 100.0:.1f}%"
                         f"  (placements {match.placement_score * 100.0:.0f}%,"
                         f" aspects {match.aspect_score * 100.0:.0f}%,"
                         f" distribution {match.distribution_score * 100.0:.0f}%)"
                     ),
+                    "",
                 ]
             )
-        self._similar_charts_list_label.setText("\n".join(lines))
+        self._similar_charts_list_label.setText("\n".join(lines).rstrip())
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -17597,6 +17603,7 @@ class MainWindow(QMainWindow):
                 "nakshatra",
                 "modal",
                 "gender",
+                "similar_charts",
             })
 
         if show_dialog:
