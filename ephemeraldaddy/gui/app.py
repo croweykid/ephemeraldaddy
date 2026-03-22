@@ -8867,8 +8867,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         actions_row_top_layout.addWidget(self.batch_delete_chart_button)
 
         self.batch_rename_chart_button = QPushButton("Rename chart")
-        self.batch_rename_chart_button.setStyleSheet(INACTIVE_ACTION_BUTTON_STYLE)
+        self.batch_rename_chart_button.setStyleSheet(action_button_style)
         self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
+        self.batch_rename_chart_button.setEnabled(False)
         actions_row_top_layout.addWidget(self.batch_rename_chart_button)
 
         self.batch_synastry_chart_button = QPushButton("Synastry Chart")
@@ -8900,31 +8901,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
 
+        actions_row_bottom_layout.addStretch(1)
+        layout.addWidget(actions_row_bottom)
+
+        actions_row_database = QWidget()
+        actions_row_database_layout = QGridLayout(actions_row_database)
+        actions_row_database_layout.setContentsMargins(0, 2, 0, 2)
+        actions_row_database_layout.setHorizontalSpacing(4)
+        actions_row_database_layout.setVerticalSpacing(4)
+
         self.batch_backup_database_button = QPushButton("Backup 📚") #Backup Database
         self.batch_backup_database_button.clicked.connect(self._on_export_database)
         self.batch_backup_database_button.setObjectName("manage_backup_database_button")
         self.batch_backup_database_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_backup_database_button)
+        actions_row_database_layout.addWidget(self.batch_backup_database_button, 0, 0)
 
         self.batch_restore_database_button = QPushButton("Restore 📚") #Restore Database
         self.batch_restore_database_button.clicked.connect(self._on_import_database)
         self.batch_restore_database_button.setObjectName("manage_restore_database_button")
         self.batch_restore_database_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_restore_database_button)
+        actions_row_database_layout.addWidget(self.batch_restore_database_button, 0, 1)
 
         self.batch_append_database_button = QPushButton("Append 📚") #Append Database
         self.batch_append_database_button.clicked.connect(self._on_append_database_placeholder)
         self.batch_append_database_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_append_database_button)
+        actions_row_database_layout.addWidget(self.batch_append_database_button, 1, 0)
 
         self.batch_refresh_database_button = QPushButton("Refresh 📚") #Refresh Database
         self.batch_refresh_database_button.clicked.connect(self._on_force_refresh_database_analysis)
         self.batch_refresh_database_button.setObjectName("manage_force_refresh_button")
         self.batch_refresh_database_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_refresh_database_button)
+        actions_row_database_layout.addWidget(self.batch_refresh_database_button, 1, 1)
 
-        actions_row_bottom_layout.addStretch(1)
-        layout.addWidget(actions_row_bottom)
+        actions_row_database_layout.setColumnStretch(2, 1)
+        layout.addWidget(actions_row_database)
 
         divider_bottom = QFrame()
         divider_bottom.setFrameShape(QFrame.HLine)
@@ -11002,9 +11012,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
             self.batch_rename_chart_button.setEnabled(rename_enabled)
-            self.batch_rename_chart_button.setStyleSheet(
-                "" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE
-            )
 
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
