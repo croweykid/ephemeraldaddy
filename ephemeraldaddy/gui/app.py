@@ -18561,12 +18561,6 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        chart_summary, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(
-            self._latest_chart,
-            **self._chart_data_visibility_options(),
-        )
-        summary_lines = chart_summary.splitlines()
-
         date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
         time_label = (
             "unknown"
@@ -18574,27 +18568,6 @@ class MainWindow(QMainWindow):
             else self._latest_chart.dt.strftime("%H:%M")
         )
         birth_place = getattr(self._latest_chart, "birth_place", None) or "Unknown"
-        cursedness_value = next(
-            (
-                line.strip().removeprefix("CURSEDNESS:").strip()
-                for line in summary_lines
-                if line.strip().startswith("CURSEDNESS:")
-            ),
-            next(
-                (
-                    line.strip()
-                    for line in summary_lines
-                    if line.strip().endswith("%") and line.strip() != "%"
-                ),
-                "Unknown",
-            ),
-        )
-        cursedness_line = f"CURSEDNESS: {cursedness_value}"
-        species_line = next(
-            (line.strip() for line in summary_lines if line.strip().startswith("D&D SPECIES/RACE:")),
-            "D&D SPECIES/RACE: Unknown",
-        )
-
         popout_header_layout = QHBoxLayout()
         popout_header_layout.setContentsMargins(0, 0, 0, 0)
         popout_header_layout.setSpacing(12)
@@ -18606,8 +18579,6 @@ class MainWindow(QMainWindow):
                     f"Birth date: {date_label}",
                     f"Birth time: {time_label}",
                     f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
-                    cursedness_line,
-                    species_line,
                 ]
             )
         )
