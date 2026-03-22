@@ -8841,63 +8841,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "QPushButton:disabled { background-color: #202020; color: #666666; border-color: #2f2f2f; }"
         )
 
-        actions_row_top = QWidget()
-        actions_row_top_layout = QHBoxLayout(actions_row_top)
-        actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_top_layout.setSpacing(4)
-
-        self.batch_new_chart_button = QPushButton("+ New Chart")
-        self.batch_new_chart_button.clicked.connect(self._on_new_chart)
-        self.batch_new_chart_button.setStyleSheet(
-            action_button_style + "QPushButton { color: #6fe06f; font-weight: 600; }"
-        )
-        actions_row_top_layout.addWidget(self.batch_new_chart_button)
-
-        self.batch_delete_chart_button = QPushButton("❌ Delete 0 Charts")
-        self.batch_delete_chart_button.clicked.connect(self._on_delete)
-        self.batch_delete_chart_button.setStyleSheet(
-            action_button_style + "QPushButton { color: #ff7b7b; font-weight: 600; }"
-        )
-        actions_row_top_layout.addWidget(self.batch_delete_chart_button)
-
-        self.batch_rename_chart_button = QPushButton("Rename chart")
-        self.batch_rename_chart_button.setStyleSheet(action_button_style)
-        self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
-        self.batch_rename_chart_button.setEnabled(False)
-        actions_row_top_layout.addWidget(self.batch_rename_chart_button)
-
-        self.batch_synastry_chart_button = QPushButton("Synastry Chart")
-        self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
-        self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
-        self.batch_synastry_chart_button.setStyleSheet(action_button_style)
-        actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
-        actions_row_top_layout.addStretch(1)
-        layout.addWidget(actions_row_top)
-
-        divider_top = QFrame()
-        divider_top.setFrameShape(QFrame.HLine)
-        divider_top.setFrameShadow(QFrame.Sunken)
-        divider_top.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_top)
-
-        actions_row_bottom = QWidget()
-        actions_row_bottom_layout = QHBoxLayout(actions_row_bottom)
-        actions_row_bottom_layout.setContentsMargins(0, 2, 0, 2)
-        actions_row_bottom_layout.setSpacing(4)
-
-        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
-        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
-        self.batch_export_selection_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
-
-        self.batch_import_csv_button = QPushButton("Import from CSV")
-        self.batch_import_csv_button.clicked.connect(self._on_import_csv)
-        self.batch_import_csv_button.setStyleSheet(action_button_style)
-        actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
-
-        actions_row_bottom_layout.addStretch(1)
-        layout.addWidget(actions_row_bottom)
-
         actions_row_database = QWidget()
         actions_row_database_layout = QGridLayout(actions_row_database)
         actions_row_database_layout.setContentsMargins(0, 2, 0, 2)
@@ -8929,14 +8872,82 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         actions_row_database_layout.addWidget(self.batch_refresh_database_button, 0, 3)
         #single row of database action buttons end here
 
-        actions_row_database_layout.setColumnStretch(1, 1)
+        for button in (
+            self.batch_backup_database_button,
+            self.batch_restore_database_button,
+            self.batch_append_database_button,
+            self.batch_refresh_database_button,
+        ):
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumHeight(28)
+        for idx in range(4):
+            actions_row_database_layout.setColumnStretch(idx, 1)
         layout.addWidget(actions_row_database)
 
-        divider_bottom = QFrame()
-        divider_bottom.setFrameShape(QFrame.HLine)
-        divider_bottom.setFrameShadow(QFrame.Sunken)
-        divider_bottom.setStyleSheet("color: #2f2f2f;")
-        layout.addWidget(divider_bottom)
+        actions_row_bottom = QWidget()
+        actions_row_bottom_layout = QHBoxLayout(actions_row_bottom)
+        actions_row_bottom_layout.setContentsMargins(0, 2, 0, 2)
+        actions_row_bottom_layout.setSpacing(4)
+
+        self.batch_export_selection_button = QPushButton("Export Selection to CSV")
+        self.batch_export_selection_button.clicked.connect(self._on_export_selected)
+        self.batch_export_selection_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
+
+        self.batch_import_csv_button = QPushButton("Import from CSV")
+        self.batch_import_csv_button.clicked.connect(self._on_import_csv)
+        self.batch_import_csv_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
+
+        layout.addWidget(actions_row_bottom)
+
+        divider_actions_charts = QFrame()
+        divider_actions_charts.setFrameShape(QFrame.HLine)
+        divider_actions_charts.setFrameShadow(QFrame.Sunken)
+        divider_actions_charts.setStyleSheet("color: #2f2f2f;")
+        layout.addWidget(divider_actions_charts)
+
+        actions_row_top = QWidget()
+        actions_row_top_layout = QHBoxLayout(actions_row_top)
+        actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
+        actions_row_top_layout.setSpacing(4)
+
+        self.batch_new_chart_button = QPushButton("+ New Chart")
+        self.batch_new_chart_button.clicked.connect(self._on_new_chart)
+        self.batch_new_chart_button.setStyleSheet(
+            action_button_style + "QPushButton { color: #6fe06f; font-weight: 600; }"
+        )
+        actions_row_top_layout.addWidget(self.batch_new_chart_button)
+
+        self.batch_delete_chart_button = QPushButton("❌ Delete 0 Charts")
+        self.batch_delete_chart_button.clicked.connect(self._on_delete)
+        self.batch_delete_chart_button.setStyleSheet(
+            action_button_style + "QPushButton { color: #ff7b7b; font-weight: 600; }"
+        )
+        actions_row_top_layout.addWidget(self.batch_delete_chart_button)
+
+        self.batch_rename_chart_button = QPushButton("Rename chart")
+        self.batch_rename_chart_button.setStyleSheet(action_button_style)
+        self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
+        self.batch_rename_chart_button.setEnabled(False)
+        actions_row_top_layout.addWidget(self.batch_rename_chart_button)
+
+        self.batch_synastry_chart_button = QPushButton("Synastry Chart")
+        self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
+        self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
+        self.batch_synastry_chart_button.setStyleSheet(action_button_style)
+        actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
+        layout.addWidget(actions_row_top)
+
+        divider_chart_editor = QFrame()
+        divider_chart_editor.setFrameShape(QFrame.HLine)
+        divider_chart_editor.setFrameShadow(QFrame.Sunken)
+        divider_chart_editor.setStyleSheet("color: #2f2f2f;")
+        layout.addWidget(divider_chart_editor)
+
+        batch_editor_title = QLabel("Batch Editor")
+        batch_editor_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        layout.addWidget(batch_editor_title)
 
         self._update_batch_edit_action_buttons()
 
