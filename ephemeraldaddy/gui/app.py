@@ -192,6 +192,7 @@ from ephemeraldaddy.core.db import (
     get_metadata_label_usage,
     backup_database,
     restore_database,
+    append_database,
     check_database_health,
     find_self_tagged_chart,
     clear_self_tag_from_other_charts,
@@ -11009,11 +11010,77 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._on_import_csv_type_1()
 
     def _on_append_database_placeholder(self) -> None:
-        QMessageBox.information(
+        file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Append Database",
-            "Append Database isn't wired up yet. Placeholder button added for now.",
+            "Append database",
+            "",
+            "Database Files (*.db)",
         )
+        if not file_path:
+            return
+
+        backup_path = None
+        try:
+            backup_path = backup_database()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Backup failed",
+                f"Could not back up the current database before append:\n{exc}",
+            )
+            return
+
+        try:
+            result = append_database(Path(file_path))
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Append failed",
+                (
+                    "Could not append the selected database.\n"
+                    f"Reason: {exc}\n\n"
+                    f"Backup path: {backup_path}"
+                ),
+            )
+            return
+
+        self._refresh_charts(force_full_analysis_refresh=True)
+
+        imported = int(result.get("imported", 0) or 0)
+        skipped = int(result.get("skipped", 0) or 0)
+        warnings = int(result.get("warnings", 0) or 0)
+        issues = list(result.get("issues", []) or [])
+
+        detail_lines: list[str] = []
+        for issue in issues:
+            severity = str(issue.get("severity", "warning")).upper()
+            chart_id = issue.get("chart_id")
+            chart_label = f"#{chart_id}" if chart_id is not None else "#?"
+            chart_name = str(issue.get("name") or "Unnamed")
+            error_text = str(issue.get("error") or "Unknown issue.")
+            detail_lines.append(f"[{severity}] {chart_label} {chart_name}: {error_text}")
+        details = "\n".join(detail_lines).strip()
+
+        summary = (
+            f"Appended {imported} chart(s).\n"
+            f"Warnings flagged (⚠️): {warnings}\n"
+            f"Skipped rows: {skipped}\n"
+            f"Database backup: {backup_path}"
+        )
+        if issues:
+            summary += "\n\nReview details for concerns/errors by chart."
+
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Append database complete")
+        dialog.setIcon(
+            QMessageBox.Warning
+            if issues
+            else QMessageBox.Information
+        )
+        dialog.setText(summary)
+        if details:
+            dialog.setDetailedText(details)
+        dialog.exec()
 
     def _on_rename_selected_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
