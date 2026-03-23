@@ -2654,3 +2654,17 @@ MBTI_ELEMENTS = [
 {"element":"air","E":7.5,"S":0,"F":0,"P":10},
 {"element":"earth","E":2.5,"S":7.5,"F":5,"P":0},
 ]
+
+AWARENESS_STREAMS = [
+{"name":"sensing","type":"ajna","gates":[64,47,11,56]},
+{"name":"knowing","type":"ajna","gates":[61,24,43,23]},
+{"name":"understanding","type":"ajna","gates":[63,4,17,62]},
+
+{"name":"instinct","type":"spleen","gates":[54,32,44,26]},
+{"name":"intuition","type":"spleen","gates":[38,28,57,20]},
+{"name":"taste","type":"spleen","gates":[58,18,48,16]},
+
+{"name":"sensitivity","type":"solar plexus","gates":[19,49,37,40]},
+{"name":"emoting","type":"solar plexus","gates":[39,55,22,12]},
+{"name":"feeling","type":"solar plexus","gates":[41,30,36,35]},
+]

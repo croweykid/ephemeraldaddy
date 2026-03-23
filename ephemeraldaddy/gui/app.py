@@ -14988,7 +14988,7 @@ class MainWindow(QMainWindow):
         tags_content_layout.setSpacing(4)
         tags_content_widget.setLayout(tags_content_layout)
         self.chart_tags_input = QLineEdit()
-        self.chart_tags_input.setPlaceholderText("tumblr, style, comma-separated, tags")
+        self.chart_tags_input.setPlaceholderText("tumblr style, comma-separated, tags")
         self.chart_tags_input.textChanged.connect(self._on_chart_tags_changed)
         tags_content_layout.addWidget(self.chart_tags_input)
         self.chart_tags_preview_label = QLabel()
