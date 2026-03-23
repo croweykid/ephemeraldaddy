@@ -1381,10 +1381,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
-        self._chart_view_load_cache: OrderedDict[int, Chart] = OrderedDict()
-        self._chart_view_load_cache_limit = 32
-        self._similar_charts_render_cache: OrderedDict[int, str] = OrderedDict()
-        self._similar_charts_render_cache_limit = 128
         self._search_body_filters = []
         self._aspect_filters = []
         self._dominant_sign_filters = []
@@ -6266,7 +6262,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             previous = self._database_metric_snapshots.get(chart_id)
             if previous:
                 self._apply_snapshot_delta(cache, previous, -1)
-            self._invalidate_chart_instance_cache(chart_id)
+            self._chart_cache.pop(chart_id, None)
             current = self._build_chart_metric_snapshot(chart_id)
             self._database_metric_snapshots[chart_id] = current
             self._apply_snapshot_delta(cache, current, 1)
@@ -6278,7 +6274,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for chart_id in ids:
             snapshot = self._database_metric_snapshots.get(chart_id)
             if snapshot is None:
-                self._invalidate_chart_instance_cache(chart_id)
+                self._chart_cache.pop(chart_id, None)
                 snapshot = self._build_chart_metric_snapshot(chart_id)
                 self._database_metric_snapshots[chart_id] = snapshot
             yield snapshot
@@ -6301,7 +6297,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for chart_id in chart_ids:
             snapshot = self._database_metric_snapshots.get(chart_id)
             if snapshot is None:
-                self._invalidate_chart_instance_cache(chart_id)
+                self._chart_cache.pop(chart_id, None)
                 snapshot = self._build_chart_metric_snapshot(chart_id)
                 self._database_metric_snapshots[chart_id] = snapshot
             if not snapshot.get("is_placeholder", False):
@@ -9762,7 +9758,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     sentiments=sentiments,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -9845,7 +9841,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     relationship_types=relationship_types,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -9917,7 +9913,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         chart,
                         retcon_time_used=getattr(chart, "retcon_time_used", False),
                     )
-                    self._cache_chart_instance(chart_id, chart)
+                    self._chart_cache[chart_id] = chart
             except Exception as exc:
                 QMessageBox.critical(
                     self,
@@ -9993,7 +9989,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -10053,7 +10049,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -10153,7 +10149,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart_type=source,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -10208,7 +10204,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -10263,7 +10259,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     birthtime_unknown=checked,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -10317,7 +10313,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     is_deceased=checked,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
-                self._cache_chart_instance(chart_id, chart)
+                self._chart_cache[chart_id] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11418,7 +11414,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart,
                 retcon_time_used=getattr(chart, "retcon_time_used", False),
             )
-            self._cache_chart_instance(int(chart_id), chart)
+            self._chart_cache[int(chart_id)] = chart
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11881,7 +11877,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             progress.close()
 
         self._chart_cache.clear()
-        self._clear_chart_view_navigation_caches()
         self._database_metrics_cache = None
         self._database_metric_snapshots = {}
         self._database_metrics_dirty_ids.clear()
@@ -12066,14 +12061,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         if force_full_analysis_refresh:
             self._chart_cache = {}
-            self._clear_chart_view_navigation_caches()
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_dirty_ids.clear()
         elif changed_ids:
             self._database_metrics_dirty_ids.update(changed_ids)
             for chart_id in changed_ids:
-                self._invalidate_chart_instance_cache(chart_id)
+                self._chart_cache.pop(chart_id, None)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -12988,38 +12982,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = load_chart(chart_id)
         except Exception:
             chart = None
-        self._cache_chart_instance(chart_id, chart)
-        return chart
-
-    def _remember_chart_view_chart(self, chart_id: int, chart: Chart) -> None:
-        self._chart_view_load_cache[chart_id] = chart
-        self._chart_view_load_cache.move_to_end(chart_id)
-        while len(self._chart_view_load_cache) > self._chart_view_load_cache_limit:
-            self._chart_view_load_cache.popitem(last=False)
-
-    def _get_chart_for_view(self, chart_id: int) -> tuple[Chart, bool]:
-        cached = self._chart_view_load_cache.get(chart_id)
-        if cached is not None:
-            self._chart_view_load_cache.move_to_end(chart_id)
-            return cached, True
-        chart = load_chart(chart_id)
-        self._remember_chart_view_chart(chart_id, chart)
-        return chart, False
-
-    def _clear_chart_view_navigation_caches(self) -> None:
-        self._chart_view_load_cache.clear()
-        self._similar_charts_render_cache.clear()
-
-    def _cache_chart_instance(self, chart_id: int, chart: Chart | None) -> None:
         self._chart_cache[chart_id] = chart
-        if chart is not None:
-            self._remember_chart_view_chart(chart_id, chart)
-        self._similar_charts_render_cache.pop(chart_id, None)
-
-    def _invalidate_chart_instance_cache(self, chart_id: int) -> None:
-        self._chart_cache.pop(chart_id, None)
-        self._chart_view_load_cache.pop(chart_id, None)
-        self._similar_charts_render_cache.pop(chart_id, None)
+        return chart
 
     def _chart_body_matches(
         self,
@@ -15301,13 +15265,6 @@ class MainWindow(QMainWindow):
                 "Similar chart matching is disabled for placeholder charts."
             )
             return
-        current_chart_id = self.current_chart_id
-        if current_chart_id is not None:
-            cached_html = self._similar_charts_render_cache.get(current_chart_id)
-            if cached_html is not None:
-                self._similar_charts_render_cache.move_to_end(current_chart_id)
-                self._similar_charts_list_label.setText(cached_html)
-                return
 
         try:
             rows = list_charts()
@@ -15380,13 +15337,18 @@ class MainWindow(QMainWindow):
                     f" distribution {match.distribution_score * 100.0:.0f}%)"
                 )
             )
-        rendered_html = "<br><br>".join(match_blocks)
-        self._similar_charts_list_label.setText(rendered_html)
-        if current_chart_id is not None:
-            self._similar_charts_render_cache[current_chart_id] = rendered_html
-            self._similar_charts_render_cache.move_to_end(current_chart_id)
-            while len(self._similar_charts_render_cache) > self._similar_charts_render_cache_limit:
-                self._similar_charts_render_cache.popitem(last=False)
+            self._similar_charts_export_rows.append(
+                {
+                    "rank": rank,
+                    "chart_id": match.chart_id,
+                    "chart_name": match.chart_name,
+                    "similarity_percent": round(match.score * 100.0, 1),
+                    "placement_percent": round(match.placement_score * 100.0, 1),
+                    "aspect_percent": round(match.aspect_score * 100.0, 1),
+                    "distribution_percent": round(match.distribution_score * 100.0, 1),
+                }
+            )
+        self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
 
     def _export_similar_charts_share(self) -> None:
         if not self._similar_charts_export_rows:
@@ -17706,7 +17668,7 @@ class MainWindow(QMainWindow):
             current_chart_id if current_chart_id is not None else -1
         )
         for removed_id in removed_ids:
-            self._invalidate_chart_instance_cache(removed_id)
+            self._chart_cache.pop(removed_id, None)
         return True
 
     def _resolve_location(self, place: str):
@@ -18485,9 +18447,13 @@ class MainWindow(QMainWindow):
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
-        chart_cache_hit = False
+        if not is_same_chart_request:
+            self._clear_chart_displays()
+            self._sync_chart_right_panel_placeholder_state(None)
+            self._show_chart_loading_overlay()
+            QApplication.processEvents()
         try:
-            chart, chart_cache_hit = self._get_chart_for_view(chart_id)
+            chart = load_chart(chart_id)
         except Exception as e:
             self._hide_chart_loading_overlay()
             QMessageBox.critical(
@@ -18496,11 +18462,6 @@ class MainWindow(QMainWindow):
                 f"Could not load chart #{chart_id}:\n{e}",
             )
             return False
-        if not is_same_chart_request and not chart_cache_hit:
-            self._clear_chart_displays()
-            self._sync_chart_right_panel_placeholder_state(None)
-            self._show_chart_loading_overlay()
-            QApplication.processEvents()
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
@@ -18603,7 +18564,6 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
-        self._remember_chart_view_chart(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
