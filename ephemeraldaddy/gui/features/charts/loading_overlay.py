@@ -18,6 +18,9 @@ class ChartLoadingOverlay(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(20)
         self._timer.timeout.connect(self._advance_spinner)
+        self._stop_timer = QTimer(self)
+        self._stop_timer.setSingleShot(True)
+        self._stop_timer.timeout.connect(self._stop_now)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.hide()
         if parent is not None:
@@ -25,6 +28,8 @@ class ChartLoadingOverlay(QWidget):
             self._sync_to_parent()
 
     def start(self) -> None:
+        if self._stop_timer.isActive():
+            self._stop_timer.stop()
         self._spin_angle = 0.0
         self._sync_to_parent()
         self.show()
@@ -33,7 +38,15 @@ class ChartLoadingOverlay(QWidget):
             self._timer.start()
         self.update()
 
-    def stop(self) -> None:
+    def stop(self, *, defer_ms: int = 0) -> None:
+        if defer_ms > 0:
+            self._stop_timer.start(defer_ms)
+            return
+        self._stop_now()
+
+    def _stop_now(self) -> None:
+        if self._stop_timer.isActive():
+            self._stop_timer.stop()
         if self._timer.isActive():
             self._timer.stop()
         self.hide()
