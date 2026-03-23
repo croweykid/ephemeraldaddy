@@ -28,6 +28,12 @@ ANAGRAM_SOURCE_OPTIONS: list[tuple[str, str]] = [
 ANAGRAM_SOURCE_LABELS: dict[str, str] = {
     source_value: source_label for source_label, source_value in ANAGRAM_SOURCE_OPTIONS
 }
+DEFINITION_HTTP_HEADERS = {
+    "User-Agent": "ephemeraldaddy/1.0 (+https://github.com/ephemeraldaddy/ephemeraldaddy)",
+    "Accept": "application/json",
+}
+DEFINITION_CONNECTIVITY_ERROR_CODES = {401, 403, 407, 429, 500, 502, 503, 504}
+_DEFINITION_HTTP_SESSION = requests.Session()
 
 
 @dataclass(frozen=True)
@@ -190,73 +196,68 @@ def render_anagrams_html(
 
 
 @lru_cache(maxsize=512)
-def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
+def fetch_word_definition(word: str, *, timeout_seconds: float = 1.8) -> str:
     """Fetch a short English definition for a word."""
     cleaned = str(word or "").strip().casefold()
     if not cleaned.isalpha():
         return "Definition unavailable."
 
-    dictionary_api_endpoints = (
-        f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}",
-        f"https://api.dictionaryapi.dev/api/v2/entries/en_US/{urllib.parse.quote(cleaned)}",
-        f"https://api.dictionaryapi.dev/api/v2/entries/en_GB/{urllib.parse.quote(cleaned)}",
+    dictionary_api_endpoint = (
+        f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}"
     )
     datamuse_endpoint = (
         f"https://api.datamuse.com/words?sp={urllib.parse.quote(cleaned)}&md=d&max=1"
     )
-    headers = {
-        "User-Agent": "ephemeraldaddy/1.0 (+https://github.com/ephemeraldaddy/ephemeraldaddy)",
-        "Accept": "application/json",
-    }
 
     saw_connectivity_error = False
 
-    for endpoint in dictionary_api_endpoints:
-        try:
-            response = requests.get(endpoint, headers=headers, timeout=timeout_seconds)
-        except requests.RequestException:
+    try:
+        response = _DEFINITION_HTTP_SESSION.get(
+            dictionary_api_endpoint,
+            headers=DEFINITION_HTTP_HEADERS,
+            timeout=(0.9, timeout_seconds),
+        )
+    except requests.RequestException:
+        saw_connectivity_error = True
+    else:
+        if response.status_code in DEFINITION_CONNECTIVITY_ERROR_CODES:
             saw_connectivity_error = True
-            continue
+        elif response.status_code < 400:
+            try:
+                parsed = response.json()
+            except ValueError:
+                parsed = None
 
-        if response.status_code in {401, 403, 407, 429, 500, 502, 503, 504}:
-            saw_connectivity_error = True
-            continue
-        if response.status_code >= 400:
-            continue
-
-        try:
-            parsed = response.json()
-        except ValueError:
-            continue
-
-        if not isinstance(parsed, list) or not parsed:
-            continue
-        entry = parsed[0]
-        meanings = entry.get("meanings") if isinstance(entry, dict) else None
-        if not isinstance(meanings, list):
-            continue
-        for meaning in meanings:
-            definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
-            if not isinstance(definitions, list):
-                continue
-            for definition_entry in definitions:
-                definition = (
-                    definition_entry.get("definition")
-                    if isinstance(definition_entry, dict)
-                    else None
-                )
-                if isinstance(definition, str) and definition.strip():
-                    compact = " ".join(definition.strip().split())
-                    return compact[:220]
+            if isinstance(parsed, list) and parsed:
+                entry = parsed[0]
+                meanings = entry.get("meanings") if isinstance(entry, dict) else None
+                if isinstance(meanings, list):
+                    for meaning in meanings:
+                        definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
+                        if not isinstance(definitions, list):
+                            continue
+                        for definition_entry in definitions:
+                            definition = (
+                                definition_entry.get("definition")
+                                if isinstance(definition_entry, dict)
+                                else None
+                            )
+                            if isinstance(definition, str) and definition.strip():
+                                compact = " ".join(definition.strip().split())
+                                return compact[:220]
 
     try:
-        response = requests.get(datamuse_endpoint, headers=headers, timeout=timeout_seconds)
+        response = _DEFINITION_HTTP_SESSION.get(
+            datamuse_endpoint,
+            headers=DEFINITION_HTTP_HEADERS,
+            timeout=(0.9, timeout_seconds),
+        )
     except requests.RequestException:
         if saw_connectivity_error:
             return "Definition unavailable (dictionary service unreachable)."
         return "Definition unavailable."
 
-    if response.status_code in {401, 403, 407, 429, 500, 502, 503, 504}:
+    if response.status_code in DEFINITION_CONNECTIVITY_ERROR_CODES:
         saw_connectivity_error = True
     elif response.status_code < 400:
         try:
