@@ -104,3 +104,54 @@ class RetconSearchWorker(QObject):
             self.failed.emit(str(exc))
             return
         self.finished.emit(matches)
+
+
+class AstrothemeImportWorker(QObject):
+    progress = Signal(str)
+    finished = Signal(dict)
+    failed = Signal(str)
+    canceled = Signal()
+
+    def __init__(self, query: str) -> None:
+        super().__init__()
+        self._query = (query or "").strip()
+        self._cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
+    def is_cancelled(self) -> bool:
+        return self._cancel_event.is_set()
+
+    def run(self) -> None:
+        if self._cancel_event.is_set():
+            self.canceled.emit()
+            return
+
+        from ephemeraldaddy.gui.astrotheme_search import (
+            parse_astrotheme_profile,
+            search_astrotheme_profile_url,
+        )
+
+        raw_query = self._query
+        try:
+            if raw_query.lower().startswith(("http://", "https://")):
+                resolved_url = raw_query
+            else:
+                self.progress.emit("Searching Astrotheme profiles…")
+                resolved_url = search_astrotheme_profile_url(raw_query)
+                if not resolved_url:
+                    raise ValueError("No matching Astrotheme profile was found.")
+            if self._cancel_event.is_set():
+                self.canceled.emit()
+                return
+            self.progress.emit("Parsing Astrotheme profile…")
+            profile_data = parse_astrotheme_profile(resolved_url)
+            if self._cancel_event.is_set():
+                self.canceled.emit()
+                return
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+
+        self.finished.emit(profile_data)
