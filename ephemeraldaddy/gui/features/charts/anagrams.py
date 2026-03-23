@@ -5,12 +5,12 @@ from __future__ import annotations
 import math
 import json
 import urllib.parse
-import urllib.request
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
 
+import requests
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
@@ -177,14 +177,14 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
     if not cleaned.isalpha():
         return "Definition unavailable."
     endpoint = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}"
-    request = urllib.request.Request(
-        endpoint,
-        headers={"User-Agent": "ephemeraldaddy/1.0"},
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            payload = response.read().decode("utf-8", errors="replace")
-        parsed = json.loads(payload)
+        response = requests.get(
+            endpoint,
+            timeout=timeout_seconds,
+            headers={"User-Agent": "ephemeraldaddy/1.0"},
+        )
+        response.raise_for_status()
+        parsed = json.loads(response.text)
     except Exception:
         return "Definition unavailable (lookup failed)."
     if not isinstance(parsed, list) or not parsed:
