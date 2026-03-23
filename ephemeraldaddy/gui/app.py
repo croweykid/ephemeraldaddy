@@ -9227,6 +9227,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         mortality_section_layout.addWidget(self.batch_deceased_checkbox)
         layout.addWidget(mortality_section)
 
+        alignment_section, alignment_section_layout = add_collapsible_section("Alignment")
+
+        self.batch_alignment_slider = AlignmentEmojiSlider()
+        self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
+        self.batch_alignment_score_label = QLabel()
+        self._update_batch_alignment_score_label(self.batch_alignment_slider.value())
+        self.batch_alignment_apply_button = QPushButton("Apply alignment")
+        self.batch_alignment_apply_button.clicked.connect(self._on_batch_alignment_apply)
+
+        alignment_section_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
+        )
+        alignment_section_layout.addWidget(self.batch_alignment_slider)
+        alignment_section_layout.addWidget(self.batch_alignment_score_label)
+        alignment_section_layout.addWidget(self.batch_alignment_apply_button)
+        layout.addWidget(alignment_section)
+
         layout.addStretch(1)
 
         self.clear_batch_edit_button = QPushButton("Clear")
@@ -9310,6 +9327,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         familiarity_values: list[int] = []
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
+        alignment_values: list[int] = []
 
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
@@ -9341,6 +9359,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
+            alignment_values.append(int(getattr(chart, "alignment_score", 0) or 0))
 
 
         for label, checkbox in self.batch_sentiment_checkboxes.items():
@@ -9436,7 +9455,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
+        self._set_batch_alignment_state(alignment_values)
         self._batch_last_selection_ids = chart_id_set
+
+    def _set_batch_alignment_state(self, values: list[int]) -> None:
+        if not values:
+            self.batch_alignment_slider.blockSignals(True)
+            self.batch_alignment_slider.setValue(0)
+            self.batch_alignment_slider.blockSignals(False)
+            self.batch_alignment_slider.setToolTip("")
+            self._update_batch_alignment_score_label(0)
+            return
+        self.batch_alignment_slider.blockSignals(True)
+        self.batch_alignment_slider.setValue(values[0])
+        self.batch_alignment_slider.blockSignals(False)
+        self._update_batch_alignment_score_label(values[0])
+        if len(set(values)) > 1:
+            self.batch_alignment_slider.setToolTip(
+                "Selected charts have mixed alignment scores. Applying will overwrite all selected charts."
+            )
+        else:
+            self.batch_alignment_slider.setToolTip("")
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
@@ -9887,6 +9926,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if self._batch_metric_programmatic_update:
             return
         self._set_batch_metric_lucygoosey_state(field_key, True)
+
+    def _update_batch_alignment_score_label(self, value: int) -> None:
+        self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
+
+    def _on_batch_alignment_changed(self, value: int) -> None:
+        self._update_batch_alignment_score_label(value)
+
+    def _on_batch_alignment_apply(self) -> None:
+        chart_ids = [
+            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+        ]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Psst...Select one or more charts before applying batch edits.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        alignment_value = int(self.batch_alignment_slider.value())
+        selected_count = len(chart_ids)
+        action_label = f"Set alignment score to {alignment_value} for"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                chart.alignment_score = alignment_value
+                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                update_chart(
+                    chart_id,
+                    chart,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"*sepukkus* Couldn't update the selected charts:\n{exc}",
+            )
+            return
+
+        changed_ids = set(chart_ids)
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
 
     def _batch_metric_widget_for_key(self, field_key: str) -> QWidget | None:
         mapping: dict[str, QWidget] = {
@@ -10660,6 +10753,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
+        self.batch_alignment_slider.blockSignals(True)
+        self.batch_alignment_slider.setValue(0)
+        self.batch_alignment_slider.blockSignals(False)
+        self._update_batch_alignment_score_label(0)
+        self.batch_alignment_slider.setToolTip("")
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
