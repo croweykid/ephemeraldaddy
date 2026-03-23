@@ -744,6 +744,21 @@ def _available_screen_geometry():
     return screen.availableGeometry()
 
 
+def _enforce_standard_window_chrome(window: QWidget) -> None:
+    """Prefer standard OS window chrome (titlebar + system controls)."""
+    flags = window.windowFlags()
+    flags |= (
+        Qt.Window
+        | Qt.WindowTitleHint
+        | Qt.WindowSystemMenuHint
+        | Qt.WindowMinimizeButtonHint
+        | Qt.WindowMaximizeButtonHint
+        | Qt.WindowCloseButtonHint
+    )
+    flags &= ~Qt.FramelessWindowHint
+    window.setWindowFlags(flags)
+
+
 def _apply_minimum_screen_height(window: QWidget) -> None:
     geometry = _available_screen_geometry()
     if geometry is None:
@@ -1278,9 +1293,8 @@ class ChartListWidget(QListWidget):
 class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        _enforce_standard_window_chrome(self)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
-        self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
-        self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
@@ -1624,6 +1638,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_ctrl.activated.connect(self.close)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self.close)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self._initial_progress_pending = True
         self._restore_window_settings()
@@ -10723,12 +10739,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.apply_launch_window_policy()
 
     def apply_launch_window_policy(self) -> None:
+        _enforce_standard_window_chrome(self)
         geometry = _available_screen_geometry()
         if geometry is not None:
             self.setGeometry(geometry)
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-        )
+        self.setWindowState(Qt.WindowNoState)
+        self.showNormal()
+        self.showMaximized()
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.setWindowState(Qt.WindowNoState)
+            self.showNormal()
+            self.showMaximized()
+            return
+        _enforce_standard_window_chrome(self)
+        self.setWindowState(self.windowState() | Qt.WindowFullScreen)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -13815,6 +13841,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        _enforce_standard_window_chrome(self)
         configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
@@ -14720,6 +14747,8 @@ class MainWindow(QMainWindow):
         self._shortcut_close_ctrl.activated.connect(self._on_close_requested)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self.chart_canvas = None
         self.sign_chart_canvas = None
@@ -16852,11 +16881,22 @@ class MainWindow(QMainWindow):
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(self) -> None:
+        _enforce_standard_window_chrome(self)
         self.show()
-        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.setWindowState(Qt.WindowNoState)
+        self.showNormal()
         self.showMaximized()
         self.raise_()
         self.activateWindow()
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.setWindowState(Qt.WindowNoState)
+            self.showNormal()
+            self.showMaximized()
+            return
+        _enforce_standard_window_chrome(self)
+        self.setWindowState(self.windowState() | Qt.WindowFullScreen)
 
     def _apply_dark_theme(self):
         self.setStyleSheet("""
