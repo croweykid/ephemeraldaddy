@@ -12006,7 +12006,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for (
                 cid,
                 name,
-                _alias,
+                alias,
                 gender,
                 dt_iso,
                 birth_place,
@@ -12032,6 +12032,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not matches_filters:
                     continue
                 display_name = name or "Unnamed"
+                alias_text = (alias or "").strip()
+                alias_label = f"({alias_text})" if alias_text else ""
                 if used_fallback:
                     display_name = f"⚠️ {display_name}"
                 date_label, time_label = format_chart_row_datetime(
@@ -12069,7 +12071,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 row_prefix = "💀  " if bool(is_deceased) else ""
                 label = (
                     f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {date_label}  {time_label}"
+                    f"{display_name}  {alias_label}  {date_label}  {time_label}"
                     f"  {retcon_time_label}  {place_with_gender}"
                 )
                 item = QListWidgetItem(label)
@@ -12080,6 +12082,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "position": chart_positions.get(cid, "?"),
                         "name": display_name,
                         "raw_name": name or "Unnamed",
+                        "alias": alias_text,
                         "date": date_label,
                         "time": time_label,
                         "retcon_time": retcon_time_label,
