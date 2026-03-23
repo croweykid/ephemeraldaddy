@@ -832,6 +832,18 @@ def parse_tags(value: Optional[str]) -> list[str]:
     return normalized
 
 
+def list_recognized_tags() -> list[str]:
+    with _get_conn() as conn:
+        rows = conn.execute("SELECT tags FROM charts").fetchall()
+    deduped: dict[str, str] = {}
+    for (raw_tags,) in rows:
+        for tag in parse_tags(raw_tags):
+            key = tag.casefold()
+            if key not in deduped:
+                deduped[key] = tag
+    return sorted(deduped.values(), key=lambda value: value.casefold())
+
+
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     """Return sentiment + relationship labels with usage counts.
 

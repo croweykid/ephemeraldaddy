@@ -251,7 +251,7 @@ from ephemeraldaddy.core.db import (
     update_chart_dominant_sign_weights,
     set_current_chart,
     parse_relationship_types,
-    parse_tags,
+    list_recognized_tags,
     get_metadata_label_usage,
     backup_database,
     restore_database,
@@ -363,6 +363,12 @@ from ephemeraldaddy.gui.features.charts.duplicate_detection import (
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
     sort_natal_aspects as _sort_natal_aspects,
+)
+from ephemeraldaddy.gui.features.charts.tagging import (
+    apply_tag_completer,
+    normalize_tag_list,
+    parse_tag_text,
+    render_tag_chip_preview,
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
@@ -9637,6 +9643,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(value)
         return None
 
+    def _update_tag_completers(self) -> None:
+        known_tags = list_recognized_tags()
+        self._known_chart_tags = known_tags
+        chart_input = getattr(self, "chart_tags_input", None)
+        search_input = getattr(self, "search_tags_input", None)
+        for line_edit in (chart_input, search_input):
+            if not isinstance(line_edit, QLineEdit):
+                continue
+            apply_tag_completer(line_edit, known_tags)
+
+    def _on_search_tags_changed(self, *_: object) -> None:
+        tags = parse_tag_text(self.search_tags_input.text())
+        render_tag_chip_preview(self.search_tags_preview_label, tags)
+        self._on_filter_changed()
+
     @staticmethod
     def _normalize_tag_list(tags: list[str] | tuple[str, ...] | None) -> list[str]:
         if not tags:
@@ -12638,7 +12659,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
         search_text = self.search_text_input.text().strip()
-        search_tags = self._parse_tag_text(
+        search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
         selected_chart_types = {
@@ -12932,7 +12953,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if search_tags:
             chart_tags = {
                 tag.casefold()
-                for tag in self._normalize_tag_list(getattr(chart, "tags", []))
+                for tag in normalize_tag_list(getattr(chart, "tags", []))
             }
             if not all(tag.casefold() in chart_tags for tag in search_tags):
                 return False
@@ -14988,7 +15009,7 @@ class MainWindow(QMainWindow):
         tags_content_layout.setSpacing(4)
         tags_content_widget.setLayout(tags_content_layout)
         self.chart_tags_input = QLineEdit()
-        self.chart_tags_input.setPlaceholderText("tumblr style, comma-separated, tags")
+        self.chart_tags_input.setPlaceholderText("tumblr, style, comma-separated, tags")
         self.chart_tags_input.textChanged.connect(self._on_chart_tags_changed)
         tags_content_layout.addWidget(self.chart_tags_input)
         self.chart_tags_preview_label = QLabel()
@@ -18180,7 +18201,7 @@ class MainWindow(QMainWindow):
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
-        placeholder.tags = self._parse_tag_text(self.chart_tags_input.text())
+        placeholder.tags = parse_tag_text(self.chart_tags_input.text())
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -18317,7 +18338,7 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
-            chart.tags = [] if is_event_chart else self._parse_tag_text(self.chart_tags_input.text())
+            chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -18416,90 +18437,15 @@ class MainWindow(QMainWindow):
             return int(value)
         return None
 
-    @staticmethod
-    def _normalize_tag_list(tags: list[str] | tuple[str, ...] | None) -> list[str]:
-        if not tags:
-            return []
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for raw_value in tags:
-            tag = str(raw_value or "").strip()
-            if not tag:
-                continue
-            dedupe_key = tag.casefold()
-            if dedupe_key in seen:
-                continue
-            seen.add(dedupe_key)
-            normalized.append(tag)
-        return normalized
-
-    @classmethod
-    def _parse_tag_text(cls, raw_value: str | None) -> list[str]:
-        return cls._normalize_tag_list(parse_tags(raw_value or ""))
-
-    @staticmethod
-    def _render_tag_chip_preview(preview_label: QLabel | None, tags: list[str]) -> None:
-        if preview_label is None:
-            return
-        if not tags:
-            preview_label.setText("")
-            return
-        chips = []
-        for tag in tags:
-            chips.append(
-                "<span style=\""
-                "background:#d9d9d9;"
-                "color:#222;"
-                "border:1px solid #bdbdbd;"
-                "border-radius:8px;"
-                "padding:1px 6px;"
-                "margin-right:4px;"
-                "\">"
-                f"{html.escape(tag)}"
-                "</span>"
-            )
-        preview_label.setText(" ".join(chips))
-
-    def _replace_active_tag_segment(self, line_edit: QLineEdit, completed_tag: str) -> None:
-        leading, separator, _trailing = line_edit.text().rpartition(",")
-        prefix = f"{leading}, " if separator else ""
-        new_text = f"{prefix}{completed_tag}, "
-        line_edit.setText(new_text)
-        line_edit.setCursorPosition(len(new_text))
-
     def _update_tag_completers(self) -> None:
-        known_tags: dict[str, str] = {}
-        try:
-            rows = list_charts()
-        except Exception:
-            rows = []
-        for row in rows:
-            chart_id = int(row[0])
-            chart = self._chart_view_navigation_cache.get(chart_id)
-            if chart is None:
-                try:
-                    chart = load_chart(chart_id)
-                except Exception:
-                    continue
-            for tag in self._normalize_tag_list(getattr(chart, "tags", [])):
-                key = tag.casefold()
-                if key not in known_tags:
-                    known_tags[key] = tag
-        sorted_tags = sorted(known_tags.values(), key=lambda value: value.casefold())
+        sorted_tags = list_recognized_tags()
         if not hasattr(self, "chart_tags_input"):
             return
-        completer = QCompleter(sorted_tags, self.chart_tags_input)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        completer.activated[str].connect(
-            lambda value: self._replace_active_tag_segment(self.chart_tags_input, value)
-        )
-        self.chart_tags_input.setCompleter(completer)
-        self.chart_tags_input._tags_completer = completer
+        apply_tag_completer(self.chart_tags_input, sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
-        tags = self._parse_tag_text(self.chart_tags_input.text())
-        self._render_tag_chip_preview(self.chart_tags_preview_label, tags)
+        tags = parse_tag_text(self.chart_tags_input.text())
+        render_tag_chip_preview(self.chart_tags_preview_label, tags)
         self._mark_lucygoosey()
 
     def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
@@ -18558,7 +18504,7 @@ class MainWindow(QMainWindow):
                 is_event_chart = chart_type_value == SOURCE_EVENT
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
-                chart.tags = [] if is_event_chart else self._parse_tag_text(self.chart_tags_input.text())
+                chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
@@ -19019,7 +18965,7 @@ class MainWindow(QMainWindow):
             getattr(chart, "relationship_types", []),
         )
         self.chart_tags_input.setText(
-            ", ".join(self._normalize_tag_list(getattr(chart, "tags", [])))
+            ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
         )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
