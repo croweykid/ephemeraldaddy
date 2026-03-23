@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ephemeraldaddy = "ephemeraldaddy.gui.app:main"
+ephemeraldaddy = "ephemeraldaddy.gui.bootstrap:main"
 
 [tool.setuptools.package-data]
 "ephemeraldaddy.gui" = ["fonts/*.ttf", "fonts/*.otf", "fonts/*.ttc", "fonts/*.md"]

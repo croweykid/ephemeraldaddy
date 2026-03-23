@@ -18913,6 +18913,11 @@ class MainWindow(QMainWindow):
         if overlay is not None:
             overlay.stop(defer_ms=defer_ms)
 
+    def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
+        if self._latest_chart is not chart:
+            return
+        self._schedule_passive_chart_analysis_preload(chart)
+
     def _schedule_chart_render(
         self,
         chart: Chart,
@@ -19034,10 +19039,15 @@ class MainWindow(QMainWindow):
             return
 
         self._pending_render_chart = None
-        self._schedule_passive_chart_analysis_preload(chart)
-        # Keep the loading animation running until the event loop gets a chance
-        # to process pending draw/update events from the final render pass.
-        self._hide_chart_loading_overlay(defer_ms=1)
+        # draw() is synchronous for chart/metric canvases, so overlay shutdown can
+        # be tied to actual completion of the final render pass here.
+        self._hide_chart_loading_overlay()
+        QTimer.singleShot(
+            0,
+            lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
+                chart_snapshot
+            ),
+        )
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
         return {
@@ -19218,7 +19228,7 @@ class MainWindow(QMainWindow):
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
-        canvas.draw_idle()
+        canvas.draw()
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -19251,7 +19261,7 @@ class MainWindow(QMainWindow):
             symbol_scale=0.7,
             wheel_scale=1.3,
         )
-        canvas.draw_idle()
+        canvas.draw()
         
         self.chart_canvas = canvas
 
@@ -20062,14 +20072,15 @@ class MainWindow(QMainWindow):
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
         self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
-def main():
+def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     _maybe_reexec_with_macos_app_name()
     _register_packaged_symbol_fonts()
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
-    startup_loading = _StartupLoadingWidget()
-    startup_loading.show()
+    if startup_loading is None:
+        startup_loading = _StartupLoadingWidget()
+        startup_loading.show()
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
