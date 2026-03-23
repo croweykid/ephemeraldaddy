@@ -129,6 +129,66 @@ class _GlobalCloseShortcutFilter(QObject):
         target.close()
         return True
 
+
+class _StartupLoadingWidget(QWidget):
+    """Lightweight loading indicator shown during cold start."""
+
+    def __init__(self) -> None:
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint)
+        self.setWindowTitle("Starting EphemeralDaddy")
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setStyleSheet(
+            "QWidget { background-color: #141218; color: #efe9ff; }"
+            "QLabel { color: #efe9ff; font-size: 12px; }"
+            "QProgressBar {"
+            "  border: 1px solid #47345d;"
+            "  border-radius: 4px;"
+            "  background-color: #0e0b12;"
+            "  text-align: center;"
+            "  min-height: 14px;"
+            "}"
+            "QProgressBar::chunk {"
+            "  background-color: #9933ff;"
+            "}"
+        )
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+        self.setLayout(layout)
+
+        title = QLabel("Starting EphemeralDaddy…")
+        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(title)
+
+        self._status_label = QLabel("Preparing startup…")
+        self._status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(self._status_label)
+
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 100)
+        self._progress.setValue(5)
+        layout.addWidget(self._progress)
+
+        self.setFixedWidth(360)
+        self.adjustSize()
+        self._center_on_primary_screen()
+
+    def _center_on_primary_screen(self) -> None:
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        screen_rect = screen.availableGeometry()
+        frame = self.frameGeometry()
+        frame.moveCenter(screen_rect.center())
+        self.move(frame.topLeft())
+
+    def update_status(self, message: str, progress: int) -> None:
+        self._status_label.setText(message)
+        self._progress.setValue(min(max(progress, 0), 100))
+        QCoreApplication.processEvents(QEventLoop.AllEvents, 50)
+
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -136,10 +196,6 @@ from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
-from ephemeraldaddy.gui.astrotheme_search import (
-    parse_astrotheme_profile,
-    search_astrotheme_profile_url,
-)
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
@@ -456,7 +512,7 @@ GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
 # Explicit startup validation to avoid hidden import-time side effects.
 validate_transit_window_mode_flags()
 
-from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
+from ephemeraldaddy.gui.features.retcon.workers import AstrothemeImportWorker, RetconSearchWorker
 
 from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
 
@@ -8729,21 +8785,76 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not parent._confirm_discard_or_save():
             return
 
-        query = raw_query
-        try:
-            if raw_query.lower().startswith(("http://", "https://")):
-                query = raw_query
-            else:
-                resolved_url = search_astrotheme_profile_url(raw_query)
-                if not resolved_url:
-                    raise ValueError("No matching Astrotheme profile was found.")
-                query = resolved_url
-
-            profile_data = parse_astrotheme_profile(query)
-        except Exception as exc:
-            QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
+        if self._astrotheme_import_thread is not None:
+            QMessageBox.information(
+                self,
+                "Astrotheme import",
+                "An Astrotheme import is already running.",
+            )
             return
 
+        self._start_astrotheme_import(parent=parent, raw_query=raw_query)
+
+    def _start_astrotheme_import(self, *, parent: QWidget, raw_query: str) -> None:
+        progress = QProgressDialog("Preparing Astrotheme import…", "Cancel", 0, 0, self)
+        progress.setWindowTitle("Astrotheme import")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setValue(0)
+        progress.canceled.connect(self._cancel_astrotheme_import)
+        progress.show()
+        self._astrotheme_import_progress_dialog = progress
+
+        self.astrotheme_search_input.setEnabled(False)
+
+        thread = QThread(self)
+        worker = AstrothemeImportWorker(raw_query)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._update_astrotheme_import_progress)
+        worker.finished.connect(lambda profile_data: self._on_astrotheme_import_finished(parent, profile_data))
+        worker.failed.connect(self._on_astrotheme_import_failed)
+        worker.canceled.connect(self._on_astrotheme_import_canceled)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.canceled.connect(thread.quit)
+        thread.finished.connect(self._cleanup_astrotheme_import)
+        thread.finished.connect(thread.deleteLater)
+
+        self._astrotheme_import_thread = thread
+        self._astrotheme_import_worker = worker
+        thread.start()
+
+    def _update_astrotheme_import_progress(self, message: str) -> None:
+        progress = self._astrotheme_import_progress_dialog
+        if progress is None:
+            return
+        progress.setLabelText(message)
+        QCoreApplication.processEvents(QEventLoop.AllEvents, 25)
+
+    def _cancel_astrotheme_import(self) -> None:
+        worker = self._astrotheme_import_worker
+        if worker is None:
+            return
+        worker.cancel()
+        progress = self._astrotheme_import_progress_dialog
+        if progress is not None:
+            progress.setLabelText("Canceling Astrotheme import…")
+            QCoreApplication.processEvents(QEventLoop.AllEvents, 25)
+
+    def _on_astrotheme_import_canceled(self) -> None:
+        QMessageBox.information(self, "Astrotheme import", "Astrotheme import canceled.")
+
+    def _on_astrotheme_import_failed(self, error_message: str) -> None:
+        QMessageBox.warning(
+            self,
+            "Astrotheme import",
+            f"Could not load Astrotheme profile:\n{error_message}",
+        )
+
+    def _on_astrotheme_import_finished(self, parent: QWidget, profile_data: dict[str, Any]) -> None:
         parent._reset_new_chart_form()
         parent.name_edit.setText(profile_data["name"])
         parent._set_birth_date_fields_from_qdate(
@@ -8830,6 +8941,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astrotheme import",
             f"Imported and saved chart #{chart_id} from Astrotheme.",
         )
+
+    def _cleanup_astrotheme_import(self) -> None:
+        self._astrotheme_import_thread = None
+        self._astrotheme_import_worker = None
+        progress = self._astrotheme_import_progress_dialog
+        self._astrotheme_import_progress_dialog = None
+        if progress is not None:
+            progress.close()
+            progress.deleteLater()
+        if hasattr(self, "astrotheme_search_input"):
+            self.astrotheme_search_input.setEnabled(True)
 
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
         dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
@@ -14041,6 +14163,9 @@ class MainWindow(QMainWindow):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
+        self._astrotheme_import_thread: QThread | None = None
+        self._astrotheme_import_worker: AstrothemeImportWorker | None = None
+        self._astrotheme_import_progress_dialog: QProgressDialog | None = None
         self._manage_charts_pending_changed_ids: set[int] = set()
         self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
@@ -15240,6 +15365,9 @@ class MainWindow(QMainWindow):
                     subject_label=self._anagrams_current_subject_label,
                 )
             )
+
+    def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
+        return _sanitize_export_token(value, fallback)
 
     def _export_anagrams_share(self) -> None:
         if not self._anagrams_current_chart_text:
@@ -19236,6 +19364,12 @@ class MainWindow(QMainWindow):
             # Startup is intentionally Database View-first; persist that contract
             # so older installs carrying `app/last_view=chart` do not regress.
             self._settings.setValue("app/last_view", "database")
+        if self._astrotheme_import_worker is not None:
+            self._astrotheme_import_worker.cancel()
+        if self._astrotheme_import_thread is not None:
+            self._astrotheme_import_thread.quit()
+            self._astrotheme_import_thread.wait(1000)
+        self._cleanup_astrotheme_import()
         super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
@@ -19485,9 +19619,13 @@ def main():
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
+    startup_loading = _StartupLoadingWidget()
+    startup_loading.show()
+    startup_loading.update_status("Checking required dependencies…", 15)
     try:
         ensure_all_deps(verbose=False)
     except Exception as exc:
+        startup_loading.close()
         QMessageBox.critical(
             None,
             "Startup dependency error",
@@ -19498,7 +19636,9 @@ def main():
             ),
         )
         raise SystemExit(1) from exc
+    startup_loading.update_status("Loading main window…", 45)
     window = MainWindow()
+    startup_loading.update_status("Applying startup settings…", 75)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     icon_path = _get_app_icon_path()
     if icon_path:
@@ -19512,6 +19652,8 @@ def main():
     # intended user-facing behavior (Database View first, Chart View on demand).
     window.on_manage_charts()
     window.hide()
+    startup_loading.update_status("Startup complete.", 100)
+    QTimer.singleShot(250, startup_loading.close)
 
     if not getattr(app, "_edd_running", False):
         app._edd_running = True
