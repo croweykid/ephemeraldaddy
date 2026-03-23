@@ -13,10 +13,22 @@ from typing import Callable
 import requests
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
 from PySide6.QtWidgets import QHBoxLayout, QToolButton
 
-from ephemeraldaddy.gui.style import DATABASE_ANALYTICS_SUBHEADER_STYLE
+from ephemeraldaddy.gui.style import (
+    DATABASE_ANALYTICS_DROPDOWN_STYLE,
+    DATABASE_ANALYTICS_SUBHEADER_STYLE,
+)
+
+
+ANAGRAM_SOURCE_OPTIONS: list[tuple[str, str]] = [
+    ("Chart Name", "name"),
+    ("Chart Alias", "alias"),
+]
+ANAGRAM_SOURCE_LABELS: dict[str, str] = {
+    source_value: source_label for source_label, source_value in ANAGRAM_SOURCE_OPTIONS
+}
 
 
 @dataclass(frozen=True)
@@ -26,6 +38,7 @@ class AnagramsSectionWidgets:
     summary_label: QLabel
     list_label: QLabel
     export_button: QToolButton
+    source_dropdown: QComboBox
 
 
 @lru_cache(maxsize=1)
@@ -94,14 +107,14 @@ def _collect_chart_name_anagrams(
     return candidate_words[:max_results]
 
 
-def render_anagrams_text(chart_name: str) -> str:
-    """Build display text for chart-name anagrams."""
-    clean_name = str(chart_name or "").strip()
+def render_anagrams_text(chart_text: str, *, subject_label: str = "Chart name") -> str:
+    """Build display text for chart-name/chart-alias anagrams."""
+    clean_name = str(chart_text or "").strip()
     if not clean_name:
-        return "Chart name is empty; no anagrams available."
+        return f"{subject_label} is empty; no anagrams available."
     letters = [ch for ch in clean_name.casefold() if ch.isalpha()]
     if len(letters) < 3:
-        return "Need at least 3 letters in chart name for anagrams."
+        return f"Need at least 3 letters in {subject_label.lower()} for anagrams."
 
     max_permutations_to_scan = 250_000
     permutation_count = math.factorial(len(letters))
@@ -110,7 +123,7 @@ def render_anagrams_text(chart_name: str) -> str:
         unique_letters = len(set(letters))
         return "\n".join(
             [
-                f'Chart name: "{clean_name}"',
+                f'{subject_label}: "{clean_name}"',
                 f"Letters: {len(letters)} (unique: {unique_letters})",
                 f"Raw permutation space: {permutation_count:,} (too large to brute force in UI).",
                 "Showing dictionary-matched options from available letters instead:",
@@ -121,7 +134,7 @@ def render_anagrams_text(chart_name: str) -> str:
 
     return "\n".join(
         [
-            f'Chart name: "{clean_name}"',
+            f'{subject_label}: "{clean_name}"',
             f"Letters: {len(letters)}",
             "",
             "Single-word anagrams/sub-anagrams from available letters:",
@@ -130,25 +143,31 @@ def render_anagrams_text(chart_name: str) -> str:
     )
 
 
-def collect_anagram_words(chart_name: str, *, max_results: int = 30) -> list[str]:
-    """Return capped dictionary matches for the chart name."""
-    clean_name = str(chart_name or "").strip()
+def collect_anagram_words(chart_text: str, *, max_results: int = 30) -> list[str]:
+    """Return capped dictionary matches for the provided text."""
+    clean_name = str(chart_text or "").strip()
     if not clean_name:
         return []
     return _collect_chart_name_anagrams(clean_name, max_results=max_results)
 
 
-def render_anagrams_html(chart_name: str, words: list[str], definitions: dict[str, str]) -> str:
+def render_anagrams_html(
+    chart_text: str,
+    words: list[str],
+    definitions: dict[str, str],
+    *,
+    subject_label: str = "Chart name",
+) -> str:
     """Build rich HTML view with clickable words and optional definition snippets."""
-    clean_name = str(chart_name or "").strip()
+    clean_name = str(chart_text or "").strip()
     if not clean_name:
-        return "Chart name is empty; no anagrams available."
+        return f"{subject_label} is empty; no anagrams available."
     letters = [ch for ch in clean_name.casefold() if ch.isalpha()]
     if len(letters) < 3:
-        return "Need at least 3 letters in chart name for anagrams."
+        return f"Need at least 3 letters in {subject_label.lower()} for anagrams."
     if not words:
         return (
-            f'Chart name: "{clean_name}"<br>'
+            f"{subject_label}: \"{clean_name}\"<br>"
             f"Letters: {len(letters)}<br><br>"
             "No dictionary matches found."
         )
@@ -164,7 +183,7 @@ def render_anagrams_html(chart_name: str, words: list[str], definitions: dict[st
         else:
             rendered.append(word_link)
     return (
-        f'Chart name: "{clean_name}"<br>'
+        f"{subject_label}: \"{clean_name}\"<br>"
         f"Letters: {len(letters)}<br><br>"
         "Click a word to fetch a definition:<br>"
         + "<br>".join(rendered)
@@ -217,6 +236,7 @@ def build_anagrams_section(
     on_toggled: Callable[[bool], None],
     on_export_clicked: Callable[[], None],
     on_word_clicked: Callable[[str], None],
+    on_source_changed: Callable[[str], None],
     get_share_icon_path: Callable[[], str | None],
 ) -> AnagramsSectionWidgets:
     """Create the Anagrams collapsible analytics section."""
@@ -230,7 +250,7 @@ def build_anagrams_section(
     )
 
     summary_label = QLabel(
-        "Dictionary-based anagrams for the chart name (single words only, capped for speed)."
+        "Dictionary-based anagrams for chart name or alias (single words only, capped for speed)."
     )
     summary_label.setWordWrap(True)
     summary_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
@@ -240,6 +260,14 @@ def build_anagrams_section(
     header_layout = QHBoxLayout()
     header_layout.setContentsMargins(0, 0, 0, 0)
     header_row.setLayout(header_layout)
+    source_dropdown = QComboBox()
+    source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+    for source_label, source_value in ANAGRAM_SOURCE_OPTIONS:
+        source_dropdown.addItem(source_label, source_value)
+    source_dropdown.currentIndexChanged.connect(
+        lambda _index: on_source_changed(str(source_dropdown.currentData() or "name"))
+    )
+    header_layout.addWidget(source_dropdown, 0, Qt.AlignLeft)
     header_layout.addStretch(1)
 
     export_button = QToolButton()
@@ -255,7 +283,7 @@ def build_anagrams_section(
     header_layout.addWidget(export_button, 0, Qt.AlignRight)
     section_layout.addWidget(header_row)
 
-    list_label = QLabel("Generate or load a chart to scan chart-name letters.")
+    list_label = QLabel("Generate or load a chart to scan chart name letters.")
     list_label.setWordWrap(True)
     list_label.setTextFormat(Qt.RichText)
     list_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -266,4 +294,5 @@ def build_anagrams_section(
         summary_label=summary_label,
         list_label=list_label,
         export_button=export_button,
+        source_dropdown=source_dropdown,
     )
