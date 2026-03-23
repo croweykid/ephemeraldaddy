@@ -1,5 +1,11 @@
-# Upon first launch (for Windows)
+#HOW TO SET UP & RUN FROM CMD OR TERMINAL
+#If you aren't running the Desktop build (DMG, or EXE) but rather running the repository downloaded straight out of Github, you'll want to unzip it somewhere, and then run the app in shell (aka Mac's Terminal or Windows' Cmd)
+#=========================================================================================================================
+#=========================================================================================================================
+#=========================================================================================================================
 
+# WIN USERS: Setting up & running for the first time in Terminal
+-----------------------------------
 1. Windows is fussy about using python 3.11 for some reason. As of this writing, the current version is Python 3.14. You should get the Python Install Manager here: https://www.python.org/downloads/release/python-3110/ - install it. Note: it probably won't automatically install 3.11; it'll just install the most recent Python release.
 
 2. Open Terminal & type: cd ~/Documents/ephemeraldaddy #or wherever you put your ephemeraldaddy download - this needs to get you to the parent folder (yes, there is a nested child folder called 'ephemeraldaddy' - you want the parent!)
@@ -9,18 +15,29 @@ py -V:3.11 --version #if it shows as installed, proceed to step 5. If not, proce
 
 4. py install 3.11 #tells your shiny new Python Manager to install 3.11
 
-5. py -V:3.11 -m venv venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder.
+5. py -V:3.11 -m venv venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder. If you need to first remove an old venv, run "rmdir /s /q venv" first (without the quotes).
 
-6. rmdir /s /q venv
-py -V:3.11 -m venv venv
-venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m ephemeraldaddy.gui.app
+6. venv\Scripts\activate
+7. python -m pip install --upgrade pip
+8. python -m pip install -r requirements.txt
+9. python -m ephemeraldaddy.gui.app
 
 
+# WIN USERS: Subsequent runs
+-----------------------------------
+If you've restarted your machine since the last time you ran the app:
+1. py -V:3.11 -m venv venv
+2. venv\Scripts\activate
+3. python -m pip install --upgrade pip
+4. python -m pip install -r requirements.txt
+5. python -m ephemeraldaddy.gui.app
 
-# Upon first launch (for Mac):
+If you *haven't* restarted your machine since the last time you ran the app, you should be able to just use:
+1. python -m ephemeraldaddy.gui.app
+
+
+#==================================================================
+# MAC USERS: Setting up & running for the first time in Terminal
 -----------------------------------
 cd ~/Documents/ephemeraldaddy #or wherever you put your ephemeraldaddy download - this needs to get you to the parent folder (yes, there is a nested child folder called 'ephemeraldaddy' - you want the parent!)
 rm -rf venv
@@ -31,8 +48,7 @@ python -m pip install -r requirements.txt
 python -m ephemeraldaddy.gui.app
 
 
-
-# Then, for later launches, just use:
+# MAC USERS: Then, later, just use:
 -----------------------------------
 cd ~/Documents/ephemeraldaddy
 source venv/bin/activate
