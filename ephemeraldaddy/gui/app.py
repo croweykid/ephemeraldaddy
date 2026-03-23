@@ -594,11 +594,17 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for planet, color in PLANET_COLORS.items()
             if color
         }
+        self._sign_formats = {
+            sign: self._make_format(color)
+            for sign, color in SIGN_COLORS.items()
+            if color
+        }
         self._house_formats = {
             str(house): self._make_format(color)
             for house, color in HOUSE_COLORS.items()
             if isinstance(house, (str, int)) and str(house).isdigit() and color
         }
+        self._house_token_pattern = re.compile(r"\bH(1[0-2]|[1-9])\b")
         self._relative_year_formats = {
             label: self._make_format(color)
             for label, color in RELATIVE_YEAR_COLORS.items()
@@ -692,6 +698,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self._highlight_phrase(text, body, fmt)
         for aspect, fmt in self._aspect_formats.items():
             self._highlight_phrase(lowered, aspect, fmt)
+        for sign, fmt in self._sign_formats.items():
+            self._highlight_phrase(text, sign, fmt)
         house_match = re.match(r"^\s*(\d{1,2})\s*:\s+([^\d\s][^\d]*)\s+\d{2}°\d{2}'", text)
         if house_match:
             house_num = house_match.group(1)
@@ -705,6 +713,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             sign_start = text.find(sign_name)
             if sign_start != -1:
                 self.setFormat(sign_start, len(sign_name), sign_fmt)
+        for match in self._house_token_pattern.finditer(text):
+            house_num = match.group(1)
+            house_fmt = self._house_formats.get(house_num)
+            if house_fmt:
+                self.setFormat(match.start(), len(match.group(0)), house_fmt)
 
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         for match in self._transit_range_date_pattern.finditer(text):
@@ -14772,6 +14785,8 @@ class MainWindow(QMainWindow):
         self.output_text = QPlainTextEdit()
         self.output_text.setReadOnly(True)
         output_font = self.output_text.font()
+        output_font.setStyleHint(QFont.StyleHint.Monospace)
+        output_font.setFixedPitch(True)
         output_font.setPointSize(max(output_font.pointSize() - 2, 1))
         self.output_text.setFont(output_font)
         self.output_text.setPlaceholderText(
