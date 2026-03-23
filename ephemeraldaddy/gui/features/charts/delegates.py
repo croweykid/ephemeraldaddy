@@ -22,6 +22,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             "status": QColor("#ff6b6b"),
             "chart": QColor("#c7a56a"),
             "name": QColor(MIDDLE_PANEL_ACCENT_COLOR),
+            "alias": QColor("#7a7a7a"),
             "date": QColor("#8d6e63"),
             "time": QColor("#6b705c"),
             "retcon_time": QColor("#4a7bd1"),
@@ -55,6 +56,9 @@ class ChartRowDelegate(QStyledItemDelegate):
         position_text = str(segment_data.get("position", "?"))
         chart_text = f"#{position_text}"
         name_text = str(segment_data.get("name", "Unnamed"))
+        alias_text = str(segment_data.get("alias", "")).strip()
+        if alias_text:
+            alias_text = f"({alias_text})"
         date_text = str(segment_data.get("date", "??.??.????"))
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
@@ -67,6 +71,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             ("status", status_text),
             ("chart", chart_text),
             ("name", name_text),
+            ("alias", alias_text),
             ("date", date_text),
             ("time", time_text),
             ("retcon_time", retcon_time_text),
