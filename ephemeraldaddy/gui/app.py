@@ -15132,7 +15132,7 @@ class MainWindow(QMainWindow):
             self._similar_charts_list_label.setText("No similar charts found.")
             return
 
-        lines: list[str] = []
+        match_blocks: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
             rank_label = (
@@ -15140,19 +15140,16 @@ class MainWindow(QMainWindow):
                 f"{rank}."
                 "</span>"
             )
-            lines.extend(
-                [
-                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a>',
-                    (
-                        f"   Similarity {match.score * 100.0:.1f}%"
-                        f"  (placements {match.placement_score * 100.0:.0f}%,"
-                        f" aspects {match.aspect_score * 100.0:.0f}%,"
-                        f" distribution {match.distribution_score * 100.0:.0f}%)"
-                    ),
-                    "",
-                ]
+            match_blocks.append(
+                (
+                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
+                    f"Similarity {match.score * 100.0:.1f}%"
+                    f" (placements {match.placement_score * 100.0:.0f}%,"
+                    f" aspects {match.aspect_score * 100.0:.0f}%,"
+                    f" distribution {match.distribution_score * 100.0:.0f}%)"
+                )
             )
-        self._similar_charts_list_label.setText("\n".join(lines).rstrip())
+        self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
