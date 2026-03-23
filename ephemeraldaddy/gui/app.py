@@ -1617,8 +1617,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_panel_container = QWidget()
         left_panel_container_layout = QVBoxLayout()
         left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        left_panel_container_layout.setSpacing(4)
+        left_panel_container_layout.setSpacing(0)
         left_panel_container.setLayout(left_panel_container_layout)
+        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
+
+        right_panel_container = QWidget()
+        right_panel_container_layout = QVBoxLayout()
+        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_container_layout.setSpacing(0)
+        right_panel_container.setLayout(right_panel_container_layout)
+        right_panel_container_layout.addWidget(self.right_panel_stack, 1)
+
+        panel_controls_row = QWidget()
+        panel_controls_layout = QHBoxLayout()
+        panel_controls_layout.setContentsMargins(0, 0, 0, 0)
+        panel_controls_layout.setSpacing(8)
+        panel_controls_row.setLayout(panel_controls_layout)
 
         left_controls_row = QWidget()
         left_controls_layout = QHBoxLayout()
@@ -1629,15 +1643,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.database_metrics_panel_button)
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
-        left_controls_layout.addStretch(1)
-        left_panel_container_layout.addWidget(left_controls_row)
-        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
-
-        right_panel_container = QWidget()
-        right_panel_container_layout = QVBoxLayout()
-        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        right_panel_container_layout.setSpacing(4)
-        right_panel_container.setLayout(right_panel_container_layout)
 
         right_controls_row = QWidget()
         right_controls_layout = QHBoxLayout()
@@ -1647,9 +1652,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.search_panel_button)
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
-        right_controls_layout.addStretch(1)
-        right_panel_container_layout.addWidget(right_controls_row)
-        right_panel_container_layout.addWidget(self.right_panel_stack, 1)
+
+        panel_controls_layout.addWidget(left_controls_row, alignment=Qt.AlignLeft)
+        panel_controls_layout.addStretch(1)
+        panel_controls_layout.addWidget(right_controls_row, alignment=Qt.AlignRight)
+        layout.addWidget(panel_controls_row)
 
         # Database View - Center list panel (chart list).
         self.list_widget = ChartListWidget()
@@ -1711,7 +1718,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
-        layout.addWidget(self._content_splitter)
+        layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
         self._shortcut_close_ctrl.activated.connect(self.close)
