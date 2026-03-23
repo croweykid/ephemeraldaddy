@@ -410,16 +410,12 @@ def format_chart_text(
     lines.append(CHART_DATA_DIVIDER)
     lines.append("POSITIONS")
     lines.append(CHART_DATA_DIVIDER)
-    # Keep columns comfortably wide so content doesn't need clipping/truncation.
-    body_width = 16
-    sign_width = 14
-    degree_width = 16
-    nakshatra_width = 30
-    gl_width = 52
-    house_width = 8
-
-    def _fit_column(text: str, width: int) -> str:
-        return _pad_display_column(text, width)
+    body_width = 10
+    sign_width = 11
+    degree_width = 12
+    nakshatra_width = 22
+    gl_width = 30
+    house_width = 5
     if use_houses:
         lines.append(
             "  ".join(
@@ -511,12 +507,12 @@ def format_chart_text(
             house_label = f"H{house_num}" if house_num is not None else "-"
             line = "  ".join(
                 [
-                    _fit_column(display_body, body_width),
-                    _fit_column(sign_label, sign_width),
-                    _fit_column(degree_text, degree_width),
-                    _fit_column(nakshatra_with_info, nakshatra_width),
-                    _fit_column(hd_text, gl_width),
-                    _fit_column(house_label, house_width),
+                    _pad_display_column(display_body, body_width),
+                    _pad_display_column(sign_label, sign_width),
+                    _pad_display_column(degree_text, degree_width),
+                    _pad_display_column(nakshatra_with_info, nakshatra_width),
+                    _pad_display_column(hd_text, gl_width),
+                    _pad_display_column(house_label, house_width),
                 ]
             )
             entry_list = [
@@ -542,11 +538,11 @@ def format_chart_text(
         else:
             line = "  ".join(
                 [
-                    _fit_column(display_body, body_width),
-                    _fit_column(sign_label, sign_width),
-                    _fit_column(degree_text, degree_width),
-                    _fit_column(nakshatra_with_info, nakshatra_width),
-                    _fit_column(hd_text, gl_width),
+                    _pad_display_column(display_body, body_width),
+                    _pad_display_column(sign_label, sign_width),
+                    _pad_display_column(degree_text, degree_width),
+                    _pad_display_column(nakshatra_with_info, nakshatra_width),
+                    _pad_display_column(hd_text, gl_width),
                 ]
             )
             line = f"{line} ⓘ"
