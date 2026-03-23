@@ -139,16 +139,18 @@ class _StartupLoadingWidget(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setStyleSheet(
-            "QWidget { background-color: #1f1f1f; color: #f2f2f2; }"
-            "QLabel { color: #f2f2f2; font-size: 12px; }"
+            "QWidget { background-color: #141218; color: #efe9ff; }"
+            "QLabel { color: #efe9ff; font-size: 12px; }"
             "QProgressBar {"
-            "  border: 1px solid #444444;"
+            "  border: 1px solid #47345d;"
             "  border-radius: 4px;"
-            "  background-color: #121212;"
+            "  background-color: #0e0b12;"
             "  text-align: center;"
             "  min-height: 14px;"
             "}"
-            "QProgressBar::chunk { background-color: #f2c94c; }"
+            "QProgressBar::chunk {"
+            "  background-color: #9933ff;"
+            "}"
         )
 
         layout = QVBoxLayout()
