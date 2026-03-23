@@ -1627,6 +1627,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.similarities_panel_button)
         left_controls_layout.addStretch(1)
         self._left_panel_controls_row = left_controls_row
+        left_panel_container.setMinimumWidth(
+            self._panel_controls_collapsed_width(self._left_panel_controls_row)
+        )
         left_panel_container_layout.addWidget(left_controls_row)
         left_panel_container_layout.addWidget(self.left_panel_stack, 1)
 
@@ -1646,6 +1649,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.manage_collections_button)
         right_controls_layout.addStretch(1)
         self._right_panel_controls_row = right_controls_row
+        right_panel_container.setMinimumWidth(
+            self._panel_controls_collapsed_width(self._right_panel_controls_row)
+        )
         right_panel_container_layout.addWidget(right_controls_row)
         right_panel_container_layout.addWidget(self.right_panel_stack, 1)
 
