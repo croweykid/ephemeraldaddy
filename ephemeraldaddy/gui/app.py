@@ -14119,7 +14119,7 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         self.setCentralWidget(central)
-        self.window_loading_overlay = ChartLoadingOverlay(self, dim_alpha=150)
+        self.window_loading_overlay = ChartLoadingOverlay(central, dim_alpha=150)
 
         # Natal Chart View Window: Create New Chart / Edit Individual Chart
         # Top-level layout: left = chart, middle = inputs + output, right = metrics
@@ -18625,7 +18625,10 @@ class MainWindow(QMainWindow):
         overlay = getattr(self, "window_loading_overlay", None)
         if overlay is None:
             return
-        overlay.setGeometry(self.rect())
+        central = self.centralWidget()
+        if central is None:
+            return
+        overlay.setGeometry(central.rect())
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
