@@ -14234,9 +14234,8 @@ class MainWindow(QMainWindow):
         self.chart_canvas_overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_canvas_overlay_layout.setSpacing(0)
         self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
-        self.chart_loading_overlay = ChartLoadingOverlay(self.chart_canvas_overlay_container)
+        self.chart_loading_overlay = ChartLoadingOverlay(self)
         self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
-        self.chart_canvas_overlay_layout.addWidget(self.chart_loading_overlay, 0, 0)
         self.chart_canvas_overlay_layout.addWidget(
             self.manage_button,
             0,
