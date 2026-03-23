@@ -3120,11 +3120,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _build_todays_transits_panel(self) -> QWidget:
         panel = QWidget()
         panel.setMinimumWidth(260)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout()
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
-        layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
         section_layout = self._add_left_panel_collapsible_section(
@@ -3254,13 +3253,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Transit chart summary will appear here."
         )
         self.todays_transits_output.setMinimumHeight(140)
-        section_layout.addWidget(self.todays_transits_output)
+        self.todays_transits_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        section_layout.addWidget(self.todays_transits_output, 1)
 
         refresh_button = QPushButton("Refresh Transit View")
         refresh_button.clicked.connect(self._refresh_todays_transits_panel)
         section_layout.addWidget(refresh_button)
 
-        layout.addStretch(1)
         return panel
 
 
