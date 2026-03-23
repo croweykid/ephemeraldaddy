@@ -1414,7 +1414,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_manage_collections_panel
         )
 
-        self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
+        self.edit_charts_button = QPushButton("📝Database Manager") #Batch Edit #✎𓂃
         self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
         self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
