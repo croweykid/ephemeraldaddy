@@ -15,6 +15,7 @@ import statistics
 import subprocess
 import sys
 import traceback
+import urllib.parse
 from collections import Counter, OrderedDict
 from typing import Any, Callable
 from types import SimpleNamespace
@@ -378,6 +379,9 @@ from ephemeraldaddy.gui.features.charts.right_panel_stack import (
 )
 from ephemeraldaddy.gui.features.charts.anagrams import (
     build_anagrams_section,
+    collect_anagram_words,
+    fetch_word_definition,
+    render_anagrams_html,
     render_anagrams_text,
 )
 from ephemeraldaddy.gui.features.retcon.transit_window import (
@@ -14010,6 +14014,10 @@ class MainWindow(QMainWindow):
         self._similar_charts_list_label: QLabel | None = None
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
+        self._anagrams_export_button: QToolButton | None = None
+        self._anagrams_current_words: list[str] = []
+        self._anagrams_clicked_definitions: dict[str, str] = {}
+        self._anagrams_current_chart_name: str = ""
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -14871,10 +14879,14 @@ class MainWindow(QMainWindow):
                 "anagrams",
                 checked,
             ),
+            on_export_clicked=self._export_anagrams_share,
+            on_word_clicked=self._on_anagram_link_activated,
+            get_share_icon_path=_get_share_icon_path,
         )
         self._chart_analysis_section_expanded["anagrams"] = False
         self._anagrams_summary_label = anagrams_section.summary_label
         self._anagrams_list_label = anagrams_section.list_label
+        self._anagrams_export_button = anagrams_section.export_button
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
         self._active_chart_right_panel = "analytics"
@@ -15146,7 +15158,89 @@ class MainWindow(QMainWindow):
         if self._anagrams_list_label is None:
             return
         chart_name = str(getattr(chart, "name", "") or "")
-        self._anagrams_list_label.setText(render_anagrams_text(chart_name))
+        self._anagrams_current_chart_name = chart_name.strip()
+        if not self._anagrams_current_chart_name:
+            self._anagrams_current_words = []
+            self._anagrams_clicked_definitions.clear()
+            self._anagrams_list_label.setText(render_anagrams_text(chart_name))
+            return
+        words = collect_anagram_words(self._anagrams_current_chart_name, max_results=30)
+        self._anagrams_current_words = words
+        self._anagrams_clicked_definitions = {
+            word: definition
+            for word, definition in self._anagrams_clicked_definitions.items()
+            if word in set(words)
+        }
+        if not words:
+            self._anagrams_list_label.setText(render_anagrams_text(chart_name))
+            return
+        self._anagrams_list_label.setText(
+            render_anagrams_html(
+                self._anagrams_current_chart_name,
+                words,
+                self._anagrams_clicked_definitions,
+            )
+        )
+
+    def _on_anagram_link_activated(self, target: str) -> None:
+        if not target.startswith("define:"):
+            return
+        encoded_word = target.split("define:", 1)[1].strip()
+        word = urllib.parse.unquote(encoded_word).strip().casefold()
+        if not word or word not in self._anagrams_current_words:
+            return
+        definition = fetch_word_definition(word)
+        self._anagrams_clicked_definitions[word] = definition
+        if self._anagrams_list_label is not None:
+            self._anagrams_list_label.setText(
+                render_anagrams_html(
+                    self._anagrams_current_chart_name,
+                    self._anagrams_current_words,
+                    self._anagrams_clicked_definitions,
+                )
+            )
+
+    def _export_anagrams_share(self) -> None:
+        if not self._anagrams_current_chart_name:
+            QMessageBox.information(
+                self,
+                "Export anagrams",
+                "Load or generate a chart first.",
+            )
+            return
+        export_date = datetime.datetime.now().strftime("%Y%m%d")
+        default_name_token = self._sanitize_export_token(self._anagrams_current_chart_name) or "chart"
+        default_filename = f"anagrams-{default_name_token}-{export_date}.md"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export anagrams",
+            default_filename,
+            "Markdown (*.md);;Text files (*.txt);;All files (*)",
+        )
+        if not file_path:
+            return
+        lines = [
+            f"# Anagrams for {self._anagrams_current_chart_name}",
+            "",
+            "## Words",
+        ]
+        if self._anagrams_current_words:
+            lines.extend([f"- {word}" for word in self._anagrams_current_words])
+        else:
+            lines.append("- (No matches)")
+        lines.extend(["", "## Clicked definitions"])
+        if self._anagrams_clicked_definitions:
+            for word in self._anagrams_current_words:
+                definition = self._anagrams_clicked_definitions.get(word)
+                if definition:
+                    lines.append(f"- **{word}**: {definition}")
+        else:
+            lines.append("- (No definitions looked up)")
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(lines).rstrip() + "\n")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -18558,6 +18652,9 @@ class MainWindow(QMainWindow):
             self._anagrams_list_label.setText(
                 "Generate or load a chart to scan chart-name letters."
             )
+        self._anagrams_current_words = []
+        self._anagrams_clicked_definitions.clear()
+        self._anagrams_current_chart_name = ""
 
     def _render_sign_tally(self, chart: Chart) -> None:
 

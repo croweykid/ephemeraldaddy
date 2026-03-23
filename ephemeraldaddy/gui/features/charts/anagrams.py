@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import math
+import json
+import urllib.parse
+import urllib.request
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QToolButton
 
 from ephemeraldaddy.gui.style import DATABASE_ANALYTICS_SUBHEADER_STYLE
 
@@ -20,6 +25,7 @@ class AnagramsSectionWidgets:
 
     summary_label: QLabel
     list_label: QLabel
+    export_button: QToolButton
 
 
 @lru_cache(maxsize=1)
@@ -124,12 +130,94 @@ def render_anagrams_text(chart_name: str) -> str:
     )
 
 
+def collect_anagram_words(chart_name: str, *, max_results: int = 30) -> list[str]:
+    """Return capped dictionary matches for the chart name."""
+    clean_name = str(chart_name or "").strip()
+    if not clean_name:
+        return []
+    return _collect_chart_name_anagrams(clean_name, max_results=max_results)
+
+
+def render_anagrams_html(chart_name: str, words: list[str], definitions: dict[str, str]) -> str:
+    """Build rich HTML view with clickable words and optional definition snippets."""
+    clean_name = str(chart_name or "").strip()
+    if not clean_name:
+        return "Chart name is empty; no anagrams available."
+    letters = [ch for ch in clean_name.casefold() if ch.isalpha()]
+    if len(letters) < 3:
+        return "Need at least 3 letters in chart name for anagrams."
+    if not words:
+        return (
+            f'Chart name: "{clean_name}"<br>'
+            f"Letters: {len(letters)}<br><br>"
+            "No dictionary matches found."
+        )
+    rendered: list[str] = []
+    for word in words:
+        word_link = (
+            f'<a href="define:{urllib.parse.quote(word)}" '
+            f'style="color: #9dd8ff; text-decoration: none;">{word}</a>'
+        )
+        definition = definitions.get(word, "").strip()
+        if definition:
+            rendered.append(f"{word_link} — {definition}")
+        else:
+            rendered.append(word_link)
+    return (
+        f'Chart name: "{clean_name}"<br>'
+        f"Letters: {len(letters)}<br><br>"
+        "Click a word to fetch a definition:<br>"
+        + "<br>".join(rendered)
+    )
+
+
+def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
+    """Fetch a short English definition for a word."""
+    cleaned = str(word or "").strip().casefold()
+    if not cleaned.isalpha():
+        return "Definition unavailable."
+    endpoint = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}"
+    request = urllib.request.Request(
+        endpoint,
+        headers={"User-Agent": "ephemeraldaddy/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            payload = response.read().decode("utf-8", errors="replace")
+        parsed = json.loads(payload)
+    except Exception:
+        return "Definition unavailable (lookup failed)."
+    if not isinstance(parsed, list) or not parsed:
+        return "Definition unavailable."
+    entry = parsed[0]
+    meanings = entry.get("meanings") if isinstance(entry, dict) else None
+    if not isinstance(meanings, list):
+        return "Definition unavailable."
+    for meaning in meanings:
+        definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
+        if not isinstance(definitions, list):
+            continue
+        for definition_entry in definitions:
+            definition = (
+                definition_entry.get("definition")
+                if isinstance(definition_entry, dict)
+                else None
+            )
+            if isinstance(definition, str) and definition.strip():
+                compact = " ".join(definition.strip().split())
+                return compact[:220]
+    return "Definition unavailable."
+
+
 def build_anagrams_section(
     *,
     panel: QWidget,
     layout: QVBoxLayout,
     add_collapsible_section: Callable[..., QVBoxLayout],
     on_toggled: Callable[[bool], None],
+    on_export_clicked: Callable[[], None],
+    on_word_clicked: Callable[[str], None],
+    get_share_icon_path: Callable[[], str | None],
 ) -> AnagramsSectionWidgets:
     """Create the Anagrams collapsible analytics section."""
     section_layout = add_collapsible_section(
@@ -148,11 +236,34 @@ def build_anagrams_section(
     summary_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
     section_layout.addWidget(summary_label)
 
+    header_row = QWidget()
+    header_layout = QHBoxLayout()
+    header_layout.setContentsMargins(0, 0, 0, 0)
+    header_row.setLayout(header_layout)
+    header_layout.addStretch(1)
+
+    export_button = QToolButton()
+    share_icon_path = get_share_icon_path()
+    if share_icon_path:
+        export_button.setIcon(QIcon(share_icon_path))
+    else:
+        export_button.setText("↗")
+    export_button.setAutoRaise(True)
+    export_button.setCursor(Qt.PointingHandCursor)
+    export_button.setToolTip("Export anagrams and clicked definitions")
+    export_button.clicked.connect(on_export_clicked)
+    header_layout.addWidget(export_button, 0, Qt.AlignRight)
+    section_layout.addWidget(header_row)
+
     list_label = QLabel("Generate or load a chart to scan chart-name letters.")
     list_label.setWordWrap(True)
-    list_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    list_label.setTextFormat(Qt.RichText)
+    list_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    list_label.setOpenExternalLinks(False)
+    list_label.linkActivated.connect(on_word_clicked)
     section_layout.addWidget(list_label)
     return AnagramsSectionWidgets(
         summary_label=summary_label,
         list_label=list_label,
+        export_button=export_button,
     )
