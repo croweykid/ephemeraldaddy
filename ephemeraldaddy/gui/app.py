@@ -1245,6 +1245,30 @@ def _get_share_icon_path() -> str | None:
     return None
 
 
+STARTUP_DEPENDENCY_CHECK_STAMP = "2026-03-23"
+
+
+def _env_flag_enabled(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _should_run_startup_dependency_check(settings: QSettings) -> bool:
+    """Gate heavyweight dependency imports to first-run and debug flows."""
+    if _env_flag_enabled(os.environ.get("EPHEMERALDADDY_SKIP_DEP_CHECK")):
+        return False
+    if _env_flag_enabled(os.environ.get("EPHEMERALDADDY_FORCE_DEP_CHECK")):
+        return True
+    if _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG")):
+        return True
+    previous_stamp = str(settings.value("startup/dependency_check_stamp", "") or "").strip()
+    return previous_stamp != STARTUP_DEPENDENCY_CHECK_STAMP
+
+
+def _mark_startup_dependency_check_complete(settings: QSettings) -> None:
+    settings.setValue("startup/dependency_check_stamp", STARTUP_DEPENDENCY_CHECK_STAMP)
+    settings.sync()
+
+
 def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
     token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
     return token or fallback
@@ -19910,25 +19934,29 @@ def main():
     app = _get_qapp()
     startup_loading = _StartupLoadingWidget()
     startup_loading.show()
-    startup_loading.update_status("Checking required dependencies…", 15)
-    try:
-        ensure_all_deps(verbose=False)
-    except Exception as exc:
-        startup_loading.close()
-        QMessageBox.critical(
-            None,
-            "Startup dependency error",
-            (
-                "The app could not start because required Python dependencies "
-                "were unavailable and automatic installation failed.\n\n"
-                f"Details: {exc}"
-            ),
-        )
-        raise SystemExit(1) from exc
+    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+    if _should_run_startup_dependency_check(settings):
+        startup_loading.update_status("Checking required dependencies…", 15)
+        try:
+            ensure_all_deps(verbose=False)
+        except Exception as exc:
+            startup_loading.close()
+            QMessageBox.critical(
+                None,
+                "Startup dependency error",
+                (
+                    "The app could not start because required Python dependencies "
+                    "were unavailable and automatic installation failed.\n\n"
+                    f"Details: {exc}"
+                ),
+            )
+            raise SystemExit(1) from exc
+        _mark_startup_dependency_check_complete(settings)
+    else:
+        startup_loading.update_status("Using cached dependency readiness…", 15)
     startup_loading.update_status("Loading main window…", 45)
     window = MainWindow()
     startup_loading.update_status("Applying startup settings…", 75)
-    settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     icon_path = _get_app_icon_path()
     if icon_path:
         app.setWindowIcon(QIcon(icon_path))

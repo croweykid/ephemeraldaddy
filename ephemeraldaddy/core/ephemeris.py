@@ -1,4 +1,4 @@
-from skyfield.api import load, wgs84, N, E
+from skyfield.api import load
 from skyfield.framelib import ecliptic_frame  # true ecliptic & equinox of date :contentReference[oaicite:4]{index=4}
 import datetime
 import math
@@ -123,23 +123,35 @@ def prepare_swiss_ephemeris_data(required_bodies: set[str] | None = None) -> Non
     _configure_swiss_ephemeris()
     _ensure_swiss_ephemeris_data(required_bodies, allow_download=not is_offline_mode())
 
-ts = load.timescale()
-eph = load('de421.bsp')
+_TS = None
+_EPH = None
+_EARTH = None
+_PLANETS = None
 
-EARTH = eph[399] # hard-code geocenter; avoids accidentally using ID 3 :contentReference[oaicite:5]{index=5}
 
-PLANETS = {
-    "Sun": eph['sun'],
-    "Moon": eph['moon'],
-    "Mercury": eph['mercury'],
-    "Venus": eph['venus'],
-    "Mars": eph['mars'],
-    "Jupiter": eph['jupiter barycenter'],
-    "Saturn": eph['saturn barycenter'],
-    "Uranus": eph['uranus barycenter'],
-    "Neptune": eph['neptune barycenter'],
-    "Pluto": eph['pluto barycenter'],
-}
+def _get_skyfield_context():
+    """Lazily load heavy Skyfield resources on first use."""
+    global _TS, _EPH, _EARTH, _PLANETS
+    if _TS is None:
+        _TS = load.timescale()
+    if _EPH is None:
+        _EPH = load("de421.bsp")
+    if _EARTH is None:
+        _EARTH = _EPH[399]  # hard-code geocenter; avoids accidentally using ID 3
+    if _PLANETS is None:
+        _PLANETS = {
+            "Sun": _EPH["sun"],
+            "Moon": _EPH["moon"],
+            "Mercury": _EPH["mercury"],
+            "Venus": _EPH["venus"],
+            "Mars": _EPH["mars"],
+            "Jupiter": _EPH["jupiter barycenter"],
+            "Saturn": _EPH["saturn barycenter"],
+            "Uranus": _EPH["uranus barycenter"],
+            "Neptune": _EPH["neptune barycenter"],
+            "Pluto": _EPH["pluto barycenter"],
+        }
+    return _TS, _EARTH, _PLANETS
 
 _SWE_PLANET_FALLBACK_IDS = {
     "Sun": ("SE_SUN", "SUN"),
@@ -268,13 +280,14 @@ def planetary_positions(dt_aware, lat, lon):
     )
     jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, hour)
 
+    ts, earth, planets = _get_skyfield_context()
     t = ts.from_datetime(dt_aware)
     #location = EARTH + wgs84.latlon(lat * N, lon * E)
 
     results = {}
     earth_at_t = None
     try:
-        earth_at_t = EARTH.at(t)
+        earth_at_t = earth.at(t)
     except Exception:
         # Skyfield/de421 coverage is finite; Swiss Ephemeris fallback below
         # supports broader historical/future ranges.
@@ -309,7 +322,7 @@ def planetary_positions(dt_aware, lat, lon):
             return None
         return lon[0] % 360.0
 
-    for name, body in PLANETS.items():
+    for name, body in planets.items():
         longitude: float | None = None
         if earth_at_t is not None:
             try:
@@ -436,6 +449,7 @@ def local_sidereal_time_deg(dt, lon_deg: float) -> float:
     dt: tz-aware datetime (UTC or with correct tzinfo)
     lon_deg: geographic longitude (positive east, negative west)
     """
+    ts, _earth, _planets = _get_skyfield_context()
     t = ts.from_datetime(dt)
     # Greenwich apparent sidereal time in hours
     gast_hours = t.gast
