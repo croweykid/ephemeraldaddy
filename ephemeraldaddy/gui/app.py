@@ -1617,8 +1617,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_panel_container = QWidget()
         left_panel_container_layout = QVBoxLayout()
         left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        left_panel_container_layout.setSpacing(4)
+        left_panel_container_layout.setSpacing(0)
         left_panel_container.setLayout(left_panel_container_layout)
+        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
+
+        right_panel_container = QWidget()
+        right_panel_container_layout = QVBoxLayout()
+        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_container_layout.setSpacing(0)
+        right_panel_container.setLayout(right_panel_container_layout)
+        right_panel_container_layout.addWidget(self.right_panel_stack, 1)
+
+        panel_controls_row = QWidget()
+        panel_controls_layout = QHBoxLayout()
+        panel_controls_layout.setContentsMargins(0, 0, 0, 0)
+        panel_controls_layout.setSpacing(8)
+        panel_controls_row.setLayout(panel_controls_layout)
 
         left_controls_row = QWidget()
         left_controls_layout = QHBoxLayout()
@@ -1629,15 +1643,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.database_metrics_panel_button)
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
-        left_controls_layout.addStretch(1)
-        left_panel_container_layout.addWidget(left_controls_row)
-        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
-
-        right_panel_container = QWidget()
-        right_panel_container_layout = QVBoxLayout()
-        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        right_panel_container_layout.setSpacing(4)
-        right_panel_container.setLayout(right_panel_container_layout)
 
         right_controls_row = QWidget()
         right_controls_layout = QHBoxLayout()
@@ -1647,9 +1652,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.search_panel_button)
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
-        right_controls_layout.addStretch(1)
-        right_panel_container_layout.addWidget(right_controls_row)
-        right_panel_container_layout.addWidget(self.right_panel_stack, 1)
+
+        panel_controls_layout.addWidget(left_controls_row, alignment=Qt.AlignLeft)
+        panel_controls_layout.addStretch(1)
+        panel_controls_layout.addWidget(right_controls_row, alignment=Qt.AlignRight)
+        layout.addWidget(panel_controls_row)
 
         # Database View - Center list panel (chart list).
         self.list_widget = ChartListWidget()
@@ -1711,7 +1718,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
-        layout.addWidget(self._content_splitter)
+        layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
         self._shortcut_close_ctrl.activated.connect(self.close)
@@ -10411,8 +10418,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if restore_default_size:
             self._content_splitter.setSizes(self._default_content_splitter_sizes())
-        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
-            self._content_splitter.setSizes(self._right_panel_sizes)
+            return
+
+        current_total = max(1, sum(self._content_splitter.sizes()))
+        left_hidden = (not self._left_panel_visible) or self._is_left_panel_collapsed()
+
+        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+            sizes = list(self._right_panel_sizes)
+            right_size = max(0, sizes[2])
+            if left_hidden:
+                self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
+                return
+            self._content_splitter.setSizes(sizes)
+            return
+
+        default_sizes = self._default_content_splitter_sizes()
+        right_size = max(0, default_sizes[2])
+        if left_hidden:
+            self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
+            return
+        self._content_splitter.setSizes(default_sizes)
 
     def _is_left_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
@@ -10439,13 +10464,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
+        current_total = max(1, sum(self._content_splitter.sizes()))
+        right_hidden = (not self._right_panel_visible) or self._is_right_panel_collapsed()
+
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
-            self._content_splitter.setSizes(
-                self._normalize_content_splitter_sizes(self._left_panel_sizes)
-            )
+            sizes = self._normalize_content_splitter_sizes(self._left_panel_sizes)
+            left_size = max(0, sizes[0])
+            if right_hidden:
+                self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
+                return
+            self._content_splitter.setSizes(sizes)
             return
 
-        self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        default_sizes = self._default_content_splitter_sizes()
+        left_size = max(0, default_sizes[0])
+        if right_hidden:
+            self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
+            return
+        self._content_splitter.setSizes(default_sizes)
 
     def _show_left_panel(self, panel_name: str) -> None:
         try:
@@ -10454,7 +10490,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True, restore_default_size=True)
+        self._set_left_panel_visible(True)
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -10594,7 +10630,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True, restore_default_size=True)
+        self._set_right_panel_visible(True)
 
     def _toggle_search_panel(self) -> None:
         if (
