@@ -504,6 +504,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
+CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -12097,6 +12098,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         if force_full_analysis_refresh:
             self._chart_cache = {}
+            owner = self.parent()
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache()
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_dirty_ids.clear()
@@ -12104,6 +12108,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_dirty_ids.update(changed_ids)
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
+            owner = self.parent()
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache(changed_ids)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -14157,6 +14164,7 @@ class MainWindow(QMainWindow):
         self._anagrams_current_subject_label: str = "Chart name"
         self._chart_view_history: list[int] = []
         self._chart_view_history_index: int = -1
+        self._chart_view_navigation_cache: OrderedDict[int, Chart] = OrderedDict()
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -18218,8 +18226,10 @@ class MainWindow(QMainWindow):
         else:
             update_chart(chart_id, chart, **save_kwargs)
             set_current_chart(chart_id)
+            self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        self._cache_chart_view_navigation_entry(chart_id, chart)
         self._mark_chart_analytics_sections_dirty()
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
@@ -18476,6 +18486,25 @@ class MainWindow(QMainWindow):
             return
         self.load_chart_by_id(chart_id)
 
+    def _cache_chart_view_navigation_entry(self, chart_id: int, chart: Chart | None) -> None:
+        if chart is None:
+            return
+        normalized_chart_id = int(chart_id)
+        self._chart_view_navigation_cache[normalized_chart_id] = chart
+        self._chart_view_navigation_cache.move_to_end(normalized_chart_id)
+        while len(self._chart_view_navigation_cache) > CHART_VIEW_NAV_CACHE_LIMIT:
+            self._chart_view_navigation_cache.popitem(last=False)
+
+    def _invalidate_chart_view_navigation_cache(
+        self,
+        chart_ids: set[int] | list[int] | tuple[int, ...] | None = None,
+    ) -> None:
+        if not chart_ids:
+            self._chart_view_navigation_cache.clear()
+            return
+        for chart_id in chart_ids:
+            self._chart_view_navigation_cache.pop(int(chart_id), None)
+
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
@@ -18483,21 +18512,32 @@ class MainWindow(QMainWindow):
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
-        if not is_same_chart_request:
+        cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
+        use_fast_navigation_swap = (
+            from_chart_link
+            and not is_same_chart_request
+            and cached_chart is not None
+        )
+        if not is_same_chart_request and not use_fast_navigation_swap:
             self._clear_chart_displays()
             self._sync_chart_right_panel_placeholder_state(None)
             self._show_chart_loading_overlay()
             QApplication.processEvents()
-        try:
-            chart = load_chart(chart_id)
-        except Exception as e:
-            self._hide_chart_loading_overlay()
-            QMessageBox.critical(
-                self,
-                "Load error",
-                f"Could not load chart #{chart_id}:\n{e}",
-            )
-            return False
+        if cached_chart is not None:
+            chart = cached_chart
+            self._chart_view_navigation_cache.move_to_end(int(chart_id))
+        else:
+            try:
+                chart = load_chart(chart_id)
+            except Exception as e:
+                self._hide_chart_loading_overlay()
+                QMessageBox.critical(
+                    self,
+                    "Load error",
+                    f"Could not load chart #{chart_id}:\n{e}",
+                )
+                return False
+            self._cache_chart_view_navigation_entry(chart_id, chart)
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
@@ -18600,6 +18640,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
@@ -18686,6 +18727,7 @@ class MainWindow(QMainWindow):
         manage_dialog._size_checker_popup = self._size_checker_popup
 
     def _on_charts_deleted(self, chart_ids: set[int]) -> None:
+        self._invalidate_chart_view_navigation_cache(chart_ids)
         if self.current_chart_id is None or self.current_chart_id not in chart_ids:
             return
         self._orphan_current_chart_reference()
