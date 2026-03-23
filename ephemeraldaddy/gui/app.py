@@ -355,6 +355,9 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     extract_aspect_weight as _extract_aspect_weight,
     normalize_aspect_type as _normalize_aspect_type,
 )
+from ephemeraldaddy.gui.features.charts.duplicate_detection import (
+    find_possible_duplicate_charts,
+)
 
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
@@ -1436,6 +1439,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
+        self._possible_duplicate_related_names: dict[int, list[str]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -10786,7 +10790,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        self._possible_duplicate_chart_ids = self._compute_possible_duplicate_chart_ids(rows)
+        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        if not duplicate_ids:
+            self._possible_duplicate_chart_ids = set()
+            self._possible_duplicate_related_names = {}
+            self._show_possible_duplicates_collection = False
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._refresh_collection_controls()
+            self._populate_list()
+            QMessageBox.information(
+                self,
+                "Possible duplicates",
+                "No possible duplicates were found from names or birthdays.",
+            )
+            return
+        self._possible_duplicate_chart_ids = duplicate_ids
+        self._possible_duplicate_related_names = related_names
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
@@ -12453,6 +12473,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
+                if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    if related_names:
+                        tooltip_names = ", ".join(related_names[:5])
+                        if len(related_names) > 5:
+                            tooltip_names = f"{tooltip_names}, …"
+                        item.setToolTip(f"Similar to: {tooltip_names}")
                 item.setData(
                     Qt.UserRole + 1,
                     {
