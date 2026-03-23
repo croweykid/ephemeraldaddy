@@ -340,6 +340,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
     DEFAULT_COLLECTION_IDS,
     DEFAULT_COLLECTION_OPTIONS,
+    DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
     CustomCollection,
     chart_belongs_to_collection,
     normalize_collection_id,
@@ -352,6 +353,9 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     draw_popout_aspect_distribution_chart as _draw_popout_aspect_distribution_chart,
     extract_aspect_weight as _extract_aspect_weight,
     normalize_aspect_type as _normalize_aspect_type,
+)
+from ephemeraldaddy.gui.features.charts.duplicate_detection import (
+    find_possible_duplicate_charts,
 )
 
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
@@ -1433,6 +1437,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
+        self._possible_duplicate_chart_ids: set[int] = set()
+        self._possible_duplicate_related_names: dict[int, list[str]] = {}
+        self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
             str,
@@ -2475,6 +2482,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _coerce_active_collection_id(self, value: object) -> str:
         candidate = normalize_collection_id(value)
+        if candidate == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+            if self._show_possible_duplicates_collection:
+                return candidate
+            return DEFAULT_COLLECTION_ALL
         if candidate in DEFAULT_COLLECTION_IDS or candidate in self._custom_collections:
             return candidate
         return DEFAULT_COLLECTION_ALL
@@ -9021,6 +9032,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
 
+        self.batch_check_duplicates_button = QPushButton("Check for Duplicates")
+        self.batch_check_duplicates_button.clicked.connect(self._on_check_for_duplicates)
+        self.batch_check_duplicates_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_check_duplicates_button)
+
         layout.addWidget(actions_row_bottom)
 
         divider_actions_charts = QFrame()
@@ -10691,6 +10707,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.collection_combo.clear()
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
             self.collection_combo.addItem(collection_label, collection_id)
+        if self._show_possible_duplicates_collection:
+            self.collection_combo.addItem(
+                "*possible duplicates*",
+                DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
+            )
         for custom_collection in sorted(
             self._custom_collections.values(),
             key=lambda collection: collection.name.casefold(),
@@ -10744,9 +10765,50 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.collection_remove_selected_button.setStyleSheet(inactive_style)
 
     def _on_collection_changed(self, index: int) -> None:
+        previous_collection_id = self._active_collection_id
         collection_id = normalize_collection_id(self.collection_combo.itemData(index))
         self._active_collection_id = self._coerce_active_collection_id(collection_id)
-        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        if (
+            self._show_possible_duplicates_collection
+            and previous_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            and self._active_collection_id != DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        ):
+            self._show_possible_duplicates_collection = False
+            self._refresh_collection_controls()
+        persisted_collection_id = (
+            DEFAULT_COLLECTION_ALL
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            else self._active_collection_id
+        )
+        self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
+        self._populate_list()
+
+    def _on_check_for_duplicates(self) -> None:
+        rows = [
+            normalized
+            for row in self._chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+        ]
+        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        if not duplicate_ids:
+            self._possible_duplicate_chart_ids = set()
+            self._possible_duplicate_related_names = {}
+            self._show_possible_duplicates_collection = False
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._refresh_collection_controls()
+            self._populate_list()
+            QMessageBox.information(
+                self,
+                "Possible duplicates",
+                "No possible duplicates were found from names or birthdays.",
+            )
+            return
+        self._possible_duplicate_chart_ids = duplicate_ids
+        self._possible_duplicate_related_names = related_names
+        self._show_possible_duplicates_collection = True
+        self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        self._refresh_collection_controls()
         self._populate_list()
 
     def _selected_custom_collection_id(self) -> str | None:
@@ -11019,7 +11081,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/left_panel_visible", int(self._left_panel_visible))
         self._settings.setValue("manage_charts/active_right_panel", self._active_right_panel)
         self._settings.setValue("manage_charts/right_panel_visible", int(self._right_panel_visible))
-        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        persisted_collection_id = (
+            DEFAULT_COLLECTION_ALL
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            else self._active_collection_id
+        )
+        self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._save_custom_collections_to_settings()
         self._settings.setValue("app/last_view", "database")
 
@@ -12330,6 +12397,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
+                if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    if related_names:
+                        tooltip_names = ", ".join(related_names[:5])
+                        if len(related_names) > 5:
+                            tooltip_names = f"{tooltip_names}, …"
+                        item.setToolTip(f"Similar to: {tooltip_names}")
                 item.setData(
                     Qt.UserRole + 1,
                     {
@@ -12988,6 +13062,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ],
     ) -> bool:
         chart_id = normalized_row[0]
+        if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+            return chart_id in self._possible_duplicate_chart_ids
         chart_source = normalized_row[14]
         chart = self._get_chart_for_filter(chart_id)
         return chart_belongs_to_collection(
