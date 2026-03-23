@@ -1614,11 +1614,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._active_left_panel = "todays_transits"
         self._left_panel_sizes = None
 
-        left_panel_container = QWidget()
-        left_panel_container_layout = QVBoxLayout()
-        left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        left_panel_container_layout.setSpacing(4)
-        left_panel_container.setLayout(left_panel_container_layout)
+        controls_header_row = QWidget()
+        controls_header_layout = QHBoxLayout()
+        controls_header_layout.setContentsMargins(0, 0, 0, 0)
+        controls_header_layout.setSpacing(8)
+        controls_header_row.setLayout(controls_header_layout)
 
         left_controls_row = QWidget()
         left_controls_layout = QHBoxLayout()
@@ -1630,15 +1630,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
         left_controls_layout.addStretch(1)
-        self._left_panel_controls_row = left_controls_row
-        left_panel_container_layout.addWidget(left_controls_row)
-        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
-
-        right_panel_container = QWidget()
-        right_panel_container_layout = QVBoxLayout()
-        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
-        right_panel_container_layout.setSpacing(4)
-        right_panel_container.setLayout(right_panel_container_layout)
 
         right_controls_row = QWidget()
         right_controls_layout = QHBoxLayout()
@@ -1649,8 +1640,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
         right_controls_layout.addStretch(1)
-        self._right_panel_controls_row = right_controls_row
-        right_panel_container_layout.addWidget(right_controls_row)
+
+        controls_header_layout.addWidget(left_controls_row, 0, Qt.AlignLeft)
+        controls_header_layout.addStretch(1)
+        controls_header_layout.addWidget(right_controls_row, 0, Qt.AlignRight)
+        layout.addWidget(controls_header_row)
+
+        self._left_panel_controls_row = None
+        self._right_panel_controls_row = None
+
+        left_panel_container = QWidget()
+        left_panel_container_layout = QVBoxLayout()
+        left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        left_panel_container_layout.setSpacing(0)
+        left_panel_container.setLayout(left_panel_container_layout)
+        left_panel_container_layout.addWidget(self.left_panel_stack, 1)
+
+        right_panel_container = QWidget()
+        right_panel_container_layout = QVBoxLayout()
+        right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        right_panel_container_layout.setSpacing(0)
+        right_panel_container.setLayout(right_panel_container_layout)
         right_panel_container_layout.addWidget(self.right_panel_stack, 1)
 
         # Database View - Center list panel (chart list).
