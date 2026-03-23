@@ -356,6 +356,9 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     extract_aspect_weight as _extract_aspect_weight,
     normalize_aspect_type as _normalize_aspect_type,
 )
+from ephemeraldaddy.gui.features.charts.duplicate_detection import (
+    find_possible_duplicate_charts,
+)
 
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
@@ -1443,6 +1446,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
+        self._possible_duplicate_related_names: dict[int, list[str]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -9655,6 +9659,97 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._on_filter_changed()
 
     @staticmethod
+    def _normalize_tag_list(tags: list[str] | tuple[str, ...] | None) -> list[str]:
+        if not tags:
+            return []
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw_value in tags:
+            tag = str(raw_value or "").strip()
+            if not tag:
+                continue
+            dedupe_key = tag.casefold()
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            normalized.append(tag)
+        return normalized
+
+    @classmethod
+    def _parse_tag_text(cls, raw_value: str | None) -> list[str]:
+        return cls._normalize_tag_list(parse_tags(raw_value or ""))
+
+    def _all_known_chart_tags(self) -> list[str]:
+        known_tags: dict[str, str] = {}
+        chart_ids = [int(row[0]) for row in getattr(self, "_chart_rows", [])]
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                continue
+            for tag in self._normalize_tag_list(getattr(chart, "tags", [])):
+                key = tag.casefold()
+                if key not in known_tags:
+                    known_tags[key] = tag
+        return sorted(known_tags.values(), key=lambda value: value.casefold())
+
+    def _update_tag_completers(self) -> None:
+        known_tags = self._all_known_chart_tags()
+        self._known_chart_tags = known_tags
+        chart_input = getattr(self, "chart_tags_input", None)
+        search_input = getattr(self, "search_tags_input", None)
+        for line_edit in (chart_input, search_input):
+            if not isinstance(line_edit, QLineEdit):
+                continue
+            completer = QCompleter(known_tags, line_edit)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            completer.activated[str].connect(
+                lambda value, target=line_edit: self._replace_active_tag_segment(target, value)
+            )
+            line_edit.setCompleter(completer)
+            line_edit._tags_completer = completer
+
+    @staticmethod
+    def _render_tag_chip_preview(preview_label: QLabel | None, tags: list[str]) -> None:
+        if preview_label is None:
+            return
+        if not tags:
+            preview_label.setText("")
+            return
+        chips = []
+        for tag in tags:
+            safe_tag = html.escape(tag)
+            chips.append(
+                "<span style=\""
+                "background:#d9d9d9;"
+                "color:#222;"
+                "border:1px solid #bdbdbd;"
+                "border-radius:8px;"
+                "padding:1px 6px;"
+                "margin-right:4px;"
+                "\">"
+                f"{safe_tag}"
+                "</span>"
+            )
+        preview_label.setText(" ".join(chips))
+
+    def _replace_active_tag_segment(self, line_edit: QLineEdit, completed_tag: str) -> None:
+        current_text = line_edit.text()
+        leading, separator, trailing = current_text.rpartition(",")
+        if separator:
+            prefix = f"{leading}, "
+        else:
+            prefix = ""
+        new_text = f"{prefix}{completed_tag}, "
+        line_edit.setText(new_text)
+        line_edit.setCursorPosition(len(new_text))
+
+    def _on_search_tags_changed(self, *_: object) -> None:
+        tags = self._parse_tag_text(self.search_tags_input.text())
+        self._render_tag_chip_preview(self.search_tags_preview_label, tags)
+        self._on_filter_changed()
+
+    @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
         value = (raw_value or "").strip()
         if value == "":
@@ -10828,7 +10923,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        self._possible_duplicate_chart_ids = self._compute_possible_duplicate_chart_ids(rows)
+        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        if not duplicate_ids:
+            self._possible_duplicate_chart_ids = set()
+            self._possible_duplicate_related_names = {}
+            self._show_possible_duplicates_collection = False
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._refresh_collection_controls()
+            self._populate_list()
+            QMessageBox.information(
+                self,
+                "Possible duplicates",
+                "No possible duplicates were found from names or birthdays.",
+            )
+            return
+        self._possible_duplicate_chart_ids = duplicate_ids
+        self._possible_duplicate_related_names = related_names
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
@@ -12498,6 +12609,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
+                if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    if related_names:
+                        tooltip_names = ", ".join(related_names[:5])
+                        if len(related_names) > 5:
+                            tooltip_names = f"{tooltip_names}, …"
+                        item.setToolTip(f"Similar to: {tooltip_names}")
                 item.setData(
                     Qt.UserRole + 1,
                     {
