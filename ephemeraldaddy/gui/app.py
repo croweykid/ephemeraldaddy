@@ -433,6 +433,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
+from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     build_anagrams_section,
@@ -1286,6 +1287,7 @@ class EmojiTiledPanel(QWidget):
         for y in range(0, self.height() + tile_height, tile_height):
             for x in range(0, self.width() + tile_width, tile_width):
                 painter.drawText(x, y + baseline_offset, self._emoji)
+
 
 def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
     """Select the next item whose name starts with the typed letter."""
@@ -14297,7 +14299,9 @@ class MainWindow(QMainWindow):
         self.chart_canvas_overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_canvas_overlay_layout.setSpacing(0)
         self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
+        self.chart_loading_overlay = ChartLoadingOverlay(self.chart_canvas_overlay_container)
         self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
+        self.chart_canvas_overlay_layout.addWidget(self.chart_loading_overlay, 0, 0)
         self.chart_canvas_overlay_layout.addWidget(
             self.manage_button,
             0,
@@ -18334,10 +18338,12 @@ class MainWindow(QMainWindow):
         if not is_same_chart_request:
             self._clear_chart_displays()
             self._sync_chart_right_panel_placeholder_state(None)
+            self._show_chart_loading_overlay()
             QApplication.processEvents()
         try:
             chart = load_chart(chart_id)
         except Exception as e:
+            self._hide_chart_loading_overlay()
             QMessageBox.critical(
                 self,
                 "Load error",
@@ -18449,6 +18455,7 @@ class MainWindow(QMainWindow):
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays()
+            self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
@@ -18660,6 +18667,16 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
+    def _show_chart_loading_overlay(self) -> None:
+        overlay = getattr(self, "chart_loading_overlay", None)
+        if overlay is not None:
+            overlay.start()
+
+    def _hide_chart_loading_overlay(self) -> None:
+        overlay = getattr(self, "chart_loading_overlay", None)
+        if overlay is not None:
+            overlay.stop()
+
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
         self._pending_render_chart = chart
@@ -18689,6 +18706,7 @@ class MainWindow(QMainWindow):
         chart = self._pending_render_chart
         if chart is None:
             self._pending_render_sections.clear()
+            self._hide_chart_loading_overlay()
             return
         sections = set(self._pending_render_sections)
         self._pending_render_sections.clear()
@@ -18718,6 +18736,7 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         if "anagrams" in sections:
             self._render_anagrams(chart)
+        self._hide_chart_loading_overlay()
 
     def _render_metric_panel(
         self,
@@ -18832,6 +18851,7 @@ class MainWindow(QMainWindow):
             self._anagrams_selected_source,
             "Chart name",
         )
+        self._hide_chart_loading_overlay()
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
