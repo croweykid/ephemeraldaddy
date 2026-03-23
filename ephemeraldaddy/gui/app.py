@@ -376,6 +376,10 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
+from ephemeraldaddy.gui.features.charts.anagrams import (
+    build_anagrams_section,
+    render_anagrams_text,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -13119,6 +13123,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(planet_dynamics_checkbox)
 
+        anagrams_checkbox = QCheckBox("Show Anagrams (Chart Analytics)")
+        anagrams_checkbox.setChecked(
+            isinstance(parent, MainWindow)
+            and parent._is_chart_analysis_section_visible("anagrams")
+        )
+        anagrams_checkbox.toggled.connect(
+            lambda checked: self._set_chart_analytics_visibility_from_settings(
+                "anagrams",
+                checked,
+            )
+        )
+        visibility_section.addWidget(anagrams_checkbox)
+
         visibility_section.addSpacing(8)
         visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)"))
 
@@ -13311,9 +13328,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._chart_analysis_section_visible["planet_dynamics"] = parent._visibility.get(
-                "chart_analytics.planet_dynamics"
-            )
+            for section_key in ("planet_dynamics", "anagrams"):
+                parent._chart_analysis_section_visible[section_key] = parent._visibility.get(
+                    f"chart_analytics.{section_key}"
+                )
             parent._sync_chart_analysis_section_visibility()
             parent._reset_interface_layout_to_defaults()
 
@@ -13889,6 +13907,8 @@ class MainWindow(QMainWindow):
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_list_label: QLabel | None = None
+        self._anagrams_summary_label: QLabel | None = None
+        self._anagrams_list_label: QLabel | None = None
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -14720,9 +14740,24 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_visible["planet_dynamics"] = self._visibility.get(
             "chart_analytics.planet_dynamics"
         )
+        self._chart_analysis_section_visible["anagrams"] = self._visibility.get(
+            "chart_analytics.anagrams"
+        )
 
         self._create_chart_analysis_sections(metrics_content)
         self._create_similar_charts_section(metrics_content)
+        anagrams_section = build_anagrams_section(
+            panel=metrics_content,
+            layout=self.metrics_layout,
+            add_collapsible_section=self._add_chart_analysis_collapsible_section,
+            on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
+                "anagrams",
+                checked,
+            ),
+        )
+        self._chart_analysis_section_expanded["anagrams"] = False
+        self._anagrams_summary_label = anagrams_section.summary_label
+        self._anagrams_list_label = anagrams_section.list_label
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
         self._active_chart_right_panel = "analytics"
@@ -14806,6 +14841,8 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_visible[section_key] = visible
         self._visibility.set(f"chart_analytics.{section_key}", visible)
         self._sync_chart_analysis_section_visibility()
+        if section_key == "anagrams" and visible and self._latest_chart is not None:
+            self._render_anagrams(self._latest_chart)
 
     def _sync_chart_analysis_section_visibility(self) -> None:
         for section_key, section_widget in self._chart_analysis_section_widgets.items():
@@ -14819,6 +14856,7 @@ class MainWindow(QMainWindow):
         *,
         expanded: bool = False,
         on_toggled: Callable[[bool], None] | None = None,
+        section_key: str | None = None,
     ) -> QVBoxLayout:
         return self._chart_analysis_sections_controller.add_collapsible_section(
             panel=panel,
@@ -14826,6 +14864,7 @@ class MainWindow(QMainWindow):
             title=title,
             expanded=expanded,
             on_toggled=on_toggled,
+            section_key=section_key,
         )
 
     def _add_chart_analysis_section(
@@ -14985,6 +15024,12 @@ class MainWindow(QMainWindow):
                 ]
             )
         self._similar_charts_list_label.setText("\n".join(lines).rstrip())
+
+    def _render_anagrams(self, chart: Chart) -> None:
+        if self._anagrams_list_label is None:
+            return
+        chart_name = str(getattr(chart, "name", "") or "")
+        self._anagrams_list_label.setText(render_anagrams_text(chart_name))
 
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
@@ -18215,6 +18260,8 @@ class MainWindow(QMainWindow):
                 "similar_charts",
                 "wheel",
             }
+            if self._is_chart_analysis_section_visible("anagrams"):
+                sections.add("anagrams")
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
@@ -18252,6 +18299,8 @@ class MainWindow(QMainWindow):
             self._render_chart(chart)
         if "similar_charts" in sections:
             self._render_similar_charts(chart)
+        if "anagrams" in sections:
+            self._render_anagrams(chart)
 
     def _render_metric_panel(
         self,
@@ -18353,6 +18402,10 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
+            )
+        if self._anagrams_list_label is not None:
+            self._anagrams_list_label.setText(
+                "Generate or load a chart to scan chart-name letters."
             )
 
     def _render_sign_tally(self, chart: Chart) -> None:
