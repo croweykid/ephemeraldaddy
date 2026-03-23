@@ -2351,12 +2351,12 @@ SENTIMENT_COLORS = {
 #It'll mess up your existing database.
 RELATION_TYPE = [
     "self", #it's just you
-    "ride or die", #bloodbound, mututal suicide pact stuff
+    "ride or die", #structurally intertwined, Heavenly Creatures type stuff
     "core posse", #inseparable, bosom chum
     "homie", #your chum
-    "mentor", #someone you look up to
-    "ward", #someone you look after as their mentor/caregiver
-    "lover", #hooked up
+    "mentor", #helps you understand who/what you could be, and how
+    "ward", #a human in your care; you look after them as their caregiver/provider
+    "lover", #ya hooked up
     "frenemy", #it's complicated
     "minor foe", #we're not cool
     "nemesis", #big problem
@@ -2365,18 +2365,18 @@ RELATION_TYPE = [
     "kin by blood", #ancestors, cousins & siblings
     "colleague", #work with
     "authority", #power dynamic
-    "acquaintance", #just seem em around
-    "friend of family",
-    "friend of friend",
-    "family of friend",
-    "your lover's ex",
-    "your friend's ex",
-    "pet",
-    "only talk online",
+    "acquaintance", #just seem em around, kinda know about them a little
+    "friend of family", #(they're just around)
+    "friend of friend", #(they're just around)
+    "family of friend", #(they're just around)
+    "your lover's ex", #(self-explanatory; here cos most people have feelings about it)
+    "your friend's ex", #(self-explanatory; here cos some people have feelings about it)
+    "pet", #a nonhuman creature in your care
+    "only talk online", #you've only met online
     "never met", #maybe a friend of a friend you only know by reputation
     "public figure", #icon, subject to projections
-    "place",
-    "event",
+    "place", #why does this require explanation? don't get philosophical on me.
+    "event", #aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak
 ]
 
 

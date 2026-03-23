@@ -16,6 +16,7 @@ import subprocess
 import sys
 import traceback
 import urllib.parse
+from difflib import SequenceMatcher
 from collections import Counter, OrderedDict
 from typing import Any, Callable
 from types import SimpleNamespace
@@ -10810,6 +10811,81 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
         self._populate_list()
+
+    @staticmethod
+    def _normalize_duplicate_name(value: object) -> str:
+        text = str(value or "").strip().casefold()
+        if not text:
+            return ""
+        return re.sub(r"[^a-z0-9]+", "", text)
+
+    def _compute_possible_duplicate_chart_ids(
+        self,
+        rows: list[
+            tuple[
+                int,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                int,
+                int,
+                int,
+                int,
+                int,
+                int | None,
+                int,
+                str,
+                int,
+                int,
+                int | None,
+                int | None,
+                int | None,
+            ]
+        ],
+    ) -> set[int]:
+        duplicate_ids: set[int] = set()
+        birthday_groups: dict[tuple[int, int], list[int]] = {}
+        name_groups: dict[str, list[int]] = {}
+        names_by_id: dict[int, str] = {}
+        for row in rows:
+            chart_id = int(row[0])
+            birth_month = row[17]
+            birth_day = row[18]
+            if isinstance(birth_month, int) and isinstance(birth_day, int):
+                birthday_key = (birth_month, birth_day)
+                birthday_groups.setdefault(birthday_key, []).append(chart_id)
+
+            normalized_name = self._normalize_duplicate_name(row[1] or row[2] or "")
+            if normalized_name:
+                names_by_id[chart_id] = normalized_name
+                name_groups.setdefault(normalized_name, []).append(chart_id)
+
+        for chart_ids in birthday_groups.values():
+            if len(chart_ids) >= 2:
+                duplicate_ids.update(chart_ids)
+        for chart_ids in name_groups.values():
+            if len(chart_ids) >= 2:
+                duplicate_ids.update(chart_ids)
+
+        buckets: dict[str, list[tuple[int, str]]] = {}
+        for chart_id, name in names_by_id.items():
+            bucket_key = name[:1]
+            buckets.setdefault(bucket_key, []).append((chart_id, name))
+        for bucket_entries in buckets.values():
+            for index, (left_id, left_name) in enumerate(bucket_entries):
+                for right_id, right_name in bucket_entries[index + 1 :]:
+                    if left_id == right_id:
+                        continue
+                    if abs(len(left_name) - len(right_name)) > 2:
+                        continue
+                    score = SequenceMatcher(None, left_name, right_name).ratio()
+                    if score >= 0.88:
+                        duplicate_ids.add(left_id)
+                        duplicate_ids.add(right_id)
+        return duplicate_ids
 
     def _selected_custom_collection_id(self) -> str | None:
         current_item = self.collections_list_widget.currentItem()
