@@ -1624,6 +1624,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_controls_layout.addWidget(self.gen_pop_norms_panel_button)
         left_controls_layout.addWidget(self.similarities_panel_button)
         left_controls_layout.addStretch(1)
+        self._left_panel_controls_row = left_controls_row
         left_panel_container_layout.addWidget(left_controls_row)
         left_panel_container_layout.addWidget(self.left_panel_stack, 1)
 
@@ -1642,6 +1643,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
         right_controls_layout.addStretch(1)
+        self._right_panel_controls_row = right_controls_row
         right_panel_container_layout.addWidget(right_controls_row)
         right_panel_container_layout.addWidget(self.right_panel_stack, 1)
 
@@ -10386,6 +10388,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
 
+    def _panel_controls_collapsed_width(self, controls_row: QWidget | None) -> int:
+        if controls_row is None:
+            return 0
+        hint_width = controls_row.sizeHint().width()
+        min_width = controls_row.minimumSizeHint().width()
+        return max(hint_width, min_width, 0)
+
     def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
             if visible and restore_default_size:
@@ -10397,10 +10406,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._right_panel_sizes = self._content_splitter.sizes()
             sizes = self._right_panel_sizes
             if len(sizes) >= 3:
+                collapsed_width = self._panel_controls_collapsed_width(
+                    getattr(self, "_right_panel_controls_row", None)
+                )
                 total = sum(sizes)
                 left_size = sizes[0]
-                middle_size = max(0, total - left_size)
-                self._content_splitter.setSizes([left_size, middle_size, 0])
+                middle_size = max(0, total - left_size - collapsed_width)
+                self._content_splitter.setSizes([left_size, middle_size, collapsed_width])
             return
 
         if restore_default_size:
@@ -10423,10 +10435,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._left_panel_sizes = self._content_splitter.sizes()
             sizes = self._left_panel_sizes
             if len(sizes) >= 3:
+                collapsed_width = self._panel_controls_collapsed_width(
+                    getattr(self, "_left_panel_controls_row", None)
+                )
                 total = sum(sizes)
                 right_size = sizes[2]
-                middle_size = max(0, total - right_size)
-                self._content_splitter.setSizes([0, middle_size, right_size])
+                middle_size = max(0, total - right_size - collapsed_width)
+                self._content_splitter.setSizes([collapsed_width, middle_size, right_size])
             return
 
         if restore_default_size:
