@@ -416,6 +416,7 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_aspect_distribution_csv_dialog as _export_aspect_distribution_csv_dialog,
+    get_text_export_path as _get_text_export_path,
 )
 from ephemeraldaddy.gui.features.charts.text_summary import (
     _aspect_body_with_sign,
@@ -502,6 +503,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birthplace",
     }
 )
+SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -14104,6 +14106,9 @@ class MainWindow(QMainWindow):
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_list_label: QLabel | None = None
+        self._similar_charts_export_button: QToolButton | None = None
+        self._similar_charts_export_rows: list[dict[str, Any]] = []
+        self._similar_charts_subject_name: str = ""
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
         self._anagrams_export_button: QToolButton | None = None
@@ -15158,6 +15163,28 @@ class MainWindow(QMainWindow):
         section_layout.addWidget(summary_label)
         self._similar_charts_summary_label = summary_label
 
+        header_row = QWidget()
+        header_layout = QHBoxLayout(header_row)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
+        header_layout.addWidget(QLabel("Top 3 matches"))
+        header_layout.addStretch(1)
+        export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            export_button.setIcon(QIcon(share_icon_path))
+            export_button.setIconSize(QSize(14, 14))
+        else:
+            export_button.setText("↗")
+        export_button.setAutoRaise(True)
+        export_button.setCursor(Qt.PointingHandCursor)
+        export_button.setToolTip("Export similar charts as TXT or Markdown")
+        export_button.clicked.connect(self._export_similar_charts_share)
+        header_layout.addWidget(export_button, 0, Qt.AlignRight)
+        section_layout.addWidget(header_row)
+        self._similar_charts_export_button = export_button
+        self._similar_charts_export_button.setEnabled(False)
+
         list_label = QLabel("Generate or load a chart to search for matches.")
         list_label.setWordWrap(True)
         list_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -15216,6 +15243,10 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         if getattr(chart, "is_placeholder", False):
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 "Similar chart matching is disabled for placeholder charts."
             )
@@ -15224,6 +15255,10 @@ class MainWindow(QMainWindow):
         try:
             rows = list_charts()
         except Exception as exc:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 f"Could not read saved charts for twin matching:\n{exc}"
             )
@@ -15244,6 +15279,10 @@ class MainWindow(QMainWindow):
             candidates.append((chart_id, candidate))
 
         if not candidates:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 "Need at least one additional non-placeholder saved chart in the database."
             )
@@ -15256,9 +15295,17 @@ class MainWindow(QMainWindow):
             exclude_chart_id=self.current_chart_id,
         )
         if not matches:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText("No similar charts found.")
             return
 
+        self._similar_charts_subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+        self._similar_charts_export_rows = []
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(True)
         match_blocks: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
@@ -15276,7 +15323,73 @@ class MainWindow(QMainWindow):
                     f" distribution {match.distribution_score * 100.0:.0f}%)"
                 )
             )
+            self._similar_charts_export_rows.append(
+                {
+                    "rank": rank,
+                    "chart_id": match.chart_id,
+                    "chart_name": match.chart_name,
+                    "similarity_percent": round(match.score * 100.0, 1),
+                    "placement_percent": round(match.placement_score * 100.0, 1),
+                    "aspect_percent": round(match.aspect_score * 100.0, 1),
+                    "distribution_percent": round(match.distribution_score * 100.0, 1),
+                }
+            )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
+
+    def _export_similar_charts_share(self) -> None:
+        if not self._similar_charts_export_rows:
+            QMessageBox.information(
+                self,
+                "Export similar charts",
+                "Generate or load a chart first.",
+            )
+            return
+        export_date = datetime.date.today().isoformat()
+        subject_token = self._sanitize_export_token(self._similar_charts_subject_name or "chart")
+        file_path = _get_text_export_path(
+            self,
+            self._settings,
+            dialog_title="Export similar charts",
+            default_stem=f"similar-charts-{subject_token}-{export_date}",
+            preference_key=SIMILAR_CHARTS_EXPORT_FORMAT_KEY,
+            default_extension=".txt",
+        )
+        if not file_path:
+            return
+
+        is_markdown = file_path.lower().endswith(".md")
+        lines: list[str] = []
+        if is_markdown:
+            lines.append(f"# Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
+            lines.append("")
+            lines.append(
+                "| Rank | Chart ID | Chart | Similarity | Placement | Aspects | Distribution |"
+            )
+            lines.append("|---:|---:|---|---:|---:|---:|---:|")
+            for row in self._similar_charts_export_rows:
+                lines.append(
+                    f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
+                    f"{row['similarity_percent']:.1f}% | {row['placement_percent']:.1f}% | "
+                    f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% |"
+                )
+        else:
+            lines.append(f"Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
+            lines.append("")
+            for row in self._similar_charts_export_rows:
+                lines.append(
+                    f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
+                    f"Similarity {row['similarity_percent']:.1f}% "
+                    f"(placements {row['placement_percent']:.1f}%, "
+                    f"aspects {row['aspect_percent']:.1f}%, "
+                    f"distribution {row['distribution_percent']:.1f}%)"
+                )
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(lines).rstrip() + "\n")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
+            return
+        QMessageBox.information(self, "Export complete", f"Saved similar charts export to:\n{file_path}")
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
@@ -18957,6 +19070,10 @@ class MainWindow(QMainWindow):
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
             )
+        self._similar_charts_export_rows = []
+        self._similar_charts_subject_name = ""
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(False)
         if self._anagrams_list_label is not None:
             source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
             self._anagrams_list_label.setText(
