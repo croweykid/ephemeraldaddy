@@ -15237,6 +15237,9 @@ class MainWindow(QMainWindow):
                 )
             )
 
+    def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
+        return _sanitize_export_token(value, fallback)
+
     def _export_anagrams_share(self) -> None:
         if not self._anagrams_current_chart_text:
             QMessageBox.information(
@@ -18202,6 +18205,11 @@ class MainWindow(QMainWindow):
     def load_chart_by_id(self, chart_id: int) -> bool:
         if not self._confirm_discard_or_save():
             return False
+        is_same_chart_request = self.current_chart_id == chart_id
+        if not is_same_chart_request:
+            self._clear_chart_displays()
+            self._sync_chart_right_panel_placeholder_state(None)
+            QApplication.processEvents()
         try:
             chart = load_chart(chart_id)
         except Exception as e:
