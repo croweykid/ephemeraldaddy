@@ -14096,6 +14096,7 @@ class MainWindow(QMainWindow):
         self._anagrams_clicked_definitions: dict[str, str] = {}
         self._anagrams_current_chart_text: str = ""
         self._anagrams_current_subject_label: str = "Chart name"
+        self._chart_view_navigation_stack: list[int] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -14128,7 +14129,7 @@ class MainWindow(QMainWindow):
         # the chart panel so Chart View can reclaim vertical space.
         self.manage_button = QPushButton("↩")
         self.manage_button.setObjectName("manage_button")
-        self.manage_button.clicked.connect(self.on_manage_charts)
+        self.manage_button.clicked.connect(self._on_chart_view_back_requested)
         self.manage_button.setToolTip("Back to Database View")
         self.manage_button.setFixedSize(36, 24)
         # Commented out per request: remove the top-row Chart View action buttons
@@ -15146,7 +15147,16 @@ class MainWindow(QMainWindow):
             chart_id = int(target)
         except (TypeError, ValueError):
             return
-        self.load_chart_by_id(chart_id)
+        previous_chart_id = self.current_chart_id
+        if previous_chart_id is not None and previous_chart_id != chart_id:
+            self._chart_view_navigation_stack.append(previous_chart_id)
+        loaded = self.load_chart_by_id(chart_id, from_chart_link=True)
+        if not loaded and previous_chart_id is not None and previous_chart_id != chart_id:
+            if (
+                self._chart_view_navigation_stack
+                and self._chart_view_navigation_stack[-1] == previous_chart_id
+            ):
+                self._chart_view_navigation_stack.pop()
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18055,6 +18065,7 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
+        self._chart_view_navigation_stack.clear()
         self.current_chart_id = None
         set_current_chart(None)
         self._loaded_birth_place = None
@@ -18265,10 +18276,12 @@ class MainWindow(QMainWindow):
             return
         self.load_chart_by_id(chart_id)
 
-    def load_chart_by_id(self, chart_id: int) -> bool:
+    def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
         is_same_chart_request = self.current_chart_id == chart_id
+        if not from_chart_link and not is_same_chart_request:
+            self._chart_view_navigation_stack.clear()
         if not is_same_chart_request:
             self._clear_chart_displays()
             self._sync_chart_right_panel_placeholder_state(None)
@@ -18395,6 +18408,17 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(chart)
         return True
 
+    def _on_chart_view_back_requested(self) -> None:
+        while self._chart_view_navigation_stack:
+            previous_chart_id = self._chart_view_navigation_stack.pop()
+            if self.current_chart_id is not None and previous_chart_id == self.current_chart_id:
+                continue
+            if self.load_chart_by_id(previous_chart_id, from_chart_link=True):
+                return
+            self._chart_view_navigation_stack.append(previous_chart_id)
+            return
+        self.on_manage_charts()
+
     def _get_or_create_manage_charts_dialog(self) -> ManageChartsDialog:
         if self._manage_charts_dialog is None:
             self._manage_charts_dialog = ManageChartsDialog(self)
@@ -18418,6 +18442,7 @@ class MainWindow(QMainWindow):
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def on_manage_charts(self):
+        self._chart_view_navigation_stack.clear()
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
         opened = self._charts_controller.open_manage_charts()
