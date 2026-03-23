@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import math
-import socket
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
 
+import requests
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
@@ -198,30 +195,38 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
     cleaned = str(word or "").strip().casefold()
     if not cleaned.isalpha():
         return "Definition unavailable."
-    endpoints = (
+
+    dictionary_api_endpoints = (
         f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}",
         f"https://api.dictionaryapi.dev/api/v2/entries/en_US/{urllib.parse.quote(cleaned)}",
         f"https://api.dictionaryapi.dev/api/v2/entries/en_GB/{urllib.parse.quote(cleaned)}",
+    )
+    datamuse_endpoint = (
+        f"https://api.datamuse.com/words?sp={urllib.parse.quote(cleaned)}&md=d&max=1"
     )
     headers = {
         "User-Agent": "ephemeraldaddy/1.0 (+https://github.com/ephemeraldaddy/ephemeraldaddy)",
         "Accept": "application/json",
     }
+
     saw_connectivity_error = False
-    for endpoint in endpoints:
+
+    for endpoint in dictionary_api_endpoints:
         try:
-            request = urllib.request.Request(endpoint, headers=headers)
-            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-                raw_payload = response.read().decode("utf-8", errors="replace")
-            parsed = json.loads(raw_payload)
-        except urllib.error.HTTPError as exc:
-            if exc.code in {401, 403, 407, 429, 500, 502, 503, 504}:
-                saw_connectivity_error = True
-            continue
-        except (urllib.error.URLError, TimeoutError, socket.timeout):
+            response = requests.get(endpoint, headers=headers, timeout=timeout_seconds)
+        except requests.RequestException:
             saw_connectivity_error = True
             continue
-        except (OSError, ValueError, TypeError):
+
+        if response.status_code in {401, 403, 407, 429, 500, 502, 503, 504}:
+            saw_connectivity_error = True
+            continue
+        if response.status_code >= 400:
+            continue
+
+        try:
+            parsed = response.json()
+        except ValueError:
             continue
 
         if not isinstance(parsed, list) or not parsed:
@@ -243,6 +248,34 @@ def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
                 if isinstance(definition, str) and definition.strip():
                     compact = " ".join(definition.strip().split())
                     return compact[:220]
+
+    try:
+        response = requests.get(datamuse_endpoint, headers=headers, timeout=timeout_seconds)
+    except requests.RequestException:
+        if saw_connectivity_error:
+            return "Definition unavailable (dictionary service unreachable)."
+        return "Definition unavailable."
+
+    if response.status_code in {401, 403, 407, 429, 500, 502, 503, 504}:
+        saw_connectivity_error = True
+    elif response.status_code < 400:
+        try:
+            parsed = response.json()
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, list) and parsed:
+            first = parsed[0]
+            defs = first.get("defs") if isinstance(first, dict) else None
+            if isinstance(defs, list):
+                for item in defs:
+                    if not isinstance(item, str):
+                        continue
+                    _, _, raw_definition = item.partition("\t")
+                    definition = raw_definition.strip() or item.strip()
+                    if definition:
+                        compact = " ".join(definition.split())
+                        return compact[:220]
+
     if saw_connectivity_error:
         return "Definition unavailable (dictionary service unreachable)."
     return "Definition unavailable."
