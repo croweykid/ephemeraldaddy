@@ -14150,6 +14150,11 @@ class MainWindow(QMainWindow):
         self.manage_button.clicked.connect(self._on_chart_view_back_requested)
         self.manage_button.setToolTip("Back to Database View")
         self.manage_button.setFixedSize(36, 24)
+        self.database_view_button = QPushButton("Database View")
+        self.database_view_button.setObjectName("database_view_button")
+        self.database_view_button.clicked.connect(self.on_manage_charts)
+        self.database_view_button.setToolTip("Close Chart View and return to Database View")
+        self.database_view_button.setFixedSize(110, 24)
         # Commented out per request: remove the top-row Chart View action buttons
         # and rely on window_chrome menus/actions instead.
         # top_controls.addStretch(1)
@@ -14254,14 +14259,22 @@ class MainWindow(QMainWindow):
         self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
         self.chart_loading_overlay = ChartLoadingOverlay(self)
         self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
+        chart_canvas_nav_buttons = QWidget()
+        chart_canvas_nav_buttons_layout = QHBoxLayout()
+        chart_canvas_nav_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        chart_canvas_nav_buttons_layout.setSpacing(6)
+        chart_canvas_nav_buttons.setLayout(chart_canvas_nav_buttons_layout)
+        chart_canvas_nav_buttons_layout.addWidget(self.manage_button, 0, Qt.AlignLeft)
+        chart_canvas_nav_buttons_layout.addWidget(self.database_view_button, 0, Qt.AlignLeft)
         self.chart_canvas_overlay_layout.addWidget(
-            self.manage_button,
+            chart_canvas_nav_buttons,
             0,
             0,
             alignment=Qt.AlignTop | Qt.AlignLeft,
         )
         self.chart_canvas_overlay_layout.setContentsMargins(6, 6, 0, 0)
         self.manage_button.raise_()
+        self.database_view_button.raise_()
         self.chart_container_layout.addWidget(self.chart_canvas_overlay_container, 1)
         self.chart_container.setLayout(self.chart_container_layout)
         chart_panel_layout.addWidget(self.chart_container, 1)
