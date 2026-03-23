@@ -306,6 +306,7 @@ from ephemeraldaddy.gui.features.charts.transit_workers import (
 )
 
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_nakshatra_weights as _calculate_dominant_nakshatra_weights,
     calculate_dominant_element_weights as _calculate_dominant_element_weights,
     calculate_dominant_house_weights as _calculate_dominant_house_weights,
     calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
@@ -15000,7 +15001,12 @@ class MainWindow(QMainWindow):
             )
             return [[element, counts.get(element, 0)] for element in ("Fire", "Earth", "Air", "Water")]
         if chart_key == "nakshatra_prevalence":
-            counts = _calculate_nakshatra_prevalence_counts(chart)
+            mode = self._chart_analysis_selected_mode(chart_key, "nakshatra_prevalence")
+            counts = (
+                _calculate_nakshatra_prevalence_counts(chart)
+                if mode == "nakshatra_prevalence"
+                else _calculate_dominant_nakshatra_weights(chart)
+            )
             return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
         if chart_key == "modal_distribution":
             counts = _calculate_modal_distribution_counts(chart)
@@ -15454,18 +15460,12 @@ class MainWindow(QMainWindow):
 
     def _draw_nakshatra_wordcloud(self, ax, chart: Chart) -> None:
         nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
-        counts = {name: 0 for name in nakshatras}
-        use_houses = _chart_uses_houses(chart)
-
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            nakshatra = _get_nakshatra(lon)
-            if nakshatra in counts:
-                counts[nakshatra] += NATAL_WEIGHT.get(body, 1)
+        mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
+        counts = (
+            _calculate_nakshatra_prevalence_counts(chart)
+            if mode == "nakshatra_prevalence"
+            else _calculate_dominant_nakshatra_weights(chart)
+        )
 
         values = [counts[name] for name in nakshatras]
         max_value = max(values) if values else 0
