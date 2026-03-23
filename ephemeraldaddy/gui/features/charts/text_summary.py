@@ -394,6 +394,15 @@ def format_chart_text(
     lines.append(CHART_DATA_DIVIDER)
     lines.append("POSITIONS")
     lines.append(CHART_DATA_DIVIDER)
+    if use_houses:
+        lines.append(
+            f"{'Body':<10} {'Sign':<11} {'Degree':<12} {'Nakshatra':<22} {'G/L':<30} {'House':<5}"
+        )
+    else:
+        lines.append(
+            f"{'Body':<10} {'Sign':<11} {'Degree':<12} {'Nakshatra':<22} {'G/L':<30}"
+        )
+    lines.append("")
 
     #houses = getattr(chart, "houses", None) if use_houses else None
     time_variant_lines = _format_time_variant_signs(chart)
@@ -456,10 +465,10 @@ def format_chart_text(
 
         if use_houses:
             house_num = house_for_longitude(houses, lon)
-            house_label = str(house_num) if house_num is not None else "-"
+            house_label = f"H{house_num}" if house_num is not None else "-"
             line = (
                 f"{display_body:<10} {sign_label:<11} {degree_text:<12} "
-                f"{nakshatra_with_info:<22} {hd_text:<30} {house_label:<3}"
+                f"{nakshatra_with_info:<22} {hd_text:<30} {house_label:<5}"
             )
             entry_list = [
                 {
