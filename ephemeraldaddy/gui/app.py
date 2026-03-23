@@ -14113,7 +14113,8 @@ class MainWindow(QMainWindow):
         self._anagrams_clicked_definitions: dict[str, str] = {}
         self._anagrams_current_chart_text: str = ""
         self._anagrams_current_subject_label: str = "Chart name"
-        self._chart_view_navigation_stack: list[int] = []
+        self._chart_view_history: list[int] = []
+        self._chart_view_history_index: int = -1
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -15171,16 +15172,22 @@ class MainWindow(QMainWindow):
             chart_id = int(target)
         except (TypeError, ValueError):
             return
-        previous_chart_id = self.current_chart_id
-        if previous_chart_id is not None and previous_chart_id != chart_id:
-            self._chart_view_navigation_stack.append(previous_chart_id)
+        current_chart_id = self.current_chart_id
+        if current_chart_id is None or current_chart_id == chart_id:
+            return
+        previous_history = list(self._chart_view_history)
+        previous_index = self._chart_view_history_index
+        if not self._chart_view_history:
+            self._chart_view_history = [current_chart_id]
+            self._chart_view_history_index = 0
+        else:
+            self._chart_view_history = self._chart_view_history[: self._chart_view_history_index + 1]
+        self._chart_view_history.append(chart_id)
+        self._chart_view_history_index = len(self._chart_view_history) - 1
         loaded = self.load_chart_by_id(chart_id, from_chart_link=True)
-        if not loaded and previous_chart_id is not None and previous_chart_id != chart_id:
-            if (
-                self._chart_view_navigation_stack
-                and self._chart_view_navigation_stack[-1] == previous_chart_id
-            ):
-                self._chart_view_navigation_stack.pop()
+        if not loaded:
+            self._chart_view_history = previous_history
+            self._chart_view_history_index = previous_index
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18095,7 +18102,8 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(chart, sections={"wheel"})
 
     def _reset_new_chart_form(self) -> None:
-        self._chart_view_navigation_stack.clear()
+        self._chart_view_history.clear()
+        self._chart_view_history_index = -1
         self.current_chart_id = None
         set_current_chart(None)
         self._loaded_birth_place = None
@@ -18311,7 +18319,8 @@ class MainWindow(QMainWindow):
             return False
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
-            self._chart_view_navigation_stack.clear()
+            self._chart_view_history.clear()
+            self._chart_view_history_index = -1
         if not is_same_chart_request:
             self._clear_chart_displays()
             self._sync_chart_right_panel_placeholder_state(None)
@@ -18439,13 +18448,16 @@ class MainWindow(QMainWindow):
         return True
 
     def _on_chart_view_back_requested(self) -> None:
-        while self._chart_view_navigation_stack:
-            previous_chart_id = self._chart_view_navigation_stack.pop()
-            if self.current_chart_id is not None and previous_chart_id == self.current_chart_id:
-                continue
-            if self.load_chart_by_id(previous_chart_id, from_chart_link=True):
-                return
-            self._chart_view_navigation_stack.append(previous_chart_id)
+        if not self._chart_view_history:
+            self.on_manage_charts()
+            return
+        if self._chart_view_history_index <= 0:
+            self.on_manage_charts()
+            return
+        previous_index = self._chart_view_history_index - 1
+        previous_chart_id = self._chart_view_history[previous_index]
+        if self.load_chart_by_id(previous_chart_id, from_chart_link=True):
+            self._chart_view_history_index = previous_index
             return
         self.on_manage_charts()
 
@@ -18472,7 +18484,8 @@ class MainWindow(QMainWindow):
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def on_manage_charts(self):
-        self._chart_view_navigation_stack.clear()
+        self._chart_view_history.clear()
+        self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
         opened = self._charts_controller.open_manage_charts()
