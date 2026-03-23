@@ -15519,41 +15519,6 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
 
-    def _export_similar_charts_share(self) -> None:
-        if self._similar_charts_list_label is None:
-            return
-        current_text = (self._similar_charts_list_label.text() or "").strip()
-        if not current_text:
-            QMessageBox.information(
-                self,
-                "Export similar charts",
-                "Load or generate a chart first.",
-            )
-            return
-        export_date = datetime.datetime.now().strftime("%Y%m%d")
-        chart_name = getattr(self._latest_chart, "name", "") if self._latest_chart is not None else ""
-        default_name_token = self._sanitize_export_token(chart_name, "chart") or "chart"
-        default_filename = f"similar-charts-{default_name_token}-{export_date}.md"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export similar charts",
-            default_filename,
-            "Markdown (*.md);;Text files (*.txt);;All files (*)",
-        )
-        if not file_path:
-            return
-        lines = [
-            f"# Similar Charts for {chart_name or 'Current Chart'}",
-            "",
-            current_text,
-            "",
-        ]
-        try:
-            with open(file_path, "w", encoding="utf-8") as handle:
-                handle.write("\n".join(lines).rstrip() + "\n")
-        except OSError as exc:
-            QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
-
     def _chart_analysis_rows_for_key(self, chart_key: str, chart: Chart) -> list[list[Any]]:
         if chart_key == "dominant_signs":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_signs")
