@@ -251,6 +251,7 @@ from ephemeraldaddy.core.db import (
     update_chart_dominant_sign_weights,
     set_current_chart,
     parse_relationship_types,
+    list_recognized_tags,
     get_metadata_label_usage,
     backup_database,
     restore_database,
@@ -359,6 +360,12 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
     sort_natal_aspects as _sort_natal_aspects,
+)
+from ephemeraldaddy.gui.features.charts.tagging import (
+    apply_tag_completer,
+    normalize_tag_list,
+    parse_tag_text,
+    render_tag_chip_preview,
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
@@ -6562,6 +6569,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and familiarity_min is None
             and familiarity_max is None
             and not self.search_text_input.text().strip()
+            and (
+                not hasattr(self, "search_tags_input")
+                or not self.search_tags_input.text().strip()
+            )
         )
 
     def _update_sentiment_tally(
@@ -8067,6 +8078,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         astrotheme_row.addWidget(astrotheme_import_button)
         layout.addLayout(astrotheme_row)
+
+        tags_search_row = QVBoxLayout()
+        tags_search_row.setContentsMargins(0, 0, 0, 0)
+        tags_search_row.setSpacing(4)
+        self.search_tags_input = QLineEdit()
+        self.search_tags_input.setPlaceholderText(
+            "Search by tags (comma-separated)"
+        )
+        self.search_tags_input.textChanged.connect(self._on_search_tags_changed)
+        self.search_tags_input.returnPressed.connect(self._on_filter_changed)
+        tags_search_row.addWidget(self.search_tags_input)
+        self.search_tags_preview_label = QLabel()
+        self.search_tags_preview_label.setWordWrap(True)
+        self.search_tags_preview_label.setTextFormat(Qt.RichText)
+        tags_search_row.addWidget(self.search_tags_preview_label)
+        layout.addLayout(tags_search_row)
 
         divider = QFrame()
         divider.setFixedHeight(4)
@@ -9611,6 +9638,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if value.isdigit():
             return int(value)
         return None
+
+    def _update_tag_completers(self) -> None:
+        known_tags = list_recognized_tags()
+        self._known_chart_tags = known_tags
+        chart_input = getattr(self, "chart_tags_input", None)
+        search_input = getattr(self, "search_tags_input", None)
+        for line_edit in (chart_input, search_input):
+            if not isinstance(line_edit, QLineEdit):
+                continue
+            apply_tag_completer(line_edit, known_tags)
+
+    def _on_search_tags_changed(self, *_: object) -> None:
+        tags = parse_tag_text(self.search_tags_input.text())
+        render_tag_chip_preview(self.search_tags_preview_label, tags)
+        self._on_filter_changed()
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
@@ -11302,6 +11344,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
+            if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
+                self.search_tags_input.setText("")
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._positive_sentiment_intensity_min_input is not None:
@@ -12235,6 +12279,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"Couldn't list saved charts:\n{e}",
             )
             self._chart_rows = []
+        self._update_tag_completers()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
@@ -12496,6 +12541,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
         search_text = self.search_text_input.text().strip()
+        search_tags = parse_tag_text(
+            self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
+        )
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -12783,6 +12831,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart = self._get_chart_for_filter(chart_id)
         if chart is None:
             return incomplete_birthdate_state == QuadStateSlider.MODE_TRUE
+
+        if search_tags:
+            chart_tags = {
+                tag.casefold()
+                for tag in normalize_tag_list(getattr(chart, "tags", []))
+            }
+            if not all(tag.casefold() in chart_tags for tag in search_tags):
+                return False
 
         chart_year_first_encountered = getattr(chart, "year_first_encountered", None)
         if not isinstance(chart_year_first_encountered, int):
@@ -14806,6 +14862,54 @@ class MainWindow(QMainWindow):
         sentiment_relation_layout.addWidget(sentiment_box)
         sentiment_relation_layout.addWidget(relationship_box)
 
+        tags_box = QFrame()
+        tags_box.setStyleSheet(
+            "QFrame {"
+            "background-color: #1c1c1c;"
+            "border: 1px solid #2b2b2b;"
+            "border-radius: 6px;"
+            "}"
+        )
+        tags_box_layout = QVBoxLayout()
+        tags_box_layout.setContentsMargins(8, 8, 8, 8)
+        tags_box_layout.setSpacing(6)
+        tags_box.setLayout(tags_box_layout)
+        tags_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        self.tags_panel_toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            self.tags_panel_toggle,
+            title="Tags",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        tags_box_layout.addWidget(self.tags_panel_toggle)
+
+        tags_content_widget = QWidget()
+        tags_content_layout = QVBoxLayout()
+        tags_content_layout.setContentsMargins(0, 0, 0, 0)
+        tags_content_layout.setSpacing(4)
+        tags_content_widget.setLayout(tags_content_layout)
+        self.chart_tags_input = QLineEdit()
+        self.chart_tags_input.setPlaceholderText("tumblr, style, comma-separated, tags")
+        self.chart_tags_input.textChanged.connect(self._on_chart_tags_changed)
+        tags_content_layout.addWidget(self.chart_tags_input)
+        self.chart_tags_preview_label = QLabel()
+        self.chart_tags_preview_label.setWordWrap(True)
+        self.chart_tags_preview_label.setTextFormat(Qt.RichText)
+        tags_content_layout.addWidget(self.chart_tags_preview_label)
+        self.tags_panel_toggle.toggled.connect(
+            lambda expanded: self._toggle_chart_panel_content(
+                self.tags_panel_toggle,
+                tags_content_widget,
+                expanded,
+            )
+        )
+        tags_content_widget.setVisible(False)
+        tags_box_layout.addWidget(tags_content_widget)
+        sentiment_relation_layout.addWidget(tags_box)
+        self._update_tag_completers()
+
         sentiment_metrics_row = QWidget()
         sentiment_metrics_row.setSizePolicy(
             QSizePolicy.Maximum,
@@ -15044,6 +15148,7 @@ class MainWindow(QMainWindow):
             self.birth_year_edit,
             self.time_edit,
             self.retcon_time_edit,
+            self.chart_tags_input,
             self.positive_sentiment_intensity_spin,
             self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
@@ -17467,6 +17572,7 @@ class MainWindow(QMainWindow):
         # Event chart type intentionally removes sentiment/relationship metadata.
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
+        self.chart_tags_input.setText("")
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
@@ -17977,6 +18083,7 @@ class MainWindow(QMainWindow):
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
+        placeholder.tags = parse_tag_text(self.chart_tags_input.text())
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -18112,6 +18219,8 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        if hasattr(chart, "tags"):
+            chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -18210,6 +18319,17 @@ class MainWindow(QMainWindow):
             return int(value)
         return None
 
+    def _update_tag_completers(self) -> None:
+        sorted_tags = list_recognized_tags()
+        if not hasattr(self, "chart_tags_input"):
+            return
+        apply_tag_completer(self.chart_tags_input, sorted_tags)
+
+    def _on_chart_tags_changed(self, *_: object) -> None:
+        tags = parse_tag_text(self.chart_tags_input.text())
+        render_tag_chip_preview(self.chart_tags_preview_label, tags)
+        self._mark_lucygoosey()
+
     def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
         month = getattr(chart, "birth_month", None)
         day = getattr(chart, "birth_day", None)
@@ -18266,6 +18386,7 @@ class MainWindow(QMainWindow):
                 is_event_chart = chart_type_value == SOURCE_EVENT
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
+                chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
@@ -18395,6 +18516,7 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
+        self._update_tag_completers()
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
             self._set_chart_right_panel_container_visible(True)
@@ -18454,6 +18576,7 @@ class MainWindow(QMainWindow):
         self.placeholder_chart_checkbox.setChecked(False)
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
+        self.chart_tags_input.clear()
         self.comments_edit.clear()
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
         self.time_edit.setTime(QTime(12, 0))
@@ -18722,6 +18845,9 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection(getattr(chart, "sentiments", []))
         self._set_relationship_type_selection(
             getattr(chart, "relationship_types", []),
+        )
+        self.chart_tags_input.setText(
+            ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
         )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
