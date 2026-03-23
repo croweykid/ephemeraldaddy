@@ -20062,14 +20062,15 @@ class MainWindow(QMainWindow):
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
         self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
-def main():
+def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     _maybe_reexec_with_macos_app_name()
     _register_packaged_symbol_fonts()
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
-    startup_loading = _StartupLoadingWidget()
-    startup_loading.show()
+    if startup_loading is None:
+        startup_loading = _StartupLoadingWidget()
+        startup_loading.show()
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
