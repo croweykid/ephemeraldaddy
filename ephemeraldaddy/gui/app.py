@@ -196,10 +196,6 @@ from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
-from ephemeraldaddy.gui.astrotheme_search import (
-    parse_astrotheme_profile,
-    search_astrotheme_profile_url,
-)
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
@@ -515,7 +511,7 @@ GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
 # Explicit startup validation to avoid hidden import-time side effects.
 validate_transit_window_mode_flags()
 
-from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
+from ephemeraldaddy.gui.features.retcon.workers import AstrothemeImportWorker, RetconSearchWorker
 
 from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
 
@@ -1456,6 +1452,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._size_checker_popup: SizeCheckerPopup | None = None
+        self._astrotheme_import_thread: QThread | None = None
+        self._astrotheme_import_worker: AstrothemeImportWorker | None = None
+        self._astrotheme_import_progress_dialog: QProgressDialog | None = None
+        self._astrotheme_import_silent_cancel = False
+        self.astrotheme_import_button: QPushButton | None = None
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
         # Toggle to broaden inference source data (personal-only by default).
@@ -8018,11 +8019,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_import_astrotheme_from_search_panel
         )
         astrotheme_row.addWidget(self.astrotheme_search_input, 1)
-        astrotheme_import_button = QPushButton("Import")
-        astrotheme_import_button.clicked.connect(
+        self.astrotheme_import_button = QPushButton("Import")
+        self.astrotheme_import_button.clicked.connect(
             self._on_import_astrotheme_from_search_panel
         )
-        astrotheme_row.addWidget(astrotheme_import_button)
+        astrotheme_row.addWidget(self.astrotheme_import_button)
         layout.addLayout(astrotheme_row)
 
         divider = QFrame()
@@ -8787,21 +8788,81 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not parent._confirm_discard_or_save():
             return
 
-        query = raw_query
-        try:
-            if raw_query.lower().startswith(("http://", "https://")):
-                query = raw_query
-            else:
-                resolved_url = search_astrotheme_profile_url(raw_query)
-                if not resolved_url:
-                    raise ValueError("No matching Astrotheme profile was found.")
-                query = resolved_url
-
-            profile_data = parse_astrotheme_profile(query)
-        except Exception as exc:
-            QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
+        if self._astrotheme_import_thread is not None:
+            QMessageBox.information(
+                self,
+                "Astrotheme import",
+                "An Astrotheme import is already running.",
+            )
             return
 
+        self._start_astrotheme_import(parent=parent, raw_query=raw_query)
+
+    def _start_astrotheme_import(self, *, parent: QWidget, raw_query: str) -> None:
+        self._astrotheme_import_silent_cancel = False
+        progress = QProgressDialog("Preparing Astrotheme import…", "Cancel", 0, 0, self)
+        progress.setWindowTitle("Astrotheme import")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setValue(0)
+        progress.canceled.connect(self._cancel_astrotheme_import)
+        progress.show()
+        self._astrotheme_import_progress_dialog = progress
+
+        self.astrotheme_search_input.setEnabled(False)
+        if self.astrotheme_import_button is not None:
+            self.astrotheme_import_button.setEnabled(False)
+
+        thread = QThread(self)
+        worker = AstrothemeImportWorker(raw_query)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._update_astrotheme_import_progress)
+        worker.finished.connect(lambda profile_data: self._on_astrotheme_import_finished(parent, profile_data))
+        worker.failed.connect(self._on_astrotheme_import_failed)
+        worker.canceled.connect(self._on_astrotheme_import_canceled)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.canceled.connect(thread.quit)
+        thread.finished.connect(self._cleanup_astrotheme_import)
+        thread.finished.connect(thread.deleteLater)
+
+        self._astrotheme_import_thread = thread
+        self._astrotheme_import_worker = worker
+        thread.start()
+
+    def _update_astrotheme_import_progress(self, message: str) -> None:
+        progress = self._astrotheme_import_progress_dialog
+        if progress is None:
+            return
+        progress.setLabelText(message)
+        QCoreApplication.processEvents(QEventLoop.AllEvents, 25)
+
+    def _cancel_astrotheme_import(self) -> None:
+        worker = self._astrotheme_import_worker
+        if worker is None:
+            return
+        worker.cancel()
+        progress = self._astrotheme_import_progress_dialog
+        if progress is not None:
+            progress.setLabelText("Canceling Astrotheme import…")
+            QCoreApplication.processEvents(QEventLoop.AllEvents, 25)
+
+    def _on_astrotheme_import_canceled(self) -> None:
+        if self._astrotheme_import_silent_cancel:
+            return
+        QMessageBox.information(self, "Astrotheme import", "Astrotheme import canceled.")
+
+    def _on_astrotheme_import_failed(self, error_message: str) -> None:
+        QMessageBox.warning(
+            self,
+            "Astrotheme import",
+            f"Could not load Astrotheme profile:\n{error_message}",
+        )
+
+    def _on_astrotheme_import_finished(self, parent: QWidget, profile_data: dict[str, Any]) -> None:
         parent._reset_new_chart_form()
         parent.name_edit.setText(profile_data["name"])
         parent._set_birth_date_fields_from_qdate(
@@ -8888,6 +8949,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astrotheme import",
             f"Imported and saved chart #{chart_id} from Astrotheme.",
         )
+
+    def _cleanup_astrotheme_import(self) -> None:
+        self._astrotheme_import_thread = None
+        self._astrotheme_import_worker = None
+        progress = self._astrotheme_import_progress_dialog
+        self._astrotheme_import_progress_dialog = None
+        if progress is not None:
+            progress.close()
+            progress.deleteLater()
+        if hasattr(self, "astrotheme_search_input"):
+            self.astrotheme_search_input.setEnabled(True)
+        if self.astrotheme_import_button is not None:
+            self.astrotheme_import_button.setEnabled(True)
+        self._astrotheme_import_silent_cancel = False
 
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
         dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
@@ -10931,6 +11006,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #     self._rebuild_help_markers()
 
     def closeEvent(self, event) -> None:
+        self._astrotheme_import_silent_cancel = True
+        if self._astrotheme_import_worker is not None:
+            self._astrotheme_import_worker.cancel()
+        if self._astrotheme_import_thread is not None:
+            self._astrotheme_import_thread.quit()
+            self._astrotheme_import_thread.wait(250)
+        self._cleanup_astrotheme_import()
         if self._help_overlay_active:
             self._disable_help_overlay()
         if self._size_checker_popup is not None:
