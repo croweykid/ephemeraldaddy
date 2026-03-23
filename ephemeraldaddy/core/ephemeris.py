@@ -13,7 +13,7 @@ swe = _swe
 
 _SWE_CONFIGURED = False
 _SWE_EPHE_PATH: Path | None = None
-_SWE_DATA_READY = False
+_SWE_READY_BODIES: set[str] = set()
 _SWE_ASTEROID_FILES: dict[str, tuple[set[str], tuple[str, ...]]] = {
     "seas_18.se1": (
         {"Ceres", "Pallas", "Juno", "Vesta"},
@@ -74,12 +74,11 @@ def is_offline_mode() -> bool:
 
 
 def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: bool = True) -> None:
-    global _SWE_DATA_READY
+    global _SWE_READY_BODIES
     global _SWE_WARNED_MISSING_DATA
-    if _SWE_DATA_READY:
+    if required_bodies.issubset(_SWE_READY_BODIES):
         return
     if not required_bodies:
-        _SWE_DATA_READY = True
         return
     _configure_swiss_ephemeris()
     target_dir = _SWE_EPHE_PATH
@@ -106,7 +105,7 @@ def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: b
         if target_path.exists():
             missing_bodies.difference_update(bodies)
 
-    _SWE_DATA_READY = not bool(missing_bodies)
+    _SWE_READY_BODIES.update(required_bodies.difference(missing_bodies))
     if missing_bodies and not _SWE_WARNED_MISSING_DATA:
         warnings.warn(
             "Swiss Ephemeris asteroid files are missing; minor-body positions may be unavailable. "
