@@ -12,15 +12,9 @@ from PySide6.QtWidgets import QWidget
 class ChartLoadingOverlay(QWidget):
     """Animated loading overlay displayed above the natal chart canvas."""
 
-    def __init__(
-        self,
-        parent: QWidget | None = None,
-        *,
-        dim_alpha: int = 102,
-    ) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._spin_angle = 0.0
-        self._dim_alpha = max(0, min(255, int(dim_alpha)))
         self._timer = QTimer(self)
         self._timer.setInterval(75)
         self._timer.timeout.connect(self._advance_spinner)
@@ -51,7 +45,7 @@ class ChartLoadingOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.TextAntialiasing, True)
-        painter.fillRect(self.rect(), QColor(8, 8, 12, self._dim_alpha))
+        painter.fillRect(self.rect(), QColor(8, 8, 12, 102))
 
         center_x = self.width() / 2.0
         center_y = self.height() / 2.0
