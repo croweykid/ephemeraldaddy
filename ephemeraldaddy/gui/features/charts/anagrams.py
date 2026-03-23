@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import math
 import json
+import math
+import socket
+import urllib.error
 import urllib.parse
+import urllib.request
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
 
-import requests
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
@@ -190,41 +192,59 @@ def render_anagrams_html(
     )
 
 
+@lru_cache(maxsize=512)
 def fetch_word_definition(word: str, *, timeout_seconds: float = 4.0) -> str:
     """Fetch a short English definition for a word."""
     cleaned = str(word or "").strip().casefold()
     if not cleaned.isalpha():
         return "Definition unavailable."
-    endpoint = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}"
-    try:
-        response = requests.get(
-            endpoint,
-            timeout=timeout_seconds,
-            headers={"User-Agent": "ephemeraldaddy/1.0"},
-        )
-        response.raise_for_status()
-        parsed = json.loads(response.text)
-    except Exception:
-        return "Definition unavailable (lookup failed)."
-    if not isinstance(parsed, list) or not parsed:
-        return "Definition unavailable."
-    entry = parsed[0]
-    meanings = entry.get("meanings") if isinstance(entry, dict) else None
-    if not isinstance(meanings, list):
-        return "Definition unavailable."
-    for meaning in meanings:
-        definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
-        if not isinstance(definitions, list):
+    endpoints = (
+        f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.parse.quote(cleaned)}",
+        f"https://api.dictionaryapi.dev/api/v2/entries/en_US/{urllib.parse.quote(cleaned)}",
+        f"https://api.dictionaryapi.dev/api/v2/entries/en_GB/{urllib.parse.quote(cleaned)}",
+    )
+    headers = {
+        "User-Agent": "ephemeraldaddy/1.0 (+https://github.com/ephemeraldaddy/ephemeraldaddy)",
+        "Accept": "application/json",
+    }
+    saw_connectivity_error = False
+    for endpoint in endpoints:
+        try:
+            request = urllib.request.Request(endpoint, headers=headers)
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                raw_payload = response.read().decode("utf-8", errors="replace")
+            parsed = json.loads(raw_payload)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403, 407, 429, 500, 502, 503, 504}:
+                saw_connectivity_error = True
             continue
-        for definition_entry in definitions:
-            definition = (
-                definition_entry.get("definition")
-                if isinstance(definition_entry, dict)
-                else None
-            )
-            if isinstance(definition, str) and definition.strip():
-                compact = " ".join(definition.strip().split())
-                return compact[:220]
+        except (urllib.error.URLError, TimeoutError, socket.timeout):
+            saw_connectivity_error = True
+            continue
+        except (OSError, ValueError, TypeError):
+            continue
+
+        if not isinstance(parsed, list) or not parsed:
+            continue
+        entry = parsed[0]
+        meanings = entry.get("meanings") if isinstance(entry, dict) else None
+        if not isinstance(meanings, list):
+            continue
+        for meaning in meanings:
+            definitions = meaning.get("definitions") if isinstance(meaning, dict) else None
+            if not isinstance(definitions, list):
+                continue
+            for definition_entry in definitions:
+                definition = (
+                    definition_entry.get("definition")
+                    if isinstance(definition_entry, dict)
+                    else None
+                )
+                if isinstance(definition, str) and definition.strip():
+                    compact = " ".join(definition.strip().split())
+                    return compact[:220]
+    if saw_connectivity_error:
+        return "Definition unavailable (dictionary service unreachable)."
     return "Definition unavailable."
 
 
