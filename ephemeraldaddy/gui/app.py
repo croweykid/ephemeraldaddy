@@ -1231,6 +1231,88 @@ class EmojiTiledPanel(QWidget):
             for x in range(0, self.width() + tile_width, tile_width):
                 painter.drawText(x, y + baseline_offset, self._emoji)
 
+
+class ChartLoadingOverlay(QWidget):
+    """Animated loading overlay displayed above the natal chart canvas."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._spin_angle = 0.0
+        self._timer = QTimer(self)
+        self._timer.setInterval(75)
+        self._timer.timeout.connect(self._advance_spinner)
+        self.hide()
+
+    def start(self) -> None:
+        self._spin_angle = 0.0
+        self.show()
+        self.raise_()
+        if not self._timer.isActive():
+            self._timer.start()
+        self.update()
+
+    def stop(self) -> None:
+        if self._timer.isActive():
+            self._timer.stop()
+        self.hide()
+
+    def _advance_spinner(self) -> None:
+        self._spin_angle = (self._spin_angle + 14.0) % 360.0
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if not self.isVisible():
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.TextAntialiasing, True)
+        painter.fillRect(self.rect(), QColor(8, 8, 12, 102))
+
+        center_x = self.width() / 2.0
+        center_y = self.height() / 2.0
+        min_dim = max(1.0, float(min(self.width(), self.height())))
+        emoji_font_size = int(max(54, min(180, min_dim * 0.22)))
+        ring_font_size = int(max(18, min(54, min_dim * 0.085)))
+        ring_radius = max(70.0, min_dim * 0.21)
+
+        painter.save()
+        painter.translate(center_x, center_y)
+        painter.rotate(self._spin_angle)
+        swirl_font = QFont(self.font())
+        swirl_font.setPointSize(emoji_font_size)
+        painter.setFont(swirl_font)
+        painter.setPen(QColor(255, 255, 255, 153))
+        painter.drawText(
+            -emoji_font_size,
+            int(emoji_font_size * 0.45),
+            "🌀",
+        )
+        painter.restore()
+
+        loading_text = "LOADING"
+        ring_font = QFont(self.font())
+        ring_font.setBold(True)
+        ring_font.setPointSize(ring_font_size)
+        painter.setFont(ring_font)
+        painter.setPen(QColor("#c000ff"))
+        step_degrees = 360.0 / max(1, len(loading_text))
+        for index, letter in enumerate(loading_text):
+            angle_deg = self._spin_angle + (index * step_degrees)
+            angle_rad = math.radians(angle_deg)
+            x = center_x + (ring_radius * math.cos(angle_rad))
+            y = center_y + (ring_radius * math.sin(angle_rad))
+            fm = QFontMetrics(ring_font)
+            text_width = fm.horizontalAdvance(letter)
+            text_height = fm.height()
+            painter.drawText(
+                int(x - (text_width / 2)),
+                int(y + (text_height / 3)),
+                letter,
+            )
+
+
 def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
     """Select the next item whose name starts with the typed letter."""
     if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
@@ -14172,7 +14254,9 @@ class MainWindow(QMainWindow):
         self.chart_canvas_overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_canvas_overlay_layout.setSpacing(0)
         self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
+        self.chart_loading_overlay = ChartLoadingOverlay(self.chart_canvas_overlay_container)
         self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
+        self.chart_canvas_overlay_layout.addWidget(self.chart_loading_overlay, 0, 0)
         self.chart_canvas_overlay_layout.addWidget(
             self.manage_button,
             0,
@@ -18202,9 +18286,16 @@ class MainWindow(QMainWindow):
     def load_chart_by_id(self, chart_id: int) -> bool:
         if not self._confirm_discard_or_save():
             return False
+        is_same_chart_request = self.current_chart_id == chart_id
+        if not is_same_chart_request:
+            self._clear_chart_displays()
+            self._sync_chart_right_panel_placeholder_state(None)
+            self._show_chart_loading_overlay()
+            QApplication.processEvents()
         try:
             chart = load_chart(chart_id)
         except Exception as e:
+            self._hide_chart_loading_overlay()
             QMessageBox.critical(
                 self,
                 "Load error",
@@ -18316,6 +18407,7 @@ class MainWindow(QMainWindow):
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays()
+            self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
@@ -18527,6 +18619,16 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
+    def _show_chart_loading_overlay(self) -> None:
+        overlay = getattr(self, "chart_loading_overlay", None)
+        if overlay is not None:
+            overlay.start()
+
+    def _hide_chart_loading_overlay(self) -> None:
+        overlay = getattr(self, "chart_loading_overlay", None)
+        if overlay is not None:
+            overlay.stop()
+
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
         self._pending_render_chart = chart
@@ -18556,6 +18658,7 @@ class MainWindow(QMainWindow):
         chart = self._pending_render_chart
         if chart is None:
             self._pending_render_sections.clear()
+            self._hide_chart_loading_overlay()
             return
         sections = set(self._pending_render_sections)
         self._pending_render_sections.clear()
@@ -18585,6 +18688,7 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         if "anagrams" in sections:
             self._render_anagrams(chart)
+        self._hide_chart_loading_overlay()
 
     def _render_metric_panel(
         self,
@@ -18699,6 +18803,7 @@ class MainWindow(QMainWindow):
             self._anagrams_selected_source,
             "Chart name",
         )
+        self._hide_chart_loading_overlay()
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
