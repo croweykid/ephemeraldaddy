@@ -27,6 +27,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_toggle_batch_edit_panel_button": "Batch Edit Panel",
     # Natal Chart View controls
     "manage_button": "Back to Database View",
+    "database_view_button": "Close Chart View and return to Database View",
     "help_overlay_toggle": "Help",
 }
 

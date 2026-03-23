@@ -237,6 +237,7 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
     "new_chart_button": "Start a brand-new chart entry.",
     "export_chart_button": "Export the active chart as JSON.",
     "manage_button": "Use the back arrow to return to the Manage Charts database view.",
+    "database_view_button": "Close Chart View and immediately reopen the Database View window.",
     "current_transits_button": "Open current transits for this chart and chosen location.",
     "place_search_button": "Search for a place and fill latitude/longitude.",
     "update_button": "Save this chart to the database.",
