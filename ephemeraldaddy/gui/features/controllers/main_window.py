@@ -310,9 +310,17 @@ class ChartAnalysisSectionsController:
             section_title="Nakshatras",
             header_title="Nakshatra Prevalence",
             subtitle_text="Nakshatras evaluated equally based on prevalence alone (no weights).",
+            subtitle_by_mode={
+                "nakshatra_prevalence": "Nakshatras evaluated equally based on prevalence alone (no weights).",
+                "dominant_nakshatras": "Nakshatras evaluated with weighted dominance scoring.",
+            },
             default_filename="ephemeraldaddy_chart_nakshatra_prevalence",
             chart_container_attr="nakshatra_wordcloud_container",
             chart_layout_attr="nakshatra_wordcloud_container_layout",
+            dropdown_options=[
+                ("Nakshatra Prevalence", "nakshatra_prevalence"),
+                ("Dominant Nakshatras", "dominant_nakshatras"),
+            ],
         )
         self.add_section(
             panel=panel,

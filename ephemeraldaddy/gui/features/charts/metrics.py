@@ -663,6 +663,57 @@ def calculate_nakshatra_prevalence_counts(chart: Chart) -> dict[str, int]:
     return counts
 
 
+def calculate_dominant_nakshatra_weights(chart: Chart) -> dict[str, float]:
+    nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
+    weighted_counts = {name: 0.0 for name in nakshatras}
+    use_houses = chart_uses_houses(chart)
+    houses = getattr(chart, "houses", None) if use_houses else None
+    base_bodies = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Rahu", "Ketu"]
+    bodies = list(base_bodies)
+    if use_houses:
+        bodies.extend(["AS", "IC", "DS", "MC"])
+
+    for body in bodies:
+        lon = chart.positions.get(body)
+        if lon is None:
+            continue
+        house_num = house_for_longitude(houses, lon)
+        weight = planet_weight(body, lon, houses, house_num)
+        nakshatra = get_nakshatra(lon)
+        if nakshatra in weighted_counts:
+            weighted_counts[nakshatra] += weight
+
+    allowed_bodies = set(bodies)
+    for aspect in getattr(chart, "aspects", []) or []:
+        p1 = normalize_body_name(str(aspect.get("p1", "")))
+        p2 = normalize_body_name(str(aspect.get("p2", "")))
+        if p1 not in allowed_bodies or p2 not in allowed_bodies:
+            continue
+        if p1 not in chart.positions or p2 not in chart.positions:
+            continue
+        aspect_strength = _aspect_strength(aspect)
+        if aspect_strength <= 0:
+            continue
+        nakshatra_1 = get_nakshatra(chart.positions[p1])
+        nakshatra_2 = get_nakshatra(chart.positions[p2])
+        if nakshatra_1 in weighted_counts:
+            weighted_counts[nakshatra_1] += aspect_strength
+        if nakshatra_2 in weighted_counts:
+            weighted_counts[nakshatra_2] += aspect_strength
+        if abs(float(aspect.get("delta", 0.0))) < TIGHT_ASPECT_ORB_DEGREES:
+            if nakshatra_1 in weighted_counts:
+                weighted_counts[nakshatra_1] += aspect_strength
+            if nakshatra_2 in weighted_counts:
+                weighted_counts[nakshatra_2] += aspect_strength
+
+    prevalence_counts = calculate_nakshatra_prevalence_counts(chart)
+    for nakshatra, count in prevalence_counts.items():
+        if count >= 3:
+            weighted_counts[nakshatra] += float(count)
+
+    return weighted_counts
+
+
 def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, int]:
     sidereal_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
     counts = {planet: 0 for planet in sidereal_planets}
