@@ -74,20 +74,10 @@ class ChartLoadingOverlay(QWidget):
         )
         painter.restore()
 
-        orbit_radius = ring_radius * 0.72
-        orbit_angle = math.radians(self._spin_angle * 2.0)
-        orbit_x = center_x + (orbit_radius * math.cos(orbit_angle))
-        orbit_y = center_y + (orbit_radius * math.sin(orbit_angle))
-        orbit_font = QFont(self.font())
-        orbit_font.setPointSize(max(20, int(ring_font_size * 1.15)))
-        painter.setFont(orbit_font)
-        painter.setPen(QColor("#f1c7ff"))
-        painter.drawText(int(orbit_x), int(orbit_y), "✦")
-
-        loading_text = "Loading★Loading✬Loading𖤐"
+        loading_text = "LOADING"
         ring_font = QFont(self.font())
         ring_font.setBold(True)
-        ring_font.setPointSize(max(16, ring_font_size - 2))
+        ring_font.setPointSize(ring_font_size)
         painter.setFont(ring_font)
         painter.setPen(QColor("#c000ff"))
         step_degrees = 360.0 / max(1, len(loading_text))
