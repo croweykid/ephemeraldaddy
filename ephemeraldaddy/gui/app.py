@@ -16,6 +16,7 @@ import subprocess
 import sys
 import traceback
 import urllib.parse
+from difflib import SequenceMatcher
 from collections import Counter, OrderedDict
 from typing import Any, Callable
 from types import SimpleNamespace
@@ -340,6 +341,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     DEFAULT_COLLECTION_ALL,
     DEFAULT_COLLECTION_IDS,
     DEFAULT_COLLECTION_OPTIONS,
+    DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
     CustomCollection,
     chart_belongs_to_collection,
     normalize_collection_id,
@@ -1433,6 +1435,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
+        self._possible_duplicate_chart_ids: set[int] = set()
+        self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
             str,
@@ -2475,6 +2479,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _coerce_active_collection_id(self, value: object) -> str:
         candidate = normalize_collection_id(value)
+        if candidate == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+            if self._show_possible_duplicates_collection:
+                return candidate
+            return DEFAULT_COLLECTION_ALL
         if candidate in DEFAULT_COLLECTION_IDS or candidate in self._custom_collections:
             return candidate
         return DEFAULT_COLLECTION_ALL
@@ -9021,6 +9029,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
 
+        self.batch_check_duplicates_button = QPushButton("Check for Duplicates")
+        self.batch_check_duplicates_button.clicked.connect(self._on_check_for_duplicates)
+        self.batch_check_duplicates_button.setStyleSheet(action_button_style)
+        actions_row_bottom_layout.addWidget(self.batch_check_duplicates_button)
+
         layout.addWidget(actions_row_bottom)
 
         divider_actions_charts = QFrame()
@@ -10691,6 +10704,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.collection_combo.clear()
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
             self.collection_combo.addItem(collection_label, collection_id)
+        if self._show_possible_duplicates_collection:
+            self.collection_combo.addItem(
+                "*possible duplicates*",
+                DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
+            )
         for custom_collection in sorted(
             self._custom_collections.values(),
             key=lambda collection: collection.name.casefold(),
@@ -10744,10 +10762,110 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.collection_remove_selected_button.setStyleSheet(inactive_style)
 
     def _on_collection_changed(self, index: int) -> None:
+        previous_collection_id = self._active_collection_id
         collection_id = normalize_collection_id(self.collection_combo.itemData(index))
         self._active_collection_id = self._coerce_active_collection_id(collection_id)
-        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        if (
+            self._show_possible_duplicates_collection
+            and previous_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            and self._active_collection_id != DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        ):
+            self._show_possible_duplicates_collection = False
+            self._refresh_collection_controls()
+        persisted_collection_id = (
+            DEFAULT_COLLECTION_ALL
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            else self._active_collection_id
+        )
+        self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._populate_list()
+
+    def _on_check_for_duplicates(self) -> None:
+        rows = [
+            normalized
+            for row in self._chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+        ]
+        self._possible_duplicate_chart_ids = self._compute_possible_duplicate_chart_ids(rows)
+        self._show_possible_duplicates_collection = True
+        self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        self._refresh_collection_controls()
+        self._populate_list()
+
+    @staticmethod
+    def _normalize_duplicate_name(value: object) -> str:
+        text = str(value or "").strip().casefold()
+        if not text:
+            return ""
+        return re.sub(r"[^a-z0-9]+", "", text)
+
+    def _compute_possible_duplicate_chart_ids(
+        self,
+        rows: list[
+            tuple[
+                int,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                int,
+                int,
+                int,
+                int,
+                int,
+                int | None,
+                int,
+                str,
+                int,
+                int,
+                int | None,
+                int | None,
+                int | None,
+            ]
+        ],
+    ) -> set[int]:
+        duplicate_ids: set[int] = set()
+        birthday_groups: dict[tuple[int, int], list[int]] = {}
+        name_groups: dict[str, list[int]] = {}
+        names_by_id: dict[int, str] = {}
+        for row in rows:
+            chart_id = int(row[0])
+            birth_month = row[17]
+            birth_day = row[18]
+            if isinstance(birth_month, int) and isinstance(birth_day, int):
+                birthday_key = (birth_month, birth_day)
+                birthday_groups.setdefault(birthday_key, []).append(chart_id)
+
+            normalized_name = self._normalize_duplicate_name(row[1] or row[2] or "")
+            if normalized_name:
+                names_by_id[chart_id] = normalized_name
+                name_groups.setdefault(normalized_name, []).append(chart_id)
+
+        for chart_ids in birthday_groups.values():
+            if len(chart_ids) >= 2:
+                duplicate_ids.update(chart_ids)
+        for chart_ids in name_groups.values():
+            if len(chart_ids) >= 2:
+                duplicate_ids.update(chart_ids)
+
+        buckets: dict[str, list[tuple[int, str]]] = {}
+        for chart_id, name in names_by_id.items():
+            bucket_key = name[:1]
+            buckets.setdefault(bucket_key, []).append((chart_id, name))
+        for bucket_entries in buckets.values():
+            for index, (left_id, left_name) in enumerate(bucket_entries):
+                for right_id, right_name in bucket_entries[index + 1 :]:
+                    if left_id == right_id:
+                        continue
+                    if abs(len(left_name) - len(right_name)) > 2:
+                        continue
+                    score = SequenceMatcher(None, left_name, right_name).ratio()
+                    if score >= 0.88:
+                        duplicate_ids.add(left_id)
+                        duplicate_ids.add(right_id)
+        return duplicate_ids
 
     def _selected_custom_collection_id(self) -> str | None:
         current_item = self.collections_list_widget.currentItem()
@@ -11019,7 +11137,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/left_panel_visible", int(self._left_panel_visible))
         self._settings.setValue("manage_charts/active_right_panel", self._active_right_panel)
         self._settings.setValue("manage_charts/right_panel_visible", int(self._right_panel_visible))
-        self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
+        persisted_collection_id = (
+            DEFAULT_COLLECTION_ALL
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            else self._active_collection_id
+        )
+        self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._save_custom_collections_to_settings()
         self._settings.setValue("app/last_view", "database")
 
@@ -12988,6 +13111,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ],
     ) -> bool:
         chart_id = normalized_row[0]
+        if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+            return chart_id in self._possible_duplicate_chart_ids
         chart_source = normalized_row[14]
         chart = self._get_chart_for_filter(chart_id)
         return chart_belongs_to_collection(
