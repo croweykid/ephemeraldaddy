@@ -15237,6 +15237,9 @@ class MainWindow(QMainWindow):
                 )
             )
 
+    def _sanitize_export_token(self, value: str, fallback: str = "chart") -> str:
+        return _sanitize_export_token(value, fallback)
+
     def _export_anagrams_share(self) -> None:
         if not self._anagrams_current_chart_text:
             QMessageBox.information(
