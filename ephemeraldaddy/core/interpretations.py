@@ -618,7 +618,7 @@ PLANET_COLORS = {
 #   "Ketu": "#5A4A52", # ash-violet
 # }
 
-#I should maybe link this directly to planet colors? Or at least add a reference lookup in case I want to have a default mode with hexcolor overrides?
+#I should maybe link this directly to sign colors? Or at least add a reference lookup in case I want to have a default mode with hexcolor overrides?
 HOUSE_COLORS = {
     "1": PLANET_COLORS["Mars"],
     "2": PLANET_COLORS["Venus"],
