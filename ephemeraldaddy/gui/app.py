@@ -306,6 +306,7 @@ from ephemeraldaddy.gui.features.charts.transit_workers import (
 )
 
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_nakshatra_weights as _calculate_dominant_nakshatra_weights,
     calculate_dominant_element_weights as _calculate_dominant_element_weights,
     calculate_dominant_house_weights as _calculate_dominant_house_weights,
     calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
@@ -1281,6 +1282,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
         self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
@@ -1624,6 +1627,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_ctrl.activated.connect(self.close)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self.close)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self._initial_progress_pending = True
         self._restore_window_settings()
@@ -10730,6 +10735,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
         )
 
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.setWindowState(
+                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+            )
+            return
+        self.setWindowState(self.windowState() | Qt.WindowFullScreen)
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if hasattr(self, "_help_scrim"):
@@ -13815,6 +13828,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.setWindowFlag(Qt.Window, True)
+        self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
@@ -14720,6 +14737,8 @@ class MainWindow(QMainWindow):
         self._shortcut_close_ctrl.activated.connect(self._on_close_requested)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self.chart_canvas = None
         self.sign_chart_canvas = None
@@ -15000,7 +15019,12 @@ class MainWindow(QMainWindow):
             )
             return [[element, counts.get(element, 0)] for element in ("Fire", "Earth", "Air", "Water")]
         if chart_key == "nakshatra_prevalence":
-            counts = _calculate_nakshatra_prevalence_counts(chart)
+            mode = self._chart_analysis_selected_mode(chart_key, "nakshatra_prevalence")
+            counts = (
+                _calculate_nakshatra_prevalence_counts(chart)
+                if mode == "nakshatra_prevalence"
+                else _calculate_dominant_nakshatra_weights(chart)
+            )
             return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
         if chart_key == "modal_distribution":
             counts = _calculate_modal_distribution_counts(chart)
@@ -15454,18 +15478,12 @@ class MainWindow(QMainWindow):
 
     def _draw_nakshatra_wordcloud(self, ax, chart: Chart) -> None:
         nakshatras = [name for name, *_ in NAKSHATRA_RANGES]
-        counts = {name: 0 for name in nakshatras}
-        use_houses = _chart_uses_houses(chart)
-
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            nakshatra = _get_nakshatra(lon)
-            if nakshatra in counts:
-                counts[nakshatra] += NATAL_WEIGHT.get(body, 1)
+        mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
+        counts = (
+            _calculate_nakshatra_prevalence_counts(chart)
+            if mode == "nakshatra_prevalence"
+            else _calculate_dominant_nakshatra_weights(chart)
+        )
 
         values = [counts[name] for name in nakshatras]
         max_value = max(values) if values else 0
@@ -16853,10 +16871,20 @@ class MainWindow(QMainWindow):
 
     def _show_chart_view_maximized(self) -> None:
         self.show()
-        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
+        )
         self.showMaximized()
         self.raise_()
         self.activateWindow()
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.setWindowState(
+                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+            )
+            return
+        self.setWindowState(self.windowState() | Qt.WindowFullScreen)
 
     def _apply_dark_theme(self):
         self.setStyleSheet("""
