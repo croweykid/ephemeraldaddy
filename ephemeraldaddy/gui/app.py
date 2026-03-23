@@ -14157,10 +14157,6 @@ class MainWindow(QMainWindow):
         self._anagrams_current_subject_label: str = "Chart name"
         self._chart_view_history: list[int] = []
         self._chart_view_history_index: int = -1
-        self._chart_view_load_cache: OrderedDict[int, Chart] = OrderedDict()
-        self._chart_view_load_cache_limit = 32
-        self._similar_charts_render_cache: OrderedDict[int, str] = OrderedDict()
-        self._similar_charts_render_cache_limit = 128
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -15269,21 +15265,6 @@ class MainWindow(QMainWindow):
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
 
-    def _remember_chart_view_chart(self, chart_id: int, chart: Chart) -> None:
-        self._chart_view_load_cache[chart_id] = chart
-        self._chart_view_load_cache.move_to_end(chart_id)
-        while len(self._chart_view_load_cache) > self._chart_view_load_cache_limit:
-            self._chart_view_load_cache.popitem(last=False)
-
-    def _get_chart_for_view(self, chart_id: int) -> tuple[Chart, bool]:
-        cached = self._chart_view_load_cache.get(chart_id)
-        if cached is not None:
-            self._chart_view_load_cache.move_to_end(chart_id)
-            return cached, True
-        chart = load_chart(chart_id)
-        self._remember_chart_view_chart(chart_id, chart)
-        return chart, False
-
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
         if self._latest_chart is None:
@@ -15406,6 +15387,61 @@ class MainWindow(QMainWindow):
             self._similar_charts_render_cache.move_to_end(current_chart_id)
             while len(self._similar_charts_render_cache) > self._similar_charts_render_cache_limit:
                 self._similar_charts_render_cache.popitem(last=False)
+
+    def _export_similar_charts_share(self) -> None:
+        if not self._similar_charts_export_rows:
+            QMessageBox.information(
+                self,
+                "Export similar charts",
+                "Generate or load a chart first.",
+            )
+            return
+        export_date = datetime.date.today().isoformat()
+        subject_token = self._sanitize_export_token(self._similar_charts_subject_name or "chart")
+        file_path = _get_text_export_path(
+            self,
+            self._settings,
+            dialog_title="Export similar charts",
+            default_stem=f"similar-charts-{subject_token}-{export_date}",
+            preference_key=SIMILAR_CHARTS_EXPORT_FORMAT_KEY,
+            default_extension=".txt",
+        )
+        if not file_path:
+            return
+
+        is_markdown = file_path.lower().endswith(".md")
+        lines: list[str] = []
+        if is_markdown:
+            lines.append(f"# Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
+            lines.append("")
+            lines.append(
+                "| Rank | Chart ID | Chart | Similarity | Placement | Aspects | Distribution |"
+            )
+            lines.append("|---:|---:|---|---:|---:|---:|---:|")
+            for row in self._similar_charts_export_rows:
+                lines.append(
+                    f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
+                    f"{row['similarity_percent']:.1f}% | {row['placement_percent']:.1f}% | "
+                    f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% |"
+                )
+        else:
+            lines.append(f"Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
+            lines.append("")
+            for row in self._similar_charts_export_rows:
+                lines.append(
+                    f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
+                    f"Similarity {row['similarity_percent']:.1f}% "
+                    f"(placements {row['placement_percent']:.1f}%, "
+                    f"aspects {row['aspect_percent']:.1f}%, "
+                    f"distribution {row['distribution_percent']:.1f}%)"
+                )
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(lines).rstrip() + "\n")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
+            return
+        QMessageBox.information(self, "Export complete", f"Saved similar charts export to:\n{file_path}")
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
