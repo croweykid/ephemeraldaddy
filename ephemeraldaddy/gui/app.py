@@ -1425,7 +1425,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_manage_collections_panel
         )
 
-        self.edit_charts_button = QPushButton("📝Batch Edit") #Batch Edit #✎𓂃
+        self.edit_charts_button = QPushButton("📝Database Manager") #Batch Edit #✎𓂃
         self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
         self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
@@ -9231,6 +9231,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         mortality_section_layout.addWidget(self.batch_deceased_checkbox)
         layout.addWidget(mortality_section)
 
+        alignment_section, alignment_section_layout = add_collapsible_section("Alignment")
+
+        self.batch_alignment_slider = AlignmentEmojiSlider()
+        self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
+        self.batch_alignment_score_label = QLabel()
+        self._update_batch_alignment_score_label(self.batch_alignment_slider.value())
+        self.batch_alignment_apply_button = QPushButton("Apply alignment")
+        self.batch_alignment_apply_button.clicked.connect(self._on_batch_alignment_apply)
+
+        alignment_section_layout.addWidget(
+            QLabel("😈 Most evil   ⟷   Most altruistic 😇")
+        )
+        alignment_section_layout.addWidget(self.batch_alignment_slider)
+        alignment_section_layout.addWidget(self.batch_alignment_score_label)
+        alignment_section_layout.addWidget(self.batch_alignment_apply_button)
+        layout.addWidget(alignment_section)
+
         layout.addStretch(1)
 
         self.clear_batch_edit_button = QPushButton("Clear")
@@ -9314,6 +9331,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         familiarity_values: list[int] = []
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
+        alignment_values: list[int] = []
 
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
@@ -9345,6 +9363,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
+            alignment_values.append(int(getattr(chart, "alignment_score", 0) or 0))
 
 
         for label, checkbox in self.batch_sentiment_checkboxes.items():
@@ -9440,7 +9459,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
+        self._set_batch_alignment_state(alignment_values)
         self._batch_last_selection_ids = chart_id_set
+
+    def _set_batch_alignment_state(self, values: list[int]) -> None:
+        if not values:
+            self.batch_alignment_slider.blockSignals(True)
+            self.batch_alignment_slider.setValue(0)
+            self.batch_alignment_slider.blockSignals(False)
+            self.batch_alignment_slider.setToolTip("")
+            self._update_batch_alignment_score_label(0)
+            return
+        self.batch_alignment_slider.blockSignals(True)
+        self.batch_alignment_slider.setValue(values[0])
+        self.batch_alignment_slider.blockSignals(False)
+        self._update_batch_alignment_score_label(values[0])
+        if len(set(values)) > 1:
+            self.batch_alignment_slider.setToolTip(
+                "Selected charts have mixed alignment scores. Applying will overwrite all selected charts."
+            )
+        else:
+            self.batch_alignment_slider.setToolTip("")
 
     @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
@@ -9891,6 +9930,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if self._batch_metric_programmatic_update:
             return
         self._set_batch_metric_lucygoosey_state(field_key, True)
+
+    def _update_batch_alignment_score_label(self, value: int) -> None:
+        self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
+
+    def _on_batch_alignment_changed(self, value: int) -> None:
+        self._update_batch_alignment_score_label(value)
+
+    def _on_batch_alignment_apply(self) -> None:
+        chart_ids = [
+            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+        ]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Psst...Select one or more charts before applying batch edits.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        alignment_value = int(self.batch_alignment_slider.value())
+        selected_count = len(chart_ids)
+        action_label = f"Set alignment score to {alignment_value} for"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                chart.alignment_score = alignment_value
+                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                update_chart(
+                    chart_id,
+                    chart,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"*sepukkus* Couldn't update the selected charts:\n{exc}",
+            )
+            return
+
+        changed_ids = set(chart_ids)
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
 
     def _batch_metric_widget_for_key(self, field_key: str) -> QWidget | None:
         mapping: dict[str, QWidget] = {
@@ -10664,6 +10757,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
+        self.batch_alignment_slider.blockSignals(True)
+        self.batch_alignment_slider.setValue(0)
+        self.batch_alignment_slider.blockSignals(False)
+        self._update_batch_alignment_score_label(0)
+        self.batch_alignment_slider.setToolTip("")
         if hasattr(self, "_batch_metric_lucygoosey"):
             for metric_key in ("positive_sentiment_intensity", "negative_sentiment_intensity", "familiarity", "year_first_encountered"):
                 self._set_batch_metric_lucygoosey_state(metric_key, False)
@@ -12014,7 +12112,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for (
                 cid,
                 name,
-                _alias,
+                alias,
                 gender,
                 dt_iso,
                 birth_place,
@@ -12040,6 +12138,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not matches_filters:
                     continue
                 display_name = name or "Unnamed"
+                alias_text = (alias or "").strip()
+                alias_label = f"({alias_text})" if alias_text else ""
                 if used_fallback:
                     display_name = f"⚠️ {display_name}"
                 date_label, time_label = format_chart_row_datetime(
@@ -12077,7 +12177,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 row_prefix = "💀  " if bool(is_deceased) else ""
                 label = (
                     f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {date_label}  {time_label}"
+                    f"{display_name}  {alias_label}  {date_label}  {time_label}"
                     f"  {retcon_time_label}  {place_with_gender}"
                 )
                 item = QListWidgetItem(label)
@@ -12088,6 +12188,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "position": chart_positions.get(cid, "?"),
                         "name": display_name,
                         "raw_name": name or "Unnamed",
+                        "alias": alias_text,
                         "date": date_label,
                         "time": time_label,
                         "retcon_time": retcon_time_label,
@@ -14067,9 +14168,29 @@ class MainWindow(QMainWindow):
         self.chart_container.setLayout(self.chart_container_layout)
         chart_panel_layout.addWidget(self.chart_container, 1)
 
-        self.chart_info_label = QLabel("Chart Info!")
-        self.chart_info_label.setStyleSheet(CHART_DATA_INFO_LABEL_STYLE)
-        chart_panel_layout.addWidget(self.chart_info_label, 0)
+        chart_info_header = QWidget()
+        chart_info_header_layout = QHBoxLayout()
+        chart_info_header_layout.setContentsMargins(0, 0, 0, 0)
+        chart_info_header_layout.setSpacing(6)
+        chart_info_header.setLayout(chart_info_header_layout)
+        self.chart_info_toggle_button = QPushButton("Chart Info")
+        self.chart_info_toggle_button.setCheckable(True)
+        self.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.chart_info_toggle_button.setMinimumHeight(24)
+        self.chart_info_toggle_button.clicked.connect(
+            lambda: self._set_chart_info_panel_mode("chart_info")
+        )
+        self.chart_comments_toggle_button = QPushButton("Comments")
+        self.chart_comments_toggle_button.setCheckable(True)
+        self.chart_comments_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.chart_comments_toggle_button.setMinimumHeight(24)
+        self.chart_comments_toggle_button.clicked.connect(
+            lambda: self._set_chart_info_panel_mode("comments")
+        )
+        chart_info_header_layout.addWidget(self.chart_info_toggle_button, 0)
+        chart_info_header_layout.addWidget(self.chart_comments_toggle_button, 0)
+        chart_info_header_layout.addStretch(1)
+        chart_panel_layout.addWidget(chart_info_header, 0)
 
         # Chart info output area beneath the preview.
         self.chart_info_output = QPlainTextEdit()
@@ -14079,7 +14200,9 @@ class MainWindow(QMainWindow):
         )
         self.chart_info_output.setMinimumHeight(140)
         self._chart_info_highlighter = ChartSummaryHighlighter(self.chart_info_output.document())
-        chart_panel_layout.addWidget(self.chart_info_output, 0)
+        self.chart_info_content_stack = QStackedWidget()
+        self.chart_info_content_stack.addWidget(self.chart_info_output)
+        chart_panel_layout.addWidget(self.chart_info_content_stack, 0)
         self._main_splitter.addWidget(chart_panel)
 
         # Chart Entry/Edit Window: MIDDLE panel (inputs + output).
@@ -14401,8 +14524,10 @@ class MainWindow(QMainWindow):
         self.comments_edit = QTextEdit()
         self.comments_edit.setPlaceholderText("Comments")
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
-        comment_line_height = self.comments_edit.fontMetrics().lineSpacing()
-        self.comments_edit.setFixedHeight((comment_line_height * 3) + 14)
+        self.comments_edit.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.comments_edit)
+        self._chart_info_panel_mode = "comments"
+        self._set_chart_info_panel_mode("comments")
 
         # Chart metadata controls (hidden for Event chart type).
         self.sentiment_metrics_widget = QWidget()
@@ -14710,15 +14835,7 @@ class MainWindow(QMainWindow):
         subjective_notes_panel.setLayout(subjective_notes_layout)
         subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
         subjective_notes_layout.addWidget(self.sentiment_metrics_widget)
-        comments_panel = QWidget()
-        comments_panel_layout = QVBoxLayout()
-        comments_panel_layout.setContentsMargins(4, 4, 4, 4)
-        comments_panel_layout.setSpacing(4)
-        comments_panel.setLayout(comments_panel_layout)
-        comments_panel_layout.addWidget(QLabel("Comments"))
-        comments_panel_layout.addWidget(self.comments_edit)
         subjective_notes_layout.addStretch(1)
-        subjective_notes_layout.addWidget(comments_panel)
         chart_right_panel = build_chart_right_panel_stack(
             analytics_content_widget=metrics_content,
             subjective_notes_content_widget=subjective_notes_panel,
@@ -16429,6 +16546,38 @@ class MainWindow(QMainWindow):
             margin,
         )
 
+    def _set_chart_info_panel_mode(self, mode: str) -> None:
+        if mode not in {"chart_info", "comments"}:
+            return
+        self._chart_info_panel_mode = mode
+        if hasattr(self, "chart_info_content_stack"):
+            self.chart_info_content_stack.setCurrentIndex(0 if mode == "chart_info" else 1)
+        self._refresh_chart_info_panel_toggle_buttons()
+
+    def _refresh_chart_info_panel_toggle_buttons(self) -> None:
+        active_mode = getattr(self, "_chart_info_panel_mode", "comments")
+        chart_info_active = active_mode == "chart_info"
+        comments_active = active_mode == "comments"
+        active_style = (
+            "QPushButton { font-weight: 700; padding: 2px 8px; }"
+            "QPushButton:checked { background-color: #2f3a5a; border: 1px solid #6f7fb4; }"
+        )
+        inactive_style = "QPushButton { font-weight: 400; padding: 2px 8px; }"
+        if hasattr(self, "chart_info_toggle_button"):
+            self.chart_info_toggle_button.blockSignals(True)
+            self.chart_info_toggle_button.setChecked(chart_info_active)
+            self.chart_info_toggle_button.blockSignals(False)
+            self.chart_info_toggle_button.setStyleSheet(
+                active_style if chart_info_active else inactive_style
+            )
+        if hasattr(self, "chart_comments_toggle_button"):
+            self.chart_comments_toggle_button.blockSignals(True)
+            self.chart_comments_toggle_button.setChecked(comments_active)
+            self.chart_comments_toggle_button.blockSignals(False)
+            self.chart_comments_toggle_button.setStyleSheet(
+                active_style if comments_active else inactive_style
+            )
+
     def _export_chart_data_output(self) -> None:
         summary_text = self.output_text.toPlainText().strip()
         if not summary_text:
@@ -16492,6 +16641,8 @@ class MainWindow(QMainWindow):
         original_chart_info_output = self.chart_info_output
         self.chart_info_output = target_info_widget
         try:
+            if target_info_widget is original_chart_info_output:
+                self._set_chart_info_panel_mode("chart_info")
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None
