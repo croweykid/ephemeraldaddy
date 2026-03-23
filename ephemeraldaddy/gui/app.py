@@ -18904,14 +18904,18 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
     def _show_chart_loading_overlay(self) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.start()
+        # Temporarily disabled per UX request: Chart View loading overlay is not
+        # reliable enough for production behavior.
+        return
 
     def _hide_chart_loading_overlay(self, *, defer_ms: int = 0) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.stop(defer_ms=defer_ms)
+        # Keep as a no-op while overlay is disabled.
+        return
+
+    def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
+        if self._latest_chart is not chart:
+            return
+        self._schedule_passive_chart_analysis_preload(chart)
 
     def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
         if self._latest_chart is not chart:
