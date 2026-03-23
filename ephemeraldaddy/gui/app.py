@@ -18904,14 +18904,18 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
     def _show_chart_loading_overlay(self) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.start()
+        # Temporarily disabled per UX request: Chart View loading overlay is not
+        # reliable enough for production behavior.
+        return
 
     def _hide_chart_loading_overlay(self, *, defer_ms: int = 0) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.stop(defer_ms=defer_ms)
+        # Keep as a no-op while overlay is disabled.
+        return
+
+    def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
+        if self._latest_chart is not chart:
+            return
+        self._schedule_passive_chart_analysis_preload(chart)
 
     def _schedule_chart_render(
         self,
@@ -19034,10 +19038,15 @@ class MainWindow(QMainWindow):
             return
 
         self._pending_render_chart = None
-        self._schedule_passive_chart_analysis_preload(chart)
-        # Keep the loading animation running until the event loop gets a chance
-        # to process pending draw/update events from the final render pass.
-        self._hide_chart_loading_overlay(defer_ms=1)
+        # draw() is synchronous for chart/metric canvases, so overlay shutdown can
+        # be tied to actual completion of the final render pass here.
+        self._hide_chart_loading_overlay()
+        QTimer.singleShot(
+            0,
+            lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
+                chart_snapshot
+            ),
+        )
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
         return {
@@ -19218,7 +19227,7 @@ class MainWindow(QMainWindow):
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
-        canvas.draw_idle()
+        canvas.draw()
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -19251,7 +19260,7 @@ class MainWindow(QMainWindow):
             symbol_scale=0.7,
             wheel_scale=1.3,
         )
-        canvas.draw_idle()
+        canvas.draw()
         
         self.chart_canvas = canvas
 
