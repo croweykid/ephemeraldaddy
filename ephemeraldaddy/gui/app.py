@@ -14991,8 +14991,8 @@ class MainWindow(QMainWindow):
         self._anagrams_source_dropdown = anagrams_section.source_dropdown
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
-        self._active_chart_right_panel = "analytics"
-        self._set_chart_right_panel("analytics")
+        self._active_chart_right_panel = "subjective_notes"
+        self._set_chart_right_panel("subjective_notes")
 
         # Shortcuts
         self._shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -15142,13 +15142,13 @@ class MainWindow(QMainWindow):
             panel=panel,
             layout=self.metrics_layout,
             title="Similar Charts",
-            expanded=True,
+            expanded=False,
             on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
                 "similar_charts",
                 checked,
             ),
         )
-        self._chart_analysis_section_expanded["similar_charts"] = True
+        self._chart_analysis_section_expanded["similar_charts"] = False
 
         summary_label = QLabel(
             "Finds the top 3 closest matches from saved database charts."
