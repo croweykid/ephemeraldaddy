@@ -377,6 +377,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
+from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     build_anagrams_section,
@@ -1230,87 +1231,6 @@ class EmojiTiledPanel(QWidget):
         for y in range(0, self.height() + tile_height, tile_height):
             for x in range(0, self.width() + tile_width, tile_width):
                 painter.drawText(x, y + baseline_offset, self._emoji)
-
-
-class ChartLoadingOverlay(QWidget):
-    """Animated loading overlay displayed above the natal chart canvas."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._spin_angle = 0.0
-        self._timer = QTimer(self)
-        self._timer.setInterval(75)
-        self._timer.timeout.connect(self._advance_spinner)
-        self.hide()
-
-    def start(self) -> None:
-        self._spin_angle = 0.0
-        self.show()
-        self.raise_()
-        if not self._timer.isActive():
-            self._timer.start()
-        self.update()
-
-    def stop(self) -> None:
-        if self._timer.isActive():
-            self._timer.stop()
-        self.hide()
-
-    def _advance_spinner(self) -> None:
-        self._spin_angle = (self._spin_angle + 14.0) % 360.0
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
-        if not self.isVisible():
-            return
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.TextAntialiasing, True)
-        painter.fillRect(self.rect(), QColor(8, 8, 12, 102))
-
-        center_x = self.width() / 2.0
-        center_y = self.height() / 2.0
-        min_dim = max(1.0, float(min(self.width(), self.height())))
-        emoji_font_size = int(max(54, min(180, min_dim * 0.22)))
-        ring_font_size = int(max(18, min(54, min_dim * 0.085)))
-        ring_radius = max(70.0, min_dim * 0.21)
-
-        painter.save()
-        painter.translate(center_x, center_y)
-        painter.rotate(self._spin_angle)
-        swirl_font = QFont(self.font())
-        swirl_font.setPointSize(emoji_font_size)
-        painter.setFont(swirl_font)
-        painter.setPen(QColor(255, 255, 255, 153))
-        painter.drawText(
-            -emoji_font_size,
-            int(emoji_font_size * 0.45),
-            "🌀",
-        )
-        painter.restore()
-
-        loading_text = "LOADING"
-        ring_font = QFont(self.font())
-        ring_font.setBold(True)
-        ring_font.setPointSize(ring_font_size)
-        painter.setFont(ring_font)
-        painter.setPen(QColor("#c000ff"))
-        step_degrees = 360.0 / max(1, len(loading_text))
-        for index, letter in enumerate(loading_text):
-            angle_deg = self._spin_angle + (index * step_degrees)
-            angle_rad = math.radians(angle_deg)
-            x = center_x + (ring_radius * math.cos(angle_rad))
-            y = center_y + (ring_radius * math.sin(angle_rad))
-            fm = QFontMetrics(ring_font)
-            text_width = fm.horizontalAdvance(letter)
-            text_height = fm.height()
-            painter.drawText(
-                int(x - (text_width / 2)),
-                int(y + (text_height / 3)),
-                letter,
-            )
 
 
 def _handle_list_letter_jump(list_widget: QListWidget, event) -> bool:
