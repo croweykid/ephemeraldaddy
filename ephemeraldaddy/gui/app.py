@@ -15047,6 +15047,7 @@ class MainWindow(QMainWindow):
             on_dropdown_changed=self._on_chart_analysis_dropdown_changed,
             on_export_chart_csv=self._export_chart_analysis_chart_csv,
             get_share_icon_path=_get_share_icon_path,
+            on_section_toggled=self._set_chart_analysis_section_expanded,
         )
 
         self._chart_analysis_section_visible["planet_dynamics"] = self._visibility.get(
@@ -15156,7 +15157,11 @@ class MainWindow(QMainWindow):
         render_key = self._chart_analysis_render_key_for_section(section_key)
         if render_key is None:
             return
-        self._schedule_chart_render(self._latest_chart, sections={render_key})
+        self._schedule_chart_render(
+            self._latest_chart,
+            sections={render_key},
+            prioritize_sections=True,
+        )
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)
@@ -18908,7 +18913,14 @@ class MainWindow(QMainWindow):
         if overlay is not None:
             overlay.stop(defer_ms=defer_ms)
 
-    def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
+    def _schedule_chart_render(
+        self,
+        chart: Chart,
+        sections: set[str] | None = None,
+        *,
+        allow_collapsed_sections: bool = False,
+        prioritize_sections: bool = False,
+    ) -> None:
         self._latest_chart = chart
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._pending_render_sections.clear()
@@ -18930,7 +18942,11 @@ class MainWindow(QMainWindow):
             }
             if self._is_chart_analysis_section_visible("anagrams"):
                 sections.add("anagrams")
-        sections = self._filter_chart_render_sections_for_visibility_and_cache(chart, sections)
+        sections = self._filter_chart_render_sections_for_visibility_and_cache(
+            chart,
+            sections,
+            allow_collapsed_sections=allow_collapsed_sections,
+        )
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
@@ -18949,10 +18965,22 @@ class MainWindow(QMainWindow):
             "anagrams",
         )
         queued = set(self._pending_render_queue)
+        prioritized_queue: list[str] = []
+        if prioritize_sections:
+            for section_name in render_order:
+                if section_name in sections and section_name in self._pending_render_queue:
+                    self._pending_render_queue.remove(section_name)
+                    prioritized_queue.append(section_name)
+                    queued.discard(section_name)
         for section_name in render_order:
             if section_name in self._pending_render_sections and section_name not in queued:
-                self._pending_render_queue.append(section_name)
+                if prioritize_sections:
+                    prioritized_queue.append(section_name)
+                else:
+                    self._pending_render_queue.append(section_name)
                 queued.add(section_name)
+        if prioritized_queue:
+            self._pending_render_queue = prioritized_queue + self._pending_render_queue
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
@@ -19006,6 +19034,7 @@ class MainWindow(QMainWindow):
             return
 
         self._pending_render_chart = None
+        self._schedule_passive_chart_analysis_preload(chart)
         # Keep the loading animation running until the event loop gets a chance
         # to process pending draw/update events from the final render pass.
         self._hide_chart_loading_overlay(defer_ms=1)
@@ -19090,7 +19119,12 @@ class MainWindow(QMainWindow):
             self._chart_analytics_dirty_sections.discard(section)
             self._chart_analytics_render_tokens[section] = token
 
-    def _is_chart_analytics_section_renderable(self, render_key: str) -> bool:
+    def _is_chart_analytics_section_renderable(
+        self,
+        render_key: str,
+        *,
+        allow_collapsed: bool = False,
+    ) -> bool:
         section_key = self._chart_analysis_section_key_for_render(render_key)
         if section_key is None:
             return False
@@ -19098,7 +19132,7 @@ class MainWindow(QMainWindow):
             return False
         if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
             return False
-        if not self._chart_analysis_section_expanded.get(section_key, True):
+        if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
         if section_key in {"planet_dynamics", "anagrams"} and not self._is_chart_analysis_section_visible(section_key):
             return False
@@ -19108,6 +19142,8 @@ class MainWindow(QMainWindow):
         self,
         chart: Chart,
         sections: set[str],
+        *,
+        allow_collapsed_sections: bool = False,
     ) -> set[str]:
         filtered: set[str] = set()
         token = self._chart_analytics_cache_token(chart)
@@ -19115,7 +19151,10 @@ class MainWindow(QMainWindow):
             if not self._is_chart_analytics_render_key(section):
                 filtered.add(section)
                 continue
-            if not self._is_chart_analytics_section_renderable(section):
+            if not self._is_chart_analytics_section_renderable(
+                section,
+                allow_collapsed=allow_collapsed_sections,
+            ):
                 continue
             if (
                 section not in self._chart_analytics_dirty_sections
@@ -19124,6 +19163,30 @@ class MainWindow(QMainWindow):
                 continue
             filtered.add(section)
         return filtered
+
+    def _schedule_passive_chart_analysis_preload(self, chart: Chart) -> None:
+        if not self.metrics_panel.isVisible():
+            return
+        if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
+            return
+        passive_sections = {
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "similar_charts",
+        }
+        if self._is_chart_analysis_section_visible("anagrams"):
+            passive_sections.add("anagrams")
+        self._schedule_chart_render(
+            chart,
+            sections=passive_sections,
+            allow_collapsed_sections=True,
+        )
 
     def _render_metric_panel(
         self,
