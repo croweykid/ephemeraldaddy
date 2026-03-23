@@ -16,7 +16,7 @@ class ChartLoadingOverlay(QWidget):
         super().__init__(parent)
         self._spin_angle = 0.0
         self._timer = QTimer(self)
-        self._timer.setInterval(60)
+        self._timer.setInterval(20)
         self._timer.timeout.connect(self._advance_spinner)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.hide()
@@ -39,7 +39,7 @@ class ChartLoadingOverlay(QWidget):
         self.hide()
 
     def _advance_spinner(self) -> None:
-        self._spin_angle = (self._spin_angle + 2.2) % 360.0
+        self._spin_angle = (self._spin_angle + 6.0) % 360.0
         self.update()
 
     def _sync_to_parent(self) -> None:
@@ -77,16 +77,20 @@ class ChartLoadingOverlay(QWidget):
         ring_font_size = int(max(18, min(54, min_dim * 0.085)))
         ring_radius = max(70.0, min_dim * 0.21)
 
+        swirl_font = QFont(self.font())
+        swirl_font.setPointSize(emoji_font_size)
+        swirl_metrics = QFontMetrics(swirl_font)
+        swirl_rect = swirl_metrics.tightBoundingRect("🌀")
         painter.save()
         painter.translate(center_x, center_y)
         painter.rotate(self._spin_angle)
-        swirl_font = QFont(self.font())
-        swirl_font.setPointSize(emoji_font_size)
+        #swirl_font = QFont(self.font())
+        #swirl_font.setPointSize(emoji_font_size)
         painter.setFont(swirl_font)
         painter.setPen(QColor(255, 255, 255, 153))
         painter.drawText(
-            -emoji_font_size,
-            int(emoji_font_size * 0.45),
+            int(-swirl_rect.width() / 2 - swirl_rect.x()),
+            int(-swirl_rect.height() / 2 - swirl_rect.y()),
             "🌀",
         )
         painter.restore()
@@ -106,8 +110,12 @@ class ChartLoadingOverlay(QWidget):
             fm = QFontMetrics(ring_font)
             text_width = fm.horizontalAdvance(letter)
             text_height = fm.height()
+            painter.save()
+            painter.translate(x, y)
+            painter.rotate(angle_deg + 90.0)
             painter.drawText(
-                int(x - (text_width / 2)),
-                int(y + (text_height / 3)),
+                int(-(text_width / 2)),
+                int(text_height / 3),
                 letter,
             )
+            painter.restore()

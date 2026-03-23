@@ -416,6 +416,7 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
     export_aspect_distribution_csv_dialog as _export_aspect_distribution_csv_dialog,
+    get_text_export_path as _get_text_export_path,
 )
 from ephemeraldaddy.gui.features.charts.text_summary import (
     _aspect_body_with_sign,
@@ -502,6 +503,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "birthplace",
     }
 )
+SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -14107,6 +14109,7 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._pending_render_sections: set[str] = set()
+        self._pending_render_queue: list[str] = []
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_dirty_sections: set[str] = {
             "signs",
@@ -14140,6 +14143,9 @@ class MainWindow(QMainWindow):
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_list_label: QLabel | None = None
+        self._similar_charts_export_button: QToolButton | None = None
+        self._similar_charts_export_rows: list[dict[str, Any]] = []
+        self._similar_charts_subject_name: str = ""
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
         self._anagrams_export_button: QToolButton | None = None
@@ -15211,6 +15217,28 @@ class MainWindow(QMainWindow):
         section_layout.addWidget(summary_label)
         self._similar_charts_summary_label = summary_label
 
+        header_row = QWidget()
+        header_layout = QHBoxLayout(header_row)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
+        header_layout.addWidget(QLabel("Top 3 matches"))
+        header_layout.addStretch(1)
+        export_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            export_button.setIcon(QIcon(share_icon_path))
+            export_button.setIconSize(QSize(14, 14))
+        else:
+            export_button.setText("↗")
+        export_button.setAutoRaise(True)
+        export_button.setCursor(Qt.PointingHandCursor)
+        export_button.setToolTip("Export similar charts as TXT or Markdown")
+        export_button.clicked.connect(self._export_similar_charts_share)
+        header_layout.addWidget(export_button, 0, Qt.AlignRight)
+        section_layout.addWidget(header_row)
+        self._similar_charts_export_button = export_button
+        self._similar_charts_export_button.setEnabled(False)
+
         list_label = QLabel("Generate or load a chart to search for matches.")
         list_label.setWordWrap(True)
         list_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -15284,6 +15312,10 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         if getattr(chart, "is_placeholder", False):
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 "Similar chart matching is disabled for placeholder charts."
             )
@@ -15299,6 +15331,10 @@ class MainWindow(QMainWindow):
         try:
             rows = list_charts()
         except Exception as exc:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 f"Could not read saved charts for twin matching:\n{exc}"
             )
@@ -15319,6 +15355,10 @@ class MainWindow(QMainWindow):
             candidates.append((chart_id, candidate))
 
         if not candidates:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
                 "Need at least one additional non-placeholder saved chart in the database."
             )
@@ -15331,9 +15371,17 @@ class MainWindow(QMainWindow):
             exclude_chart_id=self.current_chart_id,
         )
         if not matches:
+            self._similar_charts_export_rows = []
+            self._similar_charts_subject_name = ""
+            if self._similar_charts_export_button is not None:
+                self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText("No similar charts found.")
             return
 
+        self._similar_charts_subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+        self._similar_charts_export_rows = []
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(True)
         match_blocks: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
@@ -18421,6 +18469,7 @@ class MainWindow(QMainWindow):
         set_current_chart(chart_id)
         self._pending_render_chart = None
         self._pending_render_sections.clear()
+        self._pending_render_queue.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
@@ -18763,6 +18812,9 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
+        if self._pending_render_chart is not None and self._pending_render_chart is not chart:
+            self._pending_render_sections.clear()
+            self._pending_render_queue.clear()
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -18784,6 +18836,25 @@ class MainWindow(QMainWindow):
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
+        render_order = (
+            "summary",
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "wheel",
+            "similar_charts",
+            "anagrams",
+        )
+        queued = set(self._pending_render_queue)
+        for section_name in render_order:
+            if section_name in self._pending_render_sections and section_name not in queued:
+                self._pending_render_queue.append(section_name)
+                queued.add(section_name)
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
@@ -18791,37 +18862,52 @@ class MainWindow(QMainWindow):
         chart = self._pending_render_chart
         if chart is None:
             self._pending_render_sections.clear()
+            self._pending_render_queue.clear()
             self._hide_chart_loading_overlay()
             return
-        sections = set(self._pending_render_sections)
-        self._pending_render_sections.clear()
-        self._pending_render_chart = None
 
-        if "summary" in sections:
+        section = self._pending_render_queue.pop(0) if self._pending_render_queue else None
+        if section is None:
+            if not self._pending_render_sections:
+                self._pending_render_chart = None
+                self._hide_chart_loading_overlay()
+            return
+
+        if section == "summary":
             self._refresh_chart_summary(chart)
-        if "signs" in sections:
+        elif section == "signs":
             self._render_sign_tally(chart)
-        if "planets" in sections:
+        elif section == "planets":
             self._render_planet_tally(chart)
-        if "houses" in sections:
+        elif section == "houses":
             self._render_house_tally(chart)
-        if "elements" in sections:
+        elif section == "elements":
             self._render_element_tally(chart)
-        if "nakshatra" in sections:
+        elif section == "nakshatra":
             self._render_nakshatra_wordcloud(chart)
-        if "modal" in sections:
+        elif section == "modal":
             self._render_modal_distribution(chart)
-        if "gender" in sections:
+        elif section == "gender":
             self._render_gender_guesser(chart)
-        if "planet_dynamics" in sections:
+        elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
-        if "wheel" in sections:
+        elif section == "wheel":
             self._render_chart(chart)
-        if "similar_charts" in sections:
+        elif section == "similar_charts":
             self._render_similar_charts(chart)
-        if "anagrams" in sections:
+        elif section == "anagrams":
             self._render_anagrams(chart)
-        self._mark_chart_analytics_sections_clean(sections, chart)
+        self._pending_render_sections.discard(section)
+        self._mark_chart_analytics_sections_clean({section}, chart)
+
+        if self._pending_render_queue:
+            self._render_flush_timer.start(0)
+            return
+        if self._pending_render_sections:
+            self._render_flush_timer.start(0)
+            return
+
+        self._pending_render_chart = None
         self._hide_chart_loading_overlay()
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
@@ -19021,6 +19107,7 @@ class MainWindow(QMainWindow):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
         self._pending_render_sections.clear()
+        self._pending_render_queue.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
@@ -19040,6 +19127,10 @@ class MainWindow(QMainWindow):
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
             )
+        self._similar_charts_export_rows = []
+        self._similar_charts_subject_name = ""
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(False)
         if self._anagrams_list_label is not None:
             source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
             self._anagrams_list_label.setText(
