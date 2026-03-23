@@ -504,6 +504,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
+CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -10438,8 +10439,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if restore_default_size:
             self._content_splitter.setSizes(self._default_content_splitter_sizes())
-        elif self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
-            self._content_splitter.setSizes(self._right_panel_sizes)
+            return
+
+        current_total = max(1, sum(self._content_splitter.sizes()))
+        left_hidden = (not self._left_panel_visible) or self._is_left_panel_collapsed()
+
+        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
+            sizes = list(self._right_panel_sizes)
+            right_size = max(0, sizes[2])
+            if left_hidden:
+                self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
+                return
+            self._content_splitter.setSizes(sizes)
+            return
+
+        default_sizes = self._default_content_splitter_sizes()
+        right_size = max(0, default_sizes[2])
+        if left_hidden:
+            self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
+            return
+        self._content_splitter.setSizes(default_sizes)
 
     def _is_left_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
@@ -10466,13 +10485,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._content_splitter.setSizes(self._default_content_splitter_sizes())
             return
 
+        current_total = max(1, sum(self._content_splitter.sizes()))
+        right_hidden = (not self._right_panel_visible) or self._is_right_panel_collapsed()
+
         if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
-            self._content_splitter.setSizes(
-                self._normalize_content_splitter_sizes(self._left_panel_sizes)
-            )
+            sizes = self._normalize_content_splitter_sizes(self._left_panel_sizes)
+            left_size = max(0, sizes[0])
+            if right_hidden:
+                self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
+                return
+            self._content_splitter.setSizes(sizes)
             return
 
-        self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        default_sizes = self._default_content_splitter_sizes()
+        left_size = max(0, default_sizes[0])
+        if right_hidden:
+            self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
+            return
+        self._content_splitter.setSizes(default_sizes)
 
     def _show_left_panel(self, panel_name: str) -> None:
         try:
@@ -10481,7 +10511,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.left_panel_stack.setCurrentWidget(widget)
         self._active_left_panel = panel_name
-        self._set_left_panel_visible(True, restore_default_size=True)
+        self._set_left_panel_visible(True)
 
         if panel_name == "database_metrics":
             self.database_metrics_panel_header_label.setText("Database Analytics")
@@ -10621,7 +10651,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             raise ValueError(f"Unknown panel name: {panel_name}") from exc
         self.right_panel_stack.setCurrentWidget(widget)
         self._active_right_panel = panel_name
-        self._set_right_panel_visible(True, restore_default_size=True)
+        self._set_right_panel_visible(True)
 
     def _toggle_search_panel(self) -> None:
         if (
@@ -12092,6 +12122,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         if force_full_analysis_refresh:
             self._chart_cache = {}
+            owner = self.parent()
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache()
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_dirty_ids.clear()
@@ -12099,6 +12132,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_dirty_ids.update(changed_ids)
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
+            owner = self.parent()
+            if owner is not None and hasattr(owner, "_invalidate_chart_view_navigation_cache"):
+                owner._invalidate_chart_view_navigation_cache(changed_ids)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -14152,6 +14188,7 @@ class MainWindow(QMainWindow):
         self._anagrams_current_subject_label: str = "Chart name"
         self._chart_view_history: list[int] = []
         self._chart_view_history_index: int = -1
+        self._chart_view_navigation_cache: OrderedDict[int, Chart] = OrderedDict()
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
@@ -15010,6 +15047,7 @@ class MainWindow(QMainWindow):
             on_dropdown_changed=self._on_chart_analysis_dropdown_changed,
             on_export_chart_csv=self._export_chart_analysis_chart_csv,
             get_share_icon_path=_get_share_icon_path,
+            on_section_toggled=self._set_chart_analysis_section_expanded,
         )
 
         self._chart_analysis_section_visible["planet_dynamics"] = self._visibility.get(
@@ -15119,7 +15157,11 @@ class MainWindow(QMainWindow):
         render_key = self._chart_analysis_render_key_for_section(section_key)
         if render_key is None:
             return
-        self._schedule_chart_render(self._latest_chart, sections={render_key})
+        self._schedule_chart_render(
+            self._latest_chart,
+            sections={render_key},
+            prioritize_sections=True,
+        )
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)
@@ -18213,8 +18255,10 @@ class MainWindow(QMainWindow):
         else:
             update_chart(chart_id, chart, **save_kwargs)
             set_current_chart(chart_id)
+            self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        self._cache_chart_view_navigation_entry(chart_id, chart)
         self._mark_chart_analytics_sections_dirty()
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
@@ -18471,6 +18515,25 @@ class MainWindow(QMainWindow):
             return
         self.load_chart_by_id(chart_id)
 
+    def _cache_chart_view_navigation_entry(self, chart_id: int, chart: Chart | None) -> None:
+        if chart is None:
+            return
+        normalized_chart_id = int(chart_id)
+        self._chart_view_navigation_cache[normalized_chart_id] = chart
+        self._chart_view_navigation_cache.move_to_end(normalized_chart_id)
+        while len(self._chart_view_navigation_cache) > CHART_VIEW_NAV_CACHE_LIMIT:
+            self._chart_view_navigation_cache.popitem(last=False)
+
+    def _invalidate_chart_view_navigation_cache(
+        self,
+        chart_ids: set[int] | list[int] | tuple[int, ...] | None = None,
+    ) -> None:
+        if not chart_ids:
+            self._chart_view_navigation_cache.clear()
+            return
+        for chart_id in chart_ids:
+            self._chart_view_navigation_cache.pop(int(chart_id), None)
+
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
@@ -18478,21 +18541,32 @@ class MainWindow(QMainWindow):
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
-        if not is_same_chart_request:
+        cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
+        use_fast_navigation_swap = (
+            from_chart_link
+            and not is_same_chart_request
+            and cached_chart is not None
+        )
+        if not is_same_chart_request and not use_fast_navigation_swap:
             self._clear_chart_displays()
             self._sync_chart_right_panel_placeholder_state(None)
             self._show_chart_loading_overlay()
             QApplication.processEvents()
-        try:
-            chart = load_chart(chart_id)
-        except Exception as e:
-            self._hide_chart_loading_overlay()
-            QMessageBox.critical(
-                self,
-                "Load error",
-                f"Could not load chart #{chart_id}:\n{e}",
-            )
-            return False
+        if cached_chart is not None:
+            chart = cached_chart
+            self._chart_view_navigation_cache.move_to_end(int(chart_id))
+        else:
+            try:
+                chart = load_chart(chart_id)
+            except Exception as e:
+                self._hide_chart_loading_overlay()
+                QMessageBox.critical(
+                    self,
+                    "Load error",
+                    f"Could not load chart #{chart_id}:\n{e}",
+                )
+                return False
+            self._cache_chart_view_navigation_entry(chart_id, chart)
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
@@ -18595,6 +18669,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
@@ -18681,6 +18756,7 @@ class MainWindow(QMainWindow):
         manage_dialog._size_checker_popup = self._size_checker_popup
 
     def _on_charts_deleted(self, chart_ids: set[int]) -> None:
+        self._invalidate_chart_view_navigation_cache(chart_ids)
         if self.current_chart_id is None or self.current_chart_id not in chart_ids:
             return
         self._orphan_current_chart_reference()
@@ -18832,12 +18908,19 @@ class MainWindow(QMainWindow):
         if overlay is not None:
             overlay.start()
 
-    def _hide_chart_loading_overlay(self) -> None:
+    def _hide_chart_loading_overlay(self, *, defer_ms: int = 0) -> None:
         overlay = getattr(self, "chart_loading_overlay", None)
         if overlay is not None:
-            overlay.stop()
+            overlay.stop(defer_ms=defer_ms)
 
-    def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
+    def _schedule_chart_render(
+        self,
+        chart: Chart,
+        sections: set[str] | None = None,
+        *,
+        allow_collapsed_sections: bool = False,
+        prioritize_sections: bool = False,
+    ) -> None:
         self._latest_chart = chart
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._pending_render_sections.clear()
@@ -18859,7 +18942,11 @@ class MainWindow(QMainWindow):
             }
             if self._is_chart_analysis_section_visible("anagrams"):
                 sections.add("anagrams")
-        sections = self._filter_chart_render_sections_for_visibility_and_cache(chart, sections)
+        sections = self._filter_chart_render_sections_for_visibility_and_cache(
+            chart,
+            sections,
+            allow_collapsed_sections=allow_collapsed_sections,
+        )
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
@@ -18878,10 +18965,22 @@ class MainWindow(QMainWindow):
             "anagrams",
         )
         queued = set(self._pending_render_queue)
+        prioritized_queue: list[str] = []
+        if prioritize_sections:
+            for section_name in render_order:
+                if section_name in sections and section_name in self._pending_render_queue:
+                    self._pending_render_queue.remove(section_name)
+                    prioritized_queue.append(section_name)
+                    queued.discard(section_name)
         for section_name in render_order:
             if section_name in self._pending_render_sections and section_name not in queued:
-                self._pending_render_queue.append(section_name)
+                if prioritize_sections:
+                    prioritized_queue.append(section_name)
+                else:
+                    self._pending_render_queue.append(section_name)
                 queued.add(section_name)
+        if prioritized_queue:
+            self._pending_render_queue = prioritized_queue + self._pending_render_queue
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
@@ -18935,7 +19034,10 @@ class MainWindow(QMainWindow):
             return
 
         self._pending_render_chart = None
-        self._hide_chart_loading_overlay()
+        self._schedule_passive_chart_analysis_preload(chart)
+        # Keep the loading animation running until the event loop gets a chance
+        # to process pending draw/update events from the final render pass.
+        self._hide_chart_loading_overlay(defer_ms=1)
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
         return {
@@ -19017,7 +19119,12 @@ class MainWindow(QMainWindow):
             self._chart_analytics_dirty_sections.discard(section)
             self._chart_analytics_render_tokens[section] = token
 
-    def _is_chart_analytics_section_renderable(self, render_key: str) -> bool:
+    def _is_chart_analytics_section_renderable(
+        self,
+        render_key: str,
+        *,
+        allow_collapsed: bool = False,
+    ) -> bool:
         section_key = self._chart_analysis_section_key_for_render(render_key)
         if section_key is None:
             return False
@@ -19025,7 +19132,7 @@ class MainWindow(QMainWindow):
             return False
         if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
             return False
-        if not self._chart_analysis_section_expanded.get(section_key, True):
+        if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
         if section_key in {"planet_dynamics", "anagrams"} and not self._is_chart_analysis_section_visible(section_key):
             return False
@@ -19035,6 +19142,8 @@ class MainWindow(QMainWindow):
         self,
         chart: Chart,
         sections: set[str],
+        *,
+        allow_collapsed_sections: bool = False,
     ) -> set[str]:
         filtered: set[str] = set()
         token = self._chart_analytics_cache_token(chart)
@@ -19042,7 +19151,10 @@ class MainWindow(QMainWindow):
             if not self._is_chart_analytics_render_key(section):
                 filtered.add(section)
                 continue
-            if not self._is_chart_analytics_section_renderable(section):
+            if not self._is_chart_analytics_section_renderable(
+                section,
+                allow_collapsed=allow_collapsed_sections,
+            ):
                 continue
             if (
                 section not in self._chart_analytics_dirty_sections
@@ -19051,6 +19163,30 @@ class MainWindow(QMainWindow):
                 continue
             filtered.add(section)
         return filtered
+
+    def _schedule_passive_chart_analysis_preload(self, chart: Chart) -> None:
+        if not self.metrics_panel.isVisible():
+            return
+        if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
+            return
+        passive_sections = {
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "similar_charts",
+        }
+        if self._is_chart_analysis_section_visible("anagrams"):
+            passive_sections.add("anagrams")
+        self._schedule_chart_render(
+            chart,
+            sections=passive_sections,
+            allow_collapsed_sections=True,
+        )
 
     def _render_metric_panel(
         self,

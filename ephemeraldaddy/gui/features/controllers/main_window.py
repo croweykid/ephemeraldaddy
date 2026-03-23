@@ -41,11 +41,13 @@ class ChartAnalysisSectionsController:
         on_dropdown_changed: Callable[[str], None],
         on_export_chart_csv: Callable[[str, str], None],
         get_share_icon_path: Callable[[], str | None],
+        on_section_toggled: Callable[[str, bool], None] | None = None,
     ) -> None:
         self._owner = owner
         self._on_dropdown_changed = on_dropdown_changed
         self._on_export_chart_csv = on_export_chart_csv
         self._get_share_icon_path = get_share_icon_path
+        self._on_section_toggled = on_section_toggled
 
     def create_header(
         self,
@@ -188,9 +190,10 @@ class ChartAnalysisSectionsController:
             layout=self._owner.metrics_layout,
             title=section_title,
             expanded=expanded,
-            on_toggled=lambda checked, key=section_key: self.set_section_expanded(
-                key,
-                checked,
+            on_toggled=lambda checked, key=section_key: (
+                self._on_section_toggled(key, checked)
+                if self._on_section_toggled is not None
+                else self.set_section_expanded(key, checked)
             ),
             section_key=section_key,
         )
