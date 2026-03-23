@@ -10989,6 +10989,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._sync_window_loading_overlay_geometry()
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
@@ -14183,6 +14184,7 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         self.setCentralWidget(central)
+        self.window_loading_overlay = ChartLoadingOverlay(central, dim_alpha=150)
 
         # Natal Chart View Window: Create New Chart / Edit Individual Chart
         # Top-level layout: left = chart, middle = inputs + output, right = metrics
@@ -18668,14 +18670,30 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
     def _show_chart_loading_overlay(self) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.start()
+        window_overlay = getattr(self, "window_loading_overlay", None)
+        if window_overlay is not None:
+            self._sync_window_loading_overlay_geometry()
+            window_overlay.start()
+        chart_overlay = getattr(self, "chart_loading_overlay", None)
+        if chart_overlay is not None:
+            chart_overlay.hide()
 
     def _hide_chart_loading_overlay(self) -> None:
-        overlay = getattr(self, "chart_loading_overlay", None)
-        if overlay is not None:
-            overlay.stop()
+        window_overlay = getattr(self, "window_loading_overlay", None)
+        if window_overlay is not None:
+            window_overlay.stop()
+        chart_overlay = getattr(self, "chart_loading_overlay", None)
+        if chart_overlay is not None:
+            chart_overlay.stop()
+
+    def _sync_window_loading_overlay_geometry(self) -> None:
+        overlay = getattr(self, "window_loading_overlay", None)
+        if overlay is None:
+            return
+        central = self.centralWidget()
+        if central is None:
+            return
+        overlay.setGeometry(central.rect())
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
