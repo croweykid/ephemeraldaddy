@@ -3120,11 +3120,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _build_todays_transits_panel(self) -> QWidget:
         panel = QWidget()
         panel.setMinimumWidth(260)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout()
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
-        layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
         panel.setLayout(layout)
 
         section_layout = self._add_left_panel_collapsible_section(
@@ -3254,13 +3253,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Transit chart summary will appear here."
         )
         self.todays_transits_output.setMinimumHeight(140)
-        section_layout.addWidget(self.todays_transits_output)
+        self.todays_transits_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        section_layout.addWidget(self.todays_transits_output, 1)
 
         refresh_button = QPushButton("Refresh Transit View")
         refresh_button.clicked.connect(self._refresh_todays_transits_panel)
         section_layout.addWidget(refresh_button)
 
-        layout.addStretch(1)
         return panel
 
 
@@ -9648,6 +9647,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
         selected_chart_ids = set(chart_ids or [])
+        if self.current_chart_id is not None and int(self.current_chart_id) in selected_chart_ids:
+            self._mark_chart_analytics_sections_dirty()
+            if self._latest_chart is not None:
+                self._schedule_chart_render(self._latest_chart)
 
         if not selected_chart_ids:
             selected_chart_ids = {
@@ -14068,6 +14071,19 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._pending_render_sections: set[str] = set()
+        self._chart_analytics_render_tokens: dict[str, str] = {}
+        self._chart_analytics_dirty_sections: set[str] = {
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "similar_charts",
+            "anagrams",
+        }
         self._render_flush_timer = QTimer(self)
         self._render_flush_timer.setSingleShot(True)
         self._render_flush_timer.timeout.connect(self._flush_scheduled_chart_render)
@@ -14976,8 +14992,8 @@ class MainWindow(QMainWindow):
         self._anagrams_source_dropdown = anagrams_section.source_dropdown
         self._sync_chart_analysis_section_visibility()
         self.metrics_layout.addStretch(1)
-        self._active_chart_right_panel = "analytics"
-        self._set_chart_right_panel("analytics")
+        self._active_chart_right_panel = "subjective_notes"
+        self._set_chart_right_panel("subjective_notes")
 
         # Shortcuts
         self._shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -15049,6 +15065,12 @@ class MainWindow(QMainWindow):
 
     def _set_chart_analysis_section_expanded(self, section_key: str, expanded: bool) -> None:
         self._chart_analysis_sections_controller.set_section_expanded(section_key, expanded)
+        if not expanded or self._latest_chart is None:
+            return
+        render_key = self._chart_analysis_render_key_for_section(section_key)
+        if render_key is None:
+            return
+        self._schedule_chart_render(self._latest_chart, sections={render_key})
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
         return self._chart_analysis_section_visible.get(section_key, True)
@@ -15058,7 +15080,8 @@ class MainWindow(QMainWindow):
         self._visibility.set(f"chart_analytics.{section_key}", visible)
         self._sync_chart_analysis_section_visibility()
         if section_key == "anagrams" and visible and self._latest_chart is not None:
-            self._render_anagrams(self._latest_chart)
+            self._mark_chart_analytics_sections_dirty({"anagrams"})
+            self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
 
     def _sync_chart_analysis_section_visibility(self) -> None:
         for section_key, section_widget in self._chart_analysis_section_widgets.items():
@@ -15120,13 +15143,13 @@ class MainWindow(QMainWindow):
             panel=panel,
             layout=self.metrics_layout,
             title="Similar Charts",
-            expanded=True,
+            expanded=False,
             on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
                 "similar_charts",
                 checked,
             ),
         )
-        self._chart_analysis_section_expanded["similar_charts"] = True
+        self._chart_analysis_section_expanded["similar_charts"] = False
 
         summary_label = QLabel(
             "Finds the top 3 closest matches from saved database charts."
@@ -15170,6 +15193,7 @@ class MainWindow(QMainWindow):
         self._update_chart_analysis_subtitle(chart_key)
         if self._latest_chart is None:
             return
+        render_key = self._chart_analysis_render_key_for_section(chart_key)
         if chart_key == "dominant_signs":
             self._render_sign_tally(self._latest_chart)
         elif chart_key == "dominant_planets":
@@ -15186,6 +15210,8 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(self._latest_chart)
         elif chart_key == "planet_dynamics":
             self._render_planet_dynamics(self._latest_chart)
+        if render_key is not None:
+            self._mark_chart_analytics_sections_clean({render_key}, self._latest_chart)
 
     def _render_similar_charts(self, chart: Chart) -> None:
         if self._similar_charts_list_label is None:
@@ -17235,6 +17261,8 @@ class MainWindow(QMainWindow):
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
+        if panel_key == "analytics" and self._latest_chart is not None:
+            self._schedule_chart_render(self._latest_chart)
 
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
         analytics_button = getattr(self, "chart_analytics_panel_button", None)
@@ -18030,6 +18058,7 @@ class MainWindow(QMainWindow):
             set_current_chart(chart_id)
 
         self.current_chart_id = chart_id
+        self._mark_chart_analytics_sections_dirty()
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
@@ -18669,6 +18698,7 @@ class MainWindow(QMainWindow):
             }
             if self._is_chart_analysis_section_visible("anagrams"):
                 sections.add("anagrams")
+        sections = self._filter_chart_render_sections_for_visibility_and_cache(chart, sections)
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
@@ -18709,7 +18739,123 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         if "anagrams" in sections:
             self._render_anagrams(chart)
+        self._mark_chart_analytics_sections_clean(sections, chart)
         self._hide_chart_loading_overlay()
+
+    def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
+        return {
+            "dominant_signs": "signs",
+            "dominant_planets": "planets",
+            "dominant_houses": "houses",
+            "dominant_elements": "elements",
+            "nakshatra_prevalence": "nakshatra",
+            "modal_distribution": "modal",
+            "gender_guesser": "gender",
+            "planet_dynamics": "planet_dynamics",
+            "similar_charts": "similar_charts",
+            "anagrams": "anagrams",
+        }.get(section_key)
+
+    def _chart_analysis_section_key_for_render(self, render_key: str) -> str | None:
+        return {
+            "signs": "dominant_signs",
+            "planets": "dominant_planets",
+            "houses": "dominant_houses",
+            "elements": "dominant_elements",
+            "nakshatra": "nakshatra_prevalence",
+            "modal": "modal_distribution",
+            "gender": "gender_guesser",
+            "planet_dynamics": "planet_dynamics",
+            "similar_charts": "similar_charts",
+            "anagrams": "anagrams",
+        }.get(render_key)
+
+    @staticmethod
+    def _is_chart_analytics_render_key(render_key: str) -> bool:
+        return render_key in {
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "similar_charts",
+            "anagrams",
+        }
+
+    def _chart_analytics_cache_token(self, chart: Chart) -> str:
+        chart_id = self.current_chart_id
+        if chart_id is not None:
+            return f"id:{int(chart_id)}"
+        dt_value = getattr(chart, "dt", None)
+        dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
+        return (
+            f"draft:{getattr(chart, 'name', '')}|{dt_token}|"
+            f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}"
+        )
+
+    def _mark_chart_analytics_sections_dirty(self, sections: set[str] | None = None) -> None:
+        if sections is None:
+            sections = {
+                "signs",
+                "planets",
+                "houses",
+                "elements",
+                "nakshatra",
+                "modal",
+                "gender",
+                "planet_dynamics",
+                "similar_charts",
+                "anagrams",
+            }
+        for section in sections:
+            if self._is_chart_analytics_render_key(section):
+                self._chart_analytics_dirty_sections.add(section)
+
+    def _mark_chart_analytics_sections_clean(self, sections: set[str], chart: Chart) -> None:
+        token = self._chart_analytics_cache_token(chart)
+        for section in sections:
+            if not self._is_chart_analytics_render_key(section):
+                continue
+            self._chart_analytics_dirty_sections.discard(section)
+            self._chart_analytics_render_tokens[section] = token
+
+    def _is_chart_analytics_section_renderable(self, render_key: str) -> bool:
+        section_key = self._chart_analysis_section_key_for_render(render_key)
+        if section_key is None:
+            return False
+        if not self.metrics_panel.isVisible():
+            return False
+        if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
+            return False
+        if not self._chart_analysis_section_expanded.get(section_key, True):
+            return False
+        if section_key in {"planet_dynamics", "anagrams"} and not self._is_chart_analysis_section_visible(section_key):
+            return False
+        return True
+
+    def _filter_chart_render_sections_for_visibility_and_cache(
+        self,
+        chart: Chart,
+        sections: set[str],
+    ) -> set[str]:
+        filtered: set[str] = set()
+        token = self._chart_analytics_cache_token(chart)
+        for section in sections:
+            if not self._is_chart_analytics_render_key(section):
+                filtered.add(section)
+                continue
+            if not self._is_chart_analytics_section_renderable(section):
+                continue
+            if (
+                section not in self._chart_analytics_dirty_sections
+                and self._chart_analytics_render_tokens.get(section) == token
+            ):
+                continue
+            filtered.add(section)
+        return filtered
 
     def _render_metric_panel(
         self,

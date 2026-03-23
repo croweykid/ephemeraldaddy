@@ -248,6 +248,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Signs", "dominant_signs"),
                 ("Sign Prevalence", "sign_prevalence"),
             ],
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -267,6 +268,7 @@ class ChartAnalysisSectionsController:
                 ("Sidereal Body Prevalence", "sidereal_planet_prevalence"),
             ],
             footer_text="Chart Ruler: Unknown",
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -285,6 +287,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Houses", "dominant_houses"),
                 ("House Prevalence", "house_prevalence"),
             ],
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -303,6 +306,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Elements", "dominant_elements"),
                 ("Elemental Prevalence", "elemental_prevalence"),
             ],
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -321,6 +325,7 @@ class ChartAnalysisSectionsController:
                 ("Nakshatra Prevalence", "nakshatra_prevalence"),
                 ("Dominant Nakshatras", "dominant_nakshatras"),
             ],
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -331,6 +336,7 @@ class ChartAnalysisSectionsController:
             default_filename="ephemeraldaddy_chart_modal_distribution",
             chart_container_attr="modal_distribution_container",
             chart_layout_attr="modal_distribution_container_layout",
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -341,6 +347,7 @@ class ChartAnalysisSectionsController:
             default_filename="ephemeraldaddy_chart_planet_dynamics",
             chart_container_attr="planet_dynamics_container",
             chart_layout_attr="planet_dynamics_container_layout",
+            expanded=False,
         )
         self.add_section(
             panel=panel,
@@ -351,6 +358,7 @@ class ChartAnalysisSectionsController:
             default_filename="ephemeraldaddy_chart_gender_guesser",
             chart_container_attr="gender_guesser_container",
             chart_layout_attr="gender_guesser_container_layout",
+            expanded=False,
         )
 
 
