@@ -1379,6 +1379,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
+        self._chart_view_load_cache: OrderedDict[int, Chart] = OrderedDict()
+        self._chart_view_load_cache_limit = 32
+        self._similar_charts_render_cache: OrderedDict[int, str] = OrderedDict()
+        self._similar_charts_render_cache_limit = 128
         self._search_body_filters = []
         self._aspect_filters = []
         self._dominant_sign_filters = []
@@ -11875,6 +11879,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             progress.close()
 
         self._chart_cache.clear()
+        self._clear_chart_view_navigation_caches()
         self._database_metrics_cache = None
         self._database_metric_snapshots = {}
         self._database_metrics_dirty_ids.clear()
@@ -12059,6 +12064,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         if force_full_analysis_refresh:
             self._chart_cache = {}
+            self._clear_chart_view_navigation_caches()
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_dirty_ids.clear()
@@ -12066,6 +12072,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_dirty_ids.update(changed_ids)
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
+                self._chart_view_load_cache.pop(chart_id, None)
+                self._similar_charts_render_cache.pop(chart_id, None)
         self._populate_list(
             selected_ids=selected_ids,
             refresh_metrics=refresh_metrics,
@@ -12982,6 +12990,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = None
         self._chart_cache[chart_id] = chart
         return chart
+
+    def _remember_chart_view_chart(self, chart_id: int, chart: Chart) -> None:
+        self._chart_view_load_cache[chart_id] = chart
+        self._chart_view_load_cache.move_to_end(chart_id)
+        while len(self._chart_view_load_cache) > self._chart_view_load_cache_limit:
+            self._chart_view_load_cache.popitem(last=False)
+
+    def _get_chart_for_view(self, chart_id: int) -> tuple[Chart, bool]:
+        cached = self._chart_view_load_cache.get(chart_id)
+        if cached is not None:
+            self._chart_view_load_cache.move_to_end(chart_id)
+            return cached, True
+        chart = load_chart(chart_id)
+        self._remember_chart_view_chart(chart_id, chart)
+        return chart, False
+
+    def _clear_chart_view_navigation_caches(self) -> None:
+        self._chart_view_load_cache.clear()
+        self._similar_charts_render_cache.clear()
 
     def _chart_body_matches(
         self,
@@ -15233,6 +15260,13 @@ class MainWindow(QMainWindow):
                 "Similar chart matching is disabled for placeholder charts."
             )
             return
+        current_chart_id = self.current_chart_id
+        if current_chart_id is not None:
+            cached_html = self._similar_charts_render_cache.get(current_chart_id)
+            if cached_html is not None:
+                self._similar_charts_render_cache.move_to_end(current_chart_id)
+                self._similar_charts_list_label.setText(cached_html)
+                return
 
         try:
             rows = list_charts()
@@ -15289,7 +15323,13 @@ class MainWindow(QMainWindow):
                     f" distribution {match.distribution_score * 100.0:.0f}%)"
                 )
             )
-        self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
+        rendered_html = "<br><br>".join(match_blocks)
+        self._similar_charts_list_label.setText(rendered_html)
+        if current_chart_id is not None:
+            self._similar_charts_render_cache[current_chart_id] = rendered_html
+            self._similar_charts_render_cache.move_to_end(current_chart_id)
+            while len(self._similar_charts_render_cache) > self._similar_charts_render_cache_limit:
+                self._similar_charts_render_cache.popitem(last=False)
 
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
@@ -18333,13 +18373,9 @@ class MainWindow(QMainWindow):
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
-        if not is_same_chart_request:
-            self._clear_chart_displays()
-            self._sync_chart_right_panel_placeholder_state(None)
-            self._show_chart_loading_overlay()
-            QApplication.processEvents()
+        chart_cache_hit = False
         try:
-            chart = load_chart(chart_id)
+            chart, chart_cache_hit = self._get_chart_for_view(chart_id)
         except Exception as e:
             self._hide_chart_loading_overlay()
             QMessageBox.critical(
@@ -18348,6 +18384,11 @@ class MainWindow(QMainWindow):
                 f"Could not load chart #{chart_id}:\n{e}",
             )
             return False
+        if not is_same_chart_request and not chart_cache_hit:
+            self._clear_chart_displays()
+            self._sync_chart_right_panel_placeholder_state(None)
+            self._show_chart_loading_overlay()
+            QApplication.processEvents()
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
@@ -18449,6 +18490,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._remember_chart_view_chart(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel_container_visible(True)
