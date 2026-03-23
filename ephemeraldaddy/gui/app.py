@@ -14071,6 +14071,7 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
         self._pending_render_sections: set[str] = set()
+        self._pending_render_queue: list[str] = []
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_dirty_sections: set[str] = {
             "signs",
@@ -18352,6 +18353,7 @@ class MainWindow(QMainWindow):
         set_current_chart(chart_id)
         self._pending_render_chart = None
         self._pending_render_sections.clear()
+        self._pending_render_queue.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
@@ -18693,6 +18695,9 @@ class MainWindow(QMainWindow):
 
     def _schedule_chart_render(self, chart: Chart, sections: set[str] | None = None) -> None:
         self._latest_chart = chart
+        if self._pending_render_chart is not None and self._pending_render_chart is not chart:
+            self._pending_render_sections.clear()
+            self._pending_render_queue.clear()
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -18714,6 +18719,25 @@ class MainWindow(QMainWindow):
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
         self._pending_render_sections.update(sections)
+        render_order = (
+            "summary",
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "wheel",
+            "similar_charts",
+            "anagrams",
+        )
+        queued = set(self._pending_render_queue)
+        for section_name in render_order:
+            if section_name in self._pending_render_sections and section_name not in queued:
+                self._pending_render_queue.append(section_name)
+                queued.add(section_name)
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
@@ -18721,37 +18745,52 @@ class MainWindow(QMainWindow):
         chart = self._pending_render_chart
         if chart is None:
             self._pending_render_sections.clear()
+            self._pending_render_queue.clear()
             self._hide_chart_loading_overlay()
             return
-        sections = set(self._pending_render_sections)
-        self._pending_render_sections.clear()
-        self._pending_render_chart = None
 
-        if "summary" in sections:
+        section = self._pending_render_queue.pop(0) if self._pending_render_queue else None
+        if section is None:
+            if not self._pending_render_sections:
+                self._pending_render_chart = None
+                self._hide_chart_loading_overlay()
+            return
+
+        if section == "summary":
             self._refresh_chart_summary(chart)
-        if "signs" in sections:
+        elif section == "signs":
             self._render_sign_tally(chart)
-        if "planets" in sections:
+        elif section == "planets":
             self._render_planet_tally(chart)
-        if "houses" in sections:
+        elif section == "houses":
             self._render_house_tally(chart)
-        if "elements" in sections:
+        elif section == "elements":
             self._render_element_tally(chart)
-        if "nakshatra" in sections:
+        elif section == "nakshatra":
             self._render_nakshatra_wordcloud(chart)
-        if "modal" in sections:
+        elif section == "modal":
             self._render_modal_distribution(chart)
-        if "gender" in sections:
+        elif section == "gender":
             self._render_gender_guesser(chart)
-        if "planet_dynamics" in sections:
+        elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
-        if "wheel" in sections:
+        elif section == "wheel":
             self._render_chart(chart)
-        if "similar_charts" in sections:
+        elif section == "similar_charts":
             self._render_similar_charts(chart)
-        if "anagrams" in sections:
+        elif section == "anagrams":
             self._render_anagrams(chart)
-        self._mark_chart_analytics_sections_clean(sections, chart)
+        self._pending_render_sections.discard(section)
+        self._mark_chart_analytics_sections_clean({section}, chart)
+
+        if self._pending_render_queue:
+            self._render_flush_timer.start(0)
+            return
+        if self._pending_render_sections:
+            self._render_flush_timer.start(0)
+            return
+
+        self._pending_render_chart = None
         self._hide_chart_loading_overlay()
 
     def _chart_analysis_render_key_for_section(self, section_key: str) -> str | None:
@@ -18951,6 +18990,7 @@ class MainWindow(QMainWindow):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
         self._pending_render_sections.clear()
+        self._pending_render_queue.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
