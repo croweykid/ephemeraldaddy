@@ -4,24 +4,29 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import QWidget
 
 
 class ChartLoadingOverlay(QWidget):
-    """Animated loading overlay displayed above the natal chart canvas."""
+    """Animated loading overlay displayed above the Chart View window."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._spin_angle = 0.0
         self._timer = QTimer(self)
-        self._timer.setInterval(75)
+        self._timer.setInterval(60)
         self._timer.timeout.connect(self._advance_spinner)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.hide()
+        if parent is not None:
+            parent.installEventFilter(self)
+            self._sync_to_parent()
 
     def start(self) -> None:
         self._spin_angle = 0.0
+        self._sync_to_parent()
         self.show()
         self.raise_()
         if not self._timer.isActive():
@@ -34,8 +39,26 @@ class ChartLoadingOverlay(QWidget):
         self.hide()
 
     def _advance_spinner(self) -> None:
-        self._spin_angle = (self._spin_angle + 14.0) % 360.0
+        self._spin_angle = (self._spin_angle + 2.2) % 360.0
         self.update()
+
+    def _sync_to_parent(self) -> None:
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.setGeometry(parent.rect())
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        parent = self.parentWidget()
+        if watched is parent and event.type() in {
+            QEvent.Resize,
+            QEvent.Move,
+            QEvent.Show,
+        }:
+            self._sync_to_parent()
+            if self.isVisible():
+                self.raise_()
+        return super().eventFilter(watched, event)
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
@@ -68,7 +91,7 @@ class ChartLoadingOverlay(QWidget):
         )
         painter.restore()
 
-        loading_text = "LOADING"
+        loading_text = "Loading★Loading✬Loading𖤐"
         ring_font = QFont(self.font())
         ring_font.setBold(True)
         ring_font.setPointSize(ring_font_size)
