@@ -14644,6 +14644,7 @@ class MainWindow(QMainWindow):
         self._chart_analysis_footer_labels: dict[str, QLabel] = {}
         self._chart_analysis_subtitle_by_mode: dict[str, dict[str, str]] = {}
         self._similar_charts_summary_label: QLabel | None = None
+        self._similar_charts_mode_dropdown: QComboBox | None = None
         self._similar_charts_list_label: QLabel | None = None
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
@@ -15774,8 +15775,24 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout(header_row)
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(6)
-        header_layout.addWidget(QLabel("Top 3 matches"))
         header_layout.addStretch(1)
+        dropdown = QComboBox()
+        dropdown_font = QFont(dropdown.font())
+        dropdown_font.setCapitalization(QFont.AllUppercase)
+        if dropdown_font.pointSize() > 0:
+            dropdown_font.setPointSize(max(7, dropdown_font.pointSize() - 2))
+        dropdown.setFont(dropdown_font)
+        dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        dropdown.setMinimumContentsLength(14)
+        dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        dropdown.addItem("Most Similar", "most_similar")
+        dropdown.addItem("Least Similar", "least_similar")
+        dropdown.currentIndexChanged.connect(
+            lambda _index: self._on_chart_analysis_dropdown_changed("similar_charts")
+        )
+        header_layout.addWidget(dropdown, 0, Qt.AlignRight)
+        self._chart_analysis_chart_dropdowns["similar_charts"] = dropdown
+        self._similar_charts_mode_dropdown = dropdown
         export_button = QToolButton()
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
@@ -15843,6 +15860,8 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(self._latest_chart)
         elif chart_key == "planet_dynamics":
             self._render_planet_dynamics(self._latest_chart)
+        elif chart_key == "similar_charts":
+            self._render_similar_charts(self._latest_chart)
         if render_key is not None:
             self._mark_chart_analytics_sections_clean({render_key}, self._latest_chart)
 
@@ -15900,6 +15919,7 @@ class MainWindow(QMainWindow):
             candidates,
             top_k=3,
             exclude_chart_id=self.current_chart_id,
+            least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
         )
         if not matches:
             self._similar_charts_export_rows = []
