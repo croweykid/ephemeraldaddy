@@ -471,6 +471,12 @@ from ephemeraldaddy.gui.features.charts.similarity_norms import (
     save_similarity_calibration,
     save_similarity_thresholds,
 )
+from ephemeraldaddy.gui.features.charts.similarity_pairing import (
+    SimilarityInputState,
+    SimilarityPairResolution,
+    build_chart_lookup,
+    resolve_similarity_pair_targets,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -5287,16 +5293,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
 
     def _refresh_similarities_chart_options(self) -> None:
-        self._similarities_chart_lookup = {}
-        choices: list[str] = []
-        for row in list_charts():
-            chart_id, name, alias, *_rest = row
-            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
-            if alias:
-                display_name = f"{display_name} ({alias})"
-            label = f"{display_name}  [#{chart_id}]"
-            self._similarities_chart_lookup[label] = int(chart_id)
-            choices.append(label)
+        self._similarities_chart_lookup, choices = build_chart_lookup(list_charts())
 
         for field in (
             self._similarities_first_chart_input,
@@ -5309,77 +5306,61 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             completer.setFilterMode(Qt.MatchContains)
             field.setCompleter(completer)
 
-    def _resolve_similarities_chart_id(self, raw_value: str) -> int | None:
-        query = raw_value.strip()
-        if not query:
-            return None
-        chart_id = self._similarities_chart_lookup.get(query)
-        if chart_id is not None:
-            return chart_id
-        for label, candidate_id in self._similarities_chart_lookup.items():
-            if query.lower() == label.lower():
-                return candidate_id
-        return None
-
     def _resolve_similarity_pair_targets(
-        self,
-        selected_chart_ids: list[int],
-    ) -> tuple[int | None, int | None, str | None, bool]:
-        first_checked = bool(self._similarities_first_use_checkbox and self._similarities_first_use_checkbox.isChecked())
-        second_checked = bool(self._similarities_second_use_checkbox and self._similarities_second_use_checkbox.isChecked())
-        first_input = self._similarities_first_chart_input.text() if self._similarities_first_chart_input else ""
-        second_input = self._similarities_second_chart_input.text() if self._similarities_second_chart_input else ""
-        first_input_id = self._resolve_similarities_chart_id(first_input) if first_checked else None
-        second_input_id = self._resolve_similarities_chart_id(second_input) if second_checked else None
-
-        if not first_checked and not second_checked:
-            if len(selected_chart_ids) == 2:
-                return selected_chart_ids[0], selected_chart_ids[1], None, True
-            return None, None, "Select exactly 2 charts to compare.", False
-
-        if first_checked and second_checked:
-            if first_input_id is None or second_input_id is None:
-                return None, None, "Ticked inputs must reference saved charts.", True
-            if first_input_id == second_input_id:
-                return None, None, "Choose two different charts to compare.", True
-            return first_input_id, second_input_id, None, True
-
-        checked_input_id = first_input_id if first_checked else second_input_id
-        if checked_input_id is None:
-            return None, None, "Enter a saved chart name for the checked input, or select chart(s) from Database.", True
-        if len(selected_chart_ids) != 1:
-            return None, None, "Select exactly 1 chart when using one checked input.", False
-        selected_chart_id = selected_chart_ids[0]
-        if checked_input_id == selected_chart_id:
-            return None, None, "Choose two different charts to compare.", True
-        return checked_input_id, selected_chart_id, None, True
+        self, selected_chart_ids: list[int]
+    ) -> SimilarityPairResolution:
+        input_state = SimilarityInputState(
+            selected_chart_ids=selected_chart_ids,
+            first_checked=bool(
+                self._similarities_first_use_checkbox
+                and self._similarities_first_use_checkbox.isChecked()
+            ),
+            second_checked=bool(
+                self._similarities_second_use_checkbox
+                and self._similarities_second_use_checkbox.isChecked()
+            ),
+            first_input_value=(
+                self._similarities_first_chart_input.text()
+                if self._similarities_first_chart_input
+                else ""
+            ),
+            second_input_value=(
+                self._similarities_second_chart_input.text()
+                if self._similarities_second_chart_input
+                else ""
+            ),
+        )
+        return resolve_similarity_pair_targets(
+            input_state=input_state,
+            chart_lookup=self._similarities_chart_lookup,
+        )
 
     def _calculate_pair_similarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        first_chart_id, second_chart_id, error_message, _allow_click = self._resolve_similarity_pair_targets(
+        resolution = self._resolve_similarity_pair_targets(
             self._selected_chart_ids()
         )
-        if first_chart_id is None or second_chart_id is None:
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
             QMessageBox.warning(
                 self,
                 "Calculate Similarity",
-                error_message
+                resolution.guidance
                 or "Please enter chart name in checked input(s), or select chart(s) from Database.",
             )
             self._similarities_pair_result_label.setText(
-                error_message
+                resolution.guidance
                 or "Select 2 charts, or use chart inputs with “use this” checked."
             )
             return
-        first = self._get_chart_for_filter(first_chart_id)
-        second = self._get_chart_for_filter(second_chart_id)
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
         final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(first, second)
-        first_name = str(getattr(first, "name", "") or f"#{first_chart_id}")
-        second_name = str(getattr(second, "name", "") or f"#{second_chart_id}")
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         similarity_percent = final_score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
         self._similarities_pair_result_label.setText(
@@ -5707,21 +5688,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         if self._similarities_pair_button is not None:
-            _first_id, _second_id, guidance, allow_click = self._resolve_similarity_pair_targets(chart_ids)
+            resolution = self._resolve_similarity_pair_targets(chart_ids)
             self._similarities_pair_button.setStyleSheet(
                 SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
-                if allow_click
+                if resolution.allow_click
                 else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
             )
             self._similarities_pair_button.setToolTip(
                 "Calculate similarity between the selected/input charts."
-                if allow_click
-                else (guidance or "Select 2 charts to compare.")
+                if resolution.allow_click
+                else (resolution.guidance or "Select 2 charts to compare.")
             )
         if self._similarities_pair_result_label is not None:
-            _first_id, _second_id, guidance, allow_click = self._resolve_similarity_pair_targets(chart_ids)
-            if not allow_click:
-                self._similarities_pair_result_label.setText(guidance or "Select 2 charts to compare.")
+            resolution = self._resolve_similarity_pair_targets(chart_ids)
+            if not resolution.allow_click:
+                self._similarities_pair_result_label.setText(
+                    resolution.guidance or "Select 2 charts to compare."
+                )
 
         if len(chart_ids) < 2:
             self._similarities_export_sections = []
