@@ -16268,6 +16268,11 @@ class MainWindow(QMainWindow):
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
 
+    def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
+        thresholds = load_similarity_thresholds(self._settings)
+        band = classify_similarity(similarity_percent, thresholds)
+        return band.label, band.color
+
     def _export_similar_charts_share(self) -> None:
         if not self._similar_charts_export_rows:
             QMessageBox.information(
