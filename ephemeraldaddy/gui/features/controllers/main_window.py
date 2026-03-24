@@ -242,6 +242,7 @@ class ChartAnalysisSectionsController:
             subtitle_text="Signs evaluated with priority weights (rulerships/houses/signs/etc).",
             subtitle_by_mode={
                 "dominant_signs": "Signs evaluated with priority weights (rulerships/houses/signs/etc).",
+                "dominant_sign_frequency": "Per-chart top dominant sign frequency (counts charts where a sign is the highest weighted sign; ties included).",
                 "sign_prevalence": "Total distribution of signs across chart, equally weighted.",
             },
             default_filename="ephemeraldaddy_chart_dominant_signs",
@@ -249,6 +250,7 @@ class ChartAnalysisSectionsController:
             chart_layout_attr="sign_chart_container_layout",
             dropdown_options=[
                 ("Dominant Signs", "dominant_signs"),
+                ("Top Dominant Sign Frequency", "dominant_sign_frequency"),
                 ("Sign Prevalence", "sign_prevalence"),
             ],
             expanded=False,
