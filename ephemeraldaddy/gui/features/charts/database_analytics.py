@@ -1113,8 +1113,10 @@ class DatabaseAnalyticsChartsMixin:
         self,
         selection_cumulative: float,
         selection_average: float,
+        database_cumulative: float,
         database_average: float,
         loaded_charts: int,
+        mode: str = "alignment_cumulative",
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 1.6))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1134,36 +1136,44 @@ class DatabaseAnalyticsChartsMixin:
         ax.hlines(y=0, xmin=0, xmax=10, color="#1565c0", linewidth=4, zorder=2, alpha=0.85)
         ax.vlines(0, -0.3, 0.3, color=CHART_THEME_COLORS["text"], linewidth=1.0, zorder=3)
 
-        db_avg_clamped = max(-10.0, min(10.0, float(database_average)))
+        if mode == "alignment_average":
+            selection_value = selection_average
+            database_value = database_average
+            subtitle_prefix = "Average"
+        else:
+            selection_value = selection_cumulative
+            database_value = database_cumulative
+            subtitle_prefix = "Cumulative"
+
+        db_value_clamped = max(-10.0, min(10.0, float(database_value)))
         ax.scatter(
-            [db_avg_clamped],
+            [db_value_clamped],
             [0],
-            marker="|",
-            s=260,
-            linewidths=2.0,
+            marker="o",
+            s=40,
+            linewidths=1.1,
             color="#f4d35e",
+            edgecolors=CHART_THEME_COLORS["text"],
             zorder=4,
         )
 
         if loaded_charts > 0:
-            selection_avg_clamped = max(-10.0, min(10.0, float(selection_average)))
-            ax.scatter(
-                [selection_avg_clamped],
-                [0],
-                marker="o",
-                s=44,
-                color="#6fa8dc",
-                edgecolors=CHART_THEME_COLORS["text"],
-                linewidths=0.8,
+            selection_value_clamped = max(-10.0, min(10.0, float(selection_value)))
+            ax.text(
+                selection_value_clamped,
+                0,
+                "⭐",
+                ha="center",
+                va="center",
+                fontsize=10,
                 zorder=5,
             )
             subtitle = (
-                f"Selection cumulative: {selection_cumulative:+.1f} | "
-                f"Selection avg: {selection_average:+.2f} | "
-                f"Database avg: {database_average:+.2f}"
+                f"{subtitle_prefix} selection: {selection_value:+.2f} | "
+                f"{subtitle_prefix} database: {database_value:+.2f}"
             )
         else:
-            subtitle = f"Database avg alignment: {database_average:+.2f}"
+            subtitle = f"{subtitle_prefix} database alignment: {database_value:+.2f}"
 
         ax.text(
             0,
