@@ -1490,7 +1490,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_refresh_scheduled = False
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
-        self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
+        self._similarities_export_sections: list[
+            tuple[str, list[tuple[str, int, int, int, int]]]
+        ] = []
         self._similarities_pair_button: QPushButton | None = None
         self._similarities_pair_result_label: QLabel | None = None
         self._similarities_chart_lookup: dict[str, int] = {}
@@ -5849,12 +5851,84 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             (label, count) for label, count, _total in self._build_common_aspects(db_chart_ids)
         )
         self._similarities_export_sections = [
-            ("Signs in positions in common", common_positions),
-            ("Houses in positions in common", common_houses_in_positions),
-            ("Signs in houses in common", common_signs_in_houses),
-            ("Top 3 Dominant Signs in common", common_dominant_signs),
-            ("Dominant nakshatras in common", common_dominant_nakshatras),
-            ("Aspects in common", common_aspects),
+            (
+                "Signs in positions in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_positions.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_positions
+                ],
+            ),
+            (
+                "Houses in positions in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_houses_in_positions.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_houses_in_positions
+                ],
+            ),
+            (
+                "Signs in houses in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_signs_in_houses.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_signs_in_houses
+                ],
+            ),
+            (
+                "Top 3 Dominant Signs in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_signs.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_signs
+                ],
+            ),
+            (
+                "Dominant nakshatras in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_nakshatras.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_nakshatras
+                ],
+            ),
+            (
+                "Aspects in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_aspects.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_aspects
+                ],
+            ),
         ]
 
         total_matches = (
@@ -5959,14 +6033,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for section_title, matches in self._similarities_export_sections:
             if not matches:
                 continue
-            for label, match_count, total_count in matches:
-                percent_value = round((match_count / total_count) * 100, 2) if total_count else 0
+            for label, match_count, total_count, database_match_count, database_total_count in matches:
+                selection_percent = round((match_count / total_count) * 100, 2) if total_count else 0
+                database_percent = (
+                    round((database_match_count / database_total_count) * 100, 2)
+                    if database_total_count
+                    else 0
+                )
+                percent_difference = round(selection_percent - database_percent, 2)
                 rows.append([
                     section_title,
                     label,
                     match_count,
                     total_count,
-                    percent_value,
+                    selection_percent,
+                    database_match_count,
+                    database_total_count,
+                    database_percent,
+                    percent_difference,
                 ])
 
         if not rows:
@@ -5985,7 +6069,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     header_name,
                     f"{header_name} match count",
                     "selected chart count",
-                    "match percent",
+                    f"{header_name} match percent",
+                    "database match count",
+                    "database chart count",
+                    "database match percent",
+                    f"{header_name} minus database match percent",
                 ])
                 writer.writerows(rows)
         except Exception as e:
