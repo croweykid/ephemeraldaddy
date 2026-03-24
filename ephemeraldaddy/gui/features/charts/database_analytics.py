@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import math
 import statistics
+import warnings
 from collections import Counter
 from typing import Any
 
@@ -30,6 +31,20 @@ from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS, GENDE
 
 
 class DatabaseAnalyticsChartsMixin:
+    @staticmethod
+    def _apply_tight_layout(figure: Figure) -> None:
+        """Apply tight layout while silencing benign layout-fit warnings."""
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=(
+                    "Tight layout not applied. The left and right margins cannot be "
+                    "made large enough to accommodate all Axes decorations."
+                ),
+                category=UserWarning,
+            )
+            figure.tight_layout()
+
     @staticmethod
     def _set_x_limits_with_padding(
         ax,
@@ -232,7 +247,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in relationship_ax.get_yticklabels():
             tick_label.set_ha("right")
-        relationship_figure.tight_layout()
+        self._apply_tight_layout(relationship_figure)
         relationship_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
 
         relationship_canvas = FigureCanvas(relationship_figure)
@@ -383,7 +398,7 @@ class DatabaseAnalyticsChartsMixin:
                 tick_label.set_color(positive_total_color)
             elif label == negative_total_label:
                 tick_label.set_color(negative_total_color)        
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         # DB View's lefthand panel's graph margins.
         # Lower the top bound to reserve space for the title.
         figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
@@ -508,7 +523,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in sign_ax.get_yticklabels():
             tick_label.set_ha("right")
-        sign_figure.tight_layout()
+        self._apply_tight_layout(sign_figure)
         sign_figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
 
         sign_canvas = FigureCanvas(sign_figure)
@@ -630,7 +645,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in dominant_ax.get_yticklabels():
             tick_label.set_ha("right")
-        dominant_figure.tight_layout()
+        self._apply_tight_layout(dominant_figure)
         dominant_figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
 
         dominant_canvas = FigureCanvas(dominant_figure)
@@ -713,7 +728,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -839,7 +854,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.12, right=0.97, top=0.96)
 
         canvas = FigureCanvas(figure)
@@ -970,7 +985,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.06, right=0.97, top=0.98)
 
         canvas = FigureCanvas(figure)
@@ -1085,7 +1100,7 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.16, right=0.97, top=0.95)
 
         canvas = FigureCanvas(figure)
@@ -1167,7 +1182,7 @@ class DatabaseAnalyticsChartsMixin:
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
@@ -1360,7 +1375,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
 
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.30, bottom=0.24, right=0.97, top=0.9)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -1407,7 +1422,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
 
-        figure.tight_layout()
+        self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.10, right=0.97, top=0.97)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
