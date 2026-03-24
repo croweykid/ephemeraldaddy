@@ -81,6 +81,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QToolButton,
     QSpinBox,
+    QDoubleSpinBox,
     QStackedWidget,
     QSizePolicy,
     QLayout,
@@ -462,6 +463,14 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     render_anagrams_html,
     render_anagrams_text,
 )
+from ephemeraldaddy.gui.features.charts.similarity_norms import (
+    SimilarityThresholds,
+    classify_similarity,
+    compute_similarity_calibration,
+    load_similarity_thresholds,
+    save_similarity_calibration,
+    save_similarity_thresholds,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -519,15 +528,6 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
-SIMILARITY_NORMS_SETTINGS_GROUP = "similarity_norms"
-SIMILARITY_BAND_DEFAULT_THRESHOLDS: tuple[float, float, float, float] = (20.0, 40.0, 60.0, 80.0)
-SIMILARITY_BAND_COLORS: dict[str, str] = {
-    "most_similar": "#26a69a",
-    "somewhat_similar": "#9ccc65",
-    "average_similarity": "#fdd835",
-    "somewhat_dissimilar": "#fb8c00",
-    "most_dissimilar": "#e53935",
-}
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 GENERATION_UNKNOWN_OPTION = "unknown"
@@ -5250,44 +5250,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"distribution {distribution_score * 100.0:.0f}%)."
         )
 
-    @staticmethod
-    def _percentile(values: list[float], percentile: float) -> float:
-        if not values:
-            return 0.0
-        if len(values) == 1:
-            return float(values[0])
-        sorted_values = sorted(float(value) for value in values)
-        p = max(0.0, min(100.0, float(percentile)))
-        position = (len(sorted_values) - 1) * (p / 100.0)
-        lower_index = int(math.floor(position))
-        upper_index = int(math.ceil(position))
-        if lower_index == upper_index:
-            return sorted_values[lower_index]
-        lower = sorted_values[lower_index]
-        upper = sorted_values[upper_index]
-        return lower + ((upper - lower) * (position - lower_index))
-
-    def _similarity_band_thresholds(self) -> tuple[float, float, float, float]:
-        defaults = SIMILARITY_BAND_DEFAULT_THRESHOLDS
-        t20 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q20", defaults[0]))
-        t40 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q40", defaults[1]))
-        t60 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q60", defaults[2]))
-        t80 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q80", defaults[3]))
-        ordered = sorted([t20, t40, t60, t80])
-        return ordered[0], ordered[1], ordered[2], ordered[3]
-
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
-        q20, q40, q60, q80 = self._similarity_band_thresholds()
-        value = float(similarity_percent)
-        if value <= q20:
-            return "most dissimilar", SIMILARITY_BAND_COLORS["most_dissimilar"]
-        if value <= q40:
-            return "somewhat dissimilar", SIMILARITY_BAND_COLORS["somewhat_dissimilar"]
-        if value <= q60:
-            return "average similarity", SIMILARITY_BAND_COLORS["average_similarity"]
-        if value <= q80:
-            return "somewhat similar", SIMILARITY_BAND_COLORS["somewhat_similar"]
-        return "most similar", SIMILARITY_BAND_COLORS["most_similar"]
+        thresholds = load_similarity_thresholds(self._settings)
+        band = classify_similarity(similarity_percent, thresholds)
+        return band.label, band.color
 
     def _add_similarities_collapsible_section(
         self,
@@ -14002,6 +13968,51 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         calibrate_similarity_button.clicked.connect(self._calibrate_similarity_norms)
         dev_tools_section.addWidget(calibrate_similarity_button)
 
+        similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
+        similarity_thresholds_label.setStyleSheet("font-weight: 700;")
+        dev_tools_section.addWidget(similarity_thresholds_label)
+        dev_tools_section.addWidget(
+            QLabel(
+                "Manual override for band cutoffs (q20/q40/q60/q80). "
+                "Values are auto-sorted and saved systemwide."
+            )
+        )
+
+        thresholds_grid = QGridLayout()
+        thresholds_grid.setContentsMargins(0, 0, 0, 0)
+        thresholds_grid.setHorizontalSpacing(8)
+        thresholds_grid.setVerticalSpacing(6)
+        self._similarity_threshold_spinboxes = {}
+        threshold_rows = [
+            ("q20", "Most dissimilar max (q20)"),
+            ("q40", "Somewhat dissimilar max (q40)"),
+            ("q60", "Average similarity max (q60)"),
+            ("q80", "Somewhat similar max (q80)"),
+        ]
+        for row_index, (key, label_text) in enumerate(threshold_rows):
+            label = QLabel(label_text)
+            spinbox = QDoubleSpinBox()
+            spinbox.setDecimals(1)
+            spinbox.setRange(0.0, 100.0)
+            spinbox.setSingleStep(0.5)
+            spinbox.setSuffix("%")
+            spinbox.setAlignment(Qt.AlignRight)
+            thresholds_grid.addWidget(label, row_index, 0)
+            thresholds_grid.addWidget(spinbox, row_index, 1)
+            self._similarity_threshold_spinboxes[key] = spinbox
+        dev_tools_section.addLayout(thresholds_grid)
+        self._load_similarity_thresholds_into_controls()
+
+        thresholds_button_row = QHBoxLayout()
+        thresholds_save_button = QPushButton("Save Threshold Overrides")
+        thresholds_save_button.clicked.connect(self._save_similarity_threshold_overrides)
+        thresholds_reset_button = QPushButton("Reset Thresholds to Defaults")
+        thresholds_reset_button.clicked.connect(self._reset_similarity_threshold_defaults)
+        thresholds_button_row.addWidget(thresholds_save_button)
+        thresholds_button_row.addWidget(thresholds_reset_button)
+        thresholds_button_row.addStretch(1)
+        dev_tools_section.addLayout(thresholds_button_row)
+
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
@@ -14332,13 +14343,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        similarity_values: list[float] = []
-        for left_idx, (_left_id, left_chart) in enumerate(charts):
-            for _right_id, right_chart in charts[left_idx + 1 :]:
-                score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
-                similarity_values.append(round(score * 100.0, 1))
-
-        if not similarity_values:
+        calibration = compute_similarity_calibration([chart for _chart_id, chart in charts])
+        if calibration is None:
             QMessageBox.warning(
                 self,
                 "Similarity calibration failed",
@@ -14346,37 +14352,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        similarity_min = min(similarity_values)
-        similarity_max = max(similarity_values)
-        similarity_avg = statistics.fmean(similarity_values)
-        similarity_median = statistics.median(similarity_values)
-        similarity_mode_counts = Counter(similarity_values)
-        top_mode_count = max(similarity_mode_counts.values(), default=0)
-        modal_values = sorted(
-            value for value, count in similarity_mode_counts.items() if count == top_mode_count
-        )
-
-        q20 = self._percentile(similarity_values, 20.0)
-        q40 = self._percentile(similarity_values, 40.0)
-        q60 = self._percentile(similarity_values, 60.0)
-        q80 = self._percentile(similarity_values, 80.0)
-
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q20", round(q20, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q40", round(q40, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q60", round(q60, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q80", round(q80, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/min", round(similarity_min, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/max", round(similarity_max, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/average", round(similarity_avg, 1))
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/median", round(similarity_median, 1))
-        self._settings.setValue(
-            f"{SIMILARITY_NORMS_SETTINGS_GROUP}/mode",
-            ", ".join(f"{value:.1f}" for value in modal_values),
-        )
-        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/pair_count", len(similarity_values))
+        thresholds = save_similarity_calibration(self._settings, calibration)
         self._settings.sync()
+        self._load_similarity_thresholds_into_controls()
 
-        mode_label = ", ".join(f"{value:.1f}%" for value in modal_values)
+        mode_label = ", ".join(f"{value:.1f}%" for value in calibration.mode_values)
         QMessageBox.information(
             self,
             "Similarity calibration complete",
@@ -14385,22 +14365,74 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     "Saved systemwide similarity norms.",
                     "",
                     f"Charts loaded: {len(charts)} ({failed_loads} failed to load)",
-                    f"Pairwise comparisons: {len(similarity_values)}",
+                    f"Pairwise comparisons: {calibration.pair_count}",
                     "",
-                    f"Minimum: {similarity_min:.1f}%",
-                    f"Maximum: {similarity_max:.1f}%",
-                    f"Average: {similarity_avg:.1f}%",
-                    f"Median: {similarity_median:.1f}%",
-                    f"Mode: {mode_label} ({top_mode_count} pair(s))",
+                    f"Minimum: {calibration.minimum:.1f}%",
+                    f"Maximum: {calibration.maximum:.1f}%",
+                    f"Average: {calibration.average:.1f}%",
+                    f"Median: {calibration.median:.1f}%",
+                    f"Mode: {mode_label} ({calibration.mode_count} pair(s))",
                     "",
-                    f"Most dissimilar: ≤ {q20:.1f}%",
-                    f"Somewhat dissimilar: > {q20:.1f}% and ≤ {q40:.1f}%",
-                    f"Average similarity: > {q40:.1f}% and ≤ {q60:.1f}%",
-                    f"Somewhat similar: > {q60:.1f}% and ≤ {q80:.1f}%",
-                    f"Most similar: > {q80:.1f}%",
+                    f"Most dissimilar: ≤ {thresholds.q20:.1f}%",
+                    f"Somewhat dissimilar: > {thresholds.q20:.1f}% and ≤ {thresholds.q40:.1f}%",
+                    f"Average similarity: > {thresholds.q40:.1f}% and ≤ {thresholds.q60:.1f}%",
+                    f"Somewhat similar: > {thresholds.q60:.1f}% and ≤ {thresholds.q80:.1f}%",
+                    f"Most similar: > {thresholds.q80:.1f}%",
                 ]
             ),
         )
+
+    def _save_similarity_threshold_overrides(self) -> None:
+        spinboxes = getattr(self, "_similarity_threshold_spinboxes", None)
+        if not isinstance(spinboxes, dict) or not spinboxes:
+            return
+        thresholds = SimilarityThresholds(
+            q20=float(spinboxes["q20"].value()),
+            q40=float(spinboxes["q40"].value()),
+            q60=float(spinboxes["q60"].value()),
+            q80=float(spinboxes["q80"].value()),
+        )
+        normalized = save_similarity_thresholds(self._settings, thresholds)
+        self._settings.sync()
+        self._load_similarity_thresholds_into_controls()
+        QMessageBox.information(
+            self,
+            "Similarity thresholds saved",
+            "\n".join(
+                [
+                    "Manual similarity thresholds saved systemwide:",
+                    f"Most dissimilar: ≤ {normalized.q20:.1f}%",
+                    f"Somewhat dissimilar: > {normalized.q20:.1f}% and ≤ {normalized.q40:.1f}%",
+                    f"Average similarity: > {normalized.q40:.1f}% and ≤ {normalized.q60:.1f}%",
+                    f"Somewhat similar: > {normalized.q60:.1f}% and ≤ {normalized.q80:.1f}%",
+                    f"Most similar: > {normalized.q80:.1f}%",
+                ]
+            ),
+        )
+
+    def _reset_similarity_threshold_defaults(self) -> None:
+        save_similarity_thresholds(self._settings, SimilarityThresholds.defaults())
+        self._settings.sync()
+        self._load_similarity_thresholds_into_controls()
+
+    def _load_similarity_thresholds_into_controls(self) -> None:
+        spinboxes = getattr(self, "_similarity_threshold_spinboxes", None)
+        if not isinstance(spinboxes, dict) or not spinboxes:
+            return
+        thresholds = load_similarity_thresholds(self._settings)
+        values = {
+            "q20": thresholds.q20,
+            "q40": thresholds.q40,
+            "q60": thresholds.q60,
+            "q80": thresholds.q80,
+        }
+        for key, value in values.items():
+            spinbox = spinboxes.get(key)
+            if spinbox is None:
+                continue
+            blocker = QSignalBlocker(spinbox)
+            spinbox.setValue(float(value))
+            del blocker
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
