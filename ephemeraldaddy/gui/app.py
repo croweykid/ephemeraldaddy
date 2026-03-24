@@ -9204,6 +9204,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         relationship_section_layout.addWidget(relationship_widget)
         layout.addWidget(relationship_section)
 
+        tagging_section, tagging_section_layout = add_collapsible_section("Tagging")
+        tagging_row = QHBoxLayout()
+        self.batch_tags_input = QLineEdit()
+        self.batch_tags_input.setPlaceholderText("comma-separated tags")
+        self.batch_tags_input.textChanged.connect(
+            lambda: render_tag_chip_preview(
+                self.batch_tags_preview_label,
+                parse_tag_text(self.batch_tags_input.text()),
+            )
+        )
+        self.batch_tags_input.textEdited.connect(
+            lambda _text: setattr(self, "_batch_tags_lucygoosey", True)
+        )
+        tagging_row.addWidget(self.batch_tags_input, 1)
+        batch_tags_apply_button = QPushButton("Apply")
+        batch_tags_apply_button.clicked.connect(self._on_batch_tags_apply)
+        tagging_row.addWidget(batch_tags_apply_button, 0)
+        tagging_section_layout.addLayout(tagging_row)
+        self.batch_tags_preview_label = QLabel()
+        self.batch_tags_preview_label.setWordWrap(True)
+        self.batch_tags_preview_label.setTextFormat(Qt.RichText)
+        tagging_section_layout.addWidget(self.batch_tags_preview_label)
+        self._bind_batch_enter_apply(self.batch_tags_input, batch_tags_apply_button.click)
+        self._update_tag_completers()
+        layout.addWidget(tagging_section)
+
         sentiment_metrics_section, sentiment_metrics_section_layout = add_collapsible_section("Sentiment metrics")
 
         sentiment_metrics_widget = QWidget()
@@ -9218,6 +9244,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "familiarity": False,
             "year_first_encountered": False,
         }
+        self._batch_tags_lucygoosey = False
         
         self.batch_year_first_encountered_edit = QLineEdit()
         self.batch_year_first_encountered_edit.setPlaceholderText("blank")
@@ -9486,6 +9513,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         positive_intensities: list[int] = []
         negative_intensities: list[int] = []
         familiarity_values: list[int] = []
+        tag_values: list[str] = []
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
         for chart_id, chart in resolved_items:
@@ -9511,6 +9539,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             familiarity_values.append(
                 int(getattr(chart, "familiarity", 1) or 1)
+            )
+            tag_values.append(
+                ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
             )
             gender_values.append(
                 self._normalize_gender_value(getattr(chart, "gender", None))
@@ -9614,6 +9645,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._set_batch_alignment_state(resolved_items)
+        self._set_batch_tags_state(
+            tag_values,
+            preserve_lucygoosey=preserve_lucygoosey_metrics,
+        )
+        self._set_batch_alignment_state(alignment_values)
         self._batch_last_selection_ids = chart_id_set
 
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
@@ -9679,7 +9715,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._known_chart_tags = known_tags
         chart_input = getattr(self, "chart_tags_input", None)
         search_input = getattr(self, "search_tags_input", None)
-        for line_edit in (chart_input, search_input):
+        batch_tags_input = getattr(self, "batch_tags_input", None)
+        for line_edit in (chart_input, search_input, batch_tags_input):
             if not isinstance(line_edit, QLineEdit):
                 continue
             apply_tag_completer(line_edit, known_tags)
@@ -9687,97 +9724,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
         render_tag_chip_preview(self.search_tags_preview_label, tags)
-        self._on_filter_changed()
-
-    @staticmethod
-    def _normalize_tag_list(tags: list[str] | tuple[str, ...] | None) -> list[str]:
-        if not tags:
-            return []
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for raw_value in tags:
-            tag = str(raw_value or "").strip()
-            if not tag:
-                continue
-            dedupe_key = tag.casefold()
-            if dedupe_key in seen:
-                continue
-            seen.add(dedupe_key)
-            normalized.append(tag)
-        return normalized
-
-    @classmethod
-    def _parse_tag_text(cls, raw_value: str | None) -> list[str]:
-        return cls._normalize_tag_list(parse_tags(raw_value or ""))
-
-    def _all_known_chart_tags(self) -> list[str]:
-        known_tags: dict[str, str] = {}
-        chart_ids = [int(row[0]) for row in getattr(self, "_chart_rows", [])]
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is None:
-                continue
-            for tag in self._normalize_tag_list(getattr(chart, "tags", [])):
-                key = tag.casefold()
-                if key not in known_tags:
-                    known_tags[key] = tag
-        return sorted(known_tags.values(), key=lambda value: value.casefold())
-
-    def _update_tag_completers(self) -> None:
-        known_tags = self._all_known_chart_tags()
-        self._known_chart_tags = known_tags
-        chart_input = getattr(self, "chart_tags_input", None)
-        search_input = getattr(self, "search_tags_input", None)
-        for line_edit in (chart_input, search_input):
-            if not isinstance(line_edit, QLineEdit):
-                continue
-            completer = QCompleter(known_tags, line_edit)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            completer.setFilterMode(Qt.MatchContains)
-            completer.activated[str].connect(
-                lambda value, target=line_edit: self._replace_active_tag_segment(target, value)
-            )
-            line_edit.setCompleter(completer)
-            line_edit._tags_completer = completer
-
-    @staticmethod
-    def _render_tag_chip_preview(preview_label: QLabel | None, tags: list[str]) -> None:
-        if preview_label is None:
-            return
-        if not tags:
-            preview_label.setText("")
-            return
-        chips = []
-        for tag in tags:
-            safe_tag = html.escape(tag)
-            chips.append(
-                "<span style=\""
-                "background:#d9d9d9;"
-                "color:#222;"
-                "border:1px solid #bdbdbd;"
-                "border-radius:8px;"
-                "padding:1px 6px;"
-                "margin-right:4px;"
-                "\">"
-                f"{safe_tag}"
-                "</span>"
-            )
-        preview_label.setText(" ".join(chips))
-
-    def _replace_active_tag_segment(self, line_edit: QLineEdit, completed_tag: str) -> None:
-        current_text = line_edit.text()
-        leading, separator, trailing = current_text.rpartition(",")
-        if separator:
-            prefix = f"{leading}, "
-        else:
-            prefix = ""
-        new_text = f"{prefix}{completed_tag}, "
-        line_edit.setText(new_text)
-        line_edit.setCursorPosition(len(new_text))
-
-    def _on_search_tags_changed(self, *_: object) -> None:
-        tags = self._parse_tag_text(self.search_tags_input.text())
-        self._render_tag_chip_preview(self.search_tags_preview_label, tags)
         self._on_filter_changed()
 
     @staticmethod
@@ -9819,6 +9765,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         else:
             line_edit.setToolTip("")
+
+    def _set_batch_tags_state(
+        self,
+        values: list[str],
+        *,
+        preserve_lucygoosey: bool = False,
+    ) -> None:
+        if not hasattr(self, "batch_tags_input"):
+            return
+        if preserve_lucygoosey and bool(getattr(self, "_batch_tags_lucygoosey", False)):
+            return
+        self.batch_tags_input.blockSignals(True)
+        first_value = values[0] if values else ""
+        self.batch_tags_input.setText(first_value)
+        self.batch_tags_input.blockSignals(False)
+        render_tag_chip_preview(
+            getattr(self, "batch_tags_preview_label", None),
+            parse_tag_text(first_value),
+        )
+        self._batch_tags_lucygoosey = False
+        if values and len(set(values)) > 1:
+            self.batch_tags_input.setToolTip(
+                "Selected charts have mixed tag values. Applying will overwrite all selected charts."
+            )
+        else:
+            self.batch_tags_input.setToolTip("")
 
     @staticmethod
     def _bind_batch_enter_apply(widget: QWidget, callback: Callable[[], None]) -> None:
@@ -10224,6 +10196,53 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if self._batch_metric_programmatic_update:
             return
         self._set_batch_metric_lucygoosey_state(field_key, True)
+
+    def _on_batch_tags_apply(self) -> None:
+        chart_ids = [item.data(Qt.UserRole) for item in self.list_widget.selectedItems()]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Select one or more charts before applying batch edits.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        parsed_tags = parse_tag_text(self.batch_tags_input.text())
+        display_tags = ", ".join(parsed_tags) if parsed_tags else "blank"
+        selected_count = len(chart_ids)
+        action_label = f"Set tags to '{display_tags}' for"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                chart.tags = list(parsed_tags)
+                update_chart(
+                    chart_id,
+                    chart,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"Couldn't update selected chart tags:\n{exc}",
+            )
+            return
+
+        self._batch_tags_lucygoosey = False
+        changed_ids = set(chart_ids)
+        self._update_tag_completers()
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
 
     def _update_batch_alignment_score_label(self, value: int) -> None:
         self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
@@ -11203,6 +11222,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_familiarity_spin.setToolTip("")
         self.batch_year_first_encountered_edit.setText("")
         self.batch_year_first_encountered_edit.setToolTip("")
+        if hasattr(self, "batch_tags_input"):
+            self.batch_tags_input.setText("")
+            self.batch_tags_input.setToolTip("")
+        if hasattr(self, "batch_tags_preview_label"):
+            self.batch_tags_preview_label.setText("")
+        self._batch_tags_lucygoosey = False
         self.batch_alignment_slider.blockSignals(True)
         self.batch_alignment_slider.setValue(0)
         self.batch_alignment_slider.blockSignals(False)
