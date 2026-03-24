@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 from math import sqrt
 from typing import Iterable
 
@@ -233,6 +234,16 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
     return final_score, placement_score, aspect_score, distribution_score
 
 
+def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float, float]:
+    similarity_score, placement_score, aspect_score, distribution_score = chart_similarity_score(query, candidate)
+    dissimilarity_score = (
+        ((1.0 - placement_score) * 0.46)
+        + ((1.0 - aspect_score) * 0.39)
+        + ((1.0 - distribution_score) * 0.15)
+    )
+    return dissimilarity_score, similarity_score, placement_score, aspect_score, distribution_score
+
+
 def find_astro_twins(
     query_chart: Chart,
     candidates: Iterable[tuple[int, Chart]],
@@ -241,7 +252,9 @@ def find_astro_twins(
     exclude_chart_id: int | None = None,
     least_similar: bool = False,
 ) -> list[AstroTwinMatch]:
-    results: list[AstroTwinMatch] = []
+    target_k = max(1, int(top_k))
+    # Keep only k best candidates as we iterate so we avoid sorting all rows.
+    scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
@@ -250,20 +263,34 @@ def find_astro_twins(
         if not getattr(candidate, "positions", None):
             continue
 
-        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
-            query_chart,
-            candidate,
-        )
-        results.append(
-            AstroTwinMatch(
-                chart_id=int(chart_id),
-                chart_name=str(getattr(candidate, "name", "") or "Unnamed"),
-                score=final_score,
-                placement_score=placement_score,
-                aspect_score=aspect_score,
-                distribution_score=distribution_score,
+        if least_similar:
+            rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
+                query_chart,
+                candidate,
             )
-        )
+        else:
+            final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+                query_chart,
+                candidate,
+            )
+            rank_score = final_score
 
-    results.sort(key=lambda item: item.score, reverse=not least_similar)
-    return results[:max(1, int(top_k))]
+        match = AstroTwinMatch(
+            chart_id=int(chart_id),
+            chart_name=str(getattr(candidate, "name", "") or "Unnamed"),
+            score=final_score,
+            placement_score=placement_score,
+            aspect_score=aspect_score,
+            distribution_score=distribution_score,
+        )
+        if len(scored_matches) < target_k:
+            heapq.heappush(scored_matches, (rank_score, int(chart_id), match))
+            continue
+        if rank_score > scored_matches[0][0]:
+            heapq.heapreplace(scored_matches, (rank_score, int(chart_id), match))
+
+    ranked = sorted(scored_matches, key=lambda item: item[0], reverse=True)
+    return [
+        match
+        for _, _, match in ranked
+    ]
