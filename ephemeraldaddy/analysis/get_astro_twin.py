@@ -296,6 +296,8 @@ def find_astro_twins(
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
+    relaxed_scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
+    query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
@@ -324,14 +326,26 @@ def find_astro_twins(
             aspect_score=aspect_score,
             distribution_score=distribution_score,
         )
-        if len(scored_matches) < target_k:
-            heapq.heappush(scored_matches, (rank_score, int(chart_id), match))
+        destination_heap = scored_matches
+        if least_similar and query_top3_signs:
+            candidate_top3_signs = _top_sign_indices(_sign_weight_profile(candidate), count=3)
+            top3_overlap = len(query_top3_signs & candidate_top3_signs)
+            # Hard guardrail for least-similar mode:
+            # if charts share any top-3 dominant sign, they should not rank as truly "least similar".
+            if top3_overlap > 0:
+                destination_heap = relaxed_scored_matches
+
+        if len(destination_heap) < target_k:
+            heapq.heappush(destination_heap, (rank_score, int(chart_id), match))
             continue
-        if rank_score > scored_matches[0][0]:
-            heapq.heapreplace(scored_matches, (rank_score, int(chart_id), match))
+        if rank_score > destination_heap[0][0]:
+            heapq.heapreplace(destination_heap, (rank_score, int(chart_id), match))
+
+    if least_similar and len(scored_matches) < target_k:
+        # Fallback behavior: if strict guardrails produce too few matches,
+        # top off from the relaxed pool so UI still gets results.
+        needed = target_k - len(scored_matches)
+        scored_matches.extend(sorted(relaxed_scored_matches, key=lambda item: item[0], reverse=True)[:needed])
 
     ranked = sorted(scored_matches, key=lambda item: item[0], reverse=True)
-    return [
-        match
-        for _, _, match in ranked
-    ]
+    return [match for _, _, match in ranked]
