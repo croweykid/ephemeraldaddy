@@ -216,7 +216,7 @@ from ephemeraldaddy.core.ephemeris import (
     planetary_retrogrades,
     is_offline_mode as ephemeris_offline_mode,
 )
-from ephemeraldaddy.core.hd import get_active_channels, get_line
+from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.composite import (
@@ -328,7 +328,6 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_TYPES,
-    AWARENESS_STREAMS,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -447,6 +446,9 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     _synastry_pair_weight,
     format_chart_text,
     format_transit_chart_text,
+)
+from ephemeraldaddy.gui.features.charts.analysis.human_design import (
+    build_human_design_chart_data_output,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -20106,90 +20108,6 @@ class MainWindow(QMainWindow):
         self._register_popout_shortcuts(dialog)
         dialog.show()
 
-    def _build_human_design_chart_data_output(
-        self,
-        chart: Chart,
-        *,
-        aspect_sort: str,
-    ) -> tuple[str, dict[int, Any], dict[int, Any], dict[int, Any], int]:
-        chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
-            chart,
-            aspect_sort=aspect_sort,
-        )
-        summary_lines = chart_summary_text.splitlines()
-        positions_start_index = next(
-            (idx for idx, line in enumerate(summary_lines) if line.strip() == "POSITIONS"),
-            0,
-        )
-        houses_header_index = next(
-            (
-                idx
-                for idx, line in enumerate(summary_lines[positions_start_index + 1 :], start=positions_start_index + 1)
-                if line.strip() == "HOUSES"
-            ),
-            len(summary_lines),
-        )
-        position_lines = summary_lines[positions_start_index:houses_header_index]
-
-        use_houses = _chart_uses_houses(chart)
-        active_longitudes = [
-            lon
-            for body, lon in (getattr(chart, "positions", {}) or {}).items()
-            if isinstance(lon, (int, float))
-            and (use_houses or body not in {"AS", "MC", "DS", "IC"})
-        ]
-        active_gate_set = {get_line(float(lon))[0] for lon in active_longitudes}
-        active_line_set = {(gate, line) for gate, line in (get_line(float(lon)) for lon in active_longitudes)}
-
-        gates_text = ", ".join(str(gate) for gate in sorted(active_gate_set)) or "None"
-        lines_text = (
-            ", ".join(f"{gate}.{line}" for gate, line in sorted(active_line_set, key=lambda item: (item[0], item[1])))
-            or "None"
-        )
-
-        awareness_lines: list[str] = []
-        for stream in AWARENESS_STREAMS:
-            stream_name = str(stream.get("name", "")).strip().title() or "Unknown"
-            stream_type = str(stream.get("type", "")).strip().title() or "Unknown"
-            required_gates = [int(gate) for gate in stream.get("gates", []) if isinstance(gate, int)]
-            if not required_gates:
-                awareness_lines.append(f"{stream_type}: {stream_name} - 0%. Missing all gates")
-                continue
-            completed_count = sum(1 for gate in required_gates if gate in active_gate_set)
-            completion_pct = int(round((completed_count / len(required_gates)) * 100))
-            missing = [str(gate) for gate in required_gates if gate not in active_gate_set]
-            if missing:
-                missing_text = f"Missing {', '.join(missing)}"
-            else:
-                missing_text = "Complete"
-            awareness_lines.append(f"{stream_type}: {stream_name} - {completion_pct}%. {missing_text}")
-
-        rendered_lines = [
-            *position_lines,
-            "",
-            CHART_DATA_DIVIDER,
-            "GATES",
-            CHART_DATA_DIVIDER,
-            gates_text,
-            "",
-            CHART_DATA_DIVIDER,
-            "LINES",
-            CHART_DATA_DIVIDER,
-            lines_text,
-            "",
-            CHART_DATA_DIVIDER,
-            "AWARENESS STREAMS",
-            CHART_DATA_DIVIDER,
-            *awareness_lines,
-        ]
-        return (
-            "\n".join(rendered_lines),
-            position_info_map,
-            aspect_info_map,
-            species_info_map,
-            positions_start_index,
-        )
-
     def on_get_human_design_info(self) -> None:
         if self._latest_chart is None:
             QMessageBox.information(
@@ -20274,7 +20192,7 @@ class MainWindow(QMainWindow):
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
         )
 
-        chart_data_text, position_info_map, aspect_info_map, species_info_map, summary_block_offset = self._build_human_design_chart_data_output(
+        chart_data_text, position_info_map, aspect_info_map, species_info_map, summary_block_offset = build_human_design_chart_data_output(
             self._latest_chart,
             aspect_sort="Priority",
         )
