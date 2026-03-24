@@ -1418,6 +1418,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
+        # Dialog-side chart selection/render state mirrors MainWindow attributes
+        # and is referenced by shared refresh helpers.
+        self.current_chart_id: int | None = None
+        self._latest_chart = None
         self._search_body_filters = []
         self._aspect_filters = []
         self._dominant_sign_filters = []
