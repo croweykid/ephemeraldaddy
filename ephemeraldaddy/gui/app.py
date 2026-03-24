@@ -464,9 +464,11 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     render_anagrams_text,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import (
+    SIMILARITY_THRESHOLD_EDITOR_ROWS,
     SimilarityThresholds,
     classify_similarity,
     compute_similarity_calibration,
+    describe_similarity_bands,
     load_similarity_thresholds,
     save_similarity_calibration,
     save_similarity_thresholds,
@@ -14070,13 +14072,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_grid.setHorizontalSpacing(8)
         thresholds_grid.setVerticalSpacing(6)
         self._similarity_threshold_spinboxes = {}
-        threshold_rows = [
-            ("q20", "Most dissimilar max (q20)"),
-            ("q40", "Somewhat dissimilar max (q40)"),
-            ("q60", "Average similarity max (q60)"),
-            ("q80", "Somewhat similar max (q80)"),
-        ]
-        for row_index, (key, label_text) in enumerate(threshold_rows):
+        for row_index, (key, label_text) in enumerate(SIMILARITY_THRESHOLD_EDITOR_ROWS):
             label = QLabel(label_text)
             spinbox = QDoubleSpinBox()
             spinbox.setDecimals(1)
@@ -14460,11 +14456,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"Median: {calibration.median:.1f}%",
                     f"Mode: {mode_label} ({calibration.mode_count} pair(s))",
                     "",
-                    f"Most dissimilar: ≤ {thresholds.q20:.1f}%",
-                    f"Somewhat dissimilar: > {thresholds.q20:.1f}% and ≤ {thresholds.q40:.1f}%",
-                    f"Average similarity: > {thresholds.q40:.1f}% and ≤ {thresholds.q60:.1f}%",
-                    f"Somewhat similar: > {thresholds.q60:.1f}% and ≤ {thresholds.q80:.1f}%",
-                    f"Most similar: > {thresholds.q80:.1f}%",
+                    *describe_similarity_bands(thresholds),
                 ]
             ),
         )
@@ -14488,11 +14480,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     "Manual similarity thresholds saved systemwide:",
-                    f"Most dissimilar: ≤ {normalized.q20:.1f}%",
-                    f"Somewhat dissimilar: > {normalized.q20:.1f}% and ≤ {normalized.q40:.1f}%",
-                    f"Average similarity: > {normalized.q40:.1f}% and ≤ {normalized.q60:.1f}%",
-                    f"Somewhat similar: > {normalized.q60:.1f}% and ≤ {normalized.q80:.1f}%",
-                    f"Most similar: > {normalized.q80:.1f}%",
+                    *describe_similarity_bands(normalized),
                 ]
             ),
         )
