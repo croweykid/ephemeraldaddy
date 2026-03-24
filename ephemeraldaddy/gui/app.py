@@ -5483,7 +5483,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"{percent_value}% of selection | {db_percent_value}% of DB"
                 )
                 tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                tiny_label.setStyleSheet("color: #9f9f9f; font-size: 7px;")
+                tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
                 row_layout.addWidget(tiny_label, stretch=0, alignment=Qt.AlignLeft)
 
                 section_list.addItem(item)
