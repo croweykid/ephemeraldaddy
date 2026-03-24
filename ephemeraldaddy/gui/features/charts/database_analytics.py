@@ -1085,7 +1085,8 @@ class DatabaseAnalyticsChartsMixin:
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
-        figure.tight_layout()
+        # Manual margins are explicitly set for this chart; skip tight_layout to avoid
+        # benign "cannot be made large enough" warnings with long axis labels.
         figure.subplots_adjust(left=0.36, bottom=0.16, right=0.97, top=0.95)
 
         canvas = FigureCanvas(figure)
