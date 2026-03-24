@@ -447,7 +447,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_chart_text,
     format_transit_chart_text,
 )
-from ephemeraldaddy.gui.features.charts.analysis.human_design import (
+from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
