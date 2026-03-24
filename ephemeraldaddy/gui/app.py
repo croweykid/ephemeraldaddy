@@ -6231,14 +6231,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot["position_sign_count_by_body"][body] += 1
 
         dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
-        ranked_signs = sorted(
-            ZODIAC_NAMES,
-            key=lambda sign: (
-                -float(dominant_weights.get(sign, 0)),
-                ZODIAC_NAMES.index(sign),
-            ),
-        )
-        for sign in ranked_signs[:3]:
+        for sign in ZODIAC_NAMES:
             sign_weight = float(dominant_weights.get(sign, 0.0))
             if sign_weight <= 0:
                 continue
