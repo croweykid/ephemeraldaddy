@@ -39,6 +39,31 @@ CHART_AXES_STYLE = {
     "barh_adjust": {"left": 0.36, "bottom": 0.12, "right": 0.97, "top": 0.96},
 }
 
+# Alignment-score visualization tuning.
+ALIGNMENT_SCORE_RANGE = (-10.0, 10.0)
+ALIGNMENT_NEGATIVE_RGB = (100, 0, 0)
+ALIGNMENT_POSITIVE_RGB = (0, 0, 100)
+ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH = 44
+
+
+def _interpolate_rgb_channel(start: int, end: int, ratio: float) -> int:
+    return int(round(start + ((end - start) * ratio)))
+
+
+def alignment_score_to_rgb(value: float) -> tuple[float, float, float]:
+    """
+    Map alignment scores to an RGB gradient:
+    - most negative -> red (100, 0, 0)
+    - most positive -> blue (0, 0, 100)
+    """
+    min_value, max_value = ALIGNMENT_SCORE_RANGE
+    clamped = max(min_value, min(max_value, float(value)))
+    ratio = (clamped - min_value) / (max_value - min_value) if max_value > min_value else 0.5
+    red = _interpolate_rgb_channel(ALIGNMENT_NEGATIVE_RGB[0], ALIGNMENT_POSITIVE_RGB[0], ratio)
+    green = _interpolate_rgb_channel(ALIGNMENT_NEGATIVE_RGB[1], ALIGNMENT_POSITIVE_RGB[1], ratio)
+    blue = _interpolate_rgb_channel(ALIGNMENT_NEGATIVE_RGB[2], ALIGNMENT_POSITIVE_RGB[2], ratio)
+    return (red / 100.0, green / 100.0, blue / 100.0)
+
 
 def format_chart_header(template_key: str, **kwargs: object) -> str:
     """Format a standard chart header line using the shared template catalog."""
