@@ -2195,6 +2195,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         label_by_mode = {
             "dominant_signs": "Dominant signs in database (by weight)",
+            "dominant_sign_frequency": "Top dominant signs in database (chart-level frequency)",
             "dominant_planets": "Dominant bodies in database (by weight)",
             "dominant_houses": "Dominant houses in database (by weight)",
             "dominant_elements": "Dominant elements in database (by weight)",
@@ -5253,7 +5254,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_signs_list,
         ) = self._add_similarities_collapsible_section(
             layout,
-            "Dominant signs in common",
+            "Top dominant signs in common (chart-level)",
             min_height=100,
             list_style=similarities_list_style,
         )
@@ -5628,19 +5629,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not dominant_weights:
                 dominant_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_sign_weights = dominant_weights
-            if not dominant_weights:
-                continue
-            max_weight = max(dominant_weights.values(), default=None)
-            if max_weight is None:
-                continue
-            for sign, weight in dominant_weights.items():
-                if weight == max_weight:
-                    sign_counts[sign] = sign_counts.get(sign, 0) + 1
+            for sign in self._dominant_sign_top_labels(dominant_weights):
+                sign_counts[sign] = sign_counts.get(sign, 0) + 1
 
         ordered_counts = {
             sign: sign_counts[sign] for sign in ZODIAC_NAMES if sign in sign_counts
         }
         return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    @staticmethod
+    def _dominant_sign_top_labels(
+        dominant_weights: dict[str, float] | None,
+    ) -> set[str]:
+        if not dominant_weights:
+            return set()
+        max_weight = max(
+            (float(weight) for weight in dominant_weights.values()),
+            default=0.0,
+        )
+        if max_weight <= 0:
+            return set()
+        return {
+            sign
+            for sign, weight in dominant_weights.items()
+            if float(weight) == max_weight and sign in ZODIAC_NAMES
+        }
 
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]
@@ -5807,7 +5820,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Signs in positions in common", common_positions),
             ("Houses in positions in common", common_houses_in_positions),
             ("Signs in houses in common", common_signs_in_houses),
-            ("Dominant signs in common", common_dominant_signs),
+            ("Top dominant signs in common (chart-level)", common_dominant_signs),
             ("Dominant nakshatras in common", common_dominant_nakshatras),
             ("Aspects in common", common_aspects),
         ]
@@ -6448,6 +6461,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             snapshot["dominant_sign_totals"][sign] += sign_weight
             snapshot["dominant_sign_total_weight"] += sign_weight
+        for sign in self._dominant_sign_top_labels(dominant_weights):
             snapshot["dominant_sign_frequency_totals"][sign] += 1.0
 
         dominant_planets = self._chart_dominant_planets(chart)
@@ -7089,6 +7103,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign: (database_cache["dominant_sign_totals"][sign] / database_cache["dominant_sign_total_weight"] if database_cache["dominant_sign_total_weight"] else 0)
                 for sign in ZODIAC_NAMES
             }
+            selection_dominant_sign_frequency = {
+                sign: (
+                    selection_cache["dominant_sign_frequency_totals"][sign] / loaded_charts
+                    if loaded_charts
+                    else 0
+                )
+                for sign in ZODIAC_NAMES
+            }
+            database_dominant_sign_frequency = {
+                sign: (
+                    database_cache["dominant_sign_frequency_totals"][sign]
+                    / database_loaded_charts
+                    if database_loaded_charts
+                    else 0
+                )
+                for sign in ZODIAC_NAMES
+            }
             dominant_planet_labels = list(selection_cache["dominant_planet_totals"].keys())
             selection_dominant_planets = {
                 body: (
@@ -7584,6 +7615,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[int(database_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
                         loaded_charts=loaded_charts,
                     )
+                elif dominant_mode == "dominant_sign_frequency":
+                    dominant_sign_canvas = self._build_dominant_sign_chart(
+                        selection_signs=selection_dominant_sign_frequency,
+                        database_signs=database_dominant_sign_frequency,
+                        selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
+                        database_sign_counts=database_cache["dominant_sign_frequency_totals"],
+                        loaded_charts=loaded_charts,
+                    )
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=list(ZODIAC_NAMES),
+                        selection_values=[selection_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
+                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
+                        loaded_charts=loaded_charts,
+                    )
                 else:
                     dominant_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
@@ -7633,6 +7680,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_values=[database_dominant_elements[label] for label in dominant_element_labels],
                         selection_counts=[int(selection_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
                         database_counts=[int(database_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
+                        loaded_charts=loaded_charts,
+                    )
+                elif dominant_mode == "dominant_sign_frequency":
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=list(ZODIAC_NAMES),
+                        selection_values=[selection_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
+                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
                     )
                 else:
