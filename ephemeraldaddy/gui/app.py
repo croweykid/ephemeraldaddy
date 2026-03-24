@@ -588,6 +588,7 @@ from ephemeraldaddy.gui.style import (
     INACTIVE_ACTION_BUTTON_STYLE,
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
+    alignment_score_to_rgb,
     configure_collapsible_header_toggle,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
@@ -7270,6 +7271,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     selection_values=alignment_selection_values[:2],
                     database_values=alignment_database_values[:2],
                     loaded_charts=loaded_charts,
+                    color_resolver=alignment_score_to_rgb,
                 )
                 self._clear_layout(self.alignment_summary_chart_layout)
                 self.alignment_summary_chart_layout.addWidget(
