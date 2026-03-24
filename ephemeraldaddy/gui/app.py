@@ -210,7 +210,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_manage_dialog_chrome,
 )
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.analysis.get_astro_twin import find_astro_twins
+from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
     planetary_retrogrades,
@@ -1471,6 +1471,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
+        self._similarities_pair_button: QPushButton | None = None
+        self._similarities_pair_result_label: QLabel | None = None
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "dominant_signs"
@@ -5116,6 +5118,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.similarities_status_label.setStyleSheet("color: #bbbbbb;")
         layout.addWidget(self.similarities_status_label)
 
+        pair_row = QWidget()
+        pair_layout = QHBoxLayout()
+        pair_layout.setContentsMargins(0, 0, 0, 0)
+        pair_layout.setSpacing(8)
+        pair_row.setLayout(pair_layout)
+        pair_button = QPushButton("Calculate Similarity")
+        pair_button.setEnabled(False)
+        pair_button.setToolTip("Select exactly 2 charts to compare.")
+        pair_button.clicked.connect(self._calculate_pair_similarity_from_selection)
+        pair_layout.addWidget(pair_button, alignment=Qt.AlignLeft)
+        pair_layout.addStretch(1)
+        layout.addWidget(pair_row)
+        self._similarities_pair_button = pair_button
+
+        pair_result_label = QLabel("Select exactly 2 charts to compare.")
+        pair_result_label.setWordWrap(True)
+        pair_result_label.setStyleSheet("color: #9b9b9b;")
+        layout.addWidget(pair_result_label)
+        self._similarities_pair_result_label = pair_result_label
+
         similarities_list_style = (
             "QListWidget {"
             "  background-color: #151515;"
@@ -5190,6 +5212,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         layout.addStretch(1)
         return panel
+
+    def _calculate_pair_similarity_from_selection(self) -> None:
+        if self._similarities_pair_result_label is None:
+            return
+        selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
+        chart_ids = [int(item.data(Qt.UserRole)) for item in selected_items if item.data(Qt.UserRole) is not None]
+        if len(chart_ids) != 2:
+            self._similarities_pair_result_label.setText("Select exactly 2 charts to compare.")
+            return
+        first = self._get_chart_for_filter(chart_ids[0])
+        second = self._get_chart_for_filter(chart_ids[1])
+        if first is None or second is None:
+            self._similarities_pair_result_label.setText("Could not load both selected charts.")
+            return
+        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(first, second)
+        first_name = str(getattr(first, "name", "") or f"#{chart_ids[0]}")
+        second_name = str(getattr(second, "name", "") or f"#{chart_ids[1]}")
+        self._similarities_pair_result_label.setText(
+            f"{first_name} ↔ {second_name}: {final_score * 100.0:.1f}% similar "
+            f"(placements {placement_score * 100.0:.0f}%, "
+            f"aspects {aspect_score * 100.0:.0f}%, "
+            f"distribution {distribution_score * 100.0:.0f}%)."
+        )
     def _add_similarities_collapsible_section(
         self,
         layout: QVBoxLayout,
@@ -5499,6 +5544,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._sorted_similarity_matches(aspect_counts, chart_count)
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
+        if self._similarities_pair_button is not None:
+            pair_enabled = len(chart_ids) == 2
+            self._similarities_pair_button.setEnabled(pair_enabled)
+            self._similarities_pair_button.setToolTip(
+                "Calculate similarity between the two selected charts."
+                if pair_enabled
+                else "Select exactly 2 charts to compare."
+            )
+        if self._similarities_pair_result_label is not None and len(chart_ids) != 2:
+            self._similarities_pair_result_label.setText("Select exactly 2 charts to compare.")
+
         if len(chart_ids) < 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
