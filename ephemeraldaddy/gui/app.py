@@ -9666,7 +9666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
         self._render_batch_selection_tag_summary(tag_counts, selected_count)
-        self._set_batch_alignment_state(alignment_values)
+        self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_ids = chart_id_set
 
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
