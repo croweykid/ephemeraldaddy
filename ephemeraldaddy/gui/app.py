@@ -1462,7 +1462,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
-        self._possible_duplicate_related_names: dict[int, list[str]] = {}
+        self._possible_duplicate_related_names: dict[int, dict[str, list[str]]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -12863,12 +12863,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
                 if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
-                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    related_names = self._possible_duplicate_related_names.get(cid, {})
                     if related_names:
-                        tooltip_names = ", ".join(related_names[:5])
-                        if len(related_names) > 5:
-                            tooltip_names = f"{tooltip_names}, …"
-                        item.setToolTip(f"Similar to: {tooltip_names}")
+                        tooltip_sections: list[str] = []
+                        name_matches = related_names.get("name", [])
+                        if name_matches:
+                            tooltip_names = ", ".join(name_matches[:5])
+                            if len(name_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"Similar name to: {tooltip_names}")
+                        birthday_matches = related_names.get("birth_date", [])
+                        if birthday_matches:
+                            tooltip_names = ", ".join(birthday_matches[:5])
+                            if len(birthday_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"Similar birth date to: {tooltip_names}")
+                        if tooltip_sections:
+                            item.setToolTip("; ".join(tooltip_sections))
                 item.setData(
                     Qt.UserRole + 1,
                     {

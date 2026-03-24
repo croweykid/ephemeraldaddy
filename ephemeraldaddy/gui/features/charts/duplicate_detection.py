@@ -50,9 +50,9 @@ def find_possible_duplicate_charts(
             int | None,
         ]
     ],
-) -> tuple[set[int], dict[int, list[str]]]:
+) -> tuple[set[int], dict[int, dict[str, list[str]]]]:
     duplicate_ids: set[int] = set()
-    related_names: dict[int, set[str]] = {}
+    related_names: dict[int, dict[str, set[str]]] = {}
     chart_names: dict[int, str] = {}
 
     birthday_groups: dict[tuple[int, int], list[int]] = {}
@@ -81,21 +81,22 @@ def find_possible_duplicate_charts(
         for variant in normalized_variants:
             normalized_name_to_ids.setdefault(variant, set()).add(chart_id)
 
-    def mark_related(group_ids: set[int]) -> None:
+    def mark_related(group_ids: set[int], reason_key: str) -> None:
         if len(group_ids) < 2:
             return
         duplicate_ids.update(group_ids)
         for chart_id in group_ids:
-            related = related_names.setdefault(chart_id, set())
+            related_by_reason = related_names.setdefault(chart_id, {})
+            related = related_by_reason.setdefault(reason_key, set())
             for other_id in group_ids:
                 if other_id == chart_id:
                     continue
                 related.add(chart_names.get(other_id, f"Chart #{other_id}"))
 
     for chart_ids in birthday_groups.values():
-        mark_related(set(chart_ids))
+        mark_related(set(chart_ids), "birth_date")
     for chart_ids in normalized_name_to_ids.values():
-        mark_related(set(chart_ids))
+        mark_related(set(chart_ids), "name")
 
     variant_values = list(normalized_name_to_ids.keys())
     buckets: dict[str, list[str]] = {}
@@ -112,10 +113,14 @@ def find_possible_duplicate_charts(
                     continue
                 left_ids = normalized_name_to_ids.get(left_variant, set())
                 right_ids = normalized_name_to_ids.get(right_variant, set())
-                mark_related(left_ids.union(right_ids))
+                mark_related(left_ids.union(right_ids), "name")
 
     return duplicate_ids, {
-        chart_id: sorted(names, key=str.casefold)
-        for chart_id, names in related_names.items()
-        if names
+        chart_id: {
+            reason_key: sorted(names, key=str.casefold)
+            for reason_key, names in grouped_names.items()
+            if names
+        }
+        for chart_id, grouped_names in related_names.items()
+        if grouped_names
     }
