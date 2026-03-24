@@ -586,6 +586,8 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     GENDER_GUESSER_COLORS,
     INACTIVE_ACTION_BUTTON_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     configure_collapsible_header_toggle,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
@@ -5139,7 +5141,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         pair_layout.setSpacing(8)
         pair_row.setLayout(pair_layout)
         pair_button = QPushButton("Calculate Similarity")
-        pair_button.setEnabled(False)
+        pair_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
         pair_button.setToolTip("Select exactly 2 charts to compare.")
         pair_button.clicked.connect(self._calculate_pair_similarity_from_selection)
         pair_layout.addWidget(pair_button, alignment=Qt.AlignLeft)
@@ -5234,6 +5236,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
         chart_ids = [int(item.data(Qt.UserRole)) for item in selected_items if item.data(Qt.UserRole) is not None]
         if len(chart_ids) != 2:
+            QMessageBox.warning(
+                self,
+                "Similarity requires exactly two charts",
+                "Please choose exactly 2 charts to Calculate Similarity. No more. No less.",
+            )
             self._similarities_pair_result_label.setText("Select exactly 2 charts to compare.")
             return
         first = self._get_chart_for_filter(chart_ids[0])
@@ -5572,7 +5579,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         if self._similarities_pair_button is not None:
             pair_enabled = len(chart_ids) == 2
-            self._similarities_pair_button.setEnabled(pair_enabled)
+            self._similarities_pair_button.setStyleSheet(
+                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                if pair_enabled
+                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
+            )
             self._similarities_pair_button.setToolTip(
                 "Calculate similarity between the two selected charts."
                 if pair_enabled
