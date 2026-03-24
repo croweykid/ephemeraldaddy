@@ -143,6 +143,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     chart_menu = menu_bar.addMenu("Chart")
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
     _bind_menu_action(chart_menu, "Export Chart", window, "on_export_chart")
+    _bind_menu_action(chart_menu, "Get Human Design Info", window, "on_get_human_design_info")
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Get Transit", window, "on_get_current_transits")
