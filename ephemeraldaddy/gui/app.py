@@ -9237,6 +9237,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
         self._batch_metric_programmatic_update = False
         self._batch_last_selection_ids: set[int] = set()
+        self._batch_selection_order: list[int] = []
         self._batch_metric_lucygoosey: dict[str, bool] = {
             "positive_sentiment_intensity": False,
             "negative_sentiment_intensity": False,
@@ -9463,25 +9464,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_batch_edit_state(self) -> None:
         selected_items = self.list_widget.selectedItems()
         self._update_batch_edit_action_buttons()
-        chart_ids = [item.data(Qt.UserRole) for item in selected_items]
-        chart_id_set = {int(chart_id) for chart_id in chart_ids if isinstance(chart_id, int)}
+        selected_chart_ids = [
+            int(chart_id)
+            for chart_id in (item.data(Qt.UserRole) for item in selected_items)
+            if isinstance(chart_id, int)
+        ]
+        chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_metrics = (
             bool(chart_id_set)
             and bool(self._batch_last_selection_ids)
             and bool(chart_id_set.intersection(self._batch_last_selection_ids))
         )
-        if not chart_ids:
+        if not selected_chart_ids:
             self._clear_batch_edits()
             return
+        self._update_batch_selection_order(selected_chart_ids)
 
         # Selection can briefly contain stale ids during list refreshes
         # (e.g., right after delete/filter changes). Resolve ids from current
         # cache first and drop any rows no longer present in the database.
         resolved_items: list[tuple[int, Chart]] = []
         stale_ids: set[int] = set()
-        for chart_id in chart_ids:
-            if not isinstance(chart_id, int):
-                continue
+        for chart_id in selected_chart_ids:
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 stale_ids.add(chart_id)
@@ -9512,8 +9516,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tag_values: list[str] = []
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
-        alignment_values: list[int] = []
-
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
             relationships = set(getattr(chart, "relationship_types", []) or [])
@@ -9547,7 +9549,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
-            alignment_values.append(int(getattr(chart, "alignment_score", 0) or 0))
 
 
         for label, checkbox in self.batch_sentiment_checkboxes.items():
@@ -9643,6 +9644,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
         )
+        self._set_batch_alignment_state(resolved_items)
         self._set_batch_tags_state(
             tag_values,
             preserve_lucygoosey=preserve_lucygoosey_metrics,
@@ -9650,19 +9652,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_alignment_state(alignment_values)
         self._batch_last_selection_ids = chart_id_set
 
-    def _set_batch_alignment_state(self, values: list[int]) -> None:
-        if not values:
+    def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
+        selected_set = set(selected_chart_ids)
+        self._batch_selection_order = [
+            chart_id for chart_id in self._batch_selection_order if chart_id in selected_set
+        ]
+        for chart_id in selected_chart_ids:
+            if chart_id not in self._batch_selection_order:
+                self._batch_selection_order.append(chart_id)
+
+    @staticmethod
+    def _alignment_value_for_chart(chart: Chart) -> int:
+        raw_value = getattr(chart, "alignment_score", 0)
+        try:
+            return int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+    def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
+        if not items:
             self.batch_alignment_slider.blockSignals(True)
             self.batch_alignment_slider.setValue(0)
             self.batch_alignment_slider.blockSignals(False)
             self.batch_alignment_slider.setToolTip("")
             self._update_batch_alignment_score_label(0)
             return
+        alignment_by_chart_id = {
+            chart_id: self._alignment_value_for_chart(chart)
+            for chart_id, chart in items
+        }
+        anchor_chart_id = next(
+            (
+                chart_id
+                for chart_id in self._batch_selection_order
+                if chart_id in alignment_by_chart_id
+            ),
+            items[0][0],
+        )
+        selected_value = alignment_by_chart_id.get(anchor_chart_id, 0)
         self.batch_alignment_slider.blockSignals(True)
-        self.batch_alignment_slider.setValue(values[0])
+        self.batch_alignment_slider.setValue(selected_value)
         self.batch_alignment_slider.blockSignals(False)
-        self._update_batch_alignment_score_label(values[0])
-        if len(set(values)) > 1:
+        self._update_batch_alignment_score_label(selected_value)
+        if len(set(alignment_by_chart_id.values())) > 1:
             self.batch_alignment_slider.setToolTip(
                 "Selected charts have mixed alignment scores. Applying will overwrite all selected charts."
             )
@@ -11160,6 +11192,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_ids"):
             self._batch_last_selection_ids = set()
+        if hasattr(self, "_batch_selection_order"):
+            self._batch_selection_order = []
         for checkbox in self.batch_sentiment_checkboxes.values():
             self._set_batch_checkbox_state(checkbox, QuadStateSlider.MODE_EMPTY)
         for checkbox in self.batch_relationship_type_checkboxes.values():
