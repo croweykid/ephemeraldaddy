@@ -447,6 +447,9 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_chart_text,
     format_transit_chart_text,
 )
+from ephemeraldaddy.gui.features.charts.analysis.human_design import (
+    build_human_design_chart_data_output,
+)
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
@@ -20104,6 +20107,104 @@ class MainWindow(QMainWindow):
 
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         _refresh_summary()
+
+        dialog.resize(1320, 1080)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+
+    def on_get_human_design_info(self) -> None:
+        if self._latest_chart is None:
+            QMessageBox.information(
+                self,
+                "No chart",
+                "Generate or load a chart to view Human Design info.",
+            )
+            return
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowTitle("Human Design")
+        dialog.setMinimumSize(780, 780)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        dialog.setLayout(layout)
+
+        natal_planet_weights = getattr(self._latest_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(self._latest_chart)
+
+        def _weighted_natal_score(entry: Any) -> float:
+            if isinstance(entry, dict):
+                return max(0.0, float(_aspect_score(entry, planet_weights=natal_planet_weights)))
+            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
+                return max(0.0, float(entry.exactness) * float(entry.weight))
+            return 0.0
+
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ next to a position to see details/interpretation.",
+            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
+            weighted_score_for_entry=_weighted_natal_score,
+        )
+
+        right_layout = QVBoxLayout()
+        layout.addLayout(right_layout, 3)
+
+        header_label = QLabel("Human Design")
+        header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        header_font = header_label.font()
+        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        right_layout.addWidget(header_label, 0, Qt.AlignLeft | Qt.AlignTop)
+
+        figure = Figure(figsize=(10.9, 10.9))
+        canvas = FigureCanvas(figure)
+        draw_chart_wheel(
+            figure,
+            self._latest_chart,
+            canvas=canvas,
+            wheel_padding=0.03,
+            show_title=False,
+            symbol_scale=0.7,
+        )
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas.draw_idle()
+        right_layout.addWidget(canvas, 7)
+
+        summary_output = QPlainTextEdit()
+        summary_output.setReadOnly(True)
+        output_font = summary_output.font()
+        summary_output.setFont(output_font)
+        summary_output.setTabStopDistance(6)
+        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output.setPlainText("")
+        summary_output.setMinimumHeight(220)
+        summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_output.viewport().installEventFilter(self)
+        right_layout.addWidget(summary_output, 3)
+
+        popout_context_key = summary_output.viewport()
+        popout_context: dict[str, object] = {
+            "output_widget": summary_output,
+            "chart_info_output": chart_info_output,
+            "position_info_map": {},
+            "aspect_info_map": {},
+            "species_info_map": {},
+            "summary_block_offset": 0,
+        }
+        self._popout_summary_contexts[popout_context_key] = popout_context
+        dialog.destroyed.connect(
+            lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
+        )
+
+        chart_data_text, position_info_map, aspect_info_map, species_info_map, summary_block_offset = build_human_design_chart_data_output(
+            self._latest_chart,
+            aspect_sort="Priority",
+        )
+        summary_output.setPlainText(chart_data_text)
+        popout_context["position_info_map"] = position_info_map
+        popout_context["aspect_info_map"] = aspect_info_map
+        popout_context["species_info_map"] = species_info_map
+        popout_context["summary_block_offset"] = summary_block_offset
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
