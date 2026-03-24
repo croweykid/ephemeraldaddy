@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import math
 import statistics
+import textwrap
 import warnings
 from collections import Counter
 from typing import Any
@@ -27,7 +28,12 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
-from ephemeraldaddy.gui.style import CHART_AXES_STYLE, CHART_THEME_COLORS, GENDER_GUESSER_COLORS
+from ephemeraldaddy.gui.style import (
+    ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
+    CHART_AXES_STYLE,
+    CHART_THEME_COLORS,
+    GENDER_GUESSER_COLORS,
+)
 
 
 class DatabaseAnalyticsChartsMixin:
@@ -1000,12 +1006,16 @@ class DatabaseAnalyticsChartsMixin:
         database_values: list[float],
         loaded_charts: int,
         bar_height: float = 0.6,
+        color_resolver: Any = None,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 2.8))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
-        colors = ["#6fa8dc" for _ in labels]
+        def _resolve_bar_color(value: float) -> Any:
+            if callable(color_resolver):
+                return color_resolver(value)
+            return "#6fa8dc"
 
         def _is_percent_metric(metric_label: str) -> bool:
             return "(%)" in metric_label
@@ -1026,6 +1036,7 @@ class DatabaseAnalyticsChartsMixin:
 
         positions = list(range(len(labels)))
         if loaded_charts == 0:
+            colors = [_resolve_bar_color(value) for value in database_values]
             bars = ax.barh(
                 positions,
                 database_values,
@@ -1060,6 +1071,7 @@ class DatabaseAnalyticsChartsMixin:
                 selection - database
                 for selection, database in zip(selection_values, database_values)
             ]
+            colors = [_resolve_bar_color(value) for value in differences]
             widths = [abs(value) for value in differences]
             bars = ax.barh(
                 positions,
@@ -1158,32 +1170,41 @@ class DatabaseAnalyticsChartsMixin:
                 zorder=5,
             )
             subtitle = (
-                f"Selection cumulative: {selection_cumulative:+.1f} | "
-                f"Selection avg: {selection_average:+.2f} | "
-                f"Database avg: {database_average:+.2f}"
+                f"Selection Total: {selection_cumulative:+.1f} | "
+                f"Selection Avg: {selection_average:+.2f} | "
+                f"DB Avg: {database_average:+.2f}"
             )
         else:
-            subtitle = f"Database avg alignment: {database_average:+.2f}"
+            subtitle = f"DB Avg Alignment: {database_average:+.2f}"
+
+        subtitle = textwrap.fill(
+            subtitle,
+            width=ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
+            break_long_words=False,
+        )
 
         ax.text(
-            0,
-            -0.62,
+            0.5,
+            -0.48,
             subtitle,
             ha="center",
-            va="center",
+            va="top",
+            transform=ax.transAxes,
             color=CHART_THEME_COLORS["text"],
             fontsize=7.5,
+            wrap=True,
+            clip_on=False,
         )
 
         ax.set_xlim(-10.7, 10.7)
-        ax.set_ylim(-0.8, 0.8)
+        ax.set_ylim(-0.45, 0.8)
         ax.set_yticks([])
         ax.set_xticks([-10, -5, 0, 5, 10])
         ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-        self._apply_tight_layout(figure)
+        figure.subplots_adjust(left=0.08, right=0.98, top=0.94, bottom=0.34)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
