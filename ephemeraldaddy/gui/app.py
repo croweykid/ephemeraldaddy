@@ -520,6 +520,20 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
 CHART_VIEW_NAV_CACHE_LIMIT = 24
+SIMILARITY_THRESHOLD_SETTING_KEYS = {
+    "quite_dissimilar_max": "dev_tools/similarity_quite_dissimilar_max",
+    "fairly_dissimilar_max": "dev_tools/similarity_fairly_dissimilar_max",
+    "average_similarity_max": "dev_tools/similarity_average_similarity_max",
+    "fairly_similar_max": "dev_tools/similarity_fairly_similar_max",
+    "quite_similar_min": "dev_tools/similarity_quite_similar_min",
+}
+SIMILARITY_THRESHOLD_DEFAULTS = {
+    "quite_dissimilar_max": 20,
+    "fairly_dissimilar_max": 24,
+    "average_similarity_max": 26,
+    "fairly_similar_max": 30,
+    "quite_similar_min": 35,
+}
 
 GENERATION_UNKNOWN_OPTION = "unknown"
 GENERATION_FILTER_OPTIONS: tuple[str, ...] = tuple(
@@ -1411,6 +1425,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self._similarity_threshold_controls: dict[str, QSpinBox] = {}
+        self._similarity_thresholds = self._load_similarity_threshold_settings()
         self._visibility = VisibilityStore(self._settings)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -1453,7 +1469,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
-        self._possible_duplicate_related_names: dict[int, list[str]] = {}
+        self._possible_duplicate_related_names: dict[int, dict[str, list[str]]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -12862,12 +12878,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
                 if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
-                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    related_names = self._possible_duplicate_related_names.get(cid, {})
                     if related_names:
-                        tooltip_names = ", ".join(related_names[:5])
-                        if len(related_names) > 5:
-                            tooltip_names = f"{tooltip_names}, …"
-                        item.setToolTip(f"Similar to: {tooltip_names}")
+                        tooltip_sections: list[str] = []
+                        name_matches = related_names.get("name", [])
+                        if name_matches:
+                            tooltip_names = ", ".join(name_matches[:5])
+                            if len(name_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"Similar name to: {tooltip_names}")
+                        birthday_matches = related_names.get("birth_date", [])
+                        if birthday_matches:
+                            tooltip_names = ", ".join(birthday_matches[:5])
+                            if len(birthday_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"Similar birth date to: {tooltip_names}")
+                        if tooltip_sections:
+                            item.setToolTip("; ".join(tooltip_sections))
                 item.setData(
                     Qt.UserRole + 1,
                     {
@@ -13965,6 +13992,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cleanup_button = QPushButton("Manage sentiments")
         cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
         dev_tools_section.addWidget(cleanup_button)
+        dev_tools_section.addSpacing(8)
+        dev_tools_section.addWidget(QLabel("Similarity classification thresholds (%)"))
+        threshold_form = QFormLayout()
+        threshold_form.setContentsMargins(0, 0, 0, 0)
+        threshold_form.setHorizontalSpacing(12)
+        threshold_form.setVerticalSpacing(6)
+        for key, label in (
+            ("quite_dissimilar_max", "Quite dissimilar max"),
+            ("fairly_dissimilar_max", "Fairly dissimilar max"),
+            ("average_similarity_max", "Average similarity max"),
+            ("fairly_similar_max", "Fairly similar max"),
+            ("quite_similar_min", "Quite similar min"),
+        ):
+            control = QSpinBox()
+            control.setRange(0, 100)
+            control.setSingleStep(1)
+            control.setValue(int(self._similarity_thresholds.get(key, SIMILARITY_THRESHOLD_DEFAULTS[key])))
+            control.valueChanged.connect(
+                lambda _value, threshold_key=key: self._on_similarity_threshold_changed(threshold_key)
+            )
+            self._similarity_threshold_controls[key] = control
+            threshold_form.addRow(QLabel(label), control)
+        dev_tools_section.addLayout(threshold_form)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
         age_tools_section.addWidget(QLabel("Age inference tools."))
@@ -14009,6 +14059,73 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+    def _load_similarity_threshold_settings(self) -> dict[str, int]:
+        thresholds: dict[str, int] = {}
+        for key, setting_key in SIMILARITY_THRESHOLD_SETTING_KEYS.items():
+            raw_value = self._settings.value(setting_key, SIMILARITY_THRESHOLD_DEFAULTS[key])
+            try:
+                thresholds[key] = max(0, min(100, int(raw_value)))
+            except (TypeError, ValueError):
+                thresholds[key] = SIMILARITY_THRESHOLD_DEFAULTS[key]
+        return self._normalized_similarity_thresholds(thresholds)
+
+    @staticmethod
+    def _normalized_similarity_thresholds(values: dict[str, int]) -> dict[str, int]:
+        quite_dissimilar_max = int(values.get("quite_dissimilar_max", SIMILARITY_THRESHOLD_DEFAULTS["quite_dissimilar_max"]))
+        fairly_dissimilar_max = max(
+            quite_dissimilar_max,
+            int(values.get("fairly_dissimilar_max", SIMILARITY_THRESHOLD_DEFAULTS["fairly_dissimilar_max"])),
+        )
+        average_similarity_max = max(
+            fairly_dissimilar_max,
+            int(values.get("average_similarity_max", SIMILARITY_THRESHOLD_DEFAULTS["average_similarity_max"])),
+        )
+        fairly_similar_max = max(
+            average_similarity_max,
+            int(values.get("fairly_similar_max", SIMILARITY_THRESHOLD_DEFAULTS["fairly_similar_max"])),
+        )
+        quite_similar_min = max(
+            fairly_similar_max,
+            int(values.get("quite_similar_min", SIMILARITY_THRESHOLD_DEFAULTS["quite_similar_min"])),
+        )
+        return {
+            "quite_dissimilar_max": max(0, min(100, quite_dissimilar_max)),
+            "fairly_dissimilar_max": max(0, min(100, fairly_dissimilar_max)),
+            "average_similarity_max": max(0, min(100, average_similarity_max)),
+            "fairly_similar_max": max(0, min(100, fairly_similar_max)),
+            "quite_similar_min": max(0, min(100, quite_similar_min)),
+        }
+
+    def _sync_similarity_threshold_controls(self) -> None:
+        for key, control in self._similarity_threshold_controls.items():
+            control.blockSignals(True)
+            control.setValue(int(self._similarity_thresholds[key]))
+            control.blockSignals(False)
+
+    def _on_similarity_threshold_changed(self, changed_key: str) -> None:
+        current = {
+            key: control.value()
+            for key, control in self._similarity_threshold_controls.items()
+        }
+        self._similarity_thresholds = self._normalized_similarity_thresholds(current)
+        self._sync_similarity_threshold_controls()
+        for key, setting_key in SIMILARITY_THRESHOLD_SETTING_KEYS.items():
+            self._settings.setValue(setting_key, int(self._similarity_thresholds[key]))
+        if self._latest_chart is not None:
+            self._render_similar_charts(self._latest_chart)
+
+    def _similarity_band_label(self, similarity_percent: float) -> str:
+        thresholds = self._similarity_thresholds
+        if similarity_percent < thresholds["quite_dissimilar_max"]:
+            return "quite dissimilar"
+        if similarity_percent < thresholds["fairly_dissimilar_max"]:
+            return "fairly dissimilar"
+        if similarity_percent < thresholds["average_similarity_max"]:
+            return "average similarity"
+        if similarity_percent < thresholds["quite_similar_min"]:
+            return "fairly similar"
+        return "quite similar"
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -16016,6 +16133,8 @@ class MainWindow(QMainWindow):
         match_blocks: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
+            similarity_percent = match.score * 100.0
+            similarity_band = self._similarity_band_label(similarity_percent)
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -16024,7 +16143,7 @@ class MainWindow(QMainWindow):
             match_blocks.append(
                 (
                     f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
-                    f"Similarity {match.score * 100.0:.1f}%"
+                    f"Similarity {similarity_percent:.1f}% ({similarity_band})"
                     f" (placements {match.placement_score * 100.0:.0f}%,"
                     f" aspects {match.aspect_score * 100.0:.0f}%,"
                     f" distribution {match.distribution_score * 100.0:.0f}%)"
@@ -16035,7 +16154,8 @@ class MainWindow(QMainWindow):
                     "rank": rank,
                     "chart_id": match.chart_id,
                     "chart_name": match.chart_name,
-                    "similarity_percent": round(match.score * 100.0, 1),
+                    "similarity_percent": round(similarity_percent, 1),
+                    "similarity_band": similarity_band,
                     "placement_percent": round(match.placement_score * 100.0, 1),
                     "aspect_percent": round(match.aspect_score * 100.0, 1),
                     "distribution_percent": round(match.distribution_score * 100.0, 1),
@@ -16076,7 +16196,7 @@ class MainWindow(QMainWindow):
             for row in self._similar_charts_export_rows:
                 lines.append(
                     f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
-                    f"{row['similarity_percent']:.1f}% | {row['placement_percent']:.1f}% | "
+                    f"{row['similarity_percent']:.1f}% ({row['similarity_band']}) | {row['placement_percent']:.1f}% | "
                     f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% |"
                 )
         else:
@@ -16085,7 +16205,7 @@ class MainWindow(QMainWindow):
             for row in self._similar_charts_export_rows:
                 lines.append(
                     f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
-                    f"Similarity {row['similarity_percent']:.1f}% "
+                    f"Similarity {row['similarity_percent']:.1f}% ({row['similarity_band']}) "
                     f"(placements {row['placement_percent']:.1f}%, "
                     f"aspects {row['aspect_percent']:.1f}%, "
                     f"distribution {row['distribution_percent']:.1f}%)"
