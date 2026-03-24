@@ -1491,7 +1491,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
         self._gender_mode = "actual_gender"
-        self._alignment_summary_mode = "alignment_cumulative"
         self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
@@ -1841,7 +1840,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "gender": self._gender_mode,
-            "alignment_summary": self._alignment_summary_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2201,40 +2199,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label_by_mode.get(self._prevalence_mode, label_by_mode["sign_prevalence"])
         )
 
-    def _update_alignment_summary_subheader(self) -> None:
-        subheader = getattr(self, "alignment_summary_subheader", None)
-        if subheader is None:
-            return
-        label_by_mode = {
-            "alignment_cumulative": "Cumulative alignment of selected charts vs database cumulative alignment",
-            "alignment_average": "Average alignment of selected charts vs database average alignment",
-        }
-        subheader.setText(
-            label_by_mode.get(
-                self._alignment_summary_mode,
-                label_by_mode["alignment_cumulative"],
-            )
-        )
-
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
-        if chart_key == "alignment_summary":
-            dropdown = self._analysis_chart_dropdowns.get(chart_key)
-            if dropdown is not None:
-                selected_mode = dropdown.currentData()
-                if isinstance(selected_mode, str):
-                    self._alignment_summary_mode = selected_mode
-                    self._settings.setValue(
-                        "manage_charts/alignment_summary_mode",
-                        self._alignment_summary_mode,
-                    )
-            self._update_alignment_summary_subheader()
-            self._update_sentiment_tally(
-                update_database_metrics=True,
-                update_similarities=False,
-                sections_to_refresh={chart_key},
-            )
-            return
-
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2478,16 +2443,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_gender_mode, str):
             self._gender_mode = stored_gender_mode
-
-        stored_alignment_summary_mode = self._settings.value(
-            "manage_charts/alignment_summary_mode",
-            self._alignment_summary_mode,
-        )
-        if isinstance(stored_alignment_summary_mode, str) and stored_alignment_summary_mode in {
-            "alignment_cumulative",
-            "alignment_average",
-        }:
-            self._alignment_summary_mode = stored_alignment_summary_mode
 
         stored_baseline_mode = self._settings.value(
             "manage_charts/database_metrics_baseline_mode",
@@ -2921,23 +2876,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Alignment",
             "alignment_summary",
             "alignment_summary",
-            dropdown_options=[
-                ("Cumulative Alignment", "alignment_cumulative"),
-                ("Avg Alignment", "alignment_average"),
-            ],
             show_title=False,
         )
-        self.alignment_summary_subheader = add_database_subheader("")
-        self._update_alignment_summary_subheader()
-        alignment_section_layout.addWidget(self.alignment_summary_subheader)
+        alignment_norms_subheader = add_database_subheader(
+            "Median and average alignment score"
+        )
+        alignment_section_layout.addWidget(alignment_norms_subheader)
         (
-            self.alignment_chart_container,
-            self.alignment_chart_layout,
+            self.alignment_summary_chart_container,
+            self.alignment_summary_chart_layout,
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["alignment_summary"] = (
-            self.alignment_chart_layout
+            self.alignment_summary_chart_layout
         )
-        alignment_section_layout.addWidget(self.alignment_chart_container)
+        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
+
+        alignment_cumulative_subheader = add_database_subheader(
+            "Cumulative alignment of current selection"
+        )
+        alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        (
+            self.alignment_cumulative_chart_container,
+            self.alignment_cumulative_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
+            self.alignment_cumulative_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
 
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
@@ -7289,17 +7254,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             alignment_selection_counts = [loaded_charts] * len(alignment_labels)
             alignment_database_counts = [database_loaded_charts] * len(alignment_labels)
             if _should_refresh_database_metric_section("alignment_summary"):
-                alignment_summary_canvas = self._build_alignment_cumulative_chart(
+                alignment_summary_canvas = self._build_social_score_summary_chart(
+                    labels=alignment_labels[:2],
+                    selection_values=alignment_selection_values[:2],
+                    database_values=alignment_database_values[:2],
+                    loaded_charts=loaded_charts,
+                )
+                self._clear_layout(self.alignment_summary_chart_layout)
+                self.alignment_summary_chart_layout.addWidget(
+                    alignment_summary_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+                alignment_cumulative_canvas = self._build_alignment_cumulative_chart(
                     selection_cumulative=selection_alignment_total,
                     selection_average=selection_alignment_average,
-                    database_cumulative=database_alignment_total,
                     database_average=database_alignment_average,
                     loaded_charts=loaded_charts,
-                    mode=self._alignment_summary_mode,
                 )
-                self._clear_layout(self.alignment_chart_layout)
-                self.alignment_chart_layout.addWidget(
-                    alignment_summary_canvas,
+                self._clear_layout(self.alignment_cumulative_chart_layout)
+                self.alignment_cumulative_chart_layout.addWidget(
+                    alignment_cumulative_canvas,
                     0,
                     Qt.AlignHCenter,
                 )
