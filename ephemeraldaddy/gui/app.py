@@ -6088,6 +6088,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             },
             "dominant_sign_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
             "dominant_sign_total_weight": 0.0,
+            "dominant_sign_frequency_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
             "dominant_planet_totals": {
                 body: 0.0
                 for body in PLANET_ORDER
@@ -6182,10 +6183,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ),
         )
         for sign in ranked_signs[:3]:
-            if float(dominant_weights.get(sign, 0)) <= 0:
+            sign_weight = float(dominant_weights.get(sign, 0.0))
+            if sign_weight <= 0:
                 continue
-            snapshot["dominant_sign_totals"][sign] += 1.0
-            snapshot["dominant_sign_total_weight"] += 1.0
+            snapshot["dominant_sign_totals"][sign] += sign_weight
+            snapshot["dominant_sign_total_weight"] += sign_weight
+            snapshot["dominant_sign_frequency_totals"][sign] += 1.0
 
         dominant_planets = self._chart_dominant_planets(chart)
         for body in snapshot["dominant_planet_totals"].keys():
@@ -6261,6 +6264,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for sign in ZODIAC_NAMES:
             totals["sign_totals"][sign] += direction * int(snapshot["sign_totals"].get(sign, 0))
             totals["dominant_sign_totals"][sign] += direction * float(snapshot["dominant_sign_totals"].get(sign, 0.0))
+            totals["dominant_sign_frequency_totals"][sign] += direction * float(
+                snapshot["dominant_sign_frequency_totals"].get(sign, 0.0)
+            )
         for body in totals["dominant_planet_totals"]:
             totals["dominant_planet_totals"][body] += direction * float(snapshot["dominant_planet_totals"].get(body, 0.0))
         for house_num in range(1, 13):
@@ -7321,16 +7327,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     dominant_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
                         database_signs=database_dominant_signs,
-                        selection_sign_counts=selection_cache["dominant_sign_totals"],
-                        database_sign_counts=database_cache["dominant_sign_totals"],
+                        selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
+                        database_sign_counts=database_cache["dominant_sign_frequency_totals"],
                         loaded_charts=loaded_charts,
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
                         selection_values=[selection_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         database_values=[database_dominant_signs[sign] for sign in ZODIAC_NAMES],
-                        selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in ZODIAC_NAMES],
-                        database_counts=[database_cache["dominant_sign_totals"][sign] for sign in ZODIAC_NAMES],
+                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
+                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
                     )
                 self._clear_layout(self.dominant_sign_chart_layout)
@@ -7373,8 +7379,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         labels=list(ZODIAC_NAMES),
                         selection_values=[selection_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         database_values=[database_dominant_signs[sign] for sign in ZODIAC_NAMES],
-                        selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in ZODIAC_NAMES],
-                        database_counts=[database_cache["dominant_sign_totals"][sign] for sign in ZODIAC_NAMES],
+                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
+                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
                     )
 
