@@ -464,9 +464,11 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     render_anagrams_text,
 )
 from ephemeraldaddy.gui.features.charts.similarity_norms import (
+    SIMILARITY_THRESHOLD_EDITOR_ROWS,
     SimilarityThresholds,
     classify_similarity,
     compute_similarity_calibration,
+    describe_similarity_bands,
     load_similarity_thresholds,
     save_similarity_calibration,
     save_similarity_thresholds,
@@ -594,6 +596,7 @@ from ephemeraldaddy.gui.style import (
     INACTIVE_ACTION_BUTTON_STYLE,
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
+    alignment_score_to_rgb,
     configure_collapsible_header_toggle,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
@@ -5433,25 +5436,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle: QToolButton,
         matches: list[tuple[str, int, int]],
         *,
+        db_match_counts: dict[str, int] | None = None,
+        db_total_count: int = 0,
         show_no_match_row: bool = True,
     ) -> None:
         section_list.clear()
         if matches:
             for label, match_count, total_count in matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
+                db_match_count = (db_match_counts or {}).get(label, 0)
+                db_percent_value = (
+                    int(round((db_match_count / db_total_count) * 100))
+                    if db_total_count
+                    else 0
+                )
                 item = QListWidgetItem()
 
                 row_widget = QWidget(section_list)
-                row_layout = QHBoxLayout(row_widget)
+                row_layout = QVBoxLayout(row_widget)
                 row_layout.setContentsMargins(6, 2, 6, 2)
-                row_layout.setSpacing(10)
+                row_layout.setSpacing(2)
 
-                label_widget = QLabel(f"({match_count}) {label}") #this includes the total count in the label
+                top_row = QWidget(row_widget)
+                top_layout = QHBoxLayout(top_row)
+                top_layout.setContentsMargins(0, 0, 0, 0)
+                top_layout.setSpacing(10)
+
+                label_widget = QLabel(f"({match_count}) {label}")  # this includes the total count in the label
                 label_widget.setWordWrap(True)
                 label_font = label_widget.font()
                 label_font.setPointSize(max(1, label_font.pointSize() - 1))
                 label_widget.setFont(label_font)
-                row_layout.addWidget(label_widget, stretch=1)
+                top_layout.addWidget(label_widget, stretch=1)
 
                 percent_bar = QProgressBar()
                 percent_bar.setRange(0, 100)
@@ -5460,14 +5476,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 percent_bar.setFixedWidth(120)
                 percent_bar.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-                percent_label = QLabel(f"{percent_value}%")
-                percent_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                percent_font = percent_label.font()
-                percent_font.setPointSize(max(1, percent_font.pointSize() - 2))
-                percent_label.setFont(percent_font)
-                percent_label.setStyleSheet("color: #c9c9c9;")
-                row_layout.addWidget(percent_label, stretch=0, alignment=Qt.AlignRight)
-                row_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
+                top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
+                row_layout.addWidget(top_row)
+
+                tiny_label = QLabel(
+                    f"{percent_value}% of selection | {db_percent_value}% of DB"
+                )
+                tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                tiny_label.setStyleSheet("color: #9f9f9f; font-size: 7px;")
+                row_layout.addWidget(tiny_label, stretch=0, alignment=Qt.AlignLeft)
 
                 section_list.addItem(item)
                 row_height = max(row_widget.sizeHint().height() + 6, 32)
@@ -5687,6 +5704,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._sorted_similarity_matches(aspect_counts, chart_count)
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
+        db_chart_ids = [row[0] for row in self._chart_rows]
+        db_total_count = len(db_chart_ids)
         if self._similarities_pair_button is not None:
             resolution = self._resolve_similarity_pair_targets(chart_ids)
             self._similarities_pair_button.setStyleSheet(
@@ -5755,6 +5774,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_dominant_signs = self._build_common_dominant_signs(chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(chart_ids)
         common_aspects = self._build_common_aspects(chart_ids)
+        db_common_positions = dict(
+            (label, count) for label, count, _total in self._build_common_position_signs(db_chart_ids)
+        )
+        db_common_houses_in_positions = dict(
+            (label, count) for label, count, _total in self._build_common_houses_in_positions(db_chart_ids)
+        )
+        db_common_signs_in_houses = dict(
+            (label, count) for label, count, _total in self._build_common_signs_in_houses(db_chart_ids)
+        )
+        db_common_dominant_signs = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
+        )
+        db_common_dominant_nakshatras = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
+        )
+        db_common_aspects = dict(
+            (label, count) for label, count, _total in self._build_common_aspects(db_chart_ids)
+        )
         self._similarities_export_sections = [
             ("Signs in positions in common", common_positions),
             ("Houses in positions in common", common_houses_in_positions),
@@ -5786,31 +5823,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_positions_list,
             self.similarities_common_positions_toggle,
             common_positions,
+            db_match_counts=db_common_positions,
+            db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
             self.similarities_houses_in_positions_list,
             self.similarities_houses_in_positions_toggle,
             common_houses_in_positions,
+            db_match_counts=db_common_houses_in_positions,
+            db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
             self.similarities_signs_in_houses_list,
             self.similarities_signs_in_houses_toggle,
             common_signs_in_houses,
+            db_match_counts=db_common_signs_in_houses,
+            db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
             self.similarities_dominant_signs_list,
             self.similarities_dominant_signs_toggle,
             common_dominant_signs,
+            db_match_counts=db_common_dominant_signs,
+            db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
             self.similarities_dominant_nakshatras_list,
             self.similarities_dominant_nakshatras_toggle,
             common_dominant_nakshatras,
+            db_match_counts=db_common_dominant_nakshatras,
+            db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
             self.similarities_common_aspects_list,
             self.similarities_common_aspects_toggle,
             common_aspects,
+            db_match_counts=db_common_aspects,
+            db_total_count=db_total_count,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
@@ -7384,6 +7433,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     selection_values=alignment_selection_values[:2],
                     database_values=alignment_database_values[:2],
                     loaded_charts=loaded_charts,
+                    color_resolver=alignment_score_to_rgb,
                 )
                 self._clear_layout(self.alignment_summary_chart_layout)
                 self.alignment_summary_chart_layout.addWidget(
@@ -11291,7 +11341,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        duplicate_ids, related_names = find_possible_duplicate_charts(
+            rows,
+            load_chart=self._get_chart_for_filter,
+            similarity_threshold_percent=90.0,
+            similarity_ceiling_percent=100.0,
+        )
         if not duplicate_ids:
             self._possible_duplicate_chart_ids = set()
             self._possible_duplicate_related_names = {}
@@ -11303,7 +11358,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.information(
                 self,
                 "Possible duplicates",
-                "No possible duplicates were found from names or birthdays.",
+                "No possible duplicates were found from names, birthdays, or 90–100% chart similarity.",
             )
             return
         self._possible_duplicate_chart_ids = duplicate_ids
@@ -13004,6 +13059,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             if len(birthday_matches) > 5:
                                 tooltip_names = f"{tooltip_names}, …"
                             tooltip_sections.append(f"Similar birth date to: {tooltip_names}")
+                        similarity_matches = related_names.get("chart_similarity_90_100", [])
+                        if similarity_matches:
+                            tooltip_names = ", ".join(similarity_matches[:5])
+                            if len(similarity_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"90–100% chart similarity to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
                 item.setData(
@@ -14126,13 +14187,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_grid.setHorizontalSpacing(8)
         thresholds_grid.setVerticalSpacing(6)
         self._similarity_threshold_spinboxes = {}
-        threshold_rows = [
-            ("q20", "Most dissimilar max (q20)"),
-            ("q40", "Somewhat dissimilar max (q40)"),
-            ("q60", "Average similarity max (q60)"),
-            ("q80", "Somewhat similar max (q80)"),
-        ]
-        for row_index, (key, label_text) in enumerate(threshold_rows):
+        for row_index, (key, label_text) in enumerate(SIMILARITY_THRESHOLD_EDITOR_ROWS):
             label = QLabel(label_text)
             spinbox = QDoubleSpinBox()
             spinbox.setDecimals(1)
@@ -14516,11 +14571,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"Median: {calibration.median:.1f}%",
                     f"Mode: {mode_label} ({calibration.mode_count} pair(s))",
                     "",
-                    f"Most dissimilar: ≤ {thresholds.q20:.1f}%",
-                    f"Somewhat dissimilar: > {thresholds.q20:.1f}% and ≤ {thresholds.q40:.1f}%",
-                    f"Average similarity: > {thresholds.q40:.1f}% and ≤ {thresholds.q60:.1f}%",
-                    f"Somewhat similar: > {thresholds.q60:.1f}% and ≤ {thresholds.q80:.1f}%",
-                    f"Most similar: > {thresholds.q80:.1f}%",
+                    *describe_similarity_bands(thresholds),
                 ]
             ),
         )
@@ -14544,11 +14595,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "\n".join(
                 [
                     "Manual similarity thresholds saved systemwide:",
-                    f"Most dissimilar: ≤ {normalized.q20:.1f}%",
-                    f"Somewhat dissimilar: > {normalized.q20:.1f}% and ≤ {normalized.q40:.1f}%",
-                    f"Average similarity: > {normalized.q40:.1f}% and ≤ {normalized.q60:.1f}%",
-                    f"Somewhat similar: > {normalized.q60:.1f}% and ≤ {normalized.q80:.1f}%",
-                    f"Most similar: > {normalized.q80:.1f}%",
+                    *describe_similarity_bands(normalized),
                 ]
             ),
         )
@@ -16369,6 +16416,11 @@ class MainWindow(QMainWindow):
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
+
+    def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
+        thresholds = load_similarity_thresholds(self._settings)
+        band = classify_similarity(similarity_percent, thresholds)
+        return band.label, band.color
 
     def _export_similar_charts_share(self) -> None:
         if not self._similar_charts_export_rows:

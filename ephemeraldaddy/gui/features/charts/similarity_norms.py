@@ -8,7 +8,7 @@ from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
 
 SIMILARITY_NORMS_SETTINGS_GROUP = "similarity_norms"
-DEFAULT_SIMILARITY_THRESHOLDS: tuple[float, float, float, float] = (20.0, 40.0, 60.0, 80.0)
+DEFAULT_SIMILARITY_THRESHOLDS: tuple[float, float, float, float] = (20.0, 24.0, 26.0, 35.0)
 
 
 class _SettingsLike(Protocol):
@@ -58,11 +58,18 @@ class SimilarityCalibrationResult:
     thresholds: SimilarityThresholds
 
 
-BAND_MOST_SIMILAR = SimilarityBand("most_similar", "most similar", "#26a69a")
-BAND_SOMEWHAT_SIMILAR = SimilarityBand("somewhat_similar", "somewhat similar", "#9ccc65")
+BAND_MOST_SIMILAR = SimilarityBand("most_similar", "quite similar", "#26a69a")
+BAND_SOMEWHAT_SIMILAR = SimilarityBand("somewhat_similar", "fairly similar", "#9ccc65")
 BAND_AVERAGE = SimilarityBand("average_similarity", "average similarity", "#fdd835")
-BAND_SOMEWHAT_DISSIMILAR = SimilarityBand("somewhat_dissimilar", "somewhat dissimilar", "#fb8c00")
-BAND_MOST_DISSIMILAR = SimilarityBand("most_dissimilar", "most dissimilar", "#e53935")
+BAND_SOMEWHAT_DISSIMILAR = SimilarityBand("somewhat_dissimilar", "fairly dissimilar", "#fb8c00")
+BAND_MOST_DISSIMILAR = SimilarityBand("most_dissimilar", "quite dissimilar", "#e53935")
+
+SIMILARITY_THRESHOLD_EDITOR_ROWS: tuple[tuple[str, str], ...] = (
+    ("q20", "Quite dissimilar max (q20)"),
+    ("q40", "Fairly dissimilar max (q40)"),
+    ("q60", "Average similarity max (q60)"),
+    ("q80", "Fairly similar max (q80)"),
+)
 
 
 def percentile(values: list[float], percentile_value: float) -> float:
@@ -85,7 +92,7 @@ def percentile(values: list[float], percentile_value: float) -> float:
 def classify_similarity(similarity_percent: float, thresholds: SimilarityThresholds) -> SimilarityBand:
     normalized = thresholds.normalized()
     value = float(similarity_percent)
-    if value <= normalized.q20:
+    if value < normalized.q20:
         return BAND_MOST_DISSIMILAR
     if value <= normalized.q40:
         return BAND_SOMEWHAT_DISSIMILAR
@@ -165,3 +172,14 @@ def save_similarity_calibration(settings: _SettingsLike, result: SimilarityCalib
     )
     settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/pair_count", int(result.pair_count))
     return normalized
+
+
+def describe_similarity_bands(thresholds: SimilarityThresholds) -> list[str]:
+    normalized = thresholds.normalized()
+    return [
+        f"Quite dissimilar: < {normalized.q20:.1f}%",
+        f"Fairly dissimilar: {normalized.q20:.1f}% to {normalized.q40:.1f}%",
+        f"Average similarity: {normalized.q40:.1f}% to {normalized.q60:.1f}%",
+        f"Fairly similar: {normalized.q60:.1f}% to {normalized.q80:.1f}%",
+        f"Quite similar: > {normalized.q80:.1f}%",
+    ]
