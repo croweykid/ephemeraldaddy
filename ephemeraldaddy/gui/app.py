@@ -586,6 +586,8 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     GENDER_GUESSER_COLORS,
     INACTIVE_ACTION_BUTTON_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
+    SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     configure_collapsible_header_toggle,
     format_chart_header,
     TRISTATE_SENTIMENT_STYLE,
@@ -1482,6 +1484,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarities_export_sections: list[tuple[str, list[tuple[str, int, int]]]] = []
         self._similarities_pair_button: QPushButton | None = None
         self._similarities_pair_result_label: QLabel | None = None
+        self._similarities_chart_lookup: dict[str, int] = {}
+        self._similarities_first_chart_input: QLineEdit | None = None
+        self._similarities_second_chart_input: QLineEdit | None = None
+        self._similarities_first_use_checkbox: QCheckBox | None = None
+        self._similarities_second_use_checkbox: QCheckBox | None = None
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "dominant_signs"
@@ -5133,13 +5140,56 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.similarities_status_label.setStyleSheet("color: #bbbbbb;")
         layout.addWidget(self.similarities_status_label)
 
+        self._refresh_similarities_chart_options()
+        use_this_checkbox_style = (
+            "QCheckBox { color: #9ee09e; }"
+            "QCheckBox::indicator { width: 14px; height: 14px; }"
+            "QCheckBox::indicator:unchecked {"
+            "  border: 1px solid #3b5a3b;"
+            "  background-color: #1b241b;"
+            "}"
+            "QCheckBox::indicator:checked {"
+            "  border: 1px solid #4f8f4f;"
+            "  background-color: #2f7f2f;"
+            "}"
+        )
+        chart_labels = list(self._similarities_chart_lookup.keys())
+        input_rows = (
+            ("Select first chart", "_similarities_first_chart_input", "_similarities_first_use_checkbox"),
+            ("Select second chart", "_similarities_second_chart_input", "_similarities_second_use_checkbox"),
+        )
+        for placeholder, input_attr, checkbox_attr in input_rows:
+            input_row = QWidget()
+            input_layout = QHBoxLayout()
+            input_layout.setContentsMargins(0, 0, 0, 0)
+            input_layout.setSpacing(6)
+            input_row.setLayout(input_layout)
+
+            chart_input = QLineEdit()
+            chart_input.setPlaceholderText(placeholder)
+            completer = QCompleter(chart_labels, chart_input)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            chart_input.setCompleter(completer)
+            chart_input.textChanged.connect(lambda _text: self._update_similarities_analysis(self._selected_chart_ids()))
+            input_layout.addWidget(chart_input, stretch=1)
+
+            use_checkbox = QCheckBox("use this")
+            use_checkbox.setStyleSheet(use_this_checkbox_style)
+            use_checkbox.toggled.connect(lambda _checked: self._update_similarities_analysis(self._selected_chart_ids()))
+            input_layout.addWidget(use_checkbox, stretch=0, alignment=Qt.AlignRight)
+
+            setattr(self, input_attr, chart_input)
+            setattr(self, checkbox_attr, use_checkbox)
+            layout.addWidget(input_row)
+
         pair_row = QWidget()
         pair_layout = QHBoxLayout()
         pair_layout.setContentsMargins(0, 0, 0, 0)
         pair_layout.setSpacing(8)
         pair_row.setLayout(pair_layout)
         pair_button = QPushButton("Calculate Similarity")
-        pair_button.setEnabled(False)
+        pair_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
         pair_button.setToolTip("Select exactly 2 charts to compare.")
         pair_button.clicked.connect(self._calculate_pair_similarity_from_selection)
         pair_layout.addWidget(pair_button, alignment=Qt.AlignLeft)
@@ -5147,7 +5197,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(pair_row)
         self._similarities_pair_button = pair_button
 
-        pair_result_label = QLabel("Select exactly 2 charts to compare.")
+        pair_result_label = QLabel("Select 2 charts, or use chart inputs with “use this” checked.")
         pair_result_label.setWordWrap(True)
         pair_result_label.setStyleSheet("color: #9b9b9b;")
         layout.addWidget(pair_result_label)
@@ -5228,22 +5278,108 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addStretch(1)
         return panel
 
+    def _selected_chart_ids(self) -> list[int]:
+        selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
+        return [
+            int(item.data(Qt.UserRole))
+            for item in selected_items
+            if item.data(Qt.UserRole) is not None
+        ]
+
+    def _refresh_similarities_chart_options(self) -> None:
+        self._similarities_chart_lookup = {}
+        choices: list[str] = []
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+            if alias:
+                display_name = f"{display_name} ({alias})"
+            label = f"{display_name}  [#{chart_id}]"
+            self._similarities_chart_lookup[label] = int(chart_id)
+            choices.append(label)
+
+        for field in (
+            self._similarities_first_chart_input,
+            self._similarities_second_chart_input,
+        ):
+            if field is None:
+                continue
+            completer = QCompleter(choices, field)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            field.setCompleter(completer)
+
+    def _resolve_similarities_chart_id(self, raw_value: str) -> int | None:
+        query = raw_value.strip()
+        if not query:
+            return None
+        chart_id = self._similarities_chart_lookup.get(query)
+        if chart_id is not None:
+            return chart_id
+        for label, candidate_id in self._similarities_chart_lookup.items():
+            if query.lower() == label.lower():
+                return candidate_id
+        return None
+
+    def _resolve_similarity_pair_targets(
+        self,
+        selected_chart_ids: list[int],
+    ) -> tuple[int | None, int | None, str | None, bool]:
+        first_checked = bool(self._similarities_first_use_checkbox and self._similarities_first_use_checkbox.isChecked())
+        second_checked = bool(self._similarities_second_use_checkbox and self._similarities_second_use_checkbox.isChecked())
+        first_input = self._similarities_first_chart_input.text() if self._similarities_first_chart_input else ""
+        second_input = self._similarities_second_chart_input.text() if self._similarities_second_chart_input else ""
+        first_input_id = self._resolve_similarities_chart_id(first_input) if first_checked else None
+        second_input_id = self._resolve_similarities_chart_id(second_input) if second_checked else None
+
+        if not first_checked and not second_checked:
+            if len(selected_chart_ids) == 2:
+                return selected_chart_ids[0], selected_chart_ids[1], None, True
+            return None, None, "Select exactly 2 charts to compare.", False
+
+        if first_checked and second_checked:
+            if first_input_id is None or second_input_id is None:
+                return None, None, "Ticked inputs must reference saved charts.", True
+            if first_input_id == second_input_id:
+                return None, None, "Choose two different charts to compare.", True
+            return first_input_id, second_input_id, None, True
+
+        checked_input_id = first_input_id if first_checked else second_input_id
+        if checked_input_id is None:
+            return None, None, "Enter a saved chart name for the checked input, or select chart(s) from Database.", True
+        if len(selected_chart_ids) != 1:
+            return None, None, "Select exactly 1 chart when using one checked input.", False
+        selected_chart_id = selected_chart_ids[0]
+        if checked_input_id == selected_chart_id:
+            return None, None, "Choose two different charts to compare.", True
+        return checked_input_id, selected_chart_id, None, True
+
     def _calculate_pair_similarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
-        selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
-        chart_ids = [int(item.data(Qt.UserRole)) for item in selected_items if item.data(Qt.UserRole) is not None]
-        if len(chart_ids) != 2:
-            self._similarities_pair_result_label.setText("Select exactly 2 charts to compare.")
+        first_chart_id, second_chart_id, error_message, _allow_click = self._resolve_similarity_pair_targets(
+            self._selected_chart_ids()
+        )
+        if first_chart_id is None or second_chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Calculate Similarity",
+                error_message
+                or "Please enter chart name in checked input(s), or select chart(s) from Database.",
+            )
+            self._similarities_pair_result_label.setText(
+                error_message
+                or "Select 2 charts, or use chart inputs with “use this” checked."
+            )
             return
-        first = self._get_chart_for_filter(chart_ids[0])
-        second = self._get_chart_for_filter(chart_ids[1])
+        first = self._get_chart_for_filter(first_chart_id)
+        second = self._get_chart_for_filter(second_chart_id)
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
         final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(first, second)
-        first_name = str(getattr(first, "name", "") or f"#{chart_ids[0]}")
-        second_name = str(getattr(second, "name", "") or f"#{chart_ids[1]}")
+        first_name = str(getattr(first, "name", "") or f"#{first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{second_chart_id}")
         similarity_percent = final_score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
         self._similarities_pair_result_label.setText(
@@ -5571,15 +5707,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         if self._similarities_pair_button is not None:
-            pair_enabled = len(chart_ids) == 2
-            self._similarities_pair_button.setEnabled(pair_enabled)
-            self._similarities_pair_button.setToolTip(
-                "Calculate similarity between the two selected charts."
-                if pair_enabled
-                else "Select exactly 2 charts to compare."
+            _first_id, _second_id, guidance, allow_click = self._resolve_similarity_pair_targets(chart_ids)
+            self._similarities_pair_button.setStyleSheet(
+                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                if allow_click
+                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
             )
-        if self._similarities_pair_result_label is not None and len(chart_ids) != 2:
-            self._similarities_pair_result_label.setText("Select exactly 2 charts to compare.")
+            self._similarities_pair_button.setToolTip(
+                "Calculate similarity between the selected/input charts."
+                if allow_click
+                else (guidance or "Select 2 charts to compare.")
+            )
+        if self._similarities_pair_result_label is not None:
+            _first_id, _second_id, guidance, allow_click = self._resolve_similarity_pair_targets(chart_ids)
+            if not allow_click:
+                self._similarities_pair_result_label.setText(guidance or "Select 2 charts to compare.")
 
         if len(chart_ids) < 2:
             self._similarities_export_sections = []
@@ -12736,6 +12878,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         force_full_analysis_refresh: bool = False,
     ) -> None:
         self._refresh_personal_transit_chart_options()
+        self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
 
