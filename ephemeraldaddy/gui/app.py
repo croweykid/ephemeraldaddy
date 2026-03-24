@@ -9834,10 +9834,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
         selected_chart_ids = set(chart_ids or [])
-        if self.current_chart_id is not None and int(self.current_chart_id) in selected_chart_ids:
+        current_chart_id = getattr(self, "current_chart_id", None)
+        if current_chart_id is not None and int(current_chart_id) in selected_chart_ids:
             self._mark_chart_analytics_sections_dirty()
-            if self._latest_chart is not None:
-                self._schedule_chart_render(self._latest_chart)
+            latest_chart = getattr(self, "_latest_chart", None)
+            if latest_chart is not None:
+                self._schedule_chart_render(latest_chart)
 
         if not selected_chart_ids:
             selected_chart_ids = {
