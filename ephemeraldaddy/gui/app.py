@@ -1561,6 +1561,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_panel_button.setObjectName("manage_toggle_search_panel_button")
         self.search_panel_button.clicked.connect(self._toggle_search_panel)
 
+        self.manage_settings_button = QPushButton("⚙️")
+        self.manage_settings_button.setObjectName("manage_settings_button")
+        self.manage_settings_button.clicked.connect(self._on_open_settings)
+
         for control_button in (
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
@@ -1568,6 +1572,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_panel_button,
             self.manage_collections_button,
             self.edit_charts_button,
+            self.manage_settings_button,
             self.search_panel_button,
         ):
             control_button.setAutoDefault(False)
@@ -1695,6 +1700,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.setContentsMargins(0, 0, 0, 0)
         right_controls_layout.setSpacing(4)
         right_controls_row.setLayout(right_controls_layout)
+        right_controls_layout.addWidget(self.manage_settings_button)
         right_controls_layout.addWidget(self.search_panel_button)
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
