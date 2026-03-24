@@ -222,6 +222,41 @@ def _distribution_similarity(query: Chart, candidate: Chart) -> float:
     return (element_similarity * 0.55) + (mode_similarity * 0.45)
 
 
+def _sign_weight_profile(chart: Chart) -> dict[int, float]:
+    positions = getattr(chart, "positions", None) or {}
+    weights = {index: 0.0 for index in range(12)}
+    for body in CORE_BODIES:
+        sign_idx = _sign_index(positions.get(body))
+        if sign_idx is None:
+            continue
+        weights[sign_idx] += BODY_WEIGHTS.get(body, 0.8)
+    return weights
+
+
+def _top_sign_indices(weights: dict[int, float], count: int = 2) -> set[int]:
+    ranked = sorted(weights.items(), key=lambda item: item[1], reverse=True)
+    return {idx for idx, weight in ranked[:count] if weight > 0.0}
+
+
+def _sign_dominance_similarity(query: Chart, candidate: Chart) -> float:
+    q_weights = _sign_weight_profile(query)
+    c_weights = _sign_weight_profile(candidate)
+    q_total = sum(q_weights.values())
+    c_total = sum(c_weights.values())
+    if q_total <= 0 or c_total <= 0:
+        return 0.0
+
+    overlap = 0.0
+    for index in range(12):
+        overlap += min(q_weights[index], c_weights[index])
+    overlap_similarity = overlap / min(q_total, c_total)
+
+    q_top2 = _top_sign_indices(q_weights, count=2)
+    c_top2 = _top_sign_indices(c_weights, count=2)
+    top2_overlap = len(q_top2 & c_top2) / 2.0
+    return max(0.0, min(1.0, (overlap_similarity * 0.7) + (top2_overlap * 0.3)))
+
+
 def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float]:
     placement_score = _placement_similarity(query, candidate)
     aspect_score = _aspect_similarity(query, candidate)
@@ -236,11 +271,17 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
 
 def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float, float]:
     similarity_score, placement_score, aspect_score, distribution_score = chart_similarity_score(query, candidate)
-    dissimilarity_score = (
-        ((1.0 - placement_score) * 0.46)
-        + ((1.0 - aspect_score) * 0.39)
+    # For "least similar", prioritize core placements and sign dominance heavily:
+    # charts with the same dominant sign signatures should not surface as most dissimilar
+    # even if they diverge on aspects.
+    inverse_weighted = (
+        ((1.0 - placement_score) * 0.62)
+        + ((1.0 - aspect_score) * 0.23)
         + ((1.0 - distribution_score) * 0.15)
     )
+    dominance_similarity = _sign_dominance_similarity(query, candidate)
+    dominance_penalty = 0.75 * dominance_similarity
+    dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
     return dissimilarity_score, similarity_score, placement_score, aspect_score, distribution_score
 
 
