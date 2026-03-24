@@ -5297,7 +5297,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ]
 
     def _refresh_similarities_chart_options(self) -> None:
-        self._similarities_chart_lookup, choices = build_chart_lookup(list_charts())
+        similarity_rows = [
+            normalized
+            for row in list_charts()
+            if (normalized := self._normalize_chart_row(row)) is not None
+            and not bool(normalized[15])
+        ]
+        self._similarities_chart_lookup, choices = build_chart_lookup(similarity_rows)
 
         for field in (
             self._similarities_first_chart_input,
@@ -5310,11 +5316,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             completer.setFilterMode(Qt.MatchContains)
             field.setCompleter(completer)
 
+    def _is_placeholder_chart_id(self, chart_id: int) -> bool:
+        row = self._active_chart_rows_by_id.get(int(chart_id))
+        if row is not None and len(row) > 15:
+            return bool(row[15])
+        chart = self._get_chart_for_filter(int(chart_id))
+        return bool(chart is not None and getattr(chart, "is_placeholder", False))
+
+    def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
+        return [
+            int(chart_id)
+            for chart_id in chart_ids
+            if not self._is_placeholder_chart_id(int(chart_id))
+        ]
+
     def _resolve_similarity_pair_targets(
         self, selected_chart_ids: list[int]
     ) -> SimilarityPairResolution:
         input_state = SimilarityInputState(
-            selected_chart_ids=selected_chart_ids,
+            selected_chart_ids=self._exclude_placeholder_chart_ids(selected_chart_ids),
             first_checked=bool(
                 self._similarities_first_use_checkbox
                 and self._similarities_first_use_checkbox.isChecked()
@@ -5728,10 +5748,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._sorted_similarity_matches(aspect_counts, chart_count)
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
-        db_chart_ids = [row[0] for row in self._chart_rows]
+        selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        db_chart_ids = [
+            int(normalized[0])
+            for row in self._chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+            and not bool(normalized[15])
+        ]
         db_total_count = len(db_chart_ids)
         if self._similarities_pair_button is not None:
-            resolution = self._resolve_similarity_pair_targets(chart_ids)
+            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
             self._similarities_pair_button.setStyleSheet(
                 SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
                 if resolution.allow_click
@@ -5743,17 +5769,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else (resolution.guidance or "Select 2 charts to compare.")
             )
         if self._similarities_pair_result_label is not None:
-            resolution = self._resolve_similarity_pair_targets(chart_ids)
+            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
             if not resolution.allow_click:
                 self._similarities_pair_result_label.setText(
                     resolution.guidance or "Select 2 charts to compare."
                 )
 
-        if len(chart_ids) < 2:
+        if len(selected_non_placeholder_chart_ids) < 2:
             self._similarities_export_sections = []
-            self.similarities_status_label.setText(
-                "Select 2 or more charts to view similarities across selected charts."
-            )
+            if len(chart_ids) >= 2:
+                self.similarities_status_label.setText(
+                    "Placeholders are excluded from astrological similarities. "
+                    "Select 2 or more non-placeholder charts."
+                )
+            else:
+                self.similarities_status_label.setText(
+                    "Select 2 or more charts to view similarities across selected charts."
+                )
             self._set_similarities_section_matches(
                 self.similarities_common_positions_list,
                 self.similarities_common_positions_toggle,
@@ -5792,12 +5824,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        common_positions = self._build_common_position_signs(chart_ids)
-        common_houses_in_positions = self._build_common_houses_in_positions(chart_ids)
-        common_signs_in_houses = self._build_common_signs_in_houses(chart_ids)
-        common_dominant_signs = self._build_common_dominant_signs(chart_ids)
-        common_dominant_nakshatras = self._build_common_dominant_nakshatras(chart_ids)
-        common_aspects = self._build_common_aspects(chart_ids)
+        common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
+        common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
+        common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
+        common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
+        common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
+        common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
         db_common_positions = dict(
             (label, count) for label, count, _total in self._build_common_position_signs(db_chart_ids)
         )
@@ -5836,12 +5868,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if total_matches > 0:
             self.similarities_status_label.setText(
                 f"{total_matches} shared pattern(s) found across "
-                f"{len(chart_ids)} selected chart(s), each present in at least 2 charts."
+                f"{len(selected_non_placeholder_chart_ids)} selected chart(s), each present in at least 2 charts."
             )
         else:
             self.similarities_status_label.setText(
                 f"No shared similarities found in at least 2 charts across "
-                f"{len(chart_ids)} selected chart(s)."
+                f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
             )
         self._set_similarities_section_matches(
             self.similarities_common_positions_list,
