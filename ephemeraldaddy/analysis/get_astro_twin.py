@@ -239,6 +239,7 @@ def find_astro_twins(
     *,
     top_k: int = 3,
     exclude_chart_id: int | None = None,
+    least_similar: bool = False,
 ) -> list[AstroTwinMatch]:
     results: list[AstroTwinMatch] = []
     for chart_id, candidate in candidates:
@@ -264,5 +265,5 @@ def find_astro_twins(
             )
         )
 
-    results.sort(key=lambda item: item.score, reverse=True)
+    results.sort(key=lambda item: item.score, reverse=not least_similar)
     return results[:max(1, int(top_k))]
