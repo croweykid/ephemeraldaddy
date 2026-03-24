@@ -356,6 +356,9 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     extract_aspect_weight as _extract_aspect_weight,
     normalize_aspect_type as _normalize_aspect_type,
 )
+from ephemeraldaddy.gui.features.charts.duplicate_detection import (
+    find_possible_duplicate_charts,
+)
 
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
@@ -443,6 +446,9 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     _synastry_pair_weight,
     format_chart_text,
     format_transit_chart_text,
+)
+from ephemeraldaddy.gui.features.charts.analysis.human_design import (
+    build_human_design_chart_data_output,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -1415,6 +1421,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
         self._chart_cache = {}
+        # Dialog-side chart selection/render state mirrors MainWindow attributes
+        # and is referenced by shared refresh helpers.
+        self.current_chart_id: int | None = None
+        self._latest_chart = None
         self._search_body_filters = []
         self._aspect_filters = []
         self._dominant_sign_filters = []
@@ -1443,6 +1453,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
+        self._possible_duplicate_related_names: dict[int, list[str]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -9240,6 +9251,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
         self._batch_metric_programmatic_update = False
         self._batch_last_selection_ids: set[int] = set()
+        self._batch_selection_order: list[int] = []
         self._batch_metric_lucygoosey: dict[str, bool] = {
             "positive_sentiment_intensity": False,
             "negative_sentiment_intensity": False,
@@ -9466,25 +9478,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_batch_edit_state(self) -> None:
         selected_items = self.list_widget.selectedItems()
         self._update_batch_edit_action_buttons()
-        chart_ids = [item.data(Qt.UserRole) for item in selected_items]
-        chart_id_set = {int(chart_id) for chart_id in chart_ids if isinstance(chart_id, int)}
+        selected_chart_ids = [
+            int(chart_id)
+            for chart_id in (item.data(Qt.UserRole) for item in selected_items)
+            if isinstance(chart_id, int)
+        ]
+        chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_metrics = (
             bool(chart_id_set)
             and bool(self._batch_last_selection_ids)
             and bool(chart_id_set.intersection(self._batch_last_selection_ids))
         )
-        if not chart_ids:
+        if not selected_chart_ids:
             self._clear_batch_edits()
             return
+        self._update_batch_selection_order(selected_chart_ids)
 
         # Selection can briefly contain stale ids during list refreshes
         # (e.g., right after delete/filter changes). Resolve ids from current
         # cache first and drop any rows no longer present in the database.
         resolved_items: list[tuple[int, Chart]] = []
         stale_ids: set[int] = set()
-        for chart_id in chart_ids:
-            if not isinstance(chart_id, int):
-                continue
+        for chart_id in selected_chart_ids:
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 stale_ids.add(chart_id)
@@ -9516,8 +9531,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tag_counts: dict[str, int] = {}
         gender_values: list[str] = []
         year_first_encountered_values: list[int | None] = []
-        alignment_values: list[int] = []
-
         for chart_id, chart in resolved_items:
             sentiments = set(getattr(chart, "sentiments", []) or [])
             relationships = set(getattr(chart, "relationship_types", []) or [])
@@ -9553,7 +9566,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year_first_encountered_values.append(
                 self._parse_year_first_encountered_text(str(getattr(chart, "year_first_encountered", "") or ""))
             )
-            alignment_values.append(int(getattr(chart, "alignment_score", 0) or 0))
 
 
         for label, checkbox in self.batch_sentiment_checkboxes.items():
@@ -9657,19 +9669,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_alignment_state(alignment_values)
         self._batch_last_selection_ids = chart_id_set
 
-    def _set_batch_alignment_state(self, values: list[int]) -> None:
-        if not values:
+    def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
+        selected_set = set(selected_chart_ids)
+        self._batch_selection_order = [
+            chart_id for chart_id in self._batch_selection_order if chart_id in selected_set
+        ]
+        for chart_id in selected_chart_ids:
+            if chart_id not in self._batch_selection_order:
+                self._batch_selection_order.append(chart_id)
+
+    @staticmethod
+    def _alignment_value_for_chart(chart: Chart) -> int:
+        raw_value = getattr(chart, "alignment_score", 0)
+        try:
+            return int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+    def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
+        if not items:
             self.batch_alignment_slider.blockSignals(True)
             self.batch_alignment_slider.setValue(0)
             self.batch_alignment_slider.blockSignals(False)
             self.batch_alignment_slider.setToolTip("")
             self._update_batch_alignment_score_label(0)
             return
+        alignment_by_chart_id = {
+            chart_id: self._alignment_value_for_chart(chart)
+            for chart_id, chart in items
+        }
+        anchor_chart_id = next(
+            (
+                chart_id
+                for chart_id in self._batch_selection_order
+                if chart_id in alignment_by_chart_id
+            ),
+            items[0][0],
+        )
+        selected_value = alignment_by_chart_id.get(anchor_chart_id, 0)
         self.batch_alignment_slider.blockSignals(True)
-        self.batch_alignment_slider.setValue(values[0])
+        self.batch_alignment_slider.setValue(selected_value)
         self.batch_alignment_slider.blockSignals(False)
-        self._update_batch_alignment_score_label(values[0])
-        if len(set(values)) > 1:
+        self._update_batch_alignment_score_label(selected_value)
+        if len(set(alignment_by_chart_id.values())) > 1:
             self.batch_alignment_slider.setToolTip(
                 "Selected charts have mixed alignment scores. Applying will overwrite all selected charts."
             )
@@ -11043,7 +11085,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        self._possible_duplicate_chart_ids = self._compute_possible_duplicate_chart_ids(rows)
+        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        if not duplicate_ids:
+            self._possible_duplicate_chart_ids = set()
+            self._possible_duplicate_related_names = {}
+            self._show_possible_duplicates_collection = False
+            if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._refresh_collection_controls()
+            self._populate_list()
+            QMessageBox.information(
+                self,
+                "Possible duplicates",
+                "No possible duplicates were found from names or birthdays.",
+            )
+            return
+        self._possible_duplicate_chart_ids = duplicate_ids
+        self._possible_duplicate_related_names = related_names
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
@@ -11246,6 +11304,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_ids"):
             self._batch_last_selection_ids = set()
+        if hasattr(self, "_batch_selection_order"):
+            self._batch_selection_order = []
         for checkbox in self.batch_sentiment_checkboxes.values():
             self._set_batch_checkbox_state(checkbox, QuadStateSlider.MODE_EMPTY)
         for checkbox in self.batch_relationship_type_checkboxes.values():
@@ -12721,6 +12781,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
+                if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
+                    related_names = self._possible_duplicate_related_names.get(cid, [])
+                    if related_names:
+                        tooltip_names = ", ".join(related_names[:5])
+                        if len(related_names) > 5:
+                            tooltip_names = f"{tooltip_names}, …"
+                        item.setToolTip(f"Similar to: {tooltip_names}")
                 item.setData(
                     Qt.UserRole + 1,
                     {
@@ -20147,6 +20214,104 @@ class MainWindow(QMainWindow):
 
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         _refresh_summary()
+
+        dialog.resize(1320, 1080)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+
+    def on_get_human_design_info(self) -> None:
+        if self._latest_chart is None:
+            QMessageBox.information(
+                self,
+                "No chart",
+                "Generate or load a chart to view Human Design info.",
+            )
+            return
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowTitle("Human Design")
+        dialog.setMinimumSize(780, 780)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        dialog.setLayout(layout)
+
+        natal_planet_weights = getattr(self._latest_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(self._latest_chart)
+
+        def _weighted_natal_score(entry: Any) -> float:
+            if isinstance(entry, dict):
+                return max(0.0, float(_aspect_score(entry, planet_weights=natal_planet_weights)))
+            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
+                return max(0.0, float(entry.exactness) * float(entry.weight))
+            return 0.0
+
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click the ⓘ next to a position to see details/interpretation.",
+            aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
+            export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
+            weighted_score_for_entry=_weighted_natal_score,
+        )
+
+        right_layout = QVBoxLayout()
+        layout.addLayout(right_layout, 3)
+
+        header_label = QLabel("Human Design")
+        header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        header_font = header_label.font()
+        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        right_layout.addWidget(header_label, 0, Qt.AlignLeft | Qt.AlignTop)
+
+        figure = Figure(figsize=(10.9, 10.9))
+        canvas = FigureCanvas(figure)
+        draw_chart_wheel(
+            figure,
+            self._latest_chart,
+            canvas=canvas,
+            wheel_padding=0.03,
+            show_title=False,
+            symbol_scale=0.7,
+        )
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas.draw_idle()
+        right_layout.addWidget(canvas, 7)
+
+        summary_output = QPlainTextEdit()
+        summary_output.setReadOnly(True)
+        output_font = summary_output.font()
+        summary_output.setFont(output_font)
+        summary_output.setTabStopDistance(6)
+        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output.setPlainText("")
+        summary_output.setMinimumHeight(220)
+        summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_output.viewport().installEventFilter(self)
+        right_layout.addWidget(summary_output, 3)
+
+        popout_context_key = summary_output.viewport()
+        popout_context: dict[str, object] = {
+            "output_widget": summary_output,
+            "chart_info_output": chart_info_output,
+            "position_info_map": {},
+            "aspect_info_map": {},
+            "species_info_map": {},
+            "summary_block_offset": 0,
+        }
+        self._popout_summary_contexts[popout_context_key] = popout_context
+        dialog.destroyed.connect(
+            lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
+        )
+
+        chart_data_text, position_info_map, aspect_info_map, species_info_map, summary_block_offset = build_human_design_chart_data_output(
+            self._latest_chart,
+            aspect_sort="Priority",
+        )
+        summary_output.setPlainText(chart_data_text)
+        popout_context["position_info_map"] = position_info_map
+        popout_context["aspect_info_map"] = aspect_info_map
+        popout_context["species_info_map"] = species_info_map
+        popout_context["summary_block_offset"] = summary_block_offset
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
