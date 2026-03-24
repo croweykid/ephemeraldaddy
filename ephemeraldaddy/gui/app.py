@@ -11168,7 +11168,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        duplicate_ids, related_names = find_possible_duplicate_charts(rows)
+        duplicate_ids, related_names = find_possible_duplicate_charts(
+            rows,
+            load_chart=self._get_chart_for_filter,
+            similarity_threshold_percent=90.0,
+            similarity_ceiling_percent=100.0,
+        )
         if not duplicate_ids:
             self._possible_duplicate_chart_ids = set()
             self._possible_duplicate_related_names = {}
@@ -11180,7 +11185,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.information(
                 self,
                 "Possible duplicates",
-                "No possible duplicates were found from names or birthdays.",
+                "No possible duplicates were found from names, birthdays, or 90–100% chart similarity.",
             )
             return
         self._possible_duplicate_chart_ids = duplicate_ids
@@ -12880,6 +12885,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             if len(birthday_matches) > 5:
                                 tooltip_names = f"{tooltip_names}, …"
                             tooltip_sections.append(f"Similar birth date to: {tooltip_names}")
+                        similarity_matches = related_names.get("chart_similarity_90_100", [])
+                        if similarity_matches:
+                            tooltip_names = ", ".join(similarity_matches[:5])
+                            if len(similarity_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"90–100% chart similarity to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
                 item.setData(

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from difflib import SequenceMatcher
 import re
+from typing import Callable
 
+from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
+from ephemeraldaddy.core.chart import Chart
 
 def _normalize_name(value: object) -> str:
     text = str(value or "").strip().casefold()
@@ -50,6 +53,10 @@ def find_possible_duplicate_charts(
             int | None,
         ]
     ],
+    *,
+    load_chart: Callable[[int], Chart | None] | None = None,
+    similarity_threshold_percent: float = 90.0,
+    similarity_ceiling_percent: float = 100.0,
 ) -> tuple[set[int], dict[int, dict[str, list[str]]]]:
     duplicate_ids: set[int] = set()
     related_names: dict[int, dict[str, set[str]]] = {}
@@ -58,6 +65,7 @@ def find_possible_duplicate_charts(
     birthday_groups: dict[tuple[int, int], list[int]] = {}
     normalized_name_to_ids: dict[str, set[int]] = {}
     chart_variants: dict[int, set[str]] = {}
+    placeholder_ids: set[int] = set()
 
     for row in rows:
         chart_id = int(row[0])
@@ -65,6 +73,9 @@ def find_possible_duplicate_charts(
         alias = row[2]
         birth_month = row[17]
         birth_day = row[18]
+        is_placeholder = bool(row[15]) if len(row) > 15 else False
+        if is_placeholder:
+            placeholder_ids.add(chart_id)
         chart_names[chart_id] = _display_name(chart_id, name, alias)
 
         if isinstance(birth_month, int) and isinstance(birth_day, int):
@@ -114,6 +125,41 @@ def find_possible_duplicate_charts(
                 left_ids = normalized_name_to_ids.get(left_variant, set())
                 right_ids = normalized_name_to_ids.get(right_variant, set())
                 mark_related(left_ids.union(right_ids), "name")
+
+    if load_chart is not None and similarity_ceiling_percent >= similarity_threshold_percent:
+        min_score = float(similarity_threshold_percent) / 100.0
+        max_score = float(similarity_ceiling_percent) / 100.0
+        eligible_ids = sorted(
+            chart_id
+            for chart_id in chart_names
+            if chart_id not in placeholder_ids
+        )
+        loaded_charts: dict[int, Chart | None] = {}
+
+        def get_chart(chart_id: int) -> Chart | None:
+            if chart_id not in loaded_charts:
+                try:
+                    loaded_charts[chart_id] = load_chart(chart_id)
+                except Exception:
+                    loaded_charts[chart_id] = None
+            return loaded_charts[chart_id]
+
+        for index, left_id in enumerate(eligible_ids):
+            left_chart = get_chart(left_id)
+            if left_chart is None or not getattr(left_chart, "positions", None):
+                continue
+            for right_id in eligible_ids[index + 1 :]:
+                right_chart = get_chart(right_id)
+                if right_chart is None or not getattr(right_chart, "positions", None):
+                    continue
+                final_score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
+                if not (min_score <= final_score <= max_score):
+                    continue
+                duplicate_ids.update({left_id, right_id})
+                left_related = related_names.setdefault(left_id, {}).setdefault("chart_similarity_90_100", set())
+                right_related = related_names.setdefault(right_id, {}).setdefault("chart_similarity_90_100", set())
+                left_related.add(f"{chart_names.get(right_id, f'Chart #{right_id}')} ({final_score * 100.0:.1f}%)")
+                right_related.add(f"{chart_names.get(left_id, f'Chart #{left_id}')} ({final_score * 100.0:.1f}%)")
 
     return duplicate_ids, {
         chart_id: {
