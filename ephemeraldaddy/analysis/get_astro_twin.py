@@ -222,6 +222,41 @@ def _distribution_similarity(query: Chart, candidate: Chart) -> float:
     return (element_similarity * 0.55) + (mode_similarity * 0.45)
 
 
+def _sign_weight_profile(chart: Chart) -> dict[int, float]:
+    positions = getattr(chart, "positions", None) or {}
+    weights = {index: 0.0 for index in range(12)}
+    for body in CORE_BODIES:
+        sign_idx = _sign_index(positions.get(body))
+        if sign_idx is None:
+            continue
+        weights[sign_idx] += BODY_WEIGHTS.get(body, 0.8)
+    return weights
+
+
+def _top_sign_indices(weights: dict[int, float], count: int = 2) -> set[int]:
+    ranked = sorted(weights.items(), key=lambda item: item[1], reverse=True)
+    return {idx for idx, weight in ranked[:count] if weight > 0.0}
+
+
+def _sign_dominance_similarity(query: Chart, candidate: Chart) -> float:
+    q_weights = _sign_weight_profile(query)
+    c_weights = _sign_weight_profile(candidate)
+    q_total = sum(q_weights.values())
+    c_total = sum(c_weights.values())
+    if q_total <= 0 or c_total <= 0:
+        return 0.0
+
+    overlap = 0.0
+    for index in range(12):
+        overlap += min(q_weights[index], c_weights[index])
+    overlap_similarity = overlap / min(q_total, c_total)
+
+    q_top2 = _top_sign_indices(q_weights, count=2)
+    c_top2 = _top_sign_indices(c_weights, count=2)
+    top2_overlap = len(q_top2 & c_top2) / 2.0
+    return max(0.0, min(1.0, (overlap_similarity * 0.7) + (top2_overlap * 0.3)))
+
+
 def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float]:
     placement_score = _placement_similarity(query, candidate)
     aspect_score = _aspect_similarity(query, candidate)
@@ -236,11 +271,17 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
 
 def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float, float]:
     similarity_score, placement_score, aspect_score, distribution_score = chart_similarity_score(query, candidate)
-    dissimilarity_score = (
-        ((1.0 - placement_score) * 0.46)
-        + ((1.0 - aspect_score) * 0.39)
+    # For "least similar", prioritize core placements and sign dominance heavily:
+    # charts with the same dominant sign signatures should not surface as most dissimilar
+    # even if they diverge on aspects.
+    inverse_weighted = (
+        ((1.0 - placement_score) * 0.62)
+        + ((1.0 - aspect_score) * 0.23)
         + ((1.0 - distribution_score) * 0.15)
     )
+    dominance_similarity = _sign_dominance_similarity(query, candidate)
+    dominance_penalty = 0.75 * dominance_similarity
+    dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
     return dissimilarity_score, similarity_score, placement_score, aspect_score, distribution_score
 
 
@@ -255,6 +296,8 @@ def find_astro_twins(
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
+    relaxed_scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
+    query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
@@ -283,14 +326,26 @@ def find_astro_twins(
             aspect_score=aspect_score,
             distribution_score=distribution_score,
         )
-        if len(scored_matches) < target_k:
-            heapq.heappush(scored_matches, (rank_score, int(chart_id), match))
+        destination_heap = scored_matches
+        if least_similar and query_top3_signs:
+            candidate_top3_signs = _top_sign_indices(_sign_weight_profile(candidate), count=3)
+            top3_overlap = len(query_top3_signs & candidate_top3_signs)
+            # Hard guardrail for least-similar mode:
+            # if charts share any top-3 dominant sign, they should not rank as truly "least similar".
+            if top3_overlap > 0:
+                destination_heap = relaxed_scored_matches
+
+        if len(destination_heap) < target_k:
+            heapq.heappush(destination_heap, (rank_score, int(chart_id), match))
             continue
-        if rank_score > scored_matches[0][0]:
-            heapq.heapreplace(scored_matches, (rank_score, int(chart_id), match))
+        if rank_score > destination_heap[0][0]:
+            heapq.heapreplace(destination_heap, (rank_score, int(chart_id), match))
+
+    if least_similar and len(scored_matches) < target_k:
+        # Fallback behavior: if strict guardrails produce too few matches,
+        # top off from the relaxed pool so UI still gets results.
+        needed = target_k - len(scored_matches)
+        scored_matches.extend(sorted(relaxed_scored_matches, key=lambda item: item[0], reverse=True)[:needed])
 
     ranked = sorted(scored_matches, key=lambda item: item[0], reverse=True)
-    return [
-        match
-        for _, _, match in ranked
-    ]
+    return [match for _, _, match in ranked]
