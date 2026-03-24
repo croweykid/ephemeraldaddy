@@ -5910,18 +5910,55 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
 
+        db_chart_ids = [row[0] for row in self._chart_rows]
+        db_total_count = len(db_chart_ids)
+        db_section_counts: dict[str, dict[str, int]] = {
+            "Signs in positions in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_position_signs(db_chart_ids)
+            ),
+            "Houses in positions in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_houses_in_positions(db_chart_ids)
+            ),
+            "Signs in houses in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_signs_in_houses(db_chart_ids)
+            ),
+            "Dominant signs in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
+            ),
+            "Dominant nakshatras in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
+            ),
+            "Aspects in common": dict(
+                (label, count)
+                for label, count, _total in self._build_common_aspects(db_chart_ids)
+            ),
+        }
+
         rows: list[list[str | int | float]] = []
         for section_title, matches in self._similarities_export_sections:
             if not matches:
                 continue
+            db_match_counts = db_section_counts.get(section_title, {})
             for label, match_count, total_count in matches:
-                percent_value = round((match_count / total_count) * 100, 2) if total_count else 0
+                selection_percent = round((match_count / total_count) * 100, 2) if total_count else 0
+                db_match_count = db_match_counts.get(label, 0)
+                db_percent = round((db_match_count / db_total_count) * 100, 2) if db_total_count else 0
+                percent_difference = round(selection_percent - db_percent, 2)
                 rows.append([
                     section_title,
                     label,
                     match_count,
                     total_count,
-                    percent_value,
+                    selection_percent,
+                    db_match_count,
+                    db_total_count,
+                    db_percent,
+                    percent_difference,
                 ])
 
         if not rows:
@@ -5940,7 +5977,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     header_name,
                     f"{header_name} match count",
                     "selected chart count",
-                    "match percent",
+                    f"{header_name} match percent",
+                    "database match count",
+                    "database chart count",
+                    "database match percent",
+                    "selection % - database %",
                 ])
                 writer.writerows(rows)
         except Exception as e:
