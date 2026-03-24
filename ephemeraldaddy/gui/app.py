@@ -2194,8 +2194,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if subheader is None:
             return
         label_by_mode = {
-            "dominant_signs": "Dominant signs in database (by weight)",
-            "dominant_sign_frequency": "Top dominant signs in database (chart-level frequency)",
+            "dominant_signs": "Sign Weights in database",
+            "dominant_sign_frequency": "Top 3 Dominant Signs in database",
             "dominant_planets": "Dominant bodies in database (by weight)",
             "dominant_houses": "Dominant houses in database (by weight)",
             "dominant_elements": "Dominant elements in database (by weight)",
@@ -2988,7 +2988,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("Dominant signs in database (by weight)")
+        self.dominant_factors_subheader = add_database_subheader("Sign Weights in database")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -5254,7 +5254,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_signs_list,
         ) = self._add_similarities_collapsible_section(
             layout,
-            "Top dominant signs in common (chart-level)",
+            "Top 3 Dominant Signs in common",
             min_height=100,
             list_style=similarities_list_style,
         )
@@ -5629,7 +5629,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not dominant_weights:
                 dominant_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_sign_weights = dominant_weights
-            for sign in self._dominant_sign_top_labels(dominant_weights):
+            for sign in self._dominant_sign_top_three_labels(dominant_weights):
                 sign_counts[sign] = sign_counts.get(sign, 0) + 1
 
         ordered_counts = {
@@ -5638,22 +5638,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
     @staticmethod
-    def _dominant_sign_top_labels(
+    def _dominant_sign_top_three_labels(
         dominant_weights: dict[str, float] | None,
     ) -> set[str]:
         if not dominant_weights:
             return set()
-        max_weight = max(
-            (float(weight) for weight in dominant_weights.values()),
-            default=0.0,
+        ranked = sorted(
+            (
+                (sign, float(weight))
+                for sign, weight in dominant_weights.items()
+                if sign in ZODIAC_NAMES and float(weight) > 0
+            ),
+            key=lambda item: (-item[1], ZODIAC_NAMES.index(item[0])),
         )
-        if max_weight <= 0:
+        if not ranked:
             return set()
-        return {
-            sign
-            for sign, weight in dominant_weights.items()
-            if float(weight) == max_weight and sign in ZODIAC_NAMES
-        }
+        return {sign for sign, _weight in ranked[:3]}
 
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]
@@ -5820,7 +5820,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Signs in positions in common", common_positions),
             ("Houses in positions in common", common_houses_in_positions),
             ("Signs in houses in common", common_signs_in_houses),
-            ("Top dominant signs in common (chart-level)", common_dominant_signs),
+            ("Top 3 Dominant Signs in common", common_dominant_signs),
             ("Dominant nakshatras in common", common_dominant_nakshatras),
             ("Aspects in common", common_aspects),
         ]
@@ -6461,7 +6461,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             snapshot["dominant_sign_totals"][sign] += sign_weight
             snapshot["dominant_sign_total_weight"] += sign_weight
-        for sign in self._dominant_sign_top_labels(dominant_weights):
+        for sign in self._dominant_sign_top_three_labels(dominant_weights):
             snapshot["dominant_sign_frequency_totals"][sign] += 1.0
 
         dominant_planets = self._chart_dominant_planets(chart)
