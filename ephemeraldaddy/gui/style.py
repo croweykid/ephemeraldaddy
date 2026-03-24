@@ -159,6 +159,32 @@ QPushButton {
 }
 """
 
+SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE = """
+QPushButton {
+    background-color: #1f3a1f;
+    color: #c6f7c6;
+    border: 1px solid #2f6130;
+    padding: 4px 10px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #274b27;
+}
+"""
+
+SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE = """
+QPushButton {
+    background-color: #2a2a2a;
+    color: #7d7d7d;
+    border: 1px solid #3c3c3c;
+    padding: 4px 10px;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background-color: #303030;
+}
+"""
+
 DATABASE_ANALYTICS_DROPDOWN_STYLE = DEFAULT_DROPDOWN_STYLE
 DATABASE_ANALYTICS_HEADER_SPACING = 6
 DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING = 6
