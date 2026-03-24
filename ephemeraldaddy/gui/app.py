@@ -519,6 +519,15 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
+SIMILARITY_NORMS_SETTINGS_GROUP = "similarity_norms"
+SIMILARITY_BAND_DEFAULT_THRESHOLDS: tuple[float, float, float, float] = (20.0, 40.0, 60.0, 80.0)
+SIMILARITY_BAND_COLORS: dict[str, str] = {
+    "most_similar": "#26a69a",
+    "somewhat_similar": "#9ccc65",
+    "average_similarity": "#fdd835",
+    "somewhat_dissimilar": "#fb8c00",
+    "most_dissimilar": "#e53935",
+}
 CHART_VIEW_NAV_CACHE_LIMIT = 24
 
 GENERATION_UNKNOWN_OPTION = "unknown"
@@ -5229,12 +5238,57 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(first, second)
         first_name = str(getattr(first, "name", "") or f"#{chart_ids[0]}")
         second_name = str(getattr(second, "name", "") or f"#{chart_ids[1]}")
+        similarity_percent = final_score * 100.0
+        band_label, band_color = self._similarity_band_for_percent(similarity_percent)
         self._similarities_pair_result_label.setText(
-            f"{first_name} ↔ {second_name}: {final_score * 100.0:.1f}% similar "
+            f"{first_name} ↔ {second_name}: "
+            f'<span style="color: {band_color}; font-weight: 600;">'
+            f"{similarity_percent:.1f}% ({band_label})"
+            f"</span> "
             f"(placements {placement_score * 100.0:.0f}%, "
             f"aspects {aspect_score * 100.0:.0f}%, "
             f"distribution {distribution_score * 100.0:.0f}%)."
         )
+
+    @staticmethod
+    def _percentile(values: list[float], percentile: float) -> float:
+        if not values:
+            return 0.0
+        if len(values) == 1:
+            return float(values[0])
+        sorted_values = sorted(float(value) for value in values)
+        p = max(0.0, min(100.0, float(percentile)))
+        position = (len(sorted_values) - 1) * (p / 100.0)
+        lower_index = int(math.floor(position))
+        upper_index = int(math.ceil(position))
+        if lower_index == upper_index:
+            return sorted_values[lower_index]
+        lower = sorted_values[lower_index]
+        upper = sorted_values[upper_index]
+        return lower + ((upper - lower) * (position - lower_index))
+
+    def _similarity_band_thresholds(self) -> tuple[float, float, float, float]:
+        defaults = SIMILARITY_BAND_DEFAULT_THRESHOLDS
+        t20 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q20", defaults[0]))
+        t40 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q40", defaults[1]))
+        t60 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q60", defaults[2]))
+        t80 = float(self._settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q80", defaults[3]))
+        ordered = sorted([t20, t40, t60, t80])
+        return ordered[0], ordered[1], ordered[2], ordered[3]
+
+    def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
+        q20, q40, q60, q80 = self._similarity_band_thresholds()
+        value = float(similarity_percent)
+        if value <= q20:
+            return "most dissimilar", SIMILARITY_BAND_COLORS["most_dissimilar"]
+        if value <= q40:
+            return "somewhat dissimilar", SIMILARITY_BAND_COLORS["somewhat_dissimilar"]
+        if value <= q60:
+            return "average similarity", SIMILARITY_BAND_COLORS["average_similarity"]
+        if value <= q80:
+            return "somewhat similar", SIMILARITY_BAND_COLORS["somewhat_similar"]
+        return "most similar", SIMILARITY_BAND_COLORS["most_similar"]
+
     def _add_similarities_collapsible_section(
         self,
         layout: QVBoxLayout,
@@ -13941,6 +13995,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
         dev_tools_section.addWidget(cleanup_button)
 
+        calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
+        calibrate_similarity_button.setToolTip(
+            "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
+        )
+        calibrate_similarity_button.clicked.connect(self._calibrate_similarity_norms)
+        dev_tools_section.addWidget(calibrate_similarity_button)
+
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
@@ -14229,6 +14290,117 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         dialog.exec()
         self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
+
+    def _calibrate_similarity_norms(self) -> None:
+        try:
+            rows = list_charts()
+        except Exception as exc:
+            QMessageBox.warning(self, "Similarity calibration failed", f"Could not list charts:\n{exc}")
+            return
+
+        chart_ids: list[int] = []
+        for row in rows:
+            chart_id = int(row[0])
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
+            if is_placeholder:
+                continue
+            chart_ids.append(chart_id)
+
+        if len(chart_ids) < 2:
+            QMessageBox.information(
+                self,
+                "Similarity calibration",
+                "Need at least 2 non-placeholder charts in the database.",
+            )
+            return
+
+        charts: list[tuple[int, Chart]] = []
+        failed_loads = 0
+        for chart_id in chart_ids:
+            try:
+                chart = load_chart(chart_id)
+            except Exception:
+                failed_loads += 1
+                continue
+            charts.append((chart_id, chart))
+
+        if len(charts) < 2:
+            QMessageBox.warning(
+                self,
+                "Similarity calibration failed",
+                "Could not load enough charts to compute pairwise similarity.",
+            )
+            return
+
+        similarity_values: list[float] = []
+        for left_idx, (_left_id, left_chart) in enumerate(charts):
+            for _right_id, right_chart in charts[left_idx + 1 :]:
+                score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
+                similarity_values.append(round(score * 100.0, 1))
+
+        if not similarity_values:
+            QMessageBox.warning(
+                self,
+                "Similarity calibration failed",
+                "No valid chart pairs were available for calibration.",
+            )
+            return
+
+        similarity_min = min(similarity_values)
+        similarity_max = max(similarity_values)
+        similarity_avg = statistics.fmean(similarity_values)
+        similarity_median = statistics.median(similarity_values)
+        similarity_mode_counts = Counter(similarity_values)
+        top_mode_count = max(similarity_mode_counts.values(), default=0)
+        modal_values = sorted(
+            value for value, count in similarity_mode_counts.items() if count == top_mode_count
+        )
+
+        q20 = self._percentile(similarity_values, 20.0)
+        q40 = self._percentile(similarity_values, 40.0)
+        q60 = self._percentile(similarity_values, 60.0)
+        q80 = self._percentile(similarity_values, 80.0)
+
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q20", round(q20, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q40", round(q40, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q60", round(q60, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/q80", round(q80, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/min", round(similarity_min, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/max", round(similarity_max, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/average", round(similarity_avg, 1))
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/median", round(similarity_median, 1))
+        self._settings.setValue(
+            f"{SIMILARITY_NORMS_SETTINGS_GROUP}/mode",
+            ", ".join(f"{value:.1f}" for value in modal_values),
+        )
+        self._settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/pair_count", len(similarity_values))
+        self._settings.sync()
+
+        mode_label = ", ".join(f"{value:.1f}%" for value in modal_values)
+        QMessageBox.information(
+            self,
+            "Similarity calibration complete",
+            "\n".join(
+                [
+                    "Saved systemwide similarity norms.",
+                    "",
+                    f"Charts loaded: {len(charts)} ({failed_loads} failed to load)",
+                    f"Pairwise comparisons: {len(similarity_values)}",
+                    "",
+                    f"Minimum: {similarity_min:.1f}%",
+                    f"Maximum: {similarity_max:.1f}%",
+                    f"Average: {similarity_avg:.1f}%",
+                    f"Median: {similarity_median:.1f}%",
+                    f"Mode: {mode_label} ({top_mode_count} pair(s))",
+                    "",
+                    f"Most dissimilar: ≤ {q20:.1f}%",
+                    f"Somewhat dissimilar: > {q20:.1f}% and ≤ {q40:.1f}%",
+                    f"Average similarity: > {q40:.1f}% and ≤ {q60:.1f}%",
+                    f"Somewhat similar: > {q60:.1f}% and ≤ {q80:.1f}%",
+                    f"Most similar: > {q80:.1f}%",
+                ]
+            ),
+        )
 
     def _ensure_help_overlay_widgets(self) -> None:
         if hasattr(self, "_help_scrim"):
@@ -15991,6 +16163,8 @@ class MainWindow(QMainWindow):
         match_blocks: list[str] = []
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
+            similarity_percent = match.score * 100.0
+            band_label, band_color = self._similarity_band_for_percent(similarity_percent)
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -15999,7 +16173,9 @@ class MainWindow(QMainWindow):
             match_blocks.append(
                 (
                     f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
-                    f"Similarity {match.score * 100.0:.1f}%"
+                    f'Similarity <span style="color: {band_color}; font-weight: 600;">'
+                    f"{similarity_percent:.1f}% ({band_label})"
+                    f"</span>"
                     f" (placements {match.placement_score * 100.0:.0f}%,"
                     f" aspects {match.aspect_score * 100.0:.0f}%,"
                     f" distribution {match.distribution_score * 100.0:.0f}%)"
@@ -16010,7 +16186,8 @@ class MainWindow(QMainWindow):
                     "rank": rank,
                     "chart_id": match.chart_id,
                     "chart_name": match.chart_name,
-                    "similarity_percent": round(match.score * 100.0, 1),
+                    "similarity_percent": round(similarity_percent, 1),
+                    "similarity_band": band_label,
                     "placement_percent": round(match.placement_score * 100.0, 1),
                     "aspect_percent": round(match.aspect_score * 100.0, 1),
                     "distribution_percent": round(match.distribution_score * 100.0, 1),
@@ -16045,13 +16222,13 @@ class MainWindow(QMainWindow):
             lines.append(f"# Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
             lines.append("")
             lines.append(
-                "| Rank | Chart ID | Chart | Similarity | Placement | Aspects | Distribution |"
+                "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution |"
             )
-            lines.append("|---:|---:|---|---:|---:|---:|---:|")
+            lines.append("|---:|---:|---|---:|---|---:|---:|---:|")
             for row in self._similar_charts_export_rows:
                 lines.append(
                     f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
-                    f"{row['similarity_percent']:.1f}% | {row['placement_percent']:.1f}% | "
+                    f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | {row['placement_percent']:.1f}% | "
                     f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% |"
                 )
         else:
@@ -16061,6 +16238,7 @@ class MainWindow(QMainWindow):
                 lines.append(
                     f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
                     f"Similarity {row['similarity_percent']:.1f}% "
+                    f"[{row.get('similarity_band', 'unclassified')}] "
                     f"(placements {row['placement_percent']:.1f}%, "
                     f"aspects {row['aspect_percent']:.1f}%, "
                     f"distribution {row['distribution_percent']:.1f}%)"
