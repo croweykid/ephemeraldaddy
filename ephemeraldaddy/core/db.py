@@ -122,6 +122,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             used_utc_fallback INTEGER NOT NULL DEFAULT 0,
             sentiments        TEXT,
             relationship_types TEXT,
+            tags              TEXT,
             comments          TEXT,
             positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
@@ -213,6 +214,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN relationship_types TEXT
+            """
+        )
+    if "tags" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN tags TEXT
             """
         )
     if "comments" not in columns:
@@ -678,6 +686,12 @@ def _serialize_relationship_types(
         return None
     return ", ".join(value.strip() for value in relationship_types if value.strip())
 
+
+def _serialize_tags(tags: Optional[list[str]]) -> Optional[str]:
+    if not tags:
+        return None
+    return ", ".join(value.strip() for value in tags if value.strip())
+
 def _serialize_familiarity_factors(
     familiarity_factors: Optional[list[str]],
 ) -> Optional[str]:
@@ -799,6 +813,35 @@ def parse_relationship_types(value: Optional[str]) -> list[str]:
     if not value:
         return []
     return [value.strip() for value in value.split(",") if value.strip()]
+
+
+def parse_tags(value: Optional[str]) -> list[str]:
+    if not value:
+        return []
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for raw_value in value.split(","):
+        tag = raw_value.strip()
+        if not tag:
+            continue
+        dedupe_key = tag.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        normalized.append(tag)
+    return normalized
+
+
+def list_recognized_tags() -> list[str]:
+    with _get_conn() as conn:
+        rows = conn.execute("SELECT tags FROM charts").fetchall()
+    deduped: dict[str, str] = {}
+    for (raw_tags,) in rows:
+        for tag in parse_tags(raw_tags):
+            key = tag.casefold()
+            if key not in deduped:
+                deduped[key] = tag
+    return sorted(deduped.values(), key=lambda value: value.casefold())
 
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
@@ -1226,13 +1269,13 @@ def append_database(source: Path) -> dict[str, Any]:
                     """
                     INSERT INTO charts
                         (id, name, alias, gender, birth_place, datetime_iso, tz_name,
-                         lat, lon, used_utc_fallback, sentiments, relationship_types, comments,
+                         lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered,
                          social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1247,6 +1290,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         used_utc_fallback,
                         _row_value("sentiments"),
                         _row_value("relationship_types"),
+                        _row_value("tags"),
                         _row_value("comments"),
                         pos_intensity,
                         neg_intensity,
@@ -1344,7 +1388,7 @@ def save_chart(
             """
             INSERT INTO charts
                 (name, alias, gender, birth_place, datetime_iso, tz_name,
-                 lat, lon, used_utc_fallback, sentiments, relationship_types,
+                 lat, lon, used_utc_fallback, sentiments, relationship_types, tags,
                  comments,
                  positive_sentiment_intensity, negative_sentiment_intensity,
                  familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
@@ -1358,7 +1402,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1380,6 +1424,7 @@ def save_chart(
                     if relationship_types is not None
                     else getattr(chart, "relationship_types", [])
                 ),
+                _serialize_tags(getattr(chart, "tags", [])),
                 getattr(chart, "comments", None),
                 _normalize_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
@@ -1523,6 +1568,7 @@ def update_chart(
                 used_utc_fallback = ?,
                 sentiments = ?,
                 relationship_types = ?,
+                tags = ?,
                 comments = ?,
                 positive_sentiment_intensity = ?,
                 negative_sentiment_intensity = ?,
@@ -1567,6 +1613,7 @@ def update_chart(
                     if relationship_types is not None
                     else getattr(chart, "relationship_types", [])
                 ),
+                _serialize_tags(getattr(chart, "tags", [])),
                 getattr(chart, "comments", None),
                 _normalize_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
@@ -1844,7 +1891,7 @@ def load_chart(chart_id: int):
         f"""
         SELECT name, alias, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
-               comments,
+               tags, comments,
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
                retcon_time_used, retcon_hour, retcon_minute,
@@ -1873,6 +1920,7 @@ def load_chart(chart_id: int):
         used_utc_fallback,
         sentiments,
         relationship_types,
+        tags,
         comments,
         positive_sentiment_intensity,
         negative_sentiment_intensity,
@@ -1909,6 +1957,7 @@ def load_chart(chart_id: int):
         placeholder.used_utc_fallback = bool(used_utc_fallback)
         placeholder.sentiments = parse_sentiments(sentiments)
         placeholder.relationship_types = parse_relationship_types(relationship_types)
+        placeholder.tags = parse_tags(tags)
         placeholder.comments = comments or ""
         placeholder.positive_sentiment_intensity = _normalize_sentiment_metric(
             positive_sentiment_intensity
@@ -1957,6 +2006,7 @@ def load_chart(chart_id: int):
     chart.used_utc_fallback = bool(used_utc_fallback)
     chart.sentiments = parse_sentiments(sentiments)
     chart.relationship_types = parse_relationship_types(relationship_types)
+    chart.tags = parse_tags(tags)
     chart.comments = comments or ""
     chart.positive_sentiment_intensity = _normalize_sentiment_metric(
         positive_sentiment_intensity
