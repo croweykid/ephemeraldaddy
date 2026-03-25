@@ -11,6 +11,7 @@ import sys
 from PySide6.QtCore import QCoreApplication, QEventLoop, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QVBoxLayout, QWidget
+from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
 
 
 class _BootstrapLoadingWidget(QWidget):
@@ -38,8 +39,9 @@ class _BootstrapLoadingWidget(QWidget):
         layout.setSpacing(6)
         self.setLayout(layout)
 
-        title = QLabel("Starting EphemeralDaddy…")
+        title = QLabel("Ephemeral Daddy will be with you shortly…")
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(title)
 
         self._status_label = QLabel("Bootstrapping UI modules…")
