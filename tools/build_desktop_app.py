@@ -111,7 +111,7 @@ def _build_datas() -> list[tuple[str, str]]:
 def _write_spec(args: argparse.Namespace) -> Path:
     icon_path = _coerce_icon(args.icon)
     datas = _build_datas()
-    hiddenimports = ["swisseph", "geopy.geocoders.nominatim"]
+    hiddenimports = ["PySide6", "shiboken6", "swisseph", "geopy.geocoders.nominatim"]
     excludes = [
         "pytest",
         "pandas.tests",

@@ -16,6 +16,7 @@ py -3.11 -m venv venv
 python -m pip install --upgrade pip wheel setuptools
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller pillow
+Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
 ```
 
 ## 2) Sanity-check app before packaging
