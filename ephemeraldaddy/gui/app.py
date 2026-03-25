@@ -455,8 +455,12 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_transit_chart_text,
 )
 from ephemeraldaddy.analysis.human_design import (
+    build_awareness_stream_completion,
+    build_human_design_result,
     build_human_design_chart_data_output,
 )
+from ephemeraldaddy.analysis.human_design_reference import format_gate_line_info
+from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
@@ -4133,6 +4137,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4149,6 +4154,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def _sort_popout_aspects(
@@ -18211,6 +18217,12 @@ class MainWindow(QMainWindow):
                     if selected_entry.get("kind") == "nakshatra":
                         self._show_nakshatra_info(selected_entry["nakshatra"])
                         return True
+                    if selected_entry.get("kind") == "hd_gate_line":
+                        self._show_human_design_gate_line_info(
+                            int(selected_entry.get("gate", 0)),
+                            selected_entry.get("line"),
+                        )
+                        return True
                     self._show_position_info(
                         selected_entry["body"],
                         selected_entry["sign"],
@@ -18365,6 +18377,10 @@ class MainWindow(QMainWindow):
         title = lines[0]
         bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
         self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
+
+    def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
+        line_number = int(line) if isinstance(line, int) else None
+        self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
 
     def _show_species_info(
         self,
@@ -20764,6 +20780,7 @@ class MainWindow(QMainWindow):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -20779,6 +20796,8 @@ class MainWindow(QMainWindow):
             chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
+            show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def on_popout_chart(self) -> None:
@@ -20952,6 +20971,8 @@ class MainWindow(QMainWindow):
             if hasattr(entry, "exactness") and hasattr(entry, "weight"):
                 return max(0.0, float(entry.exactness) * float(entry.weight))
             return 0.0
+        hd_result = build_human_design_result(self._latest_chart)
+        awareness_stream_entries = build_awareness_stream_completion(set(hd_result.active_gates))
 
         chart_info_output = self._build_popout_left_panel(
             layout,
@@ -20959,12 +20980,31 @@ class MainWindow(QMainWindow):
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
+            show_aspect_distribution=False,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        header_label = QLabel("Human Design")
+        date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
+        time_label = (
+            "unknown"
+            if getattr(self._latest_chart, "birthtime_unknown", False)
+            else self._latest_chart.dt.strftime("%H:%M")
+        )
+        birth_place = getattr(self._latest_chart, "birth_place", None) or "Unknown"
+        header_label = QLabel(
+            "\n".join(
+                [
+                    "Human Design",
+                    f"Name:       {self._latest_chart.name}",
+                    f"Birth date: {date_label}",
+                    f"Birth time: {time_label}",
+                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                ]
+            )
+        )
         header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
@@ -20974,13 +21014,10 @@ class MainWindow(QMainWindow):
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
-        draw_chart_wheel(
+        draw_human_design_chart(
             figure,
-            self._latest_chart,
-            canvas=canvas,
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
+            hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
         )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()
