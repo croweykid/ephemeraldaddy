@@ -5580,6 +5580,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle: QToolButton,
         matches: list[tuple[str, int, int]],
         *,
+        selection_total_count: int = 0,
         db_match_counts: dict[str, int] | None = None,
         db_total_count: int = 0,
         db_total_counts_by_label: dict[str, int] | None = None,
@@ -5640,8 +5641,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
                 row_layout.addWidget(top_row)
 
+                unknown_suffix = ""
+                if selection_total_count > 0 and total_count < selection_total_count:
+                    unknown_count = selection_total_count - total_count
+                    unknown_percent_value = int(
+                        round((unknown_count / selection_total_count) * 100)
+                    )
+                    unknown_suffix = f" | {unknown_percent_value}% unknown"
                 tiny_label = QLabel(
-                    f"{percent_value}% of selection | {db_percent_value}% of DB"
+                    f"{percent_value}% of selection | {db_percent_value}% of DB{unknown_suffix}"
                 )
                 tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
@@ -6157,6 +6165,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_positions_list,
             self.similarities_common_positions_toggle,
             common_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_positions,
             db_total_count=db_total_count,
             db_total_counts_by_label=db_common_positions_totals,
@@ -6165,6 +6174,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_houses_in_positions_list,
             self.similarities_houses_in_positions_toggle,
             common_houses_in_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_houses_in_positions,
             db_total_count=db_total_count,
             db_total_counts_by_label=db_common_houses_in_positions_totals,
@@ -6173,6 +6183,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_signs_in_houses_list,
             self.similarities_signs_in_houses_toggle,
             common_signs_in_houses,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_signs_in_houses,
             db_total_count=db_total_count,
             db_total_counts_by_label=db_common_signs_in_houses_totals,
@@ -6181,6 +6192,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_signs_list,
             self.similarities_dominant_signs_toggle,
             common_dominant_signs,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_signs,
             db_total_count=db_total_count,
         )
@@ -6188,6 +6200,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_nakshatras_list,
             self.similarities_dominant_nakshatras_toggle,
             common_dominant_nakshatras,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_nakshatras,
             db_total_count=db_total_count,
         )
@@ -6195,6 +6208,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_aspects_list,
             self.similarities_common_aspects_toggle,
             common_aspects,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_aspects,
             db_total_count=db_total_count,
             db_total_counts_by_label=db_common_aspects_totals,
