@@ -53,35 +53,9 @@ A raw `.exe` works, but a true installer gives the most "double-click and done" 
 ### Option A: Inno Setup (simple + reliable)
 
 1. Install Inno Setup from `https://jrsoftware.org/isinfo.php`.
-2. Create `installer.iss` in the repo root with this starter config:
-
-```ini
-[Setup]
-AppName=EphemeralDaddy
-AppVersion=1.0.0
-DefaultDirName={autopf}\EphemeralDaddy
-DefaultGroupName=EphemeralDaddy
-OutputDir=dist
-OutputBaseFilename=EphemeralDaddy-Setup
-Compression=lzma
-SolidCompression=yes
-WizardStyle=modern
-ArchitecturesInstallIn64BitMode=x64
-
-[Files]
-; Use ONE of the next two lines depending on your build type:
-; 1) one-file build
-Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 2) folder build
-; Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
-Name: "{commondesktop}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
-
-[Run]
-Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flags: nowait postinstall skipifsilent
-```
+2. Use the included `installer.iss` file in the repo root (already valid Inno syntax).
+   - If you previously copy/pasted from Markdown, make sure your `installer.iss` does **not** include code-fence lines like `````ini`` or ``````, which cause `Text is not inside a section.` errors.
+   - Edit `AppVersion` as needed, and choose one-file vs folder line in `[Files]`.
 
 3. Build with Inno Setup Compiler (GUI), or command line. **Run this from the repo root** (the same folder that contains `installer.iss` and `dist/`):
 
