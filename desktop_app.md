@@ -46,21 +46,83 @@ python tools/build_desktop_app.py --icon ephemeraldaddy/graphics/ephemeraldaddy1
 
 Output: `dist/EphemeralDaddy/`.
 
-## 4) Smoke-test the packaged app
+## 4) Turnkey installer (recommended for non-technical users)
 
-Run the generated EXE on a machine that does **not** have your dev environment active.
+A raw `.exe` works, but a true installer gives the most "double-click and done" experience.
+
+### Option A: Inno Setup (simple + reliable)
+
+1. Install Inno Setup from `https://jrsoftware.org/isinfo.php`.
+2. Create `installer.iss` in the repo root with this starter config:
+
+```ini
+[Setup]
+AppName=EphemeralDaddy
+AppVersion=1.0.0
+DefaultDirName={autopf}\EphemeralDaddy
+DefaultGroupName=EphemeralDaddy
+OutputDir=dist
+OutputBaseFilename=EphemeralDaddy-Setup
+Compression=lzma
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesInstallIn64BitMode=x64
+
+[Files]
+; Use ONE of the next two lines depending on your build type:
+; 1) one-file build
+Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
+; 2) folder build
+; Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
+Name: "{commondesktop}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
+
+[Run]
+Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flags: nowait postinstall skipifsilent
+```
+
+3. Build with Inno Setup Compiler (GUI), or command line. **Run this from the repo root** (the same folder that contains `installer.iss` and `dist/`):
+
+```powershell
+cd C:\path\to\ephemeraldaddy
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
+```
+
+PowerShell needs the `&` call operator when launching a quoted executable path.
+
+If you run it from another directory, pass an absolute path to the script instead:
+
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "C:\path\to\ephemeraldaddy\installer.iss"
+```
+
+4. Distribute the generated file: `dist/EphemeralDaddy-Setup.exe`.
+
+### Option B: MSIX (better enterprise trust/deployment)
+
+MSIX is excellent for managed Windows fleets, but requires extra signing/setup overhead.
+For first release, most indie apps start with Inno Setup + code signing.
+
+## 5) Smoke-test the packaged app
+
+Run the generated installer/EXE on a machine that does **not** have your dev environment active.
 
 Checklist:
 - App opens with no missing-module errors.
+- Start Menu/Desktop shortcut launches correctly (installer build).
 - Location search works (bundled `tools/cities15000.txt`).
 - Chart generation works (bundled `de421.bsp`).
 - Export/save flows work and DB writes succeed.
 
-## 5) If Windows SmartScreen blocks the EXE
+## 6) Signing + SmartScreen reality check
 
-This is normal for unsigned first-time binaries.
-- For internal testing: "More info" → "Run anyway".
-- For wider distribution: code-sign the EXE with an Authenticode certificate.
+Unsigned binaries often trigger Microsoft SmartScreen.
+
+- For private/internal testing: "More info" → "Run anyway".
+- For public release: sign your installer and EXE with an Authenticode code-signing certificate.
+- Reputation improves over time when signed installers are consistently downloaded/run.
 
 ## Troubleshooting
 
