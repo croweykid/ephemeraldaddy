@@ -210,6 +210,12 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
 )
+from ephemeraldaddy.gui.window_placement import (
+    WindowPlacement,
+    apply_window_placement,
+    capture_window_placement,
+    clear_fullscreen_and_minimized,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
@@ -9400,7 +9406,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -11866,13 +11872,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(self._right_panel_visible)
         self.apply_launch_window_policy()
 
+    def adopt_window_placement(self, source_window: QWidget | None) -> None:
+        if source_window is None:
+            return
+        apply_window_placement(self, capture_window_placement(source_window))
+
     def apply_launch_window_policy(self) -> None:
-        geometry = _available_screen_geometry()
-        if geometry is not None:
-            self.setGeometry(geometry)
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-        )
+        # Do not force Database View back to the primary screen or maximized state.
+        # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
+        clear_fullscreen_and_minimized(self)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -14199,7 +14207,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent.on_new_chart()
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -15124,7 +15132,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -18663,19 +18671,35 @@ class MainWindow(QMainWindow):
     def _restore_window_settings(self) -> None:
         splitter_key = "main_window/splitter_sizes"
         customized_key = "main_window/layout_customized"
+        geometry_key = "main_window/geometry"
+        maximized_key = "main_window/maximized"
         restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
             "1",
             "true",
             "yes",
         }
+        restored_maximized = str(self._settings.value(maximized_key, "1")).lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         self._window_layout_customized = restored_customized
-        geometry = _available_screen_geometry()
+        default_geometry = _available_screen_geometry()
+        restored_geometry = self._settings.value(geometry_key)
         self._restoring_window_layout = True
-        if geometry is not None:
-            self.setGeometry(geometry)
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-        )
+
+        if restored_customized and restored_geometry:
+            self.restoreGeometry(restored_geometry)
+        elif default_geometry is not None:
+            self.setGeometry(default_geometry)
+
+        base_state = (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
+        if restored_maximized:
+            self.setWindowState(base_state | Qt.WindowMaximized)
+        else:
+            self.setWindowState(base_state & ~Qt.WindowMaximized)
+            self.showNormal()
+
         sizes = self._settings.value(splitter_key)
         if restored_customized and sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
@@ -18692,17 +18716,33 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        dialog.showNormal()
         dialog.raise_()
         dialog.activateWindow()
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
-    def _show_chart_view_maximized(self) -> None:
+    def _show_chart_view_maximized(
+        self,
+        *,
+        maximize: bool | None = None,
+        source_window: QWidget | None = None,
+    ) -> None:
+        placement: WindowPlacement | None = None
+        if source_window is not None:
+            placement = capture_window_placement(source_window)
+            if maximize is None:
+                maximize = placement.maximized
+
+        if maximize is None:
+            maximize = True
+
         self.show()
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
+        apply_window_placement(
+            self,
+            WindowPlacement(
+                geometry=placement.geometry if placement is not None else None,
+                maximized=maximize,
+            ),
         )
-        self.showMaximized()
         self.raise_()
         self.activateWindow()
 
@@ -19929,6 +19969,8 @@ class MainWindow(QMainWindow):
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts()
         if not opened:
             return
@@ -21128,6 +21170,7 @@ class MainWindow(QMainWindow):
         if self.isVisible():
             if not self.isMaximized() and not self.isFullScreen():
                 self._window_layout_customized = True
+            self._settings.setValue("main_window/maximized", int(self.isMaximized()))
             if self._window_layout_customized:
                 self._settings.setValue("main_window/geometry", self.saveGeometry())
                 self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
