@@ -455,7 +455,9 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_transit_chart_text,
 )
 from ephemeraldaddy.analysis.human_design import (
+    build_awareness_stream_completion,
     build_human_design_chart_data_output,
+    get_active_human_design_gates_and_lines,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -4133,6 +4135,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4149,6 +4152,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def _sort_popout_aspects(
@@ -20764,6 +20768,7 @@ class MainWindow(QMainWindow):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -20779,6 +20784,8 @@ class MainWindow(QMainWindow):
             chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
+            show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def on_popout_chart(self) -> None:
@@ -20952,6 +20959,8 @@ class MainWindow(QMainWindow):
             if hasattr(entry, "exactness") and hasattr(entry, "weight"):
                 return max(0.0, float(entry.exactness) * float(entry.weight))
             return 0.0
+        active_gate_set, _active_line_set = get_active_human_design_gates_and_lines(self._latest_chart)
+        awareness_stream_entries = build_awareness_stream_completion(active_gate_set)
 
         chart_info_output = self._build_popout_left_panel(
             layout,
@@ -20959,6 +20968,8 @@ class MainWindow(QMainWindow):
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
+            show_aspect_distribution=False,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
         right_layout = QVBoxLayout()
