@@ -212,6 +212,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_application_identity,
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
+    configure_splitter_handle_resize_cursor,
 )
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
@@ -1810,6 +1811,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
+        configure_splitter_handle_resize_cursor(self._content_splitter)
         layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -15434,6 +15436,7 @@ class MainWindow(QMainWindow):
 
         self._main_splitter = QSplitter(Qt.Horizontal)
         self._main_splitter.setHandleWidth(6)
+        configure_splitter_handle_resize_cursor(self._main_splitter)
         self._main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
         root_layout.addWidget(self._main_splitter)
 
