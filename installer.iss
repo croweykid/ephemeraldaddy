@@ -13,6 +13,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
+UninstallDisplayIcon={app}\EphemeralDaddy.exe
 
 [Files]
 ; Use ONE of the next two lines depending on your build type:
