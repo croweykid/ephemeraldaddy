@@ -10484,6 +10484,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not isinstance(line_edit, QLineEdit):
                 continue
             apply_tag_completer(line_edit, known_tags)
+        self._refresh_search_tags_list(known_tags)
 
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())

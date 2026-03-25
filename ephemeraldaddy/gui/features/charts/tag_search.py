@@ -22,8 +22,8 @@ def chart_matches_tag_filters(
     normalized_required = [tag.casefold() for tag in required_tags]
     chart_tags = chart_tags_for_search(raw_tags)
     is_untagged = not chart_tags
-    if include_untagged and is_untagged:
-        return True
-    if normalized_required and not all(tag in chart_tags for tag in normalized_required):
-        return False
-    return bool(normalized_required) or not include_untagged or not is_untagged
+    if include_untagged:
+        return is_untagged
+    if normalized_required:
+        return all(tag in chart_tags for tag in normalized_required)
+    return True
