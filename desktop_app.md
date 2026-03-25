@@ -2,19 +2,6 @@
 
 This is the practical "first EXE build" guide for EphemeralDaddy.
 
-## Important build rule
-
-**Build the Windows EXE on Windows** (same major OS family as your target users). PyInstaller is not a cross-compiler.
-
-## Naming rule for virtual environments (important)
-
-Use exactly one virtual environment folder name in this repo: **`venv`**.
-
-- Recommended: `venv`
-- Avoid mixing with: `.venv`
-
-Mixing both names can make commands accidentally run from a different interpreter than the one you just installed packages into, which is a common reason PyInstaller misses dependencies.
-
 ## 1) Prepare a clean build environment (Windows)
 
 From PowerShell in the repo root:
@@ -146,3 +133,16 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 - If build fails with `FileNotFoundError: [WinError 206] The filename or extension is too long`, upgrade to the latest repo version and rebuild; the helper now uses a `.spec` workflow to avoid long PyInstaller command lines.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.
+
+## Important build rule
+
+**Build the Windows EXE on Windows** (same major OS family as your target users). PyInstaller is not a cross-compiler.
+
+## Naming rule for virtual environments (important)
+
+Use exactly one virtual environment folder name in this repo: **`venv`**.
+
+- Recommended: `venv`
+- Avoid mixing with: `.venv`
+
+Mixing both names can make commands accidentally run from a different interpreter than the one you just installed packages into, which is a common reason PyInstaller misses dependencies.
