@@ -210,6 +210,12 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
 )
+from ephemeraldaddy.gui.window_placement import (
+    WindowPlacement,
+    apply_window_placement,
+    capture_window_placement,
+    clear_fullscreen_and_minimized,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
@@ -11869,22 +11875,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
         if source_window is None:
             return
-        source_geometry = source_window.normalGeometry()
-        if not source_geometry.isValid():
-            source_geometry = source_window.geometry()
-        if source_geometry.isValid():
-            self.setGeometry(source_geometry)
-
-        source_state = source_window.windowState() & ~Qt.WindowFullScreen
-        source_state &= ~Qt.WindowMinimized
-        self.setWindowState(source_state)
+        apply_window_placement(self, capture_window_placement(source_window))
 
     def apply_launch_window_policy(self) -> None:
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
-        )
+        clear_fullscreen_and_minimized(self)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -18730,25 +18726,23 @@ class MainWindow(QMainWindow):
         maximize: bool | None = None,
         source_window: QWidget | None = None,
     ) -> None:
+        placement: WindowPlacement | None = None
         if source_window is not None:
-            source_geometry = source_window.normalGeometry()
-            if not source_geometry.isValid():
-                source_geometry = source_window.geometry()
-            if source_geometry.isValid():
-                self.setGeometry(source_geometry)
+            placement = capture_window_placement(source_window)
             if maximize is None:
-                maximize = source_window.isMaximized()
+                maximize = placement.maximized
 
         if maximize is None:
             maximize = True
 
         self.show()
-        base_state = (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
-        self.setWindowState(base_state)
-        if maximize:
-            self.showMaximized()
-        else:
-            self.showNormal()
+        apply_window_placement(
+            self,
+            WindowPlacement(
+                geometry=placement.geometry if placement is not None else None,
+                maximized=maximize,
+            ),
+        )
         self.raise_()
         self.activateWindow()
 
