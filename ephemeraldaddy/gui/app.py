@@ -463,6 +463,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
     get_active_human_design_gates_and_lines,
 )
+from ephemeraldaddy.analysis.human_design_reference import format_gate_line_info
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -18226,6 +18227,12 @@ class MainWindow(QMainWindow):
                     if selected_entry.get("kind") == "nakshatra":
                         self._show_nakshatra_info(selected_entry["nakshatra"])
                         return True
+                    if selected_entry.get("kind") == "hd_gate_line":
+                        self._show_human_design_gate_line_info(
+                            int(selected_entry.get("gate", 0)),
+                            selected_entry.get("line"),
+                        )
+                        return True
                     self._show_position_info(
                         selected_entry["body"],
                         selected_entry["sign"],
@@ -18380,6 +18387,10 @@ class MainWindow(QMainWindow):
         title = lines[0]
         bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
         self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
+
+    def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
+        line_number = int(line) if isinstance(line, int) else None
+        self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
 
     def _show_species_info(
         self,

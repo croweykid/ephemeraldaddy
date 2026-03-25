@@ -76,6 +76,7 @@ def _strip_nakshatra_column(position_lines: list[str]) -> list[str]:
             continue
         if stripped.startswith("Body") and "Nakshatra" in stripped:
             updated = re.sub(r"\s{2,}Nakshatra\s{2,}", "  ", line, count=1)
+            updated = re.sub(r"\s{2,}House\s*$", "", updated)
             result_lines.append(updated)
             continue
         if stripped.startswith(CHART_DATA_DIVIDER):
@@ -84,8 +85,8 @@ def _strip_nakshatra_column(position_lines: list[str]) -> list[str]:
         columns = re.split(r"\s{2,}", stripped)
         if len(columns) >= 5:
             if columns[-1].startswith("H") and len(columns) >= 6:
-                body, sign, degree, _nakshatra, gl, house = columns[:6]
-                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}  {house:<5}")
+                body, sign, degree, _nakshatra, gl, _house = columns[:6]
+                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
             else:
                 body, sign, degree, _nakshatra, gl = columns[:5]
                 result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
@@ -128,6 +129,42 @@ def _append_earth_position_lines(
     return result
 
 
+def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str, object]]]:
+    if not active_gates:
+        return "None", []
+    parts: list[str] = []
+    info_entries: list[dict[str, object]] = []
+    cursor = 0
+    for idx, gate in enumerate(sorted(active_gates)):
+        token = f"{gate} ⓘ"
+        parts.append(token)
+        info_entries.append({"kind": "hd_gate_line", "gate": gate, "line": None, "icon_index": cursor + len(str(gate)) + 1})
+        cursor += len(token)
+        if idx < len(active_gates) - 1:
+            parts.append(", ")
+            cursor += 2
+    return "".join(parts), info_entries
+
+
+def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, list[dict[str, object]]]:
+    if not active_lines:
+        return "None", []
+    sorted_lines = sorted(active_lines, key=lambda item: (item[0], item[1]))
+    parts: list[str] = []
+    info_entries: list[dict[str, object]] = []
+    cursor = 0
+    for idx, (gate, line) in enumerate(sorted_lines):
+        label = f"{gate}.{line}"
+        token = f"{label} ⓘ"
+        parts.append(token)
+        info_entries.append({"kind": "hd_gate_line", "gate": gate, "line": line, "icon_index": cursor + len(label) + 1})
+        cursor += len(token)
+        if idx < len(sorted_lines) - 1:
+            parts.append(", ")
+            cursor += 2
+    return "".join(parts), info_entries
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -164,11 +201,8 @@ def build_human_design_chart_data_output(
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
-    gates_text = ", ".join(str(gate) for gate in sorted(active_gate_set)) or "None"
-    lines_text = (
-        ", ".join(f"{gate}.{line}" for gate, line in sorted(active_line_set, key=lambda item: (item[0], item[1])))
-        or "None"
-    )
+    gates_text, gates_info_entries = _render_clickable_gates(active_gate_set)
+    lines_text, lines_info_entries = _render_clickable_lines(active_line_set)
 
     awareness_lines: list[str] = []
     for stream_entry in build_awareness_stream_completion(active_gate_set):
@@ -194,6 +228,13 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         *awareness_lines,
     ]
+    gates_line_index = rendered_lines.index(gates_text)
+    lines_line_index = rendered_lines.index(lines_text)
+    for entry in gates_info_entries:
+        position_info_map.setdefault(positions_start_index + gates_line_index, []).append(entry)
+    for entry in lines_info_entries:
+        position_info_map.setdefault(positions_start_index + lines_line_index, []).append(entry)
+
     return (
         "\n".join(rendered_lines),
         position_info_map,
