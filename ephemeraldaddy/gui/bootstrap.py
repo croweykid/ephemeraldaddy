@@ -18,7 +18,9 @@ class _BootstrapLoadingWidget(QWidget):
     def __init__(self) -> None:
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint)
         self.setWindowTitle("Starting EphemeralDaddy")
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        # Keep startup progress above other applications during launch so users
+        # always see immediate feedback that startup has begun.
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.setStyleSheet(
             "QWidget { background-color: #141218; color: #efe9ff; }"
             "QLabel { color: #efe9ff; font-size: 12px; }"
@@ -79,6 +81,8 @@ def main() -> None:
 
     loading = _BootstrapLoadingWidget()
     loading.show()
+    loading.raise_()
+    loading.activateWindow()
     loading.update_status("Loading application modules…", 15)
 
     from ephemeraldaddy.gui import app as gui_app

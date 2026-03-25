@@ -138,7 +138,9 @@ class _StartupLoadingWidget(QWidget):
     def __init__(self) -> None:
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint)
         self.setWindowTitle("Starting EphemeralDaddy")
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        # During app startup keep this progress widget above other apps so
+        # launch state is always visible until a primary app window is shown.
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setStyleSheet(
             "QWidget { background-color: #141218; color: #efe9ff; }"
@@ -11894,6 +11896,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
+        self.raise_()
+        self.activateWindow()
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -21481,6 +21485,8 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     if startup_loading is None:
         startup_loading = _StartupLoadingWidget()
         startup_loading.show()
+        startup_loading.raise_()
+        startup_loading.activateWindow()
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
