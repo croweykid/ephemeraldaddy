@@ -22181,7 +22181,19 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     # canvas while heavy initialization catches up (more pronounced on Windows).
     # Keeping launch deterministic avoids that startup race without changing
     # intended user-facing behavior (Database View first, Chart View on demand).
-    window.on_manage_charts()
+    try:
+        window.on_manage_charts()
+    except Exception as exc:
+        startup_loading.close()
+        QMessageBox.warning(
+            None,
+            "Startup warning",
+            (
+                "EphemeralDaddy started, but the initial Database View could not be prepared.\n\n"
+                f"Details: {exc}\n\n"
+                "You can continue using the app and retry opening Database View from the main window."
+            ),
+        )
     window.hide()
     startup_loading.update_status("Startup complete.", 100)
     QTimer.singleShot(250, startup_loading.close)

@@ -17,7 +17,7 @@ python -m pip install pyinstaller pillow
 ## 2) Sanity-check app before packaging
 
 ```powershell
-python -m ephemeraldaddy.gui.app
+python -m ephemeraldaddy.gui.bootstrap
 ```
 
 If this fails in Python, fix that first before trying to package.

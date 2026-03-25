@@ -1,8 +1,10 @@
-from skyfield.api import load
+from skyfield.api import Loader
 from skyfield.framelib import ecliptic_frame  # true ecliptic & equinox of date :contentReference[oaicite:4]{index=4}
 import datetime
 import math
 import os
+import shutil
+import sys
 from pathlib import Path
 from urllib.request import urlopen
 import warnings
@@ -127,15 +129,62 @@ _TS = None
 _EPH = None
 _EARTH = None
 _PLANETS = None
+_SKYFIELD_LOADER = None
+
+
+def _get_ephemeraldaddy_data_dir() -> Path:
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base) / "EphemeralDaddy"
+    if os.name == "darwin":
+        return Path.home() / "Library" / "Application Support" / "EphemeralDaddy"
+    return Path.home() / ".local" / "share" / "ephemeraldaddy"
+
+
+def _iter_de421_source_candidates() -> tuple[Path, ...]:
+    candidates: list[Path] = []
+
+    bundled_root = getattr(sys, "_MEIPASS", None)
+    if bundled_root:
+        candidates.append(Path(bundled_root) / "de421.bsp")
+
+    candidates.append(Path(__file__).resolve().parents[2] / "de421.bsp")
+    candidates.append(Path.cwd() / "de421.bsp")
+    return tuple(candidates)
+
+
+def _get_skyfield_loader() -> Loader:
+    global _SKYFIELD_LOADER
+    if _SKYFIELD_LOADER is not None:
+        return _SKYFIELD_LOADER
+
+    override = os.environ.get("EPHEMERALDADDY_SKYFIELD_PATH")
+    data_dir = Path(override).expanduser() if override else (_get_ephemeraldaddy_data_dir() / "skyfield")
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    target_de421 = data_dir / "de421.bsp"
+    if not target_de421.exists():
+        for candidate in _iter_de421_source_candidates():
+            if candidate.exists():
+                try:
+                    shutil.copyfile(candidate, target_de421)
+                    break
+                except Exception:
+                    continue
+
+    _SKYFIELD_LOADER = Loader(str(data_dir))
+    return _SKYFIELD_LOADER
 
 
 def _get_skyfield_context():
     """Lazily load heavy Skyfield resources on first use."""
     global _TS, _EPH, _EARTH, _PLANETS
+    loader = _get_skyfield_loader()
     if _TS is None:
-        _TS = load.timescale()
+        _TS = loader.timescale()
     if _EPH is None:
-        _EPH = load("de421.bsp")
+        _EPH = loader("de421.bsp")
     if _EARTH is None:
         _EARTH = _EPH[399]  # hard-code geocenter; avoids accidentally using ID 3
     if _PLANETS is None:
