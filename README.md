@@ -61,6 +61,23 @@ EphemeralDaddy no longer auto-installs Python packages at runtime. In locked-dow
 
 For first-time Windows EXE build steps (clean venv, build, smoke-test, signing notes) plus a turnkey Windows installer workflow (Inno Setup), see `desktop_app.md`.
 
+### Windows CMD launch stalls (loading bar appears, then app seems frozen)
+
+If EphemeralDaddy sometimes stalls during startup from `cmd.exe` (especially when launched from ad-hoc commands), use the repo launcher script instead of manually recreating environments:
+
+```bat
+run_ephemeraldaddy_windows.cmd
+```
+
+What it does:
+- Reuses a persistent `.venv` in the repo (does **not** delete/recreate on each run).
+- Creates `.venv` with Python 3.11 only if missing.
+- Installs dependencies only when the venv is first created.
+- Launches the bootstrap entrypoint (`python -m ephemeraldaddy.gui.bootstrap`).
+- Writes a startup log to `.logs/startup-YYYYMMDD-HHMMSS.log` so silent startup failures are inspectable.
+
+If a run exits unexpectedly, open the latest file in `.logs/` and check the final lines for the import or runtime error that occurred before the main window appeared.
+
 ### Offline location search (optional)
 By default, ephemeraldaddy will build the database from the bundled `tools/cities15000.txt` file when available, or automatically download a small GeoNames dataset if the bundled file is missing. 
 
