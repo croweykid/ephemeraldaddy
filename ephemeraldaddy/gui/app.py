@@ -9968,6 +9968,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 parse_tag_text(self.batch_tags_input.text()),
             )
         )
+        self.batch_tags_input.textChanged.connect(self._on_batch_tags_changed)
         self.batch_tags_input.textEdited.connect(
             lambda _text: setattr(self, "_batch_tags_lucygoosey", True)
         )
@@ -9987,6 +9988,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_tags_selection_label.setCursor(Qt.PointingHandCursor)
         self.batch_tags_selection_label.linkActivated.connect(self._on_batch_tag_remove_link_clicked)
         tagging_section_layout.addWidget(self.batch_tags_selection_label)
+        self.batch_tags_toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            self.batch_tags_toggle,
+            title="Tags",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        tagging_section_layout.addWidget(self.batch_tags_toggle)
+        self.batch_tags_list_widget = QListWidget()
+        self.batch_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
+        self.batch_tags_list_widget.setMaximumHeight(180)
+        self.batch_tags_list_widget.itemClicked.connect(self._on_batch_tag_item_clicked)
+        self.batch_tags_list_widget.setVisible(False)
+        self.batch_tags_toggle.toggled.connect(self.batch_tags_list_widget.setVisible)
+        tagging_section_layout.addWidget(self.batch_tags_list_widget)
         self._bind_batch_enter_apply(self.batch_tags_input, batch_tags_apply_button.click)
         self._update_tag_completers()
         layout.addWidget(tagging_section)
@@ -10485,6 +10501,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             apply_tag_completer(line_edit, known_tags)
         self._refresh_search_tags_list(known_tags)
+        self._refresh_batch_tags_list(known_tags)
 
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
@@ -10511,6 +10528,90 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not tag_value:
             return
         self.search_tags_input.setText(tag_value)
+
+    def _on_batch_tags_changed(self, *_: object) -> None:
+        self._refresh_batch_tags_list(getattr(self, "_known_chart_tags", []))
+
+    def _refresh_batch_tags_list(self, known_tags: list[str]) -> None:
+        if not hasattr(self, "batch_tags_list_widget"):
+            return
+        selected_tags = {
+            tag.casefold()
+            for tag in parse_tag_text(
+                self.batch_tags_input.text() if hasattr(self, "batch_tags_input") else ""
+            )
+        }
+        self.batch_tags_list_widget.clear()
+        for tag in known_tags:
+            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
+            self.batch_tags_list_widget.addItem(label)
+
+    def _on_batch_tag_item_clicked(self, item: QListWidgetItem) -> None:
+        tag_value = item.text().lstrip("✓").strip()
+        if not tag_value:
+            return
+
+        chart_ids = [
+            selected_item.data(Qt.UserRole)
+            for selected_item in self.list_widget.selectedItems()
+        ]
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "No charts selected",
+                "Select one or more charts before assigning tags.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        selected_count = len(chart_ids)
+        action_label = f"Add tag '{tag_value}' to"
+        if not self._confirm_batch_edit(action_label, selected_count):
+            self._update_batch_edit_state()
+            return
+
+        normalized_key = tag_value.casefold()
+        changed_ids: set[int] = set()
+        try:
+            for chart_id in chart_ids:
+                chart = load_chart(chart_id)
+                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
+                if any(tag.casefold() == normalized_key for tag in existing_tags):
+                    continue
+                chart.tags = existing_tags + [tag_value]
+                update_chart(
+                    chart_id,
+                    chart,
+                    retcon_time_used=getattr(chart, "retcon_time_used", False),
+                )
+                self._chart_cache[chart_id] = chart
+                changed_ids.add(int(chart_id))
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Batch edit error",
+                f"Couldn't assign tag '{tag_value}' to selected charts:\n{exc}",
+            )
+            return
+
+        if not changed_ids:
+            QMessageBox.information(
+                self,
+                "No changes applied",
+                f"All selected charts already have the tag '{tag_value}'.",
+            )
+            self._update_batch_edit_state()
+            return
+
+        self._batch_tags_lucygoosey = False
+        self.batch_tags_input.setText(tag_value)
+        self._update_tag_completers()
+        self._update_sentiment_tally(
+            show_progress=True,
+            changed_ids=changed_ids,
+        )
+        self._update_batch_edit_state()
+        self._refresh_filters_after_batch_edit(changed_ids)
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
