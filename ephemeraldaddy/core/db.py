@@ -72,7 +72,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "positive_sentiment_intensity": 0,
     "negative_sentiment_intensity": 0,
     "familiarity": 0,
-    "alignment_score": 0,
+    "alignment_score": None,
     "familiarity_factors": "",
     "age_when_first_met": 0,
     "year_first_encountered": None,
@@ -90,6 +90,35 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "birth_year": 0,
     "is_current": 0,
 }
+
+
+def _ensure_alignment_score_nullable(conn: sqlite3.Connection) -> None:
+    row = conn.execute("PRAGMA table_info(charts)").fetchall()
+    alignment_rows = [info for info in row if str(info[1]) == "alignment_score"]
+    if not alignment_rows:
+        return
+    alignment_info = alignment_rows[0]
+    alignment_not_null = bool(alignment_info[3])
+    if not alignment_not_null:
+        return
+
+    conn.execute("ALTER TABLE charts RENAME TO charts_legacy_alignment_not_null")
+    _create_charts_table(conn)
+
+    legacy_columns = _table_columns(conn, "charts_legacy_alignment_not_null")
+    new_table_info = conn.execute("PRAGMA table_info(charts)").fetchall()
+    ordered_new_columns = [str(info[1]) for info in new_table_info]
+    transferable_columns = [column for column in ordered_new_columns if column in legacy_columns]
+    quoted_columns = ", ".join([f'"{column}"' for column in transferable_columns])
+    conn.execute(
+        f"""
+        INSERT INTO charts ({quoted_columns})
+        SELECT {quoted_columns}
+        FROM charts_legacy_alignment_not_null
+        """
+    )
+    conn.execute("DROP TABLE charts_legacy_alignment_not_null")
+    _create_indexes(conn)
 
 
 def normalize_chart_type(value: Optional[str]) -> str:
@@ -521,6 +550,8 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
            OR source != chart_type
         """
     )
+
+    _ensure_alignment_score_nullable(conn)
 
     if added_year_first_encountered:
         _sync_year_first_encountered_from_age(conn)
