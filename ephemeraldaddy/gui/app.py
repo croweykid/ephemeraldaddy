@@ -9699,9 +9699,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         profile_time = QTime(profile_data["birth_hour"], profile_data["birth_minute"])
         parent.time_edit.setTime(profile_time)
         parent.retcon_time_edit.setTime(profile_time)
-        parent.comments_edit.setPlainText(
-            f"Astrotheme profile: {profile_data['profile_url']}"
-        )
+        parent.source_edit.setPlainText(profile_data["profile_url"])
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
 
@@ -9717,7 +9715,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart, place, _, _ = chart_result
         chart.source = SOURCE_PUBLIC_DB
         chart.relationship_types = ["public figure"]
-        chart.comments = f"Astrotheme profile: {profile_data['profile_url']}"
+        chart.chart_data_source = profile_data["profile_url"]
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
@@ -15998,8 +15996,16 @@ class MainWindow(QMainWindow):
         self.chart_comments_toggle_button.clicked.connect(
             lambda: self._set_chart_info_panel_mode("comments")
         )
+        self.chart_source_toggle_button = QPushButton("Source")
+        self.chart_source_toggle_button.setCheckable(True)
+        self.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.chart_source_toggle_button.setMinimumHeight(24)
+        self.chart_source_toggle_button.clicked.connect(
+            lambda: self._set_chart_info_panel_mode("source")
+        )
         chart_info_header_layout.addWidget(self.chart_info_toggle_button, 0)
         chart_info_header_layout.addWidget(self.chart_comments_toggle_button, 0)
+        chart_info_header_layout.addWidget(self.chart_source_toggle_button, 0)
         chart_info_header_layout.addStretch(1)
         chart_panel_layout.addWidget(chart_info_header, 0)
 
@@ -16385,6 +16391,11 @@ class MainWindow(QMainWindow):
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
+        self.source_edit = QTextEdit()
+        self.source_edit.setPlaceholderText("Source")
+        self.source_edit.textChanged.connect(self._mark_lucygoosey)
+        self.source_edit.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.source_edit)
         self._chart_info_panel_mode = "comments"
         self._set_chart_info_panel_mode("comments")
 
@@ -18603,17 +18614,19 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments"}:
+        if mode not in {"chart_info", "comments", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
-            self.chart_info_content_stack.setCurrentIndex(0 if mode == "chart_info" else 1)
+            mode_to_index = {"chart_info": 0, "comments": 1, "source": 2}
+            self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()
 
     def _refresh_chart_info_panel_toggle_buttons(self) -> None:
         active_mode = getattr(self, "_chart_info_panel_mode", "comments")
         chart_info_active = active_mode == "chart_info"
         comments_active = active_mode == "comments"
+        source_active = active_mode == "source"
         active_style = (
             "QPushButton { font-weight: 700; padding: 2px 8px; }"
             "QPushButton:checked { background-color: #2f3a5a; border: 1px solid #6f7fb4; }"
@@ -18632,6 +18645,13 @@ class MainWindow(QMainWindow):
             self.chart_comments_toggle_button.blockSignals(False)
             self.chart_comments_toggle_button.setStyleSheet(
                 active_style if comments_active else inactive_style
+            )
+        if hasattr(self, "chart_source_toggle_button"):
+            self.chart_source_toggle_button.blockSignals(True)
+            self.chart_source_toggle_button.setChecked(source_active)
+            self.chart_source_toggle_button.blockSignals(False)
+            self.chart_source_toggle_button.setStyleSheet(
+                active_style if source_active else inactive_style
             )
 
     def _export_chart_data_output(self) -> None:
@@ -19617,6 +19637,7 @@ class MainWindow(QMainWindow):
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = parse_tag_text(self.chart_tags_input.text())
         placeholder.comments = self.comments_edit.toPlainText().strip()
+        placeholder.chart_data_source = self.source_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
@@ -19751,6 +19772,8 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        if hasattr(chart, "chart_data_source"):
+            chart.chart_data_source = self.source_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
@@ -19955,6 +19978,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
                 chart.comments = self.comments_edit.toPlainText().strip()
+                chart.chart_data_source = self.source_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
@@ -20153,6 +20177,7 @@ class MainWindow(QMainWindow):
         self._set_relationship_type_selection([])
         self.chart_tags_input.clear()
         self.comments_edit.clear()
+        self.source_edit.clear()
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
         self.time_edit.setTime(QTime(12, 0))
         self.time_unknown_checkbox.setChecked(False)
@@ -20425,6 +20450,7 @@ class MainWindow(QMainWindow):
             ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
         )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
+        self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
             getattr(chart, "positive_sentiment_intensity", 1) or 1
         )
