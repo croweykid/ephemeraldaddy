@@ -45,6 +45,18 @@ CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
     "created_at",
     "chart_type",
     "source",
+    "birth_month",
+    "birth_day",
+    "birth_year",
+    "is_current",
+}
+
+CHART_EXPORT_HIDDEN_COLUMNS: set[str] = {
+    "is_current",
+}
+
+CHART_EXPORT_LABEL_OVERRIDES: dict[str, str] = {
+    "chart_type": "Category",
 }
 
 CHART_EXPORT_DEFAULTS: dict[str, Any] = {
@@ -73,11 +85,40 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "dominant_planet_weights": "",
     "is_placeholder": 0,
     "is_deceased": 0,
-    "birth_month": None,
-    "birth_day": None,
-    "birth_year": None,
+    "birth_month": 0,
+    "birth_day": 0,
+    "birth_year": 0,
     "is_current": 0,
 }
+
+
+def _ensure_alignment_score_nullable(conn: sqlite3.Connection) -> None:
+    row = conn.execute("PRAGMA table_info(charts)").fetchall()
+    alignment_rows = [info for info in row if str(info[1]) == "alignment_score"]
+    if not alignment_rows:
+        return
+    alignment_info = alignment_rows[0]
+    alignment_not_null = bool(alignment_info[3])
+    if not alignment_not_null:
+        return
+
+    conn.execute("ALTER TABLE charts RENAME TO charts_legacy_alignment_not_null")
+    _create_charts_table(conn)
+
+    legacy_columns = _table_columns(conn, "charts_legacy_alignment_not_null")
+    new_table_info = conn.execute("PRAGMA table_info(charts)").fetchall()
+    ordered_new_columns = [str(info[1]) for info in new_table_info]
+    transferable_columns = [column for column in ordered_new_columns if column in legacy_columns]
+    quoted_columns = ", ".join([f'"{column}"' for column in transferable_columns])
+    conn.execute(
+        f"""
+        INSERT INTO charts ({quoted_columns})
+        SELECT {quoted_columns}
+        FROM charts_legacy_alignment_not_null
+        """
+    )
+    conn.execute("DROP TABLE charts_legacy_alignment_not_null")
+    _create_indexes(conn)
 
 
 def normalize_chart_type(value: Optional[str]) -> str:
@@ -517,6 +558,8 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
            OR source != chart_type
         """
     )
+
+    _ensure_alignment_score_nullable(conn)
 
     if added_year_first_encountered:
         _sync_year_first_encountered_from_age(conn)
@@ -1144,6 +1187,44 @@ def get_db_path() -> Path:
     return DB_PATH
 
 
+def _parse_sqlite_default_value(raw_value: Any) -> Any:
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text:
+        return None
+    if text.startswith("'") and text.endswith("'") and len(text) >= 2:
+        return text[1:-1]
+    lowered = text.lower()
+    if lowered == "null":
+        return None
+    if lowered in {"true", "false"}:
+        return 1 if lowered == "true" else 0
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    return text
+
+
+def _resolve_chart_export_reset_value(column: str, pragma_row: Any) -> Any:
+    sentinel = object()
+    configured = CHART_EXPORT_DEFAULTS.get(column, sentinel)
+    if configured is not sentinel:
+        return configured
+    if pragma_row is None:
+        return None
+    not_null = bool(pragma_row[3])
+    parsed_default = _parse_sqlite_default_value(pragma_row[4])
+    if parsed_default is not None:
+        return parsed_default
+    return 0 if not_null else None
+
+
 def list_chart_export_properties() -> list[dict[str, Any]]:
     """Return chart-table properties that can be selected during custom export."""
     conn = _get_conn()
@@ -1159,7 +1240,12 @@ def list_chart_export_properties() -> list[dict[str, Any]]:
         column_name = str(row[1])
         if not column_name:
             continue
-        label = column_name.replace("_", " ").strip().title()
+        if column_name in CHART_EXPORT_HIDDEN_COLUMNS:
+            continue
+        label = CHART_EXPORT_LABEL_OVERRIDES.get(
+            column_name,
+            column_name.replace("_", " ").strip().title(),
+        )
         properties.append(
             {
                 "column": column_name,
@@ -1185,12 +1271,17 @@ def export_database_with_chart_property_selection(
     try:
         if not _charts_table_exists(conn):
             return destination
-        chart_columns = _table_columns(conn, "charts")
+        pragma_rows = conn.execute("PRAGMA table_info(charts)").fetchall()
+        chart_columns = {str(row[1]) for row in pragma_rows}
         editable_columns = chart_columns - CHART_DB_EXPORT_LOCKED_COLUMNS
         excluded_columns = sorted(editable_columns - selected)
+        pragma_by_column = {str(row[1]): row for row in pragma_rows}
         with conn:
             for column in excluded_columns:
-                reset_value = CHART_EXPORT_DEFAULTS.get(column, None)
+                reset_value = _resolve_chart_export_reset_value(
+                    column,
+                    pragma_by_column.get(column),
+                )
                 conn.execute(f"UPDATE charts SET {column} = ?", (reset_value,))
     finally:
         conn.close()
