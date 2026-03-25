@@ -1484,6 +1484,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._negative_sentiment_intensity_max_input = None
         self._familiarity_min_input = None
         self._familiarity_max_input = None
+        self._alignment_score_min_input = None
+        self._alignment_score_max_input = None
+        self._alignment_score_blank_checkbox = None
         self.living_checkbox = None
         self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._dominant_element_primary_combo = None
@@ -7121,6 +7124,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._familiarity_max_input is not None
             else ""
         )
+        alignment_score_min = self._parse_signed_integer_filter_text(
+            self._alignment_score_min_input.text()
+            if self._alignment_score_min_input is not None
+            else ""
+        )
+        alignment_score_max = self._parse_signed_integer_filter_text(
+            self._alignment_score_max_input.text()
+            if self._alignment_score_max_input is not None
+            else ""
+        )
+        include_blank_alignment = bool(
+            self._alignment_score_blank_checkbox is not None
+            and self._alignment_score_blank_checkbox.isChecked()
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -7161,6 +7178,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and negative_sentiment_intensity_max is None
             and familiarity_min is None
             and familiarity_max is None
+            and alignment_score_min is None
+            and alignment_score_max is None
+            and not include_blank_alignment
             and not self.search_text_input.text().strip()
             and (
                 not hasattr(self, "search_tags_input")
@@ -9129,6 +9149,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(sentiment_section)
 
+        alignment_section, alignment_group_layout = add_collapsible_section("Alignments")
+        alignment_range_row = QHBoxLayout()
+        alignment_range_row.addWidget(QLabel("Alignment"))
+        self._alignment_score_min_input = QLineEdit()
+        self._alignment_score_min_input.setFixedWidth(44)
+        self._alignment_score_min_input.setMaxLength(3)
+        self._alignment_score_min_input.setValidator(QIntValidator(-10, 10, self))
+        self._alignment_score_min_input.setPlaceholderText("min")
+        self._alignment_score_min_input.textChanged.connect(self._on_filter_changed)
+        alignment_range_row.addWidget(self._alignment_score_min_input)
+        alignment_range_row.addWidget(QLabel("max"))
+        self._alignment_score_max_input = QLineEdit()
+        self._alignment_score_max_input.setFixedWidth(44)
+        self._alignment_score_max_input.setMaxLength(3)
+        self._alignment_score_max_input.setValidator(QIntValidator(-10, 10, self))
+        self._alignment_score_max_input.setPlaceholderText("max")
+        self._alignment_score_max_input.textChanged.connect(self._on_filter_changed)
+        alignment_range_row.addWidget(self._alignment_score_max_input)
+        alignment_range_row.addStretch(1)
+        alignment_group_layout.addLayout(alignment_range_row)
+
+        self._alignment_score_blank_checkbox = QCheckBox("no alignment assigned")
+        self._alignment_score_blank_checkbox.stateChanged.connect(self._on_filter_changed)
+        alignment_group_layout.addWidget(self._alignment_score_blank_checkbox)
+        layout.addWidget(alignment_section)
+
         relationship_section, relationship_group_layout = add_collapsible_section(
             "Relationship Types"
         )
@@ -10623,6 +10669,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if value.isdigit():
             return int(value)
         return None
+
+    @staticmethod
+    def _parse_signed_integer_filter_text(raw_value: str | None) -> int | None:
+        value = (raw_value or "").strip()
+        if value == "":
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
     def _set_batch_year_field_state(
         self,
@@ -12512,6 +12568,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._familiarity_min_input.setText("")
             if self._familiarity_max_input is not None:
                 self._familiarity_max_input.setText("")
+            if self._alignment_score_min_input is not None:
+                self._alignment_score_min_input.setText("")
+            if self._alignment_score_max_input is not None:
+                self._alignment_score_max_input.setText("")
+            if self._alignment_score_blank_checkbox is not None:
+                self._alignment_score_blank_checkbox.setChecked(False)
             for checkbox in self.relationship_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
@@ -13883,6 +13945,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._familiarity_max_input is not None
             else ""
         )
+        alignment_score_min = self._parse_signed_integer_filter_text(
+            self._alignment_score_min_input.text()
+            if self._alignment_score_min_input is not None
+            else ""
+        )
+        alignment_score_max = self._parse_signed_integer_filter_text(
+            self._alignment_score_max_input.text()
+            if self._alignment_score_max_input is not None
+            else ""
+        )
+        include_blank_alignment = bool(
+            self._alignment_score_blank_checkbox is not None
+            and self._alignment_score_blank_checkbox.isChecked()
+        )
 
         if not self._has_active_chart_filters():
             return True
@@ -14070,6 +14146,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if familiarity_min is not None and chart_familiarity < familiarity_min:
             return False
         if familiarity_max is not None and chart_familiarity > familiarity_max:
+            return False
+
+        chart_alignment_score_raw = getattr(chart, "alignment_score", None)
+        chart_alignment_score = (
+            int(chart_alignment_score_raw)
+            if isinstance(chart_alignment_score_raw, int)
+            else None
+        )
+        if alignment_score_min is not None:
+            if chart_alignment_score is None or chart_alignment_score < alignment_score_min:
+                return False
+        if alignment_score_max is not None:
+            if chart_alignment_score is None or chart_alignment_score > alignment_score_max:
+                return False
+        if include_blank_alignment and chart_alignment_score is not None:
             return False
 
         # if bool(getattr(chart, "is_placeholder", False)):
@@ -15656,6 +15747,8 @@ class MainWindow(QMainWindow):
         self._searched_lon = None
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
+        self._alignment_score_assigned = False
+        self._alignment_programmatic_update = False
         self._lucygoosey = False
         self._sentiment_metrics_autosave_timer = QTimer(self)
         self._sentiment_metrics_autosave_timer.setSingleShot(True)
@@ -18944,11 +19037,23 @@ class MainWindow(QMainWindow):
         self._sentiment_metrics_autosave_timer.start(2000)
 
     def _update_alignment_score_label(self, value: int) -> None:
-        self.alignment_score_label.setText(f"Alignment score: {int(value)}")
+        if getattr(self, "_alignment_score_assigned", False):
+            self.alignment_score_label.setText(f"Alignment score: {int(value)}")
+        else:
+            self.alignment_score_label.setText("Alignment score: blank")
 
     def _on_alignment_changed(self, value: int) -> None:
+        if not getattr(self, "_alignment_programmatic_update", False):
+            self._alignment_score_assigned = True
         self._update_alignment_score_label(value)
         self._on_sentiment_metric_changed(value)
+
+    def _set_alignment_score_state(self, value: int, *, assigned: bool) -> None:
+        self._alignment_programmatic_update = True
+        self._alignment_score_assigned = bool(assigned)
+        self.alignment_slider.setValue(int(value))
+        self._alignment_programmatic_update = False
+        self._update_alignment_score_label(self.alignment_slider.value())
 
     def _flush_pending_sentiment_metrics_save(self) -> None:
         had_pending_metric_save = self._sentiment_metrics_autosave_timer.isActive()
@@ -18971,7 +19076,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
-        self.alignment_slider.setValue(0)
+        self._set_alignment_score_state(0, assigned=False)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -19656,7 +19761,15 @@ class MainWindow(QMainWindow):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
         if hasattr(chart, "alignment_score"):
-            chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
+            chart.alignment_score = (
+                0
+                if is_event_chart
+                else (
+                    self.alignment_slider.value()
+                    if self._alignment_score_assigned
+                    else None
+                )
+            )
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
             chart.age_when_first_met = 0
@@ -19845,7 +19958,15 @@ class MainWindow(QMainWindow):
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
-                chart.alignment_score = 0 if is_event_chart else self.alignment_slider.value()
+                chart.alignment_score = (
+                    0
+                    if is_event_chart
+                    else (
+                        self.alignment_slider.value()
+                        if self._alignment_score_assigned
+                        else None
+                    )
+                )
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
                 chart.age_when_first_met = 0
@@ -20044,7 +20165,7 @@ class MainWindow(QMainWindow):
         self.positive_sentiment_intensity_spin.setValue(1)
         self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
-        self.alignment_slider.setValue(0)
+        self._set_alignment_score_state(0, assigned=False)
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
@@ -20313,8 +20434,10 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
         )
-        self.alignment_slider.setValue(
-            int(getattr(chart, "alignment_score", 0) or 0)
+        loaded_alignment = getattr(chart, "alignment_score", None)
+        self._set_alignment_score_state(
+            int(loaded_alignment or 0),
+            assigned=isinstance(loaded_alignment, int),
         )
         self._chart_familiarity_factors = list(
             getattr(chart, "familiarity_factors", []) or []

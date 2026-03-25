@@ -127,7 +127,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             familiarity INTEGER NOT NULL DEFAULT 1,
-            alignment_score INTEGER NOT NULL DEFAULT 0,
+            alignment_score INTEGER,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
@@ -255,7 +255,7 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             ALTER TABLE charts
-            ADD COLUMN alignment_score INTEGER NOT NULL DEFAULT 0
+            ADD COLUMN alignment_score INTEGER
             """
         )
     #indent?
@@ -746,13 +746,13 @@ def _normalize_sentiment_metric(value: Optional[int]) -> int:
     return 1
 
 
-def _normalize_alignment_score(value: Optional[int]) -> int:
+def _normalize_alignment_score(value: Optional[int]) -> Optional[int]:
     if value is None:
-        return 0
+        return None
     try:
         parsed = int(value)
     except (TypeError, ValueError):
-        return 0
+        return None
     return max(-10, min(10, parsed))
 
 
