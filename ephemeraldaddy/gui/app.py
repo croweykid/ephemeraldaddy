@@ -20986,7 +20986,24 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        header_label = QLabel("Human Design")
+        date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
+        time_label = (
+            "unknown"
+            if getattr(self._latest_chart, "birthtime_unknown", False)
+            else self._latest_chart.dt.strftime("%H:%M")
+        )
+        birth_place = getattr(self._latest_chart, "birth_place", None) or "Unknown"
+        header_label = QLabel(
+            "\n".join(
+                [
+                    "Human Design",
+                    f"Name:       {self._latest_chart.name}",
+                    f"Birth date: {date_label}",
+                    f"Birth time: {time_label}",
+                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                ]
+            )
+        )
         header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)

@@ -11,6 +11,7 @@ from ephemeraldaddy.core.human_design_system import (
     calculate_human_design,
 )
 from ephemeraldaddy.core.interpretations import AWARENESS_STREAMS
+from ephemeraldaddy.gui.features.charts.presentation import format_longitude, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
@@ -93,6 +94,40 @@ def _strip_nakshatra_column(position_lines: list[str]) -> list[str]:
     return result_lines
 
 
+def _append_earth_position_lines(
+    position_lines: list[str],
+    hd_result: HumanDesignResult,
+) -> list[str]:
+    """Append Personality/Design Earth rows to POSITIONS lines for HD window."""
+    result = list(position_lines)
+    header_line = next((line for line in result if "Body" in line and "Degree" in line), "")
+    has_house_col = "House" in header_line
+    row_insert_at = len(result)
+    for idx in range(len(result) - 1, -1, -1):
+        if result[idx].strip():
+            row_insert_at = idx + 1
+            break
+
+    p_earth = next((entry for entry in hd_result.personality_activations if entry.body == "Earth"), None)
+    d_earth = next((entry for entry in hd_result.design_activations if entry.body == "Earth"), None)
+    for label, entry in (
+        ("Personality Earth", p_earth),
+        ("Design Earth", d_earth),
+    ):
+        if entry is None:
+            continue
+        degree_text = format_longitude(entry.longitude)
+        sign_text = sign_for_longitude(entry.longitude)
+        gl_text = f"G{entry.gate}.{entry.line} C{entry.color} T{entry.tone} B{entry.base}"
+        if has_house_col:
+            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}  {'-':<5}"
+        else:
+            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}"
+        result.insert(row_insert_at, line)
+        row_insert_at += 1
+    return result
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -123,8 +158,11 @@ def build_human_design_chart_data_output(
     )
     position_lines = summary_lines[positions_start_index:houses_header_index]
 
-    position_lines = _strip_nakshatra_column(position_lines)
-    active_gate_set, active_line_set = get_active_human_design_gates_and_lines(chart)
+    hd_result = calculate_human_design(chart)
+    position_lines = _append_earth_position_lines(_strip_nakshatra_column(position_lines), hd_result)
+    activations = (*hd_result.personality_activations, *hd_result.design_activations)
+    active_gate_set = {activation.gate for activation in activations}
+    active_line_set = {(activation.gate, activation.line) for activation in activations}
 
     gates_text = ", ".join(str(gate) for gate in sorted(active_gate_set)) or "None"
     lines_text = (
