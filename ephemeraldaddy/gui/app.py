@@ -382,6 +382,9 @@ from ephemeraldaddy.gui.features.charts.tagging import (
     parse_tag_text,
     render_tag_chip_preview,
 )
+from ephemeraldaddy.gui.features.charts.tag_search import (
+    chart_matches_tag_filters,
+)
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 from ephemeraldaddy.gui.features.charts.transit_workers import (
@@ -7083,6 +7086,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 not hasattr(self, "search_tags_input")
                 or not self.search_tags_input.text().strip()
             )
+            and (
+                not hasattr(self, "search_untagged_checkbox")
+                or not self.search_untagged_checkbox.isChecked()
+            )
         )
 
     def _update_sentiment_tally(
@@ -8759,6 +8766,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.search_tags_preview_label.setWordWrap(True)
         self.search_tags_preview_label.setTextFormat(Qt.RichText)
         tags_search_row.addWidget(self.search_tags_preview_label)
+        self.search_untagged_checkbox = QCheckBox("untagged")
+        self.search_untagged_checkbox.stateChanged.connect(self._on_filter_changed)
+        tags_search_row.addWidget(self.search_untagged_checkbox)
+
+        self.search_tags_toggle = QToolButton()
+        configure_collapsible_header_toggle(
+            self.search_tags_toggle,
+            title="Tags",
+            expanded=False,
+            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+        tags_search_row.addWidget(self.search_tags_toggle)
+
+        self.search_tags_list_widget = QListWidget()
+        self.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
+        self.search_tags_list_widget.setMaximumHeight(180)
+        self.search_tags_list_widget.itemClicked.connect(self._on_search_tag_item_clicked)
+        self.search_tags_list_widget.setVisible(False)
+        self.search_tags_toggle.toggled.connect(self.search_tags_list_widget.setVisible)
+        tags_search_row.addWidget(self.search_tags_list_widget)
         layout.addLayout(tags_search_row)
 
         divider = QFrame()
@@ -10396,7 +10423,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
         render_tag_chip_preview(self.search_tags_preview_label, tags)
+        self._refresh_search_tags_list(getattr(self, "_known_chart_tags", []))
         self._on_filter_changed()
+
+    def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
+        if not hasattr(self, "search_tags_list_widget"):
+            return
+        selected_tags = {
+            tag.casefold()
+            for tag in parse_tag_text(
+                self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
+            )
+        }
+        self.search_tags_list_widget.clear()
+        for tag in known_tags:
+            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
+            self.search_tags_list_widget.addItem(label)
+
+    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
+        tag_value = item.text().lstrip("✓").strip()
+        if not tag_value:
+            return
+        self.search_tags_input.setText(tag_value)
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
@@ -12296,6 +12344,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.search_text_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
+            if (
+                hasattr(self, "search_untagged_checkbox")
+                and self.search_untagged_checkbox is not None
+            ):
+                self.search_untagged_checkbox.setChecked(False)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._positive_sentiment_intensity_min_input is not None:
@@ -13807,13 +13860,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if chart is None:
             return incomplete_birthdate_state == QuadStateSlider.MODE_TRUE
 
-        if search_tags:
-            chart_tags = {
-                tag.casefold()
-                for tag in normalize_tag_list(getattr(chart, "tags", []))
-            }
-            if not all(tag.casefold() in chart_tags for tag in search_tags):
-                return False
+        include_untagged = bool(
+            hasattr(self, "search_untagged_checkbox")
+            and self.search_untagged_checkbox.isChecked()
+        )
+        if (search_tags or include_untagged) and not chart_matches_tag_filters(
+            getattr(chart, "tags", []),
+            required_tags=search_tags,
+            include_untagged=include_untagged,
+        ):
+            return False
 
         chart_year_first_encountered = getattr(chart, "year_first_encountered", None)
         if not isinstance(chart_year_first_encountered, int):
@@ -19542,9 +19598,14 @@ class MainWindow(QMainWindow):
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
-        if not hasattr(self, "chart_tags_input"):
-            return
-        apply_tag_completer(self.chart_tags_input, sorted_tags)
+        self._known_chart_tags = sorted_tags
+        if hasattr(self, "chart_tags_input"):
+            apply_tag_completer(self.chart_tags_input, sorted_tags)
+        if hasattr(self, "search_tags_input"):
+            apply_tag_completer(self.search_tags_input, sorted_tags)
+        if hasattr(self, "batch_tags_input"):
+            apply_tag_completer(self.batch_tags_input, sorted_tags)
+        self._refresh_search_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.chart_tags_input.text())
