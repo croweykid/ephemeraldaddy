@@ -5580,8 +5580,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle: QToolButton,
         matches: list[tuple[str, int, int]],
         *,
+        selection_total_count: int = 0,
         db_match_counts: dict[str, int] | None = None,
         db_total_count: int = 0,
+        db_total_counts_by_label: dict[str, int] | None = None,
         show_no_match_row: bool = True,
     ) -> None:
         section_list.clear()
@@ -5589,9 +5591,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for label, match_count, total_count in matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_match_count = (db_match_counts or {}).get(label, 0)
-                db_percent_value = (
-                    int(round((db_match_count / db_total_count) * 100))
+                db_label_total_count = (
+                    int((db_total_counts_by_label or {}).get(label, db_total_count))
                     if db_total_count
+                    else 0
+                )
+                db_percent_value = (
+                    int(round((db_match_count / db_label_total_count) * 100))
+                    if db_label_total_count
                     else 0
                 )
                 percent_difference = abs(percent_value - db_percent_value)
@@ -5634,8 +5641,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
                 row_layout.addWidget(top_row)
 
+                unknown_suffix = ""
+                if selection_total_count > 0 and total_count < selection_total_count:
+                    unknown_count = selection_total_count - total_count
+                    unknown_percent_value = int(
+                        round((unknown_count / selection_total_count) * 100)
+                    )
+                    unknown_suffix = f" | {unknown_percent_value}% unknown"
                 tiny_label = QLabel(
-                    f"{percent_value}% of selection | {db_percent_value}% of DB"
+                    f"{percent_value}% of selection | {db_percent_value}% of DB{unknown_suffix}"
                 )
                 tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
@@ -5660,9 +5674,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         counts: dict[str, int],
         total_count: int,
+        total_counts_by_label: dict[str, int] | None = None,
     ) -> list[tuple[str, int, int]]:
         return [
-            (label, count, total_count)
+            (label, count, int((total_counts_by_label or {}).get(label, total_count)))
             for label, count in sorted(
                 counts.items(), key=lambda item: (-item[1], item[0].lower())
             )
@@ -5685,6 +5700,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return []
 
         match_counts: dict[str, int] = {}
+        total_counts_by_label: dict[str, int] = {}
+        time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         angular_bodies = {"AS", "MC", "DS", "IC"}
         for body in PLANET_ORDER:
             signs_by_body: dict[str, int] = {}
@@ -5696,16 +5713,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign = _sign_for_longitude(chart.positions[body])
                 label = f"{self._similarities_body_label(body)}: {sign}"
                 signs_by_body[label] = signs_by_body.get(label, 0) + 1
+                if label not in total_counts_by_label:
+                    total_counts_by_label[label] = (
+                        time_specific_chart_count if body in angular_bodies else chart_count
+                    )
             for label, count in signs_by_body.items():
                 match_counts[label] = match_counts.get(label, 0) + count
-        return self._sorted_similarity_matches(match_counts, chart_count)
+        return self._sorted_similarity_matches(
+            match_counts,
+            chart_count,
+            total_counts_by_label=total_counts_by_label,
+        )
 
     def _build_common_houses_in_positions(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
+        chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
             return []
 
@@ -5739,7 +5764,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
+        chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
             return []
 
@@ -5883,6 +5908,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         angular_bodies = {"AS", "MC", "DS", "IC"}
         aspect_counts: dict[str, int] = {}
+        total_counts_by_label: dict[str, int] = {}
+        time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         for chart in charts:
             chart_aspects: set[str] = set()
             use_houses = _chart_uses_houses(chart)
@@ -5901,11 +5928,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not p1 or not p2 or not aspect_type:
                     continue
                 body_a, body_b = sorted([p1, p2])
-                chart_aspects.add(f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}")
+                aspect_label = f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}"
+                chart_aspects.add(aspect_label)
+                if aspect_label not in total_counts_by_label:
+                    total_counts_by_label[aspect_label] = (
+                        time_specific_chart_count
+                        if raw_p1 in angular_bodies or raw_p2 in angular_bodies
+                        else chart_count
+                    )
             for aspect_label in chart_aspects:
                 aspect_counts[aspect_label] = aspect_counts.get(aspect_label, 0) + 1
 
-        return self._sorted_similarity_matches(aspect_counts, chart_count)
+        return self._sorted_similarity_matches(
+            aspect_counts,
+            chart_count,
+            total_counts_by_label=total_counts_by_label,
+        )
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
@@ -5990,14 +6028,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
+        db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
         db_common_positions = dict(
-            (label, count) for label, count, _total in self._build_common_position_signs(db_chart_ids)
+            (label, count) for label, count, _total in db_common_positions_matches
         )
+        db_common_positions_totals = dict(
+            (label, total) for label, _count, total in db_common_positions_matches
+        )
+        db_common_houses_in_positions_matches = self._build_common_houses_in_positions(db_chart_ids)
         db_common_houses_in_positions = dict(
-            (label, count) for label, count, _total in self._build_common_houses_in_positions(db_chart_ids)
+            (label, count) for label, count, _total in db_common_houses_in_positions_matches
         )
+        db_common_houses_in_positions_totals = dict(
+            (label, total) for label, _count, total in db_common_houses_in_positions_matches
+        )
+        db_common_signs_in_houses_matches = self._build_common_signs_in_houses(db_chart_ids)
         db_common_signs_in_houses = dict(
-            (label, count) for label, count, _total in self._build_common_signs_in_houses(db_chart_ids)
+            (label, count) for label, count, _total in db_common_signs_in_houses_matches
+        )
+        db_common_signs_in_houses_totals = dict(
+            (label, total) for label, _count, total in db_common_signs_in_houses_matches
         )
         db_common_dominant_signs = dict(
             (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
@@ -6005,8 +6055,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         db_common_dominant_nakshatras = dict(
             (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
         )
+        db_common_aspects_matches = self._build_common_aspects(db_chart_ids)
         db_common_aspects = dict(
-            (label, count) for label, count, _total in self._build_common_aspects(db_chart_ids)
+            (label, count) for label, count, _total in db_common_aspects_matches
+        )
+        db_common_aspects_totals = dict(
+            (label, total) for label, _count, total in db_common_aspects_matches
         )
         self._similarities_export_sections = [
             (
@@ -6017,7 +6071,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_positions.get(label, 0)),
-                        db_total_count,
+                        int(db_common_positions_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_positions
                 ],
@@ -6030,7 +6084,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_houses_in_positions.get(label, 0)),
-                        db_total_count,
+                        int(db_common_houses_in_positions_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_houses_in_positions
                 ],
@@ -6043,7 +6097,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_signs_in_houses.get(label, 0)),
-                        db_total_count,
+                        int(db_common_signs_in_houses_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_signs_in_houses
                 ],
@@ -6082,7 +6136,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_aspects.get(label, 0)),
-                        db_total_count,
+                        int(db_common_aspects_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_aspects
                 ],
@@ -6111,27 +6165,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_positions_list,
             self.similarities_common_positions_toggle,
             common_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_positions,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_positions_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_houses_in_positions_list,
             self.similarities_houses_in_positions_toggle,
             common_houses_in_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_houses_in_positions,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_houses_in_positions_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_signs_in_houses_list,
             self.similarities_signs_in_houses_toggle,
             common_signs_in_houses,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_signs_in_houses,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_signs_in_houses_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_dominant_signs_list,
             self.similarities_dominant_signs_toggle,
             common_dominant_signs,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_signs,
             db_total_count=db_total_count,
         )
@@ -6139,6 +6200,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_nakshatras_list,
             self.similarities_dominant_nakshatras_toggle,
             common_dominant_nakshatras,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_nakshatras,
             db_total_count=db_total_count,
         )
@@ -6146,8 +6208,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_aspects_list,
             self.similarities_common_aspects_toggle,
             common_aspects,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_aspects,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_aspects_totals,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
