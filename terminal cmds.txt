@@ -33,7 +33,8 @@ If you've restarted your machine since the last time you ran the app:
 5. python -m ephemeraldaddy.gui.app
 
 If you *haven't* restarted your machine since the last time you ran the app, you should be able to just use:
-1. python -m ephemeraldaddy.gui.app
+1. py -V:3.11 -m venv venv
+2. python -m ephemeraldaddy.gui.app
 
 
 #==================================================================
