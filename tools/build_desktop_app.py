@@ -122,7 +122,9 @@ def _build_pyinstaller_command(args: argparse.Namespace) -> list[str]:
     for entry in _normalize_data_tuples(data_tuples):
         command.extend(["--add-data", entry])
 
-    command.append("ephemeraldaddy/gui/app.py")
+    # Use the lightweight bootstrap entrypoint so packaged builds show immediate
+    # startup progress feedback before importing the heavy GUI module.
+    command.append("ephemeraldaddy/gui/bootstrap.py")
     return command
 
 

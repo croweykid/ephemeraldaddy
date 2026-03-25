@@ -184,13 +184,15 @@ def build_popout_left_panel(
     database_analytics_dropdown_style: str,
     chart_theme_colors: dict[str, str],
     show_aspect_distribution: bool = True,
+    awareness_stream_entries: list[dict[str, Any]] | None = None,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
     analytics_header_layout = QHBoxLayout()
     analytics_header_layout.setContentsMargins(0, 0, 0, 0)
     analytics_header_layout.setSpacing(6)
-    analytics_label = QLabel("Aspect Distribution")
+    showing_awareness_streams = bool(awareness_stream_entries)
+    analytics_label = QLabel("Awareness Streams" if showing_awareness_streams else "Aspect Distribution")
     analytics_label.setStyleSheet(chart_data_info_label_style)
     analytics_header_layout.addWidget(analytics_label)
 
@@ -219,15 +221,16 @@ def build_popout_left_panel(
     analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
     left_panel_layout.addLayout(analytics_header_layout)
 
-    analytics_label.setVisible(show_aspect_distribution)
-    analytics_view_dropdown.setVisible(show_aspect_distribution)
-    analytics_export_button.setVisible(show_aspect_distribution)
+    show_legacy_aspect_controls = show_aspect_distribution and not showing_awareness_streams
+    analytics_label.setVisible(show_aspect_distribution or showing_awareness_streams)
+    analytics_view_dropdown.setVisible(show_legacy_aspect_controls)
+    analytics_export_button.setVisible(show_legacy_aspect_controls)
 
     if aspect_subheader:
         aspect_subheader_label = QLabel(aspect_subheader)
         aspect_subheader_label.setWordWrap(True)
         aspect_subheader_label.setStyleSheet(f"color: {chart_theme_colors['text']};")
-        aspect_subheader_label.setVisible(show_aspect_distribution)
+        aspect_subheader_label.setVisible(show_aspect_distribution or showing_awareness_streams)
         left_panel_layout.addWidget(aspect_subheader_label)
 
     analytics_figure = Figure(figsize=(4.2, 3.4))
@@ -277,6 +280,72 @@ def build_popout_left_panel(
     analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
 
     def _render_analytics_chart() -> None:
+        if showing_awareness_streams:
+            analytics_ax.clear()
+            analytics_ax.set_facecolor(chart_theme_colors["background"])
+            color_by_completion = {
+                0: "#777777",
+                1: "#a94343",
+                2: "#b4942d",
+                3: "#7e9f3a",
+                4: "#2f8f86",
+            }
+            entries = awareness_stream_entries or []
+            if entries:
+                y_positions = list(range(len(entries)))
+                analytics_ax.set_xlim(0, 4)
+                analytics_ax.set_ylim(-0.5, len(entries) - 0.5)
+                analytics_ax.invert_yaxis()
+                for row_index, entry in enumerate(entries):
+                    gates = [int(gate) for gate in entry.get("gates", []) if isinstance(gate, int)]
+                    present_gates = set(int(gate) for gate in entry.get("present_gates", []))
+                    completion_count = len([gate for gate in gates if gate in present_gates])
+                    segment_color = color_by_completion.get(completion_count, color_by_completion[0])
+                    for segment_index, gate in enumerate(gates[:4]):
+                        gate_present = gate in present_gates
+                        face_color = segment_color if gate_present else "#4f4f4f"
+                        label_color = "#ffffff" if gate_present else "#b8b8b8"
+                        analytics_ax.barh(
+                            row_index,
+                            1.0,
+                            left=segment_index,
+                            color=face_color,
+                            edgecolor=chart_theme_colors["spine"],
+                            height=0.62,
+                            linewidth=0.8,
+                        )
+                        analytics_ax.text(
+                            segment_index + 0.5,
+                            row_index,
+                            str(gate),
+                            ha="center",
+                            va="center",
+                            color=label_color,
+                            fontsize=7,
+                            fontweight="bold",
+                        )
+                y_tick_labels = [str(entry.get("name", "Unknown")) for entry in entries]
+                analytics_ax.set_yticks(y_positions)
+                analytics_ax.set_yticklabels(y_tick_labels, color=chart_theme_colors["text"], fontsize=7)
+            else:
+                analytics_ax.text(
+                    0.5,
+                    0.5,
+                    "No awareness stream data",
+                    color=chart_theme_colors["muted_text"],
+                    ha="center",
+                    va="center",
+                    transform=analytics_ax.transAxes,
+                    fontsize=8,
+                )
+                analytics_ax.set_yticks([])
+            analytics_ax.set_xticks([])
+            for spine in analytics_ax.spines.values():
+                spine.set_color(chart_theme_colors["spine"])
+            analytics_figure.subplots_adjust(left=0.30, bottom=0.03, right=0.98, top=0.98)
+            analytics_canvas.draw_idle()
+            return
+
         selected_mode = str(analytics_view_dropdown.currentData() or "aspects_weighted")
         draw_popout_aspect_distribution_chart(
             analytics_ax,
@@ -296,7 +365,7 @@ def build_popout_left_panel(
     _render_analytics_chart()
     analytics_canvas.setMinimumHeight(220)
     analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    analytics_canvas.setVisible(show_aspect_distribution)
+    analytics_canvas.setVisible(show_aspect_distribution or showing_awareness_streams)
     left_panel_layout.addWidget(analytics_canvas, 2)
 
     chart_info_label = QLabel("Chart Info!")
