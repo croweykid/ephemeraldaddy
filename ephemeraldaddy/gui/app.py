@@ -212,6 +212,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_application_identity,
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
+    configure_splitter_handle_resize_cursor,
 )
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
@@ -1810,6 +1811,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
+        configure_splitter_handle_resize_cursor(self._content_splitter)
         layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -10359,9 +10361,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            update_similarities=False,
         )
         self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
+        self._refresh_filters_after_batch_edit(
+            changed_ids,
+            update_similarities_on_restore=False,
+        )
 
     @staticmethod
     def _bind_batch_enter_apply(widget: QWidget, callback: Callable[[], None]) -> None:
@@ -10403,7 +10409,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             spinbox.setToolTip("")
 
-    def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
+    def _refresh_filters_after_batch_edit(
+        self,
+        chart_ids: set[int] | None = None,
+        *,
+        update_similarities_on_restore: bool = True,
+    ) -> None:
         selected_chart_ids = set(chart_ids or [])
         if self.current_chart_id is not None and int(self.current_chart_id) in selected_chart_ids:
             self._mark_chart_analytics_sections_dirty()
@@ -10427,7 +10438,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     return
 
                 self._flash_batch_updated_rows(selected_chart_ids)
-                self._on_selection_changed()
+                self._on_selection_changed(
+                    update_similarities=update_similarities_on_restore,
+                )
             except RuntimeError:
                 # Dialog widgets may be gone if the user navigated away before
                 # this deferred callback runs.
@@ -10811,9 +10824,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
+            update_similarities=False,
         )
         self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
+        self._refresh_filters_after_batch_edit(
+            changed_ids,
+            update_similarities_on_restore=False,
+        )
 
     def _update_batch_alignment_score_label(self, value: int) -> None:
         self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
@@ -12164,7 +12181,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if refresh:
             self._on_filter_changed()
 
-    def _on_selection_changed(self) -> None:
+    def _on_selection_changed(
+        self,
+        *,
+        update_database_metrics: bool | None = None,
+        update_similarities: bool | None = None,
+    ) -> None:
         self._cancel_inline_chart_rename()
         active_left_scrollbar = None
         active_left_scroll_value = None
@@ -12178,16 +12200,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
         self._update_batch_edit_action_buttons()
         self._update_collection_membership_buttons()
+        effective_update_database_metrics = (
+            self._left_panel_visible
+            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+        )
+        if update_database_metrics is not None:
+            effective_update_database_metrics = update_database_metrics
+
+        effective_update_similarities = (
+            self._left_panel_visible
+            and self._active_left_panel == "similarities"
+        )
+        if update_similarities is not None:
+            effective_update_similarities = update_similarities
+
         try:
             self._update_sentiment_tally(
-                update_database_metrics=(
-                    self._left_panel_visible
-                    and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
-                ),
-                update_similarities=(
-                    self._left_panel_visible
-                    and self._active_left_panel == "similarities"
-                ),
+                update_database_metrics=effective_update_database_metrics,
+                update_similarities=effective_update_similarities,
             )
         finally:
             if active_left_scrollbar is not None and active_left_scroll_value is not None:
@@ -15434,6 +15464,7 @@ class MainWindow(QMainWindow):
 
         self._main_splitter = QSplitter(Qt.Horizontal)
         self._main_splitter.setHandleWidth(6)
+        configure_splitter_handle_resize_cursor(self._main_splitter)
         self._main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
         root_layout.addWidget(self._main_splitter)
 
