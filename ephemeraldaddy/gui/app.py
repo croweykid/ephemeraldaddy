@@ -19418,9 +19418,9 @@ class MainWindow(QMainWindow):
         try:
             chart = Chart(name, dt_local, lat, lon, tz=tz_override, alias=alias)
             chart.gender = gender
-            print("DEBUG houses:", chart.houses)
-            print("Asc ~", chart.houses[0])
-            print("MC  ~", chart.houses[9])
+            logger.debug("Chart houses: %s", chart.houses)
+            logger.debug("Ascendant: %s", chart.houses[0])
+            logger.debug("Midheaven: %s", chart.houses[9])
         except Exception as e:
             if show_feedback:
                 QMessageBox.critical(
@@ -19872,7 +19872,7 @@ class MainWindow(QMainWindow):
         self._ephemeris_prefetch_controller.start()
 
     def _on_swiss_ephemeris_prefetch_error(self, message: str) -> None:
-        print(f"Swiss Ephemeris prefetch failed: {message}")
+        logger.warning("Swiss Ephemeris prefetch failed: %s", message)
 
 
     def on_new_chart(self) -> None:
