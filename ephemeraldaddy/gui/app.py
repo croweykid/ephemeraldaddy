@@ -10432,6 +10432,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._refresh_search_tags_list(getattr(self, "_known_chart_tags", []))
         self._on_filter_changed()
 
+    def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
+        if not hasattr(self, "search_tags_list_widget"):
+            return
+        selected_tags = {
+            tag.casefold()
+            for tag in parse_tag_text(
+                self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
+            )
+        }
+        self.search_tags_list_widget.clear()
+        for tag in known_tags:
+            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
+            self.search_tags_list_widget.addItem(label)
+
+    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
+        tag_value = item.text().lstrip("✓").strip()
+        if not tag_value:
+            return
+        self.search_tags_input.setText(tag_value)
+
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
         value = (raw_value or "").strip()
