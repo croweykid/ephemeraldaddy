@@ -19692,7 +19692,9 @@ class MainWindow(QMainWindow):
             apply_tag_completer(self.search_tags_input, sorted_tags)
         if hasattr(self, "batch_tags_input"):
             apply_tag_completer(self.batch_tags_input, sorted_tags)
-        self._refresh_search_tags_list(sorted_tags)
+        refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
+        if callable(refresh_search_tags_list):
+            refresh_search_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.chart_tags_input.text())
