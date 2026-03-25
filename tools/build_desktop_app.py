@@ -32,6 +32,13 @@ def _ensure_pyinstaller() -> None:
             "PyInstaller is required. Install build deps with: "
             "python -m pip install pyinstaller pillow"
         ) from exc
+    try:
+        import PySide6  # noqa: F401
+    except Exception as exc:  # pragma: no cover - runtime check
+        raise SystemExit(
+            "PySide6 is required in the build environment. "
+            "Install project deps first with: python -m pip install -r requirements.txt"
+        ) from exc
 
 
 def _normalize_data_tuples(items: Iterable[tuple[str, str]]) -> list[str]:
@@ -107,6 +114,12 @@ def _build_pyinstaller_command(args: argparse.Namespace) -> list[str]:
         APP_NAME,
         "--collect-all",
         "PySide6",
+        "--collect-all",
+        "shiboken6",
+        "--hidden-import",
+        "PySide6",
+        "--hidden-import",
+        "shiboken6",
     ]
 
     if args.onefile:
