@@ -87,13 +87,15 @@ Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flag
 
 ```powershell
 cd C:\path\to\ephemeraldaddy
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
 ```
+
+PowerShell needs the `&` call operator when launching a quoted executable path.
 
 If you run it from another directory, pass an absolute path to the script instead:
 
 ```powershell
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "C:\path\to\ephemeraldaddy\installer.iss"
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "C:\path\to\ephemeraldaddy\installer.iss"
 ```
 
 4. Distribute the generated file: `dist/EphemeralDaddy-Setup.exe`.
