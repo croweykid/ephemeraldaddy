@@ -174,6 +174,19 @@ def main() -> None:
     else:
         dist_target = REPO_ROOT / "dist" / APP_NAME
     print(f"\nBuild complete. Output in: {dist_target}")
+    if os.name == "nt":
+        if args.onefile:
+            print(
+                "[build] Inno Setup [Files] entry for this build:\n"
+                f'        Source: "dist\\{APP_NAME}.exe"; DestDir: "{{app}}"; Flags: ignoreversion'
+            )
+        else:
+            print(
+                "[build] Inno Setup [Files] entry for this build (required for Qt deps):\n"
+                f'        Source: "dist\\{APP_NAME}\\*"; DestDir: "{{app}}"; '
+                "Flags: ignoreversion recursesubdirs createallsubdirs\n"
+                "        (Do NOT ship only dist\\EphemeralDaddy.exe for folder builds.)"
+            )
 
 
 if __name__ == "__main__":

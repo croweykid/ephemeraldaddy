@@ -53,9 +53,35 @@ A raw `.exe` works, but a true installer gives the most "double-click and done" 
 ### Option A: Inno Setup (simple + reliable)
 
 1. Install Inno Setup from `https://jrsoftware.org/isinfo.php`.
-2. Use the included `installer.iss` file in the repo root (already valid Inno syntax).
-   - If you previously copy/pasted from Markdown, make sure your `installer.iss` does **not** include code-fence lines like `````ini`` or ``````, which cause `Text is not inside a section.` errors.
-   - Edit `AppVersion` as needed, and choose one-file vs folder line in `[Files]`.
+2. Create `installer.iss` in the repo root with this starter config:
+
+```ini
+[Setup]
+AppName=EphemeralDaddy
+AppVersion=1.0.0
+DefaultDirName={autopf}\EphemeralDaddy
+DefaultGroupName=EphemeralDaddy
+OutputDir=dist
+OutputBaseFilename=EphemeralDaddy-Setup
+Compression=lzma
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesInstallIn64BitMode=x64
+
+[Files]
+; Use EXACTLY ONE entry below, matching how you built:
+; A) one-file build (`--onefile`)
+; Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
+; B) folder build (default build)
+Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
+Name: "{commondesktop}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
+
+[Run]
+Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flags: nowait postinstall skipifsilent
+```
 
 3. Build with Inno Setup Compiler (GUI), or command line. **Run this from the repo root** (the same folder that contains `installer.iss` and `dist/`):
 
@@ -102,5 +128,6 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 
 - If you see missing imports at runtime, rebuild in a clean venv and ensure step (2) works first.
 - If the packaged app shows `ModuleNotFoundError: No module named 'PySide6'`, the EXE was built from an environment that did not have Qt deps available to PyInstaller. Recreate the venv, reinstall `requirements.txt`, then rebuild from that same activated shell.
+- If this error appears **only after installing with Inno Setup**, your installer likely shipped only `EphemeralDaddy.exe` from a **folder build**. For folder builds, you must include `dist\EphemeralDaddy\*` recursively so bundled Qt files (including `_internal/.../PySide6`) are installed.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.
