@@ -13,13 +13,14 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
+UninstallDisplayIcon={app}\EphemeralDaddy.exe
 
 [Files]
 ; Use ONE of the next two lines depending on your build type:
-; 1) one-file build (only when built with: python tools/build_desktop_app.py --onefile)
-Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 2) folder build (this is the default build mode)
-; Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 1) folder build (DEFAULT build mode; safest for Qt/PySide6)
+Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 2) one-file build (only when built with: python tools/build_desktop_app.py --onefile)
+; Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"

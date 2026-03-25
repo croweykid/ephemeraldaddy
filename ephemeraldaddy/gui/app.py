@@ -594,6 +594,8 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
+    SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
+    SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -5583,8 +5585,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         toggle: QToolButton,
         matches: list[tuple[str, int, int]],
         *,
+        selection_total_count: int = 0,
         db_match_counts: dict[str, int] | None = None,
         db_total_count: int = 0,
+        db_total_counts_by_label: dict[str, int] | None = None,
         show_no_match_row: bool = True,
     ) -> None:
         section_list.clear()
@@ -5592,9 +5596,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for label, match_count, total_count in matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_match_count = (db_match_counts or {}).get(label, 0)
-                db_percent_value = (
-                    int(round((db_match_count / db_total_count) * 100))
+                db_label_total_count = (
+                    int((db_total_counts_by_label or {}).get(label, db_total_count))
                     if db_total_count
+                    else 0
+                )
+                db_percent_value = (
+                    int(round((db_match_count / db_label_total_count) * 100))
+                    if db_label_total_count
                     else 0
                 )
                 percent_difference = abs(percent_value - db_percent_value)
@@ -5637,8 +5646,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
                 row_layout.addWidget(top_row)
 
+                unknown_suffix = ""
+                if selection_total_count > 0 and total_count < selection_total_count:
+                    unknown_count = selection_total_count - total_count
+                    unknown_percent_value = int(
+                        round((unknown_count / selection_total_count) * 100)
+                    )
+                    unknown_suffix = f" | {unknown_percent_value}% unknown"
                 tiny_label = QLabel(
-                    f"{percent_value}% of selection | {db_percent_value}% of DB"
+                    f"{percent_value}% of selection | {db_percent_value}% of DB{unknown_suffix}"
                 )
                 tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
@@ -5663,9 +5679,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         counts: dict[str, int],
         total_count: int,
+        total_counts_by_label: dict[str, int] | None = None,
     ) -> list[tuple[str, int, int]]:
         return [
-            (label, count, total_count)
+            (label, count, int((total_counts_by_label or {}).get(label, total_count)))
             for label, count in sorted(
                 counts.items(), key=lambda item: (-item[1], item[0].lower())
             )
@@ -5688,6 +5705,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return []
 
         match_counts: dict[str, int] = {}
+        total_counts_by_label: dict[str, int] = {}
+        time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         angular_bodies = {"AS", "MC", "DS", "IC"}
         for body in PLANET_ORDER:
             signs_by_body: dict[str, int] = {}
@@ -5699,16 +5718,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign = _sign_for_longitude(chart.positions[body])
                 label = f"{self._similarities_body_label(body)}: {sign}"
                 signs_by_body[label] = signs_by_body.get(label, 0) + 1
+                if label not in total_counts_by_label:
+                    total_counts_by_label[label] = (
+                        time_specific_chart_count if body in angular_bodies else chart_count
+                    )
             for label, count in signs_by_body.items():
                 match_counts[label] = match_counts.get(label, 0) + count
-        return self._sorted_similarity_matches(match_counts, chart_count)
+        return self._sorted_similarity_matches(
+            match_counts,
+            chart_count,
+            total_counts_by_label=total_counts_by_label,
+        )
 
     def _build_common_houses_in_positions(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
+        chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
             return []
 
@@ -5742,7 +5769,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
         charts = [chart for chart in charts if chart is not None]
-        chart_count = len(charts)
+        chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         if chart_count < 2:
             return []
 
@@ -5886,6 +5913,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         angular_bodies = {"AS", "MC", "DS", "IC"}
         aspect_counts: dict[str, int] = {}
+        total_counts_by_label: dict[str, int] = {}
+        time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
         for chart in charts:
             chart_aspects: set[str] = set()
             use_houses = _chart_uses_houses(chart)
@@ -5904,11 +5933,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not p1 or not p2 or not aspect_type:
                     continue
                 body_a, body_b = sorted([p1, p2])
-                chart_aspects.add(f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}")
+                aspect_label = f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}"
+                chart_aspects.add(aspect_label)
+                if aspect_label not in total_counts_by_label:
+                    total_counts_by_label[aspect_label] = (
+                        time_specific_chart_count
+                        if raw_p1 in angular_bodies or raw_p2 in angular_bodies
+                        else chart_count
+                    )
             for aspect_label in chart_aspects:
                 aspect_counts[aspect_label] = aspect_counts.get(aspect_label, 0) + 1
 
-        return self._sorted_similarity_matches(aspect_counts, chart_count)
+        return self._sorted_similarity_matches(
+            aspect_counts,
+            chart_count,
+            total_counts_by_label=total_counts_by_label,
+        )
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
@@ -5993,14 +6033,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
+        db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
         db_common_positions = dict(
-            (label, count) for label, count, _total in self._build_common_position_signs(db_chart_ids)
+            (label, count) for label, count, _total in db_common_positions_matches
         )
+        db_common_positions_totals = dict(
+            (label, total) for label, _count, total in db_common_positions_matches
+        )
+        db_common_houses_in_positions_matches = self._build_common_houses_in_positions(db_chart_ids)
         db_common_houses_in_positions = dict(
-            (label, count) for label, count, _total in self._build_common_houses_in_positions(db_chart_ids)
+            (label, count) for label, count, _total in db_common_houses_in_positions_matches
         )
+        db_common_houses_in_positions_totals = dict(
+            (label, total) for label, _count, total in db_common_houses_in_positions_matches
+        )
+        db_common_signs_in_houses_matches = self._build_common_signs_in_houses(db_chart_ids)
         db_common_signs_in_houses = dict(
-            (label, count) for label, count, _total in self._build_common_signs_in_houses(db_chart_ids)
+            (label, count) for label, count, _total in db_common_signs_in_houses_matches
+        )
+        db_common_signs_in_houses_totals = dict(
+            (label, total) for label, _count, total in db_common_signs_in_houses_matches
         )
         db_common_dominant_signs = dict(
             (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
@@ -6008,8 +6060,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         db_common_dominant_nakshatras = dict(
             (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
         )
+        db_common_aspects_matches = self._build_common_aspects(db_chart_ids)
         db_common_aspects = dict(
-            (label, count) for label, count, _total in self._build_common_aspects(db_chart_ids)
+            (label, count) for label, count, _total in db_common_aspects_matches
+        )
+        db_common_aspects_totals = dict(
+            (label, total) for label, _count, total in db_common_aspects_matches
         )
         self._similarities_export_sections = [
             (
@@ -6020,7 +6076,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_positions.get(label, 0)),
-                        db_total_count,
+                        int(db_common_positions_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_positions
                 ],
@@ -6033,7 +6089,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_houses_in_positions.get(label, 0)),
-                        db_total_count,
+                        int(db_common_houses_in_positions_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_houses_in_positions
                 ],
@@ -6046,7 +6102,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_signs_in_houses.get(label, 0)),
-                        db_total_count,
+                        int(db_common_signs_in_houses_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_signs_in_houses
                 ],
@@ -6085,7 +6141,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_aspects.get(label, 0)),
-                        db_total_count,
+                        int(db_common_aspects_totals.get(label, db_total_count)),
                     )
                     for label, match_count, total_count in common_aspects
                 ],
@@ -6114,27 +6170,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_positions_list,
             self.similarities_common_positions_toggle,
             common_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_positions,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_positions_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_houses_in_positions_list,
             self.similarities_houses_in_positions_toggle,
             common_houses_in_positions,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_houses_in_positions,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_houses_in_positions_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_signs_in_houses_list,
             self.similarities_signs_in_houses_toggle,
             common_signs_in_houses,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_signs_in_houses,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_signs_in_houses_totals,
         )
         self._set_similarities_section_matches(
             self.similarities_dominant_signs_list,
             self.similarities_dominant_signs_toggle,
             common_dominant_signs,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_signs,
             db_total_count=db_total_count,
         )
@@ -6142,6 +6205,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_dominant_nakshatras_list,
             self.similarities_dominant_nakshatras_toggle,
             common_dominant_nakshatras,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_nakshatras,
             db_total_count=db_total_count,
         )
@@ -6149,8 +6213,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_common_aspects_list,
             self.similarities_common_aspects_toggle,
             common_aspects,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_aspects,
             db_total_count=db_total_count,
+            db_total_counts_by_label=db_common_aspects_totals,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
@@ -9702,9 +9768,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         profile_time = QTime(profile_data["birth_hour"], profile_data["birth_minute"])
         parent.time_edit.setTime(profile_time)
         parent.retcon_time_edit.setTime(profile_time)
-        parent.comments_edit.setPlainText(
-            f"Astrotheme profile: {profile_data['profile_url']}"
-        )
+        parent.source_edit.setPlainText(profile_data["profile_url"])
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
 
@@ -9720,7 +9784,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart, place, _, _ = chart_result
         chart.source = SOURCE_PUBLIC_DB
         chart.relationship_types = ["public figure"]
-        chart.comments = f"Astrotheme profile: {profile_data['profile_url']}"
+        chart.chart_data_source = profile_data["profile_url"]
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
@@ -14792,9 +14856,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Visibility",
+            "Visibility", #should use header format: bold & copper
         )
-        visibility_section.addWidget(QLabel("Chart Data Panel (Chart View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -14810,7 +14874,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
-        visibility_section.addWidget(QLabel("Synastry Charts (Popout Charts)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
         synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
@@ -14819,7 +14883,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
-        visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self.parent()
@@ -14849,7 +14913,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(anagrams_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)"))
+        visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
         species_distribution_checkbox = QCheckBox("Show Species Distribution")
         species_distribution_checkbox.setChecked(
@@ -14863,7 +14927,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
-        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
+        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
         size_checker_button = QPushButton("Toggle Size Checker")
@@ -14889,7 +14953,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dev_tools_section.addWidget(calibrate_similarity_button)
 
         similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
-        similarity_thresholds_label.setStyleSheet("font-weight: 700;")
+        similarity_thresholds_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
         dev_tools_section.addWidget(similarity_thresholds_label)
         dev_tools_section.addWidget(
             QLabel(
@@ -14927,7 +14991,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_button_row.addStretch(1)
         dev_tools_section.addLayout(thresholds_button_row)
 
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
         self._dev_user_age_label = QLabel("User Age: unavailable")
@@ -14935,7 +14999,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_tools_section.addWidget(self._dev_user_age_label)
 
         age_predictor_header = QLabel("Age Distribution Predictor")
-        age_predictor_header.setStyleSheet("font-weight: 700;")
+        age_predictor_header.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
         age_tools_section.addWidget(age_predictor_header)
 
         refresh_predictor_button = QPushButton("Refresh Age Predictor")
@@ -14959,7 +15023,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._refresh_dev_age_predictor()
 
-        reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
+        reset_section = self._add_settings_collapsible_section(content_layout, "Reset") #should use header format: bold & copper
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
 
         reset_interface_button = QPushButton("Reset interface to default")
@@ -15117,7 +15181,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             toggle,
             title=title,
             expanded=True,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
         )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         container_layout.addWidget(toggle)
@@ -15139,6 +15203,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container.setMinimumWidth(320)
         parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
         return section_content_layout
+
+    def _build_settings_subheader_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        return label
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
@@ -16012,8 +16081,16 @@ class MainWindow(QMainWindow):
         self.chart_comments_toggle_button.clicked.connect(
             lambda: self._set_chart_info_panel_mode("comments")
         )
+        self.chart_source_toggle_button = QPushButton("Source")
+        self.chart_source_toggle_button.setCheckable(True)
+        self.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.chart_source_toggle_button.setMinimumHeight(24)
+        self.chart_source_toggle_button.clicked.connect(
+            lambda: self._set_chart_info_panel_mode("source")
+        )
         chart_info_header_layout.addWidget(self.chart_info_toggle_button, 0)
         chart_info_header_layout.addWidget(self.chart_comments_toggle_button, 0)
+        chart_info_header_layout.addWidget(self.chart_source_toggle_button, 0)
         chart_info_header_layout.addStretch(1)
         chart_panel_layout.addWidget(chart_info_header, 0)
 
@@ -16399,6 +16476,11 @@ class MainWindow(QMainWindow):
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
+        self.source_edit = QTextEdit()
+        self.source_edit.setPlaceholderText("Source")
+        self.source_edit.textChanged.connect(self._mark_lucygoosey)
+        self.source_edit.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.source_edit)
         self._chart_info_panel_mode = "comments"
         self._set_chart_info_panel_mode("comments")
 
@@ -18617,17 +18699,19 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments"}:
+        if mode not in {"chart_info", "comments", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
-            self.chart_info_content_stack.setCurrentIndex(0 if mode == "chart_info" else 1)
+            mode_to_index = {"chart_info": 0, "comments": 1, "source": 2}
+            self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()
 
     def _refresh_chart_info_panel_toggle_buttons(self) -> None:
         active_mode = getattr(self, "_chart_info_panel_mode", "comments")
         chart_info_active = active_mode == "chart_info"
         comments_active = active_mode == "comments"
+        source_active = active_mode == "source"
         active_style = (
             "QPushButton { font-weight: 700; padding: 2px 8px; }"
             "QPushButton:checked { background-color: #2f3a5a; border: 1px solid #6f7fb4; }"
@@ -18646,6 +18730,13 @@ class MainWindow(QMainWindow):
             self.chart_comments_toggle_button.blockSignals(False)
             self.chart_comments_toggle_button.setStyleSheet(
                 active_style if comments_active else inactive_style
+            )
+        if hasattr(self, "chart_source_toggle_button"):
+            self.chart_source_toggle_button.blockSignals(True)
+            self.chart_source_toggle_button.setChecked(source_active)
+            self.chart_source_toggle_button.blockSignals(False)
+            self.chart_source_toggle_button.setStyleSheet(
+                active_style if source_active else inactive_style
             )
 
     def _export_chart_data_output(self) -> None:
@@ -19631,6 +19722,7 @@ class MainWindow(QMainWindow):
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = parse_tag_text(self.chart_tags_input.text())
         placeholder.comments = self.comments_edit.toPlainText().strip()
+        placeholder.chart_data_source = self.source_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
@@ -19765,6 +19857,8 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        if hasattr(chart, "chart_data_source"):
+            chart.chart_data_source = self.source_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
@@ -19969,6 +20063,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
                 chart.comments = self.comments_edit.toPlainText().strip()
+                chart.chart_data_source = self.source_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
@@ -20167,6 +20262,7 @@ class MainWindow(QMainWindow):
         self._set_relationship_type_selection([])
         self.chart_tags_input.clear()
         self.comments_edit.clear()
+        self.source_edit.clear()
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
         self.time_edit.setTime(QTime(12, 0))
         self.time_unknown_checkbox.setChecked(False)
@@ -20439,6 +20535,7 @@ class MainWindow(QMainWindow):
             ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
         )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
+        self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
             getattr(chart, "positive_sentiment_intensity", 1) or 1
         )
