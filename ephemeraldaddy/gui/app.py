@@ -594,6 +594,8 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
+    SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
+    SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -14856,7 +14858,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Visibility", #should use header format: bold & copper
         )
-        visibility_section.addWidget(QLabel("Chart Data Panel (Chart View)")) #should use bold format
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -14872,7 +14874,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
-        visibility_section.addWidget(QLabel("Synastry Charts (Popout Charts)")) #should use bold format
+        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
         synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
@@ -14881,7 +14883,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
-        visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)")) #should use bold format
+        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self.parent()
@@ -14911,7 +14913,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(anagrams_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)")) #should use bold formatting
+        visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
         species_distribution_checkbox = QCheckBox("Show Species Distribution")
         species_distribution_checkbox.setChecked(
@@ -14951,7 +14953,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dev_tools_section.addWidget(calibrate_similarity_button)
 
         similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
-        similarity_thresholds_label.setStyleSheet("font-weight: 700;")
+        similarity_thresholds_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
         dev_tools_section.addWidget(similarity_thresholds_label)
         dev_tools_section.addWidget(
             QLabel(
@@ -14997,7 +14999,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_tools_section.addWidget(self._dev_user_age_label)
 
         age_predictor_header = QLabel("Age Distribution Predictor")
-        age_predictor_header.setStyleSheet("font-weight: 700;")
+        age_predictor_header.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
         age_tools_section.addWidget(age_predictor_header)
 
         refresh_predictor_button = QPushButton("Refresh Age Predictor")
@@ -15179,7 +15181,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             toggle,
             title=title,
             expanded=True,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+            style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
         )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         container_layout.addWidget(toggle)
@@ -15201,6 +15203,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container.setMinimumWidth(320)
         parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
         return section_content_layout
+
+    def _build_settings_subheader_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        return label
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
