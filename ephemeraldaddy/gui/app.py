@@ -160,8 +160,11 @@ class _StartupLoadingWidget(QWidget):
         layout.setSpacing(6)
         self.setLayout(layout)
 
-        title = QLabel("Starting EphemeralDaddy…")
+        from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
+
+        title = QLabel("Ephemeral Daddy will be with you shortly…")
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(title)
 
         self._status_label = QLabel("Preparing startup…")
@@ -458,6 +461,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
     build_human_design_result,
     build_human_design_chart_data_output,
+    get_active_human_design_gates_and_lines,
 )
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
@@ -11397,6 +11401,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_open_bazi_window(self) -> None:
         self._run_main_window_chart_action("open_bazi_window")
 
+    def _on_menu_get_human_design_info(self) -> None:
+        self._run_main_window_chart_action("get_human_design_info")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -17846,6 +17853,9 @@ class MainWindow(QMainWindow):
             self._export_chart(chart)
         elif action_name == "open_bazi_window":
             self._open_bazi_window(chart)
+        elif action_name == "get_human_design_info":
+            self._latest_chart = chart
+            self.on_get_human_design_info()
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
