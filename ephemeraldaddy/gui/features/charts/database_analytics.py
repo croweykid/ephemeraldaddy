@@ -546,12 +546,13 @@ class DatabaseAnalyticsChartsMixin:
         database_sign_counts: dict[str, float],
         loaded_charts: int,
         bar_height: float = 0.6,
+        sign_labels: list[str] | None = None,
     ) -> FigureCanvas:
         dominant_figure = Figure(figsize=(4.8, 5.8))
         dominant_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         dominant_ax = dominant_figure.add_subplot(111)
         dominant_ax.set_facecolor(CHART_THEME_COLORS["background"])
-        sign_labels = list(ZODIAC_NAMES)
+        sign_labels = list(sign_labels or ZODIAC_NAMES)
         sign_display_labels = [
             self._format_selection_database_count_label(
                 sign,
@@ -667,12 +668,13 @@ class DatabaseAnalyticsChartsMixin:
         database_planet_counts: dict[str, float],
         loaded_charts: int,
         bar_height: float = 0.6,
+        labels: list[str] | None = None,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 5.8))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
-        labels = list(selection_planets.keys())
+        labels = list(labels or selection_planets.keys())
         display_labels = [
             self._format_selection_database_count_label(
                 label,
@@ -749,6 +751,7 @@ class DatabaseAnalyticsChartsMixin:
         database_house_counts: dict[str, float],
         loaded_charts: int,
         bar_height: float = 0.6,
+        labels: list[str] | None = None,
     ) -> FigureCanvas:
         return self._build_dominant_planet_chart(
             selection_planets=selection_houses,
@@ -757,6 +760,7 @@ class DatabaseAnalyticsChartsMixin:
             database_planet_counts=database_house_counts,
             loaded_charts=loaded_charts,
             bar_height=bar_height,
+            labels=labels,
         )
 
     def _build_gender_distribution_chart(
