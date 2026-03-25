@@ -140,6 +140,9 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 - If both `venv` and `.venv` exist, delete one and keep only `venv`; then reinstall deps and rebuild from that shell.
 - If the packaged app shows `ModuleNotFoundError: No module named 'PySide6'`, the EXE was built from an environment that did not have Qt deps available to PyInstaller. Recreate the venv, reinstall `requirements.txt`, then rebuild from that same activated shell.
 - If this error appears **only after installing with Inno Setup**, your installer likely shipped only `EphemeralDaddy.exe` from a **folder build**. For folder builds, you must include `dist\EphemeralDaddy\*` recursively so bundled Qt files (including `_internal/.../PySide6`) are installed.
+- If you see `Failed to load Python DLL ...\\_internal\\python311.dll`, your EXE was separated from its `_internal` folder. Rebuild, then:
+  - for folder build: install `dist\EphemeralDaddy\*` recursively (not just the EXE),
+  - for one-file build: install only `dist\EphemeralDaddy.exe`.
 - If build fails with `FileNotFoundError: [WinError 206] The filename or extension is too long`, upgrade to the latest repo version and rebuild; the helper now uses a `.spec` workflow to avoid long PyInstaller command lines.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.
