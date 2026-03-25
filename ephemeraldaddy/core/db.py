@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import csv
 import shutil
 import sqlite3
 from datetime import datetime
@@ -34,6 +35,61 @@ SOURCE_EVENT = CHART_TYPE_EVENT
 SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
 SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
 SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
+
+CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
+    "id",
+    "name",
+    "datetime_iso",
+    "lat",
+    "lon",
+    "created_at",
+    "chart_type",
+    "source",
+    "birth_month",
+    "birth_day",
+    "birth_year",
+    "is_current",
+}
+
+CHART_EXPORT_HIDDEN_COLUMNS: set[str] = {
+    "is_current",
+}
+
+CHART_EXPORT_LABEL_OVERRIDES: dict[str, str] = {
+    "chart_type": "Category",
+}
+
+CHART_EXPORT_DEFAULTS: dict[str, Any] = {
+    "alias": "",
+    "gender": "",
+    "birth_place": "",
+    "tz_name": "",
+    "used_utc_fallback": 0,
+    "sentiments": "",
+    "relationship_types": "",
+    "tags": "",
+    "comments": "",
+    "positive_sentiment_intensity": 0,
+    "negative_sentiment_intensity": 0,
+    "familiarity": 0,
+    "alignment_score": 0,
+    "familiarity_factors": "",
+    "age_when_first_met": 0,
+    "year_first_encountered": None,
+    "social_score": 0,
+    "birthtime_unknown": 0,
+    "retcon_time_used": 0,
+    "retcon_hour": None,
+    "retcon_minute": None,
+    "dominant_sign_weights": "",
+    "dominant_planet_weights": "",
+    "is_placeholder": 0,
+    "is_deceased": 0,
+    "birth_month": 0,
+    "birth_day": 0,
+    "birth_year": 0,
+    "is_current": 0,
+}
 
 
 def normalize_chart_type(value: Optional[str]) -> str:
@@ -1090,6 +1146,136 @@ def parse_familiarity_factors(value: Optional[str]) -> list[str]:
 def get_db_path() -> Path:
     """Return the path to the database file."""
     return DB_PATH
+
+
+def _parse_sqlite_default_value(raw_value: Any) -> Any:
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text:
+        return None
+    if text.startswith("'") and text.endswith("'") and len(text) >= 2:
+        return text[1:-1]
+    lowered = text.lower()
+    if lowered == "null":
+        return None
+    if lowered in {"true", "false"}:
+        return 1 if lowered == "true" else 0
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    return text
+
+
+def _resolve_chart_export_reset_value(column: str, pragma_row: Any) -> Any:
+    sentinel = object()
+    configured = CHART_EXPORT_DEFAULTS.get(column, sentinel)
+    if configured is not sentinel:
+        return configured
+    if pragma_row is None:
+        return None
+    not_null = bool(pragma_row[3])
+    parsed_default = _parse_sqlite_default_value(pragma_row[4])
+    if parsed_default is not None:
+        return parsed_default
+    return 0 if not_null else None
+
+
+def list_chart_export_properties() -> list[dict[str, Any]]:
+    """Return chart-table properties that can be selected during custom export."""
+    conn = _get_conn()
+    try:
+        if not _charts_table_exists(conn):
+            return []
+        rows = conn.execute("PRAGMA table_info(charts)").fetchall()
+    finally:
+        conn.close()
+
+    properties: list[dict[str, Any]] = []
+    for row in rows:
+        column_name = str(row[1])
+        if not column_name:
+            continue
+        if column_name in CHART_EXPORT_HIDDEN_COLUMNS:
+            continue
+        label = CHART_EXPORT_LABEL_OVERRIDES.get(
+            column_name,
+            column_name.replace("_", " ").strip().title(),
+        )
+        properties.append(
+            {
+                "column": column_name,
+                "label": label,
+                "locked_for_db": column_name in CHART_DB_EXPORT_LOCKED_COLUMNS,
+            }
+        )
+    return properties
+
+
+def export_database_with_chart_property_selection(
+    destination: Path,
+    included_columns: list[str],
+) -> Path:
+    """
+    Export a DB backup and reset excluded chart properties to app defaults.
+    """
+    destination = Path(destination)
+    selected = {str(column).strip() for column in included_columns if str(column).strip()}
+    backup_database(destination)
+
+    conn = sqlite3.connect(destination)
+    try:
+        if not _charts_table_exists(conn):
+            return destination
+        pragma_rows = conn.execute("PRAGMA table_info(charts)").fetchall()
+        chart_columns = {str(row[1]) for row in pragma_rows}
+        editable_columns = chart_columns - CHART_DB_EXPORT_LOCKED_COLUMNS
+        excluded_columns = sorted(editable_columns - selected)
+        pragma_by_column = {str(row[1]): row for row in pragma_rows}
+        with conn:
+            for column in excluded_columns:
+                reset_value = _resolve_chart_export_reset_value(
+                    column,
+                    pragma_by_column.get(column),
+                )
+                conn.execute(f"UPDATE charts SET {column} = ?", (reset_value,))
+    finally:
+        conn.close()
+    return destination
+
+
+def export_chart_properties_csv(destination: Path, included_columns: list[str]) -> Path:
+    """Export selected chart columns from DB as CSV."""
+    destination = Path(destination)
+    selected = [str(column).strip() for column in included_columns if str(column).strip()]
+    if not selected:
+        raise ValueError("At least one property must be selected for CSV export.")
+
+    conn = _get_conn()
+    try:
+        if not _charts_table_exists(conn):
+            raise ValueError("No charts table found in the active database.")
+        chart_columns = _table_columns(conn, "charts")
+        final_columns = [column for column in selected if column in chart_columns]
+        if not final_columns:
+            raise ValueError("Selected properties are not available in the current database.")
+        quoted_columns = ", ".join([f'"{column}"' for column in final_columns])
+        rows = conn.execute(f"SELECT {quoted_columns} FROM charts ORDER BY id ASC").fetchall()
+    finally:
+        conn.close()
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(final_columns)
+        for row in rows:
+            writer.writerow([row[index] for index in range(len(final_columns))])
+    return destination
 
 
 def backup_database(destination: Optional[Path] = None) -> Path:

@@ -528,6 +528,9 @@ from ephemeraldaddy.gui.features.import_export.pattern import (
 from ephemeraldaddy.gui.features.import_export.builders import (
     build_import_chart as _build_import_chart,
 )
+from ephemeraldaddy.gui.features.import_export.custom_db_export import (
+    open_custom_db_export_dialog,
+)
 
 GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES: frozenset[str] = frozenset(
     {"Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "AS", "MC"}
@@ -13274,6 +13277,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Export complete",
             f"Database backup saved to:\n{file_path}",
         )
+
+    def _on_custom_db_export(self) -> None:
+        open_custom_db_export_dialog(self)
+
     def _on_force_refresh_database_analysis(self) -> None:
         chart_ids: list[int] = []
         for row in self._chart_rows:
@@ -14866,6 +14873,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cleanup_button = QPushButton("Manage sentiments")
         cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
         dev_tools_section.addWidget(cleanup_button)
+
+        custom_db_export_button = QPushButton("Custom DB Export")
+        custom_db_export_button.setToolTip(
+            "Choose which chart properties to include in DB/CSV exports."
+        )
+        custom_db_export_button.clicked.connect(self._on_custom_db_export)
+        dev_tools_section.addWidget(custom_db_export_button)
 
         calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
         calibrate_similarity_button.setToolTip(
