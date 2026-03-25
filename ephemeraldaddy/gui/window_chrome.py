@@ -116,6 +116,19 @@ def _quit_application() -> None:
     if app is not None:
         app.quit()
 
+def configure_splitter_handle_resize_cursor(splitter) -> None:
+    """Ensure splitter handles show the expected directional resize cursor."""
+    from PySide6.QtCore import Qt
+
+    cursor_shape = (
+        Qt.SplitHCursor
+        if splitter.orientation() == Qt.Horizontal
+        else Qt.SplitVCursor
+    )
+    for handle_index in range(1, splitter.count()):
+        handle = splitter.handle(handle_index)
+        if handle is not None:
+            handle.setCursor(cursor_shape)
 
 def configure_application_identity(app: "QApplication") -> None:
     """Set a consistent application identity shown by the OS shell and Qt."""

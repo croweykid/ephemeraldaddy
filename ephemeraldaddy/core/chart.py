@@ -18,10 +18,11 @@ class Chart:
         self.relationship_types = []
         self.tags = []
         self.comments = ""
+        self.chart_data_source = ""
         self.positive_sentiment_intensity = 1
         self.negative_sentiment_intensity = 1
         self.familiarity = 1
-        self.alignment_score = 0
+        self.alignment_score = None
         self.familiarity_factors = []
         self.age_when_first_met = 0
         self.year_first_encountered = None
@@ -89,6 +90,7 @@ class Chart:
             "relationship_types": self.relationship_types,
             "tags": self.tags,
             "comments": self.comments,
+            "chart_data_source": self.chart_data_source,
             "chart_type": self.chart_type,
             "source": self.chart_type,
             "positive_sentiment_intensity": self.positive_sentiment_intensity,

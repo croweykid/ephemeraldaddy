@@ -2655,6 +2655,7 @@ MBTI_ELEMENTS = [
 {"element":"earth","E":2.5,"S":7.5,"F":5,"P":0},
 ]
 
+#this should be moved to the analysis/human design file
 AWARENESS_STREAMS = [
 {"name":"sensing","type":"ajna","gates":[64,47,11,56]},
 {"name":"knowing","type":"ajna","gates":[61,24,43,23]},
