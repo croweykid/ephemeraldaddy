@@ -2220,41 +2220,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Ketu": equal_norms,
         }
 
-    def _update_dominant_factors_subheader(self) -> None:
+    def _update_dominant_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
         subheader = getattr(self, "dominant_factors_subheader", None)
         if subheader is None:
             return
+        scope_label = "selection" if use_selection_scope else "database"
         label_by_mode = {
-            "top3_signs": "Top 3 dominant signs in database",
-            "top3_planets": "Top 3 dominant bodies in database",
-            "top3_houses": "Top 3 dominant houses in database",
+            "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
+            "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
+            "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
         }
         subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
 
-    def _update_cumulativedom_factors_subheader(self) -> None:
+    def _update_cumulativedom_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
         subheader = getattr(self, "cumulativedom_factors_subheader", None)
         if subheader is None:
             return
+        scope_label = "selection" if use_selection_scope else "database"
         label_by_mode = {
-            "cumulative_signs": "Dominant signs in database (by cumulative weight)",
-            "cumulative_planets": "Dominant bodies in database (by cumulative weight)",
-            "cumulative_houses": "Dominant houses in database (by cumulative weight)",
+            "cumulative_signs": f"Cumulative weight of signs across all charts in {scope_label}",
+            "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
+            "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
         }
         subheader.setText(
             label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulative_signs"])
-        )
-
-    def _update_cumulativedom_factors_subheader(self) -> None:
-        subheader = getattr(self, "cumulativedom_factors_subheader", None)
-        if subheader is None:
-            return
-        label_by_mode = {
-            "cumulativedom_signs": "Least dominant signs in database (by weight)",
-            "cumulativedom_planets": "Least dominant bodies in database (by weight)",
-            "cumulativedom_houses": "Least dominant houses in database (by weight)",
-        }
-        subheader.setText(
-            label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulativedom_signs"])
         )
 
     def _update_prevalence_subheader(self) -> None:
@@ -2430,7 +2419,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_similarities=False,
                 sections_to_refresh={chart_key},
             )
-            self._update_dominant_factors_subheader()
+            self._update_dominant_factors_subheader(
+                use_selection_scope=self.list_widget is not None and len(self.list_widget.selectedItems()) > 0
+            )
             return
 
         if chart_key == "cumulativedom_factors":
@@ -2498,13 +2489,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_cumulativedom_factors_mode, str):
             self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
-
-        stored_cumulativedom_factors_mode = self._settings.value(
-            "manage_charts/cumulativedom_factors_mode",
-            self._cumulativedom_factors_mode,
-        )
-        if isinstance(stored_cumulativedom_factors_mode, str):
-            self._cumulativedom_factors_mode = stored_cumulativedom_factors_mode
 
         stored_species_mode = self._settings.value(
             "manage_charts/species_distribution_mode",
@@ -3074,7 +3058,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("Top 3 dominant signs in database")
+        self.dominant_factors_subheader = add_database_subheader("top 3 dominant signs for charts in database")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -6821,7 +6805,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["sign_total_count"] += direction * float(snapshot.get("sign_total_count", 0.0))
         totals["dominant_sign_total_weight"] += direction * float(snapshot.get("dominant_sign_total_weight", 0.0))
         totals["dominant_planet_total_weight"] += direction * float(snapshot.get("dominant_planet_total_weight", 0.0))
+        totals["dominant_planet_weight_total_weight"] += direction * float(
+            snapshot.get("dominant_planet_weight_total_weight", 0.0)
+        )
         totals["dominant_house_total_weight"] += direction * float(snapshot.get("dominant_house_total_weight", 0.0))
+        totals["dominant_house_weight_total_weight"] += direction * float(
+            snapshot.get("dominant_house_weight_total_weight", 0.0)
+        )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
@@ -6840,11 +6830,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         for body in totals["dominant_planet_totals"]:
             totals["dominant_planet_totals"][body] += direction * float(snapshot["dominant_planet_totals"].get(body, 0.0))
+            totals["dominant_planet_weight_totals"][body] += direction * float(
+                snapshot["dominant_planet_weight_totals"].get(body, 0.0)
+            )
         for house_num in range(1, 13):
             totals["house_prevalence_totals"][house_num] += direction * float(
                 snapshot["house_prevalence_totals"].get(house_num, 0.0)
             )
             totals["dominant_house_totals"][house_num] += direction * float(snapshot["dominant_house_totals"].get(house_num, 0.0))
+            totals["dominant_house_weight_totals"][house_num] += direction * float(
+                snapshot["dominant_house_weight_totals"].get(house_num, 0.0)
+            )
         totals["house_prevalence_total_count"] += direction * float(
             snapshot.get("house_prevalence_total_count", 0.0)
         )
@@ -7318,6 +7314,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if update_database_metrics:
             loaded_charts = int(selection_cache["loaded_charts"])
             database_loaded_charts = int(database_cache["loaded_charts"])
+            self._update_dominant_factors_subheader(use_selection_scope=loaded_charts > 0)
+            self._update_cumulativedom_factors_subheader(use_selection_scope=loaded_charts > 0)
             sentiment_loaded_charts = int(sentiment_selection_cache["loaded_charts"])
             sentiment_database_loaded_charts = int(
                 sentiment_database_cache["loaded_charts"]
