@@ -70,8 +70,8 @@ run_ephemeraldaddy_windows.cmd
 ```
 
 What it does:
-- Reuses a persistent `.venv` in the repo (does **not** delete/recreate on each run).
-- Creates `.venv` with Python 3.11 only if missing.
+- Reuses an existing repo-local `\.venv` **or** `\venv` if either exists (does **not** delete/recreate on each run).
+- Creates `.venv` with Python 3.11 only if neither environment exists.
 - Installs dependencies only when the venv is first created.
 - Launches the bootstrap entrypoint (`python -m ephemeraldaddy.gui.bootstrap`).
 - Writes a startup log to `.logs/startup-YYYYMMDD-HHMMSS.log` so silent startup failures are inspectable.

@@ -10,22 +10,27 @@ set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 cd /d "%ROOT_DIR%"
 
-set "VENV_DIR=%ROOT_DIR%\\.venv"
+set "VENV_DIR="
 set "PYTHON_EXE="
 
-if exist "%VENV_DIR%\\Scripts\\python.exe" (
-    set "PYTHON_EXE=%VENV_DIR%\\Scripts\\python.exe"
+if exist "%ROOT_DIR%\.venv\Scripts\python.exe" (
+    set "VENV_DIR=%ROOT_DIR%\.venv"
+    set "PYTHON_EXE=%ROOT_DIR%\.venv\Scripts\python.exe"
+) else if exist "%ROOT_DIR%\venv\Scripts\python.exe" (
+    set "VENV_DIR=%ROOT_DIR%\venv"
+    set "PYTHON_EXE=%ROOT_DIR%\venv\Scripts\python.exe"
 ) else (
-    echo [EphemeralDaddy] No .venv found. Creating one with py -3.11...
+    set "VENV_DIR=%ROOT_DIR%\.venv"
+    set "PYTHON_EXE=%ROOT_DIR%\.venv\Scripts\python.exe"
+    echo [EphemeralDaddy] No venv found. Creating one with py -3.11 at "%VENV_DIR%"...
     py -3.11 -m venv "%VENV_DIR%"
     if errorlevel 1 (
         echo [EphemeralDaddy] Failed to create venv with py -3.11.
         echo [EphemeralDaddy] Install Python 3.11 and ensure the Python launcher ^(py^) is available.
         exit /b 1
     )
-    set "PYTHON_EXE=%VENV_DIR%\\Scripts\\python.exe"
 
-    echo [EphemeralDaddy] Installing dependencies into .venv...
+    echo [EphemeralDaddy] Installing dependencies into "%VENV_DIR%"...
     "%PYTHON_EXE%" -m pip install --upgrade pip
     if errorlevel 1 exit /b 1
     "%PYTHON_EXE%" -m pip install -r requirements.txt
@@ -34,7 +39,7 @@ if exist "%VENV_DIR%\\Scripts\\python.exe" (
 
 if not exist ".logs" mkdir ".logs"
 for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "STAMP=%%I"
-set "LOG_PATH=%ROOT_DIR%\\.logs\\startup-%STAMP%.log"
+set "LOG_PATH=%ROOT_DIR%\.logs\startup-%STAMP%.log"
 
 echo [EphemeralDaddy] Writing startup log to "%LOG_PATH%"
 
