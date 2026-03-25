@@ -10552,8 +10552,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         chart_ids = [
-            selected_item.data(Qt.UserRole)
-            for selected_item in self.list_widget.selectedItems()
+            int(chart_id)
+            for chart_id in (
+                selected_item.data(Qt.UserRole)
+                for selected_item in self.list_widget.selectedItems()
+            )
+            if isinstance(chart_id, int)
         ]
         if not chart_ids:
             QMessageBox.information(
@@ -10724,7 +10728,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not tag_to_remove:
             return
 
-        chart_ids = [item.data(Qt.UserRole) for item in self.list_widget.selectedItems()]
+        chart_ids = [
+            int(chart_id)
+            for chart_id in (
+                item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+            )
+            if isinstance(chart_id, int)
+        ]
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -10823,7 +10833,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if not selected_chart_ids:
             selected_chart_ids = {
-                item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+                int(chart_id)
+                for chart_id in (
+                    item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+                )
+                if isinstance(chart_id, int)
             }
 
         def _refresh_and_restore_selection() -> None:
@@ -11180,7 +11194,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _on_batch_tags_apply(self) -> None:
-        chart_ids = [item.data(Qt.UserRole) for item in self.list_widget.selectedItems()]
+        chart_ids = [
+            int(chart_id)
+            for chart_id in (
+                item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+            )
+            if isinstance(chart_id, int)
+        ]
         if not chart_ids:
             QMessageBox.information(
                 self,
