@@ -37,6 +37,7 @@ python tools/build_desktop_app.py --onefile --icon ephemeraldaddy/graphics/ephem
 Notes:
 - On Windows, if `--icon` points to PNG, the helper auto-converts it to `.ico` (requires Pillow).
 - Output: `dist/EphemeralDaddy.exe`.
+- The helper now writes `EphemeralDaddy.spec` and runs `python -m PyInstaller EphemeralDaddy.spec` so Windows command length stays short.
 
 ### Folder build (faster startup, easier troubleshooting)
 
@@ -129,5 +130,6 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 - If you see missing imports at runtime, rebuild in a clean venv and ensure step (2) works first.
 - If the packaged app shows `ModuleNotFoundError: No module named 'PySide6'`, the EXE was built from an environment that did not have Qt deps available to PyInstaller. Recreate the venv, reinstall `requirements.txt`, then rebuild from that same activated shell.
 - If this error appears **only after installing with Inno Setup**, your installer likely shipped only `EphemeralDaddy.exe` from a **folder build**. For folder builds, you must include `dist\EphemeralDaddy\*` recursively so bundled Qt files (including `_internal/.../PySide6`) are installed.
+- If build fails with `FileNotFoundError: [WinError 206] The filename or extension is too long`, upgrade to the latest repo version and rebuild; the helper now uses a `.spec` workflow to avoid long PyInstaller command lines.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.
