@@ -870,7 +870,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             after_index = index + phrase_len
             after_ok = after_index >= text_len or not text[after_index].isalnum()
             if before_ok and after_ok:
-                self.setFormat(index, phrase_len, text_format)
+                self.setFormat(
+                    self._qt_index(text, index),
+                    self._qt_len(phrase),
+                    text_format,
+                )
             start = index + phrase_len
 
 def _available_screen_geometry():
