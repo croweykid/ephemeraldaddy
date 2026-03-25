@@ -101,5 +101,6 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 ## Troubleshooting
 
 - If you see missing imports at runtime, rebuild in a clean venv and ensure step (2) works first.
+- If the packaged app shows `ModuleNotFoundError: No module named 'PySide6'`, the EXE was built from an environment that did not have Qt deps available to PyInstaller. Recreate the venv, reinstall `requirements.txt`, then rebuild from that same activated shell.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.
