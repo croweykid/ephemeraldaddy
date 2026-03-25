@@ -459,9 +459,11 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
+    build_human_design_result,
     build_human_design_chart_data_output,
     get_active_human_design_gates_and_lines,
 )
+from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
@@ -20968,8 +20970,8 @@ class MainWindow(QMainWindow):
             if hasattr(entry, "exactness") and hasattr(entry, "weight"):
                 return max(0.0, float(entry.exactness) * float(entry.weight))
             return 0.0
-        active_gate_set, _active_line_set = get_active_human_design_gates_and_lines(self._latest_chart)
-        awareness_stream_entries = build_awareness_stream_completion(active_gate_set)
+        hd_result = build_human_design_result(self._latest_chart)
+        awareness_stream_entries = build_awareness_stream_completion(set(hd_result.active_gates))
 
         chart_info_output = self._build_popout_left_panel(
             layout,
@@ -20994,13 +20996,10 @@ class MainWindow(QMainWindow):
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
-        draw_chart_wheel(
+        draw_human_design_chart(
             figure,
-            self._latest_chart,
-            canvas=canvas,
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
+            hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
         )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()

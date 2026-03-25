@@ -6,25 +6,27 @@ import re
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.hd import get_line
+from ephemeraldaddy.core.human_design_system import (
+    HumanDesignResult,
+    calculate_human_design,
+)
 from ephemeraldaddy.core.interpretations import AWARENESS_STREAMS
-from ephemeraldaddy.gui.features.charts.metrics import chart_uses_houses
 from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
-    use_houses = chart_uses_houses(chart)
-    active_longitudes = [
-        lon
-        for body, lon in (getattr(chart, "positions", {}) or {}).items()
-        if isinstance(lon, (int, float))
-        and (use_houses or body not in {"AS", "MC", "DS", "IC"})
-    ]
-    active_gate_set = {get_line(float(lon))[0] for lon in active_longitudes}
-    active_line_set = {(gate, line) for gate, line in (get_line(float(lon)) for lon in active_longitudes)}
+    hd_result = calculate_human_design(chart)
+    activations = (*hd_result.personality_activations, *hd_result.design_activations)
+    active_gate_set = {activation.gate for activation in activations}
+    active_line_set = {(activation.gate, activation.line) for activation in activations}
     return active_gate_set, active_line_set
+
+
+def build_human_design_result(chart: Chart) -> HumanDesignResult:
+    """Expose full HD computation for UI renderers."""
+    return calculate_human_design(chart)
 
 
 def build_awareness_stream_completion(active_gate_set: set[int]) -> list[dict[str, Any]]:
