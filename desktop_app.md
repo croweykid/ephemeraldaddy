@@ -83,10 +83,17 @@ Name: "{commondesktop}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
 Filename: "{app}\EphemeralDaddy.exe"; Description: "Launch EphemeralDaddy"; Flags: nowait postinstall skipifsilent
 ```
 
-3. Build with Inno Setup Compiler (GUI), or command line:
+3. Build with Inno Setup Compiler (GUI), or command line. **Run this from the repo root** (the same folder that contains `installer.iss` and `dist/`):
 
 ```powershell
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+cd C:\path\to\ephemeraldaddy
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\installer.iss
+```
+
+If you run it from another directory, pass an absolute path to the script instead:
+
+```powershell
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "C:\path\to\ephemeraldaddy\installer.iss"
 ```
 
 4. Distribute the generated file: `dist/EphemeralDaddy-Setup.exe`.
