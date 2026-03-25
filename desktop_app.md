@@ -69,11 +69,11 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 
 [Files]
-; Use ONE of the next two lines depending on your build type:
-; 1) one-file build
-Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
-; 2) folder build
-; Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Use EXACTLY ONE entry below, matching how you built:
+; A) one-file build (`--onefile`)
+; Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
+; B) folder build (default build)
+Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
@@ -127,5 +127,7 @@ Unsigned binaries often trigger Microsoft SmartScreen.
 ## Troubleshooting
 
 - If you see missing imports at runtime, rebuild in a clean venv and ensure step (2) works first.
+- If the packaged app shows `ModuleNotFoundError: No module named 'PySide6'`, the EXE was built from an environment that did not have Qt deps available to PyInstaller. Recreate the venv, reinstall `requirements.txt`, then rebuild from that same activated shell.
+- If this error appears **only after installing with Inno Setup**, your installer likely shipped only `EphemeralDaddy.exe` from a **folder build**. For folder builds, you must include `dist\EphemeralDaddy\*` recursively so bundled Qt files (including `_internal/.../PySide6`) are installed.
 - Use `python tools/build_desktop_app.py --dry-run` to inspect the exact PyInstaller command.
 - If antivirus quarantines one-file EXEs, try folder build first and then sign releases.

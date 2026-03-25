@@ -32,6 +32,13 @@ def _ensure_pyinstaller() -> None:
             "PyInstaller is required. Install build deps with: "
             "python -m pip install pyinstaller pillow"
         ) from exc
+    try:
+        import PySide6  # noqa: F401
+    except Exception as exc:  # pragma: no cover - runtime check
+        raise SystemExit(
+            "PySide6 is required in the build environment. "
+            "Install project deps first with: python -m pip install -r requirements.txt"
+        ) from exc
 
 
 def _normalize_data_tuples(items: Iterable[tuple[str, str]]) -> list[str]:
@@ -107,6 +114,12 @@ def _build_pyinstaller_command(args: argparse.Namespace) -> list[str]:
         APP_NAME,
         "--collect-all",
         "PySide6",
+        "--collect-all",
+        "shiboken6",
+        "--hidden-import",
+        "PySide6",
+        "--hidden-import",
+        "shiboken6",
     ]
 
     if args.onefile:
@@ -161,6 +174,19 @@ def main() -> None:
     else:
         dist_target = REPO_ROOT / "dist" / APP_NAME
     print(f"\nBuild complete. Output in: {dist_target}")
+    if os.name == "nt":
+        if args.onefile:
+            print(
+                "[build] Inno Setup [Files] entry for this build:\n"
+                f'        Source: "dist\\{APP_NAME}.exe"; DestDir: "{{app}}"; Flags: ignoreversion'
+            )
+        else:
+            print(
+                "[build] Inno Setup [Files] entry for this build (required for Qt deps):\n"
+                f'        Source: "dist\\{APP_NAME}\\*"; DestDir: "{{app}}"; '
+                "Flags: ignoreversion recursesubdirs createallsubdirs\n"
+                "        (Do NOT ship only dist\\EphemeralDaddy.exe for folder builds.)"
+            )
 
 
 if __name__ == "__main__":
