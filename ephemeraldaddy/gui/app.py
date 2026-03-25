@@ -548,7 +548,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "alignment_summary",
         "sign_prevalence",
         "dominant_signs",
-        "subordinant_factors",
+        "cumulativedom_factors",
         "species_distribution",
         "birth_time",
         "age",
@@ -1528,7 +1528,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
-        self._subordinant_factors_mode = "cumulative_signs"
+        self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_ranked"
         self._birth_time_mode = "mean"
         self._age_mode = "age_distribution"
@@ -1879,7 +1879,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "planetary_sign_prevalence": self._sign_distribution_mode,
             "sign_prevalence": self._prevalence_mode,
             "dominant_signs": self._dominant_factors_mode,
-            "subordinant_factors": self._subordinant_factors_mode,
+            "cumulativedom_factors": self._cumulativedom_factors_mode,
             "species_distribution": self._species_distribution_mode,
             "birth_time": self._birth_time_mode,
             "age": self._age_mode,
@@ -2096,7 +2096,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "alignment_summary",
             "sign_prevalence",
             "dominant_signs",
-            "subordinant_factors",
+            "cumulativedom_factors",
             "species_distribution",
             "birth_time",
             "age",
@@ -2231,8 +2231,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
 
-    def _update_subordinant_factors_subheader(self) -> None:
-        subheader = getattr(self, "subordinant_factors_subheader", None)
+    def _update_cumulativedom_factors_subheader(self) -> None:
+        subheader = getattr(self, "cumulativedom_factors_subheader", None)
         if subheader is None:
             return
         label_by_mode = {
@@ -2241,20 +2241,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "cumulative_houses": "Dominant houses in database (by cumulative weight)",
         }
         subheader.setText(
-            label_by_mode.get(self._subordinant_factors_mode, label_by_mode["cumulative_signs"])
+            label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulative_signs"])
         )
 
-    def _update_subordinant_factors_subheader(self) -> None:
-        subheader = getattr(self, "subordinant_factors_subheader", None)
+    def _update_cumulativedom_factors_subheader(self) -> None:
+        subheader = getattr(self, "cumulativedom_factors_subheader", None)
         if subheader is None:
             return
         label_by_mode = {
-            "subordinant_signs": "Least dominant signs in database (by weight)",
-            "subordinant_planets": "Least dominant bodies in database (by weight)",
-            "subordinant_houses": "Least dominant houses in database (by weight)",
+            "cumulativedom_signs": "Least dominant signs in database (by weight)",
+            "cumulativedom_planets": "Least dominant bodies in database (by weight)",
+            "cumulativedom_houses": "Least dominant houses in database (by weight)",
         }
         subheader.setText(
-            label_by_mode.get(self._subordinant_factors_mode, label_by_mode["subordinant_signs"])
+            label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulativedom_signs"])
         )
 
     def _update_prevalence_subheader(self) -> None:
@@ -2433,22 +2433,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_dominant_factors_subheader()
             return
 
-        if chart_key == "subordinant_factors":
+        if chart_key == "cumulativedom_factors":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
                 selected_mode = dropdown.currentData()
                 if isinstance(selected_mode, str):
-                    self._subordinant_factors_mode = selected_mode
+                    self._cumulativedom_factors_mode = selected_mode
                     self._settings.setValue(
-                        "manage_charts/subordinant_factors_mode",
-                        self._subordinant_factors_mode,
+                        "manage_charts/cumulativedom_factors_mode",
+                        self._cumulativedom_factors_mode,
                     )
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
                 sections_to_refresh={chart_key},
             )
-            self._update_subordinant_factors_subheader()
+            self._update_cumulativedom_factors_subheader()
 
     def _restore_manage_charts_preferences(self) -> None:
         stored_sort_mode = self._settings.value("manage_charts/sort_mode", "alpha")
@@ -2492,19 +2492,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(stored_dominant_factors_mode, str):
             self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
 
-        stored_subordinant_factors_mode = self._settings.value(
-            "manage_charts/subordinant_factors_mode",
-            self._subordinant_factors_mode,
+        stored_cumulativedom_factors_mode = self._settings.value(
+            "manage_charts/cumulativedom_factors_mode",
+            self._cumulativedom_factors_mode,
         )
-        if isinstance(stored_subordinant_factors_mode, str):
-            self._subordinant_factors_mode = {"subordinant_signs":"cumulative_signs","subordinant_planets":"cumulative_planets","subordinant_houses":"cumulative_houses"}.get(stored_subordinant_factors_mode, stored_subordinant_factors_mode)
+        if isinstance(stored_cumulativedom_factors_mode, str):
+            self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
 
-        stored_subordinant_factors_mode = self._settings.value(
-            "manage_charts/subordinant_factors_mode",
-            self._subordinant_factors_mode,
+        stored_cumulativedom_factors_mode = self._settings.value(
+            "manage_charts/cumulativedom_factors_mode",
+            self._cumulativedom_factors_mode,
         )
-        if isinstance(stored_subordinant_factors_mode, str):
-            self._subordinant_factors_mode = stored_subordinant_factors_mode
+        if isinstance(stored_cumulativedom_factors_mode, str):
+            self._cumulativedom_factors_mode = stored_cumulativedom_factors_mode
 
         stored_species_mode = self._settings.value(
             "manage_charts/species_distribution_mode",
@@ -3087,24 +3087,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         dominant_sign_section_layout.addWidget(self.dominant_sign_chart_container)
 
-        #SUBORDINANT FACTORS SECTION
-        subordinant_sign_section_layout = self._add_left_panel_collapsible_section(
+        #cumulativedom FACTORS SECTION
+        cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
             "Dominant Factors (cumulative weight)",
-            section_key="subordinant_factors",
-            expanded=self._is_database_metrics_section_expanded("subordinant_factors"),
+            section_key="cumulativedom_factors",
+            expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "subordinant_factors",
+                "cumulativedom_factors",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["subordinant_factors"] = self._is_database_metrics_section_expanded("subordinant_factors")
+        self._database_metrics_section_expanded["cumulativedom_factors"] = self._is_database_metrics_section_expanded("cumulativedom_factors")
         self._create_analysis_chart_header(
-            subordinant_sign_section_layout,
+            cumulativedom_sign_section_layout,
             "Dominant Factors (cumulative weight)",
-            "subordinant_factors",
-            "subordinant_factors",
+            "cumulativedom_factors",
+            "cumulativedom_factors",
             dropdown_options=[
                 ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
                 ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
@@ -3112,19 +3112,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.subordinant_factors_subheader = add_database_subheader(
+        self.cumulativedom_factors_subheader = add_database_subheader(
             "Dominant signs in database (by cumulative weight)"
         )
-        subordinant_sign_section_layout.addWidget(self.subordinant_factors_subheader)
-        self._update_subordinant_factors_subheader()
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_factors_subheader)
+        self._update_cumulativedom_factors_subheader()
         (
-            self.subordinant_sign_chart_container,
-            self.subordinant_sign_chart_layout,
+            self.cumulativedom_sign_chart_container,
+            self.cumulativedom_sign_chart_layout,
         ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["subordinant_factors"] = (
-            self.subordinant_sign_chart_layout
+        self._database_metrics_chart_layouts["cumulativedom_factors"] = (
+            self.cumulativedom_sign_chart_layout
         )
-        subordinant_sign_section_layout.addWidget(self.subordinant_sign_chart_container)
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
 
         #SPECIES DISTRIBUTION SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
@@ -8018,10 +8018,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
 
-            if _should_refresh_database_metric_section("subordinant_factors"):
-                subordinant_mode = self._subordinant_factors_mode
-                if subordinant_mode == "cumulative_planets":
-                    subordinant_sign_canvas = self._build_dominant_planet_chart(
+            if _should_refresh_database_metric_section("cumulativedom_factors"):
+                cumulativedom_mode = self._cumulativedom_factors_mode
+                if cumulativedom_mode == "cumulative_planets":
+                    cumulativedom_sign_canvas = self._build_dominant_planet_chart(
                         selection_planets=selection_dominant_planets,
                         database_planets=database_dominant_planets,
                         selection_planet_counts=selection_cache["dominant_planet_weight_totals"],
@@ -8029,7 +8029,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         labels=cumulative_planet_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_planet_labels,
                         selection_values=[selection_dominant_planets[label] for label in cumulative_planet_labels],
                         database_values=[database_dominant_planets[label] for label in cumulative_planet_labels],
@@ -8037,8 +8037,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif subordinant_mode == "cumulative_houses":
-                    subordinant_sign_canvas = self._build_dominant_house_chart(
+                elif cumulativedom_mode == "cumulative_houses":
+                    cumulativedom_sign_canvas = self._build_dominant_house_chart(
                         selection_houses=selection_dominant_houses,
                         database_houses=database_dominant_houses,
                         selection_house_counts={str(num): selection_cache["dominant_house_weight_totals"][num] for num in range(1, 13)},
@@ -8046,7 +8046,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         labels=cumulative_house_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_house_labels,
                         selection_values=[selection_dominant_houses[label] for label in cumulative_house_labels],
                         database_values=[database_dominant_houses[label] for label in cumulative_house_labels],
@@ -8055,7 +8055,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
                 else:
-                    subordinant_sign_canvas = self._build_dominant_sign_chart(
+                    cumulativedom_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
                         database_signs=database_dominant_signs,
                         selection_sign_counts=selection_cache["dominant_sign_totals"],
@@ -8063,7 +8063,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         sign_labels=cumulative_sign_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_sign_labels,
                         selection_values=[selection_dominant_signs[sign] for sign in cumulative_sign_labels],
                         database_values=[database_dominant_signs[sign] for sign in cumulative_sign_labels],
@@ -8071,16 +8071,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[database_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         loaded_charts=loaded_charts,
                     )
-                self._clear_layout(self.subordinant_sign_chart_layout)
-                self.subordinant_sign_chart_layout.addWidget(
-                    subordinant_sign_canvas,
+                self._clear_layout(self.cumulativedom_sign_chart_layout)
+                self.cumulativedom_sign_chart_layout.addWidget(
+                    cumulativedom_sign_canvas,
                     0,
                     Qt.AlignHCenter,
                 )
-            if not _should_refresh_database_metric_section("subordinant_factors"):
-                subordinant_mode = self._subordinant_factors_mode
-                if subordinant_mode == "cumulative_planets":
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+            if not _should_refresh_database_metric_section("cumulativedom_factors"):
+                cumulativedom_mode = self._cumulativedom_factors_mode
+                if cumulativedom_mode == "cumulative_planets":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_planet_labels,
                         selection_values=[selection_dominant_planets[label] for label in cumulative_planet_labels],
                         database_values=[database_dominant_planets[label] for label in cumulative_planet_labels],
@@ -8088,8 +8088,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif subordinant_mode == "cumulative_houses":
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+                elif cumulativedom_mode == "cumulative_houses":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_house_labels,
                         selection_values=[selection_dominant_houses[label] for label in cumulative_house_labels],
                         database_values=[database_dominant_houses[label] for label in cumulative_house_labels],
@@ -8098,7 +8098,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
                 else:
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_sign_labels,
                         selection_values=[selection_dominant_signs[sign] for sign in cumulative_sign_labels],
                         database_values=[database_dominant_signs[sign] for sign in cumulative_sign_labels],
