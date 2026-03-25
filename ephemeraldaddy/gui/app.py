@@ -5399,13 +5399,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addStretch(1)
         return panel
 
-    def _selected_chart_ids(self) -> list[int]:
-        selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
-        return [
-            int(item.data(Qt.UserRole))
-            for item in selected_items
-            if item.data(Qt.UserRole) is not None
-        ]
+    def _selected_chart_ids(
+        self,
+        selected_items: list[QListWidgetItem] | None = None,
+    ) -> list[int]:
+        if selected_items is None:
+            selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
+        chart_ids: list[int] = []
+        for item in selected_items:
+            raw_chart_id = item.data(Qt.UserRole)
+            if raw_chart_id is None or isinstance(raw_chart_id, bool):
+                continue
+            try:
+                chart_ids.append(int(raw_chart_id))
+            except (TypeError, ValueError):
+                continue
+        return chart_ids
 
     def _refresh_similarities_chart_options(self) -> None:
         similarity_rows = [
@@ -7193,7 +7202,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             similarities_scroll_value = similarities_scrollbar.value()
 
         selected_items = self.list_widget.selectedItems()
-        chart_ids = [item.data(Qt.UserRole) for item in selected_items]
+        chart_ids = self._selected_chart_ids(selected_items)
 
         labels = list(SENTIMENT_OPTIONS)
         negative_start = (
@@ -10241,11 +10250,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _update_batch_edit_state(self) -> None:
         selected_items = self.list_widget.selectedItems()
         self._update_batch_edit_action_buttons()
-        selected_chart_ids = [
-            int(chart_id)
-            for chart_id in (item.data(Qt.UserRole) for item in selected_items)
-            if isinstance(chart_id, int)
-        ]
+        selected_chart_ids = self._selected_chart_ids(selected_items)
         chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_metrics = (
             bool(chart_id_set)
@@ -10551,10 +10556,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not tag_value:
             return
 
-        chart_ids = [
-            selected_item.data(Qt.UserRole)
-            for selected_item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -10724,7 +10726,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not tag_to_remove:
             return
 
-        chart_ids = [item.data(Qt.UserRole) for item in self.list_widget.selectedItems()]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -10822,9 +10824,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._schedule_chart_render(self._latest_chart)
 
         if not selected_chart_ids:
-            selected_chart_ids = {
-                item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-            }
+            selected_chart_ids = set(self._selected_chart_ids())
 
         def _refresh_and_restore_selection() -> None:
             if not self.isVisible():
@@ -10886,9 +10886,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -10950,9 +10948,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11047,9 +11043,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return list(getattr(selected_chart, "familiarity_factors", []) or [])
 
     def _open_batch_familiarity_calculator(self) -> None:
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11126,9 +11120,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         metric_label: str,
         value: int | None,
     ) -> None:
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11180,7 +11172,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_metric_lucygoosey_state(field_key, True)
 
     def _on_batch_tags_apply(self) -> None:
-        chart_ids = [item.data(Qt.UserRole) for item in self.list_widget.selectedItems()]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11233,9 +11225,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_batch_alignment_score_label(value)
 
     def _on_batch_alignment_apply(self) -> None:
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11330,9 +11320,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         source = self.batch_source_combo.itemData(index)
         if not source:
             return
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11385,9 +11373,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if gender == "":
             return
         resolved_gender = None if gender == "__blank__" else gender
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11439,9 +11425,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11499,9 +11483,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = self._selected_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -12142,13 +12124,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if collection_id is None:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = {item.data(Qt.UserRole) for item in self.list_widget.selectedItems()}
+        chart_ids = set(self._selected_chart_ids())
         if not chart_ids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
         collection = self._custom_collections[collection_id]
         updated_ids = set(collection.chart_ids)
-        updated_ids.update(int(chart_id) for chart_id in chart_ids)
+        updated_ids.update(chart_ids)
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
@@ -12163,13 +12145,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if collection_id is None:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
-        chart_ids = {item.data(Qt.UserRole) for item in self.list_widget.selectedItems()}
+        chart_ids = set(self._selected_chart_ids())
         if not chart_ids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
         collection = self._custom_collections[collection_id]
         updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
-        updated_ids.difference_update(int(chart_id) for chart_id in chart_ids)
+        updated_ids.difference_update(chart_ids)
         self._custom_collections[collection_id] = CustomCollection(
             collection_id=collection.collection_id,
             name=collection.name,
@@ -12852,7 +12834,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
 
-        chart_ids = [item.data(Qt.UserRole) for item in selected_items]
+        chart_ids = self._selected_chart_ids(selected_items)
 
         try:
             with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
@@ -14598,7 +14580,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        chart_ids = [item.data(Qt.UserRole) for item in selected_items]
+        chart_ids = self._selected_chart_ids(selected_items)
         confirm = QMessageBox.question(
             self,
             "Confirm delete",
