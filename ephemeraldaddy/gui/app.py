@@ -214,6 +214,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_application_identity,
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
+    configure_splitter_handle_resize_cursor,
 )
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
@@ -547,7 +548,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "alignment_summary",
         "sign_prevalence",
         "dominant_signs",
-        "subordinant_factors",
+        "cumulativedom_factors",
         "species_distribution",
         "birth_time",
         "age",
@@ -873,7 +874,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             after_index = index + phrase_len
             after_ok = after_index >= text_len or not text[after_index].isalnum()
             if before_ok and after_ok:
-                self.setFormat(index, phrase_len, text_format)
+                self.setFormat(
+                    self._qt_index(text, index),
+                    self._qt_len(phrase),
+                    text_format,
+                )
             start = index + phrase_len
 
 def _available_screen_geometry():
@@ -1522,8 +1527,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarities_second_use_checkbox: QCheckBox | None = None
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
-        self._dominant_factors_mode = "dominant_signs"
-        self._subordinant_factors_mode = "subordinant_signs"
+        self._dominant_factors_mode = "top3_signs"
+        self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_ranked"
         self._birth_time_mode = "mean"
         self._age_mode = "age_distribution"
@@ -1817,6 +1822,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(0, 0)
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
+        configure_splitter_handle_resize_cursor(self._content_splitter)
         layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -1873,7 +1879,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "planetary_sign_prevalence": self._sign_distribution_mode,
             "sign_prevalence": self._prevalence_mode,
             "dominant_signs": self._dominant_factors_mode,
-            "subordinant_factors": self._subordinant_factors_mode,
+            "cumulativedom_factors": self._cumulativedom_factors_mode,
             "species_distribution": self._species_distribution_mode,
             "birth_time": self._birth_time_mode,
             "age": self._age_mode,
@@ -2090,7 +2096,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "alignment_summary",
             "sign_prevalence",
             "dominant_signs",
-            "subordinant_factors",
+            "cumulativedom_factors",
             "species_distribution",
             "birth_time",
             "age",
@@ -2214,30 +2220,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Ketu": equal_norms,
         }
 
-    def _update_dominant_factors_subheader(self) -> None:
+    def _update_dominant_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
         subheader = getattr(self, "dominant_factors_subheader", None)
         if subheader is None:
             return
+        scope_label = "selection" if use_selection_scope else "database"
         label_by_mode = {
-            "dominant_signs": "Sign Weights in database",
-            "dominant_sign_frequency": "Top 3 Dominant Signs in database",
-            "dominant_planets": "Dominant bodies in database (by weight)",
-            "dominant_houses": "Dominant houses in database (by weight)",
-            "dominant_elements": "Dominant elements in database (by weight)",
+            "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
+            "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
+            "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
         }
-        subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["dominant_signs"]))
+        subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
 
-    def _update_subordinant_factors_subheader(self) -> None:
-        subheader = getattr(self, "subordinant_factors_subheader", None)
+    def _update_cumulativedom_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
+        subheader = getattr(self, "cumulativedom_factors_subheader", None)
         if subheader is None:
             return
+        scope_label = "selection" if use_selection_scope else "database"
         label_by_mode = {
-            "subordinant_signs": "Least dominant signs in database (by weight)",
-            "subordinant_planets": "Least dominant bodies in database (by weight)",
-            "subordinant_houses": "Least dominant houses in database (by weight)",
+            "cumulative_signs": f"Cumulative weight of signs across all charts in {scope_label}",
+            "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
+            "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
         }
         subheader.setText(
-            label_by_mode.get(self._subordinant_factors_mode, label_by_mode["subordinant_signs"])
+            label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulative_signs"])
         )
 
     def _update_prevalence_subheader(self) -> None:
@@ -2413,25 +2419,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_similarities=False,
                 sections_to_refresh={chart_key},
             )
-            self._update_dominant_factors_subheader()
+            self._update_dominant_factors_subheader(
+                use_selection_scope=self.list_widget is not None and len(self.list_widget.selectedItems()) > 0
+            )
             return
 
-        if chart_key == "subordinant_factors":
+        if chart_key == "cumulativedom_factors":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
                 selected_mode = dropdown.currentData()
                 if isinstance(selected_mode, str):
-                    self._subordinant_factors_mode = selected_mode
+                    self._cumulativedom_factors_mode = selected_mode
                     self._settings.setValue(
-                        "manage_charts/subordinant_factors_mode",
-                        self._subordinant_factors_mode,
+                        "manage_charts/cumulativedom_factors_mode",
+                        self._cumulativedom_factors_mode,
                     )
             self._update_sentiment_tally(
                 update_database_metrics=True,
                 update_similarities=False,
                 sections_to_refresh={chart_key},
             )
-            self._update_subordinant_factors_subheader()
+            self._update_cumulativedom_factors_subheader()
 
     def _restore_manage_charts_preferences(self) -> None:
         stored_sort_mode = self._settings.value("manage_charts/sort_mode", "alpha")
@@ -2473,14 +2481,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._dominant_factors_mode,
         )
         if isinstance(stored_dominant_factors_mode, str):
-            self._dominant_factors_mode = stored_dominant_factors_mode
+            self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
 
-        stored_subordinant_factors_mode = self._settings.value(
-            "manage_charts/subordinant_factors_mode",
-            self._subordinant_factors_mode,
+        stored_cumulativedom_factors_mode = self._settings.value(
+            "manage_charts/cumulativedom_factors_mode",
+            self._cumulativedom_factors_mode,
         )
-        if isinstance(stored_subordinant_factors_mode, str):
-            self._subordinant_factors_mode = stored_subordinant_factors_mode
+        if isinstance(stored_cumulativedom_factors_mode, str):
+            self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
 
         stored_species_mode = self._settings.value(
             "manage_charts/species_distribution_mode",
@@ -3028,7 +3036,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dominant_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Dominant Factors",
+            "Dominant Factors (by top 3)",
             section_key="dominant_signs",
             expanded=self._is_database_metrics_section_expanded("dominant_signs"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3040,18 +3048,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Dominant Factors Chart Header
         self._create_analysis_chart_header(
             dominant_sign_section_layout,
-            "Dominant Factors",
+            "Dominant Factors (by top 3)",
             "dominant_signs",
             "dominant_signs",
             dropdown_options=[
-                ("Dominant Signs", "dominant_signs"),
-                ("Dominant Bodies", "dominant_planets"),
-                ("Dominant Houses", "dominant_houses"),
-                ("Dominant Elements", "dominant_elements"),
+                ("Dominant Signs (Top 3)", "top3_signs"),
+                ("Dominant Bodies (Top 3)", "top3_planets"),
+                ("Dominant Houses (Top 3)", "top3_houses"),
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("Sign Weights in database")
+        self.dominant_factors_subheader = add_database_subheader("top 3 dominant signs for charts in database")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3064,44 +3071,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         dominant_sign_section_layout.addWidget(self.dominant_sign_chart_container)
 
-        #SUBORDINANT FACTORS SECTION
-        subordinant_sign_section_layout = self._add_left_panel_collapsible_section(
+        #cumulativedom FACTORS SECTION
+        cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Subordinant Factors",
-            section_key="subordinant_factors",
-            expanded=self._is_database_metrics_section_expanded("subordinant_factors"),
+            "Dominant Factors (cumulative weight)",
+            section_key="cumulativedom_factors",
+            expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "subordinant_factors",
+                "cumulativedom_factors",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["subordinant_factors"] = self._is_database_metrics_section_expanded("subordinant_factors")
+        self._database_metrics_section_expanded["cumulativedom_factors"] = self._is_database_metrics_section_expanded("cumulativedom_factors")
         self._create_analysis_chart_header(
-            subordinant_sign_section_layout,
-            "Subordinant Factors",
-            "subordinant_factors",
-            "subordinant_factors",
+            cumulativedom_sign_section_layout,
+            "Dominant Factors (cumulative weight)",
+            "cumulativedom_factors",
+            "cumulativedom_factors",
             dropdown_options=[
-                ("Subordinant Signs", "subordinant_signs"),
-                ("Subordinant Bodies", "subordinant_planets"),
-                ("Subordinant Houses", "subordinant_houses"),
+                ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
+                ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
+                ("Dominant Houses (Cumulative Weight)", "cumulative_houses"),
             ],
             show_title=False,
         )
-        self.subordinant_factors_subheader = add_database_subheader(
-            "Least dominant signs in database (by weight)"
+        self.cumulativedom_factors_subheader = add_database_subheader(
+            "Dominant signs in database (by cumulative weight)"
         )
-        subordinant_sign_section_layout.addWidget(self.subordinant_factors_subheader)
-        self._update_subordinant_factors_subheader()
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_factors_subheader)
+        self._update_cumulativedom_factors_subheader()
         (
-            self.subordinant_sign_chart_container,
-            self.subordinant_sign_chart_layout,
+            self.cumulativedom_sign_chart_container,
+            self.cumulativedom_sign_chart_layout,
         ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["subordinant_factors"] = (
-            self.subordinant_sign_chart_layout
+        self._database_metrics_chart_layouts["cumulativedom_factors"] = (
+            self.cumulativedom_sign_chart_layout
         )
-        subordinant_sign_section_layout.addWidget(self.subordinant_sign_chart_container)
+        cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
 
         #SPECIES DISTRIBUTION SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
@@ -5779,6 +5786,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return set()
         return {sign for sign, _weight in ranked[:3]}
 
+    @staticmethod
+    def _dominant_planet_top_three_labels(
+        dominant_weights: dict[str, float] | None,
+    ) -> set[str]:
+        if not dominant_weights:
+            return set()
+        planet_order = [
+            body
+            for body in PLANET_ORDER
+            if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+        ]
+        ranked = sorted(
+            (
+                (body, float(weight))
+                for body, weight in dominant_weights.items()
+                if body in planet_order and float(weight) > 0
+            ),
+            key=lambda item: (-item[1], planet_order.index(item[0])),
+        )
+        return {body for body, _weight in ranked[:3]}
+
+    @staticmethod
+    def _dominant_house_top_three_labels(
+        dominant_weights: dict[int, float] | None,
+    ) -> set[int]:
+        if not dominant_weights:
+            return set()
+        ranked = sorted(
+            (
+                (house_num, float(weight))
+                for house_num, weight in dominant_weights.items()
+                if isinstance(house_num, int) and 1 <= house_num <= 12 and float(weight) > 0
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )
+        return {house_num for house_num, _weight in ranked[:3]}
+
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
@@ -6597,8 +6641,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
             },
             "dominant_planet_total_weight": 0.0,
+            "dominant_planet_weight_totals": {
+                body: 0.0
+                for body in PLANET_ORDER
+                if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+            },
+            "dominant_planet_weight_total_weight": 0.0,
             "dominant_house_totals": {house_num: 0.0 for house_num in range(1, 13)},
             "dominant_house_total_weight": 0.0,
+            "dominant_house_weight_totals": {house_num: 0.0 for house_num in range(1, 13)},
+            "dominant_house_weight_total_weight": 0.0,
             "dominant_element_totals": {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")},
             "dominant_element_total_weight": 0.0,
             "relationship_totals": {relationship: 0 for relationship in RELATION_TYPE},
@@ -6686,21 +6738,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for sign in self._dominant_sign_top_three_labels(dominant_weights):
             snapshot["dominant_sign_frequency_totals"][sign] += 1.0
 
-        dominant_planets = self._chart_dominant_planets(chart)
-        for body in snapshot["dominant_planet_totals"].keys():
-            if body not in dominant_planets:
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_planet_weights = dominant_planet_weights
+        for body in snapshot["dominant_planet_weight_totals"].keys():
+            body_weight = float(dominant_planet_weights.get(body, 0.0)) if dominant_planet_weights else 0.0
+            if body_weight <= 0:
                 continue
+            snapshot["dominant_planet_weight_totals"][body] += body_weight
+            snapshot["dominant_planet_weight_total_weight"] += body_weight
+        for body in self._dominant_planet_top_three_labels(dominant_planet_weights):
             snapshot["dominant_planet_totals"][body] += 1.0
             snapshot["dominant_planet_total_weight"] += 1.0
 
         dominant_house_weights = _calculate_dominant_house_weights(chart)
-        ranked_houses = sorted(
-            range(1, 13),
-            key=lambda house_num: (-float(dominant_house_weights.get(house_num, 0)), house_num),
-        )
-        for house_num in ranked_houses[:3]:
-            if float(dominant_house_weights.get(house_num, 0)) <= 0:
+        for house_num in range(1, 13):
+            house_weight = float(dominant_house_weights.get(house_num, 0.0))
+            if house_weight <= 0:
                 continue
+            snapshot["dominant_house_weight_totals"][house_num] += house_weight
+            snapshot["dominant_house_weight_total_weight"] += house_weight
+        for house_num in self._dominant_house_top_three_labels(dominant_house_weights):
             snapshot["dominant_house_totals"][house_num] += 1.0
             snapshot["dominant_house_total_weight"] += 1.0
 
@@ -6746,7 +6805,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["sign_total_count"] += direction * float(snapshot.get("sign_total_count", 0.0))
         totals["dominant_sign_total_weight"] += direction * float(snapshot.get("dominant_sign_total_weight", 0.0))
         totals["dominant_planet_total_weight"] += direction * float(snapshot.get("dominant_planet_total_weight", 0.0))
+        totals["dominant_planet_weight_total_weight"] += direction * float(
+            snapshot.get("dominant_planet_weight_total_weight", 0.0)
+        )
         totals["dominant_house_total_weight"] += direction * float(snapshot.get("dominant_house_total_weight", 0.0))
+        totals["dominant_house_weight_total_weight"] += direction * float(
+            snapshot.get("dominant_house_weight_total_weight", 0.0)
+        )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
@@ -6765,11 +6830,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         for body in totals["dominant_planet_totals"]:
             totals["dominant_planet_totals"][body] += direction * float(snapshot["dominant_planet_totals"].get(body, 0.0))
+            totals["dominant_planet_weight_totals"][body] += direction * float(
+                snapshot["dominant_planet_weight_totals"].get(body, 0.0)
+            )
         for house_num in range(1, 13):
             totals["house_prevalence_totals"][house_num] += direction * float(
                 snapshot["house_prevalence_totals"].get(house_num, 0.0)
             )
             totals["dominant_house_totals"][house_num] += direction * float(snapshot["dominant_house_totals"].get(house_num, 0.0))
+            totals["dominant_house_weight_totals"][house_num] += direction * float(
+                snapshot["dominant_house_weight_totals"].get(house_num, 0.0)
+            )
         totals["house_prevalence_total_count"] += direction * float(
             snapshot.get("house_prevalence_total_count", 0.0)
         )
@@ -7243,6 +7314,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if update_database_metrics:
             loaded_charts = int(selection_cache["loaded_charts"])
             database_loaded_charts = int(database_cache["loaded_charts"])
+            self._update_dominant_factors_subheader(use_selection_scope=loaded_charts > 0)
+            self._update_cumulativedom_factors_subheader(use_selection_scope=loaded_charts > 0)
             sentiment_loaded_charts = int(sentiment_selection_cache["loaded_charts"])
             sentiment_database_loaded_charts = int(
                 sentiment_database_cache["loaded_charts"]
@@ -7321,15 +7394,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for sign in ZODIAC_NAMES
                 }
 
-            selection_dominant_signs = {
-                sign: (selection_cache["dominant_sign_totals"][sign] / selection_cache["dominant_sign_total_weight"] if selection_cache["dominant_sign_total_weight"] else 0)
-                for sign in ZODIAC_NAMES
-            }
-            database_dominant_signs = {
-                sign: (database_cache["dominant_sign_totals"][sign] / database_cache["dominant_sign_total_weight"] if database_cache["dominant_sign_total_weight"] else 0)
-                for sign in ZODIAC_NAMES
-            }
-            selection_dominant_sign_frequency = {
+            selection_top3_dominant_signs = {
                 sign: (
                     selection_cache["dominant_sign_frequency_totals"][sign] / loaded_charts
                     if loaded_charts
@@ -7337,7 +7402,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for sign in ZODIAC_NAMES
             }
-            database_dominant_sign_frequency = {
+            database_top3_dominant_signs = {
                 sign: (
                     database_cache["dominant_sign_frequency_totals"][sign]
                     / database_loaded_charts
@@ -7346,8 +7411,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for sign in ZODIAC_NAMES
             }
+            selection_dominant_signs = {
+                sign: (selection_cache["dominant_sign_totals"][sign] / selection_cache["dominant_sign_total_weight"] if selection_cache["dominant_sign_total_weight"] else 0)
+                for sign in ZODIAC_NAMES
+            }
+            database_dominant_signs = {
+                sign: (database_cache["dominant_sign_totals"][sign] / database_cache["dominant_sign_total_weight"] if database_cache["dominant_sign_total_weight"] else 0)
+                for sign in ZODIAC_NAMES
+            }
             dominant_planet_labels = list(selection_cache["dominant_planet_totals"].keys())
-            selection_dominant_planets = {
+            selection_top3_dominant_planets = {
                 body: (
                     selection_cache["dominant_planet_totals"][body]
                     / selection_cache["dominant_planet_total_weight"]
@@ -7356,7 +7429,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for body in dominant_planet_labels
             }
-            database_dominant_planets = {
+            database_top3_dominant_planets = {
                 body: (
                     database_cache["dominant_planet_totals"][body]
                     / database_cache["dominant_planet_total_weight"]
@@ -7365,8 +7438,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for body in dominant_planet_labels
             }
+            selection_dominant_planets = {
+                body: (
+                    selection_cache["dominant_planet_weight_totals"][body]
+                    / selection_cache["dominant_planet_weight_total_weight"]
+                    if selection_cache["dominant_planet_weight_total_weight"]
+                    else 0
+                )
+                for body in dominant_planet_labels
+            }
+            database_dominant_planets = {
+                body: (
+                    database_cache["dominant_planet_weight_totals"][body]
+                    / database_cache["dominant_planet_weight_total_weight"]
+                    if database_cache["dominant_planet_weight_total_weight"]
+                    else 0
+                )
+                for body in dominant_planet_labels
+            }
             dominant_house_labels = [str(house_num) for house_num in range(1, 13)]
-            selection_dominant_houses = {
+            selection_top3_dominant_houses = {
                 str(house_num): (
                     selection_cache["dominant_house_totals"][house_num]
                     / selection_cache["dominant_house_total_weight"]
@@ -7375,7 +7466,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
-            database_dominant_houses = {
+            database_top3_dominant_houses = {
                 str(house_num): (
                     database_cache["dominant_house_totals"][house_num]
                     / database_cache["dominant_house_total_weight"]
@@ -7384,46 +7475,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
-            dominant_element_labels = ["Fire", "Earth", "Air", "Water"]
-            selection_dominant_elements = {
-                element: (
-                    selection_cache["dominant_element_totals"][element]
-                    / selection_cache["dominant_element_total_weight"]
-                    if selection_cache["dominant_element_total_weight"]
+            selection_dominant_houses = {
+                str(house_num): (
+                    selection_cache["dominant_house_weight_totals"][house_num]
+                    / selection_cache["dominant_house_weight_total_weight"]
+                    if selection_cache["dominant_house_weight_total_weight"]
                     else 0
                 )
-                for element in dominant_element_labels
+                for house_num in range(1, 13)
             }
-            database_dominant_elements = {
-                element: (
-                    database_cache["dominant_element_totals"][element]
-                    / database_cache["dominant_element_total_weight"]
-                    if database_cache["dominant_element_total_weight"]
+            database_dominant_houses = {
+                str(house_num): (
+                    database_cache["dominant_house_weight_totals"][house_num]
+                    / database_cache["dominant_house_weight_total_weight"]
+                    if database_cache["dominant_house_weight_total_weight"]
                     else 0
                 )
-                for element in dominant_element_labels
+                for house_num in range(1, 13)
             }
-            subordinant_sign_labels = sorted(
+            cumulative_sign_labels = sorted(
                 list(ZODIAC_NAMES),
                 key=lambda sign: (
-                    database_dominant_signs.get(sign, 0),
-                    selection_dominant_signs.get(sign, 0),
+                    -database_dominant_signs.get(sign, 0),
+                    -selection_dominant_signs.get(sign, 0),
                     sign,
                 ),
             )
-            subordinant_planet_labels = sorted(
+            cumulative_planet_labels = sorted(
                 list(dominant_planet_labels),
                 key=lambda body: (
-                    database_dominant_planets.get(body, 0),
-                    selection_dominant_planets.get(body, 0),
+                    -database_dominant_planets.get(body, 0),
+                    -selection_dominant_planets.get(body, 0),
                     body,
                 ),
             )
-            subordinant_house_labels = sorted(
+            cumulative_house_labels = sorted(
                 list(dominant_house_labels),
                 key=lambda house: (
-                    database_dominant_houses.get(house, 0),
-                    selection_dominant_houses.get(house, 0),
+                    -database_dominant_houses.get(house, 0),
+                    -selection_dominant_houses.get(house, 0),
                     int(house),
                 ),
             )
@@ -7817,82 +7907,66 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             if _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
-                if dominant_mode == "dominant_planets":
+                if dominant_mode == "top3_planets":
                     dominant_sign_canvas = self._build_dominant_planet_chart(
-                        selection_planets=selection_dominant_planets,
-                        database_planets=database_dominant_planets,
+                        selection_planets=selection_top3_dominant_planets,
+                        database_planets=database_top3_dominant_planets,
                         selection_planet_counts=selection_cache["dominant_planet_totals"],
                         database_planet_counts=database_cache["dominant_planet_totals"],
                         loaded_charts=loaded_charts,
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_planet_labels,
-                        selection_values=[selection_dominant_planets[label] for label in dominant_planet_labels],
-                        database_values=[database_dominant_planets[label] for label in dominant_planet_labels],
+                        selection_values=[selection_top3_dominant_planets[label] for label in dominant_planet_labels],
+                        database_values=[database_top3_dominant_planets[label] for label in dominant_planet_labels],
                         selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif dominant_mode == "dominant_houses":
+                elif dominant_mode == "top3_houses":
                     dominant_sign_canvas = self._build_dominant_house_chart(
-                        selection_houses=selection_dominant_houses,
-                        database_houses=database_dominant_houses,
+                        selection_houses=selection_top3_dominant_houses,
+                        database_houses=database_top3_dominant_houses,
                         selection_house_counts={str(num): selection_cache["dominant_house_totals"][num] for num in range(1, 13)},
                         database_house_counts={str(num): database_cache["dominant_house_totals"][num] for num in range(1, 13)},
                         loaded_charts=loaded_charts,
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_house_labels,
-                        selection_values=[selection_dominant_houses[label] for label in dominant_house_labels],
-                        database_values=[database_dominant_houses[label] for label in dominant_house_labels],
+                        selection_values=[selection_top3_dominant_houses[label] for label in dominant_house_labels],
+                        database_values=[database_top3_dominant_houses[label] for label in dominant_house_labels],
                         selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif dominant_mode == "dominant_elements":
-                    dominant_sign_canvas = self._build_dominant_element_chart(
-                        selection_elements=selection_dominant_elements,
-                        database_elements=database_dominant_elements,
-                        selection_element_counts=selection_cache["dominant_element_totals"],
-                        database_element_counts=database_cache["dominant_element_totals"],
-                        loaded_charts=loaded_charts,
-                    )
-                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
-                        labels=dominant_element_labels,
-                        selection_values=[selection_dominant_elements[label] for label in dominant_element_labels],
-                        database_values=[database_dominant_elements[label] for label in dominant_element_labels],
-                        selection_counts=[int(selection_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
-                        database_counts=[int(database_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
-                        loaded_charts=loaded_charts,
-                    )
-                elif dominant_mode == "dominant_sign_frequency":
+                elif dominant_mode == "top3_signs":
                     dominant_sign_canvas = self._build_dominant_sign_chart(
-                        selection_signs=selection_dominant_sign_frequency,
-                        database_signs=database_dominant_sign_frequency,
+                        selection_signs=selection_top3_dominant_signs,
+                        database_signs=database_top3_dominant_signs,
                         selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
                         database_sign_counts=database_cache["dominant_sign_frequency_totals"],
                         loaded_charts=loaded_charts,
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
-                        selection_values=[selection_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
-                        database_values=[database_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        selection_values=[selection_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
                     )
                 else:
                     dominant_sign_canvas = self._build_dominant_sign_chart(
-                        selection_signs=selection_dominant_signs,
-                        database_signs=database_dominant_signs,
+                        selection_signs=selection_top3_dominant_signs,
+                        database_signs=database_top3_dominant_signs,
                         selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
                         database_sign_counts=database_cache["dominant_sign_frequency_totals"],
                         loaded_charts=loaded_charts,
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
-                        selection_values=[selection_dominant_signs[sign] for sign in ZODIAC_NAMES],
-                        database_values=[database_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        selection_values=[selection_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
@@ -7905,38 +7979,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             if not _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
-                if dominant_mode == "dominant_planets":
+                if dominant_mode == "top3_planets":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_planet_labels,
-                        selection_values=[selection_dominant_planets[label] for label in dominant_planet_labels],
-                        database_values=[database_dominant_planets[label] for label in dominant_planet_labels],
+                        selection_values=[selection_top3_dominant_planets[label] for label in dominant_planet_labels],
+                        database_values=[database_top3_dominant_planets[label] for label in dominant_planet_labels],
                         selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif dominant_mode == "dominant_houses":
+                elif dominant_mode == "top3_houses":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_house_labels,
-                        selection_values=[selection_dominant_houses[label] for label in dominant_house_labels],
-                        database_values=[database_dominant_houses[label] for label in dominant_house_labels],
+                        selection_values=[selection_top3_dominant_houses[label] for label in dominant_house_labels],
+                        database_values=[database_top3_dominant_houses[label] for label in dominant_house_labels],
                         selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif dominant_mode == "dominant_elements":
-                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
-                        labels=dominant_element_labels,
-                        selection_values=[selection_dominant_elements[label] for label in dominant_element_labels],
-                        database_values=[database_dominant_elements[label] for label in dominant_element_labels],
-                        selection_counts=[int(selection_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
-                        database_counts=[int(database_cache["dominant_element_totals"][label]) for label in dominant_element_labels],
-                        loaded_charts=loaded_charts,
-                    )
-                elif dominant_mode == "dominant_sign_frequency":
+                elif dominant_mode == "top3_signs":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
-                        selection_values=[selection_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
-                        database_values=[database_dominant_sign_frequency[sign] for sign in ZODIAC_NAMES],
+                        selection_values=[selection_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
@@ -7944,99 +8009,99 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else:
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
-                        selection_values=[selection_dominant_signs[sign] for sign in ZODIAC_NAMES],
-                        database_values=[database_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        selection_values=[selection_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
+                        database_values=[database_top3_dominant_signs[sign] for sign in ZODIAC_NAMES],
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
                     )
 
-            if _should_refresh_database_metric_section("subordinant_factors"):
-                subordinant_mode = self._subordinant_factors_mode
-                if subordinant_mode == "subordinant_planets":
-                    subordinant_sign_canvas = self._build_dominant_planet_chart(
+            if _should_refresh_database_metric_section("cumulativedom_factors"):
+                cumulativedom_mode = self._cumulativedom_factors_mode
+                if cumulativedom_mode == "cumulative_planets":
+                    cumulativedom_sign_canvas = self._build_dominant_planet_chart(
                         selection_planets=selection_dominant_planets,
                         database_planets=database_dominant_planets,
-                        selection_planet_counts=selection_cache["dominant_planet_totals"],
-                        database_planet_counts=database_cache["dominant_planet_totals"],
+                        selection_planet_counts=selection_cache["dominant_planet_weight_totals"],
+                        database_planet_counts=database_cache["dominant_planet_weight_totals"],
                         loaded_charts=loaded_charts,
-                        labels=subordinant_planet_labels,
+                        labels=cumulative_planet_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_planet_labels,
-                        selection_values=[selection_dominant_planets[label] for label in subordinant_planet_labels],
-                        database_values=[database_dominant_planets[label] for label in subordinant_planet_labels],
-                        selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in subordinant_planet_labels],
-                        database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in subordinant_planet_labels],
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_planet_labels,
+                        selection_values=[selection_dominant_planets[label] for label in cumulative_planet_labels],
+                        database_values=[database_dominant_planets[label] for label in cumulative_planet_labels],
+                        selection_counts=[selection_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
+                        database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif subordinant_mode == "subordinant_houses":
-                    subordinant_sign_canvas = self._build_dominant_house_chart(
+                elif cumulativedom_mode == "cumulative_houses":
+                    cumulativedom_sign_canvas = self._build_dominant_house_chart(
                         selection_houses=selection_dominant_houses,
                         database_houses=database_dominant_houses,
-                        selection_house_counts={str(num): selection_cache["dominant_house_totals"][num] for num in range(1, 13)},
-                        database_house_counts={str(num): database_cache["dominant_house_totals"][num] for num in range(1, 13)},
+                        selection_house_counts={str(num): selection_cache["dominant_house_weight_totals"][num] for num in range(1, 13)},
+                        database_house_counts={str(num): database_cache["dominant_house_weight_totals"][num] for num in range(1, 13)},
                         loaded_charts=loaded_charts,
-                        labels=subordinant_house_labels,
+                        labels=cumulative_house_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_house_labels,
-                        selection_values=[selection_dominant_houses[label] for label in subordinant_house_labels],
-                        database_values=[database_dominant_houses[label] for label in subordinant_house_labels],
-                        selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in subordinant_house_labels],
-                        database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in subordinant_house_labels],
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_house_labels,
+                        selection_values=[selection_dominant_houses[label] for label in cumulative_house_labels],
+                        database_values=[database_dominant_houses[label] for label in cumulative_house_labels],
+                        selection_counts=[selection_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
+                        database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         loaded_charts=loaded_charts,
                     )
                 else:
-                    subordinant_sign_canvas = self._build_dominant_sign_chart(
+                    cumulativedom_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
                         database_signs=database_dominant_signs,
-                        selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
-                        database_sign_counts=database_cache["dominant_sign_frequency_totals"],
+                        selection_sign_counts=selection_cache["dominant_sign_totals"],
+                        database_sign_counts=database_cache["dominant_sign_totals"],
                         loaded_charts=loaded_charts,
-                        sign_labels=subordinant_sign_labels,
+                        sign_labels=cumulative_sign_labels,
                     )
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_sign_labels,
-                        selection_values=[selection_dominant_signs[sign] for sign in subordinant_sign_labels],
-                        database_values=[database_dominant_signs[sign] for sign in subordinant_sign_labels],
-                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in subordinant_sign_labels],
-                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in subordinant_sign_labels],
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_sign_labels,
+                        selection_values=[selection_dominant_signs[sign] for sign in cumulative_sign_labels],
+                        database_values=[database_dominant_signs[sign] for sign in cumulative_sign_labels],
+                        selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
+                        database_counts=[database_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         loaded_charts=loaded_charts,
                     )
-                self._clear_layout(self.subordinant_sign_chart_layout)
-                self.subordinant_sign_chart_layout.addWidget(
-                    subordinant_sign_canvas,
+                self._clear_layout(self.cumulativedom_sign_chart_layout)
+                self.cumulativedom_sign_chart_layout.addWidget(
+                    cumulativedom_sign_canvas,
                     0,
                     Qt.AlignHCenter,
                 )
-            if not _should_refresh_database_metric_section("subordinant_factors"):
-                subordinant_mode = self._subordinant_factors_mode
-                if subordinant_mode == "subordinant_planets":
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_planet_labels,
-                        selection_values=[selection_dominant_planets[label] for label in subordinant_planet_labels],
-                        database_values=[database_dominant_planets[label] for label in subordinant_planet_labels],
-                        selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in subordinant_planet_labels],
-                        database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in subordinant_planet_labels],
+            if not _should_refresh_database_metric_section("cumulativedom_factors"):
+                cumulativedom_mode = self._cumulativedom_factors_mode
+                if cumulativedom_mode == "cumulative_planets":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_planet_labels,
+                        selection_values=[selection_dominant_planets[label] for label in cumulative_planet_labels],
+                        database_values=[database_dominant_planets[label] for label in cumulative_planet_labels],
+                        selection_counts=[selection_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
+                        database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
                     )
-                elif subordinant_mode == "subordinant_houses":
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_house_labels,
-                        selection_values=[selection_dominant_houses[label] for label in subordinant_house_labels],
-                        database_values=[database_dominant_houses[label] for label in subordinant_house_labels],
-                        selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in subordinant_house_labels],
-                        database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in subordinant_house_labels],
+                elif cumulativedom_mode == "cumulative_houses":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_house_labels,
+                        selection_values=[selection_dominant_houses[label] for label in cumulative_house_labels],
+                        database_values=[database_dominant_houses[label] for label in cumulative_house_labels],
+                        selection_counts=[selection_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
+                        database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         loaded_charts=loaded_charts,
                     )
                 else:
-                    self._analysis_chart_export_rows["subordinant_factors"] = self._build_analysis_export_rows(
-                        labels=subordinant_sign_labels,
-                        selection_values=[selection_dominant_signs[sign] for sign in subordinant_sign_labels],
-                        database_values=[database_dominant_signs[sign] for sign in subordinant_sign_labels],
-                        selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in subordinant_sign_labels],
-                        database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in subordinant_sign_labels],
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_sign_labels,
+                        selection_values=[selection_dominant_signs[sign] for sign in cumulative_sign_labels],
+                        database_values=[database_dominant_signs[sign] for sign in cumulative_sign_labels],
+                        selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
+                        database_counts=[database_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         loaded_charts=loaded_charts,
                     )
 
@@ -15689,6 +15754,7 @@ class MainWindow(QMainWindow):
 
         self._main_splitter = QSplitter(Qt.Horizontal)
         self._main_splitter.setHandleWidth(6)
+        configure_splitter_handle_resize_cursor(self._main_splitter)
         self._main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
         root_layout.addWidget(self._main_splitter)
 
@@ -19596,6 +19662,26 @@ class MainWindow(QMainWindow):
         if value.isdigit():
             return int(value)
         return None
+
+    def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
+        if not hasattr(self, "search_tags_list_widget"):
+            return
+        selected_tags = {
+            tag.casefold()
+            for tag in parse_tag_text(
+                self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
+            )
+        }
+        self.search_tags_list_widget.clear()
+        for tag in known_tags:
+            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
+            self.search_tags_list_widget.addItem(label)
+
+    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
+        tag_value = item.text().lstrip("✓").strip()
+        if not tag_value:
+            return
+        self.search_tags_input.setText(tag_value)
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
