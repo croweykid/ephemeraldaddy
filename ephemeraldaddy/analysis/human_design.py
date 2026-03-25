@@ -10,7 +10,7 @@ from ephemeraldaddy.core.human_design_system import (
     HumanDesignResult,
     calculate_human_design,
 )
-from ephemeraldaddy.core.interpretations import AWARENESS_STREAMS
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS
 from ephemeraldaddy.gui.features.charts.presentation import format_longitude, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
