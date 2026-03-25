@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import pprint
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_NAME = "EphemeralDaddy"
+SPEC_PATH = REPO_ROOT / f"{APP_NAME}.spec"
 
 
 def _run_python(cmd: list[str], cwd: Path | None = None) -> None:
@@ -31,6 +33,13 @@ def _ensure_pyinstaller() -> None:
         raise SystemExit(
             "PyInstaller is required. Install build deps with: "
             "python -m pip install pyinstaller pillow"
+        ) from exc
+    try:
+        import PySide6  # noqa: F401
+    except Exception as exc:  # pragma: no cover - runtime check
+        raise SystemExit(
+            "PySide6 is required in the build environment. "
+            "Install project deps first with: python -m pip install -r requirements.txt"
         ) from exc
 
 
@@ -79,53 +88,107 @@ def _coerce_icon(icon_arg: str | None) -> Path | None:
     return converted
 
 
-def _build_pyinstaller_command(args: argparse.Namespace) -> list[str]:
-    from PyInstaller.utils.hooks import collect_data_files, collect_submodules
-
-    hiddenimports = set(collect_submodules("ephemeraldaddy"))
-    for package in ("skyfield", "timezonefinder", "geopy", "pandas", "numpy", "matplotlib", "swisseph"):
-        hiddenimports.update(collect_submodules(package))
-
-    data_tuples: list[tuple[str, str]] = []
-    data_tuples.extend(collect_data_files("ephemeraldaddy", include_py_files=False))
-
-    extras = [
+def _build_datas() -> list[tuple[str, str]]:
+    datas: list[tuple[str, str]] = []
+    extra_files = [
         (REPO_ROOT / "tools" / "cities15000.txt", "tools"),
         (REPO_ROOT / "de421.bsp", "."),
     ]
-    for src, dest in extras:
+    for src, dest in extra_files:
         if src.exists():
-            data_tuples.append((str(src), dest))
+            datas.append((src.relative_to(REPO_ROOT).as_posix(), dest))
 
-    command = [
-        "-m",
-        "PyInstaller",
-        "--noconfirm",
-        "--clean",
-        "--windowed",
-        "--name",
-        APP_NAME,
-        "--collect-all",
-        "PySide6",
-    ]
+    for src_dir, dest in (
+        (REPO_ROOT / "ephemeraldaddy" / "graphics", "ephemeraldaddy/graphics"),
+        (REPO_ROOT / "ephemeraldaddy" / "gui" / "fonts", "ephemeraldaddy/gui/fonts"),
+        (REPO_ROOT / "ephemeraldaddy" / "data" / "compiled", "ephemeraldaddy/data/compiled"),
+    ):
+        if src_dir.exists():
+            datas.append((src_dir.relative_to(REPO_ROOT).as_posix(), dest))
+    return datas
 
-    if args.onefile:
-        command.append("--onefile")
 
+def _write_spec(args: argparse.Namespace) -> Path:
     icon_path = _coerce_icon(args.icon)
-    if icon_path:
-        command.extend(["--icon", str(icon_path)])
+    datas = _build_datas()
+    hiddenimports = ["PySide6", "shiboken6", "swisseph", "geopy.geocoders.nominatim"]
+    excludes = [
+        "pytest",
+        "pandas.tests",
+        "numpy.tests",
+        "numpy.f2py.tests",
+        "matplotlib.tests",
+        "skyfield.tests",
+    ]
+    icon_literal = repr(str(icon_path)) if icon_path else "None"
+    spec = f"""# -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
 
-    for hidden in sorted(hiddenimports):
-        command.extend(["--hidden-import", hidden])
+block_cipher = None
 
-    for entry in _normalize_data_tuples(data_tuples):
-        command.extend(["--add-data", entry])
+pyside_datas, pyside_binaries, pyside_hidden = collect_all("PySide6")
+shiboken_datas, shiboken_binaries, shiboken_hidden = collect_all("shiboken6")
 
-    # Use the lightweight bootstrap entrypoint so packaged builds show immediate
-    # startup progress feedback before importing the heavy GUI module.
-    command.append("ephemeraldaddy/gui/bootstrap.py")
-    return command
+datas = {pprint.pformat(datas, width=120)} + pyside_datas + shiboken_datas
+binaries = pyside_binaries + shiboken_binaries
+hiddenimports = {pprint.pformat(hiddenimports, width=120)} + pyside_hidden + shiboken_hidden
+excludes = {pprint.pformat(excludes, width=120)}
+
+a = Analysis(
+    ["ephemeraldaddy/gui/bootstrap.py"],
+    pathex=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=excludes,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    noarchive=False,
+)
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries={str(not args.onefile)},
+    name={APP_NAME!r},
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon={icon_literal},
+)
+"""
+    if args.onefile:
+        spec += "\napp = BUNDLE(exe, name='EphemeralDaddy.app', icon=None, bundle_identifier=None)\n" if sys.platform == "darwin" else ""
+    else:
+        spec += """
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='EphemeralDaddy',
+)
+"""
+    SPEC_PATH.write_text(spec, encoding="utf-8")
+    return SPEC_PATH
+
+
+def _build_pyinstaller_command(spec_path: Path) -> list[str]:
+    return ["-m", "PyInstaller", "--noconfirm", "--clean", str(spec_path)]
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,8 +211,10 @@ def main() -> None:
     args = parse_args()
     _ensure_pyinstaller()
 
-    cmd = _build_pyinstaller_command(args)
+    spec_path = _write_spec(args)
+    cmd = _build_pyinstaller_command(spec_path)
     print(f"[build] Platform: {platform.system()} {platform.release()}")
+    print(f"[build] Spec: {spec_path}")
     print("[build] Running:", " ".join(cmd))
     if args.dry_run:
         return
@@ -161,6 +226,19 @@ def main() -> None:
     else:
         dist_target = REPO_ROOT / "dist" / APP_NAME
     print(f"\nBuild complete. Output in: {dist_target}")
+    if os.name == "nt":
+        if args.onefile:
+            print(
+                "[build] Inno Setup [Files] entry for this build:\n"
+                f'        Source: "dist\\{APP_NAME}.exe"; DestDir: "{{app}}"; Flags: ignoreversion'
+            )
+        else:
+            print(
+                "[build] Inno Setup [Files] entry for this build (required for Qt deps):\n"
+                f'        Source: "dist\\{APP_NAME}\\*"; DestDir: "{{app}}"; '
+                "Flags: ignoreversion recursesubdirs createallsubdirs\n"
+                "        (Do NOT ship only dist\\EphemeralDaddy.exe for folder builds.)"
+            )
 
 
 if __name__ == "__main__":
