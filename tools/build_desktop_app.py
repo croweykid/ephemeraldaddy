@@ -8,6 +8,7 @@ repo-level assets needed for offline operation.
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import platform
 import pprint
@@ -108,10 +109,30 @@ def _build_datas() -> list[tuple[str, str]]:
     return datas
 
 
+def _dynamic_hiddenimports() -> list[str]:
+    """Collect import names loaded dynamically via `ensure_package`."""
+    repo_root_str = str(REPO_ROOT)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+    try:
+        deps = importlib.import_module("ephemeraldaddy.core.deps")
+        required = getattr(deps, "REQUIRED_PACKAGES", {})
+    except Exception:
+        return []
+    return sorted({str(import_name) for import_name in required.values()})
+
+
 def _write_spec(args: argparse.Namespace) -> Path:
     icon_path = _coerce_icon(args.icon)
     datas = _build_datas()
-    hiddenimports = ["swisseph", "geopy.geocoders.nominatim"]
+    hiddenimports = sorted(
+        set(
+            [
+                "geopy.geocoders.nominatim",
+            ]
+            + _dynamic_hiddenimports()
+        )
+    )
     excludes = [
         "pytest",
         "pandas.tests",
