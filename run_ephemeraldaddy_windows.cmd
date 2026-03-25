@@ -13,15 +13,12 @@ cd /d "%ROOT_DIR%"
 set "VENV_DIR="
 set "PYTHON_EXE="
 
-if exist "%ROOT_DIR%\.venv\Scripts\python.exe" (
-    set "VENV_DIR=%ROOT_DIR%\.venv"
-    set "PYTHON_EXE=%ROOT_DIR%\.venv\Scripts\python.exe"
-) else if exist "%ROOT_DIR%\venv\Scripts\python.exe" (
+if exist "%ROOT_DIR%\venv\Scripts\python.exe" (
     set "VENV_DIR=%ROOT_DIR%\venv"
     set "PYTHON_EXE=%ROOT_DIR%\venv\Scripts\python.exe"
 ) else (
-    set "VENV_DIR=%ROOT_DIR%\.venv"
-    set "PYTHON_EXE=%ROOT_DIR%\.venv\Scripts\python.exe"
+    set "VENV_DIR=%ROOT_DIR%\venv"
+    set "PYTHON_EXE=%ROOT_DIR%\venv\Scripts\python.exe"
     echo [EphemeralDaddy] No venv found. Creating one with py -3.11 at "%VENV_DIR%"...
     py -3.11 -m venv "%VENV_DIR%"
     if errorlevel 1 (
