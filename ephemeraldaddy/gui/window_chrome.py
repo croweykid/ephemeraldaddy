@@ -143,16 +143,22 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     chart_menu = menu_bar.addMenu("Chart")
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
     _bind_menu_action(chart_menu, "Export Chart", window, "on_export_chart")
-    _bind_menu_action(chart_menu, "Get Human Design Info", window, "on_get_human_design_info")
 
     tools_menu = menu_bar.addMenu("Tools")
-    _bind_menu_action(tools_menu, "Get Transit", window, "on_get_current_transits")
+    _bind_menu_action(tools_menu, "Get Personal Transit", window, "on_get_current_transits")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "Calculate BaZi", window, "on_open_bazi_window")
+    _bind_menu_action(
+        tools_menu,
+        "Get Human Design Chart (alpha prototype)",
+        window,
+        "_on_menu_get_human_design_info",
+        "on_get_human_design_info",
+    )
 
-    view_menu = menu_bar.addMenu("View")
-    _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
+    # view_menu = menu_bar.addMenu("View")
+    # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("Help")
     _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay")
@@ -197,6 +203,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "Open BaZi Window", dialog, "_on_menu_open_bazi_window")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
+    _bind_menu_action(tools_menu, "Get Human Design Chart (alpha prototype)", dialog, "_on_menu_get_human_design_info")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")

@@ -160,8 +160,11 @@ class _StartupLoadingWidget(QWidget):
         layout.setSpacing(6)
         self.setLayout(layout)
 
-        title = QLabel("Starting EphemeralDaddy…")
+        from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
+
+        title = QLabel("Ephemeral Daddy will be with you shortly…")
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(title)
 
         self._status_label = QLabel("Preparing startup…")
@@ -209,6 +212,12 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_application_identity,
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
+)
+from ephemeraldaddy.gui.window_placement import (
+    WindowPlacement,
+    apply_window_placement,
+    capture_window_placement,
+    clear_fullscreen_and_minimized,
 )
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
@@ -449,8 +458,13 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     format_transit_chart_text,
 )
 from ephemeraldaddy.analysis.human_design import (
+    build_awareness_stream_completion,
+    build_human_design_result,
     build_human_design_chart_data_output,
+    get_active_human_design_gates_and_lines,
 )
+from ephemeraldaddy.analysis.human_design_reference import format_gate_line_info
+from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
@@ -4127,6 +4141,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4143,6 +4158,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def _sort_popout_aspects(
@@ -9400,7 +9416,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -11386,6 +11402,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_open_bazi_window(self) -> None:
         self._run_main_window_chart_action("open_bazi_window")
 
+    def _on_menu_get_human_design_info(self) -> None:
+        self._run_main_window_chart_action("get_human_design_info")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -11866,13 +11885,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.right_panel_stack.setVisible(self._right_panel_visible)
         self.apply_launch_window_policy()
 
+    def adopt_window_placement(self, source_window: QWidget | None) -> None:
+        if source_window is None:
+            return
+        apply_window_placement(self, capture_window_placement(source_window))
+
     def apply_launch_window_policy(self) -> None:
-        geometry = _available_screen_geometry()
-        if geometry is not None:
-            self.setGeometry(geometry)
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-        )
+        # Do not force Database View back to the primary screen or maximized state.
+        # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
+        clear_fullscreen_and_minimized(self)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -14199,7 +14220,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent.on_new_chart()
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -15124,7 +15145,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized()
+                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
             else:
                 parent.showNormal()
                 parent.raise_()
@@ -17833,6 +17854,9 @@ class MainWindow(QMainWindow):
             self._export_chart(chart)
         elif action_name == "open_bazi_window":
             self._open_bazi_window(chart)
+        elif action_name == "get_human_design_info":
+            self._latest_chart = chart
+            self.on_get_human_design_info()
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
@@ -18203,6 +18227,12 @@ class MainWindow(QMainWindow):
                     if selected_entry.get("kind") == "nakshatra":
                         self._show_nakshatra_info(selected_entry["nakshatra"])
                         return True
+                    if selected_entry.get("kind") == "hd_gate_line":
+                        self._show_human_design_gate_line_info(
+                            int(selected_entry.get("gate", 0)),
+                            selected_entry.get("line"),
+                        )
+                        return True
                     self._show_position_info(
                         selected_entry["body"],
                         selected_entry["sign"],
@@ -18357,6 +18387,10 @@ class MainWindow(QMainWindow):
         title = lines[0]
         bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
         self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
+
+    def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
+        line_number = int(line) if isinstance(line, int) else None
+        self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
 
     def _show_species_info(
         self,
@@ -18663,19 +18697,35 @@ class MainWindow(QMainWindow):
     def _restore_window_settings(self) -> None:
         splitter_key = "main_window/splitter_sizes"
         customized_key = "main_window/layout_customized"
+        geometry_key = "main_window/geometry"
+        maximized_key = "main_window/maximized"
         restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
             "1",
             "true",
             "yes",
         }
+        restored_maximized = str(self._settings.value(maximized_key, "1")).lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         self._window_layout_customized = restored_customized
-        geometry = _available_screen_geometry()
+        default_geometry = _available_screen_geometry()
+        restored_geometry = self._settings.value(geometry_key)
         self._restoring_window_layout = True
-        if geometry is not None:
-            self.setGeometry(geometry)
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-        )
+
+        if restored_customized and restored_geometry:
+            self.restoreGeometry(restored_geometry)
+        elif default_geometry is not None:
+            self.setGeometry(default_geometry)
+
+        base_state = (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
+        if restored_maximized:
+            self.setWindowState(base_state | Qt.WindowMaximized)
+        else:
+            self.setWindowState(base_state & ~Qt.WindowMaximized)
+            self.showNormal()
+
         sizes = self._settings.value(splitter_key)
         if restored_customized and sizes:
             self._main_splitter.setSizes([int(size) for size in sizes])
@@ -18692,17 +18742,33 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        dialog.showNormal()
         dialog.raise_()
         dialog.activateWindow()
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
-    def _show_chart_view_maximized(self) -> None:
+    def _show_chart_view_maximized(
+        self,
+        *,
+        maximize: bool | None = None,
+        source_window: QWidget | None = None,
+    ) -> None:
+        placement: WindowPlacement | None = None
+        if source_window is not None:
+            placement = capture_window_placement(source_window)
+            if maximize is None:
+                maximize = placement.maximized
+
+        if maximize is None:
+            maximize = True
+
         self.show()
-        self.setWindowState(
-            (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
+        apply_window_placement(
+            self,
+            WindowPlacement(
+                geometry=placement.geometry if placement is not None else None,
+                maximized=maximize,
+            ),
         )
-        self.showMaximized()
         self.raise_()
         self.activateWindow()
 
@@ -19929,6 +19995,8 @@ class MainWindow(QMainWindow):
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts()
         if not opened:
             return
@@ -20722,6 +20790,7 @@ class MainWindow(QMainWindow):
         weighted_score_for_entry: Callable[[Any], float] | None = None,
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
+        awareness_stream_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -20737,6 +20806,8 @@ class MainWindow(QMainWindow):
             chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
             database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
             chart_theme_colors=CHART_THEME_COLORS,
+            show_aspect_distribution=show_aspect_distribution,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
     def on_popout_chart(self) -> None:
@@ -20910,6 +20981,8 @@ class MainWindow(QMainWindow):
             if hasattr(entry, "exactness") and hasattr(entry, "weight"):
                 return max(0.0, float(entry.exactness) * float(entry.weight))
             return 0.0
+        hd_result = build_human_design_result(self._latest_chart)
+        awareness_stream_entries = build_awareness_stream_completion(set(hd_result.active_gates))
 
         chart_info_output = self._build_popout_left_panel(
             layout,
@@ -20917,12 +20990,31 @@ class MainWindow(QMainWindow):
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
+            show_aspect_distribution=False,
+            awareness_stream_entries=awareness_stream_entries,
         )
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        header_label = QLabel("Human Design")
+        date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
+        time_label = (
+            "unknown"
+            if getattr(self._latest_chart, "birthtime_unknown", False)
+            else self._latest_chart.dt.strftime("%H:%M")
+        )
+        birth_place = getattr(self._latest_chart, "birth_place", None) or "Unknown"
+        header_label = QLabel(
+            "\n".join(
+                [
+                    "Human Design",
+                    f"Name:       {self._latest_chart.name}",
+                    f"Birth date: {date_label}",
+                    f"Birth time: {time_label}",
+                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                ]
+            )
+        )
         header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
@@ -20932,13 +21024,10 @@ class MainWindow(QMainWindow):
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
-        draw_chart_wheel(
+        draw_human_design_chart(
             figure,
-            self._latest_chart,
-            canvas=canvas,
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
+            hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
         )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()
@@ -21128,6 +21217,7 @@ class MainWindow(QMainWindow):
         if self.isVisible():
             if not self.isMaximized() and not self.isFullScreen():
                 self._window_layout_customized = True
+            self._settings.setValue("main_window/maximized", int(self.isMaximized()))
             if self._window_layout_customized:
                 self._settings.setValue("main_window/geometry", self.saveGeometry())
                 self._settings.setValue("main_window/splitter_sizes", self._main_splitter.sizes())
