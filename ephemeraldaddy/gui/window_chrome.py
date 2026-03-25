@@ -149,7 +149,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "Calculate BaZi", window, "on_open_bazi_window")
-    _bind_menu_action(tools_menu, "Get Human Design Info", window, "on_get_human_design_info")
+    _bind_menu_action(tools_menu, "Get Human Design Chart", window, "on_get_human_design_info")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
@@ -197,6 +197,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "Open BaZi Window", dialog, "_on_menu_open_bazi_window")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
+    _bind_menu_action(tools_menu, "Get Human Design Chart", window, "on_get_human_design_info")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
