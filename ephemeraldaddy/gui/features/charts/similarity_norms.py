@@ -8,7 +8,7 @@ from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
 
 SIMILARITY_NORMS_SETTINGS_GROUP = "similarity_norms"
-DEFAULT_SIMILARITY_THRESHOLDS: tuple[float, float, float, float] = (20.0, 24.0, 26.0, 35.0)
+DEFAULT_SIMILARITY_THRESHOLDS: tuple[float, float, float, float] = (20.0, 24.0, 26.0, 30.0)
 
 
 class _SettingsLike(Protocol):

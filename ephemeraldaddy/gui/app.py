@@ -14856,7 +14856,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Visibility",
+            "Visibility", #should use header format: bold & copper
         )
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
@@ -14927,7 +14927,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
-        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
+        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
         size_checker_button = QPushButton("Toggle Size Checker")
@@ -14991,7 +14991,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_button_row.addStretch(1)
         dev_tools_section.addLayout(thresholds_button_row)
 
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
         self._dev_user_age_label = QLabel("User Age: unavailable")
@@ -15023,7 +15023,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._refresh_dev_age_predictor()
 
-        reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
+        reset_section = self._add_settings_collapsible_section(content_layout, "Reset") #should use header format: bold & copper
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
 
         reset_interface_button = QPushButton("Reset interface to default")
