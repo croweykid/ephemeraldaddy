@@ -160,8 +160,11 @@ class _StartupLoadingWidget(QWidget):
         layout.setSpacing(6)
         self.setLayout(layout)
 
-        title = QLabel("Starting EphemeralDaddy…")
+        from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
+
+        title = QLabel("Ephemeral Daddy will be with you shortly…")
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         layout.addWidget(title)
 
         self._status_label = QLabel("Preparing startup…")
