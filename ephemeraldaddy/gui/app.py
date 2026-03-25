@@ -14847,9 +14847,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Visibility",
+            "Visibility", #should use header format: bold & copper
         )
-        visibility_section.addWidget(QLabel("Chart Data Panel (Chart View)"))
+        visibility_section.addWidget(QLabel("Chart Data Panel (Chart View)")) #should use bold format
 
         cursedness_checkbox = QCheckBox("Show cursedness analysis")
         cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
@@ -14865,7 +14865,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
-        visibility_section.addWidget(QLabel("Synastry Charts (Popout Charts)"))
+        visibility_section.addWidget(QLabel("Synastry Charts (Popout Charts)")) #should use bold format
 
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
         synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
@@ -14874,7 +14874,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(synastry_aspect_weights_checkbox)
 
-        visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)"))
+        visibility_section.addWidget(QLabel("Chart Analytics Panel (Chart View View)")) #should use bold format
 
         planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
         parent = self.parent()
@@ -14904,7 +14904,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(anagrams_checkbox)
 
         visibility_section.addSpacing(8)
-        visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)"))
+        visibility_section.addWidget(QLabel("Database Analytics Panel (DB View)")) #should use bold formatting
 
         species_distribution_checkbox = QCheckBox("Show Species Distribution")
         species_distribution_checkbox.setChecked(
@@ -14918,7 +14918,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
-        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools")
+        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
         size_checker_button = QPushButton("Toggle Size Checker")
@@ -14975,7 +14975,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_button_row.addStretch(1)
         dev_tools_section.addLayout(thresholds_button_row)
 
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools")
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
         self._dev_user_age_label = QLabel("User Age: unavailable")
@@ -15007,7 +15007,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._refresh_dev_age_predictor()
 
-        reset_section = self._add_settings_collapsible_section(content_layout, "Reset")
+        reset_section = self._add_settings_collapsible_section(content_layout, "Reset") #should use header format: bold & copper
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
 
         reset_interface_button = QPushButton("Reset interface to default")
