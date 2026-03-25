@@ -11399,6 +11399,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_open_bazi_window(self) -> None:
         self._run_main_window_chart_action("open_bazi_window")
 
+    def _on_menu_get_human_design_info(self) -> None:
+        self._run_main_window_chart_action("get_human_design_info")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -17848,6 +17851,9 @@ class MainWindow(QMainWindow):
             self._export_chart(chart)
         elif action_name == "open_bazi_window":
             self._open_bazi_window(chart)
+        elif action_name == "get_human_design_info":
+            self._latest_chart = chart
+            self.on_get_human_design_info()
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
