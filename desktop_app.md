@@ -11,8 +11,8 @@ This is the practical "first EXE build" guide for EphemeralDaddy.
 From PowerShell in the repo root:
 
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+py -3.11 -m venv venv
+.\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip wheel setuptools
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller pillow

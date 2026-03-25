@@ -9,9 +9,9 @@ py -V:3.11 --version #if it shows as installed, proceed to step 5. If not, proce
 
 4. py install 3.11 #tells your shiny new Python Manager to install 3.11
 
-5. py -V:3.11 -m venv .venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder.
+5. py -V:3.11 -m venv venv #creates a virtual environment for Python 3.11 in the Ephemeral Daddy parent folder.
 
-6. .venv\Scripts\activate
+6. venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m ephemeraldaddy.gui.bootstrap
@@ -34,7 +34,7 @@ python -m ephemeraldaddy.gui.app
 -----------------------------------
 Windows:
 cd ~/Documents/ephemeraldaddy
-.venv\Scripts\activate
+venv\Scripts\activate
 python -m ephemeraldaddy.gui.bootstrap
 
 # Optional Windows one-command launcher (recommended):
