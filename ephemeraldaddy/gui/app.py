@@ -2220,14 +2220,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Ketu": equal_norms,
         }
 
-    def _update_dominant_factors_subheader(self) -> None:
+    def _update_dominant_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
         subheader = getattr(self, "dominant_factors_subheader", None)
         if subheader is None:
             return
+        scope_label = "selection" if use_selection_scope else "database"
         label_by_mode = {
-            "top3_signs": "Top 3 dominant signs in database",
-            "top3_planets": "Top 3 dominant bodies in database",
-            "top3_houses": "Top 3 dominant houses in database",
+            "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
+            "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
+            "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
         }
         subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
 
@@ -2418,7 +2419,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 update_similarities=False,
                 sections_to_refresh={chart_key},
             )
-            self._update_dominant_factors_subheader()
+            self._update_dominant_factors_subheader(
+                use_selection_scope=self.list_widget is not None and len(self.list_widget.selectedItems()) > 0
+            )
             return
 
         if chart_key == "cumulativedom_factors":
@@ -3055,7 +3058,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("Top 3 dominant signs in database")
+        self.dominant_factors_subheader = add_database_subheader("top 3 dominant signs for charts in database")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -7311,6 +7314,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if update_database_metrics:
             loaded_charts = int(selection_cache["loaded_charts"])
             database_loaded_charts = int(database_cache["loaded_charts"])
+            self._update_dominant_factors_subheader(use_selection_scope=loaded_charts > 0)
             self._update_cumulativedom_factors_subheader(use_selection_scope=loaded_charts > 0)
             sentiment_loaded_charts = int(sentiment_selection_cache["loaded_charts"])
             sentiment_database_loaded_charts = int(
