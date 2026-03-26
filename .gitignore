@@ -16,3 +16,8 @@ python
 # macOS Finder metadata
 .DS_Store
 .DStore
+
+#build
+build/
+dist/
+EphemeralDaddy.spec
