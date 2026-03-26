@@ -3,8 +3,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from ephemeraldaddy.gui.style import DARK_THEME
-
+# from ephemeraldaddy.gui.style import DARK_THEME
 
 # Aspect scoring constants/helpers consolidated here to keep major astro constants in one module.
 
@@ -161,6 +160,20 @@ ASPECT_SCORE_WEIGHTS = {
     "sesquiquadrate": 2,
     "quintile": 2,
     "biquintile": 2,
+}
+
+ASPECT_ANGLE_DEGREES = {
+    "conjunction": 0.0,
+    "semisextile": 30.0,
+    "semisquare": 45.0,
+    "sextile": 60.0,
+    "quintile": 72.0,
+    "square": 90.0,
+    "trine": 120.0,
+    "sesquiquadrate": 135.0,
+    "biquintile": 144.0,
+    "quincunx": 150.0,
+    "opposition": 180.0,
 }
 
 ASPECT_SCORE_MULTIPLIERS = {
@@ -519,7 +532,7 @@ ZODIAC_SIGNS = [
 
 ELEMENT_COLORS = {
     "Fire": "#cc3300", #was #7a4747, #503030
-    "Earth": "#049534", #was #2e6b42
+    "Earth": "#049534", #was #339966, before that it was #2e6b42
     "Air": "#999900", #was #8b73a3, #66527a
     "Water": "#5f5f8f", #was 2d2d5c
 }
@@ -589,8 +602,8 @@ PLANET_COLORS = {
     "Uranus": "#9933ff", #went #7fff00 "chartreuse" but looked too much like mercury
     "Neptune": "#99ffcc", #6600ff was great but unreadable :(
     "Pluto": "#0099ff", #383894 or #2a2a6f might be superior but you can't read it at all :(
-    "Rahu": "#fffff0", #"ivory" - formerly #355A55 smoky teal, but we needed readability
-    "Ketu": "#dcdcdc", #"gainsboro" - formerly #5A4A52 ash-violet, but we needed readability
+    "Rahu": "#6699ff", #fffff0 #"ivory" - formerly #355A55 smoky teal, but we needed readability
+    "Ketu": "#6699ff", #dcdcdc #"gainsboro" - formerly #5A4A52 ash-violet, but we needed readability
     "Chiron":"#6699ff", #basic blue
     "Ceres":"#6699ff", #basic blue
     "Pallas":"#6699ff", #basic blue
@@ -603,6 +616,7 @@ PLANET_COLORS = {
     "IC":"#33ccff", #lighter basic blue to indicate angles #lighter basic blue to indicate angles
     "DS":"#33ccff", #lighter basic blue to indicate angles
     "MC":"#33ccff", #lighter basic blue to indicate angles
+    "Earth":"#049534", #was #339966 #slightly bluish green
 }
 
 # not used anywhere, as far as I can tell
@@ -665,7 +679,7 @@ NAKSHATRA_PLANET_COLOR = {
     "Swati": ("Rahu", PLANET_COLORS["Rahu"]),
     "Vishakha": ("Jupiter", PLANET_COLORS["Jupiter"]),
     "Anuradha": ("Saturn", PLANET_COLORS["Saturn"]),
-    "Jyeshtha": ("Mercury", PLANET_COLORS["Mercury"]),
+    "Jyestha": ("Mercury", PLANET_COLORS["Mercury"]),
     "Mula": ("Ketu", PLANET_COLORS["Ketu"]),
     "Purva Ashadha": ("Venus", PLANET_COLORS["Venus"]),
     "Uttara Ashadha": ("Sun", PLANET_COLORS["Sun"]),
@@ -1563,10 +1577,10 @@ SIGN_KEYWORDS = {
             "inert", "shrouded", "distanced",
         ],
         "best_adverbs": [
-            "complexly", "reflectively", "enigmatically", "thoughtfully", "in a layered way",
+            "in a complex way", "reflectively", "enigmatically", "thoughtfully", "in a layered way",
             "analytically", "symbolically", "philosophically", "composedly", "deeply",
             "intentionally", "in a ritualized way", "in a contained way", "in a coded way",
-            "in a structured way", "interpretively", "analytically", "in a saturated way",
+            "in a structured way", "interpretively", "analytically",
         ],
         "worst_adverbs": [
             "in an abstracted way", "in an emotionally inaccessible way", "obscurely",
@@ -1967,56 +1981,57 @@ PLANET_KEYWORDS = {
 
 
 HOUSE_KEYWORDS = { #Areas of Life
-    1: [
-        "lifeforce","health","one's body", "one's appearance", "one's identity", "one's name", "one's evident personality", "identity", "physical presence",
-        "first impression", "self presentation", "personal style", "attitude", "approach", "confidence", "self",
+    1: [ #the visible incarnation point
+        "lifeforce","health","one's body", "one's appearance", "one's identity", "one's name", "one's evident personality", "identity", "physical presence","voice",
+        "first impression", "self presentation", "personal style", "attitude", "approach", "confidence", "self","physical embodiment","surface vitality","signature",
     ],
-    2: [
-        "riches","money", "income", "budget", "savings", "spending", "possessions",
+    2: [ #what one can keep, count, chew and/or rely upon
+        "riches","money", "income", "budget", "savings", "spending", "possessions","what-one-can-keep","hoard","reserves","appetite","resources for sustained continuity",
         "food", "resources", "skills", "values", "comfort", "security",
     ],
-    3: [
-        "kindred","short journeys","messages", "texts", "emails", "calls", "conversations", "neighbors","voyages","rendezvous","journeys","travels",
-        "siblings", "short trips","errands", "calendar", "notes", "information","data","exchanges","dialogues","correspondence",
-        "missives","cousins","neighbors","brethren","research","studies","analysis","investigation","communication",
+    3: [ #immediate signal ecology
+        "kindred","short journeys","messages", "texts", "emails", "calls", "conversations", "neighbors","voyages","rendezvous","short journeys","domestic travel","casual omens","pattern recognition",
+        "siblings","errands", "calendar", "notes", "information","data","exchanges","dialogues","correspondence","exchange of information","gossip","intelligence","relay systems","crossings","routes",
+        "missives","cousins","neighbors","brethren","research","studies","analysis","investigation","communication", #'short' journeys are relative to the time period. In the 21st century, that probably means domestic travel vs international travel; in the 18th century, maybe it meant visits to the neighboring towns. In the 24th century, if we make it that far, maybe it'll mean travel within the solar system, but never outside of it.
     ],
-    4: [
-        "parents","home life", "family", "personal space", "house", "family roots", "childhood","real estate","castles","antiquities","antiques","gardens","vintage items","gardening",
-        "privacy", "a sense of belonging", "personal property", "the kitchen", "bedroom", "the past","property","home","property","vineyards","cornfields","personal residence","parents",
+    4: [ #origin chamber / buried basement
+        "home life", "family", "house", "childhood","real estate","antiquities","antiques","gardens","vintage items","abode","dwelling place",
+        "domestic security", "belonging", "home base","agriculture","ancestral legacy","domestic sovereignty","ancestry",
+        "private life", "a sense of belonging", "personal property", "the kitchen", "bedroom", "the past","home","property","buried history", "foundation stones", "the cellar", "old bloodlines", "the underground root system",
         #final end of all things, the querent’s father, his patrimony
     ],
-    5: [
-        "children","dating", "romance", "sex", "fun", "party", "hobbies", "games",
-        "art", "performance", "play", "creativity", "attention", "kids",
+    5: [ #self-expression under witness
+        "children","dating", "romance", "flirtation", "fun", "party", "hobbies", "games","seduction","applause","favored offspring","risk for pleasure","presentations",
+        "art", "performance", "play", "creativity", "attention", "kids","theatre",
     ],
-    6: [
-        "daily obligations","daily tasks", "jobs", "schedule", "mundane tasks", "habits", "health","work",
-        "diet", "healthiness", "routine", "coworkers", "service", "maintenance",
+    6: [ #maintenance
+        "daily obligations","daily tasks", "labor","daily grind","maintenance tasks","schedule", "mundane tasks", "habits", "health","work",
+        "diet", "healthiness", "routine", "coworkers", "service", "repetitive duties","upkeep","useful competence","correction","quiet competence",
     ],
-    7: [
-        "marriage(s)","partner", "relationship", "partnership(s)", "binding contracts","devotion",
-        "clients", "collaboration", "negotiation", "interpersonal commitments","legal contracts",
+    7: [ #the formal Other
+        "marriage(s)","partner", "relationship", "partnership(s)", "binding contracts","devotion","public enemies","alliances","witness","rival",
+        "clients", "collaboration", "negotiation", "interpersonal commitments","legal contracts","codependency","counterpart","spouse",
     ],
-    8: [
-        "death","debt", "taxes", "other people's money", "exchanges with others","shared resources", "loans", "insurance","public enemies",
-        "secrets", "control", "power", "boundaries", "crises", "intimacy","sexuality","sex life","sex","calamities","existential upheavals",
+    8: [ #consequences after contract
+        "death","debt", "taxes", "other people's money", "exchanges with others","shared resources", "loans", "insurance","forbidden knowledge","taboos", "control","irreversible exchange",
+        "power", "boundaries", "crises", "intimacy","sexuality","sex","calamities","existential upheavals","entanglement","fear", "mortality","mergers","shared resources","transactional consequences",
+        "forbidden archives", "occult initiation", "bondage of consequence", "energetic residue", "ancestral debt", "threshold events","dependency","blood price","extraction",
     ],
-    9: [
-        "long journeys","travel", "foreign adventures", "distance", "college", "classes", "books","faith","scholarship",
-        "religion", "beliefs", "philosophy", "law", "publishing", "languages","ideology","foreign cultures",
+    9: [ #meaning found at distance
+        "international journeys","travel abroad","foreign adventures","college","canonical texts","sanctioned truth","doctrine","dogma","pilgrimage","worldview architecture","paradigms",
+        "religion", "beliefs","philosophy","law","ideology","foreign cultures",  #'long' journeys are relative to the time period. In the 21st century, that probably means international travel vs domestic - or maybe even travel into space (haven't checked astronaut charts)?; in the 18th century, maybe it meant cross-country treks and/or sea voyages. In the 24th century, if we make it that far, maybe it'll mean travel outside of the solar system rather than staying within it.
     ],
-    10: [
-        "honor","career(s)", "bosses", "titles & honors", "public reputation", "status within the community","mastery of a craft",
-        "public image", "public goals", "lifelong undertakings","life achievements", "offices held", "authority & status", "responsibility to the community",
+    10: [ #the public summit
+        "honor","career(s)", "bosses", "titles & honors", "reputation","public role","fame","visible competence","rank","public office","legacy",
+        "public image", "public goals", "lifelong undertakings","life achievements", "authority","public status", "responsibility to the community","civic burden","renown",
     ],
-    11: [
-        "friends", "groups", "community", "teams", "networks", "followers",
-        "audience", "events", "plans", "causes", "collaborators", "future",
+    11: [ #distributed belonging
+        "friends", "groups", "community", "teams", "networks", "followers","collective aspiration","patrons","affiliations","cohorts",
+        "audience", "events", "plans", "causes", "collaborators", "future","social systems","social networks","audience blocs",
     ],
-    12: [
-        "sleep", "dreams", "privacy", "alone time","institutions", "hospitals","deception","blasphemy","ostracization",
-        "retreats", "the subconscious", "imprisonment", "lingering illness", "escape","lamentation","exile",
-        "secrets", "rest", "backstage","hidden things","banishment","lost things","forgotten things","",
+    12: [ #that which withdraws from ordinary visibility
+        "isolation","hidden suffering","seclusion","confinement","prisons","sleep","going off the grid","dreams","hospitals","erasure","captivity","ostracization","closet skeletons","delusion","madness","hidden enemies","things misplaced by time","unseen costs",
+        "retreat", "the subconscious", "imprisonment", "lingering illness", "escape","lamentation","exile", "rest", "backstage","hidden things","banishment","lost things","forgotten things","dissolution of identity boundaries","burnout","rest","withdrawal",
     ],
 }
 
