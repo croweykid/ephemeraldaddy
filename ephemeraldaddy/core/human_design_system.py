@@ -213,7 +213,37 @@ def _has_motor_to_throat_path(
     return any(center in seen for center in MOTOR_CENTERS if center in defined_centers)
 
 
-def _resolve_authority(hd_type: str, defined_centers: set[str]) -> str:
+def _centers_connected(
+    center_a: str,
+    center_b: str,
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> bool:
+    if center_a == center_b:
+        return True
+    graph: dict[str, set[str]] = {}
+    for _gate_a, _gate_b, c1, c2 in defined_channels:
+        graph.setdefault(c1, set()).add(c2)
+        graph.setdefault(c2, set()).add(c1)
+    frontier = {center_a}
+    seen: set[str] = set()
+    while frontier:
+        next_frontier: set[str] = set()
+        for center in frontier:
+            if center in seen:
+                continue
+            if center == center_b:
+                return True
+            seen.add(center)
+            next_frontier.update(graph.get(center, set()) - seen)
+        frontier = next_frontier
+    return False
+
+
+def _resolve_authority(
+    hd_type: str,
+    defined_centers: set[str],
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> str:
     if hd_type == "Reflector":
         return "Lunar"
     if "Solar Plexus" in defined_centers:
@@ -222,13 +252,13 @@ def _resolve_authority(hd_type: str, defined_centers: set[str]) -> str:
         return "Sacral"
     if "Spleen" in defined_centers:
         return "Splenic"
-    if "Ego" in defined_centers and "Throat" in defined_centers:
+    if hd_type == "Manifestor" and _centers_connected("Ego", "Throat", defined_channels):
         return "Ego Manifested"
-    if "Ego" in defined_centers and "G" in defined_centers:
+    if hd_type == "Projector" and _centers_connected("Ego", "G", defined_channels):
         return "Ego Projected"
-    if "G" in defined_centers and "Throat" in defined_centers:
+    if hd_type == "Projector" and _centers_connected("G", "Throat", defined_channels):
         return "Self-Projected"
-    if "Ajna" in defined_centers and "Throat" in defined_centers:
+    if hd_type == "Projector" and _centers_connected("Ajna", "Throat", defined_channels):
         return "Mental (Environmental / Sounding Board)"
     return "No Inner Authority"
 
@@ -350,7 +380,7 @@ def calculate_human_design(chart: "Chart") -> HumanDesignResult:
     defined_channels = tuple(unique_channels.values())
     defined_centers = frozenset({c for _g1, _g2, c1, c2 in defined_channels for c in (c1, c2)})
     hd_type = _resolve_type(set(defined_centers), defined_channels)
-    authority = _resolve_authority(hd_type, set(defined_centers))
+    authority = _resolve_authority(hd_type, set(defined_centers), defined_channels)
     strategy = _resolve_strategy(hd_type)
     split_definition = _split_definition(defined_channels)
     personality_sun_line = p_components["Sun"][1]
