@@ -3376,13 +3376,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.transit_location_input.setPlaceholderText(
             "Location (city or lat,lon)"
         )
-        self.transit_location_input.returnPressed.connect(
-            self._apply_transit_location
-        )
+        self.transit_location_input.installEventFilter(self)
         location_layout.addWidget(self.transit_location_input, 1)
 
         self.transit_location_button = QPushButton("Set")
-        self.transit_location_button.clicked.connect(self._apply_transit_location)
+        self.transit_location_button.clicked.connect(
+            self._on_transit_location_submitted
+        )
         location_layout.addWidget(self.transit_location_button)
 
         section_layout.addLayout(location_layout)
@@ -3522,6 +3522,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_location_source = "manual"
         self._save_transit_location_preference(raw_value)
         self._refresh_todays_transits_panel()
+
+    def _on_transit_location_submitted(self, *_args) -> None:
+        self._apply_transit_location()
 
     def _initialize_transit_location_defaults(self) -> None:
         gps_location = self._resolve_gps_transit_location()
@@ -9703,6 +9706,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
                     return
+                if focus_widget is self.transit_location_input:
+                    self._on_transit_location_submitted()
+                    return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
                     return
@@ -9722,6 +9728,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
+        if (
+            hasattr(self, "transit_location_input")
+            and obj is self.transit_location_input
+            and event.type() == QEvent.KeyPress
+            and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+        ):
+            self._on_transit_location_submitted()
+            return True
         list_widget = getattr(self, "list_widget", None)
         if list_widget is not None and obj is list_widget and event.type() == QEvent.KeyPress:
             if self._handle_list_letter_jump(event):
