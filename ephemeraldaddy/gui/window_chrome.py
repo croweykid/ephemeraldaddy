@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_INTRO_STYLE,
     ABOUT_DIALOG_MARKDOWN_STYLESHEET,
@@ -51,19 +51,14 @@ def _configure_menu_bar_visibility(menu_bar) -> None:
 
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:
-    """Show About dialog content sourced from ONBOARDING.md."""
-    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMessageBox, QTextBrowser, QVBoxLayout
+    """Show About dialog content bundled directly into the app binary."""
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextBrowser, QVBoxLayout
 
-    onboarding_path = Path(__file__).resolve().parents[2] / "ONBOARDING.md"
     title = f"About {APP_DISPLAY_NAME}"
 
-    if not onboarding_path.exists():
-        QMessageBox.information(owner, title, "ONBOARDING.md was not found.")
-        return
-
-    content = onboarding_path.read_text(encoding="utf-8").strip()
+    content = ABOUT_ONBOARDING_MARKDOWN.strip()
     if not content:
-        content = "ONBOARDING.md is empty."
+        content = "About content is unavailable."
 
     styled_content_lines: list[str] = []
     for line in content.splitlines():
@@ -86,7 +81,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.resize(720, 560)
 
     layout = QVBoxLayout(dialog)
-    intro = QLabel("Content sourced from ONBOARDING.md")
+    intro = QLabel("Onboarding guide is bundled into this app build.")
     intro.setStyleSheet(ABOUT_DIALOG_INTRO_STYLE)
     layout.addWidget(intro)
 
