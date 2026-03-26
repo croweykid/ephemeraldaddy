@@ -581,6 +581,11 @@ from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, R
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.style import (
+    CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
+    CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
+    CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
+    CHART_VIEW_TIME_INPUT_WIDTH,
+    CHART_VIEW_TIME_OVERWRITE_ENABLED,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -642,6 +647,85 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
     create_bazi_window_dialog,
     validate_chart_for_bazi,
 )
+
+
+class SegmentedTimeEdit(QLineEdit):
+    """Compact HH:mm editor with overwrite behavior and colon-safe navigation."""
+
+    timeChanged = Signal(QTime)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._current_time = QTime(12, 0)
+        self.setAlignment(Qt.AlignCenter)
+        self.setMaxLength(5)
+        self.setInputMask("99:99")
+        self.setTime(self._current_time)
+
+    def setDisplayFormat(self, _format: str) -> None:
+        """Compatibility shim with QTimeEdit API."""
+        return
+
+    def time(self) -> QTime:
+        return self._current_time
+
+    def setTime(self, value: QTime) -> None:
+        normalized = value if isinstance(value, QTime) and value.isValid() else QTime(12, 0)
+        self._current_time = normalized
+        self.setText(f"{normalized.hour():02d}:{normalized.minute():02d}")
+        if self.cursorPosition() == 2:
+            self.setCursorPosition(3)
+
+    def keyPressEvent(self, event) -> None:
+        key = event.key()
+        if key == Qt.Key_Backspace:
+            cursor = self.cursorPosition()
+            if cursor == 3:
+                self.setCursorPosition(1)
+            elif cursor == 2:
+                self.setCursorPosition(1)
+            super().keyPressEvent(event)
+            self._normalize_and_emit()
+            return
+        if key in (Qt.Key_Delete, Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
+            super().keyPressEvent(event)
+            if self.cursorPosition() == 2:
+                if key == Qt.Key_Left:
+                    self.setCursorPosition(1)
+                else:
+                    self.setCursorPosition(3)
+            self._normalize_and_emit()
+            return
+        if event.text().isdigit() and CHART_VIEW_TIME_OVERWRITE_ENABLED:
+            super().keyPressEvent(event)
+            if self.cursorPosition() == 2:
+                self.setCursorPosition(3)
+            self._normalize_and_emit()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        if self.cursorPosition() == 2:
+            self.setCursorPosition(3)
+
+    def _normalize_and_emit(self) -> None:
+        text = self.text()
+        digits = [char for char in text if char.isdigit()]
+        if len(digits) < 4:
+            return
+        hour = min(23, int("".join(digits[:2])))
+        minute = min(59, int("".join(digits[2:4])))
+        normalized = QTime(hour, minute)
+        normalized_text = f"{hour:02d}:{minute:02d}"
+        if text != normalized_text:
+            cursor_position = self.cursorPosition()
+            self.setText(normalized_text)
+            self.setCursorPosition(3 if cursor_position == 2 else min(cursor_position, len(normalized_text)))
+        if normalized != self._current_time:
+            self._current_time = normalized
+            self.timeChanged.emit(self._current_time)
+
 
 class ResizablePixmapLabel(QLabel):
     def __init__(self, pixmap: QPixmap, parent: QWidget | None = None) -> None:
@@ -3376,13 +3460,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.transit_location_input.setPlaceholderText(
             "Location (city or lat,lon)"
         )
-        self.transit_location_input.returnPressed.connect(
+        self.transit_location_input._batch_enter_apply_callback = (
             self._apply_transit_location
+        )
+        self.transit_location_input.returnPressed.connect(
+            self._on_transit_location_submitted
         )
         location_layout.addWidget(self.transit_location_input, 1)
 
         self.transit_location_button = QPushButton("Set")
-        self.transit_location_button.clicked.connect(self._apply_transit_location)
+        self.transit_location_button.clicked.connect(
+            self._on_transit_location_submitted
+        )
         location_layout.addWidget(self.transit_location_button)
 
         section_layout.addLayout(location_layout)
@@ -3522,6 +3611,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_location_source = "manual"
         self._save_transit_location_preference(raw_value)
         self._refresh_todays_transits_panel()
+
+    def _on_transit_location_submitted(self, *_args) -> None:
+        self._apply_transit_location()
 
     def _initialize_transit_location_defaults(self) -> None:
         gps_location = self._resolve_gps_transit_location()
@@ -3830,7 +3922,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._generate_composite_chart_for_ids(base_chart_id, overlay_chart_id)
 
-    def _prompt_composite_chart_selection(self) -> tuple[int, int] | None:
+    def _prompt_composite_chart_selection(
+        self,
+        default_first_chart_id: int | None = None,
+        focus_second_input: bool = False,
+    ) -> tuple[int, int] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Generate Composite Chart")
         dialog.setModal(True)
@@ -3865,6 +3961,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
+
+        if default_first_chart_id is not None:
+            for label, chart_id in chart_lookup.items():
+                if chart_id == default_first_chart_id:
+                    first_chart_input.setText(label)
+                    break
         second_completer = QCompleter(labels, second_chart_input)
         second_completer.setCaseSensitivity(Qt.CaseInsensitive)
         second_completer.setFilterMode(Qt.MatchContains)
@@ -3912,6 +4014,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         synastrize_button.clicked.connect(_submit)
         first_chart_input.returnPressed.connect(_submit)
         second_chart_input.returnPressed.connect(_submit)
+
+        if focus_second_input:
+            QTimer.singleShot(0, second_chart_input.setFocus)
+            QTimer.singleShot(0, second_chart_input.selectAll)
 
         if dialog.exec() != QDialog.Accepted:
             return None
@@ -9703,6 +9809,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
                     return
+                if focus_widget is self.transit_location_input:
+                    self._on_transit_location_submitted()
+                    return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
                     return
@@ -11120,7 +11229,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = list(dict.fromkeys(self._selected_chart_ids()))
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11130,8 +11239,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
             return
 
+        selected_count = len(chart_ids)
         if relationship_type.lower() == "self" and checked:
-            if len(chart_ids) != 1:
+            if selected_count > 1:
                 QMessageBox.warning(
                     self,
                     "Batch edit not allowed",
@@ -11143,7 +11253,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._update_batch_edit_state()
                 return
 
-        selected_count = len(chart_ids)
         action_label = (
             f"Apply relationship type '{relationship_type}' to"
             if checked
@@ -11487,6 +11596,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             relationship_type,
             state,
         )
+
+    def _confirm_self_reassignment(self, current_chart_id: int | None) -> bool:
+        existing_self = find_self_tagged_chart(exclude_chart_id=current_chart_id)
+        if existing_self is None:
+            return True
+
+        _former_chart_id, former_chart_name = existing_self
+        choice = QMessageBox.question(
+            self,
+            "There's only one you, baby. ('Self' relationship already assigned)",
+            f"Remove 'self' from {former_chart_name}? y/n",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
+            return False
+
+        removed_ids = clear_self_tag_from_other_charts(
+            current_chart_id if current_chart_id is not None else -1
+        )
+        for removed_id in removed_ids:
+            self._chart_cache.pop(removed_id, None)
+        return True
 
     def _on_batch_source_selected(self, index: int) -> None:
         source = self.batch_source_combo.itemData(index)
@@ -15563,8 +15695,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "}"
         )
         panel_layout = QVBoxLayout(self._help_side_panel)
-        panel_layout.setContentsMargins(12, 12, 12, 12)
-        panel_layout.setSpacing(8)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
 
         panel_title = QLabel("❓") #"Help"
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
@@ -15585,15 +15717,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._help_entry_detail = QLabel()
         self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._help_entry_detail.setStyleSheet(
-            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
         )
         self._help_entry_detail_scroll = QScrollArea()
         self._help_entry_detail_scroll.setWidgetResizable(True)
         self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
         self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
         self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
-        panel_layout.addWidget(self._help_entry_detail_scroll)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -16349,20 +16485,20 @@ class MainWindow(QMainWindow):
         form.addRow(place_row_widget)
 
         #Birth time
-        self.time_edit = QTimeEdit()
-        self.time_edit.setDisplayFormat("HH:mm")
+        self.time_edit = SegmentedTimeEdit()
+        self.time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.time_edit.setTime(QTime(12, 0))
-        self.time_edit.setFixedWidth(78)
+        self.time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.time_unknown_checkbox = QCheckBox("unknown time")
         self.time_unknown_checkbox.toggled.connect(self._on_unknown_time_toggled)
         self.time_unknown_checkbox.toggled.connect(self._mark_lucygoosey)
         self.time_edit.timeChanged.connect(self._on_birth_time_changed)
         self.time_edit.timeChanged.connect(self._mark_lucygoosey)
 
-        self.retcon_time_edit = QTimeEdit()
-        self.retcon_time_edit.setDisplayFormat("HH:mm")
+        self.retcon_time_edit = SegmentedTimeEdit()
+        self.retcon_time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.retcon_time_edit.setTime(QTime(12, 0))
-        self.retcon_time_edit.setFixedWidth(78)
+        self.retcon_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
         self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
@@ -16396,8 +16532,10 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(QLabel("Birth Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
-        birth_time_row.addWidget(self.retcon_time_checkbox, 0)
+        birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER)
         birth_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
+        birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
+        birth_time_row.addWidget(self.retcon_time_checkbox, 0)
         birth_time_row.addWidget(self.retcon_time_edit, 0)
         birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addStretch(1)
@@ -20943,10 +21081,8 @@ class MainWindow(QMainWindow):
         retcon_time_color = (
             "#f5f5f5" if self._retcon_time_user_overridden else "#8a8a8a"
         )
-        self.time_edit.setStyleSheet(f"QTimeEdit {{ color: {birth_time_color}; }}")
-        self.retcon_time_edit.setStyleSheet(
-            f"QTimeEdit {{ color: {retcon_time_color}; }}"
-        )
+        self.time_edit.setStyleSheet(f"color: {birth_time_color};")
+        self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
@@ -21989,6 +22125,16 @@ class MainWindow(QMainWindow):
     def on_get_current_transits(self) -> None:
         self._generate_current_transits_for_chart(self._latest_chart, self.current_chart_id)
 
+    def on_get_synastry_chart(self) -> None:
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        chart_ids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_id=self.current_chart_id,
+            focus_second_input=True,
+        )
+        if chart_ids is None:
+            return
+        manage_dialog._generate_composite_chart_for_ids(*chart_ids)
+
     def closeEvent(self, event) -> None:
         if not self._allow_app_exit_close:
             self.on_manage_charts()
@@ -22061,8 +22207,8 @@ class MainWindow(QMainWindow):
             "}"
         )
         panel_layout = QVBoxLayout(self._help_side_panel)
-        panel_layout.setContentsMargins(12, 12, 12, 12)
-        panel_layout.setSpacing(8)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
 
         panel_title = QLabel("❓") #"Help"
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
@@ -22083,15 +22229,19 @@ class MainWindow(QMainWindow):
 
         self._help_entry_detail = QLabel()
         self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._help_entry_detail.setStyleSheet(
-            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
         )
         self._help_entry_detail_scroll = QScrollArea()
         self._help_entry_detail_scroll.setWidgetResizable(True)
         self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
         self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
         self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
-        panel_layout.addWidget(self._help_entry_detail_scroll)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
