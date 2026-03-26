@@ -1999,13 +1999,13 @@ HOUSE_KEYWORDS = { #Areas of Life
         "clients", "collaboration", "negotiation", "interpersonal commitments","legal contracts","codependency","counterpart","spouse",
     ],
     8: [ #consequences after contract
-        "death","debt", "taxes", "other people's money", "exchanges with others","shared resources", "loans", "insurance","forbidden knowledge","taboos", "control",
-        "power", "boundaries", "crises", "intimacy","sexuality","sex","calamities","existential upheavals","entanglement","fear", "mortality","mergers","shared resources",
-        "forbidden archives", "occult initiation", "bondage of consequence", "energetic residue", "ancestral debt", "threshold events","dependency",
+        "death","debt", "taxes", "other people's money", "exchanges with others","shared resources", "loans", "insurance","forbidden knowledge","taboos", "control","irreversible exchange",
+        "power", "boundaries", "crises", "intimacy","sexuality","sex","calamities","existential upheavals","entanglement","fear", "mortality","mergers","shared resources","transactional consequences",
+        "forbidden archives", "occult initiation", "bondage of consequence", "energetic residue", "ancestral debt", "threshold events","dependency","blood price","extraction",
     ],
     9: [ #meaning found at distance
-        "international journeys","long journeys","travel abroad", "foreign adventures", "distance", "college", "classes", "books","faith","scholarship",
-        "religion", "beliefs", "philosophy", "law", "publishing", "languages","ideology","foreign cultures",  #'long' journeys are relative to the time period. In the 21st century, that probably means international travel vs domestic - or maybe even travel into space (haven't checked astronaut charts)?; in the 18th century, maybe it meant cross-country treks and/or sea voyages. In the 24th century, if we make it that far, maybe it'll mean travel outside of the solar system rather than staying within it.
+        "international journeys","travel abroad","foreign adventures","college","canonical texts","sanctioned truth","doctrine","dogma","pilgrimage","worldview architecture","paradigms",
+        "religion", "beliefs","philosophy","law","ideology","foreign cultures",  #'long' journeys are relative to the time period. In the 21st century, that probably means international travel vs domestic - or maybe even travel into space (haven't checked astronaut charts)?; in the 18th century, maybe it meant cross-country treks and/or sea voyages. In the 24th century, if we make it that far, maybe it'll mean travel outside of the solar system rather than staying within it.
     ],
     10: [ #the public summit
         "honor","career(s)", "bosses", "titles & honors", "reputation","public role","fame","visible competence","rank","public office","legacy",
