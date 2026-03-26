@@ -321,7 +321,7 @@ class SpeciesAssigner:
                     mode_totals[mode] += weight
                     break
 
-            trait_meta = SIGN_KEYWORDS.get(sign, {})
+            trait_meta = SIGN_KEYWORDS.get(sign) or SIGN_KEYWORDS.get(str(sign).lower(), {})
             for trait in SIGN_CLASSICAL_TRAITS:
                 if trait_meta.get(trait) is True:
                     trait_totals[trait] += weight
