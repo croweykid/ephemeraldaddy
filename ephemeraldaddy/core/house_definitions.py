@@ -860,5 +860,180 @@ HOUSE_DEFINITIONS = { #Areas of Life
 
         "notes": []
     },
-    
+    11: {
+        "name": "Eleventh House",
+        "archetypal_title": "Networked Belonging",
+
+        "core_domains": [
+            "friends",
+            "groups",
+            "community",
+            "networks",
+            "affiliations",
+            "cohorts",
+            "alliances",
+            "group aspiration",
+            "social belonging",
+            "shared causes",
+            "future orientation",
+            "audience",
+        ],
+
+        "derived_domains": [
+            "teams",
+            "teamwork",
+            "followers",
+            "patrons",
+            "supporters",
+            "collaborators",
+            "causes",
+            "crowds",
+            "systems with many nodes",
+            "social networks",
+            "audience blocs",
+            "gatherings",
+            "cohort affiliations",
+            "group memberships",
+            "clubs",
+            "circles",
+            "coalitions",
+            "constituencies",
+            "future plans",
+        ],
+
+        "traditional_domains": [
+            "friends",
+            "allies",
+            "benefactors",
+            "patrons",
+            "hopes",
+            "wishes",
+            "associations",
+            "good fortune through others",
+        ],
+
+        "esoteric_domains": [
+            "collective identity",
+            "field of affinity",
+            "allies & audience",
+            "shared horizon",
+            "social constellations",
+            "web of belonging",
+            "collective futures",
+        ],
+
+        "axes": {
+            "visibility": 0.62,
+            "relationality": 0.90,
+            "materiality": 0.22,
+            "institutionality": 0.58,
+            "mortality": 0.18,
+            "agency": 0.64,
+            "subjectivity": 0.34,
+            "publicness": 0.82,
+            "immediacy": 0.56,
+            "symbolic_density": 0.66,
+        },
+
+        "logic": {
+            "entry_mode": "affiliation",
+            "resource_mode": "belonging",
+            "failure_mode": "alienation, factionalism, shallow networking, social drift, dependence on group approval",
+            "distortion_mode": "dissolving into the collective, mistaking visibility for belonging, substituting audience for friendship",
+        },
+        "notes": [
+        "H5 is the performer; it's opposite, H11, is the audience.",
+        "Subcultures arguably belong to H3 & H11. H3 for fluency with local symbolism, H11 for in-group belonging."
+        ]
+    },
+    12: {
+        "name": "Twelfth House",
+        "archetypal_title": "That Which Withdraws from Ordinary Visibility",
+
+        "core_domains": [
+            "isolation",
+            "seclusion",
+            "confinement",
+            "withdrawal",
+            "sleep",
+            "dreams",
+            "retreat",
+            "exile",
+            "captivity",
+            "hidden suffering",
+            "hidden enemies",
+            "erasure",
+        ],
+
+        "derived_domains": [
+            "prisons",
+            "hospitals",
+            "backstage life",
+            "going off the grid",
+            "burnout",
+            "unseen costs",
+            "lost things",
+            "forgotten things",
+            "hidden things",
+            "closet skeletons",
+            "rest",
+            "escape",
+            "banishment",
+            "ostracization",
+            "lingering illness",
+            "subconscious psyche",
+            "psychic destabilization",
+            "dissolution of identity",
+            "ego-death",
+        ],
+
+        "traditional_domains": [
+            "captivity",
+            "banishment",
+            "hidden enemies",
+            "sorrow",
+            "confinement",
+            "self-undoing",
+            "institutions of seclusion",
+            "loss through obscurity",
+        ],
+
+        "esoteric_domains": [
+            "far room",
+            "things misplaced by time",
+            "events unwitnessed by the world",
+            "cost paid offstage",
+            "dissolution of identity boundaries",
+            "submerged life",
+            "silent attrition",
+            "withdrawal from the visible field",
+        ],
+
+        "axes": {
+            "visibility": 0.02,
+            "relationality": 0.22,
+            "materiality": 0.38,
+            "institutionality": 0.56,
+            "mortality": 0.68,
+            "agency": 0.18,
+            "subjectivity": 0.92,
+            "publicness": 0.04,
+            "immediacy": 0.30,
+            "symbolic_density": 0.96,
+        },
+
+        "logic": {
+            "entry_mode": "withdrawal",
+            "resource_mode": "seclusion",
+            "failure_mode": "erasure, confinement, hidden depletion, psychic disorganization, loss of foothold in ordinary life",
+            "distortion_mode": "romanticizing disappearance, confusing retreat with transcendence, surrendering agency through passivity or avoidance",
+        },
+
+        "notes": [
+        "H4 vs H12: 4th is private foundation and enclosed belonging; 12th is enclosure without secure belonging.",
+        "H9 vs H12: 9th is doctrine, pilgrimage, sanctioned meaning; 12th is seclusion, dissolution, hidden attrition. People blur these when they want to make retreat sound holy.",
+        "H6 vs H12: 6th manages disorder; 12th is what escapes management, overwhelms functioning, or removes one from ordinary routine.",
+        "H8 vs H12: 8th is entanglement and consequence; 12th is obscurity, confinement, erosion, disappearance."
+        ]
+    },
 }
