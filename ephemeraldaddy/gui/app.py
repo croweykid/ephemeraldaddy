@@ -219,6 +219,7 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
     apply_window_placement,
+    bring_window_to_front,
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
@@ -1957,7 +1958,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_ctrl.activated.connect(self.close)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self.close)
-        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self._initial_progress_pending = True
@@ -12633,8 +12634,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
-        self.raise_()
-        self.activateWindow()
+        bring_window_to_front(self)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -17190,7 +17190,7 @@ class MainWindow(QMainWindow):
         self._shortcut_close_ctrl.activated.connect(self._on_close_requested)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
-        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self.chart_canvas = None
@@ -19843,8 +19843,7 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        dialog.raise_()
-        dialog.activateWindow()
+        bring_window_to_front(dialog)
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(
