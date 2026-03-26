@@ -20263,9 +20263,6 @@ class MainWindow(QMainWindow):
         try:
             chart = Chart(name, dt_local, lat, lon, tz=tz_override, alias=alias)
             chart.gender = gender
-            print("DEBUG houses:", chart.houses)
-            print("Asc ~", chart.houses[0])
-            print("MC  ~", chart.houses[9])
         except Exception as e:
             if show_feedback:
                 QMessageBox.critical(

@@ -65,7 +65,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
         ],
 
         "esoteric_domains": [ #symbolic and mythic register
-            "the threshold self",
+            "threshold self",
             "daylight identity",
             "face turned toward the world",
             "body's declaration",
@@ -324,15 +324,15 @@ HOUSE_DEFINITIONS = { #Areas of Life
         "esoteric_domains": [
             "foundation stones",
             "gestation",
-            "the underground chamber",
-            "the buried base",
+            "underground chamber",
+            "buried base",
             "maternal continuity",
             "hearth memory",
             "pre-public formation of self",
-            "the enclosed kingdom",
-            "the inherited ground",
-            "the root system of identity",
-            "what shelters the self from public view",
+            "enclosed kingdom",
+            "inherited ground",
+            "root system of identity",
+            "shelters of the self from public view",
         ],
 
         "axes": {
@@ -406,14 +406,14 @@ HOUSE_DEFINITIONS = { #Areas of Life
         ],
 
         "esoteric_domains": [
-            "the staged self",
-            "the radiant performance impulse",
+            "staged self",
+            "radiant performance impulse",
             "creation under witness",
-            "the desire to delight",
-            "the theater of attraction",
-            "the gamble of visibility",
-            "the favored creation",
-            "the spark that wants applause",
+            "desire to delight",
+            "theater of attraction",
+            "gamble of visibility",
+            "favored creation",
+            "spark that wants applause",
         ],
 
         "axes": {
@@ -486,15 +486,15 @@ HOUSE_DEFINITIONS = { #Areas of Life
         ],
 
         "esoteric_domains": [
-            "the maintenance corridor",
-            "the burden of continuation",
-            "the discipline of upkeep",
+            "maintenance corridor",
+            "burden of continuation",
+            "discipline of upkeep",
             "what must be corrected",
             "work that keeps things running",
-            "the invisible labor of continuity",
+            "invisible labor of continuity",
             "competence without spectacle",
-            "the rituals of functioning",
-            "the price of operational life",
+            "rituals of functioning",
+            "price of operational life",
         ],
 
         "axes": {
@@ -568,14 +568,14 @@ HOUSE_DEFINITIONS = { #Areas of Life
         ],
 
         "esoteric_domains": [
-            "the recognized other",
-            "the face across the threshold",
+            "recognized other",
+            "face across the threshold",
             "binding encounter",
-            "the lawful counterpart",
-            "the witness who answers back",
+            "lawful counterpart",
+            "witness who answers back",
             "union under recognition",
-            "the adversary in full view",
-            "the other party",
+            "adversary in full view",
+            "other party",
         ],
 
         "axes": {
@@ -663,10 +663,10 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "energetic residue",
             "threshold events",
             "blood price",
-            "the cost hidden inside the bond",
+            "cost hidden inside the bond",
             "stakes that override consent",
             "custody over what others need",
-            "the chamber of irreversible exchange",
+            "chamber of irreversible exchange",
         ],
 
         "axes": {
@@ -708,8 +708,8 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "law",
             "doctrine",
             "worldview",
-            "belief systems",
-            "organized value systems",
+            "systems of meaning",
+            "cosmology",
             "cultural distance",
         ],
 
@@ -747,11 +747,11 @@ HOUSE_DEFINITIONS = { #Areas of Life
         "esoteric_domains": [
             "meaning beyond the horizon",
             "initiation by distance",
-            "the doctrine of elsewhere",
+            "doctrine of elsewhere",
             "truth carried across borders",
-            "the pilgrimage mind",
-            "the architecture of sanctioned meaning",
-            "the distant order that reshapes belief",
+            "pilgrimage mind",
+            "architecture of sanctioned meaning",
+            "distant order that reshapes belief",
         ],
 
         "axes": {
@@ -777,9 +777,88 @@ HOUSE_DEFINITIONS = { #Areas of Life
         "notes": [
             "H3 vs H9: 3rd house is local exchange, nearby signals, practical information, speech shaped by proximity. 9th = distance, doctrine, canon, worldview, travel beyond the local field. 3rd is information. 9th is meaning. 3rd is adjunct. 9th is tenured.",
             "H9 vs H10: 9th = truth systems, law, philosophy, doctrine. 10th = rank, office, legitimacy, public authority. The judge's reasoning is 9th. The judicial office itself is 10th.",
-            "H9 vs H12: both get conflated with 'spirituality', but that's sloppy. 10th = rank, office, legitimacy, public authority. 12th = withdrawal, dissolution, confinement, obscured suffering. Either one can be ascetic at a monestary.",
+            "H9 vs H12: both get conflated with 'spirituality', but that's sloppy. 9th = truth systems, law, philosophy, doctrine. 12th = withdrawal, dissolution, confinement, obscured suffering. Either one can be ascetic at a monestary.",
             "The 9th house's affiliation with 'long journeys' means travel beyond one’s operative local sphere. Its scale changes with the transportation and cultural horizon of the era."
         ]
     },
+    10: {
+        "name": "Tenth House",
+        "archetypal_title": "The Public Summit",
 
+        "core_domains": [
+            "honor",
+            "career",
+            "reputation",
+            "public role",
+            "rank",
+            "authority",
+            "public office",
+            "public status",
+            "legacy",
+            "achievement",
+            "ambition",
+            "visible competence",
+        ],
+
+        "derived_domains": [
+            "bosses",
+            "celebrities",
+            "titles",
+            "honors",
+            "fame",
+            "public image",
+            "public goals",
+            "life achievements",
+            "lifelong undertakings",
+            "renown",
+            "civic burden",
+            "public duty",
+            "leadership",
+            "institutional standing",
+            "social legitimacy",
+        ],
+
+        "traditional_domains": [
+            "kings",
+            "rulers",
+            "magistrates",
+            "office",
+            "honor",
+            "dignity",
+            "preferment",
+            "public estimation",
+        ],
+
+        "esoteric_domains": [
+            "visible summit",
+            "lonely top",
+            "burden of prominence",
+            "high place under scrutiny",
+            "name carried upward",
+            "architecture of public consequence",
+        ],
+
+        "axes": {
+            "visibility": 0.98,
+            "relationality": 0.56,
+            "materiality": 0.34,
+            "institutionality": 0.94,
+            "mortality": 0.52,
+            "agency": 0.86,
+            "subjectivity": 0.20,
+            "publicness": 1.00,
+            "immediacy": 0.54,
+            "symbolic_density": 0.70,
+        },
+
+        "logic": {
+            "entry_mode": "aspiration",
+            "resource_mode": "elevation",
+            "failure_mode": "disgrace, stagnation, illegitimacy, hollow status, public diminishment",
+            "distortion_mode": "confusing visibility with worth, sacrificing private life to rank, mistaking office for virtue",
+        },
+
+        "notes": []
+    },
+    
 }
