@@ -15664,8 +15664,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "}"
         )
         panel_layout = QVBoxLayout(self._help_side_panel)
-        panel_layout.setContentsMargins(12, 12, 12, 12)
-        panel_layout.setSpacing(8)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
 
         panel_title = QLabel("❓") #"Help"
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
@@ -15686,15 +15686,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._help_entry_detail = QLabel()
         self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._help_entry_detail.setStyleSheet(
-            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
         )
         self._help_entry_detail_scroll = QScrollArea()
         self._help_entry_detail_scroll.setWidgetResizable(True)
         self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
         self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
         self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
-        panel_layout.addWidget(self._help_entry_detail_scroll)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
@@ -22172,8 +22176,8 @@ class MainWindow(QMainWindow):
             "}"
         )
         panel_layout = QVBoxLayout(self._help_side_panel)
-        panel_layout.setContentsMargins(12, 12, 12, 12)
-        panel_layout.setSpacing(8)
+        panel_layout.setContentsMargins(14, 12, 14, 14)
+        panel_layout.setSpacing(10)
 
         panel_title = QLabel("❓") #"Help"
         panel_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #f2c94c;")
@@ -22194,15 +22198,19 @@ class MainWindow(QMainWindow):
 
         self._help_entry_detail = QLabel()
         self._help_entry_detail.setWordWrap(True)
+        self._help_entry_detail.setContentsMargins(10, 10, 10, 10)
+        self._help_entry_detail.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._help_entry_detail.setStyleSheet(
-            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 8px;"
+            "background-color: #5a5a5a; border: 1px solid #f2c94c; border-radius: 4px; padding: 12px;"
         )
         self._help_entry_detail_scroll = QScrollArea()
         self._help_entry_detail_scroll.setWidgetResizable(True)
         self._help_entry_detail_scroll.setFrameShape(QScrollArea.NoFrame)
         self._help_entry_detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._help_entry_detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._help_entry_detail_scroll.setMinimumHeight(240)
         self._help_entry_detail_scroll.setWidget(self._help_entry_detail)
-        panel_layout.addWidget(self._help_entry_detail_scroll)
+        panel_layout.addWidget(self._help_entry_detail_scroll, 2)
 
         self._help_icon_button = QToolButton(self._help_side_panel)
         self._help_icon_button.setText("?")
