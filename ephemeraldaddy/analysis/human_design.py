@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart
@@ -11,8 +10,6 @@ from ephemeraldaddy.core.human_design_system import (
     calculate_human_design,
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS
-from ephemeraldaddy.gui.features.charts.presentation import format_longitude, sign_for_longitude
-from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 
@@ -66,67 +63,21 @@ def build_awareness_stream_completion(active_gate_set: set[int]) -> list[dict[st
     return awareness_payload
 
 
-def _strip_nakshatra_column(position_lines: list[str]) -> list[str]:
-    """Remove the Nakshatra column from POSITIONS block while preserving alignment."""
-    result_lines: list[str] = []
-    for line in position_lines:
-        stripped = line.strip()
-        if not stripped:
-            result_lines.append(line)
-            continue
-        if stripped.startswith("Body") and "Nakshatra" in stripped:
-            updated = re.sub(r"\s{2,}Nakshatra\s{2,}", "  ", line, count=1)
-            updated = re.sub(r"\s{2,}House\s*$", "", updated)
-            result_lines.append(updated)
-            continue
-        if stripped.startswith(CHART_DATA_DIVIDER):
-            result_lines.append(line)
-            continue
-        columns = re.split(r"\s{2,}", stripped)
-        if len(columns) >= 5:
-            if columns[-1].startswith("H") and len(columns) >= 6:
-                body, sign, degree, _nakshatra, gl, _house = columns[:6]
-                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
-            else:
-                body, sign, degree, _nakshatra, gl = columns[:5]
-                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
-            continue
-        result_lines.append(line)
-    return result_lines
-
-
-def _append_earth_position_lines(
-    position_lines: list[str],
-    hd_result: HumanDesignResult,
-) -> list[str]:
-    """Append Personality/Design Earth rows to POSITIONS lines for HD window."""
-    result = list(position_lines)
-    header_line = next((line for line in result if "Body" in line and "Degree" in line), "")
-    has_house_col = "House" in header_line
-    row_insert_at = len(result)
-    for idx in range(len(result) - 1, -1, -1):
-        if result[idx].strip():
-            row_insert_at = idx + 1
-            break
-
-    p_earth = next((entry for entry in hd_result.personality_activations if entry.body == "Earth"), None)
-    d_earth = next((entry for entry in hd_result.design_activations if entry.body == "Earth"), None)
-    for label, entry in (
-        ("Personality Earth", p_earth),
-        ("Design Earth", d_earth),
-    ):
-        if entry is None:
-            continue
-        degree_text = format_longitude(entry.longitude)
-        sign_text = sign_for_longitude(entry.longitude)
-        gl_text = f"G{entry.gate}.{entry.line} C{entry.color} T{entry.tone} B{entry.base}"
-        if has_house_col:
-            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}  {'-':<5}"
-        else:
-            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}"
-        result.insert(row_insert_at, line)
-        row_insert_at += 1
-    return result
+def _build_hd_positions_lines(hd_result: HumanDesignResult) -> list[str]:
+    """Build a Human Design-native POSITIONS block (no zodiac sign import)."""
+    lines = [
+        "POSITIONS",
+        CHART_DATA_DIVIDER,
+        f"{'Body':<12}  {'Stream':<12}  {'Longitude':<11}  {'Activation':<20}",
+        CHART_DATA_DIVIDER,
+    ]
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        stream = "Personality" if activation.side == "personality" else "Design"
+        activation_text = f"G{activation.gate}.{activation.line} C{activation.color} T{activation.tone} B{activation.base}"
+        lines.append(
+            f"{activation.body:<12}  {stream:<12}  {activation.longitude:>8.3f}°  {activation_text:<20}"
+        )
+    return lines
 
 
 def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str, object]]]:
@@ -176,27 +127,12 @@ def build_human_design_chart_data_output(
     Excludes Houses and Aspects from the rendered output.
     """
 
-    chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
-        chart,
-        aspect_sort=aspect_sort,
-    )
-    summary_lines = chart_summary_text.splitlines()
-    positions_start_index = next(
-        (idx for idx, line in enumerate(summary_lines) if line.strip() == "POSITIONS"),
-        0,
-    )
-    houses_header_index = next(
-        (
-            idx
-            for idx, line in enumerate(summary_lines[positions_start_index + 1 :], start=positions_start_index + 1)
-            if line.strip() == "HOUSES"
-        ),
-        len(summary_lines),
-    )
-    position_lines = summary_lines[positions_start_index:houses_header_index]
+    _ = aspect_sort
+    positions_start_index = 0
+    position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    position_lines = _append_earth_position_lines(_strip_nakshatra_column(position_lines), hd_result)
+    position_lines = _build_hd_positions_lines(hd_result)
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
@@ -238,7 +174,7 @@ def build_human_design_chart_data_output(
     return (
         "\n".join(rendered_lines),
         position_info_map,
-        aspect_info_map,
-        species_info_map,
+        {},
+        {},
         positions_start_index,
     )
