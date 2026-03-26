@@ -834,6 +834,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for sign, color in SIGN_COLORS.items()
             if color
         }
+        self._element_formats = {
+            element.lower(): self._make_format(color)
+            for element, color in ELEMENT_COLORS.items()
+            if isinstance(element, str)
+            and element.lower() in {"fire", "earth", "air", "water"}
+            and color
+        }
         self._house_formats = {
             str(house): self._make_format(color)
             for house, color in HOUSE_COLORS.items()
@@ -939,6 +946,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self._highlight_phrase(lowered, aspect, fmt)
         for sign, fmt in self._sign_formats.items():
             self._highlight_phrase(text, sign, fmt)
+        for element, fmt in self._element_formats.items():
+            self._highlight_phrase(lowered, element, fmt)
         for nakshatra, fmt in self._nakshatra_formats.items():
             self._highlight_phrase(text, nakshatra, fmt)
         house_match = re.match(r"^\s*(\d{1,2})\s*:\s+([^\d\s][^\d]*)\s+\d{2}°\d{2}'", text)
