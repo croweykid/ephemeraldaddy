@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import planetary_longitude
+
+if TYPE_CHECKING:
+    from ephemeraldaddy.core.chart import Chart
 
 HD_BODIES: tuple[str, ...] = (
     "Sun",
@@ -81,6 +83,9 @@ class HumanDesignResult:
     hd_type: str
     authority: str
     profile: str
+    strategy: str
+    split_definition: str
+    incarnation_cross: str
 
 
 def _norm360(value: float) -> float:
@@ -217,10 +222,79 @@ def _resolve_authority(hd_type: str, defined_centers: set[str]) -> str:
         return "Sacral"
     if "Spleen" in defined_centers:
         return "Splenic"
-    return "Self-Projected / Mental / Ego (specialized)"
+    if "Ego" in defined_centers and "Throat" in defined_centers:
+        return "Ego Manifested"
+    if "Ego" in defined_centers and "G" in defined_centers:
+        return "Ego Projected"
+    if "G" in defined_centers and "Throat" in defined_centers:
+        return "Self-Projected"
+    if "Ajna" in defined_centers and "Throat" in defined_centers:
+        return "Mental (Environmental / Sounding Board)"
+    return "No Inner Authority"
 
 
-def calculate_human_design(chart: Chart) -> HumanDesignResult:
+def _resolve_strategy(hd_type: str) -> str:
+    if hd_type in {"Generator", "Manifesting Generator"}:
+        return "To Respond"
+    if hd_type == "Manifestor":
+        return "To Inform"
+    if hd_type == "Projector":
+        return "Wait for the Invitation"
+    return "Wait a Lunar Cycle"
+
+
+def _split_definition(defined_channels: tuple[tuple[int, int, str, str], ...]) -> str:
+    graph: dict[str, set[str]] = {}
+    for _gate_a, _gate_b, center_a, center_b in defined_channels:
+        graph.setdefault(center_a, set()).add(center_b)
+        graph.setdefault(center_b, set()).add(center_a)
+    if not graph:
+        return "No Definition"
+    components = 0
+    seen: set[str] = set()
+    for center in graph:
+        if center in seen:
+            continue
+        components += 1
+        frontier = {center}
+        while frontier:
+            next_frontier: set[str] = set()
+            for node in frontier:
+                if node in seen:
+                    continue
+                seen.add(node)
+                next_frontier.update(graph.get(node, set()) - seen)
+            frontier = next_frontier
+    if components == 1:
+        return "Single Definition"
+    if components == 2:
+        return "Split Definition"
+    if components == 3:
+        return "Triple Split Definition"
+    return "Quadruple Split Definition"
+
+
+INCARNATION_CROSS_LOOKUP: dict[tuple[int, int, int, int], str] = {}
+
+
+def _resolve_incarnation_cross(
+    personality_sun: HDActivation,
+    personality_earth: HDActivation,
+    design_sun: HDActivation,
+    design_earth: HDActivation,
+) -> str:
+    key = (personality_sun.gate, personality_earth.gate, design_sun.gate, design_earth.gate)
+    named = INCARNATION_CROSS_LOOKUP.get(key)
+    if named:
+        return named
+    return (
+        "Cross "
+        f"({personality_sun.gate}.{personality_sun.line}/{personality_earth.gate}.{personality_earth.line}"
+        f" | {design_sun.gate}.{design_sun.line}/{design_earth.gate}.{design_earth.line})"
+    )
+
+
+def calculate_human_design(chart: "Chart") -> HumanDesignResult:
     birth_utc = chart.dt.astimezone(timezone.utc)
     personality = _body_longitudes(birth_utc)
     design_utc = _solve_design_utc(birth_utc, personality["Sun"])
@@ -274,9 +348,16 @@ def calculate_human_design(chart: Chart) -> HumanDesignResult:
     defined_centers = frozenset({c for _g1, _g2, c1, c2 in defined_channels for c in (c1, c2)})
     hd_type = _resolve_type(set(defined_centers), defined_channels)
     authority = _resolve_authority(hd_type, set(defined_centers))
+    strategy = _resolve_strategy(hd_type)
+    split_definition = _split_definition(defined_channels)
     personality_sun_line = p_components["Sun"][1]
     design_sun_line = d_components["Sun"][1]
     profile = f"{personality_sun_line}/{design_sun_line}"
+    p_sun = next(item for item in personality_activations if item.body == "Sun")
+    p_earth = next(item for item in personality_activations if item.body == "Earth")
+    d_sun = next(item for item in design_activations if item.body == "Sun")
+    d_earth = next(item for item in design_activations if item.body == "Earth")
+    incarnation_cross = _resolve_incarnation_cross(p_sun, p_earth, d_sun, d_earth)
 
     return HumanDesignResult(
         birth_utc=birth_utc,
@@ -289,4 +370,7 @@ def calculate_human_design(chart: Chart) -> HumanDesignResult:
         hd_type=hd_type,
         authority=authority,
         profile=profile,
+        strategy=strategy,
+        split_definition=split_definition,
+        incarnation_cross=incarnation_cross,
     )
