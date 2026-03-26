@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, Qt
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -200,9 +200,13 @@ class ManageMetadataLabelsDialog(QDialog):
         load_usage,
         apply_change,
         label_limit: int,
+        initial_field: str | None = None,
+        lock_field: bool = False,
+        window_title: str = "Manage sentiments & relationship types",
+        intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Manage sentiments & relationship types")
+        self.setWindowTitle(window_title)
         self.resize(580, 520)
         self._load_usage = load_usage
         self._apply_change = apply_change
@@ -210,16 +214,22 @@ class ManageMetadataLabelsDialog(QDialog):
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Current + legacy labels found in database (including unused/orphaned)."))
+        layout.addWidget(QLabel(intro_text))
 
         self._field_selector = QComboBox(self)
         self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
         self._field_selector.addItem("Relationship types", self.FIELD_RELATIONSHIPS)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
+        self._field_selector.setVisible(not lock_field)
         layout.addWidget(self._field_selector)
 
         self._list_widget = QListWidget(self)
         layout.addWidget(self._list_widget)
+
+        if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS}:
+            index = self._field_selector.findData(initial_field)
+            if index >= 0:
+                self._field_selector.setCurrentIndex(index)
 
         button_row = QHBoxLayout()
         self._rename_button = QPushButton("Rename selected")
@@ -238,7 +248,8 @@ class ManageMetadataLabelsDialog(QDialog):
         button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
-        self._reload_usage()
+        # Defer loading so the dialog can render immediately before DB work runs.
+        QTimer.singleShot(0, self._reload_usage)
 
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
