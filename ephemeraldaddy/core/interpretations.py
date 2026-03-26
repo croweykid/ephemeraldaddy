@@ -603,6 +603,7 @@ PLANET_COLORS = {
     "IC":"#33ccff", #lighter basic blue to indicate angles #lighter basic blue to indicate angles
     "DS":"#33ccff", #lighter basic blue to indicate angles
     "MC":"#33ccff", #lighter basic blue to indicate angles
+    "Earth":"#339966", #slightly bluish green
 }
 
 # not used anywhere, as far as I can tell
