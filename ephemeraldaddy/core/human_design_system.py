@@ -15,8 +15,8 @@ HD_BODIES: tuple[str, ...] = (
     "Sun",
     "Earth",
     "Moon",
-    "North Node",
-    "South Node",
+    "Rahu",
+    "Ketu",
     "Mercury",
     "Venus",
     "Mars",
@@ -135,8 +135,8 @@ def _body_longitudes(at_utc: datetime) -> dict[str, float]:
         "Sun": _norm360(sun),
         "Earth": _norm360(sun + 180.0),
         "Moon": _norm360(moon),
-        "North Node": _norm360(north_node),
-        "South Node": _norm360(north_node + 180.0),
+        "Rahu": _norm360(north_node),
+        "Ketu": _norm360(north_node + 180.0),
         "Mercury": _norm360(float(mercury or 0.0)),
         "Venus": _norm360(float(venus or 0.0)),
         "Mars": _norm360(float(mars or 0.0)),
@@ -340,11 +340,14 @@ def calculate_human_design(chart: "Chart") -> HumanDesignResult:
         for body, (gate, line, color, tone, base) in ((name, d_components[name]) for name in HD_BODIES)
     )
 
-    defined_channels = tuple(
-        channel
-        for channel in CHANNELS
-        if channel[0] in active_gates and channel[1] in active_gates
-    )
+    unique_channels: dict[tuple[int, int], tuple[int, int, str, str]] = {}
+    for channel in CHANNELS:
+        gate_a, gate_b, _center_a, _center_b = channel
+        if gate_a not in active_gates or gate_b not in active_gates:
+            continue
+        channel_key = tuple(sorted((gate_a, gate_b)))
+        unique_channels.setdefault(channel_key, channel)
+    defined_channels = tuple(unique_channels.values())
     defined_centers = frozenset({c for _g1, _g2, c1, c2 in defined_channels for c in (c1, c2)})
     hd_type = _resolve_type(set(defined_centers), defined_channels)
     authority = _resolve_authority(hd_type, set(defined_centers))
