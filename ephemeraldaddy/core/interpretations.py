@@ -3,8 +3,6 @@ from __future__ import annotations
 import datetime
 import math
 
-from ephemeraldaddy.gui.style import DARK_THEME
-
 
 # Aspect scoring constants/helpers consolidated here to keep major astro constants in one module.
 

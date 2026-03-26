@@ -5,82 +5,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from ephemeraldaddy.analysis.dnd.species_definitions import FAMILY_SUBTYPES, SPECIES_FAMILIES
 
-try:
-    from ephemeraldaddy.core.interpretations import (
-        ASPECT_ANGLE_DEGREES,
-        ASPECT_ORB_ALLOWANCES,
-        ASPECT_SCORE_WEIGHTS,
-        ASPECT_TYPES,
-        MODES,
-        NATAL_BODY_LOUDNESS,
-        SIGN_ELEMENTS,
-        SIGN_KEYWORDS,
-    )
-except ImportError:
-    SIGN_ELEMENTS = {
-        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
-        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
-        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
-        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
-    }
-    MODES = {
-        "cardinal": {"Aries", "Cancer", "Libra", "Capricorn"},
-        "mutable": {"Gemini", "Virgo", "Sagittarius", "Pisces"},
-        "fixed": {"Taurus", "Leo", "Scorpio", "Aquarius"},
-    }
-    SIGN_KEYWORDS = {
-        sign: {"season": None, "fertility": None, "bicorporeal": False, "mute": False, "humane": False, "bestial": False, "feral": False, "quadrupedian": False}
-        for sign in SIGN_ELEMENTS
-    }
-    NATAL_BODY_LOUDNESS = {
-        "Sun": 4, "Moon": 3, "AS": 4, "Mercury": 3, "Venus": 4, "Mars": 5,
-        "Jupiter": 6, "Saturn": 7, "Uranus": 8, "Neptune": 9, "Pluto": 10,
-        "MC": 4, "DS": 3, "IC": 3, "Rahu": 5, "Ketu": 5, "Lilith": 2, "Part of Fortune": 1,
-    }
-    ASPECT_SCORE_WEIGHTS = {
-        "conjunction": 9,
-        "opposition": 9,
-        "trine": 8,
-        "square": 9,
-        "sextile": 8,
-        "quincunx": 3,
-        "semisextile": 2,
-        "semisquare": 2,
-        "sesquiquadrate": 2,
-        "quintile": 2,
-        "biquintile": 2,
-    }
-    ASPECT_ORB_ALLOWANCES = {
-        "conjunction": 6,
-        "opposition": 6,
-        "square": 6,
-        "trine": 6,
-        "sextile": 4,
-        "quincunx": 3,
-        "semisextile": 2,
-        "semisquare": 2,
-        "sesquiquadrate": 2,
-        "quintile": 2,
-        "biquintile": 2,
-    }
-    ASPECT_ANGLE_DEGREES = {
-        "conjunction": 0.0,
-        "sextile": 60.0,
-        "square": 90.0,
-        "trine": 120.0,
-        "quincunx": 150.0,
-        "opposition": 180.0,
-        "semisextile": 30.0,
-        "semisquare": 45.0,
-        "sesquiquadrate": 135.0,
-        "quintile": 72.0,
-        "biquintile": 144.0,
-    }
-    ASPECT_TYPES = {
-        "chill vibes": {"aspects": {"sextile", "trine"}},
-        "stress/friction": {"aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"}},
-        "amplifying": {"aspects": {"conjunction", "semisextile"}},
-    }
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_ANGLE_DEGREES,
+    ASPECT_ORB_ALLOWANCES,
+    ASPECT_SCORE_WEIGHTS,
+    ASPECT_TYPES,
+    MODES,
+    NATAL_BODY_LOUDNESS,
+    SIGN_ELEMENTS,
+    SIGN_KEYWORDS,
+)
 
 SIGN_CLASSICAL_TRAITS = ("mute", "humane", "bestial", "feral", "quadrupedian", "bicorporeal")
 SIGN_SEASONS = ("vernal", "aestival", "autumnal", "hyemal")
