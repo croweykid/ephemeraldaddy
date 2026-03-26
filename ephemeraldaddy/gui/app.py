@@ -16134,10 +16134,10 @@ class MainWindow(QMainWindow):
         self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
-        configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
         self._restoring_window_layout = False
