@@ -8839,9 +8839,11 @@ class ManageChartsDialog(QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = [
-            item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
-        ]
+        chart_ids = list(
+            dict.fromkeys(
+                item.data(Qt.UserRole) for item in self.list_widget.selectedItems()
+            )
+        )
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -8851,8 +8853,9 @@ class ManageChartsDialog(QDialog):
             self._update_batch_edit_state()
             return
 
+        selected_count = len(chart_ids)
         if relationship_type.lower() == "self" and checked:
-            if len(chart_ids) != 1:
+            if selected_count > 1:
                 QMessageBox.warning(
                     self,
                     "Batch edit not allowed",
@@ -8864,7 +8867,6 @@ class ManageChartsDialog(QDialog):
                 self._update_batch_edit_state()
                 return
 
-        selected_count = len(chart_ids)
         action_label = (
             f"Apply relationship type '{relationship_type}' to"
             if checked
