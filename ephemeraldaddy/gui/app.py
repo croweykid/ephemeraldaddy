@@ -768,6 +768,24 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Notes A:",
         "Notes B:",
     )
+    _HD_SUBHEADER_PREFIXES = (
+        "Ajna",
+        "Spleen",
+        "Solar Plexus",
+        "Type:",
+        "Authority:",
+        "Strategy:",
+        "Profile:",
+        "Definition:",
+        "Incarnation Cross:",
+        "Body",
+        "Sign",
+        "Longitude",
+        "G/L",
+        "C",
+        "T",
+        "B",
+    )
 
     def __init__(self, document) -> None:
         super().__init__(document)
@@ -793,6 +811,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format = QTextCharFormat()
         self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._section_format.setFontWeight(QFont.Bold)
+        self._plain_bold_format = QTextCharFormat()
+        self._plain_bold_format.setFontWeight(QFont.Bold)
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
@@ -862,6 +882,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         for header in CHART_DATA_SECTION_HEADERS:
             if stripped_text.upper() == header:
                 self.setFormat(0, self._qt_len(text), self._section_format)
+                break
+        for prefix in self._HD_SUBHEADER_PREFIXES:
+            if stripped_text.startswith(prefix):
+                self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
         if lowered_stripped.startswith("synastry chart for "):
             self.setFormat(0, self._qt_len(text), self._section_format)
@@ -19247,6 +19271,13 @@ class MainWindow(QMainWindow):
                     if selected_entry.get("kind") == "hd_property":
                         self._show_human_design_property_info(str(selected_entry.get("property_key", "")))
                         return True
+                    if selected_entry.get("kind") == "hd_channel":
+                        self._show_human_design_channel_info(
+                            int(selected_entry.get("gate_a", 0)),
+                            int(selected_entry.get("gate_b", 0)),
+                            str(selected_entry.get("center", "")),
+                        )
+                        return True
                     self._show_position_info(
                         selected_entry["body"],
                         selected_entry["sign"],
@@ -19428,6 +19459,18 @@ class MainWindow(QMainWindow):
             ),
         }
         self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
+
+    def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
+        header = f"Channel {min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        lines = [
+            header,
+            "",
+            f"• Center grouping: {center or 'Unknown'}",
+            f"• Endpoint gates: {gate_a} and {gate_b}",
+            "• A channel is defined when both endpoint gates are active.",
+            "• Defined channels establish fixed connections between centers.",
+        ]
+        self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_species_info(
         self,
@@ -22022,6 +22065,9 @@ class MainWindow(QMainWindow):
             "species_info_map": {},
             "summary_block_offset": 0,
         }
+        hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
+        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
+        popout_context["share_button"] = summary_share_button
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
@@ -22149,6 +22195,9 @@ class MainWindow(QMainWindow):
             "species_info_map": {},
             "summary_block_offset": 0,
         }
+        hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
+        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
+        popout_context["share_button"] = summary_share_button
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)

@@ -128,6 +128,53 @@ def _render_clickable_property(label: str, value: str, property_key: str) -> tup
     return line, entry
 
 
+def _render_channel_lines(
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
+    grouped: dict[str, list[tuple[int, int, str]]] = {
+        "Ajna": [],
+        "Spleen": [],
+        "Solar Plexus": [],
+    }
+    for gate_a, gate_b, center_a, center_b in defined_channels:
+        label = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        if center_a in grouped:
+            grouped[center_a].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
+        if center_b in grouped and center_b != center_a:
+            grouped[center_b].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
+
+    lines: list[str] = []
+    info_map: dict[int, list[dict[str, object]]] = {}
+    for center in ("Ajna", "Spleen", "Solar Plexus"):
+        lines.append(center)
+        entries = sorted(set(grouped[center]), key=lambda item: (item[0], item[1]))
+        if not entries:
+            lines.append("None")
+            continue
+        parts: list[str] = []
+        cursor = 0
+        row_entries: list[dict[str, object]] = []
+        for idx, (gate_a, gate_b, label) in enumerate(entries):
+            token = f"{label} ⓘ"
+            parts.append(token)
+            row_entries.append(
+                {
+                    "kind": "hd_channel",
+                    "gate_a": gate_a,
+                    "gate_b": gate_b,
+                    "center": center,
+                    "icon_index": cursor + len(label) + 1,
+                }
+            )
+            cursor += len(token)
+            if idx < len(entries) - 1:
+                parts.append(", ")
+                cursor += 2
+        lines.append("".join(parts))
+        info_map[len(lines) - 1] = row_entries
+    return lines, info_map
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -154,7 +201,7 @@ def build_human_design_chart_data_output(
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
-    channels_text = ", ".join(sorted(f"{gate_a}-{gate_b}" for gate_a, gate_b, _c1, _c2 in hd_result.defined_channels)) or "None"
+    channel_lines, channel_info_map = _render_channel_lines(hd_result.defined_channels)
 
     awareness_lines: list[str] = []
     for stream_entry in build_awareness_stream_completion(active_gate_set):
@@ -195,7 +242,7 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         "CHANNELS",
         CHART_DATA_DIVIDER,
-        channels_text,
+        *channel_lines,
         "",
         CHART_DATA_DIVIDER,
         "AWARENESS STREAMS",
@@ -215,6 +262,11 @@ def build_human_design_chart_data_output(
     ):
         line_index = rendered_lines.index(line_text)
         position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
+    channels_header_index = rendered_lines.index("CHANNELS")
+    channel_block_start = channels_header_index + 2
+    for relative_line_index, entries in channel_info_map.items():
+        absolute_line_index = positions_start_index + channel_block_start + relative_line_index
+        position_info_map.setdefault(absolute_line_index, []).extend(entries)
 
     return (
         "\n".join(rendered_lines),
