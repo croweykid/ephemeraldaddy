@@ -625,6 +625,7 @@ from ephemeraldaddy.gui.style import (
     alignment_score_to_rgb,
     configure_collapsible_header_toggle,
     format_chart_header,
+    QUAD_STATE_SLIDER_VISUALS,
     TRISTATE_SENTIMENT_STYLE,
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
@@ -976,28 +977,20 @@ class QuadStateSlider(QWidget):
 
     def _render_mode(self) -> None:
         if self._mode == self.MODE_TRUE:
-            text = "✓"
-            style = "background: #19391f; color: #4de06c; border: 1px solid #2d6a38;"
-            tip = "All selected charts have this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["true"]
         elif self._mode == self.MODE_FALSE:
-            text = "✕"
-            style = "background: #3a1717; color: #ff6b6b; border: 1px solid #7b2d2d;"
-            tip = "All selected charts are set negative for this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["false"]
         elif self._mode == self.MODE_MIXED:
-            text = "–"
-            style = "background: #2b2b2b; color: #b0b0b0; border: 1px solid #5a5a5a;"
-            tip = "Selection has mixed values for this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["mixed"]
         else:
-            text = ""
-            style = "background: #111; color: #ddd; border: 1px solid #444;"
-            tip = "No value set."
+            visual = QUAD_STATE_SLIDER_VISUALS["empty"]
 
-        self._button.setText(text)
-        self._button.setToolTip(tip)
+        self._button.setText(visual["text"])
+        self._button.setToolTip(visual["tooltip"])
         self._button.setFixedWidth(28)
         self._button.setStyleSheet(
             "QToolButton {"
-            f"{style}"
+            f"{visual['style']}"
             "border-radius: 10px; font-weight: bold; padding: 2px 0px;"
             "}"
         )

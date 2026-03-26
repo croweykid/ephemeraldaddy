@@ -79,6 +79,29 @@ QCheckBox::indicator:indeterminate {
 }
 """
 
+QUAD_STATE_SLIDER_VISUALS = {
+    "true": {
+        "text": "✓",
+        "style": "background: #19391f; color: #4de06c; border: 1px solid #2d6a38;",
+        "tooltip": "All selected charts have this property.",
+    },
+    "false": {
+        "text": "✕",
+        "style": "background: #3a1717; color: #ff6b6b; border: 1px solid #7b2d2d;",
+        "tooltip": "All selected charts are set negative for this property.",
+    },
+    "mixed": {
+        "text": "–",
+        "style": "background: #2b2b2b; color: #b0b0b0; border: 1px solid #5a5a5a;",
+        "tooltip": "Selection has mixed values for this property.",
+    },
+    "empty": {
+        "text": "",
+        "style": "background: #111; color: #ddd; border: 1px solid #444;",
+        "tooltip": "No value set.",
+    },
+}
+
 RIGHT_PANEL_SCROLLBAR_STYLE = """
 QScrollArea {
     border: none;
