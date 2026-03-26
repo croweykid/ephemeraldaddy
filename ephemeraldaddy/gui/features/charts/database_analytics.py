@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import resolve_country
-from ephemeraldaddy.analysis.dnd.species_assigner import SPECIES_FAMILIES
+from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
