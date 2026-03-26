@@ -3837,7 +3837,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._generate_composite_chart_for_ids(base_chart_id, overlay_chart_id)
 
-    def _prompt_composite_chart_selection(self) -> tuple[int, int] | None:
+    def _prompt_composite_chart_selection(
+        self,
+        default_first_chart_id: int | None = None,
+        focus_second_input: bool = False,
+    ) -> tuple[int, int] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Generate Composite Chart")
         dialog.setModal(True)
@@ -3872,6 +3876,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         second_chart_input = QLineEdit(dialog)
         second_chart_input.setPlaceholderText("Select second chart")
+
+        if default_first_chart_id is not None:
+            for label, chart_id in chart_lookup.items():
+                if chart_id == default_first_chart_id:
+                    first_chart_input.setText(label)
+                    break
         second_completer = QCompleter(labels, second_chart_input)
         second_completer.setCaseSensitivity(Qt.CaseInsensitive)
         second_completer.setFilterMode(Qt.MatchContains)
@@ -3919,6 +3929,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         synastrize_button.clicked.connect(_submit)
         first_chart_input.returnPressed.connect(_submit)
         second_chart_input.returnPressed.connect(_submit)
+
+        if focus_second_input:
+            QTimer.singleShot(0, second_chart_input.setFocus)
+            QTimer.singleShot(0, second_chart_input.selectAll)
 
         if dialog.exec() != QDialog.Accepted:
             return None
@@ -21969,6 +21983,16 @@ class MainWindow(QMainWindow):
 
     def on_get_current_transits(self) -> None:
         self._generate_current_transits_for_chart(self._latest_chart, self.current_chart_id)
+
+    def on_get_synastry_chart(self) -> None:
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        chart_ids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_id=self.current_chart_id,
+            focus_second_input=True,
+        )
+        if chart_ids is None:
+            return
+        manage_dialog._generate_composite_chart_for_ids(*chart_ids)
 
     def closeEvent(self, event) -> None:
         if not self._allow_app_exit_close:
