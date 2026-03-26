@@ -54,7 +54,7 @@ If you treat it like a research workspace (not an omniscient oracle), you’ll h
         keywords=("why", "reasons", "privacy", "dark mode", "nakshatra"),
     ),
     HelpEntry(
-        title="1A) Chart View (Chart Entry / Editor)",
+        title="Chart View (Chart Entry / Editor)",
         description=(
             """This is where you create or edit one chart at a time.
 
@@ -74,7 +74,7 @@ Use this window when you want to:
         keywords=("chart view", "entry", "editor"),
     ),
     HelpEntry(
-        title="1B) Database View (Manage Charts)",
+        title="Database View (Manage Charts)",
         description=(
             """This is mission control for your whole chart collection.
 
@@ -94,7 +94,7 @@ Use this window when you want to:
         keywords=("database", "manage", "filters", "sort"),
     ),
     HelpEntry(
-        title="1C/1D) Transit + Composite tools",
+        title="Transit + Composite tools",
         description=(
             """C. Transit View
 This is for current/dated transit overlays and “what’s active now” checks.
@@ -116,7 +116,7 @@ Use it when you want:
         keywords=("transit", "composite", "synastry"),
     ),
     HelpEntry(
-        title="2) Chart calculation: methods & philosophy",
+        title="Chart calculation: methods & philosophy",
         description=(
             """- Planetary positions are computed with Swiss Ephemeris-backed logic (with offline setup supported).
 - The app computes positions, houses, and aspects, then derives distributions and ranking-style metrics.
@@ -126,7 +126,7 @@ Use it when you want:
         keywords=("calculation", "swiss ephemeris", "method"),
     ),
     HelpEntry(
-        title="2) Chart Types + placeholders + interpretations",
+        title="Chart Types + placeholders + interpretations",
         description=(
             """Chart Types
 - Chart Type is a classifier/tag for what a chart record is (for example: personal, public database import, event, synastry-generated contexts).
@@ -152,20 +152,20 @@ What they’re not good for:
         keywords=("chart type", "placeholder", "interpretation"),
     ),
     HelpEntry(
-        title="2) Nakshatras + gates/lines + toy metrics",
+        title="Nakshatras + Human design + toy metrics",
         description=(
             """Nakshatras
 - Zodiac sign framework in this app is tropical.
 - Nakshatras are handled separately in the usual Vedic-style spirit.
 - The author’s nakshatra notes are intentionally rough research notes, not a finished published doctrine.
 
-Gates, Lines & Channels
-For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but I haven't done anything with channels yet, nor included any interpretations of I Ching hexagrams, nor calculated "Earth Signs", etc.
+Human design elements: Gates, Lines & Channels
+For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
 Weird toy metrics (D&D Species, Cursedness, Gender Guesser)
-These exist. They are fun. They are not commandments."""
+These exist. They are fun. They are noncannonical to science and occultist lore alike."""
         ),
-        keywords=("nakshatra", "gates", "lines", "cursedness"),
+        keywords=("nakshatra", "gates", "lines", "cursedness","human design","toy metrics"),
     ),
     HelpEntry(
         title="3/4/Final Takeaways",
@@ -260,12 +260,11 @@ _TOOLTIP_BY_OBJECT_NAME: dict[str, str] = {
 }
 
 _TOOLTIP_BY_TEXT: dict[str, str] = {
-    "Name": "Primary label/name for the person or event.",
+    "Name": "Primary label/name for the entity or event.",
     "Birth time": "Exact local birth time used for houses and rising sign.",
-    "Retcon Time": "Optional override used by Retcon workflows.",
-    "use retcon": "Enable Retcon time as the active time value.",
+    "Rectified Time": "Optional override used by Retcon workflows.",
+    "Use rectified time": "Enable rectified time as the active time value.",
     "Delete Chart": "Delete the selected chart(s) from the database.",
-    "Sort: Alphabetical": "Open sorting options for the saved chart list.",
 }
 
 
@@ -313,8 +312,8 @@ def tooltip_for_widget(object_name: str, text: str) -> str:
     if "help" in lowered:
         return "Open in-app guidance and searchable notes for visible controls."
     if normalized_text:
-        return f"{normalized_text}: This control performs the action named on its label."
-    return "This control performs the action named on its label."
+        return f"{normalized_text}: Pretty sure it's self-expanatory."
+    return "Pretty sure it's self-expanatory."
 
 
 def search_help_entries(query: str) -> Iterable[HelpEntry]:

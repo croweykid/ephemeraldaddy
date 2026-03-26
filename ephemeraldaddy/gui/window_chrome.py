@@ -81,7 +81,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.resize(720, 560)
 
     layout = QVBoxLayout(dialog)
-    intro = QLabel("Onboarding guide is bundled into this app build.")
+    intro = QLabel("This is not my beautiful house. This is not my beautiful wife. My god. How did I get here?")
     intro.setStyleSheet(ABOUT_DIALOG_INTRO_STYLE)
     layout.addWidget(intro)
 
@@ -154,6 +154,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Get Personal Transit", window, "on_get_current_transits")
+    _bind_menu_action(tools_menu, "Get Synastry Chart", window, "on_get_synastry_chart")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "Calculate BaZi", window, "on_open_bazi_window")
@@ -169,7 +170,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay")
+    _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
 
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
