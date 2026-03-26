@@ -163,6 +163,20 @@ ASPECT_SCORE_WEIGHTS = {
     "biquintile": 2,
 }
 
+ASPECT_ANGLE_DEGREES = {
+    "conjunction": 0.0,
+    "semisextile": 30.0,
+    "semisquare": 45.0,
+    "sextile": 60.0,
+    "quintile": 72.0,
+    "square": 90.0,
+    "trine": 120.0,
+    "sesquiquadrate": 135.0,
+    "biquintile": 144.0,
+    "quincunx": 150.0,
+    "opposition": 180.0,
+}
+
 ASPECT_SCORE_MULTIPLIERS = {
     "conjunction": 1, #1.3
     "opposition": 1, #1.2

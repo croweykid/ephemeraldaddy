@@ -6,7 +6,16 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from ephemeraldaddy.analysis.dnd.species_definitions import FAMILY_SUBTYPES, SPECIES_FAMILIES
 
 try:
-    from ephemeraldaddy.core.interpretations import MODES, SIGN_ELEMENTS
+    from ephemeraldaddy.core.interpretations import (
+        ASPECT_ANGLE_DEGREES,
+        ASPECT_ORB_ALLOWANCES,
+        ASPECT_SCORE_WEIGHTS,
+        ASPECT_TYPES,
+        MODES,
+        NATAL_BODY_LOUDNESS,
+        SIGN_ELEMENTS,
+        SIGN_KEYWORDS,
+    )
 except ImportError:
     SIGN_ELEMENTS = {
         "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
@@ -19,63 +28,75 @@ except ImportError:
         "mutable": {"Gemini", "Virgo", "Sagittarius", "Pisces"},
         "fixed": {"Taurus", "Leo", "Scorpio", "Aquarius"},
     }
-
-CLASSICAL_SIGN_TRAITS: Dict[str, Dict[str, bool | str]] = {
-    "aries": {"quadrupedian": True, "season": "vernal"},
-    "taurus": {"bestial": True, "quadrupedian": True, "season": "vernal"},
-    "gemini": {"humane": True, "bicorporeal": True, "barren": True, "season": "vernal"},
-    "cancer": {"mute": True, "fruitful": True, "season": "aestival"},
-    "leo": {"feral": True, "quadrupedian": True, "barren": True, "season": "aestival"},
-    "virgo": {"humane": True, "barren": True, "season": "aestival"},
-    "libra": {"humane": True, "season": "autumnal"},
-    "scorpio": {"mute": True, "fruitful": True, "season": "autumnal"},
-    "sagittarius": {"feral": True, "bicorporeal": True, "season": "autumnal"},
-    "capricorn": {"bestial": True, "quadrupedian": True, "season": "hyemal"},
-    "aquarius": {"humane": True, "season": "hyemal"},
-    "pisces": {"mute": True, "bicorporeal": True, "fruitful": True, "season": "hyemal"},
-}
+    SIGN_KEYWORDS = {
+        sign: {"season": None, "fertility": None, "bicorporeal": False, "mute": False, "humane": False, "bestial": False, "feral": False, "quadrupedian": False}
+        for sign in SIGN_ELEMENTS
+    }
+    NATAL_BODY_LOUDNESS = {
+        "Sun": 4, "Moon": 3, "AS": 4, "Mercury": 3, "Venus": 4, "Mars": 5,
+        "Jupiter": 6, "Saturn": 7, "Uranus": 8, "Neptune": 9, "Pluto": 10,
+        "MC": 4, "DS": 3, "IC": 3, "Rahu": 5, "Ketu": 5, "Lilith": 2, "Part of Fortune": 1,
+    }
+    ASPECT_SCORE_WEIGHTS = {
+        "conjunction": 9,
+        "opposition": 9,
+        "trine": 8,
+        "square": 9,
+        "sextile": 8,
+        "quincunx": 3,
+        "semisextile": 2,
+        "semisquare": 2,
+        "sesquiquadrate": 2,
+        "quintile": 2,
+        "biquintile": 2,
+    }
+    ASPECT_ORB_ALLOWANCES = {
+        "conjunction": 6,
+        "opposition": 6,
+        "square": 6,
+        "trine": 6,
+        "sextile": 4,
+        "quincunx": 3,
+        "semisextile": 2,
+        "semisquare": 2,
+        "sesquiquadrate": 2,
+        "quintile": 2,
+        "biquintile": 2,
+    }
+    ASPECT_ANGLE_DEGREES = {
+        "conjunction": 0.0,
+        "sextile": 60.0,
+        "square": 90.0,
+        "trine": 120.0,
+        "quincunx": 150.0,
+        "opposition": 180.0,
+        "semisextile": 30.0,
+        "semisquare": 45.0,
+        "sesquiquadrate": 135.0,
+        "quintile": 72.0,
+        "biquintile": 144.0,
+    }
+    ASPECT_TYPES = {
+        "chill vibes": {"aspects": {"sextile", "trine"}},
+        "stress/friction": {"aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"}},
+        "amplifying": {"aspects": {"conjunction", "semisextile"}},
+    }
 
 SIGN_CLASSICAL_TRAITS = ("mute", "humane", "bestial", "feral", "quadrupedian", "bicorporeal")
 SIGN_SEASONS = ("vernal", "aestival", "autumnal", "hyemal")
 SIGN_FERTILITY = ("fruitful", "barren")
 
-BODY_WEIGHTS: Dict[str, float] = {
-    "Sun": 3.0,
-    "Moon": 3.0,
-    "AS": 3.0,
-    "Mercury": 1.8,
-    "Venus": 1.8,
-    "Mars": 1.8,
-    "Jupiter": 1.4,
-    "Saturn": 1.4,
-    "Uranus": 1.1,
-    "Neptune": 1.1,
-    "Pluto": 1.1,
-    "MC": 1.3,
-    "DS": 1.0,
-    "IC": 1.0,
-    "Rahu": 0.8,
-    "Ketu": 0.8,
-    "Lilith": 0.6,
-    "Part of Fortune": 0.6,
-}
+_BODY_WEIGHT_SCALE = max(float(v) for v in NATAL_BODY_LOUDNESS.values()) if NATAL_BODY_LOUDNESS else 1.0
+BODY_WEIGHTS: Dict[str, float] = {body: float(weight) / _BODY_WEIGHT_SCALE for body, weight in NATAL_BODY_LOUDNESS.items()}
 
-DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = (
-    ("conjunction", 0.0, 7.0),
-    ("sextile", 60.0, 5.0),
-    ("square", 90.0, 6.0),
-    ("trine", 120.0, 6.0),
-    ("quincunx", 150.0, 3.0),
-    ("opposition", 180.0, 7.0),
-    ("semisextile", 30.0, 2.0),
-    ("semisquare", 45.0, 2.0),
-    ("sesquiquadrate", 135.0, 2.0),
-    ("quintile", 72.0, 2.0),
-    ("biquintile", 144.0, 2.0),
+DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = tuple(
+    (name, float(ASPECT_ANGLE_DEGREES[name]), float(ASPECT_ORB_ALLOWANCES[name]))
+    for name in ASPECT_SCORE_WEIGHTS
+    if name in ASPECT_ANGLE_DEGREES and name in ASPECT_ORB_ALLOWANCES
 )
 
-HARD_ASPECTS = {"conjunction", "square", "opposition"}
-SOFT_ASPECTS = {"trine", "sextile"}
+HARD_ASPECTS = set(ASPECT_TYPES["stress/friction"]["aspects"]) | {"conjunction"}
+SOFT_ASPECTS = set(ASPECT_TYPES["chill vibes"]["aspects"])
 ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 
 
@@ -364,14 +385,14 @@ class SpeciesAssigner:
                     mode_totals[mode] += weight
                     break
 
-            trait_meta = CLASSICAL_SIGN_TRAITS.get(sign.lower(), {})
+            trait_meta = SIGN_KEYWORDS.get(sign, {})
             for trait in SIGN_CLASSICAL_TRAITS:
                 if trait_meta.get(trait) is True:
                     trait_totals[trait] += weight
             season = trait_meta.get("season")
             if season in season_totals:
                 season_totals[str(season)] += weight
-            fertility = "fruitful" if trait_meta.get("fruitful") else "barren" if trait_meta.get("barren") else None
+            fertility = trait_meta.get("fertility")
             if fertility in fertility_totals:
                 fertility_totals[str(fertility)] += weight
 
