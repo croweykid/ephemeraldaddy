@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import planetary_longitude
+
+if TYPE_CHECKING:
+    from ephemeraldaddy.core.chart import Chart
 
 HD_BODIES: tuple[str, ...] = (
     "Sun",
     "Earth",
     "Moon",
-    "North Node",
-    "South Node",
+    "Rahu",
+    "Ketu",
     "Mercury",
     "Venus",
     "Mars",
@@ -25,12 +27,14 @@ HD_BODIES: tuple[str, ...] = (
     "Pluto",
 )
 
-# Fixed Rave Mandala gate order (64 equal 5.625° segments), aligned so 10° Aries => Gate 25.
+# Fixed Rave Mandala gate order (64 equal 5.625° segments).
+# Mapping is computed from a fixed boundary at 28°15' Pisces (358.25° tropical).
+MANDALA_START_DEGREE = 358.25
 MANDALA_GATE_ORDER: tuple[int, ...] = (
-    36, 25, 17, 21, 51, 42, 3, 27, 24, 2, 23, 8, 20, 16, 35, 45,
+    25, 17, 21, 51, 42, 3, 27, 24, 2, 23, 8, 20, 16, 35, 45,
     12, 15, 52, 39, 53, 62, 56, 31, 33, 7, 4, 29, 59, 40, 64, 47,
     6, 46, 18, 48, 57, 32, 50, 28, 44, 1, 43, 14, 34, 9, 5, 26,
-    11, 10, 58, 38, 54, 61, 60, 41, 19, 13, 49, 30, 55, 37, 63, 22,
+    11, 10, 58, 38, 54, 61, 60, 41, 19, 13, 49, 30, 55, 37, 63, 22, 36,
 )
 
 CHANNELS: tuple[tuple[int, int, str, str], ...] = (
@@ -79,6 +83,9 @@ class HumanDesignResult:
     hd_type: str
     authority: str
     profile: str
+    strategy: str
+    split_definition: str
+    incarnation_cross: str
 
 
 def _norm360(value: float) -> float:
@@ -92,9 +99,10 @@ def _angular_diff(a: float, b: float) -> float:
 def _mandala_components(longitude: float) -> tuple[int, int, int, int, int]:
     lon = _norm360(float(longitude))
     gate_width = 360.0 / 64.0
-    segment_index = int(lon // gate_width)
+    adjusted = _norm360(lon - MANDALA_START_DEGREE)
+    segment_index = int(adjusted // gate_width)
     gate = MANDALA_GATE_ORDER[segment_index]
-    offset_in_gate = lon - (segment_index * gate_width)
+    offset_in_gate = adjusted - (segment_index * gate_width)
     line_width = gate_width / 6.0
     color_width = line_width / 6.0
     tone_width = color_width / 6.0
@@ -127,8 +135,8 @@ def _body_longitudes(at_utc: datetime) -> dict[str, float]:
         "Sun": _norm360(sun),
         "Earth": _norm360(sun + 180.0),
         "Moon": _norm360(moon),
-        "North Node": _norm360(north_node),
-        "South Node": _norm360(north_node + 180.0),
+        "Rahu": _norm360(north_node),
+        "Ketu": _norm360(north_node + 180.0),
         "Mercury": _norm360(float(mercury or 0.0)),
         "Venus": _norm360(float(venus or 0.0)),
         "Mars": _norm360(float(mars or 0.0)),
@@ -142,8 +150,8 @@ def _body_longitudes(at_utc: datetime) -> dict[str, float]:
 
 def _solve_design_utc(birth_utc: datetime, personality_sun: float) -> datetime:
     target = _norm360(personality_sun - 88.0)
-    start = birth_utc - timedelta(days=94)
-    end = birth_utc - timedelta(days=86)
+    start = birth_utc - timedelta(days=100)
+    end = birth_utc - timedelta(days=80)
     step = timedelta(hours=6)
     probe = start
     prev_t = start
@@ -205,7 +213,37 @@ def _has_motor_to_throat_path(
     return any(center in seen for center in MOTOR_CENTERS if center in defined_centers)
 
 
-def _resolve_authority(hd_type: str, defined_centers: set[str]) -> str:
+def _centers_connected(
+    center_a: str,
+    center_b: str,
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> bool:
+    if center_a == center_b:
+        return True
+    graph: dict[str, set[str]] = {}
+    for _gate_a, _gate_b, c1, c2 in defined_channels:
+        graph.setdefault(c1, set()).add(c2)
+        graph.setdefault(c2, set()).add(c1)
+    frontier = {center_a}
+    seen: set[str] = set()
+    while frontier:
+        next_frontier: set[str] = set()
+        for center in frontier:
+            if center in seen:
+                continue
+            if center == center_b:
+                return True
+            seen.add(center)
+            next_frontier.update(graph.get(center, set()) - seen)
+        frontier = next_frontier
+    return False
+
+
+def _resolve_authority(
+    hd_type: str,
+    defined_centers: set[str],
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> str:
     if hd_type == "Reflector":
         return "Lunar"
     if "Solar Plexus" in defined_centers:
@@ -214,10 +252,79 @@ def _resolve_authority(hd_type: str, defined_centers: set[str]) -> str:
         return "Sacral"
     if "Spleen" in defined_centers:
         return "Splenic"
-    return "Self-Projected / Mental / Ego (specialized)"
+    if hd_type == "Manifestor" and _centers_connected("Ego", "Throat", defined_channels):
+        return "Ego Manifested"
+    if hd_type == "Projector" and _centers_connected("Ego", "G", defined_channels):
+        return "Ego Projected"
+    if hd_type == "Projector" and _centers_connected("G", "Throat", defined_channels):
+        return "Self-Projected"
+    if hd_type == "Projector" and _centers_connected("Ajna", "Throat", defined_channels):
+        return "Mental (Environmental / Sounding Board)"
+    return "No Inner Authority"
 
 
-def calculate_human_design(chart: Chart) -> HumanDesignResult:
+def _resolve_strategy(hd_type: str) -> str:
+    if hd_type in {"Generator", "Manifesting Generator"}:
+        return "To Respond"
+    if hd_type == "Manifestor":
+        return "To Inform"
+    if hd_type == "Projector":
+        return "Wait for the Invitation"
+    return "Wait a Lunar Cycle"
+
+
+def _split_definition(defined_channels: tuple[tuple[int, int, str, str], ...]) -> str:
+    graph: dict[str, set[str]] = {}
+    for _gate_a, _gate_b, center_a, center_b in defined_channels:
+        graph.setdefault(center_a, set()).add(center_b)
+        graph.setdefault(center_b, set()).add(center_a)
+    if not graph:
+        return "No Definition"
+    components = 0
+    seen: set[str] = set()
+    for center in graph:
+        if center in seen:
+            continue
+        components += 1
+        frontier = {center}
+        while frontier:
+            next_frontier: set[str] = set()
+            for node in frontier:
+                if node in seen:
+                    continue
+                seen.add(node)
+                next_frontier.update(graph.get(node, set()) - seen)
+            frontier = next_frontier
+    if components == 1:
+        return "Single Definition"
+    if components == 2:
+        return "Split Definition"
+    if components == 3:
+        return "Triple Split Definition"
+    return "Quadruple Split Definition"
+
+
+INCARNATION_CROSS_LOOKUP: dict[tuple[int, int, int, int], str] = {}
+
+
+def _resolve_incarnation_cross(
+    personality_sun: HDActivation,
+    personality_earth: HDActivation,
+    design_sun: HDActivation,
+    design_earth: HDActivation,
+) -> str:
+    key = (personality_sun.gate, personality_earth.gate, design_sun.gate, design_earth.gate)
+    named = INCARNATION_CROSS_LOOKUP.get(key)
+    if named:
+        return named
+    return (
+        "Cross "
+        f"({personality_sun.gate}.{personality_sun.line}/{personality_earth.gate}.{personality_earth.line}"
+        f" | {design_sun.gate}.{design_sun.line}/{design_earth.gate}.{design_earth.line})"
+    )
+
+
+def calculate_human_design(chart: "Chart") -> HumanDesignResult:
     birth_utc = chart.dt.astimezone(timezone.utc)
     personality = _body_longitudes(birth_utc)
     design_utc = _solve_design_utc(birth_utc, personality["Sun"])
@@ -263,17 +370,27 @@ def calculate_human_design(chart: Chart) -> HumanDesignResult:
         for body, (gate, line, color, tone, base) in ((name, d_components[name]) for name in HD_BODIES)
     )
 
-    defined_channels = tuple(
-        channel
-        for channel in CHANNELS
-        if channel[0] in active_gates and channel[1] in active_gates
-    )
+    unique_channels: dict[tuple[int, int], tuple[int, int, str, str]] = {}
+    for channel in CHANNELS:
+        gate_a, gate_b, _center_a, _center_b = channel
+        if gate_a not in active_gates or gate_b not in active_gates:
+            continue
+        channel_key = tuple(sorted((gate_a, gate_b)))
+        unique_channels.setdefault(channel_key, channel)
+    defined_channels = tuple(unique_channels.values())
     defined_centers = frozenset({c for _g1, _g2, c1, c2 in defined_channels for c in (c1, c2)})
     hd_type = _resolve_type(set(defined_centers), defined_channels)
-    authority = _resolve_authority(hd_type, set(defined_centers))
+    authority = _resolve_authority(hd_type, set(defined_centers), defined_channels)
+    strategy = _resolve_strategy(hd_type)
+    split_definition = _split_definition(defined_channels)
     personality_sun_line = p_components["Sun"][1]
     design_sun_line = d_components["Sun"][1]
     profile = f"{personality_sun_line}/{design_sun_line}"
+    p_sun = next(item for item in personality_activations if item.body == "Sun")
+    p_earth = next(item for item in personality_activations if item.body == "Earth")
+    d_sun = next(item for item in design_activations if item.body == "Sun")
+    d_earth = next(item for item in design_activations if item.body == "Earth")
+    incarnation_cross = _resolve_incarnation_cross(p_sun, p_earth, d_sun, d_earth)
 
     return HumanDesignResult(
         birth_utc=birth_utc,
@@ -286,4 +403,7 @@ def calculate_human_design(chart: Chart) -> HumanDesignResult:
         hd_type=hd_type,
         authority=authority,
         profile=profile,
+        strategy=strategy,
+        split_definition=split_definition,
+        incarnation_cross=incarnation_cross,
     )
