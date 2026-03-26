@@ -786,6 +786,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             header_format = QTextCharFormat(self._label_format)
             header_format.setForeground(QColor(color or CHART_DATA_HIGHLIGHT_COLOR))
             self._nakshatra_header_formats[nakshatra] = header_format
+        self._nakshatra_formats = {
+            nakshatra: self._make_format(color or CHART_DATA_HIGHLIGHT_COLOR)
+            for nakshatra, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()
+        }
         self._section_format = QTextCharFormat()
         self._section_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._section_format.setFontWeight(QFont.Bold)
@@ -911,6 +915,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self._highlight_phrase(lowered, aspect, fmt)
         for sign, fmt in self._sign_formats.items():
             self._highlight_phrase(text, sign, fmt)
+        for nakshatra, fmt in self._nakshatra_formats.items():
+            self._highlight_phrase(text, nakshatra, fmt)
         house_match = re.match(r"^\s*(\d{1,2})\s*:\s+([^\d\s][^\d]*)\s+\d{2}°\d{2}'", text)
         if house_match:
             house_num = house_match.group(1)
