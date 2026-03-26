@@ -18009,11 +18009,30 @@ class MainWindow(QMainWindow):
         sign_name = _sign_for_longitude(longitude) if longitude is not None else None
         if sign_name is None:
             sign_name = "Unknown Sign"
-        header = f"{_display_body_name(body_name)} in {sign_name}"
-        noun_lines = [f"• {noun}" for noun in nouns if str(noun).strip()]
-        if not noun_lines:
-            return f"{header}\n\nNo PLANET_KEYWORDS nouns available."
-        return "\n".join([header, "", "Nouns:", *noun_lines])
+        display_body = _display_body_name(body_name)
+        header = f"{display_body} in {sign_name}"
+
+        clean_nouns = [str(noun).strip() for noun in nouns if str(noun).strip()]
+        noun_text = ", ".join(clean_nouns) if clean_nouns else "No noun keywords available."
+
+        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).lower(), {})
+        strategy = str(sign_keywords.get("strategy", "")).strip()
+        core = str(sign_keywords.get("core", "")).strip()
+        behavior = sign_keywords.get("behavior", [])
+        behavior_text = " ".join(
+            str(entry).strip() for entry in behavior if str(entry).strip()
+        )
+
+        sign_parts = [part for part in [strategy, core, behavior_text] if part]
+        sign_text = " ".join(f"{part}." for part in sign_parts) if sign_parts else "No sign keywords available."
+
+        return "\n".join(
+            [
+                header,
+                f"{display_body}: {noun_text}",
+                f"{sign_name}: {sign_text}",
+            ]
+        )
 
     def _build_house_popout_info(self, house_num: int) -> str:
         house_keywords = HOUSE_KEYWORDS.get(house_num, [])
