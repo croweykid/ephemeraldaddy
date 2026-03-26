@@ -15026,16 +15026,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
+        property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
+        property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
+
+        manage_sentiments_button = QPushButton("Manage Sentiments")
+        manage_sentiments_button.clicked.connect(self._launch_manage_sentiments_dialog)
+        property_managers_section.addWidget(manage_sentiments_button)
+
+        manage_relationship_types_button = QPushButton("Manage Relationship Types")
+        manage_relationship_types_button.clicked.connect(self._launch_manage_relationship_types_dialog)
+        property_managers_section.addWidget(manage_relationship_types_button)
+
+        manage_collections_button = QPushButton("Manage Collections")
+        manage_collections_button.clicked.connect(self._show_manage_collections_panel)
+        property_managers_section.addWidget(manage_collections_button)
+
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
         size_checker_button = QPushButton("Toggle Size Checker")
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
-
-        cleanup_button = QPushButton("Manage sentiments")
-        cleanup_button.clicked.connect(self._launch_manage_metadata_dialog)
-        dev_tools_section.addWidget(cleanup_button)
 
         custom_db_export_button = QPushButton("Custom DB Export")
         custom_db_export_button.setToolTip(
@@ -15372,7 +15383,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
 
-    def _launch_manage_metadata_dialog(self) -> None:
+    def _launch_manage_sentiments_dialog(self) -> None:
+        self._launch_manage_metadata_dialog(
+            field=ManageMetadataLabelsDialog.FIELD_SENTIMENTS,
+            title="Manage Sentiments",
+        )
+
+    def _launch_manage_relationship_types_dialog(self) -> None:
+        self._launch_manage_metadata_dialog(
+            field=ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS,
+            title="Manage Relationship Types",
+        )
+
+    def _launch_manage_metadata_dialog(self, *, field: str, title: str) -> None:
         all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
         max_len = max((len(value) for value in all_labels), default=32)
         dialog = ManageMetadataLabelsDialog(
@@ -15380,6 +15403,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             load_usage=get_metadata_label_usage,
             apply_change=apply_metadata_label_change,
             label_limit=max_len,
+            initial_field=field,
+            lock_field=True,
+            window_title=title,
         )
         dialog.exec()
         self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
