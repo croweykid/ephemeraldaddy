@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, Qt
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -248,7 +248,8 @@ class ManageMetadataLabelsDialog(QDialog):
         button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
-        self._reload_usage()
+        # Defer loading so the dialog can render immediately before DB work runs.
+        QTimer.singleShot(0, self._reload_usage)
 
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
