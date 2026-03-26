@@ -17896,6 +17896,31 @@ class MainWindow(QMainWindow):
             popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title == "Gender Guesser":
             info_panel.setPlainText(_build_gender_guesser_breakdown_text(self._latest_chart))
+        elif title in {"Signs", "Bodies", "Houses"}:
+            info_panel.setPlaceholderText("Click a bar or label to view interpretation details.")
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or ":" not in artist_gid:
+                    return
+                chart_key, raw_value = artist_gid.split(":", 1)
+                if chart_key == "sign":
+                    info_panel.setPlainText(self._build_sign_popout_info(raw_value))
+                    return
+                if chart_key == "body":
+                    info_panel.setPlainText(
+                        self._build_body_popout_info(self._latest_chart, raw_value)
+                    )
+                    return
+                if chart_key == "house":
+                    try:
+                        house_num = int(raw_value)
+                    except ValueError:
+                        return
+                    info_panel.setPlainText(self._build_house_popout_info(house_num))
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -17952,6 +17977,52 @@ class MainWindow(QMainWindow):
             self._draw_planet_dynamics(ax, chart)
         return figure
 
+    def _build_sign_popout_info(self, sign: str) -> str:
+        sign_name = str(sign or "").strip().title()
+        sign_keywords = SIGN_KEYWORDS.get(sign_name.lower(), {})
+        core = str(sign_keywords.get("core", "")).strip()
+        strategy = str(sign_keywords.get("strategy", "")).strip()
+        function = str(sign_keywords.get("function", "")).strip()
+        behavior = sign_keywords.get("behavior", [])
+
+        if not any([core, strategy, function, behavior]):
+            return f"No interpretation data available for {sign_name}."
+
+        lines = [f"{sign_name}", ""]
+        if core:
+            lines.append(f"Core: {core}")
+        if strategy:
+            lines.append(f"Strategy: {strategy}")
+        if function:
+            lines.append(f"Function: {function}")
+        if behavior:
+            behavior_lines = [f"• {entry}" for entry in behavior if str(entry).strip()]
+            if behavior_lines:
+                lines.extend(["", "Behavior:", *behavior_lines])
+        return "\n".join(lines)
+
+    def _build_body_popout_info(self, chart: Chart, body: str) -> str:
+        body_name = str(body or "").strip()
+        body_keywords = PLANET_KEYWORDS.get(body_name, {})
+        nouns = body_keywords.get("nouns", [])
+        longitude = chart.positions.get(body_name)
+        sign_name = _sign_for_longitude(longitude) if longitude is not None else None
+        if sign_name is None:
+            sign_name = "Unknown Sign"
+        header = f"{_display_body_name(body_name)} in {sign_name}"
+        noun_lines = [f"• {noun}" for noun in nouns if str(noun).strip()]
+        if not noun_lines:
+            return f"{header}\n\nNo PLANET_KEYWORDS nouns available."
+        return "\n".join([header, "", "Nouns:", *noun_lines])
+
+    def _build_house_popout_info(self, house_num: int) -> str:
+        house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+        noun_lines = [f"• {noun}" for noun in house_keywords if str(noun).strip()]
+        header = f"House {house_num}"
+        if not noun_lines:
+            return f"{header}\n\nNo HOUSE_KEYWORDS entries available."
+        return "\n".join([header, "", *noun_lines])
+
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
         mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
         weighted_counts = (
@@ -17965,8 +18036,14 @@ class MainWindow(QMainWindow):
         max_value = max(values) if values else 0
 
         bars = ax.bar(signs, values, color=colors)
+        for bar, sign in zip(bars, signs, strict=True):
+            bar.set_gid(f"sign:{sign}")
+            bar.set_picker(True)
 
         self._apply_standard_ncv_bar_chart_axes(ax, signs)
+        for tick_label, sign in zip(ax.get_xticklabels(), signs, strict=True):
+            tick_label.set_gid(f"sign:{sign}")
+            tick_label.set_picker(True)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
@@ -17978,7 +18055,7 @@ class MainWindow(QMainWindow):
             glyph = ZODIAC_SIGNS[index]
             height = bar.get_height()
             label_height = max(height, 0)
-            ax.text(
+            glyph_text = ax.text(
                 bar.get_x() + (bar.get_width() / 2),
                 label_height + glyph_offset,
                 glyph,
@@ -17987,6 +18064,8 @@ class MainWindow(QMainWindow):
                 color=CHART_THEME_COLORS["text"],
                 fontsize=7.5,
             )
+            glyph_text.set_gid(f"sign:{signs[index]}")
+            glyph_text.set_picker(True)
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
@@ -18019,8 +18098,14 @@ class MainWindow(QMainWindow):
             edgecolor=edge_colors,
             linewidth=line_widths,
         )
+        for bar, body in zip(bars, planets, strict=True):
+            bar.set_gid(f"body:{body}")
+            bar.set_picker(True)
         x_labels = [_display_body_name(body) for body in planets]
         self._apply_standard_ncv_bar_chart_axes(ax, x_labels)
+        for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
+            tick_label.set_gid(f"body:{body}")
+            tick_label.set_picker(True)
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -18030,7 +18115,7 @@ class MainWindow(QMainWindow):
         for bar, label in zip(bars, planets, strict=True):
             height = bar.get_height()
             label_height = max(height, 0)
-            ax.text(
+            glyph_text = ax.text(
                 bar.get_x() + (bar.get_width() / 2),
                 label_height + label_offset,
                 PLANET_GLYPHS.get(label, label),
@@ -18039,6 +18124,8 @@ class MainWindow(QMainWindow):
                 color=CHART_THEME_COLORS["text"],
                 fontsize=9,
             )
+            glyph_text.set_gid(f"body:{label}")
+            glyph_text.set_picker(True)
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
@@ -18094,16 +18181,22 @@ class MainWindow(QMainWindow):
         house_labels = [str(num) for num in house_numbers]
         house_colors = [HOUSE_COLORS.get(label, "#6fa8dc") for label in house_labels]
         bars = ax.bar(house_labels, values, color=house_colors)
+        for bar, house_num in zip(bars, house_numbers, strict=True):
+            bar.set_gid(f"house:{house_num}")
+            bar.set_picker(True)
         ax.set_ylim(0, max(1, max_value + 1))
         ax.margins(x=0.03)
         ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5")
         ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
+        for tick_label, house_num in zip(ax.get_xticklabels(), house_numbers, strict=True):
+            tick_label.set_gid(f"house:{house_num}")
+            tick_label.set_picker(True)
         ax.set_anchor("W")
         label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
         for bar, label in zip(bars, house_numbers, strict=True):
             height = bar.get_height()
             label_height = max(height, 0)
-            ax.text(
+            glyph_text = ax.text(
                 bar.get_x() + (bar.get_width() / 2),
                 label_height + label_offset,
                 str(label),
@@ -18112,6 +18205,8 @@ class MainWindow(QMainWindow):
                 color=CHART_THEME_COLORS["text"],
                 fontsize=8,
             )
+            glyph_text.set_gid(f"house:{label}")
+            glyph_text.set_picker(True)
         for spine in ax.spines.values():
             spine.set_color("#444444")
         ax.figure.tight_layout()
