@@ -24,6 +24,15 @@ _SWE_ASTEROID_FILES: dict[str, tuple[set[str], tuple[str, ...]]] = {
             "https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/seas_18.se1",
         ),
     ),
+    # Some distributions ship Chiron orbital data as ``seorbel.se1`` while
+    # others use ``seorbel.txt``; support either name.
+    "seorbel.se1": (
+        {"Chiron"},
+        (
+            "https://www.astro.com/ftp/swisseph/ephe/seorbel.se1",
+            "https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/seorbel.se1",
+        ),
+    ),
     "seorbel.txt": (
         {"Chiron"},
         (
@@ -56,6 +65,7 @@ def _configure_swiss_ephemeris() -> None:
 
     candidates.append(Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph")
     candidates.append(Path(__file__).resolve().parent / "sweph")
+    candidates.append(Path(__file__).resolve().parents[1] / "data")
 
     for path in candidates:
         if path.is_dir():
@@ -89,8 +99,13 @@ def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: b
         target_dir.mkdir(parents=True, exist_ok=True)
         swe.set_ephe_path(str(target_dir))
     missing_bodies = set(required_bodies)
+    available_files = {path.name.lower() for path in target_dir.iterdir() if path.is_file()}
+
     for filename, (bodies, urls) in _SWE_ASTEROID_FILES.items():
         if not required_bodies.intersection(bodies):
+            continue
+        if filename.lower() in available_files:
+            missing_bodies.difference_update(bodies)
             continue
         target_path = target_dir / filename
         if target_path.exists():
