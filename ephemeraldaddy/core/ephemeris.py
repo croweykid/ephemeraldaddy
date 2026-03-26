@@ -109,12 +109,8 @@ def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: b
 
     _SWE_READY_BODIES.update(required_bodies.difference(missing_bodies))
     if missing_bodies and not _SWE_WARNED_MISSING_DATA:
-        configured_dir = str(target_dir) if target_dir is not None else "<unknown>"
-        missing_names = ", ".join(sorted(missing_bodies))
         warnings.warn(
             "Swiss Ephemeris asteroid files are missing; minor-body positions may be unavailable. "
-            f"Missing bodies: {missing_names}. "
-            f"Current ephemeris directory: {configured_dir}. "
             "Set SWEPH_PATH/EPHEMERALDADDY_SWEPH_PATH to a directory containing Swiss ephemeris asteroid files.",
             RuntimeWarning,
             stacklevel=2,
