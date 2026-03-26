@@ -3376,6 +3376,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.transit_location_input.setPlaceholderText(
             "Location (city or lat,lon)"
         )
+        self.transit_location_input._batch_enter_apply_callback = (
+            self._apply_transit_location
+        )
         self.transit_location_input.returnPressed.connect(
             self._apply_transit_location
         )
@@ -9702,6 +9705,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 focus_widget = QApplication.focusWidget()
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
+                    return
+                if focus_widget is self.transit_location_input:
+                    self._apply_transit_location()
                     return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
