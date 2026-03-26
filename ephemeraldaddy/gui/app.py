@@ -9804,6 +9804,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
                     return
+                if focus_widget is self.transit_location_input:
+                    self._apply_transit_location()
+                    return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
                     return
