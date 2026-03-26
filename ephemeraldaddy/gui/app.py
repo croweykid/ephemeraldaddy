@@ -581,6 +581,11 @@ from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, R
 
 from ephemeraldaddy.gui import help as help_notes
 from ephemeraldaddy.gui.style import (
+    CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
+    CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
+    CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
+    CHART_VIEW_TIME_INPUT_WIDTH,
+    CHART_VIEW_TIME_OVERWRITE_ENABLED,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -642,6 +647,85 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
     create_bazi_window_dialog,
     validate_chart_for_bazi,
 )
+
+
+class SegmentedTimeEdit(QLineEdit):
+    """Compact HH:mm editor with overwrite behavior and colon-safe navigation."""
+
+    timeChanged = Signal(QTime)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._current_time = QTime(12, 0)
+        self.setAlignment(Qt.AlignCenter)
+        self.setMaxLength(5)
+        self.setInputMask("99:99")
+        self.setTime(self._current_time)
+
+    def setDisplayFormat(self, _format: str) -> None:
+        """Compatibility shim with QTimeEdit API."""
+        return
+
+    def time(self) -> QTime:
+        return self._current_time
+
+    def setTime(self, value: QTime) -> None:
+        normalized = value if isinstance(value, QTime) and value.isValid() else QTime(12, 0)
+        self._current_time = normalized
+        self.setText(f"{normalized.hour():02d}:{normalized.minute():02d}")
+        if self.cursorPosition() == 2:
+            self.setCursorPosition(3)
+
+    def keyPressEvent(self, event) -> None:
+        key = event.key()
+        if key == Qt.Key_Backspace:
+            cursor = self.cursorPosition()
+            if cursor == 3:
+                self.setCursorPosition(1)
+            elif cursor == 2:
+                self.setCursorPosition(1)
+            super().keyPressEvent(event)
+            self._normalize_and_emit()
+            return
+        if key in (Qt.Key_Delete, Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
+            super().keyPressEvent(event)
+            if self.cursorPosition() == 2:
+                if key == Qt.Key_Left:
+                    self.setCursorPosition(1)
+                else:
+                    self.setCursorPosition(3)
+            self._normalize_and_emit()
+            return
+        if event.text().isdigit() and CHART_VIEW_TIME_OVERWRITE_ENABLED:
+            super().keyPressEvent(event)
+            if self.cursorPosition() == 2:
+                self.setCursorPosition(3)
+            self._normalize_and_emit()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        if self.cursorPosition() == 2:
+            self.setCursorPosition(3)
+
+    def _normalize_and_emit(self) -> None:
+        text = self.text()
+        digits = [char for char in text if char.isdigit()]
+        if len(digits) < 4:
+            return
+        hour = min(23, int("".join(digits[:2])))
+        minute = min(59, int("".join(digits[2:4])))
+        normalized = QTime(hour, minute)
+        normalized_text = f"{hour:02d}:{minute:02d}"
+        if text != normalized_text:
+            cursor_position = self.cursorPosition()
+            self.setText(normalized_text)
+            self.setCursorPosition(3 if cursor_position == 2 else min(cursor_position, len(normalized_text)))
+        if normalized != self._current_time:
+            self._current_time = normalized
+            self.timeChanged.emit(self._current_time)
+
 
 class ResizablePixmapLabel(QLabel):
     def __init__(self, pixmap: QPixmap, parent: QWidget | None = None) -> None:
@@ -16366,20 +16450,20 @@ class MainWindow(QMainWindow):
         form.addRow(place_row_widget)
 
         #Birth time
-        self.time_edit = QTimeEdit()
-        self.time_edit.setDisplayFormat("HH:mm")
+        self.time_edit = SegmentedTimeEdit()
+        self.time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.time_edit.setTime(QTime(12, 0))
-        self.time_edit.setFixedWidth(78)
+        self.time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.time_unknown_checkbox = QCheckBox("unknown time")
         self.time_unknown_checkbox.toggled.connect(self._on_unknown_time_toggled)
         self.time_unknown_checkbox.toggled.connect(self._mark_lucygoosey)
         self.time_edit.timeChanged.connect(self._on_birth_time_changed)
         self.time_edit.timeChanged.connect(self._mark_lucygoosey)
 
-        self.retcon_time_edit = QTimeEdit()
-        self.retcon_time_edit.setDisplayFormat("HH:mm")
+        self.retcon_time_edit = SegmentedTimeEdit()
+        self.retcon_time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.retcon_time_edit.setTime(QTime(12, 0))
-        self.retcon_time_edit.setFixedWidth(78)
+        self.retcon_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
         self.retcon_time_checkbox = QCheckBox("")
         self.retcon_time_checkbox.toggled.connect(self._on_retcon_time_toggled)
         self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
@@ -16413,8 +16497,10 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(QLabel("Birth Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
-        birth_time_row.addWidget(self.retcon_time_checkbox, 0)
+        birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER)
         birth_time_row.addWidget(QLabel("Use Rectified Time:"), 0) #used to be called "retcon"
+        birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
+        birth_time_row.addWidget(self.retcon_time_checkbox, 0)
         birth_time_row.addWidget(self.retcon_time_edit, 0)
         birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addStretch(1)
@@ -20960,10 +21046,8 @@ class MainWindow(QMainWindow):
         retcon_time_color = (
             "#f5f5f5" if self._retcon_time_user_overridden else "#8a8a8a"
         )
-        self.time_edit.setStyleSheet(f"QTimeEdit {{ color: {birth_time_color}; }}")
-        self.retcon_time_edit.setStyleSheet(
-            f"QTimeEdit {{ color: {retcon_time_color}; }}"
-        )
+        self.time_edit.setStyleSheet(f"color: {birth_time_color};")
+        self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
 
     def _refresh_chart_preview(self) -> None:
         if self._suppress_lucygoosey or self._latest_chart is None:
