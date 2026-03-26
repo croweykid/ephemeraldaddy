@@ -30,6 +30,8 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_button": "Back to Database View",
     "database_view_button": "Close Chart View and return to Database View",
     "help_overlay_toggle": "Help",
+    "chart_view_toggle_subjective_notes_panel_button": "Subjective Notes panel",
+    "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
 }
 
 # IMPORTANT: these are intentionally exact-string mappings so tooltip behavior
@@ -39,10 +41,6 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "💀": "deceased?",
     "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated correct time",
     "?": "birthtime unknown?",
-    "Comments": "Subjective Notes panel",
-    "Subjective Notes": "Subjective Notes panel",
-    "Chart Info": "Chart Analysis panel",
-    "Chart Analysis": "Chart Analysis panel",
     "Source": "origin of birth/biographical info",
     "Alignment": "What's your impression of their morality, you judgy bastard?",
     "💖 Positive Sentiment Intensity:": "how much you love em",
@@ -98,10 +96,6 @@ def _format_tooltip_text(text: str) -> str:
     )
 
 
-def _has_textual_content(text: str) -> bool:
-    return any(char.isalnum() for char in text)
-
-
 def apply_default_text_tooltips(
     container: QWidget,
     tooltip_overrides: Mapping[str, str] | None = None,
@@ -133,5 +127,3 @@ def apply_default_text_tooltips(
             widget.setToolTip(override_text)
             continue
 
-        if text and _has_textual_content(text):
-            widget.setToolTip(text)
