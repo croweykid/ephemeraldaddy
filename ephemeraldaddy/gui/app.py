@@ -11221,7 +11221,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = list(dict.fromkeys(self._selected_chart_ids()))
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11231,8 +11231,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
             return
 
+        selected_count = len(chart_ids)
         if relationship_type.lower() == "self" and checked:
-            if len(chart_ids) != 1:
+            if selected_count > 1:
                 QMessageBox.warning(
                     self,
                     "Batch edit not allowed",
@@ -11244,7 +11245,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._update_batch_edit_state()
                 return
 
-        selected_count = len(chart_ids)
         action_label = (
             f"Apply relationship type '{relationship_type}' to"
             if checked
@@ -11588,6 +11588,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             relationship_type,
             state,
         )
+
+    def _confirm_self_reassignment(self, current_chart_id: int | None) -> bool:
+        existing_self = find_self_tagged_chart(exclude_chart_id=current_chart_id)
+        if existing_self is None:
+            return True
+
+        _former_chart_id, former_chart_name = existing_self
+        choice = QMessageBox.question(
+            self,
+            "There's only one you, baby. ('Self' relationship already assigned)",
+            f"Remove 'self' from {former_chart_name}? y/n",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
+            return False
+
+        removed_ids = clear_self_tag_from_other_charts(
+            current_chart_id if current_chart_id is not None else -1
+        )
+        for removed_id in removed_ids:
+            self._chart_cache.pop(removed_id, None)
+        return True
 
     def _on_batch_source_selected(self, index: int) -> None:
         source = self.batch_source_combo.itemData(index)
