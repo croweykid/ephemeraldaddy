@@ -623,6 +623,7 @@ from ephemeraldaddy.gui.style import (
     alignment_score_to_rgb,
     configure_collapsible_header_toggle,
     format_chart_header,
+    QUAD_STATE_SLIDER_VISUALS,
     TRISTATE_SENTIMENT_STYLE,
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
@@ -974,28 +975,20 @@ class QuadStateSlider(QWidget):
 
     def _render_mode(self) -> None:
         if self._mode == self.MODE_TRUE:
-            text = "✓"
-            style = "background: #19391f; color: #4de06c; border: 1px solid #2d6a38;"
-            tip = "All selected charts have this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["true"]
         elif self._mode == self.MODE_FALSE:
-            text = "✕"
-            style = "background: #3a1717; color: #ff6b6b; border: 1px solid #7b2d2d;"
-            tip = "All selected charts are set negative for this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["false"]
         elif self._mode == self.MODE_MIXED:
-            text = "–"
-            style = "background: #2b2b2b; color: #b0b0b0; border: 1px solid #5a5a5a;"
-            tip = "Selection has mixed values for this property."
+            visual = QUAD_STATE_SLIDER_VISUALS["mixed"]
         else:
-            text = ""
-            style = "background: #111; color: #ddd; border: 1px solid #444;"
-            tip = "No value set."
+            visual = QUAD_STATE_SLIDER_VISUALS["empty"]
 
-        self._button.setText(text)
-        self._button.setToolTip(tip)
+        self._button.setText(visual["text"])
+        self._button.setToolTip(visual["tooltip"])
         self._button.setFixedWidth(28)
         self._button.setStyleSheet(
             "QToolButton {"
-            f"{style}"
+            f"{visual['style']}"
             "border-radius: 10px; font-weight: bold; padding: 2px 0px;"
             "}"
         )
@@ -1490,6 +1483,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._alignment_score_min_input = None
         self._alignment_score_max_input = None
         self._alignment_score_blank_checkbox = None
+        self._notes_comments_filter_checkbox = None
+        self._notes_comments_filter_input = None
+        self._notes_source_filter_checkbox = None
+        self._notes_source_filter_input = None
         self.living_checkbox = None
         self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._dominant_element_primary_combo = None
@@ -7205,6 +7202,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._alignment_score_blank_checkbox is not None
             and self._alignment_score_blank_checkbox.isChecked()
         )
+        notes_comments_mode = (
+            self._notes_comments_filter_checkbox.mode()
+            if self._notes_comments_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_comments_text = (
+            self._notes_comments_filter_input.text().strip()
+            if self._notes_comments_filter_input is not None
+            else ""
+        )
+        notes_source_mode = (
+            self._notes_source_filter_checkbox.mode()
+            if self._notes_source_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_source_text = (
+            self._notes_source_filter_input.text().strip()
+            if self._notes_source_filter_input is not None
+            else ""
+        )
+        notes_comments_active = (
+            notes_comments_mode != QuadStateSlider.MODE_EMPTY and bool(notes_comments_text)
+        )
+        notes_source_active = (
+            notes_source_mode != QuadStateSlider.MODE_EMPTY and bool(notes_source_text)
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -7248,6 +7271,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and alignment_score_min is None
             and alignment_score_max is None
             and not include_blank_alignment
+            and not notes_comments_active
+            and not notes_source_active
             and not self.search_text_input.text().strip()
             and (
                 not hasattr(self, "search_tags_input")
@@ -9626,6 +9651,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         species_filter_row.addWidget(self.species_filter_combo, 1)
         dnd_species_group_layout.addLayout(species_filter_row)
         layout.addWidget(dnd_species_section)
+
+        notes_section, notes_group_layout = add_collapsible_section("Notes")
+
+        comments_row = QHBoxLayout()
+        self._notes_comments_filter_checkbox = QuadStateSlider("Comments")
+        self._notes_comments_filter_checkbox.modeChanged.connect(self._on_filter_changed)
+        comments_row.addWidget(self._notes_comments_filter_checkbox)
+        self._notes_comments_filter_input = QLineEdit()
+        self._notes_comments_filter_input.setPlaceholderText("contains text")
+        self._notes_comments_filter_input.textChanged.connect(self._on_filter_changed)
+        comments_row.addWidget(self._notes_comments_filter_input, 1)
+        notes_group_layout.addLayout(comments_row)
+
+        source_row = QHBoxLayout()
+        self._notes_source_filter_checkbox = QuadStateSlider("Source")
+        self._notes_source_filter_checkbox.modeChanged.connect(self._on_filter_changed)
+        source_row.addWidget(self._notes_source_filter_checkbox)
+        self._notes_source_filter_input = QLineEdit()
+        self._notes_source_filter_input.setPlaceholderText("contains text")
+        self._notes_source_filter_input.textChanged.connect(self._on_filter_changed)
+        source_row.addWidget(self._notes_source_filter_input, 1)
+        notes_group_layout.addLayout(source_row)
+
+        layout.addWidget(notes_section)
 
         button_row = QHBoxLayout()
         button_row.addStretch(1)
@@ -12639,6 +12688,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._alignment_score_max_input.setText("")
             if self._alignment_score_blank_checkbox is not None:
                 self._alignment_score_blank_checkbox.setChecked(False)
+            if self._notes_comments_filter_checkbox is not None:
+                self._notes_comments_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._notes_comments_filter_input is not None:
+                self._notes_comments_filter_input.setText("")
+            if self._notes_source_filter_checkbox is not None:
+                self._notes_source_filter_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._notes_source_filter_input is not None:
+                self._notes_source_filter_input.setText("")
             for checkbox in self.relationship_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
@@ -14028,6 +14085,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._alignment_score_blank_checkbox is not None
             and self._alignment_score_blank_checkbox.isChecked()
         )
+        notes_comments_mode = (
+            self._notes_comments_filter_checkbox.mode()
+            if self._notes_comments_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_comments_text = (
+            self._notes_comments_filter_input.text().strip()
+            if self._notes_comments_filter_input is not None
+            else ""
+        )
+        notes_source_mode = (
+            self._notes_source_filter_checkbox.mode()
+            if self._notes_source_filter_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
+        notes_source_text = (
+            self._notes_source_filter_input.text().strip()
+            if self._notes_source_filter_input is not None
+            else ""
+        )
 
         if not self._has_active_chart_filters():
             return True
@@ -14153,6 +14230,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart = self._get_chart_for_filter(chart_id)
         if chart is None:
             return incomplete_birthdate_state == QuadStateSlider.MODE_TRUE
+
+        comments_filter_active = (
+            notes_comments_mode != QuadStateSlider.MODE_EMPTY and bool(notes_comments_text)
+        )
+        if comments_filter_active:
+            chart_comments = str(getattr(chart, "comments", "") or "")
+            comments_match = notes_comments_text.casefold() in chart_comments.casefold()
+            if notes_comments_mode == QuadStateSlider.MODE_TRUE and not comments_match:
+                return False
+            if notes_comments_mode == QuadStateSlider.MODE_FALSE and comments_match:
+                return False
+
+        source_filter_active = (
+            notes_source_mode != QuadStateSlider.MODE_EMPTY and bool(notes_source_text)
+        )
+        if source_filter_active:
+            chart_source_text = str(getattr(chart, "chart_data_source", "") or "")
+            source_match = notes_source_text.casefold() in chart_source_text.casefold()
+            if notes_source_mode == QuadStateSlider.MODE_TRUE and not source_match:
+                return False
+            if notes_source_mode == QuadStateSlider.MODE_FALSE and source_match:
+                return False
 
         include_untagged = bool(
             hasattr(self, "search_untagged_checkbox")
