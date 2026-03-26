@@ -1,4 +1,6 @@
 # Master reference for species + subtype explainer text.
+from typing import Dict
+
 # Fill in each blank string with a user-facing explanation.
 SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
     "Aasimar": "Aasimar look like people who have been lit slightly better than the rest of us, as if the air around them has been quietly retouched. They tend to smell faintly of cold morning air, old linen, and the last inch of beeswax candle. Being near one can feel oddly clarifying, which is pleasant right up until they start speaking as though conscience were a public utility.",

@@ -1,35 +1,26 @@
-
 from __future__ import annotations
-
-# Merge your existing SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE into this file if you want the descriptions co-located.
 
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
-import math
+
+from ephemeraldaddy.analysis.dnd.species_definitions import FAMILY_SUBTYPES, SPECIES_FAMILIES
 
 try:
-    from ephemeraldaddy.core.interpretations import MODES, PLANET_ORDER, SIGN_ELEMENTS
-except Exception:
-    SIGN_ELEMENTS = { #why are we redefining this here when it's already imported from interpretations.py?
+    from ephemeraldaddy.core.interpretations import MODES, SIGN_ELEMENTS
+except ImportError:
+    SIGN_ELEMENTS = {
         "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
         "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
         "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
         "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
     }
-    PLANET_ORDER = [ #why are we redefining this here when it's already imported from interpretations.py?
-        "Sun", "Moon", "Mercury", "Venus", "Mars",
-        "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
-        "Chiron", "Ceres", "Pallas", "Juno", "Vesta",
-        "Rahu", "Ketu", "Lilith", "Part of Fortune",
-        "AS", "MC", "DS", "IC",
-    ]
-    MODES = { #why are we redefining this here when it's already in interpretations.py?
+    MODES = {
         "cardinal": {"Aries", "Cancer", "Libra", "Capricorn"},
         "mutable": {"Gemini", "Virgo", "Sagittarius", "Pisces"},
         "fixed": {"Taurus", "Leo", "Scorpio", "Aquarius"},
     }
 
-CLASSICAL_SIGN_TRAITS: Dict[str, Dict[str, bool | str]] = { #why are we redefining this here when it's already in interpretations.py?
+CLASSICAL_SIGN_TRAITS: Dict[str, Dict[str, bool | str]] = {
     "aries": {"quadrupedian": True, "season": "vernal"},
     "taurus": {"bestial": True, "quadrupedian": True, "season": "vernal"},
     "gemini": {"humane": True, "bicorporeal": True, "barren": True, "season": "vernal"},
@@ -48,7 +39,7 @@ SIGN_CLASSICAL_TRAITS = ("mute", "humane", "bestial", "feral", "quadrupedian", "
 SIGN_SEASONS = ("vernal", "aestival", "autumnal", "hyemal")
 SIGN_FERTILITY = ("fruitful", "barren")
 
-BODY_WEIGHTS: Dict[str, float] = { #why are we redefining this here when it's already in interpretations.py?
+BODY_WEIGHTS: Dict[str, float] = {
     "Sun": 3.0,
     "Moon": 3.0,
     "AS": 3.0,
@@ -69,7 +60,7 @@ BODY_WEIGHTS: Dict[str, float] = { #why are we redefining this here when it's al
     "Part of Fortune": 0.6,
 }
 
-DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = ( #why are we redefining this here when it's already in interpretations.py?
+DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = (
     ("conjunction", 0.0, 7.0),
     ("sextile", 60.0, 5.0),
     ("square", 90.0, 6.0),
@@ -83,72 +74,10 @@ DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = ( #why are we redefining t
     ("biquintile", 144.0, 2.0),
 )
 
-HARD_ASPECTS = {"conjunction", "square", "opposition"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
-SOFT_ASPECTS = {"trine", "sextile"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
-ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
+HARD_ASPECTS = {"conjunction", "square", "opposition"}
+SOFT_ASPECTS = {"trine", "sextile"}
+ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 
-SPECIES_FAMILIES: List[str] = [
-    "Aasimar",
-    "Birdfolk",
-    "Canids",
-    "Cosmids",
-    "Cyborgs",
-    "Cyclops",
-    "Dragons",
-    "Dwarf",
-    "Elf",
-    "Fey",
-    "Genasi",
-    "Spirits",
-    "Gnome",
-    "Half-orcs",
-    "Halfling",
-    "Human",
-    "Tabaxi",
-    "Lizardfolk (Reptilians)",
-    "Merfolk",
-    "Minotaur",
-    "Nymph",
-    "Ogres",
-    "Orcs",
-    "Plasmoid",
-    "Robots",
-    "Rodentfolk",
-    "Shapeshifter",
-    "Skeleton",
-    "Stone People (Golems)",
-    "Succubi/Incubi",
-    "Tiefling",
-    "Triton",
-    "Vampire",
-    "Yuan-Ti (Serpentine)",
-]
-
-FAMILY_SUBTYPES: Dict[str, List[str]] = { #dnd_definitions.py should be integrated into this so it's all part of one file.
-    "Aasimar": ["Protector", "Scourge", "Fallen"],
-    "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Other (non-owl, non-kenku, non-aarakocra)"],
-    "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
-    "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"],
-    "Cyborgs": ["Advanced AI", "Combat-Oriented", "Light Augmented"],
-    "Dwarf": ["Duergar (Underdark)", "Mark of Warding (Eberron)", "Mountain", "Hill"],
-    "Elf": ["Drow (Dark Elf)", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin (Seasonal)", "Avariel"],
-    "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
-    "Genasi": ["Fire", "Air", "Earth", "Water", "Electric", "Mud", "Ice"],
-    "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"],
-    "Halfling": ["Ghostwise", "Stout", "Mark of Hospitality (Eberron)", "Mark of Healing (Eberron)", "Lightfoot"],
-    "Human": ["Variant", "Standard"],
-    "Tabaxi": ["Pantherkin", "Tigerfolk", "Other (non-panther, non-tiger, non-lion, non-cat)"],
-    "Lizardfolk (Reptilians)": ["Dinoboiz", "Other"],
-    "Robots": ["Autognome", "Alternative Construct"],
-    "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Other (non-rat, non-squirrel)"],
-    "Shapeshifter": ["Changelings", "Doppelgangers", "Lycanthropes"],
-    "Skeleton": ["Lich", "Skeletal Mage", "Bone Warrior"],
-    "Stone People (Golems)": ["Crystalborn", "Earth-Forged Golems", "Stoneborn"],
-    "Succubi/Incubi": ["Dreamweaver Succubi", "Abyssal Succubi"],
-    "Tiefling": ["Feral", "Bloodlines (e.g., Asmodeus)", "Bloodlines (e.g., Zariel)", "Bloodlines (e.g., Levistus)", "Standard"],
-    "Vampire": ["True Vampire", "Nosferatu", "Dhampir"],
-    "Yuan-Ti (Serpentine)": ["Pureblood", "Malison"],
-}
 
 
 @dataclass(frozen=True)
