@@ -150,14 +150,14 @@ If you’re doing real astro research, placeholders are your polite sticky note 
 - If you want to refine/replace them, `core/interpretations.py` is where contributions/forks can build cleaner definitions.
 
 ## Gates, Lines & Channels
-For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but I haven't done anything with channels yet, nor included any interpretations of I Ching hexagrams, nor calculated "Earth Signs", etc. Some of that stuff is proprietary IP - not public domain, and there are limits to how much can be included in an open source app. But certain enquiring minds wanted to know, and math is open source, so there you go.
-As far as what's fair game, legally, the rest is in the works. Please stand by.
+Human design elements: Gates, Lines & Channels
+For anyone familiar with the framework: in Chart View, G stands for gates, and L stands for lines, but currently the Human Design chart generation is in alpha phase.
 
 ## Weird toy metrics (D&D Species, Cursedness, Gender Guesser)
-These exist. They are fun. They are not commandments.
+These exist. They are fun. They are noncannonical to science and occultist lore alike.
 
 - **D&D Species**: vibe-based speculative classifier.
-- **Cursedness**: weighted “chaos/strain flavor” score for entertainment + comparative curiosity.
+- **Cursedness**: weighted “volatility, chaos & intensity of life experiences” score for entertainment + comparative curiosity.
 - **Gender Guesser**: partially lore-inspired, partially experimental scoring, with a spectrum-oriented treatment rather than strict binary sign assignment.
 
 Recommended posture:

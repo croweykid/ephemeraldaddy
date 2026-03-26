@@ -3460,16 +3460,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.transit_location_input.setPlaceholderText(
             "Location (city or lat,lon)"
         )
-        self.transit_location_input._batch_enter_apply_callback = (
-            self._apply_transit_location
-        )
-        self.transit_location_input.returnPressed.connect(
-            self._apply_transit_location
-        )
+        self.transit_location_input.installEventFilter(self)
         location_layout.addWidget(self.transit_location_input, 1)
 
         self.transit_location_button = QPushButton("Set")
-        self.transit_location_button.clicked.connect(self._apply_transit_location)
+        self.transit_location_button.clicked.connect(
+            self._on_transit_location_submitted
+        )
         location_layout.addWidget(self.transit_location_button)
 
         section_layout.addLayout(location_layout)
@@ -3609,6 +3606,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_location_source = "manual"
         self._save_transit_location_preference(raw_value)
         self._refresh_todays_transits_panel()
+
+    def _on_transit_location_submitted(self, *_args) -> None:
+        self._apply_transit_location()
 
     def _initialize_transit_location_defaults(self) -> None:
         gps_location = self._resolve_gps_transit_location()
@@ -9804,6 +9804,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
                     return
+                if focus_widget is self.transit_location_input:
+                    self._on_transit_location_submitted()
+                    return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
                     return
@@ -9823,6 +9826,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
+        if (
+            hasattr(self, "transit_location_input")
+            and obj is self.transit_location_input
+            and event.type() == QEvent.KeyPress
+            and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+        ):
+            self._on_transit_location_submitted()
+            return True
         list_widget = getattr(self, "list_widget", None)
         if list_widget is not None and obj is list_widget and event.type() == QEvent.KeyPress:
             if self._handle_list_letter_jump(event):
@@ -11221,7 +11232,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if state == QuadStateSlider.MODE_MIXED:
             return
         checked = state == QuadStateSlider.MODE_TRUE
-        chart_ids = self._selected_chart_ids()
+        chart_ids = list(dict.fromkeys(self._selected_chart_ids()))
         if not chart_ids:
             QMessageBox.information(
                 self,
@@ -11231,8 +11242,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
             return
 
+        selected_count = len(chart_ids)
         if relationship_type.lower() == "self" and checked:
-            if len(chart_ids) != 1:
+            if selected_count > 1:
                 QMessageBox.warning(
                     self,
                     "Batch edit not allowed",
@@ -11244,7 +11256,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._update_batch_edit_state()
                 return
 
-        selected_count = len(chart_ids)
         action_label = (
             f"Apply relationship type '{relationship_type}' to"
             if checked
@@ -11588,6 +11599,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             relationship_type,
             state,
         )
+
+    def _confirm_self_reassignment(self, current_chart_id: int | None) -> bool:
+        existing_self = find_self_tagged_chart(exclude_chart_id=current_chart_id)
+        if existing_self is None:
+            return True
+
+        _former_chart_id, former_chart_name = existing_self
+        choice = QMessageBox.question(
+            self,
+            "There's only one you, baby. ('Self' relationship already assigned)",
+            f"Remove 'self' from {former_chart_name}? y/n",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
+            return False
+
+        removed_ids = clear_self_tag_from_other_charts(
+            current_chart_id if current_chart_id is not None else -1
+        )
+        for removed_id in removed_ids:
+            self._chart_cache.pop(removed_id, None)
+        return True
 
     def _on_batch_source_selected(self, index: int) -> None:
         source = self.batch_source_combo.itemData(index)
