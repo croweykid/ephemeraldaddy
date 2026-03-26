@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart
@@ -11,9 +10,12 @@ from ephemeraldaddy.core.human_design_system import (
     calculate_human_design,
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS
-from ephemeraldaddy.gui.features.charts.presentation import format_longitude, sign_for_longitude
-from ephemeraldaddy.gui.features.charts.text_summary import format_chart_text
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
+
+ZODIAC_NAMES = (
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+)
 
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
@@ -66,67 +68,22 @@ def build_awareness_stream_completion(active_gate_set: set[int]) -> list[dict[st
     return awareness_payload
 
 
-def _strip_nakshatra_column(position_lines: list[str]) -> list[str]:
-    """Remove the Nakshatra column from POSITIONS block while preserving alignment."""
-    result_lines: list[str] = []
-    for line in position_lines:
-        stripped = line.strip()
-        if not stripped:
-            result_lines.append(line)
-            continue
-        if stripped.startswith("Body") and "Nakshatra" in stripped:
-            updated = re.sub(r"\s{2,}Nakshatra\s{2,}", "  ", line, count=1)
-            updated = re.sub(r"\s{2,}House\s*$", "", updated)
-            result_lines.append(updated)
-            continue
-        if stripped.startswith(CHART_DATA_DIVIDER):
-            result_lines.append(line)
-            continue
-        columns = re.split(r"\s{2,}", stripped)
-        if len(columns) >= 5:
-            if columns[-1].startswith("H") and len(columns) >= 6:
-                body, sign, degree, _nakshatra, gl, _house = columns[:6]
-                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
-            else:
-                body, sign, degree, _nakshatra, gl = columns[:5]
-                result_lines.append(f"{body:<10}  {sign:<11}  {degree:<12}  {gl:<30}")
-            continue
-        result_lines.append(line)
-    return result_lines
-
-
-def _append_earth_position_lines(
-    position_lines: list[str],
-    hd_result: HumanDesignResult,
-) -> list[str]:
-    """Append Personality/Design Earth rows to POSITIONS lines for HD window."""
-    result = list(position_lines)
-    header_line = next((line for line in result if "Body" in line and "Degree" in line), "")
-    has_house_col = "House" in header_line
-    row_insert_at = len(result)
-    for idx in range(len(result) - 1, -1, -1):
-        if result[idx].strip():
-            row_insert_at = idx + 1
-            break
-
-    p_earth = next((entry for entry in hd_result.personality_activations if entry.body == "Earth"), None)
-    d_earth = next((entry for entry in hd_result.design_activations if entry.body == "Earth"), None)
-    for label, entry in (
-        ("Personality Earth", p_earth),
-        ("Design Earth", d_earth),
-    ):
-        if entry is None:
-            continue
-        degree_text = format_longitude(entry.longitude)
-        sign_text = sign_for_longitude(entry.longitude)
-        gl_text = f"G{entry.gate}.{entry.line} C{entry.color} T{entry.tone} B{entry.base}"
-        if has_house_col:
-            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}  {'-':<5}"
-        else:
-            line = f"{label:<10}  {sign_text:<11}  {degree_text:<12}  {gl_text:<30}"
-        result.insert(row_insert_at, line)
-        row_insert_at += 1
-    return result
+def _build_hd_positions_lines(hd_result: HumanDesignResult) -> list[str]:
+    """Build a Human Design-native POSITIONS block (no zodiac sign import)."""
+    lines = [
+        "POSITIONS",
+        CHART_DATA_DIVIDER,
+        f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<7}  {'C':<1}  {'T':<1}  {'B':<1}",
+        CHART_DATA_DIVIDER,
+    ]
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        body_label = f"{'Personality' if activation.side == 'personality' else 'Design'} {activation.body}"
+        sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
+        gl_text = f"{activation.gate}.{activation.line}"
+        lines.append(
+            f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  {gl_text:<7}  {activation.color:<1}  {activation.tone:<1}  {activation.base:<1}"
+        )
+    return lines
 
 
 def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str, object]]]:
@@ -165,6 +122,59 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
     return "".join(parts), info_entries
 
 
+def _render_clickable_property(label: str, value: str, property_key: str) -> tuple[str, dict[str, object]]:
+    line = f"{label}: {value} ⓘ"
+    entry = {"kind": "hd_property", "property_key": property_key, "icon_index": len(f"{label}: {value} ") }
+    return line, entry
+
+
+def _render_channel_lines(
+    defined_channels: tuple[tuple[int, int, str, str], ...],
+) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
+    grouped: dict[str, list[tuple[int, int, str]]] = {
+        "Ajna": [],
+        "Spleen": [],
+        "Solar Plexus": [],
+    }
+    for gate_a, gate_b, center_a, center_b in defined_channels:
+        label = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        if center_a in grouped:
+            grouped[center_a].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
+        if center_b in grouped and center_b != center_a:
+            grouped[center_b].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
+
+    lines: list[str] = []
+    info_map: dict[int, list[dict[str, object]]] = {}
+    for center in ("Ajna", "Spleen", "Solar Plexus"):
+        lines.append(center)
+        entries = sorted(set(grouped[center]), key=lambda item: (item[0], item[1]))
+        if not entries:
+            lines.append("None")
+            continue
+        parts: list[str] = []
+        cursor = 0
+        row_entries: list[dict[str, object]] = []
+        for idx, (gate_a, gate_b, label) in enumerate(entries):
+            token = f"{label} ⓘ"
+            parts.append(token)
+            row_entries.append(
+                {
+                    "kind": "hd_channel",
+                    "gate_a": gate_a,
+                    "gate_b": gate_b,
+                    "center": center,
+                    "icon_index": cursor + len(label) + 1,
+                }
+            )
+            cursor += len(token)
+            if idx < len(entries) - 1:
+                parts.append(", ")
+                cursor += 2
+        lines.append("".join(parts))
+        info_map[len(lines) - 1] = row_entries
+    return lines, info_map
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -176,33 +186,22 @@ def build_human_design_chart_data_output(
     Excludes Houses and Aspects from the rendered output.
     """
 
-    chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
-        chart,
-        aspect_sort=aspect_sort,
-    )
-    summary_lines = chart_summary_text.splitlines()
-    positions_start_index = next(
-        (idx for idx, line in enumerate(summary_lines) if line.strip() == "POSITIONS"),
-        0,
-    )
-    houses_header_index = next(
-        (
-            idx
-            for idx, line in enumerate(summary_lines[positions_start_index + 1 :], start=positions_start_index + 1)
-            if line.strip() == "HOUSES"
-        ),
-        len(summary_lines),
-    )
-    position_lines = summary_lines[positions_start_index:houses_header_index]
+    _ = aspect_sort
+    positions_start_index = 0
+    position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    position_lines = _append_earth_position_lines(_strip_nakshatra_column(position_lines), hd_result)
+    position_lines = _build_hd_positions_lines(hd_result)
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
     gates_text, gates_info_entries = _render_clickable_gates(active_gate_set)
     lines_text, lines_info_entries = _render_clickable_lines(active_line_set)
+    type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
+    authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
+    profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
+    channel_lines, channel_info_map = _render_channel_lines(hd_result.defined_channels)
 
     awareness_lines: list[str] = []
     for stream_entry in build_awareness_stream_completion(active_gate_set):
@@ -211,7 +210,24 @@ def build_human_design_chart_data_output(
         )
 
     rendered_lines = [
+        CHART_DATA_DIVIDER,
+        "CORE DESIGNATION",
+        CHART_DATA_DIVIDER,
+        type_line,
+        authority_line,
+        profile_line,
+        "",
         *position_lines,
+        "",
+        CHART_DATA_DIVIDER,
+        "BODYGRAPH PROPERTIES",
+        CHART_DATA_DIVIDER,
+        f"Type: {hd_result.hd_type}",
+        f"Authority: {hd_result.authority}",
+        f"Strategy: {hd_result.strategy}",
+        f"Profile: {hd_result.profile}",
+        f"Definition: {hd_result.split_definition}",
+        f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,
         "GATES",
@@ -224,6 +240,11 @@ def build_human_design_chart_data_output(
         lines_text,
         "",
         CHART_DATA_DIVIDER,
+        "CHANNELS",
+        CHART_DATA_DIVIDER,
+        *channel_lines,
+        "",
+        CHART_DATA_DIVIDER,
         "AWARENESS STREAMS",
         CHART_DATA_DIVIDER,
         *awareness_lines,
@@ -234,11 +255,23 @@ def build_human_design_chart_data_output(
         position_info_map.setdefault(positions_start_index + gates_line_index, []).append(entry)
     for entry in lines_info_entries:
         position_info_map.setdefault(positions_start_index + lines_line_index, []).append(entry)
+    for line_text, entry in (
+        (type_line, type_info_entry),
+        (authority_line, authority_info_entry),
+        (profile_line, profile_info_entry),
+    ):
+        line_index = rendered_lines.index(line_text)
+        position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
+    channels_header_index = rendered_lines.index("CHANNELS")
+    channel_block_start = channels_header_index + 2
+    for relative_line_index, entries in channel_info_map.items():
+        absolute_line_index = positions_start_index + channel_block_start + relative_line_index
+        position_info_map.setdefault(absolute_line_index, []).extend(entries)
 
     return (
         "\n".join(rendered_lines),
         position_info_map,
-        aspect_info_map,
-        species_info_map,
+        {},
+        {},
         positions_start_index,
     )

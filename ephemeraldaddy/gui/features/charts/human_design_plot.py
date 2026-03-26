@@ -19,6 +19,21 @@ CENTER_POSITIONS: dict[str, tuple[float, float]] = {
 }
 
 STYLE_COLOR = {"black": "#101010", "red": "#d14d4d", "combined": "#8c4fd1"}
+BODY_TEXT_COLOR: dict[str, str] = {
+    "Sun": "#f5c542",
+    "Earth": "#c8914f",
+    "Moon": "#6ea8ff",
+    "Rahu": "#b07bff",
+    "Ketu": "#8f5fd6",
+    "Mercury": "#6ccf91",
+    "Venus": "#e784d5",
+    "Mars": "#e06c5b",
+    "Jupiter": "#e0a95b",
+    "Saturn": "#9fa7b3",
+    "Uranus": "#6bc7d9",
+    "Neptune": "#5d7ccf",
+    "Pluto": "#b86b8f",
+}
 
 
 def draw_human_design_chart(
@@ -72,7 +87,7 @@ def draw_human_design_chart(
             0.03,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
-            color=STYLE_COLOR.get(activation.style, "#f0f0f0"),
+            color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,
             ha="left",
             va="top",
@@ -84,7 +99,7 @@ def draw_human_design_chart(
             0.72,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
-            color=STYLE_COLOR.get(activation.style, "#f0f0f0"),
+            color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,
             ha="left",
             va="top",
@@ -92,11 +107,23 @@ def draw_human_design_chart(
 
     ax.text(
         0.5,
-        0.05,
-        f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   Profile: {hd_result.profile}",
+        0.06,
+        (
+            f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   "
+            f"Profile: {hd_result.profile}   {hd_result.split_definition}"
+        ),
         color="#f4e0c6",
-        fontsize=8,
+        fontsize=7,
         ha="center",
         va="center",
         fontweight="bold",
+    )
+    ax.text(
+        0.5,
+        0.03,
+        f"Strategy: {hd_result.strategy}   Incarnation: {hd_result.incarnation_cross}",
+        color="#f4e0c6",
+        fontsize=6,
+        ha="center",
+        va="center",
     )
