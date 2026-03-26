@@ -37,7 +37,7 @@ GATE_REFERENCE: dict[int, dict[str, str]] = {
     23: {"name": "Assimilation", "meaning": "Explaining and simplifying individual insights."},
     24: {"name": "Rationalization", "meaning": "Mental return to contemplate and integrate knowing."},
     25: {"name": "Innocence", "meaning": "Universal love, spirit, and purity of heart."},
-    26: {"name": "The Cross of Rulership", "meaning": "Persuasion, memory, and strategic willpower."},
+    26: {"name": "The Egoist", "meaning": "Persuasion, memory, and strategic willpower."},
     27: {"name": "Caring", "meaning": "Nourishment, preservation, and protective support."},
     28: {"name": "The Game Player", "meaning": "Struggle to find purpose and meaningful risk."},
     29: {"name": "Perseverance", "meaning": "Commitment and the power of saying yes correctly."},
