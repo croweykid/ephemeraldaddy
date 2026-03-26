@@ -19244,6 +19244,9 @@ class MainWindow(QMainWindow):
                             selected_entry.get("line"),
                         )
                         return True
+                    if selected_entry.get("kind") == "hd_property":
+                        self._show_human_design_property_info(str(selected_entry.get("property_key", "")))
+                        return True
                     self._show_position_info(
                         selected_entry["body"],
                         selected_entry["sign"],
@@ -19402,6 +19405,29 @@ class MainWindow(QMainWindow):
     def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
         line_number = int(line) if isinstance(line, int) else None
         self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
+
+    def _show_human_design_property_info(self, property_key: str) -> None:
+        info_map = {
+            "type": (
+                "Type\n\n"
+                "• Mechanical category derived from center and channel definition.\n"
+                "• Reflector: no defined centers.\n"
+                "• Generator / Manifesting Generator: Sacral defined.\n"
+                "• Manifestor: no Sacral, but motor connected to Throat.\n"
+                "• Projector: no Sacral and no motor-to-Throat connection."
+            ),
+            "authority": (
+                "Authority\n\n"
+                "• Inner Authority is prioritized from center configuration.\n"
+                "• Emotional > Sacral > Splenic > Ego variants > Self-Projected/Mental > Lunar."
+            ),
+            "profile": (
+                "Profile\n\n"
+                "• Profile is derived from Personality Sun line / Design Sun line.\n"
+                "• Display format: PersonalityLine/DesignLine (for example, 1/3)."
+            ),
+        }
+        self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
 
     def _show_species_info(
         self,
