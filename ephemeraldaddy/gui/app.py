@@ -22075,8 +22075,9 @@ class MainWindow(QMainWindow):
             "summary_block_offset": 0,
         }
         hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
-        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
-        popout_context["share_button"] = summary_share_button
+        share_attacher = getattr(self, "_attach_popout_share_button", None)
+        if callable(share_attacher):
+            popout_context["share_button"] = share_attacher(summary_output, hd_file_stem)
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
@@ -22205,8 +22206,9 @@ class MainWindow(QMainWindow):
             "summary_block_offset": 0,
         }
         hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
-        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
-        popout_context["share_button"] = summary_share_button
+        share_attacher = getattr(self, "_attach_popout_share_button", None)
+        if callable(share_attacher):
+            popout_context["share_button"] = share_attacher(summary_output, hd_file_stem)
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
