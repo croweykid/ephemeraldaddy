@@ -81,7 +81,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     dialog.resize(720, 560)
 
     layout = QVBoxLayout(dialog)
-    intro = QLabel("Onboarding guide is bundled into this app build.")
+    intro = QLabel("This is not my beautiful house. This is not my beautiful wife. My god. How did I get here?")
     intro.setStyleSheet(ABOUT_DIALOG_INTRO_STYLE)
     layout.addWidget(intro)
 
