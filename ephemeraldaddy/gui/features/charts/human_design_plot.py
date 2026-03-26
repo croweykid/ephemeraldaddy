@@ -92,11 +92,23 @@ def draw_human_design_chart(
 
     ax.text(
         0.5,
-        0.05,
-        f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   Profile: {hd_result.profile}",
+        0.06,
+        (
+            f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   "
+            f"Profile: {hd_result.profile}   {hd_result.split_definition}"
+        ),
         color="#f4e0c6",
-        fontsize=8,
+        fontsize=7,
         ha="center",
         va="center",
         fontweight="bold",
+    )
+    ax.text(
+        0.5,
+        0.03,
+        f"Strategy: {hd_result.strategy}   Incarnation: {hd_result.incarnation_cross}",
+        color="#f4e0c6",
+        fontsize=6,
+        ha="center",
+        va="center",
     )
