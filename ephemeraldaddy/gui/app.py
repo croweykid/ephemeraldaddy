@@ -3464,12 +3464,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._apply_transit_location
         )
         self.transit_location_input.returnPressed.connect(
-            self._apply_transit_location
+            self._on_transit_location_submitted
         )
         location_layout.addWidget(self.transit_location_input, 1)
 
         self.transit_location_button = QPushButton("Set")
-        self.transit_location_button.clicked.connect(self._apply_transit_location)
+        self.transit_location_button.clicked.connect(
+            self._on_transit_location_submitted
+        )
         location_layout.addWidget(self.transit_location_button)
 
         section_layout.addLayout(location_layout)
@@ -3609,6 +3611,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_location_source = "manual"
         self._save_transit_location_preference(raw_value)
         self._refresh_todays_transits_panel()
+
+    def _on_transit_location_submitted(self, *_args) -> None:
+        self._apply_transit_location()
 
     def _initialize_transit_location_defaults(self) -> None:
         gps_location = self._resolve_gps_transit_location()
@@ -9805,7 +9810,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     focus_widget.click()
                     return
                 if focus_widget is self.transit_location_input:
-                    self._apply_transit_location()
+                    self._on_transit_location_submitted()
                     return
                 if focus_widget is self.personal_transit_chart_input:
                     self._on_personal_transit_enter_pressed()
