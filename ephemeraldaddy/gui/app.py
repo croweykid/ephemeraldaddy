@@ -15108,6 +15108,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
+        human_design_alpha_checkbox = QCheckBox("Show Human Design (alpha prototype)")
+        human_design_alpha_checkbox.setChecked(
+            self._visibility.get("chart_data.human_design_alpha_prototype")
+        )
+        human_design_alpha_checkbox.toggled.connect(
+            lambda checked: self._set_chart_data_visibility(
+                "chart_data.human_design_alpha_prototype",
+                checked,
+            )
+        )
+        visibility_section.addWidget(human_design_alpha_checkbox)
+
         visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
@@ -15384,6 +15396,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.remove("app/last_view")
         self._visibility.reset_defaults()
         self._restore_visibility_preferences()
+        self._refresh_human_design_menu_visibility()
 
         self._sort_mode = "alpha"
         self._sort_descending = False
@@ -15456,10 +15469,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
+        if key == "chart_data.human_design_alpha_prototype":
+            self._refresh_human_design_menu_visibility()
 
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._refresh_chart_preview()
+
+    def _refresh_human_design_menu_visibility(self) -> None:
+        layout = self.layout()
+        if isinstance(layout, QVBoxLayout):
+            configure_manage_dialog_chrome(self, layout)
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            configure_main_window_chrome(parent)
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
