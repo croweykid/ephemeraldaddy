@@ -25,12 +25,14 @@ HD_BODIES: tuple[str, ...] = (
     "Pluto",
 )
 
-# Fixed Rave Mandala gate order (64 equal 5.625° segments), aligned so 10° Aries => Gate 25.
+# Fixed Rave Mandala gate order (64 equal 5.625° segments).
+# Mapping is computed from a fixed boundary at 28°15' Pisces (358.25° tropical).
+MANDALA_START_DEGREE = 358.25
 MANDALA_GATE_ORDER: tuple[int, ...] = (
-    36, 25, 17, 21, 51, 42, 3, 27, 24, 2, 23, 8, 20, 16, 35, 45,
+    25, 17, 21, 51, 42, 3, 27, 24, 2, 23, 8, 20, 16, 35, 45,
     12, 15, 52, 39, 53, 62, 56, 31, 33, 7, 4, 29, 59, 40, 64, 47,
     6, 46, 18, 48, 57, 32, 50, 28, 44, 1, 43, 14, 34, 9, 5, 26,
-    11, 10, 58, 38, 54, 61, 60, 41, 19, 13, 49, 30, 55, 37, 63, 22,
+    11, 10, 58, 38, 54, 61, 60, 41, 19, 13, 49, 30, 55, 37, 63, 22, 36,
 )
 
 CHANNELS: tuple[tuple[int, int, str, str], ...] = (
@@ -92,9 +94,10 @@ def _angular_diff(a: float, b: float) -> float:
 def _mandala_components(longitude: float) -> tuple[int, int, int, int, int]:
     lon = _norm360(float(longitude))
     gate_width = 360.0 / 64.0
-    segment_index = int(lon // gate_width)
+    adjusted = _norm360(lon - MANDALA_START_DEGREE)
+    segment_index = int(adjusted // gate_width)
     gate = MANDALA_GATE_ORDER[segment_index]
-    offset_in_gate = lon - (segment_index * gate_width)
+    offset_in_gate = adjusted - (segment_index * gate_width)
     line_width = gate_width / 6.0
     color_width = line_width / 6.0
     tone_width = color_width / 6.0
@@ -142,8 +145,8 @@ def _body_longitudes(at_utc: datetime) -> dict[str, float]:
 
 def _solve_design_utc(birth_utc: datetime, personality_sun: float) -> datetime:
     target = _norm360(personality_sun - 88.0)
-    start = birth_utc - timedelta(days=94)
-    end = birth_utc - timedelta(days=86)
+    start = birth_utc - timedelta(days=100)
+    end = birth_utc - timedelta(days=80)
     step = timedelta(hours=6)
     probe = start
     prev_t = start
