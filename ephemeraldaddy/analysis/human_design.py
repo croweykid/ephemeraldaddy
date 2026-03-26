@@ -12,6 +12,11 @@ from ephemeraldaddy.core.human_design_system import (
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
+ZODIAC_NAMES = (
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+)
+
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
@@ -68,14 +73,15 @@ def _build_hd_positions_lines(hd_result: HumanDesignResult) -> list[str]:
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
-        f"{'Body':<12}  {'Stream':<12}  {'Longitude':<11}  {'Activation':<20}",
+        f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<7}  {'C':<1}  {'T':<1}  {'B':<1}",
         CHART_DATA_DIVIDER,
     ]
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
-        stream = "Personality" if activation.side == "personality" else "Design"
-        activation_text = f"G{activation.gate}.{activation.line} C{activation.color} T{activation.tone} B{activation.base}"
+        body_label = f"{'Personality' if activation.side == 'personality' else 'Design'} {activation.body}"
+        sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
+        gl_text = f"{activation.gate}.{activation.line}"
         lines.append(
-            f"{activation.body:<12}  {stream:<12}  {activation.longitude:>8.3f}°  {activation_text:<20}"
+            f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  {gl_text:<7}  {activation.color:<1}  {activation.tone:<1}  {activation.base:<1}"
         )
     return lines
 
@@ -116,6 +122,12 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
     return "".join(parts), info_entries
 
 
+def _render_clickable_property(label: str, value: str, property_key: str) -> tuple[str, dict[str, object]]:
+    line = f"{label}: {value} ⓘ"
+    entry = {"kind": "hd_property", "property_key": property_key, "icon_index": len(f"{label}: {value} ") }
+    return line, entry
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -139,6 +151,10 @@ def build_human_design_chart_data_output(
 
     gates_text, gates_info_entries = _render_clickable_gates(active_gate_set)
     lines_text, lines_info_entries = _render_clickable_lines(active_line_set)
+    type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
+    authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
+    profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
+    channels_text = ", ".join(sorted(f"{gate_a}-{gate_b}" for gate_a, gate_b, _c1, _c2 in hd_result.defined_channels)) or "None"
 
     awareness_lines: list[str] = []
     for stream_entry in build_awareness_stream_completion(active_gate_set):
@@ -147,6 +163,13 @@ def build_human_design_chart_data_output(
         )
 
     rendered_lines = [
+        CHART_DATA_DIVIDER,
+        "CORE DESIGNATION",
+        CHART_DATA_DIVIDER,
+        type_line,
+        authority_line,
+        profile_line,
+        "",
         *position_lines,
         "",
         CHART_DATA_DIVIDER,
@@ -170,6 +193,11 @@ def build_human_design_chart_data_output(
         lines_text,
         "",
         CHART_DATA_DIVIDER,
+        "CHANNELS",
+        CHART_DATA_DIVIDER,
+        channels_text,
+        "",
+        CHART_DATA_DIVIDER,
         "AWARENESS STREAMS",
         CHART_DATA_DIVIDER,
         *awareness_lines,
@@ -180,6 +208,13 @@ def build_human_design_chart_data_output(
         position_info_map.setdefault(positions_start_index + gates_line_index, []).append(entry)
     for entry in lines_info_entries:
         position_info_map.setdefault(positions_start_index + lines_line_index, []).append(entry)
+    for line_text, entry in (
+        (type_line, type_info_entry),
+        (authority_line, authority_info_entry),
+        (profile_line, profile_info_entry),
+    ):
+        line_index = rendered_lines.index(line_text)
+        position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
 
     return (
         "\n".join(rendered_lines),
