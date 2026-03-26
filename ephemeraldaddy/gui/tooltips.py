@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Mapping
 
 from PySide6.QtWidgets import QAbstractButton, QLabel, QWidget
@@ -88,6 +89,15 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
 }
 
 
+def _format_tooltip_text(text: str) -> str:
+    """Return high-contrast HTML tooltip text for reliable readability."""
+    return (
+        '<span style="color: #f5f5f5; background-color: transparent; font-family: Sans-Serif;">'
+        f"{escape(text)}"
+        '</span>'
+    )
+
+
 def _has_textual_content(text: str) -> bool:
     return any(char.isalnum() for char in text)
 
@@ -111,7 +121,7 @@ def apply_default_text_tooltips(
 
         exact_override_text = EXACT_TEXT_TOOLTIP_OVERRIDES.get(text, "").strip()
         if exact_override_text:
-            widget.setToolTip(exact_override_text)
+            widget.setToolTip(_format_tooltip_text(exact_override_text))
             continue
 
         if widget.toolTip().strip():
