@@ -7,7 +7,7 @@ import math
 import unicodedata
 from typing import Any
 
-from ephemeraldaddy.analysis.dnd.species_assigner import assign_top_three_species_with_evidence
+from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
