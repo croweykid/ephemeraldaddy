@@ -7,148 +7,34 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import math
 
-try:
-    from ephemeraldaddy.core.interpretations import MODES, PLANET_ORDER, SIGN_ELEMENTS
-except Exception:
-    SIGN_ELEMENTS = { #why are we redefining this here when it's already imported from interpretations.py?
-        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
-        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
-        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
-        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
-    }
-    PLANET_ORDER = [ #why are we redefining this here when it's already imported from interpretations.py?
-        "Sun", "Moon", "Mercury", "Venus", "Mars",
-        "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
-        "Chiron", "Ceres", "Pallas", "Juno", "Vesta",
-        "Rahu", "Ketu", "Lilith", "Part of Fortune",
-        "AS", "MC", "DS", "IC",
-    ]
-    MODES = { #why are we redefining this here when it's already in interpretations.py?
-        "cardinal": {"Aries", "Cancer", "Libra", "Capricorn"},
-        "mutable": {"Gemini", "Virgo", "Sagittarius", "Pisces"},
-        "fixed": {"Taurus", "Leo", "Scorpio", "Aquarius"},
-    }
+from ephemeraldaddy.analysis.dnd.dnd_definitions import FAMILY_SUBTYPES, SPECIES_FAMILIES
 
-CLASSICAL_SIGN_TRAITS: Dict[str, Dict[str, bool | str]] = { #why are we redefining this here when it's already in interpretations.py?
-    "aries": {"quadrupedian": True, "season": "vernal"},
-    "taurus": {"bestial": True, "quadrupedian": True, "season": "vernal"},
-    "gemini": {"humane": True, "bicorporeal": True, "barren": True, "season": "vernal"},
-    "cancer": {"mute": True, "fruitful": True, "season": "aestival"},
-    "leo": {"feral": True, "quadrupedian": True, "barren": True, "season": "aestival"},
-    "virgo": {"humane": True, "barren": True, "season": "aestival"},
-    "libra": {"humane": True, "season": "autumnal"},
-    "scorpio": {"mute": True, "fruitful": True, "season": "autumnal"},
-    "sagittarius": {"feral": True, "bicorporeal": True, "season": "autumnal"},
-    "capricorn": {"bestial": True, "quadrupedian": True, "season": "hyemal"},
-    "aquarius": {"humane": True, "season": "hyemal"},
-    "pisces": {"mute": True, "bicorporeal": True, "fruitful": True, "season": "hyemal"},
-}
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_ANGLE_DEGREES,
+    ASPECT_ORB_ALLOWANCES,
+    ASPECT_SCORE_WEIGHTS,
+    ASPECT_TYPES,
+    MODES,
+    NATAL_BODY_LOUDNESS,
+    SIGN_ELEMENTS,
+    SIGN_KEYWORDS,
+)
 
 SIGN_CLASSICAL_TRAITS = ("mute", "humane", "bestial", "feral", "quadrupedian", "bicorporeal")
 SIGN_SEASONS = ("vernal", "aestival", "autumnal", "hyemal")
 SIGN_FERTILITY = ("fruitful", "barren")
+_BODY_WEIGHT_SCALE = max(float(v) for v in NATAL_BODY_LOUDNESS.values()) if NATAL_BODY_LOUDNESS else 1.0
+BODY_WEIGHTS: Dict[str, float] = {body: float(weight) / _BODY_WEIGHT_SCALE for body, weight in NATAL_BODY_LOUDNESS.items()}
 
-BODY_WEIGHTS: Dict[str, float] = { #why are we redefining this here when it's already in interpretations.py?
-    "Sun": 3.0,
-    "Moon": 3.0,
-    "AS": 3.0,
-    "Mercury": 1.8,
-    "Venus": 1.8,
-    "Mars": 1.8,
-    "Jupiter": 1.4,
-    "Saturn": 1.4,
-    "Uranus": 1.1,
-    "Neptune": 1.1,
-    "Pluto": 1.1,
-    "MC": 1.3,
-    "DS": 1.0,
-    "IC": 1.0,
-    "Rahu": 0.8,
-    "Ketu": 0.8,
-    "Lilith": 0.6,
-    "Part of Fortune": 0.6,
-}
-
-DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = ( #why are we redefining this here when it's already in interpretations.py?
-    ("conjunction", 0.0, 7.0),
-    ("sextile", 60.0, 5.0),
-    ("square", 90.0, 6.0),
-    ("trine", 120.0, 6.0),
-    ("quincunx", 150.0, 3.0),
-    ("opposition", 180.0, 7.0),
-    ("semisextile", 30.0, 2.0),
-    ("semisquare", 45.0, 2.0),
-    ("sesquiquadrate", 135.0, 2.0),
-    ("quintile", 72.0, 2.0),
-    ("biquintile", 144.0, 2.0),
+DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = tuple(
+    (name, float(ASPECT_ANGLE_DEGREES[name]), float(ASPECT_ORB_ALLOWANCES[name]))
+    for name in ASPECT_SCORE_WEIGHTS
+    if name in ASPECT_ANGLE_DEGREES and name in ASPECT_ORB_ALLOWANCES
 )
 
-HARD_ASPECTS = {"conjunction", "square", "opposition"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
-SOFT_ASPECTS = {"trine", "sextile"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
-ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"} #this belongs in interpretations.py, not here, and we already have something better there called ASPECT_TYPE
-
-SPECIES_FAMILIES: List[str] = [
-    "Aasimar",
-    "Birdfolk",
-    "Canids",
-    "Cosmids",
-    "Cyborgs",
-    "Cyclops",
-    "Dragons",
-    "Dwarf",
-    "Elf",
-    "Fey",
-    "Genasi",
-    "Spirits",
-    "Gnome",
-    "Half-orcs",
-    "Halfling",
-    "Human",
-    "Tabaxi",
-    "Lizardfolk (Reptilians)",
-    "Merfolk",
-    "Minotaur",
-    "Nymph",
-    "Ogres",
-    "Orcs",
-    "Plasmoid",
-    "Robots",
-    "Rodentfolk",
-    "Shapeshifter",
-    "Skeleton",
-    "Stone People (Golems)",
-    "Succubi/Incubi",
-    "Tiefling",
-    "Triton",
-    "Vampire",
-    "Yuan-Ti (Serpentine)",
-]
-
-FAMILY_SUBTYPES: Dict[str, List[str]] = { #dnd_definitions.py should be integrated into this so it's all part of one file.
-    "Aasimar": ["Protector", "Scourge", "Fallen"],
-    "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Other (non-owl, non-kenku, non-aarakocra)"],
-    "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
-    "Cosmids": ["Chronomancers", "Abysswalkers", "Starspawned", "Cometkin", "Eclipsians"],
-    "Cyborgs": ["Advanced AI", "Combat-Oriented", "Light Augmented"],
-    "Dwarf": ["Duergar (Underdark)", "Mark of Warding (Eberron)", "Mountain", "Hill"],
-    "Elf": ["Drow (Dark Elf)", "Shadar-Kai", "Sea Elf", "High Elf", "Wood Elf", "Eladrin (Seasonal)", "Avariel"],
-    "Fey": ["Hobgoblins", "Fairies", "Firbolgs", "Satyr/Fawn", "Trolls", "Leprechauns"],
-    "Genasi": ["Fire", "Air", "Earth", "Water", "Electric", "Mud", "Ice"],
-    "Spirits": ["Poltergeist", "Wraith", "Ghoul", "Vagrant Spirit"],
-    "Halfling": ["Ghostwise", "Stout", "Mark of Hospitality (Eberron)", "Mark of Healing (Eberron)", "Lightfoot"],
-    "Human": ["Variant", "Standard"],
-    "Tabaxi": ["Pantherkin", "Tigerfolk", "Other (non-panther, non-tiger, non-lion, non-cat)"],
-    "Lizardfolk (Reptilians)": ["Dinoboiz", "Other"],
-    "Robots": ["Autognome", "Alternative Construct"],
-    "Rodentfolk": ["Squirrelfolk", "Ratfolk", "Other (non-rat, non-squirrel)"],
-    "Shapeshifter": ["Changelings", "Doppelgangers", "Lycanthropes"],
-    "Skeleton": ["Lich", "Skeletal Mage", "Bone Warrior"],
-    "Stone People (Golems)": ["Crystalborn", "Earth-Forged Golems", "Stoneborn"],
-    "Succubi/Incubi": ["Dreamweaver Succubi", "Abyssal Succubi"],
-    "Tiefling": ["Feral", "Bloodlines (e.g., Asmodeus)", "Bloodlines (e.g., Zariel)", "Bloodlines (e.g., Levistus)", "Standard"],
-    "Vampire": ["True Vampire", "Nosferatu", "Dhampir"],
-    "Yuan-Ti (Serpentine)": ["Pureblood", "Malison"],
-}
+HARD_ASPECTS = set(ASPECT_TYPES["stress/friction"]["aspects"]) | {"conjunction"}
+SOFT_ASPECTS = set(ASPECT_TYPES["chill vibes"]["aspects"])
+ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 
 
 @dataclass(frozen=True)
@@ -435,14 +321,14 @@ class SpeciesAssigner:
                     mode_totals[mode] += weight
                     break
 
-            trait_meta = CLASSICAL_SIGN_TRAITS.get(sign.lower(), {})
+            trait_meta = SIGN_KEYWORDS.get(sign, {})
             for trait in SIGN_CLASSICAL_TRAITS:
                 if trait_meta.get(trait) is True:
                     trait_totals[trait] += weight
             season = trait_meta.get("season")
             if season in season_totals:
                 season_totals[str(season)] += weight
-            fertility = "fruitful" if trait_meta.get("fruitful") else "barren" if trait_meta.get("barren") else None
+            fertility = trait_meta.get("fertility")
             if fertility in fertility_totals:
                 fertility_totals[str(fertility)] += weight
 

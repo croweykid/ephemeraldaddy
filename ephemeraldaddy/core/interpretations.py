@@ -3,8 +3,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from ephemeraldaddy.gui.style import DARK_THEME
-
+# from ephemeraldaddy.gui.style import DARK_THEME
 
 # Aspect scoring constants/helpers consolidated here to keep major astro constants in one module.
 
@@ -161,6 +160,20 @@ ASPECT_SCORE_WEIGHTS = {
     "sesquiquadrate": 2,
     "quintile": 2,
     "biquintile": 2,
+}
+
+ASPECT_ANGLE_DEGREES = {
+    "conjunction": 0.0,
+    "semisextile": 30.0,
+    "semisquare": 45.0,
+    "sextile": 60.0,
+    "quintile": 72.0,
+    "square": 90.0,
+    "trine": 120.0,
+    "sesquiquadrate": 135.0,
+    "biquintile": 144.0,
+    "quincunx": 150.0,
+    "opposition": 180.0,
 }
 
 ASPECT_SCORE_MULTIPLIERS = {
