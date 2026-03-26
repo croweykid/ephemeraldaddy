@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Mapping
 
 from PySide6.QtWidgets import QAbstractButton, QLabel, QWidget
@@ -29,11 +30,70 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "manage_button": "Back to Database View",
     "database_view_button": "Close Chart View and return to Database View",
     "help_overlay_toggle": "Help",
+    "chart_view_toggle_subjective_notes_panel_button": "Subjective Notes panel",
+    "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
+}
+
+# IMPORTANT: these are intentionally exact-string mappings so tooltip behavior
+# disappears automatically if visible labels are renamed.
+EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
+    # Requested Chart View tooltips.
+    "💀": "deceased?",
+    "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated correct time",
+    "?": "birthtime unknown?",
+    "Source": "origin of birth/biographical info",
+    "Alignment": "What's your impression of their morality, you judgy bastard?",
+    "💖 Positive Sentiment Intensity:": "how much you love em",
+    "💔 Negative Sentiment Intensity:": "how upsetting they are",
+    "Familiarity:": "How well you think you know them",
+
+    # Sentiment types (string-sensitive by checkbox text).
+    "like": "friend",
+    "love": "love",
+    "lil crush": "you think they're cute",
+    "lust": "you're fixated",
+    "revere": "mentor",
+    "dislike": "enemy",
+    "despise": "archnemesis",
+
+    # Relationship types (mirrors comments in interpretations.py RELATION_TYPE).
+    "self": "it's just you",
+    "ride or die": "structurally intertwined, Heavenly Creatures type stuff",
+    "core posse": "inseparable, bosom chum",
+    "homie": "your chum",
+    "mentor": "helps you understand who/what you could be, and how",
+    "ward": "a human in your care; you look after them as their caregiver/provider",
+    "lover": "ya hooked up",
+    "frenemy": "it's complicated",
+    "minor foe": "we're not cool",
+    "nemesis": "big problem",
+    "fascination": "dw, you're just stalking them",
+    "kin by marriage": "married into fam",
+    "kin by blood": "ancestors, cousins & siblings",
+    "colleague": "work with",
+    "authority": "power dynamic",
+    "acquaintance": "just seem em around, kinda know about them a little",
+    "friend of family": "(they're just around)",
+    "friend of friend": "(they're just around)",
+    "family of friend": "(they're just around)",
+    "your lover's ex": "(self-explanatory; here cos most people have feelings about it)",
+    "your friend's ex": "(self-explanatory; here cos some people have feelings about it)",
+    "pet": "a nonhuman creature in your care",
+    "only talk online": "you've only met online",
+    "never met": "maybe a friend of a friend you only know by reputation",
+    "public figure": "icon, subject to projections",
+    "place": "why does this require explanation? don't get philosophical on me.",
+    "event": "aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak",
 }
 
 
-def _has_textual_content(text: str) -> bool:
-    return any(char.isalnum() for char in text)
+def _format_tooltip_text(text: str) -> str:
+    """Return high-contrast HTML tooltip text for reliable readability."""
+    return (
+        '<span style="color: #f5f5f5; background-color: transparent; font-family: Sans-Serif;">'
+        f"{escape(text)}"
+        '</span>'
+    )
 
 
 def apply_default_text_tooltips(
@@ -50,6 +110,14 @@ def apply_default_text_tooltips(
         *container.findChildren(QAbstractButton),
     ]
     for widget in widgets:
+        text_getter = getattr(widget, "text", None)
+        text = str(text_getter()).strip() if callable(text_getter) else ""
+
+        exact_override_text = EXACT_TEXT_TOOLTIP_OVERRIDES.get(text, "").strip()
+        if exact_override_text:
+            widget.setToolTip(_format_tooltip_text(exact_override_text))
+            continue
+
         if widget.toolTip().strip():
             continue
 
@@ -59,10 +127,3 @@ def apply_default_text_tooltips(
             widget.setToolTip(override_text)
             continue
 
-        text_getter = getattr(widget, "text", None)
-        if not callable(text_getter):
-            continue
-
-        text = str(text_getter()).strip()
-        if text and _has_textual_content(text):
-            widget.setToolTip(text)
