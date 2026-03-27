@@ -1993,19 +1993,24 @@ PLANET_KEYWORDS = {
     },
     "Lilith": {
         "nouns": [
-            "no's", "refusals", "call-outs", "pushback", "boundaries", "defiance",
-            "no apologies", "expectations", "distance", "firmness", "limit tests", "taboos",
+            "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
+            "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
         ],
         "verbs": [
-            "saying no to", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing for", "challenging expectations about", "keeping distance from", "standing firm with", "testing limits of", "breaking taboos with",
+            "refusing", "defying", "rejecting", "breaking taboos around", "withholding compliance from",
+            "provoking", "refusing subordination in", "claiming autonomy over", "disrupting expectations around",
+            "testing limits of", "walking away from", "remaining unapologetic about",
         ],
         "verbsonly": [
-            "saying no", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing", "challenging expectations", "keeping distance", "standing firm", "testing limits", "breaking taboos",
+            "refusing", "defying", "rejecting", "breaking taboos", "withholding compliance",
+            "provoking", "refusing subordination", "claiming autonomy", "disrupting expectations",
+            "testing limits", "walking away", "remaining unapologetic",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the part that would rather be exiled than domesticated: taboo desire, refusal of subordination, and the social cost of remaining unassimilated",
+        ],
+        "archetypes": [
+          ,"Mata Hari","Cleopatra","Jeanne d'Arc","the one they call dangerous because she would not submit", # "the wife who walked out", "the exile who will not kneel","the burned witch",  
         ],
     },
     "Part of Fortune": {

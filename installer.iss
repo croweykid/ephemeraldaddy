@@ -16,7 +16,7 @@ ArchitecturesInstallIn64BitMode=x64
 UninstallDisplayIcon={app}\EphemeralDaddy.exe
 
 [Files]
-Source: "dist\EphemeralDaddy.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\EphemeralDaddy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\EphemeralDaddy"; Filename: "{app}\EphemeralDaddy.exe"
