@@ -13038,7 +13038,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Pallas", "Pallas"),
             ("Juno", "Juno"),
             ("Vesta", "Vesta"),
-            ("Lilith", "Lilith"),
+            ("Black Moon Lilith", "Lilith"),
             ("Part of Fortune", "Part of Fortune"),
             ("AS", "AS"),
             ("IC", "IC"),

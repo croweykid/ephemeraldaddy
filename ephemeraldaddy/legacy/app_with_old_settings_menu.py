@@ -908,7 +908,9 @@ def _aspect_body_with_sign(body: str, positions: dict[str, float]) -> str:
 
 def _display_body_name(body: str) -> str:
     if body == "Lilith (mean)":
-        return "Lilith"
+        return "Black Moon Lilith"
+    if body == "Lilith":
+        return "Black Moon Lilith"
     if body == "Part of Fortune":
         return "Fortune"
     return body
