@@ -4502,11 +4502,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # return default_stem
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        viewport = output_widget.viewport()
-        margin = 6
+        host_window = output_widget.window()
+        if not isinstance(host_window, QWidget):
+            return
+        margin = 10
         button.move(
-            max(margin, viewport.x() + viewport.width() - button.width() - margin),
-            max(margin, viewport.y() + margin),
+            max(margin, host_window.width() - button.width() - margin),
+            margin,
         )
         button.raise_()
         button.show()
@@ -4517,7 +4519,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        share_button = QToolButton(output_widget)
+        host_window = output_widget.window()
+        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
+        share_button = QToolButton(share_parent)
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             share_button.setIcon(QIcon(share_icon_path))
@@ -4694,9 +4698,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
 
-        export_button = QPushButton("Export Chart")
-        export_button.clicked.connect(lambda _checked=False, export_chart=natal_chart: self._export_chart(export_chart))
-        header_layout.addWidget(export_button, 0, Qt.AlignTop | Qt.AlignRight)
         right_layout.addLayout(header_layout)
 
         figure = Figure(figsize=(10.9, 10.9))
@@ -5285,10 +5286,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
-
-        popout_export_button = QPushButton("Export Chart")
-        popout_export_button.clicked.connect(lambda _checked=False, export_chart=chart: self._export_chart(export_chart))
-        popout_header_layout.addWidget(popout_export_button, 0, Qt.AlignTop | Qt.AlignRight)
 
         right_layout.addLayout(popout_header_layout)
 
@@ -19253,11 +19250,13 @@ class MainWindow(QMainWindow):
         )
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        viewport = output_widget.viewport()
-        margin = 6
+        host_window = output_widget.window()
+        if not isinstance(host_window, QWidget):
+            return
+        margin = 10
         button.move(
-            max(margin, viewport.x() + viewport.width() - button.width() - margin),
-            max(margin, viewport.y() + margin),
+            max(margin, host_window.width() - button.width() - margin),
+            margin,
         )
         button.raise_()
         button.show()
@@ -19268,7 +19267,9 @@ class MainWindow(QMainWindow):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        share_button = QToolButton(output_widget)
+        host_window = output_widget.window()
+        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
+        share_button = QToolButton(share_parent)
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             share_button.setIcon(QIcon(share_icon_path))
@@ -22238,10 +22239,6 @@ class MainWindow(QMainWindow):
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
-
-        popout_export_button = QPushButton("Export Chart")
-        popout_export_button.clicked.connect(self.on_export_chart)
-        popout_header_layout.addWidget(popout_export_button, 0, Qt.AlignTop | Qt.AlignRight)
 
         right_layout.addLayout(popout_header_layout)
 
