@@ -12823,18 +12823,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         stored_right_panel_visible = self._settings.value("manage_charts/right_panel_visible", "1")
         self._right_panel_visible = str(stored_right_panel_visible).lower() in {"1", "true", "yes"}
         self.right_panel_stack.setVisible(self._right_panel_visible)
-        self.apply_launch_window_policy()
 
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
         if source_window is None:
             return
         apply_window_placement(self, capture_window_placement(source_window))
 
-    def apply_launch_window_policy(self) -> None:
+    def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
-        bring_window_to_front(self)
+        bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -22954,6 +22953,9 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     if startup_loading is None:
         startup_loading = _StartupLoadingWidget()
         startup_loading.show()
+    # Launch-only focus assist: keep the load bar in the foreground while the
+    # app initializes, but avoid repeated focus hacks after startup.
+    bring_window_to_front(startup_loading)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
