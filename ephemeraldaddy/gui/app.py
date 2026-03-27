@@ -769,15 +769,21 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Notes B:",
     )
     _HD_SUBHEADER_PREFIXES = (
+        "Head",
         "Ajna",
+        "Throat",
+        "G",
         "Spleen",
         "Solar Plexus",
-        "Type:",
-        "Authority:",
-        "Strategy:",
-        "Profile:",
-        "Definition:",
-        "Incarnation Cross:",
+        "Sacral",
+        "Root",
+        "Type",
+        "Authority",
+        "Strategy",
+        "Profile",
+        "Definition",
+        "Incarnation Cross",
+        "Channel",
         "Body",
         "Sign",
         "Longitude",
@@ -891,9 +897,29 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(0, self._qt_len(text), self._section_format)
                 break
         for prefix in self._HD_SUBHEADER_PREFIXES:
-            if stripped_text.startswith(prefix):
+            if (
+                stripped_text == prefix
+                or stripped_text.startswith(f"{prefix}:")
+                or stripped_text.startswith(f"{prefix} ")
+            ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+
+        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
+            self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+
+        activation_match = re.match(r"^\s*(Personality|Design)\s+([A-Za-z]+)", text)
+        if activation_match:
+            body_name = activation_match.group(2)
+            body_format = self._planet_formats.get(body_name)
+            if body_format:
+                span_start = activation_match.start(1)
+                span_end = activation_match.end(2)
+                self.setFormat(
+                    self._qt_index(text, span_start),
+                    self._qt_len(text[span_start:span_end]),
+                    body_format,
+                )
         if lowered_stripped.startswith("synastry chart for "):
             self.setFormat(0, self._qt_len(text), self._section_format)
         if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:

@@ -307,6 +307,14 @@ def _split_definition(defined_channels: tuple[tuple[int, int, str, str], ...]) -
 INCARNATION_CROSS_LOOKUP: dict[tuple[int, int, int, int], str] = {}
 
 
+def _incarnation_cross_angle(line: int) -> str:
+    if line in (1, 2, 3):
+        return "Right Angle"
+    if line == 4:
+        return "Juxtaposition"
+    return "Left Angle"
+
+
 def _resolve_incarnation_cross(
     personality_sun: HDActivation,
     personality_earth: HDActivation,
@@ -317,10 +325,10 @@ def _resolve_incarnation_cross(
     named = INCARNATION_CROSS_LOOKUP.get(key)
     if named:
         return named
+    angle = _incarnation_cross_angle(personality_sun.line)
     return (
-        "Cross "
-        f"({personality_sun.gate}.{personality_sun.line}/{personality_earth.gate}.{personality_earth.line}"
-        f" | {design_sun.gate}.{design_sun.line}/{design_earth.gate}.{design_earth.line})"
+        f"{angle} Incarnation (gates {personality_sun.gate}/{personality_earth.gate}"
+        f" • {design_sun.gate}/{design_earth.gate})"
     )
 
 
