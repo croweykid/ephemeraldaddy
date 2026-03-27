@@ -1833,34 +1833,42 @@ PLANET_KEYWORDS = {
     },
     "Pluto": {
         "nouns": [
-            "research", "deep dives", "control", "forced resets","sex","death","metamorphosis","violent transitions","power dynamics"
-            "sudden endings", "fresh starts", "obsession", "fixations", "confrontations", "rebuilds",
+            "control", "compulsion", "obsession", "fixations", "metamorphosis", "power dynamics","power struggle",
+            "subterranean motives", "purge", "eradication", "exposure", "confrontation","battle-tested bonds","excavation of hidden motives",
+            "domination", "intensity", "irreversible change", "reconstruction after collapse",
         ],
         "verbs": [
-            "researching", "investigating", "tracking", "controlling", "testing the limits of", "resetting",
-            "cutting off", "starting over with", "insisting on", "obsessing over", "confronting", "rebuilding",
+            "investigating", "tracking", "controlling", "probing", "testing the limits of", "resetting",
+            "cutting off", "eliminating", "insisting on", "obsessing over", "confronting", "rebuilding",
         ],
         "verbsonly": [
-            "researching", "investigating", "tracking", "controlling", "testing limits", "resetting",
-            "cutting off", "starting over", "insisting", "obsessing", "confronting", "rebuilding",
+            "investigating", "tracking", "controlling", "probing", "testing limits", "resetting",
+            "cutting off", "eliminating", "insisting", "obsessing", "confronting", "rebuilding",
+        ],
+        "explanation":[""],
+        "archetypes":[
+            "Kafka plots", #lol
         ],
     },
     "Chiron": {
         "nouns": [
-            "pain points", "hard talks", "help", "support", "lessons", "recovery",
-            "mistakes", "practice", "coaching", "adaptation", "confidence", "reframed perspectives",
+            "trigger points", "sensitivities", "difficulty", "lessons", "adaptation", "recovery paths",
+            "mistakes", "compensatory skills", "instructive failures", "awkwardness",
+            "reframed perspectives", "earned insight","psychic scars",
         ],
         "verbs": [
-            "noticing pain points in", "talking through", "getting help with", "helping others with", "teaching with",
-            "learning from mistakes with", "practicing on", "coaching", "adapting to", "building confidence with", "reframing", "recovering",
+            "noticing vulnerabilities in", "working through", "adapting to", "learning from mistakes with",
+            "teaching through", "practicing around", "compensating for", "reframing", "recovering", "guiding through",
         ],
         "verbsonly": [
-            "noticing pain points", "resolving", "getting help", "helping others", "teaching",
-            "learning from mistakes", "practicing", "coaching", "adapting", "building confidence", "reframing", "recovering",
+            "noticing vulnerabilities", "working through", "adapting", "learning from mistakes",
+            "teaching through", "practicing", "compensating", "reframing", "recovering", "guiding",
         ],
-        "explanation":[""],
-        "archetypes":[
-            "Dr. House", #lol
+        "explanation": [
+            "the place where difficulty becomes method, and sensitivity becomes instruction",
+        ],
+        "archetypes": [
+            "Obi-Wan Kenobe",
         ],
     },
     "Ceres": {
