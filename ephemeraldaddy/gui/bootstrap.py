@@ -74,6 +74,15 @@ class _BootstrapLoadingWidget(QWidget):
 
 
 def main() -> None:
+    # Must be set before creating QApplication; otherwise Qt prints a runtime warning.
+    try:
+        QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
+    except Exception:
+        # Best-effort guard for older Qt/PySide versions.
+        pass
+
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
