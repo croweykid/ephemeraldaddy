@@ -639,6 +639,11 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    DND_CLASSES,
+    DnDClassScorer,
+    score_class_axes,
+)
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.analysis.country_lookup import resolve_country
@@ -1657,7 +1662,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
         self._cumulativedom_factors_mode = "cumulative_signs"
-        self._species_distribution_mode = "top_ranked"
+        self._species_distribution_mode = "top_species"
         self._birth_time_mode = "mean"
         self._age_mode = "age_distribution"
         self._birth_month_mode = "month_distribution"
@@ -2213,7 +2218,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_species": self._visibility.get("chart_data.dnd_species"),
+            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
         }
     def _expanded_database_metric_sections(self) -> list[str]:
         section_order = [
@@ -2623,7 +2628,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._species_distribution_mode,
         )
         if isinstance(stored_species_mode, str):
-            self._species_distribution_mode = stored_species_mode
+            self._species_distribution_mode = {
+                "top_ranked": "top_species",
+                "top_three_ranked": "top_three_species",
+                "top_two_three_only": "top_three_species",
+            }.get(stored_species_mode, stored_species_mode)
 
         stored_birth_time_mode = self._settings.value(
             "manage_charts/birth_time_mode",
@@ -3238,11 +3247,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
 
-        #SPECIES DISTRIBUTION SECTION
+        #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Species Distribution",
+            "D&D Typing",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3252,23 +3261,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._database_metrics_section_expanded["species_distribution"] = self._is_database_metrics_section_expanded("species_distribution")
         self._database_metrics_section_visible["species_distribution"] = self._is_database_metrics_section_visible("species_distribution")
-        #Species Distribution Chart Header
+        #D&D Typing Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
-            "Species Distribution",
+            "D&D Typing",
             "species_distribution",
             "species_distribution",
             dropdown_options=[
-                ("#1 Ranked", "top_ranked"),
-                ("Top 3 Ranked", "top_three_ranked"),
-                ("Top 2 & 3 Only", "top_two_three_only"),
+                ("#1 Species", "top_species"),
+                ("Top 3 Species", "top_three_species"),
+                ("#1 Classes", "top_class"),
+                ("Top 3 Classes", "top_three_classes"),
             ],
             show_title=False,
         )
-        species_subheader = add_database_subheader("Distribution of D&D species in database")
+        species_subheader = add_database_subheader("Distribution of D&D species/classes in database")
         species_section_layout.addWidget(species_subheader)
 
-        #Species Distribution Chart
+        #D&D Typing Chart
         (
             self.species_distribution_chart_container,
             self.species_distribution_chart_layout,
@@ -6582,9 +6592,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         chart_ids: list[int],
         progress_callback: Callable[[], None] | None = None,
-        mode: str = "top_ranked",
+        mode: str = "top_species",
     ) -> dict[str, float]:
-        totals = {species: 0 for species in SPECIES_FAMILIES}
+        class_labels = [definition.display_name for definition in DND_CLASSES.values()]
+        if mode in {"top_class", "top_three_classes"}:
+            totals = {class_name: 0 for class_name in class_labels}
+        else:
+            totals = {species: 0 for species in SPECIES_FAMILIES}
         total_count = 0
         for chart_id in chart_ids:
             if progress_callback:
@@ -6592,34 +6606,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = self._get_chart_for_filter(chart_id)
             if chart is None:
                 continue
-            try:
-                species_top_three = assign_top_three_species(chart)
-            except Exception:
-                continue
-            if not species_top_three:
-                continue
-            if mode == "top_three_ranked":
-                for species_name, _subtype, _score in species_top_three[:3]:
-                    if species_name in totals:
-                        totals[species_name] += 1
-                        total_count += 1
-            elif mode == "top_two_three_only":
-                for species_name, _subtype, _score in species_top_three[1:3]:
-                    if species_name in totals:
-                        totals[species_name] += 1
+            if mode in {"top_class", "top_three_classes"}:
+                try:
+                    axis_scores = score_class_axes(chart)
+                    class_scores = DnDClassScorer().score_classes(axis_scores)
+                    ranked_classes = sorted(
+                        class_scores.items(),
+                        key=lambda item: item[1].score,
+                        reverse=True,
+                    )
+                except Exception:
+                    continue
+                selected_classes = ranked_classes[:3] if mode == "top_three_classes" else ranked_classes[:1]
+                for class_key, _scored_class in selected_classes:
+                    class_definition = DND_CLASSES.get(class_key)
+                    class_name = class_definition.display_name if class_definition else class_key
+                    if class_name in totals:
+                        totals[class_name] += 1
                         total_count += 1
             else:
-                top_species = species_top_three[0][0]
-                if top_species in totals:
-                    totals[top_species] += 1
-                    total_count += 1
+                try:
+                    species_top_three = assign_top_three_species(chart)
+                except Exception:
+                    continue
+                if not species_top_three:
+                    continue
+                if mode == "top_three_species":
+                    for species_name, _subtype, _score in species_top_three[:3]:
+                        if species_name in totals:
+                            totals[species_name] += 1
+                            total_count += 1
+                else:
+                    top_species = species_top_three[0][0]
+                    if top_species in totals:
+                        totals[top_species] += 1
+                        total_count += 1
 
         if total_count:
-            return {
-                species: totals[species] / total_count
-                for species in SPECIES_FAMILIES
-            }
-        return {species: 0 for species in SPECIES_FAMILIES}
+            return {name: totals[name] / total_count for name in totals}
+        return {name: 0 for name in totals}
 
     @staticmethod
     def _minutes_to_label(total_minutes: float) -> str:
@@ -6875,12 +6900,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "relationship_total_count": 0.0,
             "species_totals_by_mode": {
                 mode: {species: 0 for species in SPECIES_FAMILIES}
-                for mode in ("top_ranked", "top_three_ranked", "top_two_three_only")
+                for mode in ("top_species", "top_three_species")
+            },
+            "class_totals_by_mode": {
+                mode: {definition.display_name: 0 for definition in DND_CLASSES.values()}
+                for mode in ("top_class", "top_three_classes")
             },
             "species_total_count_by_mode": {
-                "top_ranked": 0,
-                "top_three_ranked": 0,
-                "top_two_three_only": 0,
+                "top_species": 0,
+                "top_three_species": 0,
+            },
+            "class_total_count_by_mode": {
+                "top_class": 0,
+                "top_three_classes": 0,
             },
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
@@ -7003,17 +7035,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 species_top_three = []
             if species_top_three:
                 top_species = species_top_three[0][0]
-                if top_species in snapshot["species_totals_by_mode"]["top_ranked"]:
-                    snapshot["species_totals_by_mode"]["top_ranked"][top_species] += 1
-                    snapshot["species_total_count_by_mode"]["top_ranked"] += 1
+                if top_species in snapshot["species_totals_by_mode"]["top_species"]:
+                    snapshot["species_totals_by_mode"]["top_species"][top_species] += 1
+                    snapshot["species_total_count_by_mode"]["top_species"] += 1
                 for species_name, _subtype, _score in species_top_three[:3]:
-                    if species_name in snapshot["species_totals_by_mode"]["top_three_ranked"]:
-                        snapshot["species_totals_by_mode"]["top_three_ranked"][species_name] += 1
-                        snapshot["species_total_count_by_mode"]["top_three_ranked"] += 1
-                for species_name, _subtype, _score in species_top_three[1:3]:
-                    if species_name in snapshot["species_totals_by_mode"]["top_two_three_only"]:
-                        snapshot["species_totals_by_mode"]["top_two_three_only"][species_name] += 1
-                        snapshot["species_total_count_by_mode"]["top_two_three_only"] += 1
+                    if species_name in snapshot["species_totals_by_mode"]["top_three_species"]:
+                        snapshot["species_totals_by_mode"]["top_three_species"][species_name] += 1
+                        snapshot["species_total_count_by_mode"]["top_three_species"] += 1
+            try:
+                axis_scores = score_class_axes(chart)
+                class_scores = DnDClassScorer().score_classes(axis_scores)
+                ranked_classes = sorted(
+                    class_scores.items(),
+                    key=lambda item: item[1].score,
+                    reverse=True,
+                )
+            except Exception:
+                ranked_classes = []
+            if ranked_classes:
+                top_class_key, _top_class_score = ranked_classes[0]
+                top_class_definition = DND_CLASSES.get(top_class_key)
+                top_class_name = (
+                    top_class_definition.display_name
+                    if top_class_definition is not None
+                    else top_class_key
+                )
+                if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
+                    snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
+                    snapshot["class_total_count_by_mode"]["top_class"] += 1
+                for class_key, _class_score in ranked_classes[:3]:
+                    class_definition = DND_CLASSES.get(class_key)
+                    class_name = class_definition.display_name if class_definition else class_key
+                    if class_name in snapshot["class_totals_by_mode"]["top_three_classes"]:
+                        snapshot["class_totals_by_mode"]["top_three_classes"][class_name] += 1
+                        snapshot["class_total_count_by_mode"]["top_three_classes"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -7038,6 +7093,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             totals["position_sign_count_by_body"][body] += direction * float(count)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
             totals["species_total_count_by_mode"][mode] += direction * int(count)
+        for mode, count in snapshot.get("class_total_count_by_mode", {}).items():
+            if mode in totals["class_total_count_by_mode"]:
+                totals["class_total_count_by_mode"][mode] += direction * int(count)
         for key in SENTIMENT_OPTIONS:
             totals["sentiment_totals"][key] += direction * int(snapshot["sentiment_totals"].get(key, 0))
         for sign in ZODIAC_NAMES:
@@ -7082,9 +7140,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["position_sign_totals_by_body"][body][sign] += direction * int(sign_totals.get(sign, 0))
         for relationship in RELATION_TYPE:
             totals["relationship_totals"][relationship] += direction * int(snapshot["relationship_totals"].get(relationship, 0))
-        for mode in ("top_ranked", "top_three_ranked", "top_two_three_only"):
+        for mode in ("top_species", "top_three_species"):
             for species in SPECIES_FAMILIES:
                 totals["species_totals_by_mode"][mode][species] += direction * int(snapshot["species_totals_by_mode"][mode].get(species, 0))
+        for mode in ("top_class", "top_three_classes"):
+            for class_name in totals["class_totals_by_mode"][mode]:
+                class_snapshot = (
+                    snapshot.get("class_totals_by_mode", {}).get(mode, {})
+                    if isinstance(snapshot.get("class_totals_by_mode"), dict)
+                    else {}
+                )
+                totals["class_totals_by_mode"][mode][class_name] += direction * int(
+                    class_snapshot.get(class_name, 0)
+                )
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -7843,14 +7911,83 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if database_alignment_scores
                 else 0.0
             )
-            selection_species = {
-                species: (selection_cache["species_totals_by_mode"][species_mode][species] / selection_cache["species_total_count_by_mode"][species_mode] if selection_cache["species_total_count_by_mode"][species_mode] else 0)
-                for species in SPECIES_FAMILIES
-            }
-            database_species = {
-                species: (database_cache["species_totals_by_mode"][species_mode][species] / database_cache["species_total_count_by_mode"][species_mode] if database_cache["species_total_count_by_mode"][species_mode] else 0)
-                for species in SPECIES_FAMILIES
-            }
+            if species_mode in {"top_class", "top_three_classes"}:
+                selection_class_totals = (
+                    selection_cache.get("class_totals_by_mode", {}).get(species_mode, {})
+                )
+                database_class_totals = (
+                    database_cache.get("class_totals_by_mode", {}).get(species_mode, {})
+                )
+                selection_class_total_count = int(
+                    selection_cache.get("class_total_count_by_mode", {}).get(species_mode, 0)
+                )
+                database_class_total_count = int(
+                    database_cache.get("class_total_count_by_mode", {}).get(species_mode, 0)
+                )
+
+                if not selection_class_totals and chart_ids:
+                    selection_species = self._build_species_distribution(
+                        chart_ids=list(chart_ids),
+                        mode=species_mode,
+                    )
+                    selection_class_totals = {
+                        name: int(round(value * max(len(chart_ids), 1)))
+                        for name, value in selection_species.items()
+                    }
+                    selection_class_total_count = sum(selection_class_totals.values())
+                if not database_class_totals and database_cache.get("chart_ids"):
+                    database_species = self._build_species_distribution(
+                        chart_ids=list(database_cache.get("chart_ids", [])),
+                        mode=species_mode,
+                    )
+                    database_class_totals = {
+                        name: int(round(value * max(database_loaded_charts, 1)))
+                        for name, value in database_species.items()
+                    }
+                    database_class_total_count = sum(database_class_totals.values())
+
+                class_labels = list(
+                    selection_class_totals.keys()
+                    or database_class_totals.keys()
+                    or [definition.display_name for definition in DND_CLASSES.values()]
+                )
+                selection_species = {
+                    class_name: (
+                        selection_class_totals.get(class_name, 0)
+                        / selection_class_total_count
+                        if selection_class_total_count
+                        else 0
+                    )
+                    for class_name in class_labels
+                }
+                database_species = {
+                    class_name: (
+                        database_class_totals.get(class_name, 0)
+                        / database_class_total_count
+                        if database_class_total_count
+                        else 0
+                    )
+                    for class_name in class_labels
+                }
+            else:
+                selection_species = {
+                    species: (
+                        selection_cache["species_totals_by_mode"][species_mode][species]
+                        / selection_cache["species_total_count_by_mode"][species_mode]
+                        if selection_cache["species_total_count_by_mode"][species_mode]
+                        else 0
+                    )
+                    for species in SPECIES_FAMILIES
+                }
+                database_species = {
+                    species: (
+                        database_cache["species_totals_by_mode"][species_mode][species]
+                        / database_cache["species_total_count_by_mode"][species_mode]
+                        if database_cache["species_total_count_by_mode"][species_mode]
+                        else 0
+                    )
+                    for species in SPECIES_FAMILIES
+                }
 
             try:
                 positive_total_label = "POSITIVE TOTAL"
@@ -8484,15 +8621,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
             if _should_refresh_database_metric_section("species_distribution"):
+                if species_mode in {"top_class", "top_three_classes"}:
+                    selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
+                        species_mode,
+                        {},
+                    )
+                    database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
+                        species_mode,
+                        {},
+                    )
+                else:
+                    selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
+                    database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
                 species_canvas = self._build_species_distribution_chart(
                     selection_species=selection_species,
                     database_species=database_species,
-                    selection_species_counts=selection_cache["species_totals_by_mode"][
-                        species_mode
-                    ],
-                    database_species_counts=database_cache["species_totals_by_mode"][
-                        species_mode
-                    ],
+                    selection_species_counts=selection_dnd_counts,
+                    database_species_counts=database_dnd_counts,
                     loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.species_distribution_chart_layout)
@@ -8501,20 +8646,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     0,
                     Qt.AlignHCenter,
                 )
+            species_labels = list(selection_species.keys())
             self._analysis_chart_export_rows["species_distribution"] = (
                 self._build_analysis_export_rows(
-                    labels=list(SPECIES_FAMILIES),
-                    selection_values=[
-                        selection_species[species] for species in SPECIES_FAMILIES
-                    ],
-                    database_values=[database_species[species] for species in SPECIES_FAMILIES],
+                    labels=species_labels,
+                    selection_values=[selection_species[label] for label in species_labels],
+                    database_values=[database_species[label] for label in species_labels],
                     selection_counts=[
-                        selection_cache["species_totals_by_mode"][species_mode][species]
-                        for species in SPECIES_FAMILIES
+                        (
+                            selection_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
+                            if species_mode in {"top_class", "top_three_classes"}
+                            else selection_cache["species_totals_by_mode"][species_mode][label]
+                        )
+                        for label in species_labels
                     ],
                     database_counts=[
-                        database_cache["species_totals_by_mode"][species_mode][species]
-                        for species in SPECIES_FAMILIES
+                        (
+                            database_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
+                            if species_mode in {"top_class", "top_three_classes"}
+                            else database_cache["species_totals_by_mode"][species_mode][label]
+                        )
+                        for label in species_labels
                     ],
                     loaded_charts=loaded_charts,
                 )
@@ -15124,10 +15276,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(cursedness_checkbox)
 
-        dnd_species_checkbox = QCheckBox("Show D&&D species card")
-        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_species"))
+        dnd_species_checkbox = QCheckBox("Show D&&D Card")
+        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
         dnd_species_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.dnd_species", checked)
+            lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
         )
         visibility_section.addWidget(dnd_species_checkbox)
 
@@ -15184,7 +15336,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
-        species_distribution_checkbox = QCheckBox("Show Species Distribution")
+        species_distribution_checkbox = QCheckBox("Show D&&D Typing")
         species_distribution_checkbox.setChecked(
             self._is_database_metrics_section_visible("species_distribution")
         )
@@ -18608,7 +18760,7 @@ class MainWindow(QMainWindow):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_species": self._visibility.get("chart_data.dnd_species"),
+            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
         }
 
     def _refresh_chart_summary(self, chart: Chart | None = None) -> None:
@@ -19323,12 +19475,19 @@ class MainWindow(QMainWindow):
                     if cursor_pos >= entry["icon_index"]:
                         selected_species = entry
                 if selected_species:
-                    self._show_species_info(
-                        selected_species["family"],
-                        selected_species["subtype"],
-                        selected_species["score"],
-                        selected_species["evidence"],
-                    )
+                    if selected_species.get("kind") == "class":
+                        self._show_dnd_class_info(
+                            str(selected_species.get("name", "Unknown Class")),
+                            float(selected_species.get("score", 0.0)),
+                            list(selected_species.get("evidence", [])),
+                        )
+                    else:
+                        self._show_species_info(
+                            str(selected_species.get("family", "Unknown Species")),
+                            str(selected_species.get("subtype", "")),
+                            float(selected_species.get("score", 0.0)),
+                            list(selected_species.get("evidence", [])),
+                        )
                     return True
 
             info_entries = position_info_map.get(block_number, [])
@@ -19565,6 +19724,21 @@ class MainWindow(QMainWindow):
             return
         self.chart_info_output.setPlainText(
             "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
+        )
+
+    def _show_dnd_class_info(
+        self,
+        class_name: str,
+        score: float,
+        evidence: list[str],
+    ) -> None:
+        header = f"{class_name} • {score:.2f}"
+        if evidence:
+            lines = [f"• {line}" for line in evidence]
+            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            return
+        self.chart_info_output.setPlainText(
+            "\n".join([header, "", "• Evidence is unavailable for this class assignment."])
         )
 
     def _show_aspect_info(
