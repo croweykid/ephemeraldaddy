@@ -692,7 +692,8 @@ HOUSE_DEFINITIONS = { #Areas of Life
         "notes": [
             "Some distinctions: 10th house power = rank, status, office, visible authority. 7th house power = contractual parity or adversarial opposition. 12th house power = hidden undermining, obscured systems, silent attrition. 8th house power = leverage arising from merger, debt, taboo, exposure, inheritance, sexuality, fear, or irreversible consequence.",
             "The 8th house says, “I can affect your survival, your losses, your exposure, your dependency, your access, or the cost of your choices.” Then if you have it in Gemini, it probably adds 'teehee' and throws confetti in your face."
-        ]
+        ],
+        "fear": "fear of loss, exposure, dependence, debt, death, violation, irreversible consequence",
     },
     9: {
         "name": "Ninth House",
@@ -1028,12 +1029,12 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "failure_mode": "erasure, confinement, hidden depletion, psychic disorganization, loss of foothold in ordinary life",
             "distortion_mode": "romanticizing disappearance, confusing retreat with transcendence, surrendering agency through passivity or avoidance",
         },
-
         "notes": [
         "H4 vs H12: 4th is private foundation and enclosed belonging; 12th is enclosure without secure belonging.",
         "H9 vs H12: 9th is doctrine, pilgrimage, sanctioned meaning; 12th is seclusion, dissolution, hidden attrition. People blur these when they want to make retreat sound holy.",
         "H6 vs H12: 6th manages disorder; 12th is what escapes management, overwhelms functioning, or removes one from ordinary routine.",
-        "H8 vs H12: 8th is entanglement and consequence; 12th is obscurity, confinement, erosion, disappearance."
-        ]
+        "H8 vs H12: 8th is entanglement and consequence; 12th is obscurity, confinement, erosion, disappearance. Did this happen because two forces became bound together? It was probably 8th house. Did it happen because something was hidden/trapped/slipping out of ordinary visibility? Then it was probably 12th. 8th says: “You are tied into this now.” 12th says: “You are being removed from view now.”"
+        ],
+        "fear": "vague dread, hidden depletion, loneliness, psychic drift, invisible pressure, loss of footing",
     },
 }
