@@ -29,6 +29,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
     calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights,
     calculate_mode_weights,
 )
 from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_CLASS_SUBCLASS_EXPLAINERS
@@ -1542,6 +1543,20 @@ _DND_STAT_LABELS: Dict[str, str] = {
     "WIS": "Wisdom",
     "CHA": "Charisma",
 }
+_DND_SIGN_STAT_EFFECTS: Dict[str, Dict[str, str]] = {
+    "Aries": {"major": "DEX", "minor": "INT", "nerf": "WIS"},
+    "Taurus": {"major": "CON", "minor": "CHA", "nerf": "DEX"},
+    "Gemini": {"major": "INT", "minor": "CHA", "nerf": "CON"},
+    "Cancer": {"major": "CON", "minor": "WIS", "nerf": "DEX"},
+    "Leo": {"major": "CHA", "minor": "STR", "nerf": "WIS"},
+    "Virgo": {"major": "DEX", "minor": "STR", "nerf": "CON"},
+    "Libra": {"major": "CHA", "minor": "DEX", "nerf": "STR"},
+    "Scorpio": {"major": "WIS", "minor": "CON", "nerf": "CHA"},
+    "Sagittarius": {"major": "STR", "minor": "DEX", "nerf": "INT"},
+    "Capricorn": {"major": "STR", "minor": "CON", "nerf": "INT"},
+    "Aquarius": {"major": "INT", "minor": "WIS", "nerf": "CHA"},
+    "Pisces": {"major": "WIS", "minor": "INT", "nerf": "STR"},
+}
 
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
@@ -1552,13 +1567,30 @@ def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
     return int(round(floor + calibrated_raw * (ceiling - floor)))
 
 
-def _compress_stat_profile(raw_scores: Mapping[str, float]) -> Dict[str, float]:
+def _shape_stat_profile(
+    raw_scores: Mapping[str, float],
+    dominant_sign_weights: Optional[Mapping[str, float]] = None,
+) -> Dict[str, float]:
     values = {key: _clamp01(value) for key, value in raw_scores.items()}
+    if dominant_sign_weights:
+        for sign_name, sign_weight in dominant_sign_weights.items():
+            sign_key = str(sign_name).strip().title()
+            effect = _DND_SIGN_STAT_EFFECTS.get(sign_key)
+            if effect is None:
+                continue
+            weight = max(0.0, float(sign_weight))
+            values[effect["major"]] = _clamp01(values.get(effect["major"], 0.0) + (0.22 * weight))
+            values[effect["minor"]] = _clamp01(values.get(effect["minor"], 0.0) + (0.10 * weight))
+            values[effect["nerf"]] = _clamp01(values.get(effect["nerf"], 0.0) - (0.08 * weight))
+
     mean = sum(values.values()) / max(1, len(values))
-    compressed: Dict[str, float] = {}
+    variance = sum((value - mean) ** 2 for value in values.values()) / max(1, len(values))
+    std_dev = variance ** 0.5
+    contrast_factor = max(1.15, min(1.85, 1.35 + max(0.0, 0.16 - std_dev) * 2.8))
+    shaped: Dict[str, float] = {}
     for key, value in values.items():
-        compressed[key] = _clamp01(0.70 * value + 0.30 * mean)
-    return compressed
+        shaped[key] = _clamp01(mean + ((value - mean) * contrast_factor))
+    return shaped
 
 
 def score_dnd_statblock_from_features(
@@ -1567,6 +1599,7 @@ def score_dnd_statblock_from_features(
     *,
     stat_floor: int = 5,
     stat_ceiling: int = 20,
+    dominant_sign_weights: Optional[Mapping[str, float]] = None,
 ) -> DnDStatBlock:
     validate_axis_scores(axis_scores)
     p = features.planet_prominence
@@ -1628,7 +1661,8 @@ def score_dnd_statblock_from_features(
         ),
     }
 
-    raw_scores = _compress_stat_profile(raw_scores)
+    normalized_sign_weights = ClassAxisScorer._normalize_numeric_map(dominant_sign_weights or {})
+    raw_scores = _shape_stat_profile(raw_scores, dominant_sign_weights=normalized_sign_weights)
     scores = {
         key: _to_dnd_stat(raw_scores[key], floor=stat_floor, ceiling=stat_ceiling)
         for key in _DND_STAT_COMPONENT_ORDER
@@ -1646,11 +1680,22 @@ def score_dnd_statblock(
     scorer = ClassAxisScorer()
     features = scorer.extract_features(chart)
     axis_scores = scorer.score_axes(features)
+    dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
+        scorer._get_chart_map(chart, "dominant_sign_weights") or {}
+    )
+    if dominant_sign_weights is None and not isinstance(chart, Mapping):
+        try:
+            dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
+                calculate_dominant_sign_weights(chart)
+            )
+        except Exception:
+            dominant_sign_weights = None
     return score_dnd_statblock_from_features(
         axis_scores,
         features,
         stat_floor=stat_floor,
         stat_ceiling=stat_ceiling,
+        dominant_sign_weights=dominant_sign_weights,
     )
 
 
