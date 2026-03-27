@@ -902,12 +902,12 @@ class DatabaseAnalyticsChartsMixin:
         selection_species_counts: dict[str, float],
         database_species_counts: dict[str, float],
         loaded_charts: int,
-        bar_height: float = 0.6,
+        bar_height: float = 0.32,
     ) -> FigureCanvas:
         labels = list(selection_species.keys())
-        # Keep short distributions compact while preserving the same chart style across
-        # species and class modes.
-        chart_height = 12.0 if len(labels) > 4 else 2.8
+        # Keep D&D species and class distributions visually consistent and compact
+        # so the full graph remains visible above the fold.
+        chart_height = 2.8
         figure = Figure(figsize=(4.8, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
