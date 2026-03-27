@@ -285,8 +285,8 @@ from ephemeraldaddy.data.genpop import (
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
 
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
-    HOUSE_KEYWORDS,
     PLANET_KEYWORDS,
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
@@ -7757,30 +7757,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
-            cumulative_sign_labels = sorted(
-                list(ZODIAC_NAMES),
-                key=lambda sign: (
-                    -database_dominant_signs.get(sign, 0),
-                    -selection_dominant_signs.get(sign, 0),
-                    sign,
-                ),
-            )
-            cumulative_planet_labels = sorted(
-                list(dominant_planet_labels),
-                key=lambda body: (
-                    -database_dominant_planets.get(body, 0),
-                    -selection_dominant_planets.get(body, 0),
-                    body,
-                ),
-            )
-            cumulative_house_labels = sorted(
-                list(dominant_house_labels),
-                key=lambda house: (
-                    -database_dominant_houses.get(house, 0),
-                    -selection_dominant_houses.get(house, 0),
-                    int(house),
-                ),
-            )
+            # Keep cumulative-dominance labels in canonical order so this view
+            # matches the "by top 3" section and remains predictable.
+            cumulative_sign_labels = list(ZODIAC_NAMES)
+            cumulative_planet_labels = list(dominant_planet_labels)
+            cumulative_house_labels = list(dominant_house_labels)
 
             selection_relationships = {
                 relationship: (
@@ -18018,7 +17999,7 @@ class MainWindow(QMainWindow):
 
     def _build_sign_popout_info(self, sign: str) -> str:
         sign_name = str(sign or "").strip().title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_name.lower(), {})
+        sign_keywords = SIGN_KEYWORDS.get(sign_name, {})
         core = str(sign_keywords.get("core", "")).strip()
         strategy = str(sign_keywords.get("strategy", "")).strip()
         function = str(sign_keywords.get("function", "")).strip()
@@ -18054,7 +18035,7 @@ class MainWindow(QMainWindow):
         clean_nouns = [str(noun).strip() for noun in nouns if str(noun).strip()]
         noun_text = ", ".join(clean_nouns) if clean_nouns else "No noun keywords available."
 
-        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).lower(), {})
+        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).title(), {})
         strategy = str(sign_keywords.get("strategy", "")).strip()
         core = str(sign_keywords.get("core", "")).strip()
         behavior = sign_keywords.get("behavior", [])
@@ -18074,11 +18055,11 @@ class MainWindow(QMainWindow):
         )
 
     def _build_house_popout_info(self, house_num: int) -> str:
-        house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         noun_lines = [f"• {noun}" for noun in house_keywords if str(noun).strip()]
         header = f"House {house_num}"
         if not noun_lines:
-            return f"{header}\n\nNo HOUSE_KEYWORDS entries available."
+            return f"{header}\n\nNo core_domains entries available."
         return "\n".join([header, "", *noun_lines])
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
@@ -19372,7 +19353,7 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        sign_key = sign.lower()
+        sign_key = sign.title()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
             "worst_adverbs", []
@@ -19390,7 +19371,7 @@ class MainWindow(QMainWindow):
                 return
         else:
             sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
             if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
                 self.chart_info_output.setPlainText(
                     f"No interpretation data available for {body} in {sign}, house {house_num}."

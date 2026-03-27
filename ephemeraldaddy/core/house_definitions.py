@@ -62,6 +62,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "bodily form",
             "disposition",
             "vital force",
+            "visage",
+            "temper",
+            "mien",
         ],
 
         "esoteric_domains": [ #symbolic and mythic register
@@ -141,6 +144,8 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "treasury",
             "stores",
             "acquisition",
+            "chattels",
+            "treasure",
         ],
 
         "esoteric_domains": [
@@ -236,6 +241,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "short journeys",
             "visitations",
             "local roads",
+            "epistles",
         ],
 
         "esoteric_domains": [
@@ -317,6 +323,8 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "ancestral land",
             "end of matters",
             "hidden foundations",
+            "hearth",
+            "demesne",
             #"father (within patrilineal systems)",
             #"mother (within natural systems)",
         ],
@@ -403,6 +411,11 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "games of chance",
             "merriment",
             "conception",
+            "issue", #them kids issued from thine loins. lol
+            "banqueting",
+            "paramours",
+            "merriments",
+            "sports",
         ],
 
         "esoteric_domains": [
@@ -421,9 +434,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.58,
             "materiality": 0.42,
             "institutionality": 0.18,
-            "mortality": 0.16,
             "agency": 0.84,
-            "subjectivity": 0.74,
             "publicness": 0.64,
             "immediacy": 0.78,
             "symbolic_density": 0.72,
@@ -483,6 +494,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "service",
             "drudgery",
             "subordinate work",
+            "indenturement",
+            "small cattle",
+            "servitors",
         ],
 
         "esoteric_domains": [
@@ -502,9 +516,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.48,
             "materiality": 0.72,
             "institutionality": 0.52,
-            "mortality": 0.34,
             "agency": 0.58,
-            "subjectivity": 0.34,
             "publicness": 0.24,
             "immediacy": 0.88,
             "symbolic_density": 0.46,
@@ -565,6 +577,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "lawsuits",
             "partnerships",
             "declared opposition",
+            "consort",
+            "adversaries",
+            "covenants",
         ],
 
         "esoteric_domains": [
@@ -583,9 +598,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.98,
             "materiality": 0.26,
             "institutionality": 0.74,
-            "mortality": 0.22,
             "agency": 0.52,
-            "subjectivity": 0.30,
             "publicness": 0.72,
             "immediacy": 0.70,
             "symbolic_density": 0.62,
@@ -654,6 +667,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "other people's assets",
             "loss",
             "estate matters",
+            "tribute",
+            "mortuary dues",
+            "other men's substance",
         ],
 
         "esoteric_domains": [
@@ -674,9 +690,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.88,
             "materiality": 0.72,
             "institutionality": 0.62,
-            "mortality": 0.96,
             "agency": 0.38,
-            "subjectivity": 0.70,
             "publicness": 0.26,
             "immediacy": 0.40,
             "symbolic_density": 0.92,
@@ -743,6 +757,10 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "sacred learning",
             "prophecy",
             "foreign lands",
+            "augery",
+            "oracles",
+            "divination",
+            "clerks",
         ],
 
         "esoteric_domains": [
@@ -760,9 +778,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.40,
             "materiality": 0.22,
             "institutionality": 0.72,
-            "mortality": 0.20,
             "agency": 0.68,
-            "subjectivity": 0.54,
             "publicness": 0.52,
             "immediacy": 0.22,
             "symbolic_density": 0.88,
@@ -828,6 +844,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "dignity",
             "preferment",
             "public estimation",
+            "worldly advancement",
+            "command",
+            "dignities",
         ],
 
         "esoteric_domains": [
@@ -844,9 +863,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.56,
             "materiality": 0.34,
             "institutionality": 0.94,
-            "mortality": 0.52,
             "agency": 0.86,
-            "subjectivity": 0.20,
             "publicness": 1.00,
             "immediacy": 0.54,
             "symbolic_density": 0.70,
@@ -911,6 +928,9 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "wishes",
             "associations",
             "good fortune through others",
+            # "hopes",
+            # "wishes",
+            # "favorites",
         ],
 
         "esoteric_domains": [
@@ -928,9 +948,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.90,
             "materiality": 0.22,
             "institutionality": 0.58,
-            "mortality": 0.18,
             "agency": 0.64,
-            "subjectivity": 0.34,
             "publicness": 0.82,
             "immediacy": 0.56,
             "symbolic_density": 0.66,
@@ -997,6 +1015,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "self-undoing",
             "institutions of seclusion",
             "loss through obscurity",
+            # "great cattle", #hilarious, though. And canonical.
         ],
 
         "esoteric_domains": [
@@ -1015,9 +1034,7 @@ HOUSE_DEFINITIONS = { #Areas of Life
             "relationality": 0.22,
             "materiality": 0.38,
             "institutionality": 0.56,
-            "mortality": 0.68,
             "agency": 0.18,
-            "subjectivity": 0.92,
             "publicness": 0.04,
             "immediacy": 0.30,
             "symbolic_density": 0.96,
