@@ -91,7 +91,7 @@ If you want to disable the automatic download/build step, set `EPHEMERALDADDY_GA
 If these come back as `Unknown`, the Swiss ephemeris asteroid data files are usually missing from your configured ephemeris directory.
 
 - Required files: `seas_18.se1` (Ceres/Pallas/Juno/Vesta) and `seorbel.txt` (Chiron).
-- `Lilith` uses Swiss Black Moon apogee data (true/osculating when available, else mean) and is not an asteroid.
+- `Lilith` uses Swiss **Black Moon Lilith** (`SE_MEAN_APOG`, lunar apogee / empty focus of the Moon's ellipse) and is not asteroid 1181 Lilith.
 - Set `SWEPH_PATH` (or `EPHEMERALDADDY_SWEPH_PATH`) to a directory containing these files.
 
 `ephemeraldaddy` will try to download missing files automatically, but in restricted/corporate networks this can fail silently at the network layer. Working on resolving this by bundling all dependencies for future users, but it's a major change to the app, so will take a bit to work the kinks out.

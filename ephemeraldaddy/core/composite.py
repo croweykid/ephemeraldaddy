@@ -8,6 +8,7 @@ from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 from ephemeraldaddy.core.interpretations import (
     ASTEROIDS,
+    BLACK_MOON_LILITH,
     EPHEMERIS_MAX_DATE,
     EPHEMERIS_MIN_DATE,
     FAST_TRANSIT_BODIES,
@@ -159,7 +160,7 @@ def _life_forecast_pair_filter(body_a: BodyPosition, body_b: BodyPosition, _cont
         return natal_name in PERSONAL or natal_name in OUTER_PLANETS
     if transit_name in NODES:
         return natal_name in PERSONAL
-    if transit_name in ASTEROIDS:
+    if transit_name in ASTEROIDS or transit_name in BLACK_MOON_LILITH:
         return natal_name in PERSONAL
     return False
 
@@ -188,7 +189,7 @@ def personal_transit_orb_cap(mode: str, transit_body: str, natal_body: str, aspe
             if natal_body in PERSONAL and angle in {0, 180}:
                 return PERSONAL_TRANSIT_MAX_ORB_DEG
             return 0.0
-        if transit_body in ASTEROIDS:
+        if transit_body in ASTEROIDS or transit_body in BLACK_MOON_LILITH:
             if natal_body in PERSONAL and angle in MAJOR_ASPECTS:
                 return PERSONAL_TRANSIT_MAX_ORB_DEG
             return 0.0
