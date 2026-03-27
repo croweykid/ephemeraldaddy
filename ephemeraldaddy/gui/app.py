@@ -12833,15 +12833,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         apply_window_placement(self, capture_window_placement(source_window))
 
-    def apply_launch_window_policy(self) -> None:
+    def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
-        use_topmost_pulse = (
-            platform.system() == "Windows" and not self._launch_foreground_completed
-        )
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
-        self._launch_foreground_completed = True
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
