@@ -611,6 +611,9 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_COLON_LABELS,
     CHART_AXES_STYLE,
     CHART_DATA_COMMON_LABELS,
+    CHART_DATA_DND_SUBHEADER_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
     CHART_INFO_EVIDENCE_LABEL_BOLD,
@@ -856,6 +859,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._species_header_format.setForeground(QColor(CHART_INFO_SPECIES_HEADER_COLOR))
         self._species_subheader_format = QTextCharFormat()
         self._species_subheader_format.setFontItalic(CHART_INFO_SPECIES_DESCRIPTION_ITALIC)
+        self._dnd_subheader_format = QTextCharFormat()
+        if CHART_DATA_DND_SUBHEADER_BOLD:
+            self._dnd_subheader_format.setFontWeight(QFont.Bold)
+        self._dnd_subheader_note_format = QTextCharFormat()
+        self._dnd_subheader_note_format.setFontItalic(CHART_DATA_DND_SUBHEADER_NOTE_ITALIC)
+        if CHART_DATA_DND_SUBHEADER_NOTE_BOLD:
+            self._dnd_subheader_note_format.setFontWeight(QFont.Bold)
         self._dnd_threshold_format = self._make_format(DND_CLASS_THRESHOLD_COLOR)
         self._dnd_axis_line_formats = {
             format_class_axis_label(axis_name): self._make_format(color)
@@ -992,6 +1002,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._species_header_format,
                     )
                     self.setCurrentBlockState(1)
+        if stripped_text == "Top 3 Species":
+            self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
+        elif stripped_text.startswith("Top 3 Classes*"):
+            classes_header_prefix = "Top 3 Classes*"
+            self.setFormat(
+                self._qt_index(text, 0),
+                self._qt_len(classes_header_prefix),
+                self._dnd_subheader_format,
+            )
+            note_index = text.find("(")
+            if note_index != -1:
+                self.setFormat(
+                    self._qt_index(text, note_index),
+                    self._qt_len(text[note_index:]),
+                    self._dnd_subheader_note_format,
+                )
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
