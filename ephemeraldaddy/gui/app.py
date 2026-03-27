@@ -778,6 +778,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Ajna",
         "Throat",
         "G",
+        "Ego",
         "Spleen",
         "Solar Plexus",
         "Sacral",
@@ -3294,7 +3295,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "D&D Typing",
+            "D&&D Typing",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3307,7 +3308,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #D&D Typing Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
-            "D&D Typing",
+            "D&&D Typing",
             "species_distribution",
             "species_distribution",
             dropdown_options=[
@@ -5372,7 +5373,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             hd_file_stem,
             export_text_provider=lambda: _build_human_design_export_text(summary_output.toPlainText()),
         )
-        
+
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
             "output_widget": summary_output,

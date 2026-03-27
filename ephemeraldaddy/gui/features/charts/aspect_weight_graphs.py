@@ -305,7 +305,7 @@ def build_popout_left_panel(
                         gate_present = gate in present_gates
                         face_color = segment_color if gate_present else "#4f4f4f"
                         label_color = "#ffffff" if gate_present else "#b8b8b8"
-                        analytics_ax.barh(
+                        bar_container = analytics_ax.barh(
                             row_index,
                             1.0,
                             left=segment_index,
@@ -314,7 +314,11 @@ def build_popout_left_panel(
                             height=0.62,
                             linewidth=0.8,
                         )
-                        analytics_ax.text(
+                        gate_gid = f"awareness_gate:{gate}"
+                        for patch in getattr(bar_container, "patches", []):
+                            patch.set_gid(gate_gid)
+                            patch.set_picker(True)
+                        gate_text_artist = analytics_ax.text(
                             segment_index + 0.5,
                             row_index,
                             str(gate),
@@ -324,6 +328,8 @@ def build_popout_left_panel(
                             fontsize=7,
                             fontweight="bold",
                         )
+                        gate_text_artist.set_gid(gate_gid)
+                        gate_text_artist.set_picker(True)
                 y_tick_labels = [str(entry.get("name", "Unknown")) for entry in entries]
                 analytics_ax.set_yticks(y_positions)
                 analytics_ax.set_yticklabels(y_tick_labels, color=chart_theme_colors["text"], fontsize=7)
@@ -377,6 +383,34 @@ def build_popout_left_panel(
     chart_info_output._summary_highlighter = chart_summary_highlighter_cls(chart_info_output.document())
     left_panel_layout.addWidget(chart_info_label)
     left_panel_layout.addWidget(chart_info_output, 1)
+
+    def _show_awareness_gate_info(gate: int) -> None:
+        show_gate_info = getattr(parent, "_show_human_design_gate_line_info", None)
+        if not callable(show_gate_info):
+            chart_info_output.setPlainText(f"Gate {gate}")
+            return
+        original_chart_info_output = getattr(parent, "chart_info_output", None)
+        try:
+            parent.chart_info_output = chart_info_output
+            show_gate_info(int(gate), None)
+        finally:
+            parent.chart_info_output = original_chart_info_output
+
+    def _on_awareness_pick(event: Any) -> None:
+        if not showing_awareness_streams:
+            return
+        artist = getattr(event, "artist", None)
+        artist_gid = artist.get_gid() if artist is not None else None
+        if not isinstance(artist_gid, str) or not artist_gid.startswith("awareness_gate:"):
+            return
+        gate_text = artist_gid.split(":", 1)[1]
+        try:
+            gate = int(gate_text)
+        except (TypeError, ValueError):
+            return
+        _show_awareness_gate_info(gate)
+
+    analytics_canvas.mpl_connect("pick_event", _on_awareness_pick)
 
     layout.addLayout(left_panel_layout, 1)
     return chart_info_output
