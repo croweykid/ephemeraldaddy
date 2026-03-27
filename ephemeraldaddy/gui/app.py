@@ -644,6 +644,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.dnd.dnd_definitions import SPECIES_DESCRIPTIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     build_class_axis_profile_lines,
     DND_CLASS_AXIS_EARTHTONE_COLORS,
@@ -19884,13 +19885,28 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        header = f"{family} ({subtype}) • {score:.2f}"
+        label = f"{family} ({subtype})" if subtype else family
+        header = f"{label} • {score:.2f}"
+        species_description = SPECIES_DESCRIPTIONS.get(family, "")
+        subtype_key = f"{family}::{subtype}" if subtype else ""
+        subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
+        description_parts = [part for part in (species_description, subtype_description) if part]
+        description_line = f"*{' '.join(description_parts)}*" if description_parts else "*Species flavor text unavailable.*"
         if evidence:
             lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            self.chart_info_output.setPlainText(
+                "\n".join([header, description_line, "", "Evidence:"] + lines)
+            )
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
+            "\n".join(
+                [
+                    header,
+                    description_line,
+                    "",
+                    "• Evidence is unavailable for this species assignment.",
+                ]
+            )
         )
 
     def _show_dnd_class_info(
