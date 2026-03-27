@@ -1256,7 +1256,7 @@ SIGN_KEYWORDS = {
             "in a masked way", "indirectly",
         ],
         "profile":"cleave",
-        "verbs": ["curating narrative via", "impersonating", "absorbing", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
+        "verbs": ["curating narrative via", "impersonating", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
         "core":"Adaptive, ambiguous, nonlinear. Charisma through fluidity.",
         "strategy":"Withholds certainty, uses flexibility as power. Navigates contradiction without flinching. Translates between worlds.",
         "function":"Social shapeshifter—not for approval, but for autonomy. Knows where to bend and when not to.",
