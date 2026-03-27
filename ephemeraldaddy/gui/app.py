@@ -7757,30 +7757,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
-            cumulative_sign_labels = sorted(
-                list(ZODIAC_NAMES),
-                key=lambda sign: (
-                    -database_dominant_signs.get(sign, 0),
-                    -selection_dominant_signs.get(sign, 0),
-                    sign,
-                ),
-            )
-            cumulative_planet_labels = sorted(
-                list(dominant_planet_labels),
-                key=lambda body: (
-                    -database_dominant_planets.get(body, 0),
-                    -selection_dominant_planets.get(body, 0),
-                    body,
-                ),
-            )
-            cumulative_house_labels = sorted(
-                list(dominant_house_labels),
-                key=lambda house: (
-                    -database_dominant_houses.get(house, 0),
-                    -selection_dominant_houses.get(house, 0),
-                    int(house),
-                ),
-            )
+            # Keep cumulative-dominance labels in canonical order so this view
+            # matches the "by top 3" section and remains predictable.
+            cumulative_sign_labels = list(ZODIAC_NAMES)
+            cumulative_planet_labels = list(dominant_planet_labels)
+            cumulative_house_labels = list(dominant_house_labels)
 
             selection_relationships = {
                 relationship: (
