@@ -65,7 +65,7 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = {
 }
 
 SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
-        "Aasimar": "Locals remain uneasy around these suspiciously well-lit people.",
+    "Aasimar": "Locals remain uneasy around these suspiciously well-lit people.",
     "Aasimar::Protector": "Seen at dawn on hilltops, looking as though they personally approved the sunrise.",
     "Aasimar::Scourge": "Town reports another glowing moral enthusiast running several degrees too hot.",
     "Aasimar::Fallen": "Former angelic type arrives with singed dignity and no patience for follow-up questions.",
@@ -119,6 +119,85 @@ SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
     "Fey::Satyr/Fawn": "Goat-legged reveler once again mistakes civilization for a helpful source of cups and listeners.",
     "Fey::Trolls": "Marsh-assembled woodland issue stands near bridge looking ancestral and inconvenient.",
     "Fey::Leprechauns": "Small polished trickster exits hedge with your ring, your purse, and a stronger reading of the contract than yours.",
+
+    "Genasi": "Elementally sponsored citizen continues bringing weather, geology, or plumbing concerns directly into the conversation.",
+    "Genasi::Fire": "Warm-looking individual enters room with the confident crackle of a hearth that knows exactly what it’s doing.",
+    "Genasi::Air": "Light, breezy person remains only loosely committed to chairs, gravity, and linear conversation.",
+    "Genasi::Earth": "Solid mineral-flavored citizen stands there with the unhurried certainty of a hillside.",
+    "Genasi::Water": "Fluid-tempered person continues slipping around social edges like a tide around pilings.",
+    "Genasi::Electric": "Static-haired storm enthusiast arrives already one spark ahead of the furniture.",
+    "Genasi::Mud": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
+    "Genasi::Ice": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
+
+    "Spirits": "Formerly alive presence continues declining to let material inconvenience settle the matter.",
+    "Spirits::Poltergeist": "Invisible resident reorganizes crockery with the energy of a tenant denied a security deposit.",
+    "Spirits::Wraith": "Dark floating grievance enters scene and immediately lowers resale value.",
+    "Spirits::Ghoul": "Gaunt cemetery regular arrives looking like table manners were somebody else’s department.",
+    "Spirits::Vagrant Spirit": "Unhoused afterlife drifter hovers in doorway with the apologetic air of a person between destinations.",
+
+    "Halfling": "Compact citizen continues solving adult problems with snacks, timing, and better sense than taller people.",
+    "Halfling::Ghostwise": "Quiet little mind-reader watches group discussion the way a cat watches a complicated bug.",
+    "Halfling::Stout": "Portable brick of a person remains cheerfully resistant to weather, worry, and being moved.",
+    "Halfling::Mark of Hospitality (Eberron)": "Innkeeper-grade halfling somehow turns tea, blankets, and eye contact into infrastructure.",
+    "Halfling::Mark of Healing (Eberron)": "Small practical healer arrives smelling of herbs, clean linen, and being taken seriously.",
+    "Halfling::Lightfoot": "Friendly pocket-sized operator disappears in plain sight and returns with information.",
+
+    "Human": "General-purpose mammal continues thriving through adaptability, confidence, and baffling amounts of improvisation.",
+    "Human::Variant": "Custom-built human arrives with one suspiciously early specialization and every intention of using it.",
+    "Human::Standard": "Baseline human once again demonstrates that versatility is just ambition with comfortable shoes.",
+
+    "Tabaxi": "Feline biped enters room already evaluating curtains, shelves, and your general suitability.",
+    "Tabaxi::Pantherkin": "Sleek dark cat-person glides in looking like the lighting was arranged in advance.",
+    "Tabaxi::Tigerfolk": "Striped aristocrat of the food chain surveys locals with regal patience and moderate appetite.",
+    "Tabaxi::Other (non-panther, non-tiger, non-lion, non-cat)": "Assorted feline model includes spots, tufted ears, and the usual whiskered confidence surplus.",
+
+    "Lizardfolk (Reptilians)": "Scaled pragmatist continues treating emotion as interesting weather rather than management policy.",
+    "Lizardfolk (Reptilians)::Dinoboiz": "Prehistoric enthusiast arrives looking like evolution briefly got theatrical.",
+    "Lizardfolk (Reptilians)::Other": "General reptile edition stands very still until suddenly becoming the most relevant thing present.",
+
+    "Robots": "Constructed person continues forcing philosophers to earn their lunch.",
+    "Robots::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
+    "Robots::Alternative Construct": "General-purpose manufactured being stands there making 'artificial' seem oddly judgmental.",
+
+    "Rodentfolk": "Small alert mammal-person arrives with quick hands, bright eyes, and a suspiciously efficient relationship to leftovers.",
+    "Rodentfolk::Squirrelfolk": "Tree-running acrobat pauses just long enough to look busy in three directions at once.",
+    "Rodentfolk::Ratfolk": "Urban survival specialist appears from somewhere structurally improbable and already knows the alleys better than you.",
+    "Rodentfolk::Other (non-rat, non-squirrel)": "Miscellaneous rodent model includes whiskers, paws, vigilance, and a deeply professional relationship to storage.",
+
+    "Shapeshifter": "Identity-flexible person continues treating fixed form as more of a suggestion than a rule.",
+    "Shapeshifter::Changelings": "Socially adaptable face-swapping citizen somehow makes introductions feel provisional.",
+    "Shapeshifter::Doppelgangers": "Unsettling copy specialist enters room already prepared to improve on original material.",
+    "Shapeshifter::Lycanthropes": "Civilian with moon-related staffing issues again requests understanding from the village.",
+
+    "Skeleton": "Animated bone arrangement continues proving that posture can outlive almost anything.",
+    "Skeleton::Lich": "Ancient spell bureaucrat refuses retirement, decomposition, and common decency in equal measure.",
+    "Skeleton::Skeletal Mage": "Bony scholar rattles in carrying exactly the sort of spellbook everyone hoped had burned years ago.",
+    "Skeleton::Bone Warrior": "Minimalist soldier arrives with no spare flesh and no apparent complaints.",
+
+    "Stone People (Golems)": "Large mineral person stands where placed and quietly improves the load-bearing profile of the district.",
+    "Stone People (Golems)::Crystalborn": "Facet-covered being catches the light like a chandelier that learned boundaries.",
+    "Stone People (Golems)::Earth-Forged Golems": "Purpose-built dirt-and-stone labor titan continues making architecture feel underqualified.",
+    "Stone People (Golems)::Stoneborn": "Plain rock citizen remains calm, durable, and almost offensively difficult to hurry.",
+
+    "Succubi/Incubi": "Beautifully persuasive outsider arrives with excellent posture and a completely unwholesome agenda.",
+    "Succubi/Incubi::Dreamweaver Succubi": "Soft-spoken enchantress drifts in smelling of perfume, poor judgment, and late-hour decisions.",
+    "Succubi/Incubi::Abyssal Succubi": "Infernal seduction specialist enters like a bad idea wearing very expensive confidence.",
+
+    "Tiefling": "Horned citizen once again pays socially for ancestry they did not personally design.",
+    "Tiefling::Feral": "Less polished infernal edition arrives looking as though civilization was tried and found negotiable.",
+    "Tiefling::Bloodlines (e.g., Asmodeus)": "Classic devil-blood scion enters with formal manners and highly suspicious composure.",
+    "Tiefling::Bloodlines (e.g., Zariel)": "Martial infernal descendant appears ready to settle ethics as a field exercise.",
+    "Tiefling::Bloodlines (e.g., Levistus)": "Chilled, elegant tiefling continues making courtesy sound faintly refrigerated.",
+    "Tiefling::Standard": "Ordinary infernal-touched citizen stands there with horns, tail, and the usual burden of other people’s imagination.",
+
+    "Vampire": "Nocturnal aristocrat continues turning excellent grooming into a public hazard.",
+    "Vampire::True Vampire": "Full vintage model arrives in immaculate condition and immediately starts improving the atmosphere for all the wrong reasons.",
+    "Vampire::Nosferatu": "Less decorative version emerges from the dark like a tax audit with teeth.",
+    "Vampire::Dhampir": "Halfway blood-suspicious citizen tries, not always convincingly, to keep things civil.",
+
+    "Yuan-Ti (Serpentine)": "Serpentine schemer enters room with scales, composure, and no sentimental attachment to trust.",
+    "Yuan-Ti (Serpentine)::Pureblood": "Mostly human-passing snake person continues relying on manners to do a great deal of dangerous work.",
+    "Yuan-Ti (Serpentine)::Malison": "More visibly serpent-shaped edition arrives having given up entirely on passing and perhaps improved for it.",
 }
 
 DND_5E_MASTER = {
