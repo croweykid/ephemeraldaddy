@@ -48,7 +48,8 @@ ANGLES = {"AS", "DS", "MC", "IC"}
 PERSONAL = INNER_PLANETS | ANGLES
 
 NODES = {"Rahu", "Ketu"}
-ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas", "Lilith"}
+ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas"}
+BLACK_MOON_LILITH = {"Lilith"}
 POINTS = {"Part of Fortune"} # canonical label only; aka "Fortune"
 ANGLE_POINTS = ("AS", "IC", "DS", "MC")
 
@@ -70,7 +71,7 @@ ANGLE_ALIASES = {
 MAJOR_ASPECTS = {0, 60, 90, 120, 180}
 MINOR_ASPECTS = {30, 45, 72, 135, 144, 150}
 
-SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS
+SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS | BLACK_MOON_LILITH
 FAST_TRANSIT_BODIES = {"Sun","Mercury", "Venus", "Mars"}  # Sun, Moon, Mercury, Venus, Mars
 VERY_FAST_TRANSIT_BODIES = {"Moon"}
 

@@ -264,6 +264,7 @@ _SWE_NAMED_BODY_IDS = {
     "Juno": ("SE_JUNO", "JUNO"),
     "Vesta": ("SE_VESTA", "VESTA"),
     "Rahu": ("SE_TRUE_NODE", "TRUE_NODE"),
+    # Black Moon Lilith (lunar apogee), not asteroid 1181 Lilith.
     "Lilith": ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE"),
 }
 
@@ -441,7 +442,7 @@ def planetary_positions(dt_aware, lat, lon):
     if rahu is not None:
         results["Rahu"] = rahu
         results["Ketu"] = (rahu + 180.0) % 360.0
-    # Use Black Moon Lilith (mean apogee) only.
+    # Use Black Moon Lilith (mean lunar apogee) only.
     mean_lilith_id = _swe_body_id_optional("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
     mean_lilith = _swe_longitude(mean_lilith_id) if mean_lilith_id is not None else None
     if mean_lilith is not None:
