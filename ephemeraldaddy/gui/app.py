@@ -7121,16 +7121,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             except Exception:
                 ranked_classes = []
             if ranked_classes:
-                top_class_key, _top_class_score = ranked_classes[0]
-                top_class_definition = DND_CLASSES.get(top_class_key)
-                top_class_name = (
-                    top_class_definition.display_name
-                    if top_class_definition is not None
-                    else top_class_key
-                )
-                if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
-                    snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
-                    snapshot["class_total_count_by_mode"]["top_class"] += 1
+                # Guard against non-informative rankings. When every class score is flat
+                # (or numerically indistinguishable), stable sort order will always pick
+                # the first class key and can heavily skew "#1 class" analytics.
+                top_class_key, top_class_score = ranked_classes[0]
+                second_class_score = ranked_classes[1][1].score if len(ranked_classes) > 1 else 0.0
+                class_confidence_gap = float(top_class_score.score - second_class_score)
+                has_informative_top_class = bool(top_class_score.score > 1e-6 and class_confidence_gap > 1e-6)
+                if has_informative_top_class:
+                    top_class_definition = DND_CLASSES.get(top_class_key)
+                    top_class_name = (
+                        top_class_definition.display_name
+                        if top_class_definition is not None
+                        else top_class_key
+                    )
+                    if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
+                        snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
+                        snapshot["class_total_count_by_mode"]["top_class"] += 1
                 for class_key, _class_score in ranked_classes[:3]:
                     class_definition = DND_CLASSES.get(class_key)
                     class_name = class_definition.display_name if class_definition else class_key
