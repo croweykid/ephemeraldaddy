@@ -774,15 +774,21 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Notes B:",
     )
     _HD_SUBHEADER_PREFIXES = (
+        "Head",
         "Ajna",
+        "Throat",
+        "G",
         "Spleen",
         "Solar Plexus",
-        "Type:",
-        "Authority:",
-        "Strategy:",
-        "Profile:",
-        "Definition:",
-        "Incarnation Cross:",
+        "Sacral",
+        "Root",
+        "Type",
+        "Authority",
+        "Strategy",
+        "Profile",
+        "Definition",
+        "Incarnation Cross",
+        "Channel",
         "Body",
         "Sign",
         "Longitude",
@@ -896,9 +902,29 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(0, self._qt_len(text), self._section_format)
                 break
         for prefix in self._HD_SUBHEADER_PREFIXES:
-            if stripped_text.startswith(prefix):
+            if (
+                stripped_text == prefix
+                or stripped_text.startswith(f"{prefix}:")
+                or stripped_text.startswith(f"{prefix} ")
+            ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+
+        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
+            self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+
+        activation_match = re.match(r"^\s*(Personality|Design)\s+([A-Za-z]+)", text)
+        if activation_match:
+            body_name = activation_match.group(2)
+            body_format = self._planet_formats.get(body_name)
+            if body_format:
+                span_start = activation_match.start(1)
+                span_end = activation_match.end(2)
+                self.setFormat(
+                    self._qt_index(text, span_start),
+                    self._qt_len(text[span_start:span_end]),
+                    body_format,
+                )
         if lowered_stripped.startswith("synastry chart for "):
             self.setFormat(0, self._qt_len(text), self._section_format)
         if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:
@@ -1343,12 +1369,12 @@ def _maybe_reexec_with_macos_app_name() -> None:
 
 def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
-    _configure_qt_input_scaling()
     QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
     #QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     app = QApplication.instance()
     if app is None:
+        _configure_qt_input_scaling()
         if sys.platform == "win32":
             # Ensure Windows treats this process as the Ephemeral Daddy app
             # so the taskbar uses our icon/name instead of Python's defaults.
@@ -4476,11 +4502,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # return default_stem
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        viewport = output_widget.viewport()
-        margin = 6
+        host_window = output_widget.window()
+        if not isinstance(host_window, QWidget):
+            return
+        margin = 10
         button.move(
-            max(margin, viewport.x() + viewport.width() - button.width() - margin),
-            max(margin, viewport.y() + margin),
+            max(margin, host_window.width() - button.width() - margin),
+            margin,
         )
         button.raise_()
         button.show()
@@ -4491,7 +4519,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        share_button = QToolButton(output_widget)
+        host_window = output_widget.window()
+        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
+        share_button = QToolButton(share_parent)
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             share_button.setIcon(QIcon(share_icon_path))
@@ -4668,9 +4698,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_layout.addWidget(header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         header_layout.addStretch(1)
 
-        export_button = QPushButton("Export Chart")
-        export_button.clicked.connect(lambda _checked=False, export_chart=natal_chart: self._export_chart(export_chart))
-        header_layout.addWidget(export_button, 0, Qt.AlignTop | Qt.AlignRight)
         right_layout.addLayout(header_layout)
 
         figure = Figure(figsize=(10.9, 10.9))
@@ -5259,10 +5286,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
-
-        popout_export_button = QPushButton("Export Chart")
-        popout_export_button.clicked.connect(lambda _checked=False, export_chart=chart: self._export_chart(export_chart))
-        popout_header_layout.addWidget(popout_export_button, 0, Qt.AlignTop | Qt.AlignRight)
 
         right_layout.addLayout(popout_header_layout)
 
@@ -19277,11 +19300,13 @@ class MainWindow(QMainWindow):
         )
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        viewport = output_widget.viewport()
-        margin = 6
+        host_window = output_widget.window()
+        if not isinstance(host_window, QWidget):
+            return
+        margin = 10
         button.move(
-            max(margin, viewport.x() + viewport.width() - button.width() - margin),
-            max(margin, viewport.y() + margin),
+            max(margin, host_window.width() - button.width() - margin),
+            margin,
         )
         button.raise_()
         button.show()
@@ -19292,7 +19317,9 @@ class MainWindow(QMainWindow):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        share_button = QToolButton(output_widget)
+        host_window = output_widget.window()
+        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
+        share_button = QToolButton(share_parent)
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
             share_button.setIcon(QIcon(share_icon_path))
@@ -22262,10 +22289,6 @@ class MainWindow(QMainWindow):
         popout_header_left.setFont(popout_header_left_font)
         popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
         popout_header_layout.addStretch(1)
-
-        popout_export_button = QPushButton("Export Chart")
-        popout_export_button.clicked.connect(self.on_export_chart)
-        popout_header_layout.addWidget(popout_export_button, 0, Qt.AlignTop | Qt.AlignRight)
 
         right_layout.addLayout(popout_header_layout)
 

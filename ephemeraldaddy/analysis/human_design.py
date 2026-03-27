@@ -127,6 +127,12 @@ def _render_clickable_property(label: str, value: str, property_key: str) -> tup
     entry = {"kind": "hd_property", "property_key": property_key, "icon_index": len(f"{label}: {value} ") }
     return line, entry
 
+def _format_split_definition(split_definition: str) -> str:
+    suffix = " Definition"
+    if split_definition.endswith(suffix):
+        return split_definition[: -len(suffix)]
+    return split_definition
+
 
 def _render_channel_lines(
     defined_channels: tuple[tuple[int, int, str, str], ...],
@@ -233,7 +239,7 @@ def build_human_design_chart_data_output(
         f"Authority: {hd_result.authority}",
         f"Strategy: {hd_result.strategy}",
         f"Profile: {hd_result.profile}",
-        f"Definition: {hd_result.split_definition}",
+        f"Definition: {_format_split_definition(hd_result.split_definition)}",
         f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,

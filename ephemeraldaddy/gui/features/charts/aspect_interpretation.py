@@ -67,7 +67,7 @@ def build_aspect_interpretation_lines(
         tokens = [token for token in (sign1_adj, noun1, keyword, sign2_adj, noun2) if token]
         sentence = " ".join(tokens)
         if house_noun1 and house_noun2:
-            sentence += f" in regards to {house_noun1} & {house_noun2}"
+            sentence = f"({house_noun1} & {house_noun2}): {sentence}"
         unique_lines.append(sentence)
         attempts += 1
 
