@@ -778,6 +778,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Ajna",
         "Throat",
         "G",
+        "Ego",
         "Spleen",
         "Solar Plexus",
         "Sacral",
@@ -5372,7 +5373,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             hd_file_stem,
             export_text_provider=lambda: _build_human_design_export_text(summary_output.toPlainText()),
         )
-        
+
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
             "output_widget": summary_output,
