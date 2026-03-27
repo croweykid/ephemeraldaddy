@@ -19843,7 +19843,6 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        bring_window_to_front(dialog)
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(
