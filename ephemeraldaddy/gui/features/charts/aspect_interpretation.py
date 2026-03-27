@@ -12,7 +12,7 @@ def _sign_adjective_candidates(sign: str | None) -> list[str]:
     """Return adjective candidates for a sign using SIGN_KEYWORDS best+worst lists."""
     if not sign:
         return []
-    sign_entry = SIGN_KEYWORDS.get(str(sign).strip().lower(), {})
+    sign_entry = SIGN_KEYWORDS.get(str(sign).strip().title(), {})
     best = sign_entry.get("best", [])
     worst = sign_entry.get("worst", [])
     candidates = [word for word in [*best, *worst] if isinstance(word, str) and word.strip()]

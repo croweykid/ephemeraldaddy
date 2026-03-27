@@ -18018,7 +18018,7 @@ class MainWindow(QMainWindow):
 
     def _build_sign_popout_info(self, sign: str) -> str:
         sign_name = str(sign or "").strip().title()
-        sign_keywords = SIGN_KEYWORDS.get(sign_name.lower(), {})
+        sign_keywords = SIGN_KEYWORDS.get(sign_name, {})
         core = str(sign_keywords.get("core", "")).strip()
         strategy = str(sign_keywords.get("strategy", "")).strip()
         function = str(sign_keywords.get("function", "")).strip()
@@ -18054,7 +18054,7 @@ class MainWindow(QMainWindow):
         clean_nouns = [str(noun).strip() for noun in nouns if str(noun).strip()]
         noun_text = ", ".join(clean_nouns) if clean_nouns else "No noun keywords available."
 
-        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).lower(), {})
+        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).title(), {})
         strategy = str(sign_keywords.get("strategy", "")).strip()
         core = str(sign_keywords.get("core", "")).strip()
         behavior = sign_keywords.get("behavior", [])
@@ -19372,7 +19372,7 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        sign_key = sign.lower()
+        sign_key = sign.title()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
             "worst_adverbs", []

@@ -13254,7 +13254,7 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _show_position_info(self, body: str, sign: str, house_num: int | None) -> None:
-        sign_key = sign.lower()
+        sign_key = sign.title()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         adverbs = sign_keywords.get("best_adverbs", []) + sign_keywords.get(
             "worst_adverbs", []
