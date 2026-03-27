@@ -36,6 +36,8 @@ from ephemeraldaddy.gui.style import (
 
 
 class DatabaseAnalyticsChartsMixin:
+    DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+
     @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
         """Apply tight layout while silencing benign layout-fit warnings."""
@@ -1132,6 +1134,40 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    def _build_dnd_statblock_summary_chart(
+        self,
+        selection_cache: dict[str, Any],
+        database_cache: dict[str, Any],
+        loaded_charts: int,
+    ) -> FigureCanvas:
+        labels = list(self.DND_STAT_KEYS)
+        selection_values_map = self._compute_dnd_statblock_averages(selection_cache)
+        database_values_map = self._compute_dnd_statblock_averages(database_cache)
+        selection_values = [selection_values_map[label] for label in labels]
+        database_values = [database_values_map[label] for label in labels]
+        return self._build_social_score_summary_chart(
+            labels=labels,
+            selection_values=selection_values,
+            database_values=database_values,
+            loaded_charts=loaded_charts,
+        )
+
+    def _compute_dnd_statblock_averages(
+        self,
+        metric_cache: dict[str, Any],
+    ) -> dict[str, float]:
+        labels = list(self.DND_STAT_KEYS)
+        stat_count = float(metric_cache.get("dnd_stat_count", 0))
+        stat_totals = metric_cache.get("dnd_stat_totals", {})
+        return {
+            label: (
+                float(stat_totals.get(label, 0.0)) / stat_count
+                if stat_count
+                else 0.0
+            )
+            for label in labels
+        }
 
     def _build_alignment_cumulative_chart(
         self,

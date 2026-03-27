@@ -661,6 +661,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
     resolve_class_key,
     score_class_axes,
+    score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
@@ -2540,6 +2541,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label_by_mode.get(self._prevalence_mode, label_by_mode["sign_prevalence"])
         )
 
+    def _update_species_distribution_subheader(self) -> None:
+        subheader = getattr(self, "species_distribution_subheader", None)
+        if subheader is None:
+            return
+        if self._species_distribution_mode == "stat_block":
+            subheader.setText("average stat values for database (and selection)")
+            return
+        subheader.setText("Distribution of D&D species/classes in database")
+
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
@@ -2551,6 +2561,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/species_distribution_mode",
                         self._species_distribution_mode,
                     )
+            self._update_species_distribution_subheader()
             # Avoid list/filter repopulation when only the analytics display mode
             # changes. Re-render analytics from current cached data instead.
             self._update_sentiment_tally(
@@ -3419,11 +3430,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Top 3 Species", "top_three_species"),
                 ("#1 Classes", "top_class"),
                 ("Top 3 Classes", "top_three_classes"),
+                ("Stat Block", "stat_block"),
             ],
             show_title=False,
         )
-        species_subheader = add_database_subheader("Distribution of D&D species/classes in database")
-        species_section_layout.addWidget(species_subheader)
+        self.species_distribution_subheader = add_database_subheader("Distribution of D&D species/classes in database")
+        species_section_layout.addWidget(self.species_distribution_subheader)
+        self._update_species_distribution_subheader()
 
         #D&D Typing Chart
         (
@@ -7081,6 +7094,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_class": 0,
                 "top_three_classes": 0,
             },
+            "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
+            "dnd_stat_count": 0,
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7243,6 +7258,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if class_name in snapshot["class_totals_by_mode"]["top_three_classes"]:
                         snapshot["class_totals_by_mode"]["top_three_classes"][class_name] += 1
                         snapshot["class_total_count_by_mode"]["top_three_classes"] += 1
+            try:
+                statblock = score_dnd_statblock(chart)
+            except Exception:
+                statblock = None
+            if statblock is not None:
+                for stat_key in snapshot["dnd_stat_totals"]:
+                    snapshot["dnd_stat_totals"][stat_key] += float(statblock.scores.get(stat_key, 0.0))
+                snapshot["dnd_stat_count"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -7261,6 +7284,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
+        totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
@@ -7327,6 +7351,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["class_totals_by_mode"][mode][class_name] += direction * int(
                     class_snapshot.get(class_name, 0)
                 )
+        for stat_key in totals["dnd_stat_totals"]:
+            stat_snapshot = snapshot.get("dnd_stat_totals", {})
+            stat_value = stat_snapshot.get(stat_key, 0.0) if isinstance(stat_snapshot, dict) else 0.0
+            totals["dnd_stat_totals"][stat_key] += direction * float(stat_value)
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -8149,6 +8177,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     )
                     for class_name in class_labels
                 }
+            elif species_mode == "stat_block":
+                selection_species = self._compute_dnd_statblock_averages(selection_cache)
+                database_species = self._compute_dnd_statblock_averages(database_cache)
             else:
                 selection_species = {
                     species: (
@@ -8800,26 +8831,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
+            if species_mode == "stat_block":
+                selection_dnd_counts = {
+                    label: int(selection_cache.get("dnd_stat_count", 0))
+                    for label in selection_species
+                }
+                database_dnd_counts = {
+                    label: int(database_cache.get("dnd_stat_count", 0))
+                    for label in selection_species
+                }
+            elif species_mode in {"top_class", "top_three_classes"}:
+                selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
+                    species_mode,
+                    {},
+                )
+                database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
+                    species_mode,
+                    {},
+                )
+            else:
+                selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
+                database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
+
             if _should_refresh_database_metric_section("species_distribution"):
-                if species_mode in {"top_class", "top_three_classes"}:
-                    selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
-                        species_mode,
-                        {},
-                    )
-                    database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
-                        species_mode,
-                        {},
+                if species_mode == "stat_block":
+                    species_canvas = self._build_dnd_statblock_summary_chart(
+                        selection_cache=selection_cache,
+                        database_cache=database_cache,
+                        loaded_charts=loaded_charts,
                     )
                 else:
-                    selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
-                    database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
-                species_canvas = self._build_species_distribution_chart(
-                    selection_species=selection_species,
-                    database_species=database_species,
-                    selection_species_counts=selection_dnd_counts,
-                    database_species_counts=database_dnd_counts,
-                    loaded_charts=loaded_charts,
-                )
+                    species_canvas = self._build_species_distribution_chart(
+                        selection_species=selection_species,
+                        database_species=database_species,
+                        selection_species_counts=selection_dnd_counts,
+                        database_species_counts=database_dnd_counts,
+                        loaded_charts=loaded_charts,
+                    )
                 self._clear_layout(self.species_distribution_chart_layout)
                 self.species_distribution_chart_layout.addWidget(
                     species_canvas,
@@ -8833,19 +8881,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     selection_values=[selection_species[label] for label in species_labels],
                     database_values=[database_species[label] for label in species_labels],
                     selection_counts=[
-                        (
-                            selection_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
-                            if species_mode in {"top_class", "top_three_classes"}
-                            else selection_cache["species_totals_by_mode"][species_mode][label]
-                        )
+                        int(selection_dnd_counts.get(label, 0))
                         for label in species_labels
                     ],
                     database_counts=[
-                        (
-                            database_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
-                            if species_mode in {"top_class", "top_three_classes"}
-                            else database_cache["species_totals_by_mode"][species_mode][label]
-                        )
+                        int(database_dnd_counts.get(label, 0))
                         for label in species_labels
                     ],
                     loaded_charts=loaded_charts,
