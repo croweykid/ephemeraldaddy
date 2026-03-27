@@ -7,7 +7,13 @@ import math
 import unicodedata
 from typing import Any
 
-from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import DND_CLASSES, DnDClassScorer, score_class_axes
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    DND_CLASSES,
+    DnDClassScorer,
+    build_dnd_statblock_profile_lines,
+    score_class_axes,
+    score_dnd_statblock,
+)
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
@@ -427,6 +433,7 @@ def format_chart_text(
                 }
             )
     class_payloads: list[dict[str, object]] = []
+    statblock_payload: dict[str, object] | None = None
     if show_dnd_output:
         try:
             axis_scores = score_class_axes(chart)
@@ -436,6 +443,17 @@ def format_chart_text(
                 key=lambda scored_class: scored_class.score,
                 reverse=True,
             )
+            statblock = score_dnd_statblock(chart, stat_floor=5, stat_ceiling=20)
+            statblock_payload = {
+                "line": "Stat Block (5-20) ⓘ",
+                "kind": "statblock",
+                "profile_lines": build_dnd_statblock_profile_lines(
+                    statblock,
+                    bar_width=18,
+                    floor=5,
+                    ceiling=20,
+                ),
+            }
         except Exception:
             ranked_classes = []
         for rank, scored_class in enumerate(ranked_classes[:3]):
@@ -733,10 +751,24 @@ def format_chart_text(
         lines.append("CURSEDNESS")
         lines.append("---------")
         lines.append(cursedness_line)
-    if species_payloads or class_payloads:
+    if species_payloads or class_payloads or statblock_payload:
         lines.append("---------")
         lines.append("D&D-ification")
         lines.append("---------")
+    if statblock_payload:
+        stat_line_text = str(statblock_payload["line"])
+        species_info_map[len(lines)] = [
+            {
+                "kind": statblock_payload.get("kind"),
+                "profile_lines": statblock_payload.get("profile_lines", []),
+                "icon_index": stat_line_text.find("ⓘ"),
+            }
+        ]
+        lines.append(stat_line_text)
+        for profile_line in statblock_payload.get("profile_lines", []):
+            lines.append(f"  {profile_line}")
+        if species_payloads or class_payloads:
+            lines.append("")
     if species_payloads:
         lines.append("Top 3 Species")
         for payload in species_payloads:
