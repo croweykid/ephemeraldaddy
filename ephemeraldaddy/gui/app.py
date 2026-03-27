@@ -8010,11 +8010,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     }
                     database_class_total_count = sum(database_class_totals.values())
 
-                class_labels = list(
-                    selection_class_totals.keys()
-                    or database_class_totals.keys()
-                    or [definition.display_name for definition in DND_CLASSES.values()]
-                )
+                class_labels = [
+                    definition.display_name for definition in DND_CLASSES.values()
+                ]
                 selection_species = {
                     class_name: (
                         selection_class_totals.get(class_name, 0)
