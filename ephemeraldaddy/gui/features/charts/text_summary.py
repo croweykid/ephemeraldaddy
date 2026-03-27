@@ -54,25 +54,6 @@ def _pad_display_column(text: str, width: int) -> str:
     return f"{text}{' ' * padding}"
 
 
-_AXIS_LABEL_OVERRIDES: dict[str, str] = {
-    "mercy_restoration": "mercy & restoration",
-}
-
-
-def _format_axis_label(axis_name: str) -> str:
-    return _AXIS_LABEL_OVERRIDES.get(axis_name, axis_name.replace("_", " "))
-
-
-def _build_class_axis_weight_evidence(class_key: str) -> list[str]:
-    definition = DND_CLASSES.get(class_key)
-    if definition is None:
-        return []
-    return [
-        f"{_format_axis_label(axis_name)}: {weight * 100:.0f}%"
-        for axis_name, weight in definition.axis_weights.items()
-    ]
-
-
 def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
     if not getattr(chart, "birthtime_unknown", False) or getattr(
         chart, "retcon_time_used", False
@@ -446,8 +427,9 @@ def format_chart_text(
                     "line": f"{rank + 1}) {class_display_name} ⓘ",
                     "kind": "class",
                     "name": class_display_name,
+                    "class_key": scored_class.key,
                     "score": scored_class.score,
-                    "evidence": _build_class_axis_weight_evidence(scored_class.key),
+                    "axis_scores": {axis_key: float(value) for axis_key, value in axis_scores.items()},
                 }
             )
     if getattr(chart, "used_utc_fallback", False):
@@ -757,8 +739,9 @@ def format_chart_text(
                 {
                     "kind": payload.get("kind"),
                     "name": payload["name"],
+                    "class_key": payload["class_key"],
                     "score": payload["score"],
-                    "evidence": payload["evidence"],
+                    "axis_scores": payload["axis_scores"],
                     "icon_index": class_line_text.find("ⓘ"),
                 }
             ]

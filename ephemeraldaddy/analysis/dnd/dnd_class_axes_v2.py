@@ -1711,3 +1711,81 @@ DND_CLASS_SUBCLASS_EXPLAINERS: Dict[str, str] = {
     "Wizard::Order of Scribes": "Walking filing system continues proving that stationery can become a personality.",
     "Wizard::Transmutation": "Matter-tinkerer remains one adjustment away from fixing the chair, the world, and possibly lunch.",
 }
+
+_CLASS_AXIS_LABEL_OVERRIDES: Dict[str, str] = {
+    "control_planning": "control & planning",
+    "stealth_indirection": "stealth",
+    "mercy_restoration": "mercy & restoration",
+}
+
+_CLASS_AXIS_BAR_FULL = "█"
+_CLASS_AXIS_BAR_EMPTY = "░"
+_CLASS_AXIS_THRESHOLD_MARK = "│"
+DND_CLASS_THRESHOLD_COLOR = "#cc4444"
+DND_CLASS_AXIS_EARTHTONE_COLORS: Dict[str, str] = {
+    "discipline": "#8b6f47",
+    "instinct": "#8f5d3b",
+    "study": "#a0855b",
+    "faith": "#94714d",
+    "innate_power": "#7a5a3a",
+    "patron_reliance": "#73563c",
+    "performance": "#9b6f4e",
+    "nature_attunement": "#6d7f4d",
+    "technical_inventiveness": "#7f725e",
+    "stealth_indirection": "#6e5c4a",
+    "frontline_courage": "#8a4f3d",
+    "control_planning": "#6a604f",
+    "mercy_restoration": "#7a6d58",
+    "risk_appetite": "#925440",
+    "social_leadership": "#8d634a",
+}
+
+
+def format_class_axis_label(axis_name: str) -> str:
+    return _CLASS_AXIS_LABEL_OVERRIDES.get(axis_name, axis_name.replace("_", " "))
+
+
+def resolve_class_key(class_name: str) -> str | None:
+    if class_name in DND_CLASSES:
+        return class_name
+    for class_key, definition in DND_CLASSES.items():
+        if definition.display_name == class_name:
+            return class_key
+    return None
+
+
+def _build_axis_score_bar(score_percent: float, threshold_percent: float, width: int = 18) -> str:
+    clamped_score = max(0.0, min(100.0, float(score_percent)))
+    clamped_threshold = max(0.0, min(100.0, float(threshold_percent)))
+    filled_count = int(round((clamped_score / 100.0) * width))
+    threshold_index = int(round((clamped_threshold / 100.0) * (width - 1)))
+    cells = [
+        _CLASS_AXIS_BAR_FULL if index < filled_count else _CLASS_AXIS_BAR_EMPTY
+        for index in range(width)
+    ]
+    if 0 <= threshold_index < width:
+        cells[threshold_index] = _CLASS_AXIS_THRESHOLD_MARK
+    return "".join(cells)
+
+
+def build_class_axis_profile_lines(
+    class_name: str,
+    axis_scores: Mapping[str, float],
+    *,
+    bar_width: int = 18,
+) -> list[str]:
+    class_key = resolve_class_key(class_name)
+    if class_key is None:
+        return []
+    definition = DND_CLASSES.get(class_key)
+    if definition is None:
+        return []
+    lines: list[str] = []
+    for axis_name, threshold_weight in definition.axis_weights.items():
+        chart_axis_percent = max(0.0, min(1.0, float(axis_scores.get(axis_name, 0.0)))) * 100.0
+        threshold_percent = max(0.0, min(1.0, float(threshold_weight))) * 100.0
+        bar = _build_axis_score_bar(chart_axis_percent, threshold_percent, width=bar_width)
+        lines.append(
+            f"‣ {format_class_axis_label(axis_name)}: {chart_axis_percent:.0f}% [{bar}] threshold {threshold_percent:.0f}%"
+        )
+    return lines
