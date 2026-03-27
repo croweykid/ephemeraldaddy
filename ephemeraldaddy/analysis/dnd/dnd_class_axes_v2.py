@@ -607,7 +607,31 @@ class ClassAxisScorer:
             + 0.22 * h.get("social", 0.0)
         )
 
-        return {key: _clamp01(value) for key, value in scores.items()}
+        raw_scores = {key: _clamp01(value) for key, value in scores.items()}
+        return self._normalize_axis_profile(raw_scores)
+
+    @staticmethod
+    def _normalize_axis_profile(raw_scores: Mapping[str, float]) -> Dict[str, float]:
+        values = {key: _clamp01(value) for key, value in raw_scores.items()}
+        top = max(values.values(), default=0.0)
+        if top <= 0.0:
+            return {key: 0.0 for key in values}
+
+        # Axis values were previously compressed into a low, "flat" band.
+        # This expands the profile so strong signatures become visible.
+        scale = 1.0 if top >= 0.55 else min(2.4, 0.55 / top)
+        energized = {key: _clamp01((value * scale) ** 0.88) for key, value in values.items()}
+
+        mean = sum(energized.values()) / max(1, len(energized))
+        variance = (
+            sum((value - mean) ** 2 for value in energized.values()) / max(1, len(energized))
+        )
+        std_dev = variance ** 0.5
+        contrast = max(1.05, min(1.45, 1.20 + max(0.0, 0.14 - std_dev) * 2.0))
+        return {
+            key: _clamp01(mean + ((value - mean) * contrast))
+            for key, value in energized.items()
+        }
 
     @staticmethod
     def _first_non_none(*values: Any) -> Any:
