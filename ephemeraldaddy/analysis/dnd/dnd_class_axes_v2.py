@@ -1780,11 +1780,17 @@ def build_class_axis_profile_lines(
     if definition is None:
         return []
     lines: list[str] = []
+    axis_rows: list[tuple[float, str, float, float]] = []
     for axis_name, threshold_weight in definition.axis_weights.items():
         chart_axis_percent = max(0.0, min(1.0, float(axis_scores.get(axis_name, 0.0)))) * 100.0
         threshold_percent = max(0.0, min(1.0, float(threshold_weight))) * 100.0
+        margin_percent = chart_axis_percent - threshold_percent
+        axis_rows.append((margin_percent, axis_name, chart_axis_percent, threshold_percent))
+    axis_rows.sort(key=lambda row: row[0], reverse=True)
+    for margin_percent, axis_name, chart_axis_percent, threshold_percent in axis_rows:
         bar = _build_axis_score_bar(chart_axis_percent, threshold_percent, width=bar_width)
+        status = f"{margin_percent:+.0f}%"
         lines.append(
-            f"‣ {format_class_axis_label(axis_name)}: {chart_axis_percent:.0f}% [{bar}] threshold {threshold_percent:.0f}%"
+            f"‣ {format_class_axis_label(axis_name)}: {chart_axis_percent:.0f}% [{bar}] threshold {threshold_percent:.0f}% ({status})"
         )
     return lines
