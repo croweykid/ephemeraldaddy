@@ -613,6 +613,9 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_COMMON_LABELS,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
+    CHART_INFO_EVIDENCE_LABEL_BOLD,
+    CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
+    CHART_INFO_SPECIES_HEADER_COLOR,
     CHART_DATA_DIVIDER,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
@@ -811,9 +814,16 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "B",
     )
 
-    def __init__(self, document, *, emphasize_dnd_class_headers: bool = False) -> None:
+    def __init__(
+        self,
+        document,
+        *,
+        emphasize_dnd_class_headers: bool = False,
+        emphasize_species_info_headers: bool = False,
+    ) -> None:
         super().__init__(document)
         self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
+        self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -842,6 +852,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._class_subheader_format = QTextCharFormat()
         self._class_subheader_format.setFontItalic(True)
+        self._species_header_format = QTextCharFormat(self._plain_bold_format)
+        self._species_header_format.setForeground(QColor(CHART_INFO_SPECIES_HEADER_COLOR))
+        self._species_subheader_format = QTextCharFormat()
+        self._species_subheader_format.setFontItalic(CHART_INFO_SPECIES_DESCRIPTION_ITALIC)
         self._dnd_threshold_format = self._make_format(DND_CLASS_THRESHOLD_COLOR)
         self._dnd_axis_line_formats = {
             format_class_axis_label(axis_name): self._make_format(color)
@@ -917,6 +931,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return cls._qt_len(text[:index])
 
     def highlightBlock(self, text: str) -> None:
+        if self.previousBlockState() == 1:
+            self.setFormat(0, self._qt_len(text), self._species_subheader_format)
+            self.setCurrentBlockState(0)
+            return
+
         lowered = text.lower()
         for needle in self._unknown_needles:
             start = 0
@@ -957,6 +976,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                                 self._dnd_threshold_format,
                             )
                         break
+        if self._emphasize_species_info_headers:
+            if stripped_text == "Evidence:" and CHART_INFO_EVIDENCE_LABEL_BOLD:
+                self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+            elif " • " in stripped_text and re.search(r" • -?\d+(?:\.\d+)?$", stripped_text):
+                header_part, _, _score_part = stripped_text.partition(" • ")
+                if any(
+                    header_part == species or header_part.startswith(f"{species} (")
+                    for species in SPECIES_FAMILIES
+                ):
+                    header_len = len(header_part)
+                    self.setFormat(
+                        self._qt_index(text, 0),
+                        self._qt_len(text[:header_len]),
+                        self._species_header_format,
+                    )
+                    self.setCurrentBlockState(1)
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
@@ -16726,6 +16761,7 @@ class MainWindow(QMainWindow):
         self._chart_info_highlighter = ChartSummaryHighlighter(
             self.chart_info_output.document(),
             emphasize_dnd_class_headers=True,
+            emphasize_species_info_headers=True,
         )
         self.chart_info_content_stack = QStackedWidget()
         self.chart_info_content_stack.addWidget(self.chart_info_output)
@@ -19891,7 +19927,7 @@ class MainWindow(QMainWindow):
         subtype_key = f"{family}::{subtype}" if subtype else ""
         subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
         description_parts = [part for part in (species_description, subtype_description) if part]
-        description_line = f"*{' '.join(description_parts)}*" if description_parts else "*Species flavor text unavailable.*"
+        description_line = " ".join(description_parts) if description_parts else "Species flavor text unavailable."
         if evidence:
             lines = [f"• {line}" for line in evidence]
             self.chart_info_output.setPlainText(
