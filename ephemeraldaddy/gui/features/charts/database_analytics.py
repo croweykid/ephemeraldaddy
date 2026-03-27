@@ -905,8 +905,8 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         labels = list(selection_species.keys())
-        # D&D class modes can render only 1-3 rows; keep those charts compact so bar spacing
-        # matches the rest of the Database Analytics panel.
+        # Keep short distributions compact while preserving the same chart style across
+        # species and class modes.
         chart_height = 12.0 if len(labels) > 4 else 2.8
         figure = Figure(figsize=(4.8, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
