@@ -131,11 +131,18 @@ def _render_clickable_property(label: str, value: str, property_key: str) -> tup
 def _render_channel_lines(
     defined_channels: tuple[tuple[int, int, str, str], ...],
 ) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
-    grouped: dict[str, list[tuple[int, int, str]]] = {
-        "Ajna": [],
-        "Spleen": [],
-        "Solar Plexus": [],
-    }
+    center_order = (
+        "Head",
+        "Ajna",
+        "Throat",
+        "G",
+        "Ego",
+        "Spleen",
+        "Solar Plexus",
+        "Sacral",
+        "Root",
+    )
+    grouped: dict[str, list[tuple[int, int, str]]] = {center: [] for center in center_order}
     for gate_a, gate_b, center_a, center_b in defined_channels:
         label = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
         if center_a in grouped:
@@ -145,12 +152,12 @@ def _render_channel_lines(
 
     lines: list[str] = []
     info_map: dict[int, list[dict[str, object]]] = {}
-    for center in ("Ajna", "Spleen", "Solar Plexus"):
+    centers_with_channels = [center for center in center_order if grouped[center]]
+    if not centers_with_channels:
+        return ["None"], {}
+    for center in centers_with_channels:
         lines.append(center)
         entries = sorted(set(grouped[center]), key=lambda item: (item[0], item[1]))
-        if not entries:
-            lines.append("None")
-            continue
         parts: list[str] = []
         cursor = 0
         row_entries: list[dict[str, object]] = []

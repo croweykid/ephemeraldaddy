@@ -219,6 +219,7 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
     apply_window_placement,
+    bring_window_to_front,
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
@@ -284,8 +285,8 @@ from ephemeraldaddy.data.genpop import (
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
 
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
-    HOUSE_KEYWORDS,
     PLANET_KEYWORDS,
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
@@ -834,6 +835,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for sign, color in SIGN_COLORS.items()
             if color
         }
+        self._element_formats = {
+            element.lower(): self._make_format(color)
+            for element, color in ELEMENT_COLORS.items()
+            if isinstance(element, str)
+            and element.lower() in {"fire", "earth", "air", "water"}
+            and color
+        }
         self._house_formats = {
             str(house): self._make_format(color)
             for house, color in HOUSE_COLORS.items()
@@ -939,6 +947,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self._highlight_phrase(lowered, aspect, fmt)
         for sign, fmt in self._sign_formats.items():
             self._highlight_phrase(text, sign, fmt)
+        for element, fmt in self._element_formats.items():
+            self._highlight_phrase(lowered, element, fmt)
         for nakshatra, fmt in self._nakshatra_formats.items():
             self._highlight_phrase(text, nakshatra, fmt)
         house_match = re.match(r"^\s*(\d{1,2})\s*:\s+([^\d\s][^\d]*)\s+\d{2}°\d{2}'", text)
@@ -1948,7 +1958,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._shortcut_close_ctrl.activated.connect(self.close)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self.close)
-        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self._initial_progress_pending = True
@@ -12624,8 +12634,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
-        self.raise_()
-        self.activateWindow()
+        bring_window_to_front(self)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
@@ -16125,10 +16134,10 @@ class MainWindow(QMainWindow):
         self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
-        configure_main_window_chrome(self)
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
         self._restoring_window_layout = False
@@ -17181,7 +17190,7 @@ class MainWindow(QMainWindow):
         self._shortcut_close_ctrl.activated.connect(self._on_close_requested)
         self._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), self)
         self._shortcut_close_cmd.activated.connect(self._on_close_requested)
-        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F12"), self)
+        self._shortcut_fullscreen_toggle = QShortcut(QKeySequence("F11"), self)
         self._shortcut_fullscreen_toggle.activated.connect(self._toggle_fullscreen)
 
         self.chart_canvas = None
@@ -18065,11 +18074,11 @@ class MainWindow(QMainWindow):
         )
 
     def _build_house_popout_info(self, house_num: int) -> str:
-        house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         noun_lines = [f"• {noun}" for noun in house_keywords if str(noun).strip()]
         header = f"House {house_num}"
         if not noun_lines:
-            return f"{header}\n\nNo HOUSE_KEYWORDS entries available."
+            return f"{header}\n\nNo core_domains entries available."
         return "\n".join([header, "", *noun_lines])
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
@@ -19381,7 +19390,7 @@ class MainWindow(QMainWindow):
                 return
         else:
             sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
             if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
                 self.chart_info_output.setPlainText(
                     f"No interpretation data available for {body} in {sign}, house {house_num}."
@@ -19834,8 +19843,9 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        dialog.raise_()
-        dialog.activateWindow()
+        # Avoid Windows top-most pulse during Chart→Database transitions to
+        # prevent transient flashing of auxiliary popout/tool windows.
+        bring_window_to_front(dialog, use_topmost_pulse=False)
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(
@@ -22065,8 +22075,8 @@ class MainWindow(QMainWindow):
             "species_info_map": {},
             "summary_block_offset": 0,
         }
-        hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
-        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
+        chart_data_file_stem = f"{_sanitize_export_token(self._latest_chart.name)}-chart_data_output"
+        summary_share_button = self._attach_popout_share_button(summary_output, chart_data_file_stem)
         popout_context["share_button"] = summary_share_button
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import random
 
-from ephemeraldaddy.core.interpretations import HOUSE_KEYWORDS, SIGN_KEYWORDS
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
+from ephemeraldaddy.core.interpretations import SIGN_KEYWORDS
 
 
 def _sign_adjective_candidates(sign: str | None) -> list[str]:
@@ -33,8 +34,8 @@ def build_aspect_interpretation_lines(
     """Build unique human-readable aspect interpretation lines."""
     sign1_adjectives = _sign_adjective_candidates(sign1)
     sign2_adjectives = _sign_adjective_candidates(sign2)
-    house1_keywords = HOUSE_KEYWORDS.get(house1, []) if house1 else []
-    house2_keywords = HOUSE_KEYWORDS.get(house2, []) if house2 else []
+    house1_keywords = HOUSE_DEFINITIONS.get(house1, {}).get("core_domains", []) if house1 else []
+    house2_keywords = HOUSE_DEFINITIONS.get(house2, {}).get("core_domains", []) if house2 else []
 
     unique_lines: list[str] = []
     seen: set[tuple[str, str, str, str, str, str, str]] = set()

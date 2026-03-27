@@ -532,7 +532,7 @@ ZODIAC_SIGNS = [
 
 ELEMENT_COLORS = {
     "Fire": "#cc3300", #was #7a4747, #503030
-    "Earth": "#049534", #was #2e6b42
+    "Earth": "#049534", #was #339966, before that it was #2e6b42
     "Air": "#999900", #was #8b73a3, #66527a
     "Water": "#5f5f8f", #was 2d2d5c
 }
@@ -602,8 +602,8 @@ PLANET_COLORS = {
     "Uranus": "#9933ff", #went #7fff00 "chartreuse" but looked too much like mercury
     "Neptune": "#99ffcc", #6600ff was great but unreadable :(
     "Pluto": "#0099ff", #383894 or #2a2a6f might be superior but you can't read it at all :(
-    "Rahu": "#fffff0", #"ivory" - formerly #355A55 smoky teal, but we needed readability
-    "Ketu": "#dcdcdc", #"gainsboro" - formerly #5A4A52 ash-violet, but we needed readability
+    "Rahu": "#6699ff", #fffff0 #"ivory" - formerly #355A55 smoky teal, but we needed readability
+    "Ketu": "#6699ff", #dcdcdc #"gainsboro" - formerly #5A4A52 ash-violet, but we needed readability
     "Chiron":"#6699ff", #basic blue
     "Ceres":"#6699ff", #basic blue
     "Pallas":"#6699ff", #basic blue
@@ -616,7 +616,7 @@ PLANET_COLORS = {
     "IC":"#33ccff", #lighter basic blue to indicate angles #lighter basic blue to indicate angles
     "DS":"#33ccff", #lighter basic blue to indicate angles
     "MC":"#33ccff", #lighter basic blue to indicate angles
-    "Earth":"#339966", #slightly bluish green
+    "Earth":"#049534", #was #339966 #slightly bluish green
 }
 
 # not used anywhere, as far as I can tell
@@ -679,7 +679,7 @@ NAKSHATRA_PLANET_COLOR = {
     "Swati": ("Rahu", PLANET_COLORS["Rahu"]),
     "Vishakha": ("Jupiter", PLANET_COLORS["Jupiter"]),
     "Anuradha": ("Saturn", PLANET_COLORS["Saturn"]),
-    "Jyeshtha": ("Mercury", PLANET_COLORS["Mercury"]),
+    "Jyestha": ("Mercury", PLANET_COLORS["Mercury"]),
     "Mula": ("Ketu", PLANET_COLORS["Ketu"]),
     "Purva Ashadha": ("Venus", PLANET_COLORS["Venus"]),
     "Uttara Ashadha": ("Sun", PLANET_COLORS["Sun"]),
