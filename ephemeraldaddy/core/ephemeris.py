@@ -60,19 +60,36 @@ def _configure_swiss_ephemeris() -> None:
 
     candidates = []
     swe_module_path = Path(getattr(swe, "__file__", "")).resolve()
+    bundled_data = Path(__file__).resolve().parents[1] / "data"
+    candidates.append(bundled_data)
+    candidates.append(Path(__file__).resolve().parent / "sweph")
+    candidates.append(Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph")
     if swe_module_path:
         candidates.append(swe_module_path.parent / "sweph")
 
-    candidates.append(Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph")
-    candidates.append(Path(__file__).resolve().parent / "sweph")
-    candidates.append(Path(__file__).resolve().parents[1] / "data")
+    def _has_asteroid_files(path: Path) -> bool:
+        if not path.is_dir():
+            return False
+        expected = {name.lower() for name in _SWE_ASTEROID_FILES}
+        present = {entry.name.lower() for entry in path.iterdir() if entry.is_file()}
+        return bool(expected.intersection(present))
 
+    selected_path: Path | None = None
     for path in candidates:
-        if path.is_dir():
-            swe.set_ephe_path(str(path))
-            _SWE_EPHE_PATH = path
-            _SWE_CONFIGURED = True
-            return
+        if _has_asteroid_files(path):
+            selected_path = path
+            break
+    if selected_path is None:
+        for path in candidates:
+            if path.is_dir():
+                selected_path = path
+                break
+
+    if selected_path is not None:
+        swe.set_ephe_path(str(selected_path))
+        _SWE_EPHE_PATH = selected_path
+        _SWE_CONFIGURED = True
+        return
 
     fallback = Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph"
     fallback.mkdir(parents=True, exist_ok=True)
