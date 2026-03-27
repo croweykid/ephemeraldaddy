@@ -645,9 +645,14 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species_with_evidence,
 )
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    build_class_axis_profile_lines,
+    DND_CLASS_AXIS_EARTHTONE_COLORS,
+    DND_CLASS_THRESHOLD_COLOR,
     DND_CLASSES,
     DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
+    format_class_axis_label,
+    resolve_class_key,
     score_class_axes,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
@@ -836,6 +841,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._class_subheader_format = QTextCharFormat()
         self._class_subheader_format.setFontItalic(True)
+        self._dnd_threshold_format = self._make_format(DND_CLASS_THRESHOLD_COLOR)
+        self._dnd_axis_line_formats = {
+            format_class_axis_label(axis_name): self._make_format(color)
+            for axis_name, color in DND_CLASS_AXIS_EARTHTONE_COLORS.items()
+        }
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
@@ -934,6 +944,18 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(0, self._qt_len(text), self._class_header_format)
             elif stripped_text and stripped_text in DND_CLASS_SUBCLASS_EXPLAINERS.values():
                 self.setFormat(0, self._qt_len(text), self._class_subheader_format)
+            elif stripped_text.startswith("‣ "):
+                for axis_label, axis_format in self._dnd_axis_line_formats.items():
+                    if stripped_text.startswith(f"‣ {axis_label}:"):
+                        self.setFormat(0, self._qt_len(text), axis_format)
+                        marker_index = text.find("│")
+                        if marker_index != -1:
+                            self.setFormat(
+                                self._qt_index(text, marker_index),
+                                self._qt_len("│"),
+                                self._dnd_threshold_format,
+                            )
+                        break
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
@@ -19622,8 +19644,9 @@ class MainWindow(QMainWindow):
                     if selected_species.get("kind") == "class":
                         self._show_dnd_class_info(
                             str(selected_species.get("name", "Unknown Class")),
+                            str(selected_species.get("class_key", "")),
                             float(selected_species.get("score", 0.0)),
-                            list(selected_species.get("evidence", [])),
+                            dict(selected_species.get("axis_scores", {})),
                         )
                     else:
                         self._show_species_info(
@@ -19873,19 +19896,21 @@ class MainWindow(QMainWindow):
     def _show_dnd_class_info(
         self,
         class_name: str,
+        class_key: str,
         _score: float,
-        evidence: list[str],
+        axis_scores: dict[str, float],
     ) -> None:
-        header = class_name
-        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(
-            class_name,
-            "Class flavor text unavailable.",
+        resolved_class_key = resolve_class_key(class_key) or resolve_class_key(class_name) or class_name
+        class_definition = DND_CLASSES.get(resolved_class_key)
+        header = (
+            class_definition.display_name
+            if class_definition is not None
+            else class_name
         )
-        if evidence:
-            bullet_lines = [f"‣ {line}" for line in evidence]
-            self.chart_info_output.setPlainText(
-                "\n".join([header, "", class_description, "", *bullet_lines])
-            )
+        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(header, "Class flavor text unavailable.")
+        evidence_lines = build_class_axis_profile_lines(header, axis_scores)
+        if evidence_lines:
+            self.chart_info_output.setPlainText("\n".join([header, "", class_description, "", *evidence_lines]))
             return
         self.chart_info_output.setPlainText(
             "\n".join(
@@ -19894,7 +19919,7 @@ class MainWindow(QMainWindow):
                     "",
                     class_description,
                     "",
-                    "‣ Evidence is unavailable for this class assignment.",
+                    "‣ Axis profile unavailable for this class assignment.",
                 ]
             )
         )

@@ -1913,70 +1913,82 @@ PLANET_KEYWORDS = {
     },
     "Juno": {
         "nouns": [
-            "commitment", "partnership", "negotiation", "boundaries", "agreements", "responsibilities",
-            "promises", "fairness", "expectations", "loyalty", "cooperation", "accountability",
+            "commitment", "marriage", "partnership", "vows", "agreements", "mutuality",
+            "fairness", "expectations", "loyalty", "reciprocity", "accountability", "fidelity",
         ],
         "verbs": [
-            "committing to", "partnering with", "negotiating with", "setting boundaries with", "making agreements with", "sharing responsibilities with",
-            "keeping promises to", "insisting on fairness with regard to", "checking expectations with", "choosing loyalty to", "cooperating with",
+            "committing to", "partnering with", "negotiating with", "making agreements with", "sharing responsibilities with",
+            "keeping promises to", "insisting on fairness with regard to", "checking expectations with", "remaining loyal to", "cooperating with", "honoring vows to",
         ],
         "verbsonly": [
-            "committing", "partnering", "negotiating", "setting boundaries", "making agreements", "sharing responsibilities",
-            "keeping promises", "insisting on fairness", "checking expectations", "choosing loyalty", "cooperating",
+            "committing", "partnering", "negotiating", "making agreements", "sharing responsibilities",
+            "keeping promises", "insisting on fairness", "checking expectations", "remaining loyal", "cooperating", "honoring vows",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the formal bond: commitment, reciprocity, and the terms under which two people agree to belong to one another",
+        ],
+        "archetypes": [
+            "the lawful spouse",
         ],
     },
     "Vesta": {
         "nouns": [
-            "focus", "practice", "training", "study", "solo work", "routines",
-            "standards", "discipline", "distractions", "breaks", "time", "promises",
+            "focus", "devotion", "dedication", "practice", "study", "solitude","asceticism","purification","rejection of distraction",
+            "discipline", "consecration", "containment", "standards", "sacred focus", "inner flame",
         ],
         "verbs": [
-            "focusing on", "practicing", "training", "studying", "working alone with", "sticking to routines with",
-            "maintaining standards of", "showing discipline with", "limiting distractions with", "protecting time with", "keeping a promise with",
+            "focusing on", "practicing", "studying", "working alone with", "maintaining devotion to", "keeping vigil over",
+            "protecting time for", "limiting distractions around", "dedicating oneself to", "concentrating on", "tending", "preserving",
         ],
         "verbsonly": [
-            "focusing", "practicing", "training", "studying", "working alone", "sticking to routines",
-            "maintaining standards", "showing discipline", "limiting distractions", "protecting time", "keeping a promise",
+            "focusing", "practicing", "studying", "working alone", "maintaining devotion", "keeping vigil",
+            "protecting time", "limiting distractions", "dedicating oneself", "concentrating", "tending", "preserving",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the devoted flame: disciplined concentration, protected interiority, and the work one serves with sustained focus.","#1 premium choice for ceremonial sacrifice to a dragon. Totally won't piss off the gods. *fingers crossed*",#"Prime ceremonial-sacrifice material.",
+        ],
+        "archetypes": [
+            "the vestal virgin priestess", "nuns", "monks", "the cloistered scholar",
         ],
     },
     "Rahu": {
         "nouns": [
-            "more", "chases", "effort", "shortcuts", "chances", "attention",
-            "trends", "purchases", "climbs", "networking", "competition", "limits",
+            "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
+            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness", "more",
         ],
         "verbs": [
-            "wanting more in terms of", "chasing", "trying harder with", "taking shortcuts with", "taking chances with", "seeking attention of",
-            "copying trends with", "buying", "climbing", "networking", "competing via", "pushing limits of",
+            "wanting more from", "chasing", "fixating on", "amplifying", "overreaching toward", "becoming fascinated with",
+            "crossing boundaries for", "competing for", "grasping at", "inflating", "consuming", "pushing past",
         ],
         "verbsonly": [
-            "wanting more", "chasing", "trying harder", "taking shortcuts", "taking chances", "seeking attention",
-            "copying trends", "buying", "climbing", "networking", "competing", "pushing limits",
+            "wanting more", "chasing", "fixating", "amplifying", "overreaching", "becoming fascinated",
+            "crossing boundaries", "competing", "grasping", "inflating", "consuming", "pushing past",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the appetite that does not know when it is fed: fixation, worldly hunger, and the restless pursuit of what seems necessary for completion",
+        ],
+        "archetypes": [
+            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother",
         ],
     },
     "Ketu": {
         "nouns": [
-            "letting go", "quits", "walkaways", "simplicity", "cutbacks", "distance",
-            "endings", "decluttering", "no's", "dropped habits", "unsubscribes", "priority resets",
+            "detachment", "severance", "release", "renunciation", "withdrawal", "distance",
+            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution",
         ],
         "verbs": [
-            "letting go of", "quitting", "walking away from", "simplifying", "cutting back on", "detaching from",
-            "ending", "decluttering", "saying no to", "unsubscribing from",
+            "letting go of", "quitting", "walking away from", "detaching from", "withdrawing from", "cutting off",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from",
         ],
         "verbsonly": [
-            "letting go", "quitting", "walking away", "simplifying", "cutting back", "detaching",
-            "ending", "decluttering", "saying no", "unsubscribing",
+            "letting go", "quitting", "walking away", "detaching", "withdrawing", "cutting off",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the severing principle: release, detachment, and the strange familiarity that no longer promises fulfillment.",
+        ],
+        "archetypes": [
+            "the renunciant", "the cast-off skin", "was a big fish in a small pond, now leaving the old small town to seek something grander",
         ],
     },
     "Lilith": {
