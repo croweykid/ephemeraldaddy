@@ -7117,7 +7117,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
             totals["species_total_count_by_mode"][mode] += direction * int(count)
         for mode, count in snapshot.get("class_total_count_by_mode", {}).items():
-            totals["class_total_count_by_mode"][mode] += direction * int(count)
+            if mode in totals["class_total_count_by_mode"]:
+                totals["class_total_count_by_mode"][mode] += direction * int(count)
         for key in SENTIMENT_OPTIONS:
             totals["sentiment_totals"][key] += direction * int(snapshot["sentiment_totals"].get(key, 0))
         for sign in ZODIAC_NAMES:
@@ -7167,8 +7168,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["species_totals_by_mode"][mode][species] += direction * int(snapshot["species_totals_by_mode"][mode].get(species, 0))
         for mode in ("top_class", "top_three_classes"):
             for class_name in totals["class_totals_by_mode"][mode]:
+                class_snapshot = (
+                    snapshot.get("class_totals_by_mode", {}).get(mode, {})
+                    if isinstance(snapshot.get("class_totals_by_mode"), dict)
+                    else {}
+                )
                 totals["class_totals_by_mode"][mode][class_name] += direction * int(
-                    snapshot["class_totals_by_mode"][mode].get(class_name, 0)
+                    class_snapshot.get(class_name, 0)
                 )
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
@@ -7929,21 +7935,59 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else 0.0
             )
             if species_mode in {"top_class", "top_three_classes"}:
-                class_labels = list(selection_cache["class_totals_by_mode"][species_mode].keys())
+                selection_class_totals = (
+                    selection_cache.get("class_totals_by_mode", {}).get(species_mode, {})
+                )
+                database_class_totals = (
+                    database_cache.get("class_totals_by_mode", {}).get(species_mode, {})
+                )
+                selection_class_total_count = int(
+                    selection_cache.get("class_total_count_by_mode", {}).get(species_mode, 0)
+                )
+                database_class_total_count = int(
+                    database_cache.get("class_total_count_by_mode", {}).get(species_mode, 0)
+                )
+
+                if not selection_class_totals and chart_ids:
+                    selection_species = self._build_species_distribution(
+                        chart_ids=list(chart_ids),
+                        mode=species_mode,
+                    )
+                    selection_class_totals = {
+                        name: int(round(value * max(len(chart_ids), 1)))
+                        for name, value in selection_species.items()
+                    }
+                    selection_class_total_count = sum(selection_class_totals.values())
+                if not database_class_totals and database_cache.get("chart_ids"):
+                    database_species = self._build_species_distribution(
+                        chart_ids=list(database_cache.get("chart_ids", [])),
+                        mode=species_mode,
+                    )
+                    database_class_totals = {
+                        name: int(round(value * max(database_loaded_charts, 1)))
+                        for name, value in database_species.items()
+                    }
+                    database_class_total_count = sum(database_class_totals.values())
+
+                class_labels = list(
+                    selection_class_totals.keys()
+                    or database_class_totals.keys()
+                    or [definition.display_name for definition in DND_CLASSES.values()]
+                )
                 selection_species = {
                     class_name: (
-                        selection_cache["class_totals_by_mode"][species_mode][class_name]
-                        / selection_cache["class_total_count_by_mode"][species_mode]
-                        if selection_cache["class_total_count_by_mode"][species_mode]
+                        selection_class_totals.get(class_name, 0)
+                        / selection_class_total_count
+                        if selection_class_total_count
                         else 0
                     )
                     for class_name in class_labels
                 }
                 database_species = {
                     class_name: (
-                        database_cache["class_totals_by_mode"][species_mode][class_name]
-                        / database_cache["class_total_count_by_mode"][species_mode]
-                        if database_cache["class_total_count_by_mode"][species_mode]
+                        database_class_totals.get(class_name, 0)
+                        / database_class_total_count
+                        if database_class_total_count
                         else 0
                     )
                     for class_name in class_labels
@@ -8601,8 +8645,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             if _should_refresh_database_metric_section("species_distribution"):
                 if species_mode in {"top_class", "top_three_classes"}:
-                    selection_dnd_counts = selection_cache["class_totals_by_mode"][species_mode]
-                    database_dnd_counts = database_cache["class_totals_by_mode"][species_mode]
+                    selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
+                        species_mode,
+                        {},
+                    )
+                    database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
+                        species_mode,
+                        {},
+                    )
                 else:
                     selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
                     database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
@@ -8627,7 +8677,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_values=[database_species[label] for label in species_labels],
                     selection_counts=[
                         (
-                            selection_cache["class_totals_by_mode"][species_mode][label]
+                            selection_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
                             if species_mode in {"top_class", "top_three_classes"}
                             else selection_cache["species_totals_by_mode"][species_mode][label]
                         )
@@ -8635,7 +8685,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     ],
                     database_counts=[
                         (
-                            database_cache["class_totals_by_mode"][species_mode][label]
+                            database_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
                             if species_mode in {"top_class", "top_three_classes"}
                             else database_cache["species_totals_by_mode"][species_mode][label]
                         )
