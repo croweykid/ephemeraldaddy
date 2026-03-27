@@ -2015,19 +2015,23 @@ PLANET_KEYWORDS = {
     },
     "Part of Fortune": {
         "nouns": [
-            "luck", "opportunities", "connections", "breaks", "timing",
-            "advantages", "benefits", "wins", "thriving", "rhythm", "solutions", "results",
+            "luck", "ease", "flow", "wellbeing", "prosperity", "fruitfulness", "timing","tao",
+            "advantages", "support", "natural fit", "coherence", "rhythm", "thriving",
         ],
         "verbs": [
-            "getting lucky with", "finding opportunities with", "meeting the right people with", "landing a break with", "being in the right place for",
-            "taking advantage of", "benefiting", "winning", "thriving with", "finding a groove among", "making it work with", "getting results from",
+            "falling into rhythm with", "finding ease in", "benefiting from", "thriving through", "making the most of",
+           "finding opportunities with", "being in the right place for","being well-supported by", "prospering through", "landing well in", "working smoothly with",
         ],
         "verbsonly": [
-            "getting lucky", "finding opportunities", "meeting the right people", "landing a break", "being in the right place",
-            "taking advantage", "benefiting", "winning", "thriving", "finding a niche", "making it work", "getting results",
+            "finding ease", "benefiting", "thriving", "making the most", "being supported",
+            "finding a groove", "prospering", "landing well", "working smoothly","finding a niche",
+            "meeting the right people", "being in the zone", "being in the right place",
         ],
-        "explanation":[""],
+        "explanation":[
+            "the place of natural ease, embodied coherence, and conditions under which life tends to become more fruitful",
+        ],
         "archetypes":[
+            "The Tao","The Zone",
         ],
     },
     "AS": {
