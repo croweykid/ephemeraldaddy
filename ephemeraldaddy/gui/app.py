@@ -19711,6 +19711,10 @@ class MainWindow(QMainWindow):
                             float(selected_species.get("score", 0.0)),
                             dict(selected_species.get("axis_scores", {})),
                         )
+                    elif selected_species.get("kind") == "statblock":
+                        self._show_dnd_statblock_info(
+                            list(selected_species.get("profile_lines", []))
+                        )
                     else:
                         self._show_species_info(
                             str(selected_species.get("family", "Unknown Species")),
@@ -20000,6 +20004,15 @@ class MainWindow(QMainWindow):
                     "‣ Axis profile unavailable for this class assignment.",
                 ]
             )
+        )
+
+    def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
+        header = "D&D Stat Block (5-20)"
+        if profile_lines:
+            self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
+            return
+        self.chart_info_output.setPlainText(
+            "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
         )
 
     def _show_aspect_info(
