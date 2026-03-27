@@ -136,11 +136,10 @@ class _StartupLoadingWidget(QWidget):
     """Lightweight loading indicator shown during cold start."""
 
     def __init__(self) -> None:
-        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint)
+        # Use splash-screen window semantics to avoid OS-level "tool window"
+        # taskbar/alt-tab flashing during startup (especially noticeable on Windows).
+        super().__init__(None, Qt.SplashScreen | Qt.FramelessWindowHint)
         self.setWindowTitle("Starting EphemeralDaddy")
-        # During app startup keep this progress widget above other apps so
-        # launch state is always visible until a primary app window is shown.
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setStyleSheet(
             "QWidget { background-color: #141218; color: #efe9ff; }"
@@ -22649,8 +22648,6 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
     if startup_loading is None:
         startup_loading = _StartupLoadingWidget()
         startup_loading.show()
-        startup_loading.raise_()
-        startup_loading.activateWindow()
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
