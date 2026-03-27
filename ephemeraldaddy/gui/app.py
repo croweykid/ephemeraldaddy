@@ -285,8 +285,8 @@ from ephemeraldaddy.data.genpop import (
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
 
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
-    HOUSE_KEYWORDS,
     PLANET_KEYWORDS,
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
@@ -18074,11 +18074,11 @@ class MainWindow(QMainWindow):
         )
 
     def _build_house_popout_info(self, house_num: int) -> str:
-        house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
         noun_lines = [f"• {noun}" for noun in house_keywords if str(noun).strip()]
         header = f"House {house_num}"
         if not noun_lines:
-            return f"{header}\n\nNo HOUSE_KEYWORDS entries available."
+            return f"{header}\n\nNo core_domains entries available."
         return "\n".join([header, "", *noun_lines])
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
@@ -19390,7 +19390,7 @@ class MainWindow(QMainWindow):
                 return
         else:
             sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
             if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
                 self.chart_info_output.setPlainText(
                     f"No interpretation data available for {body} in {sign}, house {house_num}."
