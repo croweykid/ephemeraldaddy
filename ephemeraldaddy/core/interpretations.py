@@ -1660,16 +1660,16 @@ SIGN_KEYWORDS = {str(sign).title(): value for sign, value in SIGN_KEYWORDS.items
 PLANET_KEYWORDS = {
     "Sun": {
         "nouns": [
-            "leadership", "decisions", "self-expression", "confidence", "focus", "presence",
-            "direction", "authority", "organization", "responsibility", "visibility", "results",
+            "authority", "sovereignty", "identity", "will", "purpose", "presence",
+            "leadership", "distinction", "recognition", "direction", "conviction", "visibility",
         ],
         "verbs": [
-            "leading", "feeling confident about", "expressing", "taking charge of", "setting goals with", "choosing",
-            "focusing on", "showing up with", "exuding", "directing", "organizing", "finishing",
+            "leading", "deciding", "expressing", "commanding", "directing", "choosing",
+            "affirming", "claiming", "centering", "radiating", "authoring", "standing forth as",
         ],
         "verbsonly": [
-            "leading", "feeling confident", "expressing", "taking charge", "setting goals", "choosing",
-            "focusing", "showing up", "exuding", "directing", "organizing", "finishing",
+            "leading", "deciding", "expressing", "commanding", "directing", "choosing",
+            "affirming", "claiming", "centering", "radiating", "authoring", "standing forth",
         ],
     },
     "Moon": {
