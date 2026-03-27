@@ -24,6 +24,11 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_BODY_LOUDNESS,
     SIGN_ELEMENTS,
 )
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_element_weights,
+    calculate_dominant_house_weights,
+    calculate_mode_weights,
+)
 
 
 class AxisCategory(str, Enum):
@@ -473,9 +478,9 @@ class ClassAxisScorer:
         aspects = self._get_aspects(chart, positions)
 
         planet_prominence = self._planet_prominence(chart, positions)
-        element_balance = self._element_balance(positions)
-        mode_balance = self._mode_balance(positions)
-        house_emphasis = self._house_emphasis(positions)
+        element_balance = self._element_balance(chart, positions)
+        mode_balance = self._mode_balance(chart, positions)
+        house_emphasis = self._house_emphasis(chart, positions)
         aspect_signals = self._aspect_signals(aspects)
 
         return AxisFeatureSet(
@@ -820,7 +825,30 @@ class ClassAxisScorer:
             out[body] = _clamp01(val)
         return out
 
-    def _element_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    @staticmethod
+    def _normalize_numeric_map(values: Mapping[Any, Any]) -> Optional[Dict[Any, float]]:
+        normalized: Dict[Any, float] = {}
+        total = 0.0
+        for key, raw in values.items():
+            try:
+                value = max(0.0, float(raw))
+            except (TypeError, ValueError):
+                value = 0.0
+            normalized[key] = value
+            total += value
+        if total <= 0.0:
+            return None
+        return {key: value / total for key, value in normalized.items()}
+
+    def _element_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            dominant_element_weights = self._normalize_numeric_map(calculate_dominant_element_weights(chart))
+            if dominant_element_weights:
+                return {
+                    element: float(dominant_element_weights.get(element, 0.0))
+                    for element in ("Fire", "Earth", "Air", "Water")
+                }
+
         totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -839,7 +867,15 @@ class ClassAxisScorer:
             return totals
         return {element: value / grand_total for element, value in totals.items()}
 
-    def _mode_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _mode_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            mode_weights = self._normalize_numeric_map(calculate_mode_weights(chart))
+            if mode_weights:
+                return {
+                    mode: float(mode_weights.get(mode, 0.0))
+                    for mode in ("cardinal", "fixed", "mutable")
+                }
+
         totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -858,7 +894,17 @@ class ClassAxisScorer:
             return totals
         return {mode: value / grand_total for mode, value in totals.items()}
 
-    def _house_emphasis(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _house_emphasis(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            dominant_house_weights = self._normalize_numeric_map(calculate_dominant_house_weights(chart))
+            if dominant_house_weights:
+                return {
+                    key: float(
+                        sum(dominant_house_weights.get(house, 0.0) for house in houses)
+                    )
+                    for key, houses in EMPHASIS_HOUSE_GROUPS.items()
+                }
+
         counts = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
         total_weight = 0.0
         for body, weight in BODY_WEIGHTS.items():
