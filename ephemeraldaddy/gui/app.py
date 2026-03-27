@@ -864,6 +864,14 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             if isinstance(color, str) and color
         }
         self._transit_range_date_pattern = re.compile(r"\d{2}-\d{2}-(\d{4})(?:\s+\d{2}:\d{2})?\*?")
+        self._awareness_completion_formats = {
+            100: self._make_format("#2f9e44"),
+            75: self._make_format("#8ea63b"),
+            50: self._make_format("#d98e2f"),
+            25: self._make_format("#c24a4a"),
+            0: self._make_format("#777777"),
+        }
+        self._awareness_completion_pattern = re.compile(r"^\s*[A-Za-z ]+:\s+.+-\s+(\d{1,3})%\.\s+.*$")
 
     @staticmethod
     def _make_format(
@@ -925,6 +933,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     self._qt_len(text[span_start:span_end]),
                     body_format,
                 )
+
+        awareness_match = self._awareness_completion_pattern.match(stripped_text)
+        if awareness_match:
+            completion_raw = int(awareness_match.group(1))
+            completion = min(100, max(0, completion_raw))
+            completion_bucket = min((0, 25, 50, 75, 100), key=lambda bucket: abs(bucket - completion))
+            awareness_format = self._awareness_completion_formats.get(completion_bucket)
+            if awareness_format:
+                self.setFormat(0, self._qt_len(text), awareness_format)
         if lowered_stripped.startswith("synastry chart for "):
             self.setFormat(0, self._qt_len(text), self._section_format)
         if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:
@@ -4532,7 +4549,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         share_button.setCursor(Qt.PointingHandCursor)
         share_button.setToolTip("Export chart data output as Markdown or text")
         share_button.clicked.connect(
-            lambda _checked=False, widget=output_widget, stem=default_file_stem: self._export_popout_chart_data_output(widget, stem)
+            lambda _checked=False, widget=output_widget, stem=default_file_stem, provider=export_text_provider: self._export_popout_chart_data_output(
+                widget,
+                stem,
+                provider,
+            )
         )
         share_button.resize(22, 22)
         self._position_popout_share_button(output_widget, share_button)
@@ -5333,6 +5354,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
 
+        def _build_human_design_export_text(chart_data_text: str) -> str:
+            return "\n".join(
+                [
+                    "Human Design",
+                    f"Name:       {self._latest_chart.name}",
+                    f"Birth date: {date_label}",
+                    f"Birth time: {time_label}",
+                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    "",
+                    chart_data_text,
+                ]
+            )
+
+        summary_share_button = self._attach_popout_share_button(
+            summary_output,
+            hd_file_stem,
+            export_text_provider=lambda: _build_human_design_export_text(summary_output.toPlainText()),
+        )
+        
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
             "output_widget": summary_output,
