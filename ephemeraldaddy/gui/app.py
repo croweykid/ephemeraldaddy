@@ -646,6 +646,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
 )
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     DND_CLASSES,
+    DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
     score_class_axes,
 )
@@ -804,8 +805,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "B",
     )
 
-    def __init__(self, document) -> None:
+    def __init__(self, document, *, emphasize_dnd_class_headers: bool = False) -> None:
         super().__init__(document)
+        self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -830,6 +832,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format.setFontWeight(QFont.Bold)
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
+        self._class_header_format = QTextCharFormat(self._plain_bold_format)
+        self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._class_subheader_format = QTextCharFormat()
+        self._class_subheader_format.setFontItalic(True)
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
@@ -923,6 +929,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+        if self._emphasize_dnd_class_headers:
+            if stripped_text in DND_CLASSES:
+                self.setFormat(0, self._qt_len(text), self._class_header_format)
+            elif stripped_text and stripped_text in DND_CLASS_SUBCLASS_EXPLAINERS.values():
+                self.setFormat(0, self._qt_len(text), self._class_subheader_format)
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
@@ -16689,7 +16700,10 @@ class MainWindow(QMainWindow):
             "Click the ⓘ next to a position or aspect to see details/interpretation."
         )
         self.chart_info_output.setMinimumHeight(140)
-        self._chart_info_highlighter = ChartSummaryHighlighter(self.chart_info_output.document())
+        self._chart_info_highlighter = ChartSummaryHighlighter(
+            self.chart_info_output.document(),
+            emphasize_dnd_class_headers=True,
+        )
         self.chart_info_content_stack = QStackedWidget()
         self.chart_info_content_stack.addWidget(self.chart_info_output)
         chart_panel_layout.addWidget(self.chart_info_content_stack, 0)
@@ -19863,11 +19877,26 @@ class MainWindow(QMainWindow):
         evidence: list[str],
     ) -> None:
         header = class_name
+        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(
+            class_name,
+            "Class flavor text unavailable.",
+        )
         if evidence:
-            self.chart_info_output.setPlainText("\n".join([header, ""] + evidence))
+            bullet_lines = [f"‣ {line}" for line in evidence]
+            self.chart_info_output.setPlainText(
+                "\n".join([header, "", class_description, "", *bullet_lines])
+            )
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this class assignment."])
+            "\n".join(
+                [
+                    header,
+                    "",
+                    class_description,
+                    "",
+                    "‣ Evidence is unavailable for this class assignment.",
+                ]
+            )
         )
 
     def _show_aspect_info(
