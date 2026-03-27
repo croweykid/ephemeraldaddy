@@ -432,21 +432,6 @@ DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = tuple(
     if name in ASPECT_ANGLE_DEGREES and name in ASPECT_ORB_ALLOWANCES
 )
 
-ASPECT_ALIAS_MAP: Dict[str, str] = {
-    "conj": "conjunction",
-    "opp": "opposition",
-    "opposition": "opposition",
-    "trine": "trine",
-    "trin": "trine",
-    "square": "square",
-    "sq": "square",
-    "sextile": "sextile",
-    "sex": "sextile",
-    "quincunx": "quincunx",
-    "inconjunct": "quincunx",
-}
-
-
 @dataclass(frozen=True)
 class AxisFeatureSet:
     """Stable chart features consumed by D&D class-axis scoring."""
@@ -611,8 +596,7 @@ class ClassAxisScorer:
         return min(delta, 360.0 - delta)
 
     def _normalize_aspect_name(self, name: str) -> str:
-        lowered = str(name).strip().lower()
-        return ASPECT_ALIAS_MAP.get(lowered, lowered)
+        return str(name).strip().lower().replace(" ", "").replace("-", "")
 
     def _sign_for_longitude(self, lon: float) -> str:
         index = int((lon % 360.0) // 30.0) % 12
