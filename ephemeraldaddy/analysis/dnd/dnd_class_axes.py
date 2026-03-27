@@ -11,8 +11,16 @@ power-source rather than by costume or surface vibe.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Iterable, List, Mapping, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_ANGLE_DEGREES,
+    ASPECT_ORB_ALLOWANCES,
+    ASPECT_SCORE_WEIGHTS,
+    MODES,
+    NATAL_BODY_LOUDNESS,
+    SIGN_ELEMENTS,
+)
 
 class AxisCategory(str, Enum):
     """High-level grouping for class-assignment axes."""
@@ -392,6 +400,466 @@ def axis_display_table() -> str:
             lines.append(f"  Notes: {axis.notes}")
         lines.append("")
     return "\n".join(lines).rstrip()
+
+
+# ---------------------------------------------------------------------------
+# Chart feature extraction + provisional axis scoring
+# ---------------------------------------------------------------------------
+
+ALL_SIGNS: Tuple[str, ...] = tuple(SIGN_ELEMENTS.keys())
+SIGN_TO_MODE: Dict[str, str] = {
+    sign: mode for mode, signs in MODES.items() for sign in signs
+}
+BODY_WEIGHT_SCALE = max(float(v) for v in NATAL_BODY_LOUDNESS.values()) if NATAL_BODY_LOUDNESS else 1.0
+BODY_WEIGHTS: Dict[str, float] = {
+    body: float(weight) / BODY_WEIGHT_SCALE for body, weight in NATAL_BODY_LOUDNESS.items()
+}
+ANGULAR_HOUSES = {1, 4, 7, 10}
+EMPHASIS_HOUSE_GROUPS: Dict[str, Tuple[int, ...]] = {
+    "self": (1, 5, 8),
+    "discipline": (6, 10),
+    "secrecy": (8, 12),
+    "social": (7, 10, 11),
+    "meaning": (9, 12),
+    "craft": (3, 6, 10),
+    "healing": (6, 12),
+    "wild": (4, 9, 12),
+}
+
+DERIVED_ASPECTS: Sequence[Tuple[str, float, float]] = tuple(
+    (name, float(ASPECT_ANGLE_DEGREES[name]), float(ASPECT_ORB_ALLOWANCES[name]))
+    for name in ASPECT_SCORE_WEIGHTS
+    if name in ASPECT_ANGLE_DEGREES and name in ASPECT_ORB_ALLOWANCES
+)
+
+ASPECT_ALIAS_MAP: Dict[str, str] = {
+    "conj": "conjunction",
+    "opp": "opposition",
+    "opposition": "opposition",
+    "trine": "trine",
+    "trin": "trine",
+    "square": "square",
+    "sq": "square",
+    "sextile": "sextile",
+    "sex": "sextile",
+    "quincunx": "quincunx",
+    "inconjunct": "quincunx",
+}
+
+
+@dataclass(frozen=True)
+class AxisFeatureSet:
+    """Stable chart features consumed by D&D class-axis scoring."""
+
+    planet_prominence: Mapping[str, float]
+    element_balance: Mapping[str, float]
+    mode_balance: Mapping[str, float]
+    house_emphasis: Mapping[str, float]
+    aspect_signals: Mapping[str, float]
+
+
+class ClassAxisScorer:
+    """
+    Feature extraction + provisional axis scoring.
+
+    This class intentionally separates:
+    1) chart normalization/extraction and
+    2) axis weighting logic.
+
+    Next iteration can tune weights without changing ingestion.
+    """
+
+    def __init__(self, *, default_orb_deg: float = 6.0) -> None:
+        self.default_orb_deg = float(default_orb_deg)
+
+    def score_chart(self, chart: Any) -> Dict[str, float]:
+        return self.score_axes(self.extract_features(chart))
+
+    def extract_features(self, chart: Any) -> AxisFeatureSet:
+        positions = self._get_positions(chart)
+        aspects = self._get_aspects(chart, positions)
+
+        planet_prominence = self._planet_prominence(positions)
+        element_balance = self._element_balance(positions)
+        mode_balance = self._mode_balance(positions)
+        house_emphasis = self._house_emphasis(positions)
+        aspect_signals = self._aspect_signals(aspects)
+
+        return AxisFeatureSet(
+            planet_prominence=planet_prominence,
+            element_balance=element_balance,
+            mode_balance=mode_balance,
+            house_emphasis=house_emphasis,
+            aspect_signals=aspect_signals,
+        )
+
+    def score_axes(self, features: AxisFeatureSet) -> Dict[str, float]:
+        scores = empty_axis_scores()
+        p = features.planet_prominence
+        e = features.element_balance
+        m = features.mode_balance
+        h = features.house_emphasis
+        a = features.aspect_signals
+
+        scores["discipline"] = (
+            0.42 * p.get("Saturn", 0.0)
+            + 0.24 * p.get("Mars", 0.0)
+            + 0.22 * h.get("discipline", 0.0)
+            + 0.12 * m.get("fixed", 0.0)
+        )
+        scores["instinct"] = (
+            0.37 * p.get("Moon", 0.0)
+            + 0.25 * p.get("Mars", 0.0)
+            + 0.18 * (e.get("Fire", 0.0) + e.get("Earth", 0.0))
+            + 0.20 * h.get("wild", 0.0)
+        )
+        scores["study"] = (
+            0.45 * p.get("Mercury", 0.0)
+            + 0.22 * p.get("Saturn", 0.0)
+            + 0.18 * h.get("craft", 0.0)
+            + 0.15 * (e.get("Air", 0.0) + e.get("Earth", 0.0))
+        )
+        scores["faith"] = (
+            0.44 * p.get("Jupiter", 0.0)
+            + 0.21 * p.get("Neptune", 0.0)
+            + 0.23 * h.get("meaning", 0.0)
+            + 0.12 * a.get("cohesion", 0.0)
+        )
+        scores["innate_power"] = (
+            0.34 * p.get("Sun", 0.0)
+            + 0.26 * p.get("Jupiter", 0.0)
+            + 0.20 * p.get("Pluto", 0.0)
+            + 0.20 * h.get("self", 0.0)
+        )
+        scores["patron_reliance"] = (
+            0.40 * p.get("Pluto", 0.0)
+            + 0.24 * p.get("Neptune", 0.0)
+            + 0.22 * h.get("secrecy", 0.0)
+            + 0.14 * a.get("tension", 0.0)
+        )
+        scores["performance"] = (
+            0.34 * p.get("Venus", 0.0)
+            + 0.24 * p.get("Mercury", 0.0)
+            + 0.26 * h.get("social", 0.0)
+            + 0.16 * (e.get("Air", 0.0) + e.get("Fire", 0.0))
+        )
+        scores["nature_attunement"] = (
+            0.34 * p.get("Moon", 0.0)
+            + 0.22 * p.get("Venus", 0.0)
+            + 0.22 * p.get("Jupiter", 0.0)
+            + 0.22 * h.get("wild", 0.0)
+        )
+        scores["technical_inventiveness"] = (
+            0.42 * p.get("Mercury", 0.0)
+            + 0.23 * p.get("Uranus", 0.0)
+            + 0.20 * p.get("Saturn", 0.0)
+            + 0.15 * h.get("craft", 0.0)
+        )
+        scores["stealth_indirection"] = (
+            0.33 * p.get("Mercury", 0.0)
+            + 0.27 * p.get("Pluto", 0.0)
+            + 0.20 * p.get("Neptune", 0.0)
+            + 0.20 * h.get("secrecy", 0.0)
+        )
+        scores["frontline_courage"] = (
+            0.42 * p.get("Mars", 0.0)
+            + 0.26 * p.get("Sun", 0.0)
+            + 0.20 * h.get("self", 0.0)
+            + 0.12 * e.get("Fire", 0.0)
+        )
+        scores["control_planning"] = (
+            0.38 * p.get("Saturn", 0.0)
+            + 0.28 * p.get("Mercury", 0.0)
+            + 0.22 * h.get("craft", 0.0)
+            + 0.12 * m.get("cardinal", 0.0)
+        )
+        scores["mercy_restoration"] = (
+            0.33 * p.get("Moon", 0.0)
+            + 0.29 * p.get("Venus", 0.0)
+            + 0.22 * p.get("Jupiter", 0.0)
+            + 0.16 * h.get("healing", 0.0)
+        )
+        scores["risk_appetite"] = (
+            0.32 * p.get("Mars", 0.0)
+            + 0.28 * p.get("Uranus", 0.0)
+            + 0.20 * p.get("Jupiter", 0.0)
+            + 0.20 * a.get("volatility", 0.0)
+        )
+        scores["social_leadership"] = (
+            0.34 * p.get("Sun", 0.0)
+            + 0.24 * p.get("Jupiter", 0.0)
+            + 0.20 * p.get("Venus", 0.0)
+            + 0.22 * h.get("social", 0.0)
+        )
+
+        return {key: self._clamp01(value) for key, value in scores.items()}
+
+    @staticmethod
+    def _first_non_none(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    @staticmethod
+    def _clamp01(value: float) -> float:
+        return max(0.0, min(1.0, float(value)))
+
+    @staticmethod
+    def _angular_distance(a: float, b: float) -> float:
+        delta = abs((a - b) % 360.0)
+        return min(delta, 360.0 - delta)
+
+    def _normalize_aspect_name(self, name: str) -> str:
+        lowered = str(name).strip().lower()
+        return ASPECT_ALIAS_MAP.get(lowered, lowered)
+
+    def _sign_for_longitude(self, lon: float) -> str:
+        index = int((lon % 360.0) // 30.0) % 12
+        return ALL_SIGNS[index]
+
+    def _house_for_longitude(self, houses: Any, lon: float) -> Optional[int]:
+        if not houses:
+            return None
+        if isinstance(houses, Mapping):
+            for house_key, value in houses.items():
+                try:
+                    cusp = float(value)
+                except (TypeError, ValueError):
+                    continue
+                next_house = (int(house_key) % 12) + 1
+                next_value = houses.get(next_house, houses.get(str(next_house)))
+                if next_value is None:
+                    continue
+                try:
+                    next_cusp = float(next_value)
+                except (TypeError, ValueError):
+                    continue
+                start = cusp % 360.0
+                end = next_cusp % 360.0
+                if start <= end and start <= lon < end:
+                    return int(house_key)
+                if start > end and (lon >= start or lon < end):
+                    return int(house_key)
+        return None
+
+    def _from_native_chart(self, chart: Any) -> Dict[str, Dict[str, Any]]:
+        raw_positions = getattr(chart, "positions", {}) or {}
+        houses = getattr(chart, "houses", None)
+        out: Dict[str, Dict[str, Any]] = {}
+        for body, raw in raw_positions.items():
+            lon: Optional[float] = None
+            sign: Optional[str] = None
+            house: Optional[int] = None
+            if isinstance(raw, Mapping):
+                lon = self._first_non_none(raw.get("lon"), raw.get("longitude"), raw.get("ecl_lon"), raw.get("deg"))
+                sign = raw.get("sign")
+                house = raw.get("house")
+            else:
+                try:
+                    lon = float(raw)
+                except (TypeError, ValueError):
+                    lon = None
+
+            if lon is not None:
+                lon = float(lon) % 360.0
+                sign = str(sign) if sign else self._sign_for_longitude(lon)
+                if house is None:
+                    house = self._house_for_longitude(houses, lon)
+
+            if lon is None and sign is None:
+                continue
+            out[str(body)] = {
+                "lon": lon,
+                "sign": str(sign) if sign else None,
+                "house": int(house) if house is not None else None,
+            }
+        return out
+
+    def _get_positions(self, chart: Any) -> Dict[str, Dict[str, Any]]:
+        if hasattr(chart, "positions") and isinstance(getattr(chart, "positions"), Mapping):
+            return self._from_native_chart(chart)
+
+        raw_positions = chart.get("positions") or chart.get("planets") or {}
+        if not isinstance(raw_positions, Mapping):
+            raise TypeError("chart['positions'] (or chart['planets']) must be a mapping")
+
+        out: Dict[str, Dict[str, Any]] = {}
+        for body, raw in raw_positions.items():
+            if not isinstance(raw, Mapping):
+                continue
+            lon = self._first_non_none(raw.get("lon"), raw.get("longitude"), raw.get("ecl_lon"), raw.get("deg"))
+            sign = raw.get("sign")
+            house = raw.get("house")
+            lon_value: Optional[float] = None
+            if lon is not None:
+                lon_value = float(lon) % 360.0
+            sign_value = str(sign) if sign else None
+            if sign_value is None and lon_value is not None:
+                sign_value = self._sign_for_longitude(lon_value)
+            out[str(body)] = {
+                "lon": lon_value,
+                "sign": sign_value,
+                "house": int(house) if house is not None else None,
+            }
+        return out
+
+    def _derive_aspects(self, positions: Mapping[str, Mapping[str, Any]]) -> List[Dict[str, Any]]:
+        bodies = list(positions.keys())
+        out: List[Dict[str, Any]] = []
+        for i, p1 in enumerate(bodies):
+            lon1 = positions[p1].get("lon")
+            if lon1 is None:
+                continue
+            for p2 in bodies[i + 1 :]:
+                lon2 = positions[p2].get("lon")
+                if lon2 is None:
+                    continue
+                angle = self._angular_distance(float(lon1), float(lon2))
+                best: Optional[Tuple[str, float]] = None
+                for aspect_name, target_deg, orb_allowance in DERIVED_ASPECTS:
+                    orb = abs(angle - target_deg)
+                    allowance = orb_allowance if orb_allowance > 0 else self.default_orb_deg
+                    if orb <= allowance:
+                        if best is None or orb < best[1]:
+                            best = (aspect_name, orb)
+                if best:
+                    out.append({"p1": p1, "p2": p2, "aspect": best[0], "orb": best[1]})
+        return out
+
+    def _get_aspects(
+        self,
+        chart: Any,
+        positions: Mapping[str, Mapping[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        raw = chart.get("aspects") if isinstance(chart, Mapping) else getattr(chart, "aspects", None)
+        if isinstance(raw, list) and raw:
+            out: List[Dict[str, Any]] = []
+            for item in raw:
+                if not isinstance(item, Mapping):
+                    continue
+                p1 = str(item.get("p1") or item.get("planet1") or item.get("from") or "")
+                p2 = str(item.get("p2") or item.get("planet2") or item.get("to") or "")
+                if not p1 or not p2:
+                    continue
+                aspect = self._normalize_aspect_name(str(item.get("aspect") or item.get("type") or ""))
+                if not aspect:
+                    continue
+                orb_raw = self._first_non_none(item.get("orb"), item.get("delta"))
+                out.append(
+                    {
+                        "p1": p1,
+                        "p2": p2,
+                        "aspect": aspect,
+                        "orb": abs(float(orb_raw)) if orb_raw is not None else None,
+                    }
+                )
+            if out:
+                return out
+        return self._derive_aspects(positions)
+
+    def _planet_prominence(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        out: Dict[str, float] = {body: 0.0 for body in BODY_WEIGHTS}
+        for body in out:
+            if body not in positions:
+                continue
+            val = BODY_WEIGHTS.get(body, 0.0)
+            house = positions[body].get("house")
+            if house in ANGULAR_HOUSES:
+                val += 0.15
+            out[body] = self._clamp01(val)
+        return out
+
+    def _element_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
+        grand_total = 0.0
+        for body, weight in BODY_WEIGHTS.items():
+            pos = positions.get(body)
+            if not pos:
+                continue
+            sign = pos.get("sign")
+            if not sign:
+                continue
+            element = SIGN_ELEMENTS.get(str(sign))
+            if element not in totals:
+                continue
+            totals[element] += weight
+            grand_total += weight
+        if grand_total <= 0:
+            return totals
+        return {element: value / grand_total for element, value in totals.items()}
+
+    def _mode_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
+        grand_total = 0.0
+        for body, weight in BODY_WEIGHTS.items():
+            pos = positions.get(body)
+            if not pos:
+                continue
+            sign = pos.get("sign")
+            if not sign:
+                continue
+            mode = SIGN_TO_MODE.get(str(sign))
+            if mode not in totals:
+                continue
+            totals[mode] += weight
+            grand_total += weight
+        if grand_total <= 0:
+            return totals
+        return {mode: value / grand_total for mode, value in totals.items()}
+
+    def _house_emphasis(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        counts = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
+        total_weight = 0.0
+        for body, weight in BODY_WEIGHTS.items():
+            pos = positions.get(body)
+            if not pos:
+                continue
+            house = pos.get("house")
+            if not isinstance(house, int):
+                continue
+            for key, houses in EMPHASIS_HOUSE_GROUPS.items():
+                if house in houses:
+                    counts[key] += weight
+            total_weight += weight
+        if total_weight <= 0:
+            return counts
+        return {key: value / total_weight for key, value in counts.items()}
+
+    def _aspect_signals(self, aspects: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
+        totals = {"tension": 0.0, "cohesion": 0.0, "volatility": 0.0}
+        for asp in aspects:
+            aspect = self._normalize_aspect_name(str(asp.get("aspect") or ""))
+            if not aspect:
+                continue
+            base = float(ASPECT_SCORE_WEIGHTS.get(aspect, 0.0))
+            if base <= 0:
+                continue
+            orb = asp.get("orb")
+            orb_allowance = float(ASPECT_ORB_ALLOWANCES.get(aspect, self.default_orb_deg))
+            orb_decay = 1.0
+            if orb is not None and orb_allowance > 0:
+                orb_decay = self._clamp01(1.0 - (float(orb) / orb_allowance))
+            weight = base * orb_decay
+            if aspect in {"square", "opposition", "semisquare", "sesquiquadrate"}:
+                totals["tension"] += weight
+            if aspect in {"trine", "sextile", "conjunction"}:
+                totals["cohesion"] += weight
+            if aspect in {"conjunction", "square", "opposition", "quincunx"}:
+                totals["volatility"] += weight
+
+        norm = max(1.0, totals["tension"] + totals["cohesion"] + totals["volatility"])
+        return {key: value / norm for key, value in totals.items()}
+
+
+def extract_class_axis_features(chart: Any) -> AxisFeatureSet:
+    """Public convenience wrapper for chart -> feature extraction."""
+    return ClassAxisScorer().extract_features(chart)
+
+
+def score_class_axes(chart: Any) -> Dict[str, float]:
+    """Public convenience wrapper for chart -> axis scores."""
+    return ClassAxisScorer().score_chart(chart)
 
 
 if __name__ == "__main__":
