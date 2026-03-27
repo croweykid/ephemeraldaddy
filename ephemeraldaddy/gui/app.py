@@ -2643,14 +2643,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "manage_charts/sign_distribution_mode",
             self._sign_distribution_mode,
         )
-        if isinstance(stored_sign_mode, str):
+        if isinstance(stored_sign_mode, str) and stored_sign_mode in {
+            body for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
+        }:
             self._sign_distribution_mode = stored_sign_mode
 
         stored_prevalence_mode = self._settings.value(
             "manage_charts/prevalence_mode",
             self._prevalence_mode,
         )
-        if isinstance(stored_prevalence_mode, str):
+        if isinstance(stored_prevalence_mode, str) and stored_prevalence_mode in {
+            option for _label, option in PREVALENCE_DROPDOWN_OPTIONS
+        }:
             self._prevalence_mode = stored_prevalence_mode
 
         stored_dominant_factors_mode = self._settings.value(
@@ -2658,52 +2662,81 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._dominant_factors_mode,
         )
         if isinstance(stored_dominant_factors_mode, str):
-            self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
+            normalized_dominant_mode = {
+                "dominant_signs": "top3_signs",
+                "dominant_planets": "top3_planets",
+                "dominant_houses": "top3_houses",
+                "dominant_sign_frequency": "top3_signs",
+            }.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
+            if normalized_dominant_mode in {
+                option for _label, option in DOMINANT_FACTORS_DROPDOWN_OPTIONS
+            }:
+                self._dominant_factors_mode = normalized_dominant_mode
 
         stored_cumulativedom_factors_mode = self._settings.value(
             "manage_charts/cumulativedom_factors_mode",
             self._cumulativedom_factors_mode,
         )
         if isinstance(stored_cumulativedom_factors_mode, str):
-            self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
+            normalized_cumulative_mode = {
+                "cumulativedom_signs": "cumulative_signs",
+                "cumulativedom_planets": "cumulative_planets",
+                "cumulativedom_houses": "cumulative_houses",
+            }.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
+            if normalized_cumulative_mode in {
+                option for _label, option in CUMULATIVEDOM_FACTORS_DROPDOWN_OPTIONS
+            }:
+                self._cumulativedom_factors_mode = normalized_cumulative_mode
 
         stored_species_mode = self._settings.value(
             "manage_charts/species_distribution_mode",
             self._species_distribution_mode,
         )
         if isinstance(stored_species_mode, str):
-            self._species_distribution_mode = {
+            normalized_species_mode = {
                 "top_ranked": "top_species",
                 "top_three_ranked": "top_three_species",
                 "top_two_three_only": "top_three_species",
             }.get(stored_species_mode, stored_species_mode)
+            if normalized_species_mode in {
+                option for _label, option in SPECIES_DROPDOWN_OPTIONS
+            }:
+                self._species_distribution_mode = normalized_species_mode
 
         stored_birth_time_mode = self._settings.value(
             "manage_charts/birth_time_mode",
             self._birth_time_mode,
         )
-        if isinstance(stored_birth_time_mode, str):
+        if isinstance(stored_birth_time_mode, str) and stored_birth_time_mode in {
+            option for _label, option in BIRTH_TIME_DROPDOWN_OPTIONS
+        }:
             self._birth_time_mode = stored_birth_time_mode
 
         stored_age_mode = self._settings.value(
             "manage_charts/age_mode",
             self._age_mode,
         )
-        if isinstance(stored_age_mode, str):
+        if isinstance(stored_age_mode, str) and stored_age_mode in {
+            option for _label, option in AGE_DROPDOWN_OPTIONS
+        }:
             self._age_mode = stored_age_mode
 
         stored_birth_month_mode = self._settings.value(
             "manage_charts/birth_month_mode",
             self._birth_month_mode,
         )
-        if isinstance(stored_birth_month_mode, str):
+        if isinstance(stored_birth_month_mode, str) and stored_birth_month_mode in {
+            option for _label, option in BIRTH_MONTH_DROPDOWN_OPTIONS
+        }:
             self._birth_month_mode = stored_birth_month_mode
 
         stored_birthplace_mode = self._settings.value(
             "manage_charts/birthplace_mode",
             self._birthplace_mode,
         )
-        if isinstance(stored_birthplace_mode, str):
+        if isinstance(stored_birthplace_mode, str) and stored_birthplace_mode in {
+            option for _label, option in BIRTHPLACE_DROPDOWN_OPTIONS
+        }:
             self._birthplace_mode = stored_birthplace_mode
 
         stored_gender_mode = self._settings.value(
@@ -13149,6 +13182,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     and self._active_left_panel == "similarities"
                 ),
             )
+        except Exception as exc:
+            logger.exception("Selection-change analytics refresh failed: %s", exc)
         finally:
             if active_left_scrollbar is not None and active_left_scroll_value is not None:
                 self._restore_scrollbar_position(
@@ -14000,9 +14035,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
             sample = malformed_rows[0]
-            raise RuntimeError(
-                "list_charts() returned malformed MUTANT row data. "
-                f"Example row: {sample!r}"
+            logger.warning(
+                "list_charts() returned malformed row data; skipping invalid rows. Example row: %r",
+                sample,
             )
         if force_full_analysis_refresh:
             self._chart_cache = {}
