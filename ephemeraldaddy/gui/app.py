@@ -19140,6 +19140,92 @@ class MainWindow(QMainWindow):
             margin,
         )
 
+    def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
+        viewport = output_widget.viewport()
+        margin = 6
+        button.move(
+            max(margin, viewport.x() + viewport.width() - button.width() - margin),
+            max(margin, viewport.y() + margin),
+        )
+        button.raise_()
+        button.show()
+
+    def _attach_popout_share_button(
+        self,
+        output_widget: QPlainTextEdit,
+        default_file_stem: str,
+        export_text_provider: Callable[[], str] | None = None,
+    ) -> QToolButton:
+        share_button = QToolButton(output_widget)
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            share_button.setIcon(QIcon(share_icon_path))
+            share_button.setIconSize(QSize(14, 14))
+        else:
+            share_button.setText("↗")
+        share_button.setAutoRaise(True)
+        share_button.setCursor(Qt.PointingHandCursor)
+        share_button.setToolTip("Export chart data output as Markdown or text")
+        share_button.clicked.connect(
+            lambda _checked=False, widget=output_widget, stem=default_file_stem, provider=export_text_provider: self._export_popout_chart_data_output(
+                widget,
+                stem,
+                provider,
+            )
+        )
+        share_button.resize(22, 22)
+        self._position_popout_share_button(output_widget, share_button)
+        return share_button
+
+    def _export_popout_chart_data_output(
+        self,
+        output_widget: QPlainTextEdit,
+        default_file_stem: str,
+        export_text_provider: Callable[[], str] | None = None,
+    ) -> None:
+        if callable(export_text_provider):
+            summary_text = export_text_provider().strip()
+        else:
+            summary_text = output_widget.toPlainText().strip()
+        if not summary_text:
+            QMessageBox.information(
+                self,
+                "Nothing to export",
+                "Generate or load a chart before exporting chart data output.",
+            )
+            return
+
+        safe_stem = self._sanitize_export_token(default_file_stem, fallback="chart_data_output")
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Chart Data Output",
+            f"{safe_stem}.md",
+            "Markdown Files (*.md);;Text Files (*.txt)",
+        )
+        if not file_path:
+            return
+
+        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
+        if not file_path.lower().endswith((".md", ".txt")):
+            file_path = f"{file_path}{selected_extension}"
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as output_file:
+                output_file.write(summary_text)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                f"Could not export chart data output:\n{e}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Export complete",
+            f"Saved chart data output to:\n{file_path}",
+        )
+
     def _set_chart_info_panel_mode(self, mode: str) -> None:
         if mode not in {"chart_info", "comments", "source"}:
             return
