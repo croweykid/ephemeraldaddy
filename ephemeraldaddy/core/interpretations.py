@@ -1954,7 +1954,7 @@ PLANET_KEYWORDS = {
     "Rahu": {
         "nouns": [
             "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
-            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness", "more",
+            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness",
         ],
         "verbs": [
             "wanting more from", "chasing", "fixating on", "amplifying", "overreaching toward", "becoming fascinated with",
@@ -1968,17 +1968,17 @@ PLANET_KEYWORDS = {
             "the appetite that does not know when it is fed: fixation, worldly hunger, and the restless pursuit of what seems necessary for completion",
         ],
         "archetypes": [
-            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother",
+            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother","Alakshmi",
         ],
     },
     "Ketu": {
         "nouns": [
-            "detachment", "severance", "release", "renunciation", "withdrawal", "distance",
-            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution",
+            "detachment", "severance", "release", "renunciation", "withdrawal", "distance","disenchantment", "spent appetite",
+            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution", "end of an era","hollow victories",
         ],
         "verbs": [
             "letting go of", "quitting", "walking away from", "detaching from", "withdrawing from", "cutting off",
-            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from","finding only emptiness in", 
         ],
         "verbsonly": [
             "letting go", "quitting", "walking away", "detaching", "withdrawing", "cutting off",
@@ -1988,7 +1988,7 @@ PLANET_KEYWORDS = {
             "the severing principle: release, detachment, and the strange familiarity that no longer promises fulfillment.",
         ],
         "archetypes": [
-            "the renunciant", "the cast-off skin", "was a big fish in a small pond, now leaving the old small town to seek something grander",
+            "the renunciant", "the cast-off skin", "being fed up with this small town like you're in a Bruce Springsteen song","Rambo when he swore he'd never go back for one more job","the one who knows how the trick works and that it isn't actually magic",
         ],
     },
     "Lilith": {

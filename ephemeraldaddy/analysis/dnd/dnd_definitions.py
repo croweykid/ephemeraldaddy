@@ -14,7 +14,7 @@ SPECIES_FAMILIES: List[str] = [
     "Fey",
     "Genasi",
     "Spirits",
-    "Gnome",
+    "Gnome", #no subtypes
     "Half-orcs",  #no subtypes
     "Halfling",
     "Human",
@@ -129,6 +129,7 @@ SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Genasi::Mud": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
     "Genasi::Ice": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
 
+    "Gnome": "Small overclocked citizen arrives with bright eyes, quick hands, and the unmistakable air of someone about to 'improve' things beyond your ability to recognize or possibly use them.",
     "Half-orcs": "Large practical citizen continues combining blunt force, bruised dignity, and better judgment than locals gave them credit for.",
 
     "Spirits": "Formerly alive presence continues declining to let material inconvenience settle the matter.",
