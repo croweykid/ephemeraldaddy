@@ -611,8 +611,14 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_COLON_LABELS,
     CHART_AXES_STYLE,
     CHART_DATA_COMMON_LABELS,
+    CHART_DATA_DND_SUBHEADER_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
+    CHART_INFO_EVIDENCE_LABEL_BOLD,
+    CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
+    CHART_INFO_SPECIES_HEADER_COLOR,
     CHART_DATA_DIVIDER,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
@@ -644,6 +650,7 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.dnd.dnd_definitions import SPECIES_DESCRIPTIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     build_class_axis_profile_lines,
     DND_CLASS_AXIS_EARTHTONE_COLORS,
@@ -810,9 +817,16 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "B",
     )
 
-    def __init__(self, document, *, emphasize_dnd_class_headers: bool = False) -> None:
+    def __init__(
+        self,
+        document,
+        *,
+        emphasize_dnd_class_headers: bool = False,
+        emphasize_species_info_headers: bool = False,
+    ) -> None:
         super().__init__(document)
         self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
+        self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -841,6 +855,17 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._class_subheader_format = QTextCharFormat()
         self._class_subheader_format.setFontItalic(True)
+        self._species_header_format = QTextCharFormat(self._plain_bold_format)
+        self._species_header_format.setForeground(QColor(CHART_INFO_SPECIES_HEADER_COLOR))
+        self._species_subheader_format = QTextCharFormat()
+        self._species_subheader_format.setFontItalic(CHART_INFO_SPECIES_DESCRIPTION_ITALIC)
+        self._dnd_subheader_format = QTextCharFormat()
+        if CHART_DATA_DND_SUBHEADER_BOLD:
+            self._dnd_subheader_format.setFontWeight(QFont.Bold)
+        self._dnd_subheader_note_format = QTextCharFormat()
+        self._dnd_subheader_note_format.setFontItalic(CHART_DATA_DND_SUBHEADER_NOTE_ITALIC)
+        if CHART_DATA_DND_SUBHEADER_NOTE_BOLD:
+            self._dnd_subheader_note_format.setFontWeight(QFont.Bold)
         self._dnd_threshold_format = self._make_format(DND_CLASS_THRESHOLD_COLOR)
         self._dnd_axis_line_formats = {
             format_class_axis_label(axis_name): self._make_format(color)
@@ -916,6 +941,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return cls._qt_len(text[:index])
 
     def highlightBlock(self, text: str) -> None:
+        if self.previousBlockState() == 1:
+            self.setFormat(0, self._qt_len(text), self._species_subheader_format)
+            self.setCurrentBlockState(0)
+            return
+
         lowered = text.lower()
         for needle in self._unknown_needles:
             start = 0
@@ -956,6 +986,38 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                                 self._dnd_threshold_format,
                             )
                         break
+        if self._emphasize_species_info_headers:
+            if stripped_text == "Evidence:" and CHART_INFO_EVIDENCE_LABEL_BOLD:
+                self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+            elif " • " in stripped_text and re.search(r" • -?\d+(?:\.\d+)?$", stripped_text):
+                header_part, _, _score_part = stripped_text.partition(" • ")
+                if any(
+                    header_part == species or header_part.startswith(f"{species} (")
+                    for species in SPECIES_FAMILIES
+                ):
+                    header_len = len(header_part)
+                    self.setFormat(
+                        self._qt_index(text, 0),
+                        self._qt_len(text[:header_len]),
+                        self._species_header_format,
+                    )
+                    self.setCurrentBlockState(1)
+        if stripped_text == "Top 3 Species":
+            self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
+        elif stripped_text.startswith("Top 3 Classes*"):
+            classes_header_prefix = "Top 3 Classes*"
+            self.setFormat(
+                self._qt_index(text, 0),
+                self._qt_len(classes_header_prefix),
+                self._dnd_subheader_format,
+            )
+            note_index = text.find("(")
+            if note_index != -1:
+                self.setFormat(
+                    self._qt_index(text, note_index),
+                    self._qt_len(text[note_index:]),
+                    self._dnd_subheader_note_format,
+                )
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
@@ -10035,7 +10097,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&D-ification"
+            "D&&D-ification"
         )
         class_filter_row = QHBoxLayout()
         class_filter_row.addWidget(QLabel("Top 3 Classes"))
@@ -12976,7 +13038,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Pallas", "Pallas"),
             ("Juno", "Juno"),
             ("Vesta", "Vesta"),
-            ("Lilith", "Lilith"),
+            ("Black Moon Lilith", "Lilith"),
             ("Part of Fortune", "Part of Fortune"),
             ("AS", "AS"),
             ("IC", "IC"),
@@ -16725,6 +16787,7 @@ class MainWindow(QMainWindow):
         self._chart_info_highlighter = ChartSummaryHighlighter(
             self.chart_info_output.document(),
             emphasize_dnd_class_headers=True,
+            emphasize_species_info_headers=True,
         )
         self.chart_info_content_stack = QStackedWidget()
         self.chart_info_content_stack.addWidget(self.chart_info_output)
@@ -19888,13 +19951,28 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        header = f"{family} ({subtype}) • {score:.2f}"
+        label = f"{family} ({subtype})" if subtype else family
+        header = f"{label} • {score:.2f}"
+        species_description = SPECIES_DESCRIPTIONS.get(family, "")
+        subtype_key = f"{family}::{subtype}" if subtype else ""
+        subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
+        description_parts = [part for part in (species_description, subtype_description) if part]
+        description_line = " ".join(description_parts) if description_parts else "Species flavor text unavailable."
         if evidence:
             lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            self.chart_info_output.setPlainText(
+                "\n".join([header, description_line, "", "Evidence:"] + lines)
+            )
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
+            "\n".join(
+                [
+                    header,
+                    description_line,
+                    "",
+                    "• Evidence is unavailable for this species assignment.",
+                ]
+            )
         )
 
     def _show_dnd_class_info(
