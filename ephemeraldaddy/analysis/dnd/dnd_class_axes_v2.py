@@ -471,7 +471,7 @@ class ClassAxisScorer:
         positions = self._get_positions(chart)
         aspects = self._get_aspects(chart, positions)
 
-        planet_prominence = self._planet_prominence(positions)
+        planet_prominence = self._planet_prominence(chart, positions)
         element_balance = self._element_balance(positions)
         mode_balance = self._mode_balance(positions)
         house_emphasis = self._house_emphasis(positions)
@@ -745,8 +745,39 @@ class ClassAxisScorer:
                 return out
         return self._derive_aspects(positions)
 
-    def _planet_prominence(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _planet_prominence(
+        self,
+        chart: Any,
+        positions: Mapping[str, Mapping[str, Any]],
+    ) -> Dict[str, float]:
         out: Dict[str, float] = {body: 0.0 for body in BODY_WEIGHTS}
+
+        raw_dominance: Any = None
+        if isinstance(chart, Mapping):
+            raw_dominance = chart.get("dominant_planet_weights")
+        else:
+            raw_dominance = getattr(chart, "dominant_planet_weights", None)
+
+        if isinstance(raw_dominance, Mapping):
+            normalized_dominance: Dict[str, float] = {}
+            for body in BODY_WEIGHTS:
+                raw_value = raw_dominance.get(body, raw_dominance.get(body.lower(), 0.0))
+                try:
+                    normalized_dominance[body] = max(0.0, float(raw_value))
+                except (TypeError, ValueError):
+                    normalized_dominance[body] = 0.0
+            total = sum(normalized_dominance.values())
+            if total > 0:
+                for body in out:
+                    if body not in positions:
+                        continue
+                    val = normalized_dominance.get(body, 0.0) / total
+                    house = positions[body].get("house")
+                    if house in ANGULAR_HOUSES:
+                        val += 0.15
+                    out[body] = _clamp01(val)
+                return out
+
         for body in out:
             if body not in positions:
                 continue
