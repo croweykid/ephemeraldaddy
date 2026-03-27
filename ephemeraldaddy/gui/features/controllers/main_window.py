@@ -239,9 +239,9 @@ class ChartAnalysisSectionsController:
             section_key="dominant_signs",
             section_title="Signs",
             header_title="Dominant Signs",
-            subtitle_text="Dominant Signs: weighted dominant-sign share across charts.",
+            subtitle_text="Signs evaluated with priority weights (rulerships/houses/signs/etc).",
             subtitle_by_mode={
-                "dominant_signs": "Dominant Signs: weighted dominant-sign share across charts.",
+                "dominant_signs": "Signs evaluated with priority weights (rulerships/houses/signs/etc).",
                 "sign_prevalence": "Total distribution of signs across chart, equally weighted.",
             },
             default_filename="ephemeraldaddy_chart_dominant_signs",
