@@ -22,6 +22,7 @@ from ephemeraldaddy.core.interpretations import (
     MODES,
     NATAL_BODY_LOUDNESS,
     SIGN_ELEMENTS,
+    ZODIAC_NAMES,
 )
 
 
@@ -472,9 +473,9 @@ class ClassAxisScorer:
         aspects = self._get_aspects(chart, positions)
 
         planet_prominence = self._planet_prominence(chart, positions)
-        element_balance = self._element_balance(positions)
-        mode_balance = self._mode_balance(positions)
-        house_emphasis = self._house_emphasis(positions)
+        element_balance = self._element_balance(chart, positions)
+        mode_balance = self._mode_balance(chart, positions)
+        house_emphasis = self._house_emphasis(chart, positions)
         aspect_signals = self._aspect_signals(aspects)
 
         return AxisFeatureSet(
@@ -788,7 +789,44 @@ class ClassAxisScorer:
             out[body] = _clamp01(val)
         return out
 
-    def _element_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    @staticmethod
+    def _normalize_numeric_map(values: Mapping[Any, Any]) -> Optional[Dict[Any, float]]:
+        normalized: Dict[Any, float] = {}
+        total = 0.0
+        for key, raw in values.items():
+            try:
+                value = max(0.0, float(raw))
+            except (TypeError, ValueError):
+                value = 0.0
+            normalized[key] = value
+            total += value
+        if total <= 0.0:
+            return None
+        return {key: value / total for key, value in normalized.items()}
+
+    @staticmethod
+    def _get_chart_map(chart: Any, attribute: str) -> Optional[Mapping[Any, Any]]:
+        raw: Any = None
+        if isinstance(chart, Mapping):
+            raw = chart.get(attribute)
+        else:
+            raw = getattr(chart, attribute, None)
+        if isinstance(raw, Mapping):
+            return raw
+        return None
+
+    def _element_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        dominant_sign_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_sign_weights") or {}
+        )
+        if dominant_sign_weights:
+            element_totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
+            for sign in ZODIAC_NAMES:
+                element = SIGN_ELEMENTS.get(sign)
+                if element in element_totals:
+                    element_totals[element] += float(dominant_sign_weights.get(sign, 0.0))
+            return element_totals
+
         totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -807,7 +845,20 @@ class ClassAxisScorer:
             return totals
         return {element: value / grand_total for element, value in totals.items()}
 
-    def _mode_balance(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _mode_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        dominant_sign_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_sign_weights") or {}
+        )
+        if dominant_sign_weights:
+            mode_totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
+            for sign in ZODIAC_NAMES:
+                sign_weight = float(dominant_sign_weights.get(sign, 0.0))
+                for mode, signs in MODES.items():
+                    if sign in signs and mode in mode_totals:
+                        mode_totals[mode] += sign_weight
+                        break
+            return mode_totals
+
         totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -826,7 +877,21 @@ class ClassAxisScorer:
             return totals
         return {mode: value / grand_total for mode, value in totals.items()}
 
-    def _house_emphasis(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _house_emphasis(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        dominant_house_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_house_weights") or {}
+        )
+        if dominant_house_weights:
+            return {
+                key: float(
+                    sum(
+                        dominant_house_weights.get(house, dominant_house_weights.get(str(house), 0.0))
+                        for house in houses
+                    )
+                )
+                for key, houses in EMPHASIS_HOUSE_GROUPS.items()
+            }
+
         counts = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
         total_weight = 0.0
         for body, weight in BODY_WEIGHTS.items():
