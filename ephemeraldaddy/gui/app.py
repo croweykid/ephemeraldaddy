@@ -484,6 +484,10 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     render_anagrams_html,
     render_anagrams_text,
 )
+from ephemeraldaddy.gui.features.charts.render_queue import (
+    ChartRenderQueueState,
+    RenderQueuePriority,
+)
 from ephemeraldaddy.gui.features.charts.similarity_norms import (
     SIMILARITY_THRESHOLD_EDITOR_ROWS,
     SimilarityThresholds,
@@ -7121,16 +7125,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             except Exception:
                 ranked_classes = []
             if ranked_classes:
-                top_class_key, _top_class_score = ranked_classes[0]
-                top_class_definition = DND_CLASSES.get(top_class_key)
-                top_class_name = (
-                    top_class_definition.display_name
-                    if top_class_definition is not None
-                    else top_class_key
-                )
-                if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
-                    snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
-                    snapshot["class_total_count_by_mode"]["top_class"] += 1
+                # Guard against non-informative rankings. When every class score is flat
+                # (or numerically indistinguishable), stable sort order will always pick
+                # the first class key and can heavily skew "#1 class" analytics.
+                top_class_key, top_class_score = ranked_classes[0]
+                second_class_score = ranked_classes[1][1].score if len(ranked_classes) > 1 else 0.0
+                class_confidence_gap = float(top_class_score.score - second_class_score)
+                has_informative_top_class = bool(top_class_score.score > 1e-6 and class_confidence_gap > 1e-6)
+                if has_informative_top_class:
+                    top_class_definition = DND_CLASSES.get(top_class_key)
+                    top_class_name = (
+                        top_class_definition.display_name
+                        if top_class_definition is not None
+                        else top_class_key
+                    )
+                    if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
+                        snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
+                        snapshot["class_total_count_by_mode"]["top_class"] += 1
                 for class_key, _class_score in ranked_classes[:3]:
                     class_definition = DND_CLASSES.get(class_key)
                     class_name = class_definition.display_name if class_definition else class_key
@@ -16424,8 +16435,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
-        self._pending_render_sections: set[str] = set()
-        self._pending_render_queue: list[str] = []
+        self._chart_render_queue_state = ChartRenderQueueState()
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_dirty_sections: set[str] = {
             "signs",
@@ -17511,7 +17521,7 @@ class MainWindow(QMainWindow):
         self._schedule_chart_render(
             self._latest_chart,
             sections={render_key},
-            prioritize_sections=True,
+            queue_priority="interactive",
         )
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
@@ -21348,8 +21358,7 @@ class MainWindow(QMainWindow):
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
-        self._pending_render_sections.clear()
-        self._pending_render_queue.clear()
+        self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
@@ -21701,23 +21710,17 @@ class MainWindow(QMainWindow):
             return
         self._schedule_passive_chart_analysis_preload(chart)
 
-    def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
-        if self._latest_chart is not chart:
-            return
-        self._schedule_passive_chart_analysis_preload(chart)
-
     def _schedule_chart_render(
         self,
         chart: Chart,
         sections: set[str] | None = None,
         *,
         allow_collapsed_sections: bool = False,
-        prioritize_sections: bool = False,
+        queue_priority: RenderQueuePriority = "interactive",
     ) -> None:
         self._latest_chart = chart
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
-            self._pending_render_sections.clear()
-            self._pending_render_queue.clear()
+            self._chart_render_queue_state.clear()
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -21742,7 +21745,6 @@ class MainWindow(QMainWindow):
         )
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
-        self._pending_render_sections.update(sections)
         render_order = (
             "summary",
             "signs",
@@ -21757,37 +21759,24 @@ class MainWindow(QMainWindow):
             "similar_charts",
             "anagrams",
         )
-        queued = set(self._pending_render_queue)
-        prioritized_queue: list[str] = []
-        if prioritize_sections:
-            for section_name in render_order:
-                if section_name in sections and section_name in self._pending_render_queue:
-                    self._pending_render_queue.remove(section_name)
-                    prioritized_queue.append(section_name)
-                    queued.discard(section_name)
-        for section_name in render_order:
-            if section_name in self._pending_render_sections and section_name not in queued:
-                if prioritize_sections:
-                    prioritized_queue.append(section_name)
-                else:
-                    self._pending_render_queue.append(section_name)
-                queued.add(section_name)
-        if prioritized_queue:
-            self._pending_render_queue = prioritized_queue + self._pending_render_queue
+        self._chart_render_queue_state.enqueue(
+            sections=sections,
+            render_order=render_order,
+            priority=queue_priority,
+        )
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
         if chart is None:
-            self._pending_render_sections.clear()
-            self._pending_render_queue.clear()
+            self._chart_render_queue_state.clear()
             self._hide_chart_loading_overlay()
             return
 
-        section = self._pending_render_queue.pop(0) if self._pending_render_queue else None
+        section = self._chart_render_queue_state.pop_next()
         if section is None:
-            if not self._pending_render_sections:
+            if not self._chart_render_queue_state.has_pending_work():
                 self._pending_render_chart = None
                 self._hide_chart_loading_overlay()
             return
@@ -21816,13 +21805,13 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
-        self._pending_render_sections.discard(section)
+        self._chart_render_queue_state.mark_complete(section)
         self._mark_chart_analytics_sections_clean({section}, chart)
 
-        if self._pending_render_queue:
+        if self._chart_render_queue_state.has_queued_work():
             self._render_flush_timer.start(0)
             return
-        if self._pending_render_sections:
+        if self._chart_render_queue_state.has_pending_work():
             self._render_flush_timer.start(0)
             return
 
@@ -21976,7 +21965,6 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
-            "similar_charts",
         }
         if self._is_chart_analysis_section_visible("anagrams"):
             passive_sections.add("anagrams")
@@ -21984,6 +21972,7 @@ class MainWindow(QMainWindow):
             chart,
             sections=passive_sections,
             allow_collapsed_sections=True,
+            queue_priority="background",
         )
 
     def _render_metric_panel(
@@ -22067,8 +22056,7 @@ class MainWindow(QMainWindow):
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
-        self._pending_render_sections.clear()
-        self._pending_render_queue.clear()
+        self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
