@@ -16,6 +16,7 @@ import subprocess
 import sys
 import traceback
 import urllib.parse
+import platform
 from difflib import SequenceMatcher
 from collections import Counter, OrderedDict
 from typing import Any, Callable
@@ -1708,6 +1709,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_species"
         self._birth_time_mode = "mean"
+        # Startup-only guard: on Windows we pulse top-most once so Database View
+        # reliably foregrounds at launch without repeated focus flicker later.
+        self._launch_foreground_completed = False
         self._age_mode = "age_distribution"
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
@@ -8010,11 +8014,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     }
                     database_class_total_count = sum(database_class_totals.values())
 
-                class_labels = list(
-                    selection_class_totals.keys()
-                    or database_class_totals.keys()
-                    or [definition.display_name for definition in DND_CLASSES.values()]
-                )
+                class_labels = [definition.display_name for definition in DND_CLASSES.values()]
+                for class_name in selection_class_totals:
+                    if class_name not in class_labels:
+                        class_labels.append(class_name)
+                for class_name in database_class_totals:
+                    if class_name not in class_labels:
+                        class_labels.append(class_name)
                 selection_species = {
                     class_name: (
                         selection_class_totals.get(class_name, 0)
@@ -19797,13 +19803,12 @@ class MainWindow(QMainWindow):
     def _show_dnd_class_info(
         self,
         class_name: str,
-        score: float,
+        _score: float,
         evidence: list[str],
     ) -> None:
-        header = f"{class_name} • {score:.2f}"
+        header = class_name
         if evidence:
-            lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            self.chart_info_output.setPlainText("\n".join([header, ""] + evidence))
             return
         self.chart_info_output.setPlainText(
             "\n".join([header, "", "• Evidence is unavailable for this class assignment."])
