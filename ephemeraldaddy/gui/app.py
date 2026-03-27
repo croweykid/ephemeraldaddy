@@ -12838,8 +12838,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
-        if use_topmost_pulse:
-            clear_fullscreen_and_minimized(self)
+        clear_fullscreen_and_minimized(self)
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
 
     def _toggle_fullscreen(self) -> None:
@@ -22961,7 +22960,7 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
         startup_loading.show()
     # Launch-only focus assist: keep the load bar in the foreground while the
     # app initializes, but avoid repeated focus hacks after startup.
-    bring_window_to_front(startup_loading, use_topmost_pulse=False)
+    bring_window_to_front(startup_loading)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
