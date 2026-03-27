@@ -7,25 +7,25 @@ SPECIES_FAMILIES: List[str] = [
     "Canids",
     "Cosmids",
     "Cyborgs",
-    "Cyclops",
-    "Dragons",
+    "Cyclops",  #no subtypes
+    "Dragons",  #no subtypes
     "Dwarf",
     "Elf",
     "Fey",
     "Genasi",
     "Spirits",
     "Gnome",
-    "Half-orcs",
+    "Half-orcs",  #no subtypes
     "Halfling",
     "Human",
     "Tabaxi",
     "Lizardfolk (Reptilians)",
-    "Merfolk",
-    "Minotaur",
-    "Nymph",
-    "Ogres",
-    "Orcs",
-    "Plasmoid",
+    "Merfolk",  #no subtypes
+    "Minotaur",  #no subtypes
+    "Nymph",  #no subtypes
+    "Ogres",  #no subtypes
+    "Orcs",  #no subtypes
+    "Plasmoid",  #no subtypes
     "Robots",
     "Rodentfolk",
     "Shapeshifter",
@@ -33,12 +33,12 @@ SPECIES_FAMILIES: List[str] = [
     "Stone People (Golems)",
     "Succubi/Incubi",
     "Tiefling",
-    "Triton",
+    "Triton",  #no subtypes
     "Vampire",
     "Yuan-Ti (Serpentine)",
 ]
 
-FAMILY_SUBTYPES: Dict[str, List[str]] = {
+FAMILY_SUBTYPES: Dict[str, List[str]] = { #note: this is not a complete species list; it only includes species with subtypes, and excluse those without, such as: cyclops, dragons, half-orcs, merfolk, nymphs, ogres, orcs, minotaurs, plasmoids, and tritons
     "Aasimar": ["Protector", "Scourge", "Fallen"],
     "Birdfolk": ["Kenku", "Owlin", "Aarakocra", "Other (non-owl, non-kenku, non-aarakocra)"],
     "Canids": ["Shepherd Dogs", "Wolfkin", "Gnolls", "Houndfolk"],
@@ -64,7 +64,7 @@ FAMILY_SUBTYPES: Dict[str, List[str]] = {
     "Yuan-Ti (Serpentine)": ["Pureblood", "Malison"],
 }
 
-SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
+SPECIES_DESCRIPTIONS: Dict[str, str] = {
     "Aasimar": "Locals remain uneasy around these suspiciously well-lit people.",
     "Aasimar::Protector": "Seen at dawn on hilltops, looking as though they personally approved the sunrise.",
     "Aasimar::Scourge": "Town reports another glowing moral enthusiast running several degrees too hot.",
@@ -129,6 +129,8 @@ SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
     "Genasi::Mud": "Practical elemental hybrid proves, once again, that useful and glamorous are rarely close relatives.",
     "Genasi::Ice": "Cool, crystalline individual lowers room temperature and expectations with admirable efficiency.",
 
+    "Half-orcs": "Large practical citizen continues combining blunt force, bruised dignity, and better judgment than locals gave them credit for.",
+
     "Spirits": "Formerly alive presence continues declining to let material inconvenience settle the matter.",
     "Spirits::Poltergeist": "Invisible resident reorganizes crockery with the energy of a tenant denied a security deposit.",
     "Spirits::Wraith": "Dark floating grievance enters scene and immediately lowers resale value.",
@@ -154,6 +156,13 @@ SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
     "Lizardfolk (Reptilians)": "Scaled pragmatist continues treating emotion as interesting weather rather than management policy.",
     "Lizardfolk (Reptilians)::Dinoboiz": "Prehistoric enthusiast arrives looking like evolution briefly got theatrical.",
     "Lizardfolk (Reptilians)::Other": "General reptile edition stands very still until suddenly becoming the most relevant thing present.",
+
+    "Merfolk": "Aquatic resident surfaces briefly to confirm that land culture is still doing several things incorrectly.",
+    "Minotaur": "Bull-headed powerhouse enters hallway and instantly makes architecture feel like a personal challenge.",
+    "Nymph": "Local embodiment of scenic beauty arrives looking like the landscape has begun taking sides.",
+    "Ogres": "Oversized problem dressed considerately in a fig leaf lumbers in with strength, appetite, and only passing interest in refinement.",
+    "Orcs": "Broad-shouldered force of nature continues treating hesitation as a hobby for weaker species.",
+    "Plasmoid": "Sentient Jell-o oozes into view and immediately raises several furniture-related questions.",
 
     "Robots": "Constructed person continues forcing philosophers to earn their lunch.",
     "Robots::Autognome": "Clockwork little fellow bustles in with polished joints and the air of a toolbox granted citizenship.",
@@ -189,6 +198,8 @@ SPECIES_SUBVARIANT_EXPLAINER_TEMPLATE: Dict[str, str] = {
     "Tiefling::Bloodlines (e.g., Zariel)": "Martial infernal descendant appears ready to settle ethics as a field exercise.",
     "Tiefling::Bloodlines (e.g., Levistus)": "Chilled, elegant tiefling continues making courtesy sound faintly refrigerated.",
     "Tiefling::Standard": "Ordinary infernal-touched citizen stands there with horns, tail, and the usual burden of other people’s imagination.",
+
+    "Triton": "Sea-noble strides ashore with saltwater dignity and the air of an inspector from a stricter kingdom.",
 
     "Vampire": "Nocturnal aristocrat continues turning excellent grooming into a public hazard.",
     "Vampire::True Vampire": "Full vintage model arrives in immaculate condition and immediately starts improving the atmosphere for all the wrong reasons.",
