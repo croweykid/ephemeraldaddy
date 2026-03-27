@@ -1650,6 +1650,9 @@ SIGN_KEYWORDS = {
     },
 }
 
+# Canonicalize sign keyword keys once so all consumers can use Title Case sign labels.
+SIGN_KEYWORDS = {str(sign).title(): value for sign, value in SIGN_KEYWORDS.items()}
+
 # Example access:
 # sign = "scorpio"
 # one_sign_adverb = random.choice(SIGN_TRAITS[sign]["best_adverbs"])

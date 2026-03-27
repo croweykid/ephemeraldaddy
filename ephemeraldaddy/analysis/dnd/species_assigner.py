@@ -359,7 +359,7 @@ class SpeciesAssigner:
                     modal[mode] += w
                     break
 
-            sign_meta = SIGN_KEYWORDS.get(str(sign).lower(), {}) if isinstance(SIGN_KEYWORDS, Mapping) else {}
+            sign_meta = SIGN_KEYWORDS.get(str(sign).title(), {}) if isinstance(SIGN_KEYWORDS, Mapping) else {}
             for trait in SIGN_CLASSICAL_TRAITS:
                 if sign_meta.get(trait) is True:
                     sign_trait_balance[trait] += w
