@@ -82,6 +82,10 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
     properties_layout.addStretch(1)
 
     button_row = QHBoxLayout()
+    select_all_button = QPushButton("Select all")
+    select_minimum_button = QPushButton("Select minimum")
+    button_row.addWidget(select_all_button)
+    button_row.addWidget(select_minimum_button)
     button_row.addStretch(1)
     cancel_button = QPushButton("Cancel")
     export_button = QPushButton("Export")
@@ -111,6 +115,19 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             else:
                 checkbox.setText(display_label)
                 checkbox.setEnabled(True)
+
+    def _select_all_properties() -> None:
+        for checkbox in checkboxes.values():
+            if checkbox.isEnabled():
+                checkbox.setChecked(True)
+
+    def _select_minimum_properties() -> None:
+        for prop in properties:
+            column = str(prop.get("column", "")).strip()
+            checkbox = checkboxes.get(column)
+            if checkbox is None:
+                continue
+            checkbox.setChecked(bool(prop.get("locked_for_db")))
 
     def _run_custom_export() -> None:
         selected_columns = [
@@ -153,7 +170,6 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
                 "Export complete",
                 f"Custom database export saved to:\n{file_path}",
             )
-            dialog.accept()
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
@@ -180,9 +196,10 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             "Export complete",
             f"Custom CSV export saved to:\n{file_path}",
         )
-        dialog.accept()
 
     db_radio.toggled.connect(_refresh_lock_state)
+    select_all_button.clicked.connect(_select_all_properties)
+    select_minimum_button.clicked.connect(_select_minimum_properties)
     cancel_button.clicked.connect(dialog.reject)
     export_button.clicked.connect(_run_custom_export)
     _refresh_lock_state()
