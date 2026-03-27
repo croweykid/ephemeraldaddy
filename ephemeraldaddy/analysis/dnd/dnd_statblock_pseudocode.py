@@ -186,7 +186,7 @@ def _rebalance_stat_profile(raw: Mapping[str, float]) -> Dict[str, float]:
 # STR = frontline_courage
 
 # 2. Use a playable stat range
-# For a PC-facing system, I would use 8–18, not 3–18.
+# For a PC-facing system, I would use 5–20, not 3–18.
 # Reason: 3–18 is flavorful for monsters and peasants; 8–18 is better for “this is a notable character” databases. Otherwise celebrities will produce either insulting stat blocks or cartoonishly jagged ones.
 
 # 3. Keep raw and integer versions
