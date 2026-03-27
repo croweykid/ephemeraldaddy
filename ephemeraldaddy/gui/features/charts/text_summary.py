@@ -56,6 +56,8 @@ def _pad_display_column(text: str, width: int) -> str:
 
 _AXIS_LABEL_OVERRIDES: dict[str, str] = {
     "mercy_restoration": "mercy & restoration",
+    "control_planning": "control & planning",
+    "stealth_indirection": "stealth",
 }
 
 
@@ -68,7 +70,7 @@ def _build_class_axis_weight_evidence(class_key: str) -> list[str]:
     if definition is None:
         return []
     return [
-        f"{_format_axis_label(axis_name)}: {weight * 100:.0f}%"
+        f"{_format_axis_label(axis_name)}: {(1.0 - weight) * 100:.0f}%"
         for axis_name, weight in definition.axis_weights.items()
     ]
 
