@@ -7682,7 +7682,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign: (database_cache["dominant_sign_totals"][sign] / database_cache["dominant_sign_total_weight"] if database_cache["dominant_sign_total_weight"] else 0)
                 for sign in ZODIAC_NAMES
             }
-            dominant_planet_labels = list(selection_cache["dominant_planet_totals"].keys())
+            dominant_planet_labels = [
+                body
+                for body in PLANET_ORDER
+                if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+            ]
             selection_top3_dominant_planets = {
                 body: (
                     selection_cache["dominant_planet_totals"][body]
