@@ -19797,13 +19797,12 @@ class MainWindow(QMainWindow):
     def _show_dnd_class_info(
         self,
         class_name: str,
-        score: float,
+        _score: float,
         evidence: list[str],
     ) -> None:
-        header = f"{class_name} • {score:.2f}"
+        header = class_name
         if evidence:
-            lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            self.chart_info_output.setPlainText("\n".join([header, ""] + evidence))
             return
         self.chart_info_output.setPlainText(
             "\n".join([header, "", "• Evidence is unavailable for this class assignment."])
