@@ -418,7 +418,9 @@ class ChartsController:
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         if callable(apply_launch_window_policy):
-            apply_launch_window_policy()
+            # Use the Windows top-most pulse only for first open (startup path).
+            # Subsequent Database View switches should use normal raise/activate.
+            apply_launch_window_policy(use_topmost_pulse=not has_loaded_rows)
         if dialog.isVisible():
             self._raise_manage_dialog()
         else:
