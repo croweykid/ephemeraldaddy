@@ -16,7 +16,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import resolve_country
-from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
@@ -909,7 +908,7 @@ class DatabaseAnalyticsChartsMixin:
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
-        labels = list(SPECIES_FAMILIES)
+        labels = list(selection_species.keys())
         display_labels = [
             self._format_selection_database_count_label(
                 species,

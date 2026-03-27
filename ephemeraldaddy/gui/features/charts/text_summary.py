@@ -7,6 +7,7 @@ import math
 import unicodedata
 from typing import Any
 
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import DND_CLASSES, DnDClassScorer, score_class_axes
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
@@ -283,7 +284,7 @@ def format_chart_text(
     aspect_sort: str = "Priority",
     *,
     show_cursedness: bool = True,
-    show_dnd_species: bool = True,
+    show_dnd_output: bool = True,
 ) -> tuple[
     str,
     dict[int, list[dict[str, object]]],
@@ -389,15 +390,50 @@ def format_chart_text(
     except Exception:
         species_top_three = []
     species_payloads: list[dict[str, object]] = []
-    if species_top_three and show_dnd_species:
+    if species_top_three and show_dnd_output:
         for rank, (family, subtype, score, evidence) in enumerate(species_top_three):
             species_payloads.append(
                 {
                     "line": f"{rank + 1}) {family}{_format_species_variant(subtype)} ⓘ",
+                    "kind": "species",
                     "family": family,
                     "subtype": subtype,
                     "score": score,
                     "evidence": evidence,
+                }
+            )
+    class_payloads: list[dict[str, object]] = []
+    if show_dnd_output:
+        try:
+            axis_scores = score_class_axes(chart)
+            class_scores = DnDClassScorer().score_classes(axis_scores)
+            ranked_classes = sorted(
+                class_scores.values(),
+                key=lambda scored_class: scored_class.score,
+                reverse=True,
+            )
+        except Exception:
+            ranked_classes = []
+        for rank, scored_class in enumerate(ranked_classes[:3]):
+            class_definition = DND_CLASSES.get(scored_class.key)
+            class_display_name = (
+                class_definition.display_name
+                if class_definition is not None
+                else scored_class.key.replace("_", " ").title()
+            )
+            class_payloads.append(
+                {
+                    "line": f"{rank + 1}) {class_display_name} ⓘ",
+                    "kind": "class",
+                    "name": class_display_name,
+                    "score": scored_class.score,
+                    "evidence": [
+                        f"Overall score: {scored_class.score:.2f}",
+                        f"Direct axis fit: {scored_class.direct_score:.2f}",
+                        f"Family affinity: {scored_class.family_score:.2f}",
+                        f"Synergy boost: {scored_class.synergy_score:.2f}",
+                        f"Anti-axis penalty: {scored_class.penalty_score:.2f}",
+                    ],
                 }
             )
     if getattr(chart, "used_utc_fallback", False):
@@ -678,14 +714,17 @@ def format_chart_text(
         lines.append("CURSEDNESS")
         lines.append("---------")
         lines.append(cursedness_line)
+    if species_payloads or class_payloads:
+        lines.append("---------")
+        lines.append("D&D OUTPUT")
+        lines.append("---------")
     if species_payloads:
-        lines.append("---------")
-        lines.append("D&D SPECIES/RACE")
-        lines.append("---------")
+        lines.append("Top 3 Species")
         for payload in species_payloads:
             species_line_text = str(payload["line"])
             species_info_map[len(lines)] = [
                 {
+                    "kind": payload.get("kind"),
                     "family": payload["family"],
                     "subtype": payload["subtype"],
                     "score": payload["score"],
@@ -694,6 +733,22 @@ def format_chart_text(
                 }
             ]
             lines.append(species_line_text)
+    if class_payloads:
+        if species_payloads:
+            lines.append("")
+        lines.append("Top 3 Classes")
+        for payload in class_payloads:
+            class_line_text = str(payload["line"])
+            species_info_map[len(lines)] = [
+                {
+                    "kind": payload.get("kind"),
+                    "name": payload["name"],
+                    "score": payload["score"],
+                    "evidence": payload["evidence"],
+                    "icon_index": class_line_text.find("ⓘ"),
+                }
+            ]
+            lines.append(class_line_text)
 
     return "\n".join(lines), position_info_map, aspect_info_map, species_info_map
 
