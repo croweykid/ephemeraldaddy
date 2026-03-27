@@ -753,7 +753,7 @@ def format_chart_text(
     if class_payloads:
         if species_payloads:
             lines.append("")
-        lines.append("Top 3 Classes")
+        lines.append("Top 3 Classes* (alpha phase prototype, not amazing yet)")
         for payload in class_payloads:
             class_line_text = str(payload["line"])
             species_info_map[len(lines)] = [
