@@ -7539,6 +7539,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not selected_generations
             and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
+            and (
+                not hasattr(self, "dnd_class_filter_combo")
+                or self.dnd_class_filter_combo.currentData() == "Any"
+            )
             and not guessed_gender_filter
             and positive_sentiment_intensity_min is None
             and positive_sentiment_intensity_max is None
@@ -9987,10 +9991,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&&D Species"
+            "D&D-ification"
         )
+        class_filter_row = QHBoxLayout()
+        class_filter_row.addWidget(QLabel("Top 3 Classes"))
+        self.dnd_class_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.dnd_class_filter_combo)
+        self.dnd_class_filter_combo.addItem("Any", "Any")
+        for class_definition in DND_CLASSES.values():
+            self.dnd_class_filter_combo.addItem(class_definition.display_name, class_definition.display_name)
+        self.dnd_class_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        class_filter_row.addWidget(self.dnd_class_filter_combo, 1)
+        dnd_species_group_layout.addLayout(class_filter_row)
+
         species_filter_row = QHBoxLayout()
-        species_filter_row.addWidget(QLabel("Top 3 result"))
+        species_filter_row.addWidget(QLabel("Top 3 Species"))
         self.species_filter_combo = QComboBox()
         apply_default_dropdown_style(self.species_filter_combo)
         self.species_filter_combo.addItem("Any", "Any")
@@ -13040,6 +13055,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
+                self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
@@ -14311,6 +14328,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
         selected_species = self.species_filter_combo.currentData()
+        selected_dnd_class = (
+            self.dnd_class_filter_combo.currentData()
+            if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
+            else "Any"
+        )
         selected_sentiments = {
             name
             for name, checkbox in self.sentiment_filter_checkboxes.items()
@@ -14545,6 +14567,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for species_name, _subtype, _score in species_top_three[:3]
             }
             if selected_species not in top_three_species:
+                return False
+
+        if selected_dnd_class != "Any":
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                return False
+            try:
+                axis_scores = score_class_axes(chart)
+                class_scores = DnDClassScorer().score_classes(axis_scores)
+                ranked_classes = sorted(
+                    class_scores.items(),
+                    key=lambda item: item[1].score,
+                    reverse=True,
+                )
+            except Exception:
+                ranked_classes = []
+            top_three_classes = {
+                (
+                    DND_CLASSES[class_key].display_name
+                    if class_key in DND_CLASSES
+                    else class_key
+                )
+                for class_key, _class_score in ranked_classes[:3]
+            }
+            if selected_dnd_class not in top_three_classes:
                 return False
 
         birth_status_filter_states: list[bool] = []
