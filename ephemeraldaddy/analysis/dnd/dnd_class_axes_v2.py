@@ -22,7 +22,11 @@ from ephemeraldaddy.core.interpretations import (
     MODES,
     NATAL_BODY_LOUDNESS,
     SIGN_ELEMENTS,
-    ZODIAC_NAMES,
+)
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_element_weights,
+    calculate_dominant_house_weights,
+    calculate_mode_weights,
 )
 
 
@@ -789,28 +793,30 @@ class ClassAxisScorer:
             out[body] = _clamp01(val)
         return out
 
-    def _normalized_dominant_sign_weights(self, chart: Any) -> Optional[Dict[str, float]]:
-        raw: Any = None
-        if isinstance(chart, Mapping):
-            raw = chart.get("dominant_sign_weights")
-        else:
-            raw = getattr(chart, "dominant_sign_weights", None)
-        if not isinstance(raw, Mapping):
-            return None
-        normalized: Dict[str, float] = {}
+    @staticmethod
+    def _normalize_numeric_map(values: Mapping[Any, Any]) -> Optional[Dict[Any, float]]:
+        normalized: Dict[Any, float] = {}
         total = 0.0
-        for sign in ZODIAC_NAMES:
+        for key, raw in values.items():
             try:
-                value = max(0.0, float(raw.get(sign, raw.get(str(sign).lower(), 0.0))))
+                value = max(0.0, float(raw))
             except (TypeError, ValueError):
                 value = 0.0
-            normalized[sign] = value
+            normalized[key] = value
             total += value
         if total <= 0.0:
             return None
-        return {sign: value / total for sign, value in normalized.items()}
+        return {key: value / total for key, value in normalized.items()}
 
     def _element_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            dominant_element_weights = self._normalize_numeric_map(calculate_dominant_element_weights(chart))
+            if dominant_element_weights:
+                return {
+                    element: float(dominant_element_weights.get(element, 0.0))
+                    for element in ("Fire", "Earth", "Air", "Water")
+                }
+
         totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -825,22 +831,19 @@ class ClassAxisScorer:
                 continue
             totals[element] += weight
             grand_total += weight
-        if grand_total > 0:
-            totals = {element: value / grand_total for element, value in totals.items()}
-        dominant_sign_weights = self._normalized_dominant_sign_weights(chart)
-        if not dominant_sign_weights:
+        if grand_total <= 0:
             return totals
-        dominant_element_totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
-        for sign, weight in dominant_sign_weights.items():
-            element = SIGN_ELEMENTS.get(str(sign))
-            if element in dominant_element_totals:
-                dominant_element_totals[element] += weight
-        return {
-            element: ((0.65 * totals.get(element, 0.0)) + (0.35 * dominant_element_totals.get(element, 0.0)))
-            for element in totals
-        }
+        return {element: value / grand_total for element, value in totals.items()}
 
     def _mode_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            mode_weights = self._normalize_numeric_map(calculate_mode_weights(chart))
+            if mode_weights:
+                return {
+                    mode: float(mode_weights.get(mode, 0.0))
+                    for mode in ("cardinal", "fixed", "mutable")
+                }
+
         totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
         grand_total = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -855,22 +858,21 @@ class ClassAxisScorer:
                 continue
             totals[mode] += weight
             grand_total += weight
-        if grand_total > 0:
-            totals = {mode: value / grand_total for mode, value in totals.items()}
-        dominant_sign_weights = self._normalized_dominant_sign_weights(chart)
-        if not dominant_sign_weights:
+        if grand_total <= 0:
             return totals
-        dominant_mode_totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
-        for sign, weight in dominant_sign_weights.items():
-            mode = SIGN_TO_MODE.get(str(sign))
-            if mode in dominant_mode_totals:
-                dominant_mode_totals[mode] += weight
-        return {
-            mode: ((0.65 * totals.get(mode, 0.0)) + (0.35 * dominant_mode_totals.get(mode, 0.0)))
-            for mode in totals
-        }
+        return {mode: value / grand_total for mode, value in totals.items()}
 
     def _house_emphasis(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+        if not isinstance(chart, Mapping):
+            dominant_house_weights = self._normalize_numeric_map(calculate_dominant_house_weights(chart))
+            if dominant_house_weights:
+                return {
+                    key: float(
+                        sum(dominant_house_weights.get(house, 0.0) for house in houses)
+                    )
+                    for key, houses in EMPHASIS_HOUSE_GROUPS.items()
+                }
+
         counts = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
         total_weight = 0.0
         for body, weight in BODY_WEIGHTS.items():
@@ -884,38 +886,9 @@ class ClassAxisScorer:
                 if house in houses:
                     counts[key] += weight
             total_weight += weight
-        if total_weight > 0:
-            counts = {key: value / total_weight for key, value in counts.items()}
-
-        raw_house_weights: Any = None
-        if isinstance(chart, Mapping):
-            raw_house_weights = chart.get("dominant_house_weights")
-        else:
-            raw_house_weights = getattr(chart, "dominant_house_weights", None)
-        if not isinstance(raw_house_weights, Mapping):
+        if total_weight <= 0:
             return counts
-
-        normalized_house_weights: Dict[int, float] = {}
-        total_house_weight = 0.0
-        for house in range(1, 13):
-            raw_value = raw_house_weights.get(house, raw_house_weights.get(str(house), 0.0))
-            try:
-                value = max(0.0, float(raw_value))
-            except (TypeError, ValueError):
-                value = 0.0
-            normalized_house_weights[house] = value
-            total_house_weight += value
-        if total_house_weight <= 0.0:
-            return counts
-        dominant_house_emphasis = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
-        for key, houses in EMPHASIS_HOUSE_GROUPS.items():
-            dominant_house_emphasis[key] = sum(
-                normalized_house_weights.get(house, 0.0) for house in houses
-            ) / total_house_weight
-        return {
-            key: ((0.65 * counts.get(key, 0.0)) + (0.35 * dominant_house_emphasis.get(key, 0.0)))
-            for key in counts
-        }
+        return {key: value / total_weight for key, value in counts.items()}
 
     def _aspect_signals(self, aspects: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
         totals = {"tension": 0.0, "cohesion": 0.0, "volatility": 0.0}
