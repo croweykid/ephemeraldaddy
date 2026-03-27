@@ -907,7 +907,7 @@ class DatabaseAnalyticsChartsMixin:
         labels = list(selection_species.keys())
         # Keep D&D species and class distributions visually consistent and compact
         # so the full graph remains visible above the fold.
-        chart_height = 2.8
+        chart_height = 4.8
         figure = Figure(figsize=(4.8, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
