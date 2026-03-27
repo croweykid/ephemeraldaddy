@@ -10,7 +10,7 @@ SETTINGS_GROUP = "visibility"
 
 CHART_DATA_KEYS: dict[str, bool] = {
     "chart_data.cursedness": True,
-    "chart_data.dnd_species": True,
+    "chart_data.dnd_output": True,
     "chart_data.human_design_alpha_prototype": False,
     "popout.synastry_aspect_weights": False,
     "chart_analytics.planet_dynamics": False,
