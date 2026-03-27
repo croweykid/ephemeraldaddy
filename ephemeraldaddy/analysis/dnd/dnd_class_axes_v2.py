@@ -14,6 +14,7 @@ Design rules:
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+import warnings
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_ANGLE_DEGREES,
@@ -471,7 +472,7 @@ class ClassAxisScorer:
         positions = self._get_positions(chart)
         aspects = self._get_aspects(chart, positions)
 
-        planet_prominence = self._planet_prominence(positions)
+        planet_prominence = self._planet_prominence(chart, positions)
         element_balance = self._element_balance(positions)
         mode_balance = self._mode_balance(positions)
         house_emphasis = self._house_emphasis(positions)
@@ -745,12 +746,74 @@ class ClassAxisScorer:
                 return out
         return self._derive_aspects(positions)
 
-    def _planet_prominence(self, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
+    def _planet_prominence(
+        self,
+        chart: Any,
+        positions: Mapping[str, Mapping[str, Any]],
+    ) -> Dict[str, float]:
         out: Dict[str, float] = {body: 0.0 for body in BODY_WEIGHTS}
+
+        def _fallback_dominance_from_positions() -> Dict[str, float]:
+            fallback: Dict[str, float] = {}
+            for body in BODY_WEIGHTS:
+                if body not in positions:
+                    continue
+                val = float(BODY_WEIGHTS.get(body, 0.0))
+                house = positions[body].get("house")
+                if house in ANGULAR_HOUSES:
+                    val += 0.15
+                fallback[body] = max(0.0, val)
+            return fallback
+
+        is_placeholder = bool(
+            chart.get("is_placeholder", False)
+            if isinstance(chart, Mapping)
+            else getattr(chart, "is_placeholder", False)
+        )
+        if is_placeholder:
+            return out
+
+        raw_dominance: Any = None
+        if isinstance(chart, Mapping):
+            raw_dominance = chart.get("dominant_planet_weights")
+        else:
+            raw_dominance = getattr(chart, "dominant_planet_weights", None)
+
+        if not isinstance(raw_dominance, Mapping):
+            raw_dominance = _fallback_dominance_from_positions()
+            warnings.warn(
+                "dominant_planet_weights missing for non-placeholder chart; "
+                "falling back to inferred baseline dominance.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            if not isinstance(chart, Mapping):
+                try:
+                    setattr(chart, "dominant_planet_weights", raw_dominance)
+                except Exception:
+                    pass
+
+        normalized_dominance: Dict[str, float] = {}
+        for body in BODY_WEIGHTS:
+            raw_value = raw_dominance.get(body, raw_dominance.get(body.lower(), 0.0))
+            try:
+                normalized_dominance[body] = max(0.0, float(raw_value))
+            except (TypeError, ValueError):
+                normalized_dominance[body] = 0.0
+
+        total = sum(normalized_dominance.values())
+        if total <= 0:
+            raw_dominance = _fallback_dominance_from_positions()
+            for body in BODY_WEIGHTS:
+                normalized_dominance[body] = max(0.0, float(raw_dominance.get(body, 0.0)))
+            total = sum(normalized_dominance.values())
+            if total <= 0:
+                return out
+
         for body in out:
             if body not in positions:
                 continue
-            val = BODY_WEIGHTS.get(body, 0.0)
+            val = normalized_dominance.get(body, 0.0) / total
             house = positions[body].get("house")
             if house in ANGULAR_HOUSES:
                 val += 0.15
