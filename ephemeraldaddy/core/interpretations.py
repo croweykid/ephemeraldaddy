@@ -1873,8 +1873,8 @@ PLANET_KEYWORDS = {
     },
     "Ceres": {
         "nouns": [
-            "food", "meals", "shopping", "supplies", "cleaning", "hosting",
-            "gardens", "lunches", "budgets", "stock checks", "care", "support",
+            "nourishment", "care", "food", "provisioning", "support", "cultivation",
+            "gardens", "lunches",  "budgeting","momming",
         ],
         "verbs": [
             "feeding", "cooking", "shopping", "providing", "cleaning", "hosting",
@@ -1884,26 +1884,31 @@ PLANET_KEYWORDS = {
             "feeding", "cooking", "shopping", "providing", "cleaning", "hosting",
             "gardening", "budgeting", "caring","nurturing others", "providing support",
         ],
-        "explanation":[""],
+        "explanation":[
+            "the instinct to feed, tend, preserve, and keep life going through seasons of scarcity and plenty alike.",
+        ],
         "archetypes":[
+            "the steward", "the gardener", "the keeper of stores","the potluck queen","the lunchlady",
         ],
     },
     "Pallas": {
         "nouns": [
-            "plans", "strategy", "solutions", "patterns", "designs", "systems",
-            "priorities", "maps", "negotiations", "advice", "risks", "next steps",
+            "strategy", "pattern recognition", "solutions", "design", "engineering", "tactics",
+            "foresight", "maps", "discernment", "negotiation", "intelligence", "system architecture",
         ],
         "verbs": [
             "planning", "strategizing", "problem-solving", "noticing patterns", "designing", "organizing",
-            "prioritizing", "mapping", "negotiating", "advising", "spotting risky",
+            "mapping", "negotiating", "advising", "spotting risks", "outmaneuvering", "synthesizing",
         ],
         "verbsonly": [
             "planning", "strategizing", "problem-solving", "noticing patterns", "designing", "organizing",
-            "prioritizing", "mapping", "negotiating", "advising", "spotting risky",
+            "mapping", "negotiating", "advising", "spotting risks", "outmaneuvering", "synthesizing",
         ],
-        "explanation":[""],
+        "explanation": [
+            "the intelligence that reads patterns, designs solutions, and turns perception into strategy",
+        ],
         "archetypes":[
-            "Sam from SG1",
+            "Samantha Carter (SG1)","Athena","Princess Leia","Seven of Nine (Star Trek: Voyager)","Dana Scully (X-Files)",
         ],
     },
     "Juno": {
