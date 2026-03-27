@@ -7683,7 +7683,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign: (database_cache["dominant_sign_totals"][sign] / database_cache["dominant_sign_total_weight"] if database_cache["dominant_sign_total_weight"] else 0)
                 for sign in ZODIAC_NAMES
             }
-            dominant_planet_labels = list(selection_cache["dominant_planet_totals"].keys())
+            dominant_planet_labels = [
+                body
+                for body in PLANET_ORDER
+                if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+            ]
             selection_top3_dominant_planets = {
                 body: (
                     selection_cache["dominant_planet_totals"][body]
@@ -7757,30 +7761,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
-            cumulative_sign_labels = sorted(
-                list(ZODIAC_NAMES),
-                key=lambda sign: (
-                    -database_dominant_signs.get(sign, 0),
-                    -selection_dominant_signs.get(sign, 0),
-                    sign,
-                ),
-            )
-            cumulative_planet_labels = sorted(
-                list(dominant_planet_labels),
-                key=lambda body: (
-                    -database_dominant_planets.get(body, 0),
-                    -selection_dominant_planets.get(body, 0),
-                    body,
-                ),
-            )
-            cumulative_house_labels = sorted(
-                list(dominant_house_labels),
-                key=lambda house: (
-                    -database_dominant_houses.get(house, 0),
-                    -selection_dominant_houses.get(house, 0),
-                    int(house),
-                ),
-            )
+            # Keep cumulative-dominance labels in canonical order so this view
+            # matches the "by top 3" section and remains predictable.
+            cumulative_sign_labels = list(ZODIAC_NAMES)
+            cumulative_planet_labels = list(dominant_planet_labels)
+            cumulative_house_labels = list(dominant_house_labels)
 
             selection_relationships = {
                 relationship: (
