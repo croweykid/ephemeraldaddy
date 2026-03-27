@@ -27,6 +27,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
+    calculate_dominant_planet_weights,
     calculate_mode_weights,
 )
 
@@ -476,6 +477,11 @@ class ClassAxisScorer:
     def extract_features(self, chart: Any) -> AxisFeatureSet:
         positions = self._get_positions(chart)
         aspects = self._get_aspects(chart, positions)
+        if not isinstance(chart, Mapping):
+            dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+            is_placeholder = bool(getattr(chart, "is_placeholder", False))
+            if not is_placeholder and not dominant_planet_weights:
+                chart.dominant_planet_weights = calculate_dominant_planet_weights(chart)
 
         planet_prominence = self._planet_prominence(chart, positions)
         element_balance = self._element_balance(chart, positions)
