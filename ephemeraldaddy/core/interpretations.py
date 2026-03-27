@@ -1983,61 +1983,6 @@ PLANET_KEYWORDS = {
 }
 
 
-HOUSE_KEYWORDS = { #Areas of Life
-    1: [ #the visible incarnation point
-        "lifeforce","health","one's body", "one's appearance", "one's identity", "one's name", "one's evident personality", "identity", "physical presence","voice",
-        "first impression", "self presentation", "personal style", "attitude", "approach", "confidence", "self","physical embodiment","surface vitality","signature",
-    ],
-    2: [ #what one can keep, count, chew and/or rely upon
-        "riches","money", "income", "budget", "savings", "spending", "possessions","what-one-can-keep","hoard","reserves","appetite","resources for sustained continuity",
-        "food", "resources", "skills", "values", "comfort", "security",
-    ],
-    3: [ #immediate signal ecology
-        "kindred","short journeys","messages", "texts", "emails", "calls", "conversations", "neighbors","voyages","rendezvous","short journeys","domestic travel","casual omens","pattern recognition",
-        "siblings","errands", "calendar", "notes", "information","data","exchanges","dialogues","correspondence","exchange of information","gossip","intelligence","relay systems","crossings","routes",
-        "missives","cousins","neighbors","brethren","research","studies","analysis","investigation","communication", #'short' journeys are relative to the time period. In the 21st century, that probably means domestic travel vs international travel; in the 18th century, maybe it meant visits to the neighboring towns. In the 24th century, if we make it that far, maybe it'll mean travel within the solar system, but never outside of it.
-    ],
-    4: [ #origin chamber / buried basement
-        "home life", "family", "house", "childhood","real estate","antiquities","antiques","gardens","vintage items","abode","dwelling place",
-        "domestic security", "belonging", "home base","agriculture","ancestral legacy","domestic sovereignty","ancestry",
-        "private life", "a sense of belonging", "personal property", "the kitchen", "bedroom", "the past","home","property","buried history", "foundation stones", "the cellar", "old bloodlines", "the underground root system",
-        #final end of all things, the querent’s father, his patrimony
-    ],
-    5: [ #self-expression under witness
-        "children","dating", "romance", "flirtation", "fun", "party", "hobbies", "games","seduction","applause","favored offspring","risk for pleasure","presentations",
-        "art", "performance", "play", "creativity", "attention", "kids","theatre",
-    ],
-    6: [ #maintenance
-        "daily obligations","daily tasks", "labor","daily grind","maintenance tasks","schedule", "mundane tasks", "habits", "health","work",
-        "diet", "healthiness", "routine", "coworkers", "service", "repetitive duties","upkeep","useful competence","correction","quiet competence",
-    ],
-    7: [ #the formal Other
-        "marriage(s)","partner", "relationship", "partnership(s)", "binding contracts","devotion","public enemies","alliances","witness","rival",
-        "clients", "collaboration", "negotiation", "interpersonal commitments","legal contracts","codependency","counterpart","spouse",
-    ],
-    8: [ #consequences after contract
-        "death","debt", "taxes", "other people's money", "exchanges with others","shared resources", "loans", "insurance","forbidden knowledge","taboos", "control","irreversible exchange",
-        "power", "boundaries", "crises", "intimacy","sexuality","sex","calamities","existential upheavals","entanglement","fear", "mortality","mergers","shared resources","transactional consequences",
-        "forbidden archives", "occult initiation", "bondage of consequence", "energetic residue", "ancestral debt", "threshold events","dependency","blood price","extraction",
-    ],
-    9: [ #meaning found at distance
-        "international journeys","travel abroad","foreign adventures","college","canonical texts","sanctioned truth","doctrine","dogma","pilgrimage","worldview architecture","paradigms",
-        "religion", "beliefs","philosophy","law","ideology","foreign cultures",  #'long' journeys are relative to the time period. In the 21st century, that probably means international travel vs domestic - or maybe even travel into space (haven't checked astronaut charts)?; in the 18th century, maybe it meant cross-country treks and/or sea voyages. In the 24th century, if we make it that far, maybe it'll mean travel outside of the solar system rather than staying within it.
-    ],
-    10: [ #the public summit
-        "honor","career(s)", "bosses", "titles & honors", "reputation","public role","fame","visible competence","rank","public office","legacy",
-        "public image", "public goals", "lifelong undertakings","life achievements", "authority","public status", "responsibility to the community","civic burden","renown",
-    ],
-    11: [ #distributed belonging
-        "friends", "groups", "community", "teams", "networks", "followers","collective aspiration","patrons","affiliations","cohorts",
-        "audience", "events", "plans", "causes", "collaborators", "future","social systems","social networks","audience blocs",
-    ],
-    12: [ #that which withdraws from ordinary visibility
-        "isolation","hidden suffering","seclusion","confinement","prisons","sleep","going off the grid","dreams","hospitals","erasure","captivity","ostracization","closet skeletons","delusion","madness","hidden enemies","things misplaced by time","unseen costs",
-        "retreat", "the subconscious", "imprisonment", "lingering illness", "escape","lamentation","exile", "rest", "backstage","hidden things","banishment","lost things","forgotten things","dissolution of identity boundaries","burnout","rest","withdrawal",
-    ],
-}
-
 ASPECT_TYPES = {
     "chill vibes": {
         "color": "#6666ff", #violet
