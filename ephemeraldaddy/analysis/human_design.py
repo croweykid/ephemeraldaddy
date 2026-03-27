@@ -127,7 +127,6 @@ def _render_clickable_property(label: str, value: str, property_key: str) -> tup
     entry = {"kind": "hd_property", "property_key": property_key, "icon_index": len(f"{label}: {value} ") }
     return line, entry
 
-
 def _format_split_definition(split_definition: str) -> str:
     suffix = " Definition"
     if split_definition.endswith(suffix):

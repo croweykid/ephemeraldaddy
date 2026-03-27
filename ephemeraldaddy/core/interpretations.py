@@ -1674,30 +1674,30 @@ PLANET_KEYWORDS = {
     },
     "Moon": {
         "nouns": [
-            "reactivity","fears","feelings", "moods", "comfort", "rest", "needs", "home life",
-            "memory", "care", "check-ins", "safety", "support", "recovery",
+            "reactivity", "instinct", "feelings", "moods", "comfort", "needs", "memory", "care",
+            "safety", "support", "familiarity", "nourishment", "recovery", "rest",
         ],
         "verbs": [
-            "instinctually reacting to","experiencing emotion as", "noticing the moods of", "being nourished by", "seeking comfort from", "caring for","finding comfort in","seeking security from",
-            "remembering", "checking in with", "settling down with", "protecting", "recharging with","feeling most comfortable with","experiencing subconscious as",
+            "reacting to", "feeling", "noticing the moods of", "being nourished by", "seeking comfort from", "caring for",
+            "finding familiarity in", "seeking safety through", "remembering", "settling into", "protecting", "recharging with","feeling most comfortable with","experiencing subconscious as",
         ],
         "verbsonly": [
-            "instinctually reacting","experiencing emotion", "noticing moods", "reacting", "seeking comfort", "caring","seeking security","finding comfort",
-            "remembering", "checking in", "settling down", "protecting", "recharging","seeking familiarity","experiencing subconscious"
+            "reacting", "feeling", "noticing moods", "seeking comfort", "caring",
+            "finding familiarity", "seeking safety", "remembering", "settling into", "protecting", "recharging",
         ],
     },
     "Mercury": {
         "nouns": [
-            "thinking","thought","mental processes","thoughts", "words", "questions", "data", "messages", "information",
-            "writing", "reading", "plans", "notes", "details","communication",
+            "thoughst","mental processes","words", "questions", "data", "messages", "information","language",
+            "writing", "reading", "notes", "details","communication", "curiosity", "interpretation",
         ],
         "verbs": [
             "thinking of", "talking about", "asking about", "answering", "writing", "reading",
-            "explaining", "learning about", "planning with", "sorting", "editing", "messaging",
+            "explaining", "learning about", "planning with", "sorting", "editing", "naming", "translating",
         ],
         "verbsonly": [
             "thinking", "talking", "asking", "answering", "writing", "reading",
-            "explaining", "learning", "planning", "sorting", "editing", "messaging",
+            "explaining", "learning", "sorting", "editing", "naming", "translating",
         ],
     },
     "Venus": {
