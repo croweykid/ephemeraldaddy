@@ -186,8 +186,8 @@ from ephemeraldaddy.core.db import (
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
 
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
-    HOUSE_KEYWORDS,
     PLANET_KEYWORDS,
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
@@ -13272,7 +13272,7 @@ class MainWindow(QMainWindow):
                 return
         else:
             sign_verbs = sign_keywords.get("verbs", [])
-            house_keywords = HOUSE_KEYWORDS.get(house_num, [])
+            house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
             if not (adverbs and verbs and house_keywords and sign_verbs and planet_nouns):
                 self.chart_info_output.setPlainText(
                     f"No interpretation data available for {body} in {sign}, house {house_num}."
