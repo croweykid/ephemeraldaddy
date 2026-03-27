@@ -10035,7 +10035,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&D-ification"
+            "D&&D-ification"
         )
         class_filter_row = QHBoxLayout()
         class_filter_row.addWidget(QLabel("Top 3 Classes"))
