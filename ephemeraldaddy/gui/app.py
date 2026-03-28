@@ -5694,6 +5694,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             list_style=similarities_list_style,
         )
         (
+            self.similarities_dominant_bodies_toggle,
+            self.similarities_dominant_bodies_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Top 3 Dominant Bodies in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
+            self.similarities_dominant_houses_toggle,
+            self.similarities_dominant_houses_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Top 3 Dominant Houses in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
             self.similarities_dominant_nakshatras_toggle,
             self.similarities_dominant_nakshatras_list,
         ) = self._add_similarities_collapsible_section(
@@ -6126,6 +6144,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+    def _build_common_dominant_bodies(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        body_counts: dict[str, int] = {}
+        planet_order = [
+            body
+            for body in PLANET_ORDER
+            if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+        ]
+        for chart in charts:
+            dominant_weights = getattr(chart, "dominant_planet_weights", None)
+            if not dominant_weights:
+                dominant_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_planet_weights = dominant_weights
+            for body in self._dominant_planet_top_three_labels(dominant_weights):
+                label = self._similarities_body_label(body)
+                body_counts[label] = body_counts.get(label, 0) + 1
+
+        ordered_counts = {
+            self._similarities_body_label(body): body_counts[self._similarities_body_label(body)]
+            for body in planet_order
+            if self._similarities_body_label(body) in body_counts
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_dominant_houses(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        house_counts: dict[str, int] = {}
+        for chart in charts:
+            dominant_weights = _calculate_dominant_house_weights(chart)
+            for house_num in self._dominant_house_top_three_labels(dominant_weights):
+                label = f"House {house_num}"
+                house_counts[label] = house_counts.get(label, 0) + 1
+
+        ordered_counts = {
+            f"House {house_num}": house_counts[f"House {house_num}"]
+            for house_num in range(1, 13)
+            if f"House {house_num}" in house_counts
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
     @staticmethod
     def _dominant_sign_top_three_labels(
         dominant_weights: dict[str, float] | None,
@@ -6330,6 +6402,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 show_no_match_row=False,
             )
             self._set_similarities_section_matches(
+                self.similarities_dominant_bodies_list,
+                self.similarities_dominant_bodies_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_houses_list,
+                self.similarities_dominant_houses_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
                 self.similarities_dominant_nakshatras_list,
                 self.similarities_dominant_nakshatras_toggle,
                 [],
@@ -6347,6 +6431,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
         common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
         common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
+        common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
+        common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
         db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
@@ -6372,6 +6458,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         db_common_dominant_signs = dict(
             (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
+        )
+        db_common_dominant_bodies = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_bodies(db_chart_ids)
+        )
+        db_common_dominant_houses = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_houses(db_chart_ids)
         )
         db_common_dominant_nakshatras = dict(
             (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
@@ -6437,6 +6529,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ],
             ),
             (
+                "Top 3 Dominant Bodies in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_bodies.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_bodies
+                ],
+            ),
+            (
+                "Top 3 Dominant Houses in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_houses.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_houses
+                ],
+            ),
+            (
                 "Dominant nakshatras in common",
                 [
                     (
@@ -6469,6 +6587,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             + len(common_houses_in_positions)
             + len(common_signs_in_houses)
             + len(common_dominant_signs)
+            + len(common_dominant_bodies)
+            + len(common_dominant_houses)
             + len(common_dominant_nakshatras)
             + len(common_aspects)
         )
@@ -6515,6 +6635,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             common_dominant_signs,
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_signs,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_dominant_bodies_list,
+            self.similarities_dominant_bodies_toggle,
+            common_dominant_bodies,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_dominant_bodies,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_dominant_houses_list,
+            self.similarities_dominant_houses_toggle,
+            common_dominant_houses,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_dominant_houses,
             db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
