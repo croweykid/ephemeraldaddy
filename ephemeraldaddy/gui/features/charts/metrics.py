@@ -43,6 +43,9 @@ TIGHT_ASPECT_ORB_DEGREES = 1.0
 TIGHT_ASPECT_INTENSITY_MIN = 1.2
 TIGHT_ASPECT_INTENSITY_MAX = 1.4
 
+NATURAL_HOUSE_SIGN_BONUS = 6.0
+NATURAL_HOUSE_PLANET_BONUS = 6.0
+
 PLANET_DYNAMICS_METRICS = (
     "stability",
     "constructiveness",
@@ -407,7 +410,7 @@ def planet_sign_weight(
     if house_num:
         weight += HOUSE_WEIGHTS.get(house_num, 0.0)
     if house_num and NATURAL_HOUSE_SIGNS.get(house_num) == sign:
-        weight += 3
+        weight += NATURAL_HOUSE_SIGN_BONUS
 
     return sign, weight
 
@@ -420,7 +423,7 @@ def planet_weight(
     _sign, weight = planet_sign_weight(body, lon, houses, house_num)
     canonical_body = normalize_body_name(body)
     if house_num and NATURAL_HOUSE_PLANETS.get(house_num) == canonical_body:
-        weight += 3
+        weight += NATURAL_HOUSE_PLANET_BONUS
     return weight
 
 
