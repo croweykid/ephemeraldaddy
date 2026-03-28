@@ -30,6 +30,14 @@ from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
+SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
+
+
+def _normalize_lilith_calculation_method(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {LILITH_CALCULATION_MEAN, LILITH_CALCULATION_TRUE}:
+        return normalized
+    return LILITH_CALCULATION_MEAN
 
 from PySide6.QtGui import (
     QBrush,
@@ -168,6 +176,9 @@ from ephemeraldaddy.gui.window_placement import (
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
+    LILITH_CALCULATION_MEAN,
+    LILITH_CALCULATION_TRUE,
+    set_lilith_calculation_mode,
     planetary_positions,
     planetary_retrogrades,
     is_offline_mode as ephemeris_offline_mode,
@@ -1719,6 +1730,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+            self._settings.value(
+                SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+                LILITH_CALCULATION_MEAN,
+            )
+        )
+        set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
 
@@ -15749,6 +15767,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
+        chart_calculation_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Chart Calculation Methods",
+        )
+        chart_calculation_section.addWidget(
+            QLabel("Select which Black Moon Lilith ephemeris model to display.")
+        )
+
+        lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
+        lilith_true_radio = QRadioButton("True Lilith (oscillating/osculating apogee)")
+        lilith_button_group = QButtonGroup(dialog)
+        lilith_button_group.setExclusive(True)
+        lilith_button_group.addButton(lilith_mean_radio)
+        lilith_button_group.addButton(lilith_true_radio)
+        lilith_mean_radio.setChecked(self._lilith_calculation_method == LILITH_CALCULATION_MEAN)
+        lilith_true_radio.setChecked(self._lilith_calculation_method == LILITH_CALCULATION_TRUE)
+        lilith_mean_radio.toggled.connect(
+            lambda checked: checked and self._set_lilith_calculation_method(LILITH_CALCULATION_MEAN)
+        )
+        lilith_true_radio.toggled.connect(
+            lambda checked: checked and self._set_lilith_calculation_method(LILITH_CALCULATION_TRUE)
+        )
+        chart_calculation_section.addWidget(lilith_mean_radio)
+        chart_calculation_section.addWidget(lilith_true_radio)
+
         property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
         property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
 
@@ -15867,6 +15910,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+    def _set_lilith_calculation_method(self, method: str) -> None:
+        normalized = _normalize_lilith_calculation_method(method)
+        if normalized == self._lilith_calculation_method:
+            return
+        self._lilith_calculation_method = normalized
+        self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
+        set_lilith_calculation_mode(normalized)
+        self._refresh_todays_transits_panel()
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._handle_lilith_calculation_method_changed(normalized)
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -16674,6 +16729,13 @@ class MainWindow(QMainWindow):
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+            self._settings.value(
+                SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+                LILITH_CALCULATION_MEAN,
+            )
+        )
+        set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
@@ -22015,6 +22077,16 @@ class MainWindow(QMainWindow):
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         self._schedule_chart_render(chart)
+
+    def _handle_lilith_calculation_method_changed(self, method: str) -> None:
+        normalized = _normalize_lilith_calculation_method(method)
+        self._lilith_calculation_method = normalized
+        self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
+        set_lilith_calculation_mode(normalized)
+        if self.current_chart_id is not None:
+            self.load_chart_by_id(self.current_chart_id)
+            return
+        self._refresh_chart_preview()
 
     def _clear_layout_widgets(self, layout: QLayout) -> None:
         while layout.count():
