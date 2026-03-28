@@ -5103,16 +5103,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_context["aspect_info_map"] = aspect_info_map
             vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
             horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
-        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+        def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.pop(key, None)
             if worker_entry is not None:
-                thread, worker = worker_entry
+                thread, _worker = worker_entry
                 try:
+                    thread.requestInterruption()
                     thread.quit()
                 except RuntimeError:
                     pass
-                thread.deleteLater()
-                worker.deleteLater()
+
+        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -5136,15 +5138,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _drain_preload_queue()
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
-            worker_entry = transit_workers.pop(key, None)
-            if worker_entry is not None:
-                thread, worker = worker_entry
-                try:
-                    thread.quit()
-                except RuntimeError:
-                    pass
-                thread.deleteLater()
-                worker.deleteLater()
+            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -5201,6 +5195,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             worker.failed.connect(
                 lambda a, b, c, error_text, mode=mode: _on_window_failed((mode, a, b, c), error_text)
             )
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
             transit_workers[key] = (thread, worker)
             thread.start()
 
