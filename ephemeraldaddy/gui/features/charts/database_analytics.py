@@ -26,6 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
+from ephemeraldaddy.core.hd import get_active_channels, get_gate, get_line
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -133,6 +134,110 @@ class DatabaseAnalyticsChartsMixin:
             else "0%"
         )
         return f"({selected_text} of {database_text} : {percent_text}) {label}"
+
+    def _extract_human_design_profile(
+        self,
+        chart: Any,
+    ) -> tuple[list[int], list[int], list[str]]:
+        hd_gates = [
+            int(gate)
+            for gate in (getattr(chart, "human_design_gates", []) or [])
+            if isinstance(gate, int) and 1 <= int(gate) <= 64
+        ]
+        hd_lines = [
+            int(line)
+            for line in (getattr(chart, "human_design_lines", []) or [])
+            if isinstance(line, int) and 1 <= int(line) <= 6
+        ]
+        hd_channels = [
+            str(channel)
+            for channel in (getattr(chart, "human_design_channels", []) or [])
+            if str(channel).strip()
+        ]
+        if (not hd_gates or not hd_lines or not hd_channels) and getattr(chart, "positions", None):
+            valid_longitudes = [
+                float(longitude)
+                for longitude in chart.positions.values()
+                if isinstance(longitude, (int, float))
+            ]
+            computed_gates = sorted({get_gate(longitude) for longitude in valid_longitudes})
+            computed_lines = sorted({get_line(longitude)[1] for longitude in valid_longitudes})
+            computed_channels = sorted(
+                f"{gate_a}-{gate_b}"
+                for gate_a, gate_b in get_active_channels(valid_longitudes)
+            )
+            hd_gates = hd_gates or computed_gates
+            hd_lines = hd_lines or computed_lines
+            hd_channels = hd_channels or computed_channels
+            chart.human_design_gates = list(hd_gates)
+            chart.human_design_lines = list(hd_lines)
+            chart.human_design_channels = list(hd_channels)
+        return hd_gates, hd_lines, hd_channels
+
+    @staticmethod
+    def _human_design_mode_payload(
+        mode: str,
+        selection_cache: dict[str, Any],
+        database_cache: dict[str, Any],
+    ) -> tuple[list[str], dict[str, int], dict[str, int], float, float]:
+        if mode == "hd_lines":
+            labels = [str(line) for line in range(1, 7)]
+            selection_counts = {
+                label: int(selection_cache["human_design_line_totals"].get(int(label), 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_line_totals"].get(int(label), 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_line_total_count"]),
+                float(database_cache["human_design_line_total_count"]),
+            )
+        if mode == "hd_channels":
+            labels = sorted(
+                set(selection_cache["human_design_channel_totals"].keys())
+                | set(database_cache["human_design_channel_totals"].keys()),
+                key=lambda label: (
+                    int(label.split("-")[0]) if "-" in label and label.split("-")[0].isdigit() else 999,
+                    int(label.split("-")[1]) if "-" in label and len(label.split("-")) > 1 and label.split("-")[1].isdigit() else 999,
+                    label,
+                ),
+            )
+            selection_counts = {
+                label: int(selection_cache["human_design_channel_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_channel_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_channel_total_count"]),
+                float(database_cache["human_design_channel_total_count"]),
+            )
+        labels = [str(gate) for gate in range(1, 65)]
+        selection_counts = {
+            label: int(selection_cache["human_design_gate_totals"].get(int(label), 0))
+            for label in labels
+        }
+        database_counts = {
+            label: int(database_cache["human_design_gate_totals"].get(int(label), 0))
+            for label in labels
+        }
+        return (
+            labels,
+            selection_counts,
+            database_counts,
+            float(selection_cache["human_design_gate_total_count"]),
+            float(database_cache["human_design_gate_total_count"]),
+        )
 
      #DB View's Lefthand Panel: Selection Comparison Chart 2: Relationship Distribution Chart
     def _build_relationship_distribution_chart(
