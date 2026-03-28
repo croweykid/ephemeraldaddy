@@ -1022,6 +1022,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
         color_resolver: Any = None,
+        fixed_axis_limit: float | None = None,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 2.8))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1064,9 +1065,14 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            lower_bound = min(0.0, min(database_values, default=0.0))
-            upper_bound = max(0.0, max(database_values, default=0.0))
-            self._set_x_limits_with_padding(ax, lower_bound, upper_bound)
+            if fixed_axis_limit is not None:
+                lower_bound = min(0.0, -float(fixed_axis_limit))
+                upper_bound = max(0.0, float(fixed_axis_limit))
+                ax.set_xlim(0.0, float(fixed_axis_limit))
+            else:
+                lower_bound = min(0.0, min(database_values, default=0.0))
+                upper_bound = max(0.0, max(database_values, default=0.0))
+                self._set_x_limits_with_padding(ax, lower_bound, upper_bound)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
@@ -1102,7 +1108,11 @@ class DatabaseAnalyticsChartsMixin:
                 zorder=2,
             )
             max_abs_difference = max(1.0, max((abs(value) for value in differences), default=0.0))
-            self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
+            if fixed_axis_limit is not None:
+                max_abs_difference = max(max_abs_difference, float(fixed_axis_limit))
+                ax.set_xlim(-float(fixed_axis_limit), float(fixed_axis_limit))
+            else:
+                self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
@@ -1158,6 +1168,7 @@ class DatabaseAnalyticsChartsMixin:
             database_values=database_values,
             loaded_charts=loaded_charts,
             color_resolver=lambda label, _value: DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
+            fixed_axis_limit=20.0,
         )
 
     def _compute_dnd_statblock_averages(

@@ -2563,7 +2563,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if subheader is None:
             return
         if self._species_distribution_mode == "stat_block":
-            subheader.setText("average stat values for database (and selection)")
+            subheader.setText("Average stat values within database/selection.")
             return
         subheader.setText("Distribution of D&D species/classes in database")
 
