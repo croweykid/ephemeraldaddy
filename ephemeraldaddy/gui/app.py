@@ -224,6 +224,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
+from ephemeraldaddy.gui.database_mgr import apply_batch_chart_mutation
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
@@ -11328,7 +11329,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         self._batch_tags_lucygoosey = False
-        changed_ids = set(chart_ids)
         self._update_tag_completers()
         self._update_sentiment_tally(
             show_progress=True,
@@ -11468,23 +11468,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
+            def _mutate_sentiment(chart: Chart, _chart_id: int) -> dict[str, Any]:
                 sentiments = list(getattr(chart, "sentiments", []) or [])
                 if checked and sentiment not in sentiments:
                     sentiments.append(sentiment)
                 if not checked:
                     sentiments = [value for value in sentiments if value != sentiment]
                 chart.sentiments = sentiments
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    sentiments=sentiments,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                return {"sentiments": sentiments}
+
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=_mutate_sentiment,
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11493,7 +11494,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -11543,29 +11543,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                relationship_types = list(
-                    getattr(chart, "relationship_types", []) or []
-                )
+            def _mutate_relationship_type(chart: Chart, _chart_id: int) -> dict[str, Any]:
+                relationship_types = list(getattr(chart, "relationship_types", []) or [])
                 if checked and relationship_type not in relationship_types:
                     relationship_types.append(relationship_type)
                 if not checked:
                     relationship_types = [
-                        value
-                        for value in relationship_types
-                        if value != relationship_type
+                        value for value in relationship_types if value != relationship_type
                     ]
                 chart.relationship_types = relationship_types
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    relationship_types=relationship_types,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+                return {"relationship_types": relationship_types}
+
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=_mutate_relationship_type,
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11574,7 +11571,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -11699,17 +11695,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                setattr(chart, metric_attr, value)
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, metric_attr, value) or {}),
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11718,7 +11712,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -11752,15 +11745,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.tags = list(parsed_tags)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "tags", list(parsed_tags)) or {}),
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11770,7 +11761,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         self._batch_tags_lucygoosey = False
-        changed_ids = set(chart_ids)
         self._update_tag_completers()
         self._update_sentiment_tally(
             show_progress=True,
@@ -11804,17 +11794,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.alignment_score = alignment_value
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "alignment_score", alignment_value) or {}),
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11823,7 +11811,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -11924,18 +11911,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.source = source
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    chart_type=source,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "source", source) or {"chart_type": source}),
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11944,7 +11928,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -11978,17 +11961,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.gender = resolved_gender
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "gender", resolved_gender) or {}),
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11997,7 +11978,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -12030,18 +12010,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.birthtime_unknown = checked
-                chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
-                chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-                update_chart(
-                    chart_id,
-                    chart,
-                    birthtime_unknown=checked,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "birthtime_unknown", checked) or {"birthtime_unknown": checked}),
+                calculate_dominant_sign_weights=_calculate_dominant_sign_weights,
+                calculate_dominant_planet_weights=_calculate_dominant_planet_weights,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -12050,7 +12027,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
         
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
@@ -12084,16 +12060,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                chart.is_deceased = checked
-                update_chart(
-                    chart_id,
-                    chart,
-                    is_deceased=checked,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
+            changed_ids = apply_batch_chart_mutation(
+                chart_ids,
+                load_chart=load_chart,
+                update_chart=update_chart,
+                chart_cache=self._chart_cache,
+                mutate_chart=lambda chart, _chart_id: (setattr(chart, "is_deceased", checked) or {"is_deceased": checked}),
+            )
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -12102,7 +12075,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        changed_ids = set(chart_ids)
         self._update_sentiment_tally(
             show_progress=True,
             changed_ids=changed_ids,
