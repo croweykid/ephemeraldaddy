@@ -18498,6 +18498,7 @@ class MainWindow(QMainWindow):
     def _show_metric_canvas_popout(self, canvas: FigureCanvas, title: str) -> None:
         if self._latest_chart is None:
             return
+        popout_chart = self._latest_chart
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
@@ -18505,7 +18506,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.setContentsMargins(*STANDARD_NCV_POPOUT_LAYOUT["content_margins"]) #layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
-        figure = self._build_metric_popout_figure(title, self._latest_chart)
+        figure = self._build_metric_popout_figure(title, popout_chart)
         popout_canvas = FigureCanvas(figure)
         popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -18536,7 +18537,7 @@ class MainWindow(QMainWindow):
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title == "Gender Guesser":
-            info_panel.setPlainText(_build_gender_guesser_breakdown_text(self._latest_chart))
+            info_panel.setPlainText(_build_gender_guesser_breakdown_text(popout_chart))
         elif title in {"Signs", "Bodies", "Houses"}:
             info_panel.setPlaceholderText("Click a bar or label to view interpretation details.")
 
@@ -18551,7 +18552,7 @@ class MainWindow(QMainWindow):
                     return
                 if chart_key == "body":
                     info_panel.setPlainText(
-                        self._build_body_popout_info(self._latest_chart, raw_value)
+                        self._build_body_popout_info(popout_chart, raw_value)
                     )
                     return
                 if chart_key == "house":
