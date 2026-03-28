@@ -380,7 +380,11 @@ def build_popout_left_panel(
     chart_info_output.setReadOnly(True)
     chart_info_output.setPlaceholderText(chart_info_placeholder)
     chart_info_output.setMinimumWidth(250)
-    chart_info_output._summary_highlighter = chart_summary_highlighter_cls(chart_info_output.document())
+    chart_info_output._summary_highlighter = chart_summary_highlighter_cls(
+        chart_info_output.document(),
+        emphasize_dnd_class_headers=True,
+        emphasize_species_info_headers=True,
+    )
     left_panel_layout.addWidget(chart_info_label)
     left_panel_layout.addWidget(chart_info_output, 1)
 

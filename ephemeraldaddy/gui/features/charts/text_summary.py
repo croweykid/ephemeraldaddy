@@ -7,7 +7,13 @@ import math
 import unicodedata
 from typing import Any
 
-from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import DND_CLASSES, DnDClassScorer, score_class_axes
+from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    DND_CLASSES,
+    DnDClassScorer,
+    build_dnd_statblock_profile_lines,
+    score_class_axes,
+    score_dnd_statblock,
+)
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
@@ -54,23 +60,25 @@ def _pad_display_column(text: str, width: int) -> str:
     return f"{text}{' ' * padding}"
 
 
-_AXIS_LABEL_OVERRIDES: dict[str, str] = {
-    "mercy_restoration": "mercy & restoration",
-}
+# _AXIS_LABEL_OVERRIDES: dict[str, str] = {
+#     "mercy_restoration": "mercy & restoration",
+#     "control_planning": "control & planning",
+#     "stealth_indirection": "stealth",
+# }
 
 
-def _format_axis_label(axis_name: str) -> str:
-    return _AXIS_LABEL_OVERRIDES.get(axis_name, axis_name.replace("_", " "))
+# def _format_axis_label(axis_name: str) -> str:
+#     return _AXIS_LABEL_OVERRIDES.get(axis_name, axis_name.replace("_", " "))
 
 
-def _build_class_axis_weight_evidence(class_key: str) -> list[str]:
-    definition = DND_CLASSES.get(class_key)
-    if definition is None:
-        return []
-    return [
-        f"{_format_axis_label(axis_name)}: {weight * 100:.0f}%"
-        for axis_name, weight in definition.axis_weights.items()
-    ]
+# def _build_class_axis_weight_evidence(class_key: str) -> list[str]:
+#     definition = DND_CLASSES.get(class_key)
+#     if definition is None:
+#         return []
+#     return [
+#         f"{_format_axis_label(axis_name)}: {(1.0 - weight) * 100:.0f}%"
+#         for axis_name, weight in definition.axis_weights.items()
+#     ]
 
 
 def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
@@ -188,7 +196,9 @@ def _display_body_with_glyph(body: str) -> str:
 
 def _display_body_name(body: str) -> str:
     if body == "Lilith (mean)":
-        return "Lilith"
+        return "Black Moon Lilith"
+    if body == "Lilith":
+        return "Black Moon Lilith"
     if body == "Part of Fortune":
         return "Fortune"
     return body
@@ -423,6 +433,7 @@ def format_chart_text(
                 }
             )
     class_payloads: list[dict[str, object]] = []
+    statblock_payload: dict[str, object] | None = None
     if show_dnd_output:
         try:
             axis_scores = score_class_axes(chart)
@@ -432,6 +443,17 @@ def format_chart_text(
                 key=lambda scored_class: scored_class.score,
                 reverse=True,
             )
+            statblock = score_dnd_statblock(chart, stat_floor=5, stat_ceiling=20)
+            statblock_payload = {
+                "line": "Statblock ⓘ",
+                "kind": "statblock",
+                "profile_lines": build_dnd_statblock_profile_lines(
+                    statblock,
+                    bar_width=18,
+                    floor=5,
+                    ceiling=20,
+                ),
+            }
         except Exception:
             ranked_classes = []
         for rank, scored_class in enumerate(ranked_classes[:3]):
@@ -446,8 +468,9 @@ def format_chart_text(
                     "line": f"{rank + 1}) {class_display_name} ⓘ",
                     "kind": "class",
                     "name": class_display_name,
+                    "class_key": scored_class.key,
                     "score": scored_class.score,
-                    "evidence": _build_class_axis_weight_evidence(scored_class.key),
+                    "axis_scores": {axis_key: float(value) for axis_key, value in axis_scores.items()},
                 }
             )
     if getattr(chart, "used_utc_fallback", False):
@@ -728,10 +751,24 @@ def format_chart_text(
         lines.append("CURSEDNESS")
         lines.append("---------")
         lines.append(cursedness_line)
-    if species_payloads or class_payloads:
+    if species_payloads or class_payloads or statblock_payload:
         lines.append("---------")
         lines.append("D&D-ification")
         lines.append("---------")
+    if statblock_payload:
+        stat_line_text = str(statblock_payload["line"])
+        species_info_map[len(lines)] = [
+            {
+                "kind": statblock_payload.get("kind"),
+                "profile_lines": statblock_payload.get("profile_lines", []),
+                "icon_index": stat_line_text.find("ⓘ"),
+            }
+        ]
+        lines.append(stat_line_text)
+        for profile_line in statblock_payload.get("profile_lines", []):
+            lines.append(f"  {profile_line}")
+        if species_payloads or class_payloads:
+            lines.append("")
     if species_payloads:
         lines.append("Top 3 Species")
         for payload in species_payloads:
@@ -750,15 +787,16 @@ def format_chart_text(
     if class_payloads:
         if species_payloads:
             lines.append("")
-        lines.append("Top 3 Classes")
+        lines.append("Top 3 Classes* (alpha phase prototype, not amazing yet)")
         for payload in class_payloads:
             class_line_text = str(payload["line"])
             species_info_map[len(lines)] = [
                 {
                     "kind": payload.get("kind"),
                     "name": payload["name"],
+                    "class_key": payload["class_key"],
                     "score": payload["score"],
-                    "evidence": payload["evidence"],
+                    "axis_scores": payload["axis_scores"],
                     "icon_index": class_line_text.find("ⓘ"),
                 }
             ]

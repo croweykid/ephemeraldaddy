@@ -238,19 +238,17 @@ class ChartAnalysisSectionsController:
             panel=panel,
             section_key="dominant_signs",
             section_title="Signs",
-            header_title="Sign Weights",
-            subtitle_text="Sign Weights: weighted dominant-sign share across charts.",
+            header_title="Dominant Signs",
+            subtitle_text="Signs evaluated with priority weights (rulerships/houses/signs/etc).",
             subtitle_by_mode={
-                "dominant_signs": "Sign Weights: weighted dominant-sign share across charts.",
-                "dominant_sign_frequency": "Top 3 Dominant Signs: % of charts where each sign appears in that chart's top 3 dominant signs.",
+                "dominant_signs": "Signs evaluated with priority weights (rulerships/houses/signs/etc).",
                 "sign_prevalence": "Total distribution of signs across chart, equally weighted.",
             },
             default_filename="ephemeraldaddy_chart_dominant_signs",
             chart_container_attr="sign_chart_container",
             chart_layout_attr="sign_chart_container_layout",
             dropdown_options=[
-                ("Sign Weights", "dominant_signs"),
-                ("Top 3 Dominant Signs", "dominant_sign_frequency"),
+                ("Dominant Signs", "dominant_signs"),
                 ("Sign Prevalence", "sign_prevalence"),
             ],
             expanded=False,
@@ -263,14 +261,14 @@ class ChartAnalysisSectionsController:
             subtitle_text="Bodies evaluated with priority weights (rulerships/houses/signs/etc).",
             subtitle_by_mode={
                 "dominant_planets": "Bodies evaluated with priority weights (rulerships/houses/signs/etc).",
-                "sidereal_planet_prevalence": "Bodies mapped from each body's nakshatra ruler (equally weighted).",
+                "sidereal_planet_prevalence": "Bodies mapped from each body's nakshatra ruler using weighted body scoring.",
             },
             default_filename="ephemeraldaddy_chart_dominant_planets",
             chart_container_attr="planet_chart_container",
             chart_layout_attr="planet_chart_container_layout",
             dropdown_options=[
                 ("Dominant Bodies", "dominant_planets"),
-                ("Sidereal Body Prevalence", "sidereal_planet_prevalence"),
+                ("Dominant Bodies (by nakshatra)", "sidereal_planet_prevalence"),
             ],
             footer_text="Chart Ruler: Unknown",
             expanded=False,
@@ -418,7 +416,9 @@ class ChartsController:
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
         if callable(apply_launch_window_policy):
-            apply_launch_window_policy()
+            # Use the Windows top-most pulse only for first open (startup path).
+            # Subsequent Database View switches should use normal raise/activate.
+            apply_launch_window_policy(use_topmost_pulse=not has_loaded_rows)
         if dialog.isVisible():
             self._raise_manage_dialog()
         else:

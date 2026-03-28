@@ -483,6 +483,10 @@ from ephemeraldaddy.gui.features.charts.anagrams import (
     render_anagrams_html,
     render_anagrams_text,
 )
+from ephemeraldaddy.gui.features.charts.render_queue import (
+    ChartRenderQueueState,
+    RenderQueuePriority,
+)
 from ephemeraldaddy.gui.features.charts.similarity_norms import (
     SIMILARITY_THRESHOLD_EDITOR_ROWS,
     SimilarityThresholds,
@@ -606,12 +610,19 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_COLON_LABELS,
     CHART_AXES_STYLE,
     CHART_DATA_COMMON_LABELS,
+    CHART_DATA_DND_SUBHEADER_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
+    CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
     CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
+    CHART_INFO_EVIDENCE_LABEL_BOLD,
+    CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
+    CHART_INFO_SPECIES_HEADER_COLOR,
     CHART_DATA_DIVIDER,
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
     CHART_DATA_SECTION_HEADERS,
+    DND_STAT_EARTHTONE_COLORS,
     MIDDLE_PANEL_ACCENT_COLOR,
     MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA,
     RIGHT_PANEL_SCROLLBAR_STYLE,
@@ -639,10 +650,18 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
+from ephemeraldaddy.analysis.dnd.dnd_definitions import SPECIES_DESCRIPTIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
+    build_class_axis_profile_lines,
+    DND_CLASS_AXIS_EARTHTONE_COLORS,
+    DND_CLASS_THRESHOLD_COLOR,
     DND_CLASSES,
+    DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
+    format_class_axis_label,
+    resolve_class_key,
     score_class_axes,
+    score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
@@ -799,8 +818,16 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "B",
     )
 
-    def __init__(self, document) -> None:
+    def __init__(
+        self,
+        document,
+        *,
+        emphasize_dnd_class_headers: bool = False,
+        emphasize_species_info_headers: bool = False,
+    ) -> None:
         super().__init__(document)
+        self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
+        self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -825,6 +852,30 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format.setFontWeight(QFont.Bold)
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
+        self._class_header_format = QTextCharFormat(self._plain_bold_format)
+        self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        self._class_subheader_format = QTextCharFormat()
+        self._class_subheader_format.setFontItalic(True)
+        self._species_header_format = QTextCharFormat(self._plain_bold_format)
+        self._species_header_format.setForeground(QColor(CHART_INFO_SPECIES_HEADER_COLOR))
+        self._species_subheader_format = QTextCharFormat()
+        self._species_subheader_format.setFontItalic(CHART_INFO_SPECIES_DESCRIPTION_ITALIC)
+        self._dnd_subheader_format = QTextCharFormat()
+        if CHART_DATA_DND_SUBHEADER_BOLD:
+            self._dnd_subheader_format.setFontWeight(QFont.Bold)
+        self._dnd_subheader_note_format = QTextCharFormat()
+        self._dnd_subheader_note_format.setFontItalic(CHART_DATA_DND_SUBHEADER_NOTE_ITALIC)
+        if CHART_DATA_DND_SUBHEADER_NOTE_BOLD:
+            self._dnd_subheader_note_format.setFontWeight(QFont.Bold)
+        self._dnd_threshold_format = self._make_format(DND_CLASS_THRESHOLD_COLOR)
+        self._dnd_axis_line_formats = {
+            format_class_axis_label(axis_name): self._make_format(color)
+            for axis_name, color in DND_CLASS_AXIS_EARTHTONE_COLORS.items()
+        }
+        self._dnd_stat_line_formats = {
+            stat_key: self._make_format(color)
+            for stat_key, color in DND_STAT_EARTHTONE_COLORS.items()
+        }
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
@@ -895,6 +946,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         return cls._qt_len(text[:index])
 
     def highlightBlock(self, text: str) -> None:
+        if self.previousBlockState() == 1:
+            self.setFormat(0, self._qt_len(text), self._species_subheader_format)
+            self.setCurrentBlockState(0)
+            return
+
         lowered = text.lower()
         for needle in self._unknown_needles:
             start = 0
@@ -918,6 +974,67 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+        if self._emphasize_dnd_class_headers:
+            if stripped_text in DND_CLASSES:
+                self.setFormat(0, self._qt_len(text), self._class_header_format)
+            elif stripped_text and stripped_text in DND_CLASS_SUBCLASS_EXPLAINERS.values():
+                self.setFormat(0, self._qt_len(text), self._class_subheader_format)
+            elif stripped_text.startswith("‣ "):
+                bullet_body = stripped_text[2:].lstrip()
+                axis_label_text, separator, _rest = bullet_body.partition(":")
+                normalized_axis_label = axis_label_text.strip()
+                applied_dnd_line_format = False
+                for axis_label, axis_format in self._dnd_axis_line_formats.items():
+                    if separator and normalized_axis_label == axis_label:
+                        self.setFormat(0, self._qt_len(text), axis_format)
+                        marker_index = text.find("│")
+                        if marker_index != -1:
+                            self.setFormat(
+                                self._qt_index(text, marker_index),
+                                self._qt_len("│"),
+                                self._dnd_threshold_format,
+                            )
+                        applied_dnd_line_format = True
+                        break
+                if not applied_dnd_line_format and separator:
+                    stat_key = normalized_axis_label.split(" ", 1)[0].strip()
+                    stat_format = self._dnd_stat_line_formats.get(stat_key)
+                    if stat_format is not None:
+                        self.setFormat(0, self._qt_len(text), stat_format)
+        if self._emphasize_species_info_headers:
+            if stripped_text == "Evidence:" and CHART_INFO_EVIDENCE_LABEL_BOLD:
+                self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+            elif " • " in stripped_text and re.search(r" • -?\d+(?:\.\d+)?$", stripped_text):
+                header_part, _, _score_part = stripped_text.partition(" • ")
+                if any(
+                    header_part == species or header_part.startswith(f"{species} (")
+                    for species in SPECIES_FAMILIES
+                ):
+                    header_len = len(header_part)
+                    self.setFormat(
+                        self._qt_index(text, 0),
+                        self._qt_len(text[:header_len]),
+                        self._species_header_format,
+                    )
+                    self.setCurrentBlockState(1)
+        if stripped_text in {"Statblock", "Statblock ⓘ", "D&D Statblock", "D&D Statblock ⓘ"}:
+            self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
+        elif stripped_text == "Top 3 Species":
+            self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
+        elif stripped_text.startswith("Top 3 Classes*"):
+            classes_header_prefix = "Top 3 Classes*"
+            self.setFormat(
+                self._qt_index(text, 0),
+                self._qt_len(classes_header_prefix),
+                self._dnd_subheader_format,
+            )
+            note_index = text.find("(")
+            if note_index != -1:
+                self.setFormat(
+                    self._qt_index(text, note_index),
+                    self._qt_len(text[note_index:]),
+                    self._dnd_subheader_note_format,
+                )
 
         if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
             self.setFormat(0, self._qt_len(text), self._plain_bold_format)
@@ -2437,6 +2554,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label_by_mode.get(self._prevalence_mode, label_by_mode["sign_prevalence"])
         )
 
+    def _update_species_distribution_subheader(self) -> None:
+        subheader = getattr(self, "species_distribution_subheader", None)
+        if subheader is None:
+            return
+        if self._species_distribution_mode == "stat_block":
+            subheader.setText("average stat values for database (and selection)")
+            return
+        subheader.setText("Distribution of D&D species/classes in database")
+
     def _on_analysis_chart_dropdown_changed(self, chart_key: str) -> None:
         if chart_key == "species_distribution":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
@@ -2448,6 +2574,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "manage_charts/species_distribution_mode",
                         self._species_distribution_mode,
                     )
+            self._update_species_distribution_subheader()
             # Avoid list/filter repopulation when only the analytics display mode
             # changes. Re-render analytics from current cached data instead.
             self._update_sentiment_tally(
@@ -3316,11 +3443,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Top 3 Species", "top_three_species"),
                 ("#1 Classes", "top_class"),
                 ("Top 3 Classes", "top_three_classes"),
+                ("Stat Block", "stat_block"),
             ],
             show_title=False,
         )
-        species_subheader = add_database_subheader("Distribution of D&D species/classes in database")
-        species_section_layout.addWidget(species_subheader)
+        self.species_distribution_subheader = add_database_subheader("Distribution of D&D species/classes in database")
+        species_section_layout.addWidget(self.species_distribution_subheader)
+        self._update_species_distribution_subheader()
 
         #D&D Typing Chart
         (
@@ -6978,6 +7107,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_class": 0,
                 "top_three_classes": 0,
             },
+            "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
+            "dnd_stat_count": 0,
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7117,22 +7248,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             except Exception:
                 ranked_classes = []
             if ranked_classes:
-                top_class_key, _top_class_score = ranked_classes[0]
-                top_class_definition = DND_CLASSES.get(top_class_key)
-                top_class_name = (
-                    top_class_definition.display_name
-                    if top_class_definition is not None
-                    else top_class_key
-                )
-                if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
-                    snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
-                    snapshot["class_total_count_by_mode"]["top_class"] += 1
+                # Guard against non-informative rankings. When every class score is flat
+                # (or numerically indistinguishable), stable sort order will always pick
+                # the first class key and can heavily skew "#1 class" analytics.
+                top_class_key, top_class_score = ranked_classes[0]
+                second_class_score = ranked_classes[1][1].score if len(ranked_classes) > 1 else 0.0
+                class_confidence_gap = float(top_class_score.score - second_class_score)
+                has_informative_top_class = bool(top_class_score.score > 1e-6 and class_confidence_gap > 1e-6)
+                if has_informative_top_class:
+                    top_class_definition = DND_CLASSES.get(top_class_key)
+                    top_class_name = (
+                        top_class_definition.display_name
+                        if top_class_definition is not None
+                        else top_class_key
+                    )
+                    if top_class_name in snapshot["class_totals_by_mode"]["top_class"]:
+                        snapshot["class_totals_by_mode"]["top_class"][top_class_name] += 1
+                        snapshot["class_total_count_by_mode"]["top_class"] += 1
                 for class_key, _class_score in ranked_classes[:3]:
                     class_definition = DND_CLASSES.get(class_key)
                     class_name = class_definition.display_name if class_definition else class_key
                     if class_name in snapshot["class_totals_by_mode"]["top_three_classes"]:
                         snapshot["class_totals_by_mode"]["top_three_classes"][class_name] += 1
                         snapshot["class_total_count_by_mode"]["top_three_classes"] += 1
+            try:
+                statblock = score_dnd_statblock(chart)
+            except Exception:
+                statblock = None
+            if statblock is not None:
+                for stat_key in snapshot["dnd_stat_totals"]:
+                    snapshot["dnd_stat_totals"][stat_key] += float(statblock.scores.get(stat_key, 0.0))
+                snapshot["dnd_stat_count"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -7151,6 +7297,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
+        totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
@@ -7217,6 +7364,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["class_totals_by_mode"][mode][class_name] += direction * int(
                     class_snapshot.get(class_name, 0)
                 )
+        for stat_key in totals["dnd_stat_totals"]:
+            stat_snapshot = snapshot.get("dnd_stat_totals", {})
+            stat_value = stat_snapshot.get(stat_key, 0.0) if isinstance(stat_snapshot, dict) else 0.0
+            totals["dnd_stat_totals"][stat_key] += direction * float(stat_value)
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -7535,6 +7686,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not selected_generations
             and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
+            and (
+                not hasattr(self, "dnd_class_filter_combo")
+                or self.dnd_class_filter_combo.currentData() == "Any"
+            )
             and not guessed_gender_filter
             and positive_sentiment_intensity_min is None
             and positive_sentiment_intensity_max is None
@@ -8010,11 +8165,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     }
                     database_class_total_count = sum(database_class_totals.values())
 
-                class_labels = list(
-                    selection_class_totals.keys()
-                    or database_class_totals.keys()
-                    or [definition.display_name for definition in DND_CLASSES.values()]
-                )
+                class_labels = [definition.display_name for definition in DND_CLASSES.values()]
+                for class_name in selection_class_totals:
+                    if class_name not in class_labels:
+                        class_labels.append(class_name)
+                for class_name in database_class_totals:
+                    if class_name not in class_labels:
+                        class_labels.append(class_name)
                 selection_species = {
                     class_name: (
                         selection_class_totals.get(class_name, 0)
@@ -8033,6 +8190,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     )
                     for class_name in class_labels
                 }
+            elif species_mode == "stat_block":
+                selection_species = self._compute_dnd_statblock_averages(selection_cache)
+                database_species = self._compute_dnd_statblock_averages(database_cache)
             else:
                 selection_species = {
                     species: (
@@ -8684,26 +8844,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
+            if species_mode == "stat_block":
+                selection_dnd_counts = {
+                    label: int(selection_cache.get("dnd_stat_count", 0))
+                    for label in selection_species
+                }
+                database_dnd_counts = {
+                    label: int(database_cache.get("dnd_stat_count", 0))
+                    for label in selection_species
+                }
+            elif species_mode in {"top_class", "top_three_classes"}:
+                selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
+                    species_mode,
+                    {},
+                )
+                database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
+                    species_mode,
+                    {},
+                )
+            else:
+                selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
+                database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
+
             if _should_refresh_database_metric_section("species_distribution"):
-                if species_mode in {"top_class", "top_three_classes"}:
-                    selection_dnd_counts = selection_cache.get("class_totals_by_mode", {}).get(
-                        species_mode,
-                        {},
-                    )
-                    database_dnd_counts = database_cache.get("class_totals_by_mode", {}).get(
-                        species_mode,
-                        {},
+                if species_mode == "stat_block":
+                    species_canvas = self._build_dnd_statblock_summary_chart(
+                        selection_cache=selection_cache,
+                        database_cache=database_cache,
+                        loaded_charts=loaded_charts,
                     )
                 else:
-                    selection_dnd_counts = selection_cache["species_totals_by_mode"][species_mode]
-                    database_dnd_counts = database_cache["species_totals_by_mode"][species_mode]
-                species_canvas = self._build_species_distribution_chart(
-                    selection_species=selection_species,
-                    database_species=database_species,
-                    selection_species_counts=selection_dnd_counts,
-                    database_species_counts=database_dnd_counts,
-                    loaded_charts=loaded_charts,
-                )
+                    species_canvas = self._build_species_distribution_chart(
+                        selection_species=selection_species,
+                        database_species=database_species,
+                        selection_species_counts=selection_dnd_counts,
+                        database_species_counts=database_dnd_counts,
+                        loaded_charts=loaded_charts,
+                    )
                 self._clear_layout(self.species_distribution_chart_layout)
                 self.species_distribution_chart_layout.addWidget(
                     species_canvas,
@@ -8717,19 +8894,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     selection_values=[selection_species[label] for label in species_labels],
                     database_values=[database_species[label] for label in species_labels],
                     selection_counts=[
-                        (
-                            selection_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
-                            if species_mode in {"top_class", "top_three_classes"}
-                            else selection_cache["species_totals_by_mode"][species_mode][label]
-                        )
+                        int(selection_dnd_counts.get(label, 0))
                         for label in species_labels
                     ],
                     database_counts=[
-                        (
-                            database_cache.get("class_totals_by_mode", {}).get(species_mode, {}).get(label, 0)
-                            if species_mode in {"top_class", "top_three_classes"}
-                            else database_cache["species_totals_by_mode"][species_mode][label]
-                        )
+                        int(database_dnd_counts.get(label, 0))
                         for label in species_labels
                     ],
                     loaded_charts=loaded_charts,
@@ -9981,10 +10150,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&&D Species"
+            "D&&D-ification"
         )
+        class_filter_row = QHBoxLayout()
+        class_filter_row.addWidget(QLabel("Top 3 Classes"))
+        self.dnd_class_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.dnd_class_filter_combo)
+        self.dnd_class_filter_combo.addItem("Any", "Any")
+        for class_definition in DND_CLASSES.values():
+            self.dnd_class_filter_combo.addItem(class_definition.display_name, class_definition.display_name)
+        self.dnd_class_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        class_filter_row.addWidget(self.dnd_class_filter_combo, 1)
+        dnd_species_group_layout.addLayout(class_filter_row)
+
         species_filter_row = QHBoxLayout()
-        species_filter_row.addWidget(QLabel("Top 3 result"))
+        species_filter_row.addWidget(QLabel("Top 3 Species"))
         self.species_filter_combo = QComboBox()
         apply_default_dropdown_style(self.species_filter_combo)
         self.species_filter_combo.addItem("Any", "Any")
@@ -12830,7 +13010,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         apply_window_placement(self, capture_window_placement(source_window))
 
-    def apply_launch_window_policy(self) -> None:
+    def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Do not force Database View back to the primary screen or maximized state.
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         clear_fullscreen_and_minimized(self)
@@ -12912,7 +13092,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Pallas", "Pallas"),
             ("Juno", "Juno"),
             ("Vesta", "Vesta"),
-            ("Lilith", "Lilith"),
+            ("Black Moon Lilith", "Lilith"),
             ("Part of Fortune", "Part of Fortune"),
             ("AS", "AS"),
             ("IC", "IC"),
@@ -13035,6 +13215,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
+                self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
@@ -14306,6 +14488,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
         selected_species = self.species_filter_combo.currentData()
+        selected_dnd_class = (
+            self.dnd_class_filter_combo.currentData()
+            if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
+            else "Any"
+        )
         selected_sentiments = {
             name
             for name, checkbox in self.sentiment_filter_checkboxes.items()
@@ -14540,6 +14727,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for species_name, _subtype, _score in species_top_three[:3]
             }
             if selected_species not in top_three_species:
+                return False
+
+        if selected_dnd_class != "Any":
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                return False
+            try:
+                axis_scores = score_class_axes(chart)
+                class_scores = DnDClassScorer().score_classes(axis_scores)
+                ranked_classes = sorted(
+                    class_scores.items(),
+                    key=lambda item: item[1].score,
+                    reverse=True,
+                )
+            except Exception:
+                ranked_classes = []
+            top_three_classes = {
+                (
+                    DND_CLASSES[class_key].display_name
+                    if class_key in DND_CLASSES
+                    else class_key
+                )
+                for class_key, _class_score in ranked_classes[:3]
+            }
+            if selected_dnd_class not in top_three_classes:
                 return False
 
         birth_status_filter_states: list[bool] = []
@@ -16372,8 +16584,7 @@ class MainWindow(QMainWindow):
         self._latest_chart = None
         self._sync_chart_right_panel_placeholder_state(None)
         self._pending_render_chart: Chart | None = None
-        self._pending_render_sections: set[str] = set()
-        self._pending_render_queue: list[str] = []
+        self._chart_render_queue_state = ChartRenderQueueState()
         self._chart_analytics_render_tokens: dict[str, str] = {}
         self._chart_analytics_dirty_sections: set[str] = {
             "signs",
@@ -16627,7 +16838,11 @@ class MainWindow(QMainWindow):
             "Click the ⓘ next to a position or aspect to see details/interpretation."
         )
         self.chart_info_output.setMinimumHeight(140)
-        self._chart_info_highlighter = ChartSummaryHighlighter(self.chart_info_output.document())
+        self._chart_info_highlighter = ChartSummaryHighlighter(
+            self.chart_info_output.document(),
+            emphasize_dnd_class_headers=True,
+            emphasize_species_info_headers=True,
+        )
         self.chart_info_content_stack = QStackedWidget()
         self.chart_info_content_stack.addWidget(self.chart_info_output)
         chart_panel_layout.addWidget(self.chart_info_content_stack, 0)
@@ -17459,7 +17674,7 @@ class MainWindow(QMainWindow):
         self._schedule_chart_render(
             self._latest_chart,
             sections={render_key},
-            prioritize_sections=True,
+            queue_priority="interactive",
         )
 
     def _is_chart_analysis_section_visible(self, section_key: str) -> bool:
@@ -19546,8 +19761,13 @@ class MainWindow(QMainWindow):
                     if selected_species.get("kind") == "class":
                         self._show_dnd_class_info(
                             str(selected_species.get("name", "Unknown Class")),
+                            str(selected_species.get("class_key", "")),
                             float(selected_species.get("score", 0.0)),
-                            list(selected_species.get("evidence", [])),
+                            dict(selected_species.get("axis_scores", {})),
+                        )
+                    elif selected_species.get("kind") == "statblock":
+                        self._show_dnd_statblock_info(
+                            list(selected_species.get("profile_lines", []))
                         )
                     else:
                         self._show_species_info(
@@ -19785,27 +20005,68 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        header = f"{family} ({subtype}) • {score:.2f}"
+        label = f"{family} ({subtype})" if subtype else family
+        header = f"{label} • {score:.2f}"
+        species_description = SPECIES_DESCRIPTIONS.get(family, "")
+        subtype_key = f"{family}::{subtype}" if subtype else ""
+        subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
+        description_parts = [part for part in (species_description, subtype_description) if part]
+        description_line = " ".join(description_parts) if description_parts else "Species flavor text unavailable."
         if evidence:
             lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText("\n".join([header, "", "Evidence:"] + lines))
+            self.chart_info_output.setPlainText(
+                "\n".join([header, description_line, "", "Evidence:"] + lines)
+            )
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this species assignment."])
+            "\n".join(
+                [
+                    header,
+                    description_line,
+                    "",
+                    "• Evidence is unavailable for this species assignment.",
+                ]
+            )
         )
 
     def _show_dnd_class_info(
         self,
         class_name: str,
+        class_key: str,
         _score: float,
-        evidence: list[str],
+        axis_scores: dict[str, float],
     ) -> None:
-        header = class_name
-        if evidence:
-            self.chart_info_output.setPlainText("\n".join([header, ""] + evidence))
+        resolved_class_key = resolve_class_key(class_key) or resolve_class_key(class_name) or class_name
+        class_definition = DND_CLASSES.get(resolved_class_key)
+        header = (
+            class_definition.display_name
+            if class_definition is not None
+            else class_name
+        )
+        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(header, "Class flavor text unavailable.")
+        evidence_lines = build_class_axis_profile_lines(header, axis_scores)
+        if evidence_lines:
+            self.chart_info_output.setPlainText("\n".join([header, "", class_description, "", *evidence_lines]))
             return
         self.chart_info_output.setPlainText(
-            "\n".join([header, "", "• Evidence is unavailable for this class assignment."])
+            "\n".join(
+                [
+                    header,
+                    "",
+                    class_description,
+                    "",
+                    "‣ Axis profile unavailable for this class assignment.",
+                ]
+            )
+        )
+
+    def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
+        header = "D&D Statblock"
+        if profile_lines:
+            self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
+            return
+        self.chart_info_output.setPlainText(
+            "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
         )
 
     def _show_aspect_info(
@@ -21296,8 +21557,7 @@ class MainWindow(QMainWindow):
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
-        self._pending_render_sections.clear()
-        self._pending_render_queue.clear()
+        self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()
@@ -21649,23 +21909,17 @@ class MainWindow(QMainWindow):
             return
         self._schedule_passive_chart_analysis_preload(chart)
 
-    def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
-        if self._latest_chart is not chart:
-            return
-        self._schedule_passive_chart_analysis_preload(chart)
-
     def _schedule_chart_render(
         self,
         chart: Chart,
         sections: set[str] | None = None,
         *,
         allow_collapsed_sections: bool = False,
-        prioritize_sections: bool = False,
+        queue_priority: RenderQueuePriority = "interactive",
     ) -> None:
         self._latest_chart = chart
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
-            self._pending_render_sections.clear()
-            self._pending_render_queue.clear()
+            self._chart_render_queue_state.clear()
         self._pending_render_chart = chart
         if sections is None:
             sections = {
@@ -21690,7 +21944,6 @@ class MainWindow(QMainWindow):
         )
         if "planet_dynamics" in sections:
             chart.planet_dynamics_scores = _calculate_planet_dynamics_scores(chart)
-        self._pending_render_sections.update(sections)
         render_order = (
             "summary",
             "signs",
@@ -21705,37 +21958,24 @@ class MainWindow(QMainWindow):
             "similar_charts",
             "anagrams",
         )
-        queued = set(self._pending_render_queue)
-        prioritized_queue: list[str] = []
-        if prioritize_sections:
-            for section_name in render_order:
-                if section_name in sections and section_name in self._pending_render_queue:
-                    self._pending_render_queue.remove(section_name)
-                    prioritized_queue.append(section_name)
-                    queued.discard(section_name)
-        for section_name in render_order:
-            if section_name in self._pending_render_sections and section_name not in queued:
-                if prioritize_sections:
-                    prioritized_queue.append(section_name)
-                else:
-                    self._pending_render_queue.append(section_name)
-                queued.add(section_name)
-        if prioritized_queue:
-            self._pending_render_queue = prioritized_queue + self._pending_render_queue
+        self._chart_render_queue_state.enqueue(
+            sections=sections,
+            render_order=render_order,
+            priority=queue_priority,
+        )
         if not self._render_flush_timer.isActive():
             self._render_flush_timer.start(0)
 
     def _flush_scheduled_chart_render(self) -> None:
         chart = self._pending_render_chart
         if chart is None:
-            self._pending_render_sections.clear()
-            self._pending_render_queue.clear()
+            self._chart_render_queue_state.clear()
             self._hide_chart_loading_overlay()
             return
 
-        section = self._pending_render_queue.pop(0) if self._pending_render_queue else None
+        section = self._chart_render_queue_state.pop_next()
         if section is None:
-            if not self._pending_render_sections:
+            if not self._chart_render_queue_state.has_pending_work():
                 self._pending_render_chart = None
                 self._hide_chart_loading_overlay()
             return
@@ -21764,13 +22004,13 @@ class MainWindow(QMainWindow):
             self._render_similar_charts(chart)
         elif section == "anagrams":
             self._render_anagrams(chart)
-        self._pending_render_sections.discard(section)
+        self._chart_render_queue_state.mark_complete(section)
         self._mark_chart_analytics_sections_clean({section}, chart)
 
-        if self._pending_render_queue:
+        if self._chart_render_queue_state.has_queued_work():
             self._render_flush_timer.start(0)
             return
-        if self._pending_render_sections:
+        if self._chart_render_queue_state.has_pending_work():
             self._render_flush_timer.start(0)
             return
 
@@ -21924,7 +22164,6 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
-            "similar_charts",
         }
         if self._is_chart_analysis_section_visible("anagrams"):
             passive_sections.add("anagrams")
@@ -21932,6 +22171,7 @@ class MainWindow(QMainWindow):
             chart,
             sections=passive_sections,
             allow_collapsed_sections=True,
+            queue_priority="background",
         )
 
     def _render_metric_panel(
@@ -22015,8 +22255,7 @@ class MainWindow(QMainWindow):
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
-        self._pending_render_sections.clear()
-        self._pending_render_queue.clear()
+        self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
         self.chart_info_output.clear()

@@ -48,7 +48,8 @@ ANGLES = {"AS", "DS", "MC", "IC"}
 PERSONAL = INNER_PLANETS | ANGLES
 
 NODES = {"Rahu", "Ketu"}
-ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas", "Lilith"}
+ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas"}
+BLACK_MOON_LILITH = {"Lilith"}
 POINTS = {"Part of Fortune"} # canonical label only; aka "Fortune"
 ANGLE_POINTS = ("AS", "IC", "DS", "MC")
 
@@ -70,7 +71,7 @@ ANGLE_ALIASES = {
 MAJOR_ASPECTS = {0, 60, 90, 120, 180}
 MINOR_ASPECTS = {30, 45, 72, 135, 144, 150}
 
-SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS
+SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS | BLACK_MOON_LILITH
 FAST_TRANSIT_BODIES = {"Sun","Mercury", "Venus", "Mars"}  # Sun, Moon, Mercury, Venus, Mars
 VERY_FAST_TRANSIT_BODIES = {"Moon"}
 
@@ -1255,7 +1256,7 @@ SIGN_KEYWORDS = {
             "in a masked way", "indirectly",
         ],
         "profile":"cleave",
-        "verbs": ["curating narrative via", "impersonating", "absorbing", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
+        "verbs": ["curating narrative via", "impersonating", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
         "core":"Adaptive, ambiguous, nonlinear. Charisma through fluidity.",
         "strategy":"Withholds certainty, uses flexibility as power. Navigates contradiction without flinching. Translates between worlds.",
         "function":"Social shapeshifter—not for approval, but for autonomy. Knows where to bend and when not to.",
@@ -1671,6 +1672,9 @@ PLANET_KEYWORDS = {
             "leading", "deciding", "expressing", "commanding", "directing", "choosing",
             "affirming", "claiming", "centering", "radiating", "authoring", "standing forth",
         ],
+        "explanation":[""],
+        "archetypes":[
+        ],
     },
     "Moon": {
         "nouns": [
@@ -1684,6 +1688,9 @@ PLANET_KEYWORDS = {
         "verbsonly": [
             "reacting", "feeling", "noticing moods", "seeking comfort", "caring",
             "finding familiarity", "seeking safety", "remembering", "settling into", "protecting", "recharging",
+        ],
+        "explanation":[""],
+        "archetypes":[
         ],
     },
     "Mercury": {
@@ -1699,123 +1706,176 @@ PLANET_KEYWORDS = {
             "thinking", "talking", "asking", "answering", "writing", "reading",
             "explaining", "learning", "sorting", "editing", "naming", "translating",
         ],
+        "explanation":[""],
+        "archetypes":[
+            "Hermes",
+        ],
     },
     "Venus": {
         "nouns": [
-            "interactions", "likes", "choices", "pleasures", "connections", "romances", "relationships",
-            "sharing", "style", "spending", "savings", "values", "appreciation","enjoyments",
+            "attraction", "pleasure", "taste", "affection", "charm", "style", "beauty", #"relationships","enjoyments",
+            "harmony", "preference", "connection", "romance", "appreciation", "allure", "values",
         ],
         "verbs": [
-            "socializing with","liking", "adoring", "reveling in", "choosing", "enjoying", "connecting with", "flirting with", "dating by way of","attraction to","engaging with others as",
-            "sharing", "decorating", "reveling in the beauty of", "appreciating", "savoring", "valuing","socializing by way of","making an art out of","interpreting femininity as",
+            "socializing with", "liking", "adoring", "enjoying", "connecting with", "flirting with",
+            "being attracted to", "sharing with", "decorating", "appreciating", "savoring", "valuing",
+            "harmonizing with", "beautifying", "making an art out of", "interpreting femininity as",
         ],
         "verbsonly": [
-            "socializing","liking", "adoring", "reveling", "choosing", "enjoying", "connecting", "flirting", "dating","attraction","engaging with others",
-            "sharing", "decorating", "reveling in beauty", "appreciating", "savoring", "valuing","socializing","interpreting femininity",
+            "socializing", "liking", "adoring", "enjoying", "connecting", "flirting",
+            "being attracted", "sharing", "decorating", "appreciating", "savoring", "valuing",
+            "harmonizing", "beautifying", "making an art out of", "interpreting femininity",
+        ],
+        "explanation":[""],
+        "archetypes":[
         ],
     },
     "Mars": {
         "nouns": [
-            "energy","drive","motivation","actions", "movement", "effort", "competition", "conflict", "training",
-            "workouts", "risks", "projects", "repairs", "driving", "finishes",
+            "drive", "energy", "assertion", "action", "effort", "movement", "conflict",
+            "competition", "courage", "risk", "urgency", "pursuit", "anger", "force",
         ],
         "verbs": [
-            "directing energy toward","acting upon", "moving with", "pushing back against", "competing in the arena of","getting motivated by", "arguing with", "training",
-            "working out with", "taking risks with", "building", "fixing", "being driven by", "finishing","interpreting masculinity as",
+            "directing energy toward", "acting on", "moving toward", "pushing against", "competing with",
+            "getting fired up by", "arguing with", "pursuing", "challenging", "asserting", "building",
+            "fixing", "taking risks with", "forcing the issue in", "interpreting masculinity as",
         ],
         "verbsonly": [
-            "directing energy","taking action", "moving", "pushing back", "competing", "arguing","being motivated", "training",
-            "working out", "taking risks", "building", "fixing", "being driven", "finishing","interpreting masculinity",
+            "directing energy", "acting", "moving", "pushing", "competing",
+            "getting fired up", "arguing", "pursuing", "challenging", "asserting", "building",
+            "fixing", "taking risks", "forcing the issue", "interpreting masculinity",
+        ],
+        "explanation":[""],
+        "archetypes":[
         ],
     },
     "Jupiter": {
         "nouns": [
-            "learning", "teaching", "travel", "attempts", "exploration", "groups",
-            "advice", "study", "publishing", "promotion", "investments", "growth",
+            "growth", "expansion", "learning", "teaching", "wisdom", "belief","trust", #omitted "faith" to avoid dragging church furniture into the room
+            "conviction", "opportunity", "abundance", "generosity", "travel", "exploration","hope",
         ],
         "verbs": [
-            "teaching", "learning from", "traveling with", "trying", "exploring", "joining",
-            "advising", "studying", "publishing", "promoting", "investing in", "expanding",
+            "teaching", "learning from", "traveling through", "exploring", "advising", "studying",
+            "publishing", "expanding", "blessing", "encouraging", "believing in", "broadening",
         ],
         "verbsonly": [
-            "teaching", "learning from", "traveling", "trying", "exploring", "joining",
-            "advising", "studying", "publishing", "promoting", "investing", "expanding",
+            "teaching", "learning", "traveling", "exploring", "advising", "studying",
+            "publishing", "expanding", "blessing", "encouraging", "believing", "broadening",
+        ],
+        "explanation":[""],
+        "archetypes":[
+            "Santa Clause",
         ],
     },
-    "Saturn": {
+    "Saturn": { #If you're just printing a list of keywords, you're going to want to dial back the synonyms. But as long as you're generating phrases, this is cool & keeps things spicy and varied, poetic.
         "nouns": [
-            "elders","burdens","commitments", "budgets", "savings", "schedules", "obligations", "practice","duties","responsibilities",
-            "maintenance", "limits", "habits", "rules","institutions","orthodoxy","restrictions","limitations"
+            "limitations","burdens", "commitments", "duties", "responsibilities", "discipline","elders","practice","rules","institutions","orthodoxy","status quo","continuity","existing structures",
+            "structure", "time", "endurance", "obligations","inertia","entropy","restrictions","bureaucracy","entrenched order","consequence","precedent","sanctioned order","accumulated dust", #dust is the residue of time, the cross we all bear, entropy incarnate
         ],
         "verbs": [
-            "working on", "budgeting", "obligated to", "scheduling", "committing", "practicing",
-            "reviewing", "testing", "maintaining", "limiting","restricted by", "building habits", "following rules for",
+            "working on", "committing to", "reviewing", "tested by", "testing","maintaining","obligated to", #is this more 8th house? no - duty, burden, requirement, responsibility, necessity, rule-bound commitment
+            "limiting", "being restricted by", "enduring", "structuring", "bearing", "delaying","practicing", #is this more 6th house?
         ],
         "verbsonly": [
-            "working", "budgeting", "saving", "scheduling", "committing", "practicing",
-            "reviewing", "testing", "maintaining", "limiting","being restricted", "building habits", "following rules",
+            "working", "committing", "practicing", "reviewing", "testing", "maintaining",
+            "limiting", "being restricted", "enduring", "structuring", "bearing", "delaying", #
+        ],
+        "explanation": [
+            "the condition under which order hardens, persists, decays and must be re-won","Saturn builds canyons and monuments, Saturn also ossifies, leaves residue and wears down. Saturn slowly moves mountains and erodes them. It's just time, bro.","The neutral reckoning of what persists, for better or worse.",
+        ],
+        "archetypes": [ #previously associated with Cronus (as was Saturn's structural opposite - Uranus!) but there is so much narrative drift there that the affiliation starts to collapse. Modern lore translates it essentially to Anachronism/Conservativism vs Meliorism/Progressivism (as NOTABLY distinct from "Right wing vs Left wing" - because a lot of neocon post-9/11 pundits are both Saturn & Uranus-ruled or Capricorn/Aquarius dominant).
+        #The hierophant can also drift 9th-house/Jupiter/Taurus-ish depending on the symbolic system. 
+            "Turtle Thomas","a tortoise","a bristlecone pine","Methuselah","ouroboros","Sisyphus","Time","Father Time", #Saturn includes both maat (order, law, continuity, obligation, structure - but unlike maat has no devotion to truth, justice or correct proportion) and isfet (order, law, continuity, obligation, structure). Saturn is the temporality that makes maat costly, fragile, and perishable, and that allows isfet to arise through neglect, rigidity, exhaustion, and decay.
         ],
     },
     "Uranus": {
         "nouns": [
-            "iconoclasm","unpredictability","glitches", "shocking behavior", "novelty", "experiments", "rebellion","futurism",
-            "disruption", "pattern breaks", "innovation", "customization", "rule challenges", "surprises","heresy","counterculture",
+            "iconoclasm", "unpredictability", "novelty", "experiments", "rebellion", "futurism","deviation","disruption",
+            "pattern breaks", "innovation", "heresy", "counterculture","discontinuity","anomalies","rule challenges", 
+            "eccentricity", "independence", "deviation", "liberation", "upheaval","glitches", "shocking behavior", 
         ],
         "verbs": [
-            "changing", "updating", "replacing", "switching", "experimenting", "improvising",
-            "restarting", "breaking patterns with", "innovating", "customizing", "challenging rules", "surprising",
+            "disrupting", "breaking patterns with", "experimenting", "improvising", "innovating",
+            "challenging rules", "surprising", "deviating from", "liberating", "destabilizing",
+            "electrifying", "refusing",
         ],
         "verbsonly": [
-            "changing", "updating", "replacing", "switching", "experimenting", "improvising",
-            "restarting", "breaking patterns", "innovating", "customizing", "challenging rules", "surprising",
+            "disrupting", "breaking patterns", "experimenting", "improvising", "innovating",
+            "challenging rules", "surprising", "deviating", "liberating", "destabilizing",
+            "electrifying", "refusing",
+        ],
+        "explanation":[""],
+        "archetypes":[
+            "a live wire",
         ],
     },
     "Neptune": {
         "nouns": [
-            "imagination", "daydreams", "relaxation", "escapes", "avoidance", "guesses",
-            "trust", "doubt", "ideals", "misunderstandings", "music", "distractions",
+            "imagination", "idealization", "escapism", "illusion", "yearning", "dreams","vast immersion in the primordial unknown",
+            "music", "glamour", "diffusion", "dissolution", "longing", "mysticism","l'appel du vide","vastness","lack of boundaries",
+            "confusion", "permeability", "intoxication","distractions","longing for the unbounded","surrender to the unknown","devotion without proof",
         ],
         "verbs": [
-            "imagining", "daydreaming about", "relaxing with", "escaping from", "avoiding", "finding poetry in",
-            "trusting in", "doubting", "idealizing", "misunderstanding", "vibing out with", "getting distracted by",
+            "imagining", "daydreaming about", "escaping from", "avoiding", "idealizing","seeking transcendence through",
+            "trusting in", "dissolving into", "drifting through", "surrendering to","projecting onto","confused for","confused by",
+            "romanticizing", "misunderstanding", "finding beauty in", "blurring", "intoxicating",
         ],
         "verbsonly": [
-            "imagining", "daydreaming", "relaxing", "escaping", "avoiding", "finding poetry",
-            "trusting", "doubting", "idealizing", "misunderstanding", "vibing out", "getting distracted",
+            "imagining", "daydreaming", "escaping", "avoiding", "idealizing","transcending",
+            "trusting", "doubting", "dissolving", "drifting", "surrendering",
+            "romanticizing", "misunderstanding", "finding beauty", "blurring", "intoxicating",
+        ],
+        "explanation":[
+            "the beautiful lie and the beautiful possibility, often in the same bottle",
+        ],
+        "archetypes":[
+            "fog bank","deep uncharted ocean","being lost in the depths of space",
         ],
     },
     "Pluto": {
         "nouns": [
-            "research", "deep dives", "control", "forced resets","sex","death","metamorphosis","violent transitions","power dynamics"
-            "sudden endings", "fresh starts", "obsession", "fixations", "confrontations", "rebuilds",
+            "control", "compulsion", "obsession", "fixations", "metamorphosis", "power dynamics","power struggle",
+            "subterranean motives", "purge", "eradication", "exposure", "confrontation","battle-tested bonds","excavation of hidden motives",
+            "domination", "intensity", "irreversible change", "reconstruction after collapse",
         ],
         "verbs": [
-            "researching", "investigating", "tracking", "controlling", "testing the limits of", "resetting",
-            "cutting off", "starting over with", "insisting on", "obsessing over", "confronting", "rebuilding",
+            "investigating", "tracking", "controlling", "probing", "testing the limits of", "resetting",
+            "cutting off", "eliminating", "insisting on", "obsessing over", "confronting", "rebuilding",
         ],
         "verbsonly": [
-            "researching", "investigating", "tracking", "controlling", "testing limits", "resetting",
-            "cutting off", "starting over", "insisting", "obsessing", "confronting", "rebuilding",
+            "investigating", "tracking", "controlling", "probing", "testing limits", "resetting",
+            "cutting off", "eliminating", "insisting", "obsessing", "confronting", "rebuilding",
+        ],
+        "explanation":[""],
+        "archetypes":[
+            "Kafka plots", #lol
         ],
     },
     "Chiron": {
         "nouns": [
-            "pain points", "hard talks", "help", "support", "lessons", "recovery",
-            "mistakes", "practice", "coaching", "adaptation", "confidence", "reframed perspectives",
+            "trigger points", "sensitivities", "difficulty", "lessons", "adaptation", "recovery paths",
+            "mistakes", "compensatory skills", "instructive failures", "awkwardness",
+            "reframed perspectives", "earned insight","psychic scars",
         ],
         "verbs": [
-            "noticing pain points in", "talking through", "getting help with", "helping others with", "teaching with",
-            "learning from mistakes with", "practicing on", "coaching", "adapting to", "building confidence with", "reframing", "recovering",
+            "noticing vulnerabilities in", "working through", "adapting to", "learning from mistakes with",
+            "teaching through", "practicing around", "compensating for", "reframing", "recovering", "guiding through",
         ],
         "verbsonly": [
-            "noticing pain points", "resolving", "getting help", "helping others", "teaching",
-            "learning from mistakes", "practicing", "coaching", "adapting", "building confidence", "reframing", "recovering",
+            "noticing vulnerabilities", "working through", "adapting", "learning from mistakes",
+            "teaching through", "practicing", "compensating", "reframing", "recovering", "guiding",
+        ],
+        "explanation": [
+            "the place where difficulty becomes method, and sensitivity becomes instruction",
+        ],
+        "archetypes": [
+            "Obi-Wan Kenobe",
         ],
     },
     "Ceres": {
         "nouns": [
-            "food", "meals", "shopping", "supplies", "cleaning", "hosting",
-            "gardens", "lunches", "budgets", "stock checks", "care", "support",
+            "nourishment", "care", "food", "provisioning", "support", "cultivation",
+            "gardens", "lunches",  "budgeting","momming",
         ],
         "verbs": [
             "feeding", "cooking", "shopping", "providing", "cleaning", "hosting",
@@ -1825,103 +1885,154 @@ PLANET_KEYWORDS = {
             "feeding", "cooking", "shopping", "providing", "cleaning", "hosting",
             "gardening", "budgeting", "caring","nurturing others", "providing support",
         ],
+        "explanation":[
+            "the instinct to feed, tend, preserve, and keep life going through seasons of scarcity and plenty alike.",
+        ],
+        "archetypes":[
+            "the steward", "the gardener", "the keeper of stores","the potluck queen","the lunchlady",
+        ],
     },
     "Pallas": {
         "nouns": [
-            "plans", "strategy", "solutions", "patterns", "designs", "systems",
-            "priorities", "maps", "negotiations", "advice", "risks", "next steps",
+            "strategy", "pattern recognition", "solutions", "design", "engineering", "tactics",
+            "foresight", "maps", "discernment", "negotiation", "intelligence", "system architecture",
         ],
         "verbs": [
             "planning", "strategizing", "problem-solving", "noticing patterns", "designing", "organizing",
-            "prioritizing", "mapping", "negotiating", "advising", "spotting risky",
+            "mapping", "negotiating", "advising", "spotting risks", "outmaneuvering", "synthesizing",
         ],
         "verbsonly": [
             "planning", "strategizing", "problem-solving", "noticing patterns", "designing", "organizing",
-            "prioritizing", "mapping", "negotiating", "advising", "spotting risky",
+            "mapping", "negotiating", "advising", "spotting risks", "outmaneuvering", "synthesizing",
+        ],
+        "explanation": [
+            "the intelligence that reads patterns, designs solutions, and turns perception into strategy",
+        ],
+        "archetypes":[
+            "Samantha Carter (SG1)","Athena","Princess Leia","Seven of Nine (Star Trek: Voyager)","Dana Scully (X-Files)",
         ],
     },
     "Juno": {
         "nouns": [
-            "commitment", "partnership", "negotiation", "boundaries", "agreements", "responsibilities",
-            "promises", "fairness", "expectations", "loyalty", "cooperation", "accountability",
+            "commitment", "marriage", "partnership", "vows", "agreements", "mutuality",
+            "fairness", "expectations", "loyalty", "reciprocity", "accountability", "fidelity",
         ],
         "verbs": [
-            "committing to", "partnering with", "negotiating with", "setting boundaries with", "making agreements with", "sharing responsibilities with",
-            "keeping promises to", "insisting on fairness with regard to", "checking expectations with", "choosing loyalty to", "cooperating with",
+            "committing to", "partnering with", "negotiating with", "making agreements with", "sharing responsibilities with",
+            "keeping promises to", "insisting on fairness with regard to", "checking expectations with", "remaining loyal to", "cooperating with", "honoring vows to",
         ],
         "verbsonly": [
-            "committing", "partnering", "negotiating", "setting boundaries", "making agreements", "sharing responsibilities",
-            "keeping promises", "insisting on fairness", "checking expectations", "choosing loyalty", "cooperating",
+            "committing", "partnering", "negotiating", "making agreements", "sharing responsibilities",
+            "keeping promises", "insisting on fairness", "checking expectations", "remaining loyal", "cooperating", "honoring vows",
+        ],
+        "explanation": [
+            "the formal bond: commitment, reciprocity, and the terms under which two people agree to belong to one another",
+        ],
+        "archetypes": [
+            "the lawful spouse",
         ],
     },
     "Vesta": {
         "nouns": [
-            "focus", "practice", "training", "study", "solo work", "routines",
-            "standards", "discipline", "distractions", "breaks", "time", "promises",
+            "focus", "devotion", "dedication", "practice", "study", "solitude","asceticism","purification","rejection of distraction",
+            "discipline", "consecration", "containment", "standards", "sacred focus", "inner flame",
         ],
         "verbs": [
-            "focusing on", "practicing", "training", "studying", "working alone with", "sticking to routines with",
-            "maintaining standards of", "showing discipline with", "limiting distractions with", "protecting time with", "keeping a promise with",
+            "focusing on", "practicing", "studying", "working alone with", "maintaining devotion to", "keeping vigil over",
+            "protecting time for", "limiting distractions around", "dedicating oneself to", "concentrating on", "tending", "preserving",
         ],
         "verbsonly": [
-            "focusing", "practicing", "training", "studying", "working alone", "sticking to routines",
-            "maintaining standards", "showing discipline", "limiting distractions", "protecting time", "keeping a promise",
+            "focusing", "practicing", "studying", "working alone", "maintaining devotion", "keeping vigil",
+            "protecting time", "limiting distractions", "dedicating oneself", "concentrating", "tending", "preserving",
+        ],
+        "explanation": [
+            "the devoted flame: disciplined concentration, protected interiority, and the work one serves with sustained focus.","#1 premium choice for ceremonial sacrifice to a dragon. Totally won't piss off the gods. *fingers crossed*",#"Prime ceremonial-sacrifice material.",
+        ],
+        "archetypes": [
+            "the vestal virgin priestess", "nuns", "monks", "the cloistered scholar",
         ],
     },
     "Rahu": {
         "nouns": [
-            "more", "chases", "effort", "shortcuts", "chances", "attention",
-            "trends", "purchases", "climbs", "networking", "competition", "limits",
+            "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
+            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness",
         ],
         "verbs": [
-            "wanting more in terms of", "chasing", "trying harder with", "taking shortcuts with", "taking chances with", "seeking attention of",
-            "copying trends with", "buying", "climbing", "networking", "competing via", "pushing limits of",
+            "wanting more from", "chasing", "fixating on", "amplifying", "overreaching toward", "becoming fascinated with",
+            "crossing boundaries for", "competing for", "grasping at", "inflating", "consuming", "pushing past",
         ],
         "verbsonly": [
-            "wanting more", "chasing", "trying harder", "taking shortcuts", "taking chances", "seeking attention",
-            "copying trends", "buying", "climbing", "networking", "competing", "pushing limits",
+            "wanting more", "chasing", "fixating", "amplifying", "overreaching", "becoming fascinated",
+            "crossing boundaries", "competing", "grasping", "inflating", "consuming", "pushing past",
+        ],
+        "explanation": [
+            "the appetite that does not know when it is fed: fixation, worldly hunger, and the restless pursuit of what seems necessary for completion",
+        ],
+        "archetypes": [
+            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother","Alakshmi",
         ],
     },
     "Ketu": {
         "nouns": [
-            "letting go", "quits", "walkaways", "simplicity", "cutbacks", "distance",
-            "endings", "decluttering", "no's", "dropped habits", "unsubscribes", "priority resets",
+            "detachment", "severance", "release", "renunciation", "withdrawal", "distance","disenchantment", "spent appetite",
+            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution", "end of an era","hollow victories",
         ],
         "verbs": [
-            "letting go of", "quitting", "walking away from", "simplifying", "cutting back on", "detaching from",
-            "ending", "decluttering", "saying no to", "unsubscribing from",
+            "letting go of", "quitting", "walking away from", "detaching from", "withdrawing from", "cutting off",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from","finding only emptiness in", 
         ],
         "verbsonly": [
-            "letting go", "quitting", "walking away", "simplifying", "cutting back", "detaching",
-            "ending", "decluttering", "saying no", "unsubscribing",
+            "letting go", "quitting", "walking away", "detaching", "withdrawing", "cutting off",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying",
+        ],
+        "explanation": [
+            "the severing principle: release, detachment, and the strange familiarity that no longer promises fulfillment.",
+        ],
+        "archetypes": [
+            "the renunciant", "the cast-off skin", "being fed up with this small town like you're in a Bruce Springsteen song","Rambo when he swore he'd never go back for one more job","the one who knows how the trick works and that it isn't actually magic",
         ],
     },
     "Lilith": {
         "nouns": [
-            "no's", "refusals", "call-outs", "pushback", "boundaries", "defiance",
-            "no apologies", "expectations", "distance", "firmness", "limit tests", "taboos",
+            "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
+            "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
         ],
         "verbs": [
-            "saying no to", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing for", "challenging expectations about", "keeping distance from", "standing firm with", "testing limits of", "breaking taboos with",
+            "refusing", "defying", "rejecting", "breaking taboos around", "withholding compliance from",
+            "provoking", "refusing subordination in", "claiming autonomy over", "disrupting expectations around",
+            "testing limits of", "walking away from", "remaining unapologetic about",
         ],
         "verbsonly": [
-            "saying no", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing", "challenging expectations", "keeping distance", "standing firm", "testing limits", "breaking taboos",
+            "refusing", "defying", "rejecting", "breaking taboos", "withholding compliance",
+            "provoking", "refusing subordination", "claiming autonomy", "disrupting expectations",
+            "testing limits", "walking away", "remaining unapologetic",
+        ],
+        "explanation": [
+            "the part that would rather be exiled than domesticated: taboo desire, refusal of subordination, and the social cost of remaining unassimilated",
+        ],
+        "archetypes": [
+          "Mata Hari","Cleopatra","Jeanne d'Arc","the one they call dangerous because she would not submit", # "the wife who walked out", "the exile who will not kneel","the burned witch",  
         ],
     },
     "Part of Fortune": {
         "nouns": [
-            "luck", "opportunities", "connections", "breaks", "timing",
-            "advantages", "benefits", "wins", "thriving", "rhythm", "solutions", "results",
+            "luck", "ease", "flow", "wellbeing", "prosperity", "fruitfulness", "timing","tao",
+            "advantages", "support", "natural fit", "coherence", "rhythm", "thriving",
         ],
         "verbs": [
-            "getting lucky with", "finding opportunities with", "meeting the right people with", "landing a break with", "being in the right place for",
-            "taking advantage of", "benefiting", "winning", "thriving with", "finding a groove among", "making it work with", "getting results from",
+            "falling into rhythm with", "finding ease in", "benefiting from", "thriving through", "making the most of",
+           "finding opportunities with", "being in the right place for","being well-supported by", "prospering through", "landing well in", "working smoothly with",
         ],
         "verbsonly": [
-            "getting lucky", "finding opportunities", "meeting the right people", "landing a break", "being in the right place",
-            "taking advantage", "benefiting", "winning", "thriving", "finding a niche", "making it work", "getting results",
+            "finding ease", "benefiting", "thriving", "making the most", "being supported",
+            "finding a groove", "prospering", "landing well", "working smoothly","finding a niche",
+            "meeting the right people", "being in the zone", "being in the right place",
+        ],
+        "explanation":[
+            "the place of natural ease, embodied coherence, and conditions under which life tends to become more fruitful",
+        ],
+        "archetypes":[
+            "The Tao","The Zone",
         ],
     },
     "AS": {
@@ -1937,6 +2048,9 @@ PLANET_KEYWORDS = {
             "introducing yourself", "showing up", "meeting people", "making first impressions", "taking initiative",
             "reacting", "approaching", "trying", "testing the waters", "leading with your style", "setting the tone",
         ],
+        "explanation":[""],
+        "archetypes":[
+        ],
     },
     "MC": {
         "nouns": [
@@ -1950,6 +2064,9 @@ PLANET_KEYWORDS = {
         "verbsonly": [
             "working", "leading", "managing", "presenting", "delivering", "getting promoted",
             "building a reputation", "taking responsibility", "making decisions", "obtaining visibility", "owning outcomes",
+        ],
+        "explanation":[""],
+        "archetypes":[
         ],
     },
     "DS": {
@@ -1965,6 +2082,9 @@ PLANET_KEYWORDS = {
             "dating", "partnering", "listening", "compromising", "negotiating", "collaborating",
             "sharing", "matching energy", "setting terms", "arguing", "reconciling", "committing",
         ],
+        "explanation":[""],
+        "archetypes":[
+        ],
     },
     "IC": {
         "nouns": [
@@ -1978,6 +2098,9 @@ PLANET_KEYWORDS = {
         "verbsonly": [
             "resting", "going home", "bunkering down", "recovering", "nesting", "cooking",
             "cleaning", "spending family time with", "remembering", "reflecting", "saving money", "recharging",
+        ],
+        "explanation":[""],
+        "archetypes":[
         ],
     },
 }

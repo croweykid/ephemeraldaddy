@@ -23,14 +23,16 @@ from ephemeraldaddy.core.interpretations import (
     MODES,
     NATAL_BODY_LOUDNESS,
     SIGN_ELEMENTS,
+    ZODIAC_NAMES,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
     calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights,
     calculate_mode_weights,
 )
-
+from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_CLASS_SUBCLASS_EXPLAINERS
 
 class AxisCategory(str, Enum):
     """High-level grouping for class-assignment axes."""
@@ -467,6 +469,15 @@ class AxisFeatureSet:
     aspect_signals: Mapping[str, float]
 
 
+@dataclass(frozen=True)
+class DnDStatBlock:
+    """Display-oriented D&D stat profile derived from axis/features."""
+
+    raw_scores: Mapping[str, float]
+    scores: Mapping[str, int]
+    modifiers: Mapping[str, int]
+
+
 class ClassAxisScorer:
     def __init__(self, *, default_orb_deg: float = 6.0) -> None:
         self.default_orb_deg = float(default_orb_deg)
@@ -596,7 +607,31 @@ class ClassAxisScorer:
             + 0.22 * h.get("social", 0.0)
         )
 
-        return {key: _clamp01(value) for key, value in scores.items()}
+        raw_scores = {key: _clamp01(value) for key, value in scores.items()}
+        return self._normalize_axis_profile(raw_scores)
+
+    @staticmethod
+    def _normalize_axis_profile(raw_scores: Mapping[str, float]) -> Dict[str, float]:
+        values = {key: _clamp01(value) for key, value in raw_scores.items()}
+        top = max(values.values(), default=0.0)
+        if top <= 0.0:
+            return {key: 0.0 for key in values}
+
+        # Axis values were previously compressed into a low, "flat" band.
+        # This expands the profile so strong signatures become visible.
+        scale = 1.0 if top >= 0.55 else min(2.4, 0.55 / top)
+        energized = {key: _clamp01((value * scale) ** 0.88) for key, value in values.items()}
+
+        mean = sum(energized.values()) / max(1, len(energized))
+        variance = (
+            sum((value - mean) ** 2 for value in energized.values()) / max(1, len(energized))
+        )
+        std_dev = variance ** 0.5
+        contrast = max(1.05, min(1.45, 1.20 + max(0.0, 0.14 - std_dev) * 2.0))
+        return {
+            key: _clamp01(mean + ((value - mean) * contrast))
+            for key, value in energized.items()
+        }
 
     @staticmethod
     def _first_non_none(*values: Any) -> Any:
@@ -846,14 +881,28 @@ class ClassAxisScorer:
             return None
         return {key: value / total for key, value in normalized.items()}
 
+    @staticmethod
+    def _get_chart_map(chart: Any, attribute: str) -> Optional[Mapping[Any, Any]]:
+        raw: Any = None
+        if isinstance(chart, Mapping):
+            raw = chart.get(attribute)
+        else:
+            raw = getattr(chart, attribute, None)
+        if isinstance(raw, Mapping):
+            return raw
+        return None
+
     def _element_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
-        if not isinstance(chart, Mapping):
-            dominant_element_weights = self._normalize_numeric_map(calculate_dominant_element_weights(chart))
-            if dominant_element_weights:
-                return {
-                    element: float(dominant_element_weights.get(element, 0.0))
-                    for element in ("Fire", "Earth", "Air", "Water")
-                }
+        dominant_sign_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_sign_weights") or {}
+        )
+        if dominant_sign_weights:
+            element_totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
+            for sign in ZODIAC_NAMES:
+                element = SIGN_ELEMENTS.get(sign)
+                if element in element_totals:
+                    element_totals[element] += float(dominant_sign_weights.get(sign, 0.0))
+            return element_totals
 
         totals = {"Fire": 0.0, "Earth": 0.0, "Air": 0.0, "Water": 0.0}
         grand_total = 0.0
@@ -874,13 +923,18 @@ class ClassAxisScorer:
         return {element: value / grand_total for element, value in totals.items()}
 
     def _mode_balance(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
-        if not isinstance(chart, Mapping):
-            mode_weights = self._normalize_numeric_map(calculate_mode_weights(chart))
-            if mode_weights:
-                return {
-                    mode: float(mode_weights.get(mode, 0.0))
-                    for mode in ("cardinal", "fixed", "mutable")
-                }
+        dominant_sign_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_sign_weights") or {}
+        )
+        if dominant_sign_weights:
+            mode_totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
+            for sign in ZODIAC_NAMES:
+                sign_weight = float(dominant_sign_weights.get(sign, 0.0))
+                for mode, signs in MODES.items():
+                    if sign in signs and mode in mode_totals:
+                        mode_totals[mode] += sign_weight
+                        break
+            return mode_totals
 
         totals = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
         grand_total = 0.0
@@ -901,15 +955,19 @@ class ClassAxisScorer:
         return {mode: value / grand_total for mode, value in totals.items()}
 
     def _house_emphasis(self, chart: Any, positions: Mapping[str, Mapping[str, Any]]) -> Dict[str, float]:
-        if not isinstance(chart, Mapping):
-            dominant_house_weights = self._normalize_numeric_map(calculate_dominant_house_weights(chart))
-            if dominant_house_weights:
-                return {
-                    key: float(
-                        sum(dominant_house_weights.get(house, 0.0) for house in houses)
+        dominant_house_weights = self._normalize_numeric_map(
+            self._get_chart_map(chart, "dominant_house_weights") or {}
+        )
+        if dominant_house_weights:
+            return {
+                key: float(
+                    sum(
+                        dominant_house_weights.get(house, dominant_house_weights.get(str(house), 0.0))
+                        for house in houses
                     )
-                    for key, houses in EMPHASIS_HOUSE_GROUPS.items()
-                }
+                )
+                for key, houses in EMPHASIS_HOUSE_GROUPS.items()
+            }
 
         counts = {key: 0.0 for key in EMPHASIS_HOUSE_GROUPS}
         total_weight = 0.0
@@ -1036,11 +1094,12 @@ CLASS_FAMILIES: Dict[str, ClassFamilyDefinition] = {
         category=ClassFamilyCategory.SOURCE,
         description="Power expressed through body, appetite, survival timing, and raw contact with the living world.",
         gate_weights={
-            "instinct": 0.36,
-            "frontline_courage": 0.24,
+            "instinct": 0.30,
+            "frontline_courage": 0.22,
             "nature_attunement": 0.20,
-            "risk_appetite": 0.12,
+            "risk_appetite": 0.08,
             "mercy_restoration": 0.08,
+            "discipline": 0.12,
         },
         notes="Core lane for Barbarian and the primal edge of Druid and Ranger.",
     ),
@@ -1050,11 +1109,12 @@ CLASS_FAMILIES: Dict[str, ClassFamilyDefinition] = {
         category=ClassFamilyCategory.SOURCE,
         description="Power expressed through oath, doctrine, service, and alignment to a higher order.",
         gate_weights={
-            "faith": 0.42,
-            "mercy_restoration": 0.20,
+            "faith": 0.32,
+            "mercy_restoration": 0.22,
             "social_leadership": 0.16,
-            "frontline_courage": 0.12,
-            "control_planning": 0.10,
+            "frontline_courage": 0.15,
+            "control_planning": 0.07,
+            "discipline": 0.08,
         },
         notes="Core lane for Cleric and Paladin, with some Druid overlap.",
     ),
@@ -1120,11 +1180,12 @@ CLASS_FAMILIES: Dict[str, ClassFamilyDefinition] = {
         category=ClassFamilyCategory.HYBRID,
         description="Power expressed through ecological fluency, field competence, and contact with uncivilized spaces.",
         gate_weights={
-            "nature_attunement": 0.34,
-            "instinct": 0.18,
-            "stealth_indirection": 0.16,
-            "frontline_courage": 0.16,
-            "mercy_restoration": 0.16,
+            "nature_attunement": 0.30,
+            "instinct": 0.16,
+            "stealth_indirection": 0.14,
+            "frontline_courage": 0.20,
+            "mercy_restoration": 0.08,
+            "discipline": 0.12,
         },
         notes="Core lane for Druid and Ranger.",
     ),
@@ -1168,14 +1229,15 @@ DND_CLASSES: Dict[str, ClassDefinition] = {
         display_name="Barbarian",
         family_affinity={"primal_embodiment": 0.78, "martial_discipline": 0.22},
         axis_weights={
-            "instinct": 0.34,
-            "frontline_courage": 0.28,
-            "risk_appetite": 0.20,
-            "nature_attunement": 0.10,
-            "social_leadership": 0.08,
+            "instinct": 0.31,
+            "frontline_courage": 0.24,
+            "risk_appetite": 0.14,
+            "nature_attunement": 0.16,
+            "discipline": 0.09,
+            "social_leadership": 0.06,
         },
         synergy_groups=(("instinct", "frontline_courage"), ("instinct", "risk_appetite")),
-        anti_axes={"study": 0.18, "control_planning": 0.12},
+        anti_axes={"study": 0.22, "control_planning": 0.16},
         notes="Body-first action, low need for system mediation, high willingness to commit.",
     ),
     "Bard": ClassDefinition(
@@ -1183,30 +1245,32 @@ DND_CLASSES: Dict[str, ClassDefinition] = {
         display_name="Bard",
         family_affinity={"expressive_social": 0.76, "shadow_precision": 0.12, "innate_arcane": 0.12},
         axis_weights={
-            "performance": 0.34,
+            "performance": 0.30,
             "social_leadership": 0.22,
             "study": 0.16,
             "stealth_indirection": 0.12,
             "risk_appetite": 0.08,
-            "mercy_restoration": 0.08,
+            "mercy_restoration": 0.04,
+            "control_planning": 0.08,
         },
         synergy_groups=(("performance", "social_leadership"), ("performance", "study")),
-        anti_axes={"patron_reliance": 0.08},
+        anti_axes={"patron_reliance": 0.12},
         notes="Social and expressive spellwork rather than purely decorative charm.",
     ),
     "Cleric": ClassDefinition(
         key="Cleric",
         display_name="Cleric",
-        family_affinity={"devotional_sacred": 0.82, "wild_warden": 0.10, "martial_discipline": 0.08},
+        family_affinity={"devotional_sacred": 0.54, "wild_warden": 0.16, "martial_discipline": 0.30},
         axis_weights={
-            "faith": 0.34,
-            "mercy_restoration": 0.24,
-            "social_leadership": 0.16,
-            "control_planning": 0.14,
-            "frontline_courage": 0.12,
+            "faith": 0.16,
+            "mercy_restoration": 0.20,
+            "social_leadership": 0.24,
+            "control_planning": 0.16,
+            "frontline_courage": 0.14,
+            "discipline": 0.10,
         },
-        synergy_groups=(("faith", "mercy_restoration"), ("faith", "social_leadership")),
-        anti_axes={"risk_appetite": 0.10},
+        synergy_groups=(("social_leadership", "mercy_restoration"), ("faith", "discipline")),
+        anti_axes={},
         notes="Consecrated service with room for doctrine, healing, and judgment.",
     ),
     "Druid": ClassDefinition(
@@ -1259,32 +1323,33 @@ DND_CLASSES: Dict[str, ClassDefinition] = {
     "Paladin": ClassDefinition(
         key="Paladin",
         display_name="Paladin",
-        family_affinity={"devotional_sacred": 0.52, "martial_discipline": 0.48},
+        family_affinity={"devotional_sacred": 0.34, "martial_discipline": 0.66},
         axis_weights={
-            "faith": 0.28,
-            "frontline_courage": 0.24,
-            "discipline": 0.18,
+            "faith": 0.14,
+            "frontline_courage": 0.30,
+            "discipline": 0.28,
             "social_leadership": 0.16,
-            "mercy_restoration": 0.14,
+            "mercy_restoration": 0.08,
+            "risk_appetite": 0.04,
         },
-        synergy_groups=(("faith", "frontline_courage"), ("faith", "discipline")),
-        anti_axes={"stealth_indirection": 0.08},
+        synergy_groups=(("frontline_courage", "discipline"), ("faith", "social_leadership")),
+        anti_axes={},
         notes="Oath plus visible force. Neither soft Cleric nor mere armored Fighter.",
     ),
     "Ranger": ClassDefinition(
         key="Ranger",
         display_name="Ranger",
-        family_affinity={"wild_warden": 0.48, "shadow_precision": 0.28, "martial_discipline": 0.24},
+        family_affinity={"wild_warden": 0.34, "shadow_precision": 0.26, "martial_discipline": 0.40},
         axis_weights={
-            "nature_attunement": 0.26,
-            "stealth_indirection": 0.20,
-            "frontline_courage": 0.18,
-            "discipline": 0.14,
-            "instinct": 0.12,
-            "control_planning": 0.10,
+            "nature_attunement": 0.08,
+            "stealth_indirection": 0.18,
+            "frontline_courage": 0.26,
+            "discipline": 0.24,
+            "instinct": 0.10,
+            "control_planning": 0.14,
         },
-        synergy_groups=(("nature_attunement", "stealth_indirection"), ("nature_attunement", "frontline_courage")),
-        anti_axes={"performance": 0.08},
+        synergy_groups=(("frontline_courage", "discipline"), ("stealth_indirection", "control_planning")),
+        anti_axes={"performance": 0.0},
         notes="Field competence, terrain fluency, and directed practical violence.",
     ),
     "Rogue": ClassDefinition(
@@ -1339,15 +1404,16 @@ DND_CLASSES: Dict[str, ClassDefinition] = {
         display_name="Wizard",
         family_affinity={"arcane_scholar": 0.82, "engineered_technical": 0.10, "shadow_precision": 0.08},
         axis_weights={
-            "study": 0.34,
-            "control_planning": 0.24,
+            "study": 0.30,
+            "control_planning": 0.20,
             "discipline": 0.14,
             "technical_inventiveness": 0.14,
             "risk_appetite": 0.08,
             "social_leadership": 0.06,
+            "faith": 0.08,
         },
         synergy_groups=(("study", "control_planning"), ("study", "discipline")),
-        anti_axes={"instinct": 0.10},
+        anti_axes={"instinct": 0.14},
         notes="Codified arcana, learned method, and board-shaping intelligence.",
     ),
     "Artificer": ClassDefinition(
@@ -1491,6 +1557,194 @@ def score_class_families(axis_scores: Mapping[str, float]) -> Dict[str, float]:
     return DnDClassScorer().score_families(axis_scores)
 
 
+_DND_STAT_DISPLAY_ORDER: Tuple[str, ...] = ("CHA", "INT", "STR", "CON", "WIS", "DEX")
+_DND_STAT_COMPONENT_ORDER: Tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+_DND_STAT_LABELS: Dict[str, str] = {
+    "STR": "Strength",
+    "DEX": "Dexterity",
+    "CON": "Constitution",
+    "INT": "Intelligence",
+    "WIS": "Wisdom",
+    "CHA": "Charisma",
+}
+_DND_SIGN_STAT_EFFECTS: Dict[str, Dict[str, str]] = {
+    "Aries": {"major": "DEX", "minor": "INT", "nerf": "WIS"},
+    "Taurus": {"major": "CON", "minor": "CHA", "nerf": "DEX"},
+    "Gemini": {"major": "INT", "minor": "CHA", "nerf": "CON"},
+    "Cancer": {"major": "CON", "minor": "WIS", "nerf": "DEX"},
+    "Leo": {"major": "CHA", "minor": "STR", "nerf": "WIS"},
+    "Virgo": {"major": "DEX", "minor": "STR", "nerf": "CON"},
+    "Libra": {"major": "CHA", "minor": "DEX", "nerf": "STR"},
+    "Scorpio": {"major": "WIS", "minor": "CON", "nerf": "CHA"},
+    "Sagittarius": {"major": "STR", "minor": "DEX", "nerf": "INT"},
+    "Capricorn": {"major": "STR", "minor": "CON", "nerf": "INT"},
+    "Aquarius": {"major": "INT", "minor": "WIS", "nerf": "CHA"},
+    "Pisces": {"major": "WIS", "minor": "INT", "nerf": "STR"},
+}
+
+
+def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
+    raw_score = _clamp01(raw_score)
+    # Lift ordinary charts into a healthier PC-like range while preserving spread.
+    calibrated_raw = 0.08 + (0.92 * (raw_score ** 0.5))
+    calibrated_raw = _clamp01(calibrated_raw)
+    return int(round(floor + calibrated_raw * (ceiling - floor)))
+
+
+def _shape_stat_profile(
+    raw_scores: Mapping[str, float],
+    dominant_sign_weights: Optional[Mapping[str, float]] = None,
+) -> Dict[str, float]:
+    values = {key: _clamp01(value) for key, value in raw_scores.items()}
+    if dominant_sign_weights:
+        for sign_name, sign_weight in dominant_sign_weights.items():
+            sign_key = str(sign_name).strip().title()
+            effect = _DND_SIGN_STAT_EFFECTS.get(sign_key)
+            if effect is None:
+                continue
+            weight = max(0.0, float(sign_weight))
+            values[effect["major"]] = _clamp01(values.get(effect["major"], 0.0) + (0.30 * weight))
+            values[effect["minor"]] = _clamp01(values.get(effect["minor"], 0.0) + (0.14 * weight))
+            # Temporarily disabling sign-based nerfs per product direction.
+
+    mean = sum(values.values()) / max(1, len(values))
+    variance = sum((value - mean) ** 2 for value in values.values()) / max(1, len(values))
+    std_dev = variance ** 0.5
+    contrast_factor = max(1.20, min(2.10, 1.52 + max(0.0, 0.20 - std_dev) * 3.2))
+    shaped: Dict[str, float] = {}
+    for key, value in values.items():
+        shaped[key] = _clamp01(mean + ((value - mean) * contrast_factor))
+    return shaped
+
+
+def score_dnd_statblock_from_features(
+    axis_scores: Mapping[str, float],
+    features: AxisFeatureSet,
+    *,
+    stat_floor: int = 5,
+    stat_ceiling: int = 20,
+    dominant_sign_weights: Optional[Mapping[str, float]] = None,
+) -> DnDStatBlock:
+    validate_axis_scores(axis_scores)
+    p = features.planet_prominence
+    e = features.element_balance
+    m = features.mode_balance
+    h = features.house_emphasis
+    raw_scores: Dict[str, float] = {
+        "STR": _clamp01(
+            0.40 * axis_scores["frontline_courage"]
+            + 0.22 * axis_scores["instinct"]
+            + 0.14 * axis_scores["discipline"]
+            + 0.08 * p.get("Mars", 0.0)
+            + 0.06 * p.get("Sun", 0.0)
+            + 0.05 * h.get("self", 0.0)
+            + 0.05 * ((e.get("Fire", 0.0) + e.get("Earth", 0.0)) / 2.0)
+        ),
+        "DEX": _clamp01(
+            0.32 * axis_scores["stealth_indirection"]
+            + 0.20 * axis_scores["control_planning"]
+            + 0.16 * axis_scores["risk_appetite"]
+            + 0.10 * p.get("Mercury", 0.0)
+            + 0.08 * p.get("Uranus", 0.0)
+            + 0.07 * e.get("Air", 0.0)
+            + 0.07 * m.get("mutable", 0.0)
+        ),
+        "CON": _clamp01(
+            0.28 * axis_scores["discipline"]
+            + 0.20 * axis_scores["instinct"]
+            + 0.16 * axis_scores["mercy_restoration"]
+            + 0.12 * p.get("Saturn", 0.0)
+            + 0.08 * p.get("Moon", 0.0)
+            + 0.08 * e.get("Earth", 0.0)
+            + 0.08 * m.get("fixed", 0.0)
+        ),
+        "INT": _clamp01(
+            0.36 * axis_scores["study"]
+            + 0.20 * axis_scores["technical_inventiveness"]
+            + 0.16 * axis_scores["control_planning"]
+            + 0.12 * p.get("Mercury", 0.0)
+            + 0.08 * p.get("Saturn", 0.0)
+            + 0.08 * h.get("craft", 0.0)
+        ),
+        "WIS": _clamp01(
+            0.28 * axis_scores["faith"]
+            + 0.24 * axis_scores["nature_attunement"]
+            + 0.18 * axis_scores["instinct"]
+            + 0.12 * axis_scores["mercy_restoration"]
+            + 0.08 * p.get("Moon", 0.0)
+            + 0.05 * p.get("Jupiter", 0.0)
+            + 0.05 * ((h.get("wild", 0.0) + h.get("meaning", 0.0)) / 2.0)
+        ),
+        "CHA": _clamp01(
+            0.32 * axis_scores["social_leadership"]
+            + 0.24 * axis_scores["performance"]
+            + 0.18 * axis_scores["innate_power"]
+            + 0.10 * p.get("Sun", 0.0)
+            + 0.08 * p.get("Venus", 0.0)
+            + 0.08 * h.get("social", 0.0)
+        ),
+    }
+
+    normalized_sign_weights = ClassAxisScorer._normalize_numeric_map(dominant_sign_weights or {})
+    raw_scores = _shape_stat_profile(raw_scores, dominant_sign_weights=normalized_sign_weights)
+    scores = {
+        key: _to_dnd_stat(raw_scores[key], floor=stat_floor, ceiling=stat_ceiling)
+        for key in _DND_STAT_COMPONENT_ORDER
+    }
+    modifiers = {key: int((value - 10) // 2) for key, value in scores.items()}
+    return DnDStatBlock(raw_scores=raw_scores, scores=scores, modifiers=modifiers)
+
+
+def score_dnd_statblock(
+    chart: Any,
+    *,
+    stat_floor: int = 5,
+    stat_ceiling: int = 20,
+) -> DnDStatBlock:
+    scorer = ClassAxisScorer()
+    features = scorer.extract_features(chart)
+    axis_scores = scorer.score_axes(features)
+    dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
+        scorer._get_chart_map(chart, "dominant_sign_weights") or {}
+    )
+    if dominant_sign_weights is None and not isinstance(chart, Mapping):
+        try:
+            dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
+                calculate_dominant_sign_weights(chart)
+            )
+        except Exception:
+            dominant_sign_weights = None
+    return score_dnd_statblock_from_features(
+        axis_scores,
+        features,
+        stat_floor=stat_floor,
+        stat_ceiling=stat_ceiling,
+        dominant_sign_weights=dominant_sign_weights,
+    )
+
+
+def build_dnd_statblock_profile_lines(
+    statblock: DnDStatBlock,
+    *,
+    bar_width: int = 18,
+    floor: int = 5,
+    ceiling: int = 20,
+) -> list[str]:
+    span = max(1, ceiling - floor)
+    lines: list[str] = []
+    stat_label_width = max(len(label) for label in _DND_STAT_DISPLAY_LABELS.values())
+    for stat_key in _DND_STAT_DISPLAY_ORDER:
+        stat_value = int(statblock.scores.get(stat_key, floor))
+        normalized_percent = max(0.0, min(100.0, ((stat_value - floor) / span) * 100.0))
+        bar = _build_axis_score_bar(normalized_percent, 0.0, width=bar_width)
+        modifier = int(statblock.modifiers.get(stat_key, 0))
+        stat_label = _build_right_justified_label(_DND_STAT_DISPLAY_LABELS[stat_key], stat_label_width)
+        lines.append(
+            f"‣ {stat_label}: {stat_value:>2d} [{bar}] mod {modifier:+d}"
+        )
+    return lines
+
+
 def score_dnd_classes(
     axis_scores: Mapping[str, float],
     family_scores: Optional[Mapping[str, float]] = None,
@@ -1552,3 +1806,103 @@ if __name__ == "__main__":
     print(class_family_display_table())
     print()
     print(class_display_table())
+
+
+_CLASS_AXIS_LABEL_OVERRIDES: Dict[str, str] = {
+    "control_planning": "control & planning",
+    "stealth_indirection": "stealth",
+    "mercy_restoration": "mercy & restoration",
+}
+
+
+def _build_right_justified_label(label: str, width: int) -> str:
+    return f"{label:>{max(1, width)}}"
+
+
+_DND_STAT_DISPLAY_LABELS: Dict[str, str] = {
+    stat_key: f"{stat_key} ({_DND_STAT_LABELS[stat_key]})"
+    for stat_key in _DND_STAT_DISPLAY_ORDER
+}
+
+_CLASS_AXIS_BAR_FULL = "█"
+_CLASS_AXIS_BAR_EMPTY = "░"
+_CLASS_AXIS_THRESHOLD_MARK = "│"
+DND_CLASS_THRESHOLD_COLOR = "#cc4444"
+DND_CLASS_AXIS_EARTHTONE_COLORS: Dict[str, str] = {
+    "discipline": "#8b6f47",
+    "instinct": "#8f5d3b",
+    "study": "#a0855b",
+    "faith": "#94714d",
+    "innate_power": "#7a5a3a",
+    "patron_reliance": "#73563c",
+    "performance": "#9b6f4e",
+    "nature_attunement": "#6d7f4d",
+    "technical_inventiveness": "#7f725e",
+    "stealth_indirection": "#6e5c4a",
+    "frontline_courage": "#8a4f3d",
+    "control_planning": "#6a604f",
+    "mercy_restoration": "#7a6d58",
+    "risk_appetite": "#925440",
+    "social_leadership": "#8d634a",
+}
+
+
+def format_class_axis_label(axis_name: str) -> str:
+    return _CLASS_AXIS_LABEL_OVERRIDES.get(axis_name, axis_name.replace("_", " "))
+
+
+def resolve_class_key(class_name: str) -> str | None:
+    if class_name in DND_CLASSES:
+        return class_name
+    for class_key, definition in DND_CLASSES.items():
+        if definition.display_name == class_name:
+            return class_key
+    return None
+
+
+def _build_axis_score_bar(score_percent: float, threshold_percent: float, width: int = 18) -> str:
+    clamped_score = max(0.0, min(100.0, float(score_percent)))
+    clamped_threshold = max(0.0, min(100.0, float(threshold_percent)))
+    filled_count = int(round((clamped_score / 100.0) * width))
+    threshold_index = int(round((clamped_threshold / 100.0) * (width - 1)))
+    cells = [
+        _CLASS_AXIS_BAR_FULL if index < filled_count else _CLASS_AXIS_BAR_EMPTY
+        for index in range(width)
+    ]
+    if 0 <= threshold_index < width:
+        cells[threshold_index] = _CLASS_AXIS_THRESHOLD_MARK
+    return "".join(cells)
+
+
+def build_class_axis_profile_lines(
+    class_name: str,
+    axis_scores: Mapping[str, float],
+    *,
+    bar_width: int = 18,
+) -> list[str]:
+    class_key = resolve_class_key(class_name)
+    if class_key is None:
+        return []
+    definition = DND_CLASSES.get(class_key)
+    if definition is None:
+        return []
+    lines: list[str] = []
+    axis_rows: list[tuple[float, str, str, float, float]] = []
+    axis_label_width = max(
+        (len(format_class_axis_label(axis_name)) for axis_name in definition.axis_weights),
+        default=1,
+    )
+    for axis_name, threshold_weight in definition.axis_weights.items():
+        chart_axis_percent = max(0.0, min(1.0, float(axis_scores.get(axis_name, 0.0)))) * 100.0
+        threshold_percent = max(0.0, min(1.0, float(threshold_weight))) * 100.0
+        margin_percent = chart_axis_percent - threshold_percent
+        axis_label = _build_right_justified_label(format_class_axis_label(axis_name), axis_label_width)
+        axis_rows.append((margin_percent, axis_name, axis_label, chart_axis_percent, threshold_percent))
+    axis_rows.sort(key=lambda row: row[0], reverse=True)
+    for margin_percent, _axis_name, axis_label, chart_axis_percent, threshold_percent in axis_rows:
+        bar = _build_axis_score_bar(chart_axis_percent, threshold_percent, width=bar_width)
+        status = f"{margin_percent:+.0f}%"
+        lines.append(
+            f"‣ {axis_label}: {chart_axis_percent:>3.0f}% [{bar}] threshold {threshold_percent:>3.0f}% ({status})"
+        )
+    return lines

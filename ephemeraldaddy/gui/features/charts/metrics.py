@@ -714,20 +714,24 @@ def calculate_dominant_nakshatra_weights(chart: Chart) -> dict[str, float]:
     return weighted_counts
 
 
-def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, int]:
+def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, float]:
+    """Return weighted body dominance grouped by each body's nakshatra ruler."""
     sidereal_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
-    counts = {planet: 0 for planet in sidereal_planets}
+    counts = {planet: 0.0 for planet in sidereal_planets}
     use_houses = chart_uses_houses(chart)
+    houses = chart.houses if use_houses else []
     for body in PLANET_ORDER:
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
         lon = chart.positions.get(body)
         if lon is None:
             continue
+        house_num = house_for_longitude(houses, lon)
+        weight = planet_weight(body, lon, houses, house_num)
         nakshatra = get_nakshatra(lon)
         planet_name, _color = NAKSHATRA_PLANET_COLOR.get(nakshatra, (None, None))
         if planet_name in counts:
-            counts[planet_name] += 1
+            counts[planet_name] += float(weight)
     return counts
 
 def calculate_modal_distribution_counts(chart: Chart) -> dict[str, int]:
