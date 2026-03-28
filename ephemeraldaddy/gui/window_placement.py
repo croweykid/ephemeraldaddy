@@ -29,14 +29,21 @@ def clear_fullscreen_and_minimized(window: QWidget) -> None:
     )
 
 
-def apply_window_placement(window: QWidget, placement: WindowPlacement) -> None:
+def apply_window_placement(
+    window: QWidget,
+    placement: WindowPlacement,
+    *,
+    show_window: bool = True,
+) -> None:
     if placement.geometry is not None and placement.geometry.isValid():
         window.setGeometry(placement.geometry)
     clear_fullscreen_and_minimized(window)
+    if not show_window:
+        return
     if placement.maximized:
         window.showMaximized()
-    else:
-        window.showNormal()
+        return
+    window.showNormal()
 
 
 def bring_window_to_front(window: QWidget, *, use_topmost_pulse: bool = True) -> None:

@@ -12953,7 +12953,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def adopt_window_placement(self, source_window: QWidget | None) -> None:
         if source_window is None:
             return
-        apply_window_placement(self, capture_window_placement(source_window))
+        apply_window_placement(
+            self,
+            capture_window_placement(source_window),
+            show_window=False,
+        )
 
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
         # Do not force Database View back to the primary screen or maximized state.
