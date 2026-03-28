@@ -150,18 +150,22 @@ def _render_channel_lines(
     )
     grouped: dict[str, list[tuple[int, int, str]]] = {center: [] for center in center_order}
     for gate_a, gate_b, center_a, center_b in defined_channels:
-        label = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-        if center_a in grouped:
-            grouped[center_a].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
-        if center_b in grouped and center_b != center_a:
-            grouped[center_b].append((min(gate_a, gate_b), max(gate_a, gate_b), label))
+        lower_gate = min(gate_a, gate_b)
+        upper_gate = max(gate_a, gate_b)
+        label = f"{lower_gate}-{upper_gate}"
+        grouped.setdefault(center_a, []).append((lower_gate, upper_gate, label))
+        if center_b != center_a:
+            grouped.setdefault(center_b, []).append((lower_gate, upper_gate, label))
 
     lines: list[str] = []
     info_map: dict[int, list[dict[str, object]]] = {}
-    centers_with_channels = [center for center in center_order if grouped[center]]
-    if not centers_with_channels:
+    ordered_centers = [center for center in center_order if grouped.get(center)]
+    ordered_centers.extend(
+        sorted(center for center, entries in grouped.items() if entries and center not in center_order)
+    )
+    if not ordered_centers:
         return ["None"], {}
-    for center in centers_with_channels:
+    for center in ordered_centers:
         lines.append(center)
         entries = sorted(set(grouped[center]), key=lambda item: (item[0], item[1]))
         parts: list[str] = []
@@ -176,7 +180,7 @@ def _render_channel_lines(
                     "gate_a": gate_a,
                     "gate_b": gate_b,
                     "center": center,
-                    "icon_index": cursor,
+                    "icon_index": cursor + len(label) + 1,
                 }
             )
             cursor += len(token)
