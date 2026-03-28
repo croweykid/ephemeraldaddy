@@ -358,7 +358,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
     calculate_gender_weight_score as _calculate_gender_weight_score,
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
-    calculate_modal_distribution_counts as _calculate_modal_distribution_counts,
+    calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
     calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
@@ -18536,7 +18536,12 @@ class MainWindow(QMainWindow):
             )
             return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
         if chart_key == "modal_distribution":
-            counts = _calculate_modal_distribution_counts(chart)
+            mode = self._chart_analysis_selected_mode(chart_key, "dominant_modes")
+            counts = (
+                _calculate_modal_prevalence_counts(chart)
+                if mode == "modal_prevalence"
+                else _calculate_mode_weights(chart)
+            )
             return [[mode.capitalize(), counts.get(mode, 0)] for mode in ("cardinal", "mutable", "fixed")]
         if chart_key == "gender_guesser":
             return [
@@ -19165,26 +19170,34 @@ class MainWindow(QMainWindow):
 
     def _draw_modal_distribution(self, ax, chart: Chart) -> None:
         modal_order = ["cardinal", "mutable", "fixed"]
-        mode_counts = {mode: 0 for mode in modal_order}
-        use_houses = _chart_uses_houses(chart)
+        selected_mode = self._chart_analysis_selected_mode(
+            "modal_distribution",
+            "dominant_modes",
+        )
+        mode_counts: dict[str, float]
         mode_colors = {
             "cardinal": "#993333", #burnt orange
             "mutable": "#6699ff", #blue
             "fixed": "#336600", #olive
         }
-
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            sign = _sign_for_longitude(lon)
-            weight = NATAL_WEIGHT.get(body, 1)
-            for mode in modal_order:
-                if sign in MODES.get(mode, set()):
-                    mode_counts[mode] += weight
-                    break
+        if selected_mode == "modal_prevalence":
+            mode_counts = {
+                mode: float(value)
+                for mode, value in _calculate_modal_prevalence_counts(chart).items()
+            }
+        else:
+            mode_counts = _calculate_mode_weights(chart)
+            chart.modal_distribution = dict(mode_counts)
+            nonzero_modes = {
+                mode: float(weight)
+                for mode, weight in mode_counts.items()
+                if float(weight) > 0
+            }
+            chart.dominant_mode = (
+                max(nonzero_modes.items(), key=lambda item: item[1])[0]
+                if nonzero_modes
+                else None
+            )
 
         values = [mode_counts[mode] for mode in modal_order]
         total = sum(values)
@@ -22774,11 +22787,15 @@ class MainWindow(QMainWindow):
         )
 
     def _render_modal_distribution(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode(
+            "modal_distribution",
+            "dominant_modes",
+        )
         self._render_metric_panel(
             canvas_attr="modal_distribution_canvas",
             container_layout=self.modal_distribution_container_layout,
             figsize=(5.5, 3.2),
-            title="Modes",
+            title="Dominant Modes" if selected_mode == "dominant_modes" else "Modal Prevalence",
             draw_fn=self._draw_modal_distribution,
             chart=chart,
         )

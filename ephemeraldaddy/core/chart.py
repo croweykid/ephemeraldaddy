@@ -27,6 +27,7 @@ class Chart:
         self.dominant_sign_weights = {}
         self.dominant_planet_weights = {}
         self.dominant_element_weights = {}
+        self.dominant_mode = None
         self.human_design_gates = []
         self.human_design_lines = []
         self.human_design_channels = []
@@ -110,6 +111,7 @@ class Chart:
             "dominant_sign_weights": self.dominant_sign_weights,
             "dominant_planet_weights": self.dominant_planet_weights,
             "dominant_element_weights": self.dominant_element_weights,
+            "dominant_mode": self.dominant_mode,
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
             "positions": self.positions,
