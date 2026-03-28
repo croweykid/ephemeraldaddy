@@ -669,7 +669,17 @@ def calculate_dominant_house_weights(chart: Chart) -> dict[int, float]:
 
     return house_counts
 
-def calculate_mode_weights(chart: Chart) -> dict[str, int]:
+def calculate_mode_weights(chart: Chart) -> dict[str, float]:
+    mode_counts = {"cardinal": 0.0, "mutable": 0.0, "fixed": 0.0}
+    dominant_sign_weights = calculate_dominant_sign_weights(chart)
+    for mode, signs in MODES.items():
+        mode_counts[mode] = float(
+            sum(float(dominant_sign_weights.get(sign, 0.0)) for sign in signs)
+        )
+    return mode_counts
+
+
+def calculate_modal_prevalence_counts(chart: Chart) -> dict[str, int]:
     mode_counts = {"cardinal": 0, "mutable": 0, "fixed": 0}
     use_houses = chart_uses_houses(chart)
     for body in PLANET_ORDER:
@@ -679,10 +689,9 @@ def calculate_mode_weights(chart: Chart) -> dict[str, int]:
         if lon is None:
             continue
         sign = sign_for_longitude(lon)
-        weight = NATAL_WEIGHT.get(body, 1)
         for mode, signs in MODES.items():
             if sign in signs:
-                mode_counts[mode] += weight
+                mode_counts[mode] += 1
                 break
     return mode_counts
 
@@ -799,7 +808,7 @@ def calculate_sidereal_planet_prevalence_counts(chart: Chart) -> dict[str, float
     return counts
 
 def calculate_modal_distribution_counts(chart: Chart) -> dict[str, int]:
-    return calculate_mode_weights(chart)
+    return calculate_modal_prevalence_counts(chart)
 
 
 def calculate_gender_prevalence_score(chart: Chart) -> float:
