@@ -20,11 +20,17 @@ from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
+    PLANET_ORDER,
     PLANET_COLORS,
     RELATION_TYPE,
     SENTIMENT_COLORS,
     SIGN_COLORS,
     ZODIAC_NAMES,
+)
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_house_weights as _calculate_dominant_house_weights,
+    calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
+    chart_uses_houses as _chart_uses_houses,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
@@ -133,6 +139,56 @@ class DatabaseAnalyticsChartsMixin:
             else "0%"
         )
         return f"({selected_text} of {database_text} : {percent_text}) {label}"
+
+    def _build_common_dominant_bodies(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        body_counts: dict[str, int] = {}
+        for chart in charts:
+            dominant_weights = getattr(chart, "dominant_planet_weights", None)
+            if not dominant_weights:
+                dominant_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_planet_weights = dominant_weights
+            for body in self._dominant_planet_top_three_labels(dominant_weights):
+                body_label = self._similarities_body_label(body)
+                body_counts[body_label] = body_counts.get(body_label, 0) + 1
+
+        ordered_counts: dict[str, int] = {}
+        for body in PLANET_ORDER:
+            label = self._similarities_body_label(body)
+            if label in body_counts:
+                ordered_counts[label] = body_counts[label]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_dominant_houses(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        house_charts = [chart for chart in charts if _chart_uses_houses(chart)]
+        chart_count = len(house_charts)
+        if chart_count < 2:
+            return []
+
+        house_counts: dict[str, int] = {}
+        for chart in house_charts:
+            dominant_weights = _calculate_dominant_house_weights(chart)
+            for house_num in self._dominant_house_top_three_labels(dominant_weights):
+                house_label = f"House {house_num}"
+                house_counts[house_label] = house_counts.get(house_label, 0) + 1
+
+        ordered_counts: dict[str, int] = {}
+        for house_num in range(1, 13):
+            label = f"House {house_num}"
+            if label in house_counts:
+                ordered_counts[label] = house_counts[label]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
 
      #DB View's Lefthand Panel: Selection Comparison Chart 2: Relationship Distribution Chart
     def _build_relationship_distribution_chart(
