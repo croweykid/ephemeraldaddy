@@ -13,7 +13,7 @@ from typing import Any
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLayout, QSizePolicy
+from PySide6.QtWidgets import QLabel, QLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.country_lookup import resolve_country
 from ephemeraldaddy.core.interpretations import (
@@ -1423,6 +1423,20 @@ class DatabaseAnalyticsChartsMixin:
         day_label = f"{day_value:02d}" if isinstance(day_value, int) and 1 <= day_value <= 31 else "?"
         year_label = f"{year_value:04d}" if isinstance(year_value, int) and year_value > 0 else "?"
         return f"{month_label}.{day_label}.{year_label}"
+
+    def _build_text_analysis_widget(self, lines: list[str]) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        widget.setLayout(layout)
+        for line in lines:
+            label = QLabel(line)
+            label.setStyleSheet("font-size: 11px; color: #f5f5f5;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+        layout.addStretch(1)
+        return widget
 
     def _build_single_metric_chart(
         self,

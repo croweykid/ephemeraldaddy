@@ -667,7 +667,6 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
-from ephemeraldaddy.analysis.country_lookup import resolve_country
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE,
     create_bazi_window_dialog,
@@ -6845,36 +6844,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return {name: 0 for name in totals}
 
     @staticmethod
-    def _minutes_to_label(total_minutes: float) -> str:
-        minutes = int(round(total_minutes)) % (24 * 60)
-        hours, mins = divmod(minutes, 60)
-        return f"{hours:02d}:{mins:02d}"
-
-    @staticmethod
-    def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
-        parts = [part.strip() for part in (raw_place or "").split(",") if part.strip()]
-        if not parts:
-            return None, None, None
-        city = parts[0] if parts else None
-        state = parts[-2] if len(parts) >= 2 else None
-        country = parts[-1] if len(parts) >= 2 else None
-        if len(parts) == 1:
-            country = None
-            state = None
-        return city, state, country
-
-    @staticmethod
-    def _bucket_age_value(age_value: int) -> str | None:
-        for label, min_age, max_age in AGE_BRACKETS:
-            if min_age is None:
-                continue
-            if age_value < min_age:
-                continue
-            if max_age is None or age_value < max_age:
-                return label
-        return None
-
-    @staticmethod
     def _generation_for_birth_year(birth_year: int | None) -> str | None:
         if not isinstance(birth_year, int):
             return None
@@ -6914,138 +6883,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if isinstance(dt_value, datetime.datetime):
             return int(dt_value.year)
         return None
-
-    def _collect_age_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
-        now_year = datetime.datetime.now(datetime.timezone.utc).year
-        age_counts: Counter[int] = Counter()
-        known_duration_counts: Counter[int] = Counter()
-        age_bracket_counts: Counter[str] = Counter()
-
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
-            if chart is None:
-                continue
-            if bool(getattr(chart, "is_placeholder", False)):
-                continue
-
-            birth_year_value = getattr(chart, "birth_year", None)
-            if not isinstance(birth_year_value, int):
-                dt_value = getattr(chart, "dt", None)
-                if isinstance(dt_value, datetime.datetime):
-                    birth_year_value = int(dt_value.year)
-            if isinstance(birth_year_value, int):
-                age_value = int(math.floor(now_year - int(birth_year_value)))
-                if age_value >= 0:
-                    age_counts[age_value] += 1
-                    age_bracket = self._bucket_age_value(age_value)
-                    if age_bracket is not None:
-                        age_bracket_counts[age_bracket] += 1
-
-            year_first_encountered = getattr(chart, "year_first_encountered", None)
-            if isinstance(year_first_encountered, int):
-                known_duration = now_year - int(year_first_encountered)
-                if known_duration >= 0:
-                    known_duration_counts[known_duration] += 1
-
-        return {
-            "age_counts": dict(age_counts),
-            "age_bracket_counts": dict(age_bracket_counts),
-            "known_duration_counts": dict(known_duration_counts),
-        }
-
-    def _collect_birth_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
-        birth_minutes: list[int] = []
-        birth_month_counts: Counter[int] = Counter()
-        birth_date_counts: Counter[str] = Counter()
-        city_counts: Counter[str] = Counter()
-        country_counts: Counter[str] = Counter()
-        us_state_counts: Counter[str] = Counter()
-
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
-            if chart is None:
-                continue
-
-            dt_value = getattr(chart, "dt", None)
-            has_known_time = (not bool(getattr(chart, "birthtime_unknown", False))) or bool(
-                getattr(chart, "retcon_time_used", False)
-            )
-            if isinstance(dt_value, datetime.datetime) and has_known_time:
-                birth_minutes.append((int(dt_value.hour) * 60) + int(dt_value.minute))
-
-            is_placeholder = bool(getattr(chart, "is_placeholder", False))
-            month_value = getattr(chart, "birth_month", None)
-            day_value = getattr(chart, "birth_day", None)
-            if (
-                not is_placeholder
-                and not isinstance(month_value, int)
-                and isinstance(dt_value, datetime.datetime)
-            ):
-                month_value = int(dt_value.month)
-            if (
-                not is_placeholder
-                and not isinstance(day_value, int)
-                and isinstance(dt_value, datetime.datetime)
-            ):
-                day_value = int(dt_value.day)
-            if isinstance(month_value, int) and 1 <= month_value <= 12:
-                birth_month_counts[month_value] += 1
-                if isinstance(day_value, int) and 1 <= day_value <= 31:
-                    birth_date_counts[f"{month_value:02d}-{day_value:02d}"] += 1
-
-            birthplace = str(getattr(chart, "birth_place", "") or "").strip()
-            city, state, country = self._extract_birthplace_components(birthplace)
-            if city:
-                city_counts[city] += 1
-            if country:
-                resolved_country = resolve_country(country)
-                canonical_country = str(resolved_country.get("name", "")).strip() if resolved_country else ""
-                country_counts[canonical_country or country] += 1
-                if resolved_country and resolved_country.get("alpha_2") == "US" and state:
-                    us_state_counts[state] += 1
-
-        mode_minutes = 0
-        if birth_minutes:
-            rounded_hours = [((minute + 30) // 60) % 24 for minute in birth_minutes]
-            mode_hour = Counter(rounded_hours).most_common(1)[0][0]
-            mode_minutes = mode_hour * 60
-
-        return {
-            "birth_minutes": birth_minutes,
-            "mean_minutes": (sum(birth_minutes) / len(birth_minutes)) if birth_minutes else 0.0,
-            "median_minutes": float(statistics.median(birth_minutes)) if birth_minutes else 0.0,
-            "mode_hour_minutes": float(mode_minutes),
-            "birth_month_counts": dict(birth_month_counts),
-            "birth_date_counts": dict(birth_date_counts),
-            "city_counts": dict(city_counts),
-            "country_counts": dict(country_counts),
-            "us_state_counts": dict(us_state_counts),
-        }
-
-    @staticmethod
-    def _format_partial_birth_date(
-        month_value: int | None,
-        day_value: int | None,
-        year_value: int | None,
-    ) -> str:
-        month_label = f"{month_value:02d}" if isinstance(month_value, int) and 1 <= month_value <= 12 else "?"
-        day_label = f"{day_value:02d}" if isinstance(day_value, int) and 1 <= day_value <= 31 else "?"
-        year_label = f"{year_value:04d}" if isinstance(year_value, int) and year_value > 0 else "?"
-        return f"{month_label}.{day_label}.{year_label}"
-
-    def _build_text_analysis_widget(self, lines: list[str]) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-        widget.setLayout(layout)
-        for line in lines:
-            label = QLabel(line)
-            label.setStyleSheet("font-size: 11px; color: #f5f5f5;")
-            label.setWordWrap(True)
-            layout.addWidget(label)
-        layout.addStretch(1)
-        return widget
 
     def _empty_database_metrics_cache(self) -> dict[str, Any]:
         return {
