@@ -623,6 +623,7 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
     CHART_DATA_SECTION_HEADERS,
+    DND_STAT_EARTHTONE_COLORS,
     MIDDLE_PANEL_ACCENT_COLOR,
     MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA,
     RIGHT_PANEL_SCROLLBAR_STYLE,
@@ -872,6 +873,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             format_class_axis_label(axis_name): self._make_format(color)
             for axis_name, color in DND_CLASS_AXIS_EARTHTONE_COLORS.items()
         }
+        self._dnd_stat_line_formats = {
+            stat_key: self._make_format(color)
+            for stat_key, color in DND_STAT_EARTHTONE_COLORS.items()
+        }
         self._time_variant_format = QTextCharFormat()
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
@@ -979,6 +984,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 bullet_body = stripped_text[2:].lstrip()
                 axis_label_text, separator, _rest = bullet_body.partition(":")
                 normalized_axis_label = axis_label_text.strip()
+                applied_dnd_line_format = False
                 for axis_label, axis_format in self._dnd_axis_line_formats.items():
                     if separator and normalized_axis_label == axis_label:
                         self.setFormat(0, self._qt_len(text), axis_format)
@@ -989,7 +995,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                                 self._qt_len("│"),
                                 self._dnd_threshold_format,
                             )
+                        applied_dnd_line_format = True
                         break
+                if not applied_dnd_line_format and separator:
+                    stat_key = normalized_axis_label.split(" ", 1)[0].strip()
+                    stat_format = self._dnd_stat_line_formats.get(stat_key)
+                    if stat_format is not None:
+                        self.setFormat(0, self._qt_len(text), stat_format)
         if self._emphasize_species_info_headers:
             if stripped_text == "Evidence:" and CHART_INFO_EVIDENCE_LABEL_BOLD:
                 self.setFormat(0, self._qt_len(text), self._plain_bold_format)

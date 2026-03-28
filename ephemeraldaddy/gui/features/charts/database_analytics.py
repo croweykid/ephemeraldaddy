@@ -31,6 +31,7 @@ from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
     CHART_AXES_STYLE,
     CHART_THEME_COLORS,
+    DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
 )
 
@@ -1146,20 +1147,12 @@ class DatabaseAnalyticsChartsMixin:
         database_values_map = self._compute_dnd_statblock_averages(database_cache)
         selection_values = [selection_values_map[label] for label in labels]
         database_values = [database_values_map[label] for label in labels]
-        stat_palette = {
-            "STR": "#7b5b45",
-            "DEX": "#8f7a5a",
-            "CON": "#6e7f52",
-            "INT": "#6a6d58",
-            "WIS": "#7a6a4f",
-            "CHA": "#8d5f4d",
-        }
         return self._build_social_score_summary_chart(
             labels=labels,
             selection_values=selection_values,
             database_values=database_values,
             loaded_charts=loaded_charts,
-            color_resolver=lambda label, _value: stat_palette.get(label, "#6fa8dc"),
+            color_resolver=lambda label, _value: DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
         )
 
     def _compute_dnd_statblock_averages(
