@@ -43,6 +43,9 @@ TIGHT_ASPECT_ORB_DEGREES = 1.0
 TIGHT_ASPECT_INTENSITY_MIN = 1.2
 TIGHT_ASPECT_INTENSITY_MAX = 1.4
 
+NATURAL_HOUSE_SIGN_BONUS = 6.0
+NATURAL_HOUSE_PLANET_BONUS = 6.0
+
 PLANET_DYNAMICS_METRICS = (
     "stability",
     "constructiveness",
@@ -267,6 +270,53 @@ def _sign_rulers(sign: str) -> list[str]:
     return [planet for planet, signs in PLANET_RULERSHIP.items() if sign in signs]
 
 
+def _sign_house_rulership_bonus(
+    chart: Chart,
+    sign: str,
+    house_num: int | None,
+    houses: list[float] | None,
+    recursion_depth: int = 1,
+    _visited_signs: set[str] | None = None,
+) -> dict[str, float]:
+    if house_num is None:
+        return {}
+
+    visited_signs = set(_visited_signs or ())
+    if sign in visited_signs:
+        return {}
+    visited_signs.add(sign)
+
+    bonuses: dict[str, float] = {name: 0.0 for name in ZODIAC_NAMES}
+    if NATURAL_HOUSE_SIGNS.get(house_num) == sign:
+        bonuses[sign] += NATURAL_HOUSE_SIGN_BONUS
+
+    natural_house_planet = NATURAL_HOUSE_PLANETS.get(house_num)
+    if natural_house_planet and natural_house_planet in _sign_rulers(sign):
+        bonuses[sign] += NATURAL_HOUSE_PLANET_BONUS
+
+    if recursion_depth <= 0 or not natural_house_planet:
+        return bonuses
+
+    ruler_lon = chart.positions.get(natural_house_planet)
+    if ruler_lon is None:
+        return bonuses
+
+    recursive_sign = sign_for_longitude(ruler_lon)
+    recursive_house_num = house_for_longitude(houses, ruler_lon)
+    nested_bonuses = _sign_house_rulership_bonus(
+        chart,
+        recursive_sign,
+        recursive_house_num,
+        houses,
+        recursion_depth=recursion_depth - 1,
+        _visited_signs=visited_signs,
+    )
+    for sign_name, bonus in nested_bonuses.items():
+        bonuses[sign_name] += bonus
+
+    return bonuses
+
+
 def _aspect_orb_factor(aspect: dict) -> float:
     p1 = normalize_body_name(str(aspect.get("p1", "")))
     p2 = normalize_body_name(str(aspect.get("p2", "")))
@@ -407,7 +457,7 @@ def planet_sign_weight(
     if house_num:
         weight += HOUSE_WEIGHTS.get(house_num, 0.0)
     if house_num and NATURAL_HOUSE_SIGNS.get(house_num) == sign:
-        weight += 3
+        weight += NATURAL_HOUSE_SIGN_BONUS
 
     return sign, weight
 
@@ -420,7 +470,7 @@ def planet_weight(
     _sign, weight = planet_sign_weight(body, lon, houses, house_num)
     canonical_body = normalize_body_name(body)
     if house_num and NATURAL_HOUSE_PLANETS.get(house_num) == canonical_body:
-        weight += 3
+        weight += NATURAL_HOUSE_PLANET_BONUS
     return weight
 
 
@@ -516,6 +566,7 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
     weighted_counts = {sign: 0.0 for sign in ZODIAC_NAMES}
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
+    deferred_rulership_sign_bonuses = {sign: 0.0 for sign in ZODIAC_NAMES}
     for body in PLANET_ORDER:
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
             continue
@@ -526,9 +577,22 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
         house_num = house_for_longitude(houses, lon)
         weighted_sign, weight = planet_sign_weight(body, lon, houses, house_num)
         weighted_counts[weighted_sign] += weight
+        rulership_bonuses = _sign_house_rulership_bonus(
+            chart,
+            weighted_sign,
+            house_num,
+            houses,
+            recursion_depth=1,
+        )
+        for sign_name, bonus in rulership_bonuses.items():
+            deferred_rulership_sign_bonuses[sign_name] += bonus
         transfers = _dispositor_sign_transfers(chart, weight, weighted_sign)
         for sign_name, transfer in transfers.items():
             weighted_counts[sign_name] += transfer
+
+    for sign_name, bonus in deferred_rulership_sign_bonuses.items():
+        if bonus > 0:
+            weighted_counts[sign_name] += bonus
 
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
