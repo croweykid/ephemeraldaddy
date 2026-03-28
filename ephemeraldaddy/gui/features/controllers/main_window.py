@@ -402,27 +402,27 @@ class ChartsController:
             return False
         dialog = self._get_or_create_manage_dialog()
         pending_ids = set(self._get_pending_changed_ids())
-        has_loaded_rows = bool(getattr(dialog, "_chart_rows", None))
 
         if pending_ids:
             dialog._refresh_charts(
                 refresh_metrics=True,
                 changed_ids=pending_ids,
             )
-        elif not has_loaded_rows:
+        elif not getattr(dialog, "_chart_rows", None):
             # Ensure first-open (or reset) state has populated rows/metrics,
             # while still skipping passive refreshes when nothing changed.
             dialog._refresh_charts(refresh_metrics=True)
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
-        if callable(apply_launch_window_policy):
-            # Use the Windows top-most pulse only for first open (startup path).
-            # Subsequent Database View switches should use normal raise/activate.
-            apply_launch_window_policy(use_topmost_pulse=not has_loaded_rows)
+        use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
         if dialog.isVisible():
+            if callable(apply_launch_window_policy):
+                apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
         else:
             dialog.show()
+            if callable(apply_launch_window_policy):
+                apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
         return True
 
