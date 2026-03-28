@@ -133,68 +133,7 @@ class _GlobalCloseShortcutFilter(QObject):
         return True
 
 
-class _StartupLoadingWidget(QWidget):
-    """Lightweight loading indicator shown during cold start."""
-
-    def __init__(self) -> None:
-        # Use splash-screen window semantics to avoid OS-level "tool window"
-        # taskbar/alt-tab flashing during startup (especially noticeable on Windows).
-        super().__init__(None, Qt.SplashScreen | Qt.FramelessWindowHint)
-        self.setWindowTitle("Starting EphemeralDaddy")
-        self.setAttribute(Qt.WA_TranslucentBackground, False)
-        self.setStyleSheet(
-            "QWidget { background-color: #141218; color: #efe9ff; }"
-            "QLabel { color: #efe9ff; font-size: 12px; }"
-            "QProgressBar {"
-            "  border: 1px solid #47345d;"
-            "  border-radius: 4px;"
-            "  background-color: #0e0b12;"
-            "  text-align: center;"
-            "  min-height: 14px;"
-            "}"
-            "QProgressBar::chunk {"
-            "  background-color: #9933ff;"
-            "}"
-        )
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
-        self.setLayout(layout)
-
-        from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
-
-        title = QLabel("Ephemeral Daddy will be with you shortly…")
-        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        layout.addWidget(title)
-
-        self._status_label = QLabel("Preparing startup…")
-        self._status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        layout.addWidget(self._status_label)
-
-        self._progress = QProgressBar()
-        self._progress.setRange(0, 100)
-        self._progress.setValue(5)
-        layout.addWidget(self._progress)
-
-        self.setFixedWidth(360)
-        self.adjustSize()
-        self._center_on_primary_screen()
-
-    def _center_on_primary_screen(self) -> None:
-        screen = QGuiApplication.primaryScreen()
-        if screen is None:
-            return
-        screen_rect = screen.availableGeometry()
-        frame = self.frameGeometry()
-        frame.moveCenter(screen_rect.center())
-        self.move(frame.topLeft())
-
-    def update_status(self, message: str, progress: int) -> None:
-        self._status_label.setText(message)
-        self._progress.setValue(min(max(progress, 0), 100))
-        QCoreApplication.processEvents(QEventLoop.AllEvents, 50)
+from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -215,6 +154,9 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
     configure_splitter_handle_resize_cursor,
+)
+from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
+    configure_initial_window_state,
 )
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
@@ -23186,18 +23128,19 @@ class MainWindow(QMainWindow):
         self._help_entry_detail.setText(f"{entry.description}{suffix}")
         self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
-def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
+def main(startup_loading: StartupProgress | QWidget | None = None):
     _maybe_reexec_with_macos_app_name()
     _register_packaged_symbol_fonts()
     _configure_matplotlib_info_marker_font()
 
     app = _get_qapp()
     if startup_loading is None:
-        startup_loading = _StartupLoadingWidget()
+        startup_loading = StartupLoadingWidget()
         startup_loading.show()
     # Launch-only focus assist: keep the load bar in the foreground while the
     # app initializes, but avoid repeated focus hacks after startup.
-    bring_window_to_front(startup_loading)
+    if isinstance(startup_loading, QWidget):
+        bring_window_to_front(startup_loading)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
         startup_loading.update_status("Checking required dependencies…", 15)
@@ -23220,21 +23163,13 @@ def main(startup_loading: _StartupLoadingWidget | QWidget | None = None):
         startup_loading.update_status("Using cached dependency readiness…", 15)
     startup_loading.update_status("Loading main window…", 45)
     window = MainWindow()
-    startup_loading.update_status("Applying startup settings…", 75)
-    icon_path = _get_app_icon_path()
-    if icon_path:
-        app.setWindowIcon(QIcon(icon_path))
-        window.setWindowIcon(QIcon(icon_path))
-
-    # Always launch into Database View. Persisted "last_view" state previously
-    # allowed cold-start entry into Chart View, which can present a blank chart
-    # canvas while heavy initialization catches up (more pronounced on Windows).
-    # Keeping launch deterministic avoids that startup race without changing
-    # intended user-facing behavior (Database View first, Chart View on demand).
-    window.on_manage_charts()
-    window.hide()
-    startup_loading.update_status("Startup complete.", 100)
-    QTimer.singleShot(250, startup_loading.close)
+    configure_initial_window_state(
+        app=app,
+        window=window,
+        startup_loading=startup_loading,
+        get_icon_path=_get_app_icon_path,
+        show_default_view=window.on_manage_charts,
+    )
 
     if not getattr(app, "_edd_running", False):
         app._edd_running = True
