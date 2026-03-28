@@ -423,7 +423,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
     get_active_human_design_gates_and_lines,
 )
-from ephemeraldaddy.analysis.human_design_reference import format_gate_line_info
+from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS, format_gate_line_info
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -990,8 +990,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     self._dnd_subheader_note_format,
                 )
 
-        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
-            self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}(?::.*)?$", stripped_text):
+            self.setFormat(0, self._qt_len(text), self._class_header_format)
 
         activation_match = re.match(r"^\s*(Personality|Design)\s+([A-Za-z]+)", text)
         if activation_match:
@@ -20174,15 +20174,32 @@ class MainWindow(QMainWindow):
         self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
-        header = f"Channel {min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
+        channel_key = f"{sorted_gates[0]}-{sorted_gates[1]}"
+        channel_info = HD_CHANNELS.get(channel_key)
+
+        if channel_info is None:
+            reverse_key = f"{sorted_gates[1]}-{sorted_gates[0]}"
+            channel_info = HD_CHANNELS.get(reverse_key)
+
+        channel_name = str(channel_info.get("name", "Unknown Channel")) if channel_info else "Unknown Channel"
+        channel_centers = channel_info.get("centers") if channel_info else None
+        channel_centers_text = ", ".join(channel_centers) if isinstance(channel_centers, tuple) else (center or "Unknown")
+        circuit = str(channel_info.get("circuit", "Unknown")) if channel_info else "Unknown"
+        explanation = str(channel_info.get("explanation", "")).strip() if channel_info else ""
+
+        header = f"Channel {channel_key}: {channel_name}"
         lines = [
             header,
             "",
-            f"• Center grouping: {center or 'Unknown'}",
-            f"• Endpoint gates: {gate_a} and {gate_b}",
+            f"• Circuit: {circuit}",
+            f"• Centers: {channel_centers_text}",
+            f"• Endpoint gates: {sorted_gates[0]} and {sorted_gates[1]}",
             "• A channel is defined when both endpoint gates are active.",
             "• Defined channels establish fixed connections between centers.",
         ]
+        if explanation:
+            lines.append(f"• {explanation}")
         self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_species_info(

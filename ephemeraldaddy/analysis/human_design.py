@@ -176,7 +176,7 @@ def _render_channel_lines(
                     "gate_a": gate_a,
                     "gate_b": gate_b,
                     "center": center,
-                    "icon_index": cursor + len(label) + 1,
+                    "icon_index": cursor,
                 }
             )
             cursor += len(token)
