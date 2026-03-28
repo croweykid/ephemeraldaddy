@@ -30,6 +30,14 @@ from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
+SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
+
+
+def _normalize_lilith_calculation_method(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {LILITH_CALCULATION_MEAN, LILITH_CALCULATION_TRUE}:
+        return normalized
+    return LILITH_CALCULATION_MEAN
 
 from PySide6.QtGui import (
     QBrush,
@@ -168,6 +176,9 @@ from ephemeraldaddy.gui.window_placement import (
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
 from ephemeraldaddy.core.ephemeris import (
+    LILITH_CALCULATION_MEAN,
+    LILITH_CALCULATION_TRUE,
+    set_lilith_calculation_mode,
     planetary_positions,
     planetary_retrogrades,
     is_offline_mode as ephemeris_offline_mode,
@@ -1719,6 +1730,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+            self._settings.value(
+                SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+                LILITH_CALCULATION_MEAN,
+            )
+        )
+        set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
 
@@ -5103,16 +5121,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_context["aspect_info_map"] = aspect_info_map
             vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
             horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
-        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+        def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.pop(key, None)
             if worker_entry is not None:
-                thread, worker = worker_entry
+                thread, _worker = worker_entry
                 try:
+                    thread.requestInterruption()
                     thread.quit()
                 except RuntimeError:
                     pass
-                thread.deleteLater()
-                worker.deleteLater()
+
+        def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -5136,15 +5156,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _drain_preload_queue()
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
-            worker_entry = transit_workers.pop(key, None)
-            if worker_entry is not None:
-                thread, worker = worker_entry
-                try:
-                    thread.quit()
-                except RuntimeError:
-                    pass
-                thread.deleteLater()
-                worker.deleteLater()
+            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 return
@@ -5201,6 +5213,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             worker.failed.connect(
                 lambda a, b, c, error_text, mode=mode: _on_window_failed((mode, a, b, c), error_text)
             )
+            worker.finished.connect(thread.quit)
+            worker.failed.connect(thread.quit)
+            thread.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
             transit_workers[key] = (thread, worker)
             thread.start()
 
@@ -5696,6 +5712,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             list_style=similarities_list_style,
         )
         (
+            self.similarities_dominant_bodies_toggle,
+            self.similarities_dominant_bodies_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Top 3 Dominant Bodies in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
+            self.similarities_dominant_houses_toggle,
+            self.similarities_dominant_houses_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Top 3 Dominant Houses in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
             self.similarities_dominant_nakshatras_toggle,
             self.similarities_dominant_nakshatras_list,
         ) = self._add_similarities_collapsible_section(
@@ -6128,6 +6162,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+    def _build_common_dominant_bodies(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        body_counts: dict[str, int] = {}
+        planet_order = [
+            body
+            for body in PLANET_ORDER
+            if body not in {"AS", "MC", "DS", "IC"} and body in NATAL_WEIGHT
+        ]
+        for chart in charts:
+            dominant_weights = getattr(chart, "dominant_planet_weights", None)
+            if not dominant_weights:
+                dominant_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_planet_weights = dominant_weights
+            for body in self._dominant_planet_top_three_labels(dominant_weights):
+                label = self._similarities_body_label(body)
+                body_counts[label] = body_counts.get(label, 0) + 1
+
+        ordered_counts = {
+            self._similarities_body_label(body): body_counts[self._similarities_body_label(body)]
+            for body in planet_order
+            if self._similarities_body_label(body) in body_counts
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_dominant_houses(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        house_counts: dict[str, int] = {}
+        for chart in charts:
+            dominant_weights = _calculate_dominant_house_weights(chart)
+            for house_num in self._dominant_house_top_three_labels(dominant_weights):
+                label = f"House {house_num}"
+                house_counts[label] = house_counts.get(label, 0) + 1
+
+        ordered_counts = {
+            f"House {house_num}": house_counts[f"House {house_num}"]
+            for house_num in range(1, 13)
+            if f"House {house_num}" in house_counts
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
     @staticmethod
     def _dominant_sign_top_three_labels(
         dominant_weights: dict[str, float] | None,
@@ -6332,6 +6420,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 show_no_match_row=False,
             )
             self._set_similarities_section_matches(
+                self.similarities_dominant_bodies_list,
+                self.similarities_dominant_bodies_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_houses_list,
+                self.similarities_dominant_houses_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
                 self.similarities_dominant_nakshatras_list,
                 self.similarities_dominant_nakshatras_toggle,
                 [],
@@ -6349,6 +6449,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
         common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
         common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
+        common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
+        common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
         db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
@@ -6374,6 +6476,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         db_common_dominant_signs = dict(
             (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
+        )
+        db_common_dominant_bodies = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_bodies(db_chart_ids)
+        )
+        db_common_dominant_houses = dict(
+            (label, count) for label, count, _total in self._build_common_dominant_houses(db_chart_ids)
         )
         db_common_dominant_nakshatras = dict(
             (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
@@ -6439,6 +6547,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ],
             ),
             (
+                "Top 3 Dominant Bodies in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_bodies.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_bodies
+                ],
+            ),
+            (
+                "Top 3 Dominant Houses in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_dominant_houses.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_dominant_houses
+                ],
+            ),
+            (
                 "Dominant nakshatras in common",
                 [
                     (
@@ -6471,6 +6605,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             + len(common_houses_in_positions)
             + len(common_signs_in_houses)
             + len(common_dominant_signs)
+            + len(common_dominant_bodies)
+            + len(common_dominant_houses)
             + len(common_dominant_nakshatras)
             + len(common_aspects)
         )
@@ -6517,6 +6653,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             common_dominant_signs,
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_dominant_signs,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_dominant_bodies_list,
+            self.similarities_dominant_bodies_toggle,
+            common_dominant_bodies,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_dominant_bodies,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_dominant_houses_list,
+            self.similarities_dominant_houses_toggle,
+            common_dominant_houses,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_dominant_houses,
             db_total_count=db_total_count,
         )
         self._set_similarities_section_matches(
@@ -15615,6 +15767,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(species_distribution_checkbox)
 
+        chart_calculation_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Chart Calculation Methods",
+        )
+        chart_calculation_section.addWidget(
+            QLabel("Select which Black Moon Lilith ephemeris model to display.")
+        )
+
+        lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
+        lilith_true_radio = QRadioButton("True Lilith (oscillating/osculating apogee)")
+        lilith_button_group = QButtonGroup(dialog)
+        lilith_button_group.setExclusive(True)
+        lilith_button_group.addButton(lilith_mean_radio)
+        lilith_button_group.addButton(lilith_true_radio)
+        lilith_mean_radio.setChecked(self._lilith_calculation_method == LILITH_CALCULATION_MEAN)
+        lilith_true_radio.setChecked(self._lilith_calculation_method == LILITH_CALCULATION_TRUE)
+        lilith_mean_radio.toggled.connect(
+            lambda checked: checked and self._set_lilith_calculation_method(LILITH_CALCULATION_MEAN)
+        )
+        lilith_true_radio.toggled.connect(
+            lambda checked: checked and self._set_lilith_calculation_method(LILITH_CALCULATION_TRUE)
+        )
+        chart_calculation_section.addWidget(lilith_mean_radio)
+        chart_calculation_section.addWidget(lilith_true_radio)
+
         property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
         property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
 
@@ -15733,6 +15910,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
+
+    def _set_lilith_calculation_method(self, method: str) -> None:
+        normalized = _normalize_lilith_calculation_method(method)
+        if normalized == self._lilith_calculation_method:
+            return
+        self._lilith_calculation_method = normalized
+        self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
+        set_lilith_calculation_mode(normalized)
+        self._refresh_todays_transits_panel()
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._handle_lilith_calculation_method_changed(normalized)
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -16540,6 +16729,13 @@ class MainWindow(QMainWindow):
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
+        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+            self._settings.value(
+                SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+                LILITH_CALCULATION_MEAN,
+            )
+        )
+        set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
         self._allow_app_exit_close = False
@@ -21881,6 +22077,16 @@ class MainWindow(QMainWindow):
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         self._schedule_chart_render(chart)
+
+    def _handle_lilith_calculation_method_changed(self, method: str) -> None:
+        normalized = _normalize_lilith_calculation_method(method)
+        self._lilith_calculation_method = normalized
+        self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
+        set_lilith_calculation_mode(normalized)
+        if self.current_chart_id is not None:
+            self.load_chart_by_id(self.current_chart_id)
+            return
+        self._refresh_chart_preview()
 
     def _clear_layout_widgets(self, layout: QLayout) -> None:
         while layout.count():
