@@ -24,6 +24,12 @@ class Chart:
         self.familiarity = 1
         self.alignment_score = None
         self.familiarity_factors = []
+        self.dominant_sign_weights = {}
+        self.dominant_planet_weights = {}
+        self.dominant_element_weights = {}
+        self.human_design_gates = []
+        self.human_design_lines = []
+        self.human_design_channels = []
         self.age_when_first_met = 0
         self.year_first_encountered = None
         self.chart_type = "personal"
@@ -98,6 +104,12 @@ class Chart:
             "familiarity": self.familiarity,
             "alignment_score": self.alignment_score,
             "familiarity_factors": self.familiarity_factors,
+            "human_design_gates": self.human_design_gates,
+            "human_design_lines": self.human_design_lines,
+            "human_design_channels": self.human_design_channels,
+            "dominant_sign_weights": self.dominant_sign_weights,
+            "dominant_planet_weights": self.dominant_planet_weights,
+            "dominant_element_weights": self.dominant_element_weights,
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
             "positions": self.positions,

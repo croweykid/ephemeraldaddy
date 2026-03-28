@@ -83,6 +83,11 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "retcon_minute": None,
     "dominant_sign_weights": "",
     "dominant_planet_weights": "",
+    "dominant_element_weights": "",
+    "modal_distribution": "",
+    "human_design_gates": "",
+    "human_design_lines": "",
+    "human_design_channels": "",
     "is_placeholder": 0,
     "is_deceased": 0,
     "birth_month": 0,
@@ -224,6 +229,11 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             retcon_minute     INTEGER,
             dominant_sign_weights TEXT,
             dominant_planet_weights TEXT,
+            dominant_element_weights TEXT,
+            modal_distribution TEXT,
+            human_design_gates TEXT,
+            human_design_lines TEXT,
+            human_design_channels TEXT,
             chart_type        TEXT NOT NULL DEFAULT 'personal',
             source            TEXT NOT NULL DEFAULT 'personal',
             is_placeholder    INTEGER NOT NULL DEFAULT 0,
@@ -457,6 +467,41 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN dominant_planet_weights TEXT
+            """
+        )
+    if "dominant_element_weights" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN dominant_element_weights TEXT
+            """
+        )
+    if "modal_distribution" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN modal_distribution TEXT
+            """
+        )
+    if "human_design_gates" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_gates TEXT
+            """
+        )
+    if "human_design_lines" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_lines TEXT
+            """
+        )
+    if "human_design_channels" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_channels TEXT
             """
         )
 
@@ -817,6 +862,53 @@ def _parse_weight_map(value: Optional[str]) -> dict[str, float]:
             normalized_key = "DS"
         parsed[normalized_key] = parsed.get(normalized_key, 0.0) + float(raw_value)
     return parsed
+
+
+def _serialize_int_list(values: Optional[list[int]]) -> Optional[str]:
+    if values is None:
+        return None
+    normalized = [int(value) for value in values if isinstance(value, int)]
+    return json.dumps(normalized)
+
+
+def _parse_int_list(value: Optional[str]) -> list[int]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    values: list[int] = []
+    for item in parsed:
+        if isinstance(item, int):
+            values.append(int(item))
+    return values
+
+
+def _serialize_string_list(values: Optional[list[str]]) -> Optional[str]:
+    if values is None:
+        return None
+    normalized = [str(value).strip() for value in values if str(value).strip()]
+    return json.dumps(normalized)
+
+
+def _parse_string_list(value: Optional[str]) -> list[str]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    values: list[str] = []
+    for item in parsed:
+        text = str(item).strip()
+        if text:
+            values.append(text)
+    return values
 
 def _normalize_year_first_encountered(value: Optional[int]) -> Optional[int]:
     if value is None:
@@ -1498,9 +1590,11 @@ def append_database(source: Path) -> dict[str, Any]:
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered,
                          social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
-                         dominant_sign_weights, dominant_planet_weights, chart_type, source,
+                         dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+                         human_design_gates, human_design_lines, human_design_channels,
+                         chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1532,6 +1626,11 @@ def append_database(source: Path) -> dict[str, Any]:
                         int(_row_value("retcon_minute")) if _row_value("retcon_minute") is not None else None,
                         _row_value("dominant_sign_weights"),
                         _row_value("dominant_planet_weights"),
+                        _row_value("dominant_element_weights"),
+                        _row_value("modal_distribution"),
+                        _row_value("human_design_gates"),
+                        _row_value("human_design_lines"),
+                        _row_value("human_design_channels"),
                         resolved_chart_type,
                         resolved_chart_type,
                         int(_row_value("is_placeholder") or 0),
@@ -1620,7 +1719,9 @@ def save_chart(
                  positive_sentiment_intensity, negative_sentiment_intensity,
                  familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
                  birthtime_unknown,
-                 retcon_time_used, retcon_hour, retcon_minute, dominant_sign_weights, dominant_planet_weights,
+                 retcon_time_used, retcon_hour, retcon_minute,
+                 dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+                 human_design_gates, human_design_lines, human_design_channels,
                  chart_type,
                  source,
                  is_placeholder,
@@ -1629,7 +1730,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1698,6 +1799,11 @@ def save_chart(
                     if dominant_planet_weights is not None
                     else getattr(chart, "dominant_planet_weights", None)
                 ),
+                _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                _serialize_weight_map(getattr(chart, "modal_distribution", None)),
+                _serialize_int_list(getattr(chart, "human_design_gates", None)),
+                _serialize_int_list(getattr(chart, "human_design_lines", None)),
+                _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -1813,6 +1919,11 @@ def update_chart(
                 retcon_minute = ?,
                 dominant_sign_weights = ?,
                 dominant_planet_weights = ?,
+                dominant_element_weights = ?,
+                modal_distribution = ?,
+                human_design_gates = ?,
+                human_design_lines = ?,
+                human_design_channels = ?,
                 chart_type = ?,
                 source = ?,
                 is_placeholder = ?,
@@ -1889,6 +2000,11 @@ def update_chart(
                     if dominant_planet_weights is not None
                     else getattr(chart, "dominant_planet_weights", None)
                 ),
+                _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                _serialize_weight_map(getattr(chart, "modal_distribution", None)),
+                _serialize_int_list(getattr(chart, "human_design_gates", None)),
+                _serialize_int_list(getattr(chart, "human_design_lines", None)),
+                _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -2125,7 +2241,9 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, COALESCE(chart_type, source),
+               dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+               human_design_gates, human_design_lines, human_design_channels,
+               COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
         FROM charts
         WHERE id = ?
@@ -2166,6 +2284,11 @@ def load_chart(chart_id: int):
         retcon_minute,
         dominant_sign_weights,
         dominant_planet_weights,
+        dominant_element_weights,
+        modal_distribution,
+        human_design_gates,
+        human_design_lines,
+        human_design_channels,
         chart_type,
         is_placeholder,
         is_deceased,
@@ -2212,6 +2335,11 @@ def load_chart(chart_id: int):
         placeholder.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
         placeholder.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
+        placeholder.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+        placeholder.modal_distribution = _parse_weight_map(modal_distribution)
+        placeholder.human_design_gates = _parse_int_list(human_design_gates)
+        placeholder.human_design_lines = _parse_int_list(human_design_lines)
+        placeholder.human_design_channels = _parse_string_list(human_design_channels)
         normalized_chart_type = _normalize_chart_type(chart_type)
         placeholder.chart_type = normalized_chart_type
         placeholder.source = normalized_chart_type
@@ -2260,6 +2388,11 @@ def load_chart(chart_id: int):
     chart.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
     chart.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
+    chart.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+    chart.modal_distribution = _parse_weight_map(modal_distribution)
+    chart.human_design_gates = _parse_int_list(human_design_gates)
+    chart.human_design_lines = _parse_int_list(human_design_lines)
+    chart.human_design_channels = _parse_string_list(human_design_channels)
     normalized_chart_type = _normalize_chart_type(chart_type)
     chart.chart_type = normalized_chart_type
     chart.source = normalized_chart_type
