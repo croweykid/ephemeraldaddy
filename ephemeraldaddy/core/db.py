@@ -84,6 +84,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "dominant_sign_weights": "",
     "dominant_planet_weights": "",
     "dominant_element_weights": "",
+    "dominant_mode": "",
     "modal_distribution": "",
     "human_design_gates": "",
     "human_design_lines": "",
@@ -230,6 +231,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             dominant_sign_weights TEXT,
             dominant_planet_weights TEXT,
             dominant_element_weights TEXT,
+            dominant_mode TEXT,
             modal_distribution TEXT,
             human_design_gates TEXT,
             human_design_lines TEXT,
@@ -474,6 +476,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN dominant_element_weights TEXT
+            """
+        )
+    if "dominant_mode" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN dominant_mode TEXT
             """
         )
     if "modal_distribution" not in columns:
@@ -1590,7 +1599,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered,
                          social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
-                         dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+                         dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
@@ -1627,6 +1636,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("dominant_sign_weights"),
                         _row_value("dominant_planet_weights"),
                         _row_value("dominant_element_weights"),
+                        _row_value("dominant_mode"),
                         _row_value("modal_distribution"),
                         _row_value("human_design_gates"),
                         _row_value("human_design_lines"),
@@ -1720,7 +1730,7 @@ def save_chart(
                  familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
                  birthtime_unknown,
                  retcon_time_used, retcon_hour, retcon_minute,
-                 dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+                 dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
                  chart_type,
                  source,
@@ -1730,7 +1740,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1800,6 +1810,7 @@ def save_chart(
                     else getattr(chart, "dominant_planet_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
@@ -1920,6 +1931,7 @@ def update_chart(
                 dominant_sign_weights = ?,
                 dominant_planet_weights = ?,
                 dominant_element_weights = ?,
+                dominant_mode = ?,
                 modal_distribution = ?,
                 human_design_gates = ?,
                 human_design_lines = ?,
@@ -2001,6 +2013,7 @@ def update_chart(
                     else getattr(chart, "dominant_planet_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
@@ -2241,7 +2254,7 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, dominant_element_weights, modal_distribution,
+               dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
@@ -2285,6 +2298,7 @@ def load_chart(chart_id: int):
         dominant_sign_weights,
         dominant_planet_weights,
         dominant_element_weights,
+        dominant_mode,
         modal_distribution,
         human_design_gates,
         human_design_lines,
@@ -2336,6 +2350,7 @@ def load_chart(chart_id: int):
         placeholder.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
         placeholder.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+        placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
         placeholder.modal_distribution = _parse_weight_map(modal_distribution)
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
         placeholder.human_design_lines = _parse_int_list(human_design_lines)
@@ -2352,7 +2367,8 @@ def load_chart(chart_id: int):
         placeholder.retrogrades = {}
         placeholder.houses = []
         placeholder.aspects = []
-        placeholder.modal_distribution = {}
+        if not isinstance(placeholder.modal_distribution, dict):
+            placeholder.modal_distribution = {}
         return placeholder
 
     dt = datetime.fromisoformat(datetime_iso)
@@ -2389,6 +2405,7 @@ def load_chart(chart_id: int):
     chart.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
     chart.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+    chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
     chart.modal_distribution = _parse_weight_map(modal_distribution)
     chart.human_design_gates = _parse_int_list(human_design_gates)
     chart.human_design_lines = _parse_int_list(human_design_lines)
