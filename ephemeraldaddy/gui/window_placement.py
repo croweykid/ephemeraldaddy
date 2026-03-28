@@ -39,12 +39,12 @@ def apply_window_placement(window: QWidget, placement: WindowPlacement) -> None:
         window.showNormal()
 
 
-def bring_window_to_front(window: QWidget, *, use_topmost_pulse: bool = True) -> None:
+def bring_window_to_front(window: QWidget) -> None:
     """Best-effort foreground activation across platforms."""
     window.raise_()
     window.activateWindow()
 
-    if platform.system() != "Windows" or not use_topmost_pulse:
+    if platform.system() != "Windows":
         return
 
     # Windows focus-stealing prevention can ignore activateWindow() on startup.

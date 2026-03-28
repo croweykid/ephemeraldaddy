@@ -20416,9 +20416,7 @@ class MainWindow(QMainWindow):
         dialog = self._manage_charts_dialog
         if dialog is None:
             return
-        # Avoid Windows top-most pulse during Chart→Database transitions to
-        # prevent transient flashing of auxiliary popout/tool windows.
-        bring_window_to_front(dialog, use_topmost_pulse=False)
+        bring_window_to_front(dialog)
         dialog.setFocus(Qt.ActiveWindowFocusReason)
 
     def _show_chart_view_maximized(
