@@ -48,7 +48,8 @@ ANGLES = {"AS", "DS", "MC", "IC"}
 PERSONAL = INNER_PLANETS | ANGLES
 
 NODES = {"Rahu", "Ketu"}
-ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas", "Lilith"}
+ASTEROIDS = {"Vesta", "Ceres", "Juno", "Pallas"}
+BLACK_MOON_LILITH = {"Lilith"}
 POINTS = {"Part of Fortune"} # canonical label only; aka "Fortune"
 ANGLE_POINTS = ("AS", "IC", "DS", "MC")
 
@@ -70,7 +71,7 @@ ANGLE_ALIASES = {
 MAJOR_ASPECTS = {0, 60, 90, 120, 180}
 MINOR_ASPECTS = {30, 45, 72, 135, 144, 150}
 
-SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS
+SLOW_TRANSIT_BODIES = OUTER_PLANETS | NODES | ASTEROIDS | BLACK_MOON_LILITH
 FAST_TRANSIT_BODIES = {"Sun","Mercury", "Venus", "Mars"}  # Sun, Moon, Mercury, Venus, Mars
 VERY_FAST_TRANSIT_BODIES = {"Moon"}
 
@@ -1255,7 +1256,7 @@ SIGN_KEYWORDS = {
             "in a masked way", "indirectly",
         ],
         "profile":"cleave",
-        "verbs": ["curating narrative via", "impersonating", "absorbing", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
+        "verbs": ["curating narrative via", "impersonating", "joking about", "strategically re/framing", "evading", "adapting to", "editing", "charming", "cleverly navigating", "mimicking", "bypassing",],
         "core":"Adaptive, ambiguous, nonlinear. Charisma through fluidity.",
         "strategy":"Withholds certainty, uses flexibility as power. Navigates contradiction without flinching. Translates between worlds.",
         "function":"Social shapeshifter—not for approval, but for autonomy. Knows where to bend and when not to.",
@@ -1954,7 +1955,7 @@ PLANET_KEYWORDS = {
     "Rahu": {
         "nouns": [
             "hunger", "craving", "obsession", "fixation", "ambition", "insatiability",
-            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness", "more",
+            "amplification", "fascination", "taboo attraction", "worldly appetite", "restlessness",
         ],
         "verbs": [
             "wanting more from", "chasing", "fixating on", "amplifying", "overreaching toward", "becoming fascinated with",
@@ -1968,17 +1969,17 @@ PLANET_KEYWORDS = {
             "the appetite that does not know when it is fed: fixation, worldly hunger, and the restless pursuit of what seems necessary for completion",
         ],
         "archetypes": [
-            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother",
+            "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother","Alakshmi",
         ],
     },
     "Ketu": {
         "nouns": [
-            "detachment", "severance", "release", "renunciation", "withdrawal", "distance",
-            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution",
+            "detachment", "severance", "release", "renunciation", "withdrawal", "distance","disenchantment", "spent appetite",
+            "negation", "disinterest", "letting go", "emptiness", "endings", "dissolution", "end of an era","hollow victories",
         ],
         "verbs": [
             "letting go of", "quitting", "walking away from", "detaching from", "withdrawing from", "cutting off",
-            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from",
+            "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying from","finding only emptiness in", 
         ],
         "verbsonly": [
             "letting go", "quitting", "walking away", "detaching", "withdrawing", "cutting off",
@@ -1988,41 +1989,50 @@ PLANET_KEYWORDS = {
             "the severing principle: release, detachment, and the strange familiarity that no longer promises fulfillment.",
         ],
         "archetypes": [
-            "the renunciant", "the cast-off skin", "was a big fish in a small pond, now leaving the old small town to seek something grander",
+            "the renunciant", "the cast-off skin", "being fed up with this small town like you're in a Bruce Springsteen song","Rambo when he swore he'd never go back for one more job","the one who knows how the trick works and that it isn't actually magic",
         ],
     },
     "Lilith": {
         "nouns": [
-            "no's", "refusals", "call-outs", "pushback", "boundaries", "defiance",
-            "no apologies", "expectations", "distance", "firmness", "limit tests", "taboos",
+            "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
+            "untamed desire", "erotic autonomy", "rejection", "social punishment", "subversion", "disowned hunger",
         ],
         "verbs": [
-            "saying no to", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing for", "challenging expectations about", "keeping distance from", "standing firm with", "testing limits of", "breaking taboos with",
+            "refusing", "defying", "rejecting", "breaking taboos around", "withholding compliance from",
+            "provoking", "refusing subordination in", "claiming autonomy over", "disrupting expectations around",
+            "testing limits of", "walking away from", "remaining unapologetic about",
         ],
         "verbsonly": [
-            "saying no", "refusing", "calling out", "pushing back", "setting boundaries",
-            "not apologizing", "challenging expectations", "keeping distance", "standing firm", "testing limits", "breaking taboos",
+            "refusing", "defying", "rejecting", "breaking taboos", "withholding compliance",
+            "provoking", "refusing subordination", "claiming autonomy", "disrupting expectations",
+            "testing limits", "walking away", "remaining unapologetic",
         ],
-        "explanation":[""],
-        "archetypes":[
+        "explanation": [
+            "the part that would rather be exiled than domesticated: taboo desire, refusal of subordination, and the social cost of remaining unassimilated",
+        ],
+        "archetypes": [
+          "Mata Hari","Cleopatra","Jeanne d'Arc","the one they call dangerous because she would not submit", # "the wife who walked out", "the exile who will not kneel","the burned witch",  
         ],
     },
     "Part of Fortune": {
         "nouns": [
-            "luck", "opportunities", "connections", "breaks", "timing",
-            "advantages", "benefits", "wins", "thriving", "rhythm", "solutions", "results",
+            "luck", "ease", "flow", "wellbeing", "prosperity", "fruitfulness", "timing","tao",
+            "advantages", "support", "natural fit", "coherence", "rhythm", "thriving",
         ],
         "verbs": [
-            "getting lucky with", "finding opportunities with", "meeting the right people with", "landing a break with", "being in the right place for",
-            "taking advantage of", "benefiting", "winning", "thriving with", "finding a groove among", "making it work with", "getting results from",
+            "falling into rhythm with", "finding ease in", "benefiting from", "thriving through", "making the most of",
+           "finding opportunities with", "being in the right place for","being well-supported by", "prospering through", "landing well in", "working smoothly with",
         ],
         "verbsonly": [
-            "getting lucky", "finding opportunities", "meeting the right people", "landing a break", "being in the right place",
-            "taking advantage", "benefiting", "winning", "thriving", "finding a niche", "making it work", "getting results",
+            "finding ease", "benefiting", "thriving", "making the most", "being supported",
+            "finding a groove", "prospering", "landing well", "working smoothly","finding a niche",
+            "meeting the right people", "being in the zone", "being in the right place",
         ],
-        "explanation":[""],
+        "explanation":[
+            "the place of natural ease, embodied coherence, and conditions under which life tends to become more fruitful",
+        ],
         "archetypes":[
+            "The Tao","The Zone",
         ],
     },
     "AS": {
