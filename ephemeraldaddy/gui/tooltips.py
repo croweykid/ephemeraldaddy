@@ -110,6 +110,9 @@ def apply_default_text_tooltips(
         *container.findChildren(QAbstractButton),
     ]
     for widget in widgets:
+        if widget.toolTip().strip():
+            continue
+
         text_getter = getattr(widget, "text", None)
         text = str(text_getter()).strip() if callable(text_getter) else ""
 
@@ -118,12 +121,8 @@ def apply_default_text_tooltips(
             widget.setToolTip(_format_tooltip_text(exact_override_text))
             continue
 
-        if widget.toolTip().strip():
-            continue
-
         object_name = widget.objectName().strip()
         override_text = overrides.get(object_name, "").strip()
         if override_text:
             widget.setToolTip(override_text)
             continue
-
