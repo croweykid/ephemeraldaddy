@@ -244,6 +244,13 @@ def _resolve_authority(
     defined_centers: set[str],
     defined_channels: tuple[tuple[int, int, str, str], ...],
 ) -> str:
+    def _has_defined_path(center_a: str, center_b: str) -> bool:
+        return (
+            center_a in defined_centers
+            and center_b in defined_centers
+            and _centers_connected(center_a, center_b, defined_channels)
+        )
+
     if hd_type == "Reflector":
         return "Lunar"
     if "Solar Plexus" in defined_centers:
@@ -252,13 +259,15 @@ def _resolve_authority(
         return "Sacral"
     if "Spleen" in defined_centers:
         return "Splenic"
-    if hd_type == "Manifestor" and _centers_connected("Ego", "Throat", defined_channels):
+    if hd_type == "Manifestor" and _has_defined_path("Ego", "Throat"):
         return "Ego Manifested"
-    if hd_type == "Projector" and _centers_connected("Ego", "G", defined_channels):
+    if hd_type != "Projector":
+        return "No Inner Authority"
+    if _has_defined_path("Ego", "G"):
         return "Ego Projected"
-    if hd_type == "Projector" and _centers_connected("G", "Throat", defined_channels):
+    if _has_defined_path("G", "Throat"):
         return "Self-Projected"
-    if hd_type == "Projector" and _centers_connected("Ajna", "Throat", defined_channels):
+    if _has_defined_path("Ajna", "Throat"):
         return "Mental (Environmental / Sounding Board)"
     return "No Inner Authority"
 
