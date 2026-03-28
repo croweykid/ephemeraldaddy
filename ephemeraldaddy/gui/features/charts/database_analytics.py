@@ -1029,7 +1029,12 @@ class DatabaseAnalyticsChartsMixin:
         ax.set_facecolor(CHART_THEME_COLORS["background"])
         def _resolve_bar_color(label: str, value: float) -> Any:
             if callable(color_resolver):
-                return color_resolver(label, value)
+                try:
+                    return color_resolver(label, value)
+                except TypeError:
+                    # Backward compatibility for resolver callbacks that only
+                    # accept the numeric value (e.g., alignment_score_to_rgb).
+                    return color_resolver(value)
             return "#6fa8dc"
 
         def _is_percent_metric(metric_label: str) -> bool:
