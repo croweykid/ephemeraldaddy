@@ -65,13 +65,7 @@ class DatabaseAnalyticsChartsMixin:
             fig.get_size_inches()[0] * fig.dpi * ax.get_position().width
         )
         data_range = maximum - minimum
-        if data_range <= 0:
-            center = float(minimum)
-            # Avoid identical low/high limits, which triggers a Matplotlib warning.
-            delta = max(abs(center) * 0.01, 0.5)
-            ax.set_xlim(center - delta, center + delta)
-            return
-        if axes_width_px <= (pad_px * 2):
+        if axes_width_px <= (pad_px * 2) or data_range <= 0:
             ax.set_xlim(minimum, maximum)
             return
         pad_ratio = pad_px / axes_width_px
