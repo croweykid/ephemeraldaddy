@@ -270,19 +270,51 @@ def _sign_rulers(sign: str) -> list[str]:
     return [planet for planet, signs in PLANET_RULERSHIP.items() if sign in signs]
 
 
-def _sign_house_rulership_bonus(sign: str, house_num: int | None) -> float:
+def _sign_house_rulership_bonus(
+    chart: Chart,
+    sign: str,
+    house_num: int | None,
+    houses: list[float] | None,
+    recursion_depth: int = 1,
+    _visited_signs: set[str] | None = None,
+) -> dict[str, float]:
     if house_num is None:
-        return 0.0
+        return {}
 
-    bonus = 0.0
+    visited_signs = set(_visited_signs or ())
+    if sign in visited_signs:
+        return {}
+    visited_signs.add(sign)
+
+    bonuses: dict[str, float] = {name: 0.0 for name in ZODIAC_NAMES}
     if NATURAL_HOUSE_SIGNS.get(house_num) == sign:
-        bonus += NATURAL_HOUSE_SIGN_BONUS
+        bonuses[sign] += NATURAL_HOUSE_SIGN_BONUS
 
     natural_house_planet = NATURAL_HOUSE_PLANETS.get(house_num)
     if natural_house_planet and natural_house_planet in _sign_rulers(sign):
-        bonus += NATURAL_HOUSE_PLANET_BONUS
+        bonuses[sign] += NATURAL_HOUSE_PLANET_BONUS
 
-    return bonus
+    if recursion_depth <= 0 or not natural_house_planet:
+        return bonuses
+
+    ruler_lon = chart.positions.get(natural_house_planet)
+    if ruler_lon is None:
+        return bonuses
+
+    recursive_sign = sign_for_longitude(ruler_lon)
+    recursive_house_num = house_for_longitude(houses, ruler_lon)
+    nested_bonuses = _sign_house_rulership_bonus(
+        chart,
+        recursive_sign,
+        recursive_house_num,
+        houses,
+        recursion_depth=recursion_depth - 1,
+        _visited_signs=visited_signs,
+    )
+    for sign_name, bonus in nested_bonuses.items():
+        bonuses[sign_name] += bonus
+
+    return bonuses
 
 
 def _aspect_orb_factor(aspect: dict) -> float:
@@ -545,7 +577,15 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
         house_num = house_for_longitude(houses, lon)
         weighted_sign, weight = planet_sign_weight(body, lon, houses, house_num)
         weighted_counts[weighted_sign] += weight
-        deferred_rulership_sign_bonuses[weighted_sign] += _sign_house_rulership_bonus(weighted_sign, house_num)
+        rulership_bonuses = _sign_house_rulership_bonus(
+            chart,
+            weighted_sign,
+            house_num,
+            houses,
+            recursion_depth=1,
+        )
+        for sign_name, bonus in rulership_bonuses.items():
+            deferred_rulership_sign_bonuses[sign_name] += bonus
         transfers = _dispositor_sign_transfers(chart, weight, weighted_sign)
         for sign_name, transfer in transfers.items():
             weighted_counts[sign_name] += transfer
