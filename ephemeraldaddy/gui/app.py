@@ -1429,16 +1429,24 @@ def _maybe_reexec_with_macos_app_name() -> None:
     if sys.platform != "darwin":
         return
     if os.environ.get("EPHEMERALDADDY_APPNAME_REEXEC") == "1":
+        logger.debug("Skipping macOS re-exec: EPHEMERALDADDY_APPNAME_REEXEC already set.")
         return
     if getattr(sys, "frozen", False):
+        logger.debug("Skipping macOS re-exec: running frozen bundle.")
         return
 
     exe_name = Path(sys.executable).name.lower()
     if not exe_name.startswith("python"):
+        logger.debug("Skipping macOS re-exec: executable '%s' is not python-prefixed.", exe_name)
         return
 
     env = os.environ.copy()
     env["EPHEMERALDADDY_APPNAME_REEXEC"] = "1"
+    logger.info(
+        "Re-execing macOS launch for app naming (executable=%s argv=%s).",
+        sys.executable,
+        sys.argv,
+    )
     os.execve(
         sys.executable,
         [APP_DISPLAY_NAME, "-m", "ephemeraldaddy.gui.app", *sys.argv[1:]],
@@ -1452,6 +1460,7 @@ def _get_qapp():
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     app = QApplication.instance()
     if app is None:
+        logger.debug("Creating new QApplication instance.")
         _configure_qt_input_scaling()
         if sys.platform == "win32":
             # Ensure Windows treats this process as the Ephemeral Daddy app
@@ -1504,6 +1513,8 @@ def _get_qapp():
         # up as "Python" in the Dock/taskbar hover label.
         qt_argv = [APP_DISPLAY_NAME, *sys.argv[1:]]
         app = QApplication(qt_argv)
+    else:
+        logger.debug("Reusing existing QApplication instance.")
     configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
@@ -1541,6 +1552,27 @@ STARTUP_DEPENDENCY_CHECK_STAMP = "2026-03-23"
 
 def _env_flag_enabled(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _configure_debug_logging() -> None:
+    """Enable startup diagnostics when debug env flags are set."""
+    if not (
+        _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG"))
+        or _env_flag_enabled(os.environ.get("EPHEMERALDADDY_DEBUG_STARTUP"))
+    ):
+        return
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        )
+    logger.debug(
+        "Debug logging enabled (pid=%s platform=%s argv=%s).",
+        os.getpid(),
+        sys.platform,
+        sys.argv,
+    )
 
 
 def _should_run_startup_dependency_check(settings: QSettings) -> bool:
@@ -12964,6 +12996,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
         if use_topmost_pulse and self._launch_foreground_completed:
             use_topmost_pulse = False
+        logger.debug(
+            "Applying Database View launch policy (visible=%s minimized=%s topmost_pulse=%s).",
+            self.isVisible(),
+            self.isMinimized(),
+            use_topmost_pulse,
+        )
         clear_fullscreen_and_minimized(self)
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
         if use_topmost_pulse:
@@ -21661,6 +21699,11 @@ class MainWindow(QMainWindow):
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def on_manage_charts(self):
+        logger.debug(
+            "Switching to Database View (main_visible=%s chart_id=%s).",
+            self.isVisible(),
+            self.current_chart_id,
+        )
         self._chart_view_history.clear()
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
@@ -23136,6 +23179,8 @@ class MainWindow(QMainWindow):
         self._help_entry_detail_scroll.verticalScrollBar().setValue(0)
 
 def main(startup_loading: StartupProgress | QWidget | None = None):
+    _configure_debug_logging()
+    logger.info("GUI startup begin.")
     _maybe_reexec_with_macos_app_name()
     _register_packaged_symbol_fonts()
     _configure_matplotlib_info_marker_font()
@@ -23147,6 +23192,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     # Launch-only focus assist: keep the load bar in the foreground while the
     # app initializes, but avoid repeated focus hacks after startup.
     if isinstance(startup_loading, QWidget):
+        logger.debug("Bringing startup loading widget to front.")
         bring_window_to_front(startup_loading)
     settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
     if _should_run_startup_dependency_check(settings):
@@ -23169,6 +23215,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     else:
         startup_loading.update_status("Using cached dependency readiness…", 15)
     startup_loading.update_status("Loading main window…", 45)
+    logger.debug("Constructing MainWindow.")
     window = MainWindow()
     configure_initial_window_state(
         app=app,
@@ -23177,6 +23224,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
         get_icon_path=_get_app_icon_path,
         show_default_view=window.on_manage_charts,
     )
+    logger.info("GUI startup complete; entering Qt event loop.")
 
     if not getattr(app, "_edd_running", False):
         app._edd_running = True
