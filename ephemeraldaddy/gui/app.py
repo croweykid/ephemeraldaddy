@@ -1,3 +1,4 @@
+#this version doesn't have weird window stuff going on, does it?
 # ephemeraldaddy/gui/app.py
 import csv
 import calendar
