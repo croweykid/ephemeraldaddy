@@ -114,7 +114,22 @@ from PySide6.QtCore import (
     QRegularExpression,
     QItemSelectionModel,
 )
-from PySide6.QtPositioning import QGeoPositionInfoSource
+
+
+def _create_geo_position_source(parent: QObject):
+    """Best-effort creation of a Qt GPS source without risking macOS startup crashes."""
+
+    # Some macOS environments crash in QtPositioning initialization (native segfault),
+    # so we opt out by default and allow explicit local override when needed.
+    if sys.platform == "darwin" and os.environ.get("EPHEMERALDADDY_ENABLE_MAC_GPS", "").lower() not in {"1", "true", "yes", "on"}:
+        return None
+
+    try:
+        from PySide6.QtPositioning import QGeoPositionInfoSource
+    except Exception:
+        return None
+
+    return QGeoPositionInfoSource.createDefaultSource(parent)
 
 
 class _GlobalCloseShortcutFilter(QObject):
@@ -3856,7 +3871,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/transit_last_location", raw_location.strip())
 
     def _resolve_gps_transit_location(self) -> tuple[float, float] | None:
-        source = QGeoPositionInfoSource.createDefaultSource(self)
+        source = _create_geo_position_source(self)
         if source is None:
             return None
 
