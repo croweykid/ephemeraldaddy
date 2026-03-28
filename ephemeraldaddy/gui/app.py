@@ -3779,16 +3779,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._apply_transit_location()
 
     def _initialize_transit_location_defaults(self) -> None:
+        gps_location = self._resolve_gps_transit_location()
+        if gps_location is not None:
+            lat, lon = gps_location
+            self._transit_lat = lat
+            self._transit_lon = lon
+            self._transit_location_label = "Current Location (GPS)"
+            self._transit_location_source = "gps"
+            return
+
         stored_location = self._settings.value("manage_charts/transit_last_location")
         if isinstance(stored_location, str) and stored_location.strip():
             self.transit_location_input.setText(stored_location.strip())
             self._apply_transit_location(show_errors=False)
-            return
-
-        # Avoid cold-start GPS probing (Qt Positioning can trigger transient OS-level
-        # flashes/prompts and "location access failed" notices during startup).
-        # Keep startup deterministic and only resolve location when explicitly requested.
-        self._transit_location_source = "default"
 
     def _save_transit_location_preference(self, raw_location: str) -> None:
         self._settings.setValue("manage_charts/transit_last_location", raw_location.strip())
@@ -20381,6 +20384,7 @@ class MainWindow(QMainWindow):
         if maximize is None:
             maximize = True
 
+        self.show()
         apply_window_placement(
             self,
             WindowPlacement(
