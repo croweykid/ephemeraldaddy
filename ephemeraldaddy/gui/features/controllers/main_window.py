@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from PySide6.QtCore import QThread, Qt, QSize
@@ -29,6 +30,8 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     configure_collapsible_header_toggle,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ChartAnalysisSectionsController:
@@ -399,9 +402,15 @@ class ChartsController:
 
     def open_manage_charts(self) -> bool:
         if not self._confirm_discard_or_save():
+            logger.debug("Cancelled Database View open due to unsaved-change prompt.")
             return False
         dialog = self._get_or_create_manage_dialog()
         pending_ids = set(self._get_pending_changed_ids())
+        logger.debug(
+            "Opening Database View dialog (visible=%s pending_changed_ids=%s).",
+            dialog.isVisible(),
+            len(pending_ids),
+        )
 
         if pending_ids:
             dialog._refresh_charts(
@@ -424,6 +433,10 @@ class ChartsController:
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
             self._raise_manage_dialog()
+        logger.debug(
+            "Database View dialog foreground request complete (topmost_pulse=%s).",
+            use_launch_pulse,
+        )
         return True
 
 
