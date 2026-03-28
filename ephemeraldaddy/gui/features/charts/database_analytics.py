@@ -1026,9 +1026,9 @@ class DatabaseAnalyticsChartsMixin:
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
-        def _resolve_bar_color(value: float) -> Any:
+        def _resolve_bar_color(label: str, value: float) -> Any:
             if callable(color_resolver):
-                return color_resolver(value)
+                return color_resolver(label, value)
             return "#6fa8dc"
 
         def _is_percent_metric(metric_label: str) -> bool:
@@ -1050,7 +1050,7 @@ class DatabaseAnalyticsChartsMixin:
 
         positions = list(range(len(labels)))
         if loaded_charts == 0:
-            colors = [_resolve_bar_color(value) for value in database_values]
+            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, database_values)]
             bars = ax.barh(
                 positions,
                 database_values,
@@ -1085,7 +1085,7 @@ class DatabaseAnalyticsChartsMixin:
                 selection - database
                 for selection, database in zip(selection_values, database_values)
             ]
-            colors = [_resolve_bar_color(value) for value in differences]
+            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, differences)]
             widths = [abs(value) for value in differences]
             bars = ax.barh(
                 positions,
@@ -1146,11 +1146,20 @@ class DatabaseAnalyticsChartsMixin:
         database_values_map = self._compute_dnd_statblock_averages(database_cache)
         selection_values = [selection_values_map[label] for label in labels]
         database_values = [database_values_map[label] for label in labels]
+        stat_palette = {
+            "STR": "#7b5b45",
+            "DEX": "#8f7a5a",
+            "CON": "#6e7f52",
+            "INT": "#6a6d58",
+            "WIS": "#7a6a4f",
+            "CHA": "#8d5f4d",
+        }
         return self._build_social_score_summary_chart(
             labels=labels,
             selection_values=selection_values,
             database_values=database_values,
             loaded_charts=loaded_charts,
+            color_resolver=lambda label, _value: stat_palette.get(label, "#6fa8dc"),
         )
 
     def _compute_dnd_statblock_averages(

@@ -976,8 +976,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             elif stripped_text and stripped_text in DND_CLASS_SUBCLASS_EXPLAINERS.values():
                 self.setFormat(0, self._qt_len(text), self._class_subheader_format)
             elif stripped_text.startswith("‣ "):
+                bullet_body = stripped_text[2:].lstrip()
+                axis_label_text, separator, _rest = bullet_body.partition(":")
+                normalized_axis_label = axis_label_text.strip()
                 for axis_label, axis_format in self._dnd_axis_line_formats.items():
-                    if stripped_text.startswith(f"‣ {axis_label}:"):
+                    if separator and normalized_axis_label == axis_label:
                         self.setFormat(0, self._qt_len(text), axis_format)
                         marker_index = text.find("│")
                         if marker_index != -1:
@@ -1003,7 +1006,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._species_header_format,
                     )
                     self.setCurrentBlockState(1)
-        if stripped_text == "Top 3 Species":
+        if stripped_text in {"Statblock", "Statblock ⓘ", "D&D Statblock", "D&D Statblock ⓘ"}:
+            self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
+        elif stripped_text == "Top 3 Species":
             self.setFormat(0, self._qt_len(text), self._dnd_subheader_format)
         elif stripped_text.startswith("Top 3 Classes*"):
             classes_header_prefix = "Top 3 Classes*"
@@ -20047,7 +20052,7 @@ class MainWindow(QMainWindow):
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        header = "D&D Stat Block"
+        header = "D&D Statblock"
         if profile_lines:
             self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
             return
