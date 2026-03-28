@@ -445,7 +445,7 @@ def format_chart_text(
             )
             statblock = score_dnd_statblock(chart, stat_floor=5, stat_ceiling=20)
             statblock_payload = {
-                "line": "Stat Block ⓘ",
+                "line": "Statblock ⓘ",
                 "kind": "statblock",
                 "profile_lines": build_dnd_statblock_profile_lines(
                     statblock,

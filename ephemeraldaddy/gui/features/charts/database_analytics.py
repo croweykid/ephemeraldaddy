@@ -31,6 +31,7 @@ from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
     CHART_AXES_STYLE,
     CHART_THEME_COLORS,
+    DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
 )
 
@@ -1026,9 +1027,9 @@ class DatabaseAnalyticsChartsMixin:
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
-        def _resolve_bar_color(value: float) -> Any:
+        def _resolve_bar_color(label: str, value: float) -> Any:
             if callable(color_resolver):
-                return color_resolver(value)
+                return color_resolver(label, value)
             return "#6fa8dc"
 
         def _is_percent_metric(metric_label: str) -> bool:
@@ -1050,7 +1051,7 @@ class DatabaseAnalyticsChartsMixin:
 
         positions = list(range(len(labels)))
         if loaded_charts == 0:
-            colors = [_resolve_bar_color(value) for value in database_values]
+            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, database_values)]
             bars = ax.barh(
                 positions,
                 database_values,
@@ -1085,7 +1086,7 @@ class DatabaseAnalyticsChartsMixin:
                 selection - database
                 for selection, database in zip(selection_values, database_values)
             ]
-            colors = [_resolve_bar_color(value) for value in differences]
+            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, differences)]
             widths = [abs(value) for value in differences]
             bars = ax.barh(
                 positions,
@@ -1151,6 +1152,7 @@ class DatabaseAnalyticsChartsMixin:
             selection_values=selection_values,
             database_values=database_values,
             loaded_charts=loaded_charts,
+            color_resolver=lambda label, _value: DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
         )
 
     def _compute_dnd_statblock_averages(

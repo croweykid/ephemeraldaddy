@@ -1732,13 +1732,15 @@ def build_dnd_statblock_profile_lines(
 ) -> list[str]:
     span = max(1, ceiling - floor)
     lines: list[str] = []
+    stat_label_width = max(len(label) for label in _DND_STAT_DISPLAY_LABELS.values())
     for stat_key in _DND_STAT_DISPLAY_ORDER:
         stat_value = int(statblock.scores.get(stat_key, floor))
         normalized_percent = max(0.0, min(100.0, ((stat_value - floor) / span) * 100.0))
         bar = _build_axis_score_bar(normalized_percent, 0.0, width=bar_width)
         modifier = int(statblock.modifiers.get(stat_key, 0))
+        stat_label = _build_right_justified_label(_DND_STAT_DISPLAY_LABELS[stat_key], stat_label_width)
         lines.append(
-            f"‣ {stat_key} ({_DND_STAT_LABELS[stat_key]}): {stat_value:>2d} [{bar}] mod {modifier:+d}"
+            f"‣ {stat_label}: {stat_value:>2d} [{bar}] mod {modifier:+d}"
         )
     return lines
 
@@ -1812,6 +1814,16 @@ _CLASS_AXIS_LABEL_OVERRIDES: Dict[str, str] = {
     "mercy_restoration": "mercy & restoration",
 }
 
+
+def _build_right_justified_label(label: str, width: int) -> str:
+    return f"{label:>{max(1, width)}}"
+
+
+_DND_STAT_DISPLAY_LABELS: Dict[str, str] = {
+    stat_key: f"{stat_key} ({_DND_STAT_LABELS[stat_key]})"
+    for stat_key in _DND_STAT_DISPLAY_ORDER
+}
+
 _CLASS_AXIS_BAR_FULL = "█"
 _CLASS_AXIS_BAR_EMPTY = "░"
 _CLASS_AXIS_THRESHOLD_MARK = "│"
@@ -1875,17 +1887,22 @@ def build_class_axis_profile_lines(
     if definition is None:
         return []
     lines: list[str] = []
-    axis_rows: list[tuple[float, str, float, float]] = []
+    axis_rows: list[tuple[float, str, str, float, float]] = []
+    axis_label_width = max(
+        (len(format_class_axis_label(axis_name)) for axis_name in definition.axis_weights),
+        default=1,
+    )
     for axis_name, threshold_weight in definition.axis_weights.items():
         chart_axis_percent = max(0.0, min(1.0, float(axis_scores.get(axis_name, 0.0)))) * 100.0
         threshold_percent = max(0.0, min(1.0, float(threshold_weight))) * 100.0
         margin_percent = chart_axis_percent - threshold_percent
-        axis_rows.append((margin_percent, axis_name, chart_axis_percent, threshold_percent))
+        axis_label = _build_right_justified_label(format_class_axis_label(axis_name), axis_label_width)
+        axis_rows.append((margin_percent, axis_name, axis_label, chart_axis_percent, threshold_percent))
     axis_rows.sort(key=lambda row: row[0], reverse=True)
-    for margin_percent, axis_name, chart_axis_percent, threshold_percent in axis_rows:
+    for margin_percent, _axis_name, axis_label, chart_axis_percent, threshold_percent in axis_rows:
         bar = _build_axis_score_bar(chart_axis_percent, threshold_percent, width=bar_width)
         status = f"{margin_percent:+.0f}%"
         lines.append(
-            f"‣ {format_class_axis_label(axis_name)}: {chart_axis_percent:.0f}% [{bar}] threshold {threshold_percent:.0f}% ({status})"
+            f"‣ {axis_label}: {chart_axis_percent:>3.0f}% [{bar}] threshold {threshold_percent:>3.0f}% ({status})"
         )
     return lines
