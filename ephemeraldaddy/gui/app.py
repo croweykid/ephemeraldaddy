@@ -20047,7 +20047,7 @@ class MainWindow(QMainWindow):
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        header = "D&D Stat Block (5-20)"
+        header = "D&D Stat Block"
         if profile_lines:
             self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
             return

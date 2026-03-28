@@ -1585,9 +1585,9 @@ _DND_SIGN_STAT_EFFECTS: Dict[str, Dict[str, str]] = {
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
     raw_score = _clamp01(raw_score)
-    # Axis-layer values cluster in lower decimals; gamma lifting keeps
-    # ordinary charts around the expected 10–12 average band.
-    calibrated_raw = raw_score ** 0.6
+    # Lift ordinary charts into a healthier PC-like range while preserving spread.
+    calibrated_raw = 0.08 + (0.92 * (raw_score ** 0.5))
+    calibrated_raw = _clamp01(calibrated_raw)
     return int(round(floor + calibrated_raw * (ceiling - floor)))
 
 
@@ -1603,14 +1603,14 @@ def _shape_stat_profile(
             if effect is None:
                 continue
             weight = max(0.0, float(sign_weight))
-            values[effect["major"]] = _clamp01(values.get(effect["major"], 0.0) + (0.22 * weight))
-            values[effect["minor"]] = _clamp01(values.get(effect["minor"], 0.0) + (0.10 * weight))
-            values[effect["nerf"]] = _clamp01(values.get(effect["nerf"], 0.0) - (0.08 * weight))
+            values[effect["major"]] = _clamp01(values.get(effect["major"], 0.0) + (0.30 * weight))
+            values[effect["minor"]] = _clamp01(values.get(effect["minor"], 0.0) + (0.14 * weight))
+            # Temporarily disabling sign-based nerfs per product direction.
 
     mean = sum(values.values()) / max(1, len(values))
     variance = sum((value - mean) ** 2 for value in values.values()) / max(1, len(values))
     std_dev = variance ** 0.5
-    contrast_factor = max(1.15, min(1.85, 1.35 + max(0.0, 0.16 - std_dev) * 2.8))
+    contrast_factor = max(1.20, min(2.10, 1.52 + max(0.0, 0.20 - std_dev) * 3.2))
     shaped: Dict[str, float] = {}
     for key, value in values.items():
         shaped[key] = _clamp01(mean + ((value - mean) * contrast_factor))
