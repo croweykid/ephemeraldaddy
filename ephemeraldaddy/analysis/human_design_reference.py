@@ -349,6 +349,17 @@ HD_CHANNELS = {
         ),
     },
 
+    "29-46": {
+        "name": "Channel of Discovery",
+        "gates": (29, 46),
+        "centers": ("Sacral", "G / Identity"),
+        "circuit": "Collective / Sensing",
+        "explanation": (
+            "Commitment to life through embodied experience and perseverance. "
+            "Its wisdom comes from saying yes to the right experiences and discovering meaning through participation."
+        ),
+    },
+
     "11-56": {
         "name": "Channel of Curiosity",
         "gates": (11, 56),
@@ -500,17 +511,6 @@ HD_CHANNELS = {
         "explanation": (
             "A catalytic energy that initiates through shock, courage, and spiritual testing. "
             "It often disrupts complacency and pushes growth through bold encounters."
-        ),
-    },
-
-    "29-46": {
-        "name": "Channel of Discovery",
-        "gates": (29, 46),
-        "centers": ("Sacral", "G / Identity"),
-        "circuit": "Collective / Sensing",
-        "explanation": (
-            "Commitment to life through embodied experience and perseverance. "
-            "Its wisdom comes from saying yes to the right experiences and discovering meaning through participation."
         ),
     },
 }
