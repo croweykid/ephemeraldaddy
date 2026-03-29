@@ -289,6 +289,13 @@ def get_lilith_calculation_mode() -> str:
     return _LILITH_CALCULATION_MODE
 
 
+def get_lilith_display_name(mode: str | None = None) -> str:
+    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
+    if normalized_mode == LILITH_CALCULATION_TRUE:
+        return "True Lilith"
+    return "Black Moon Lilith"
+
+
 def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
     normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
     if normalized_mode == LILITH_CALCULATION_TRUE:
