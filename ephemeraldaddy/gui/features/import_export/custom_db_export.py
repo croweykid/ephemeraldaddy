@@ -126,8 +126,11 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
     button_row = QHBoxLayout()
     select_all_button = QPushButton("Select all")
     select_minimum_button = QPushButton("Select minimum")
+    exclude_placeholders_checkbox = QCheckBox("Exclude placeholders")
+    exclude_placeholders_checkbox.setChecked(True)
     button_row.addWidget(select_all_button)
     button_row.addWidget(select_minimum_button)
+    button_row.addWidget(exclude_placeholders_checkbox)
     button_row.addStretch(1)
     cancel_button = QPushButton("Cancel")
     export_button = QPushButton("Export")
@@ -149,13 +152,19 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
 
     def _selected_chart_ids() -> list[int] | None:
         selected_ids = _selected_collection_ids()
-        if DEFAULT_COLLECTION_ALL in selected_ids:
-            return None
         rows = list_charts()
+        if DEFAULT_COLLECTION_ALL in selected_ids and not exclude_placeholders_checkbox.isChecked():
+            return None
         selected_chart_ids: set[int] = set()
         for row in rows:
             chart_id = int(row[0])
             source = row[14] if len(row) > 14 else None
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
+            if exclude_placeholders_checkbox.isChecked() and is_placeholder:
+                continue
+            if DEFAULT_COLLECTION_ALL in selected_ids:
+                selected_chart_ids.add(chart_id)
+                continue
             for collection_id in selected_ids:
                 if chart_belongs_to_collection(
                     collection_id,
