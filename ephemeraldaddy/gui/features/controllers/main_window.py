@@ -337,11 +337,19 @@ class ChartAnalysisSectionsController:
             panel=panel,
             section_key="modal_distribution",
             section_title="Modes",
-            header_title="Mode Prevalence",
-            subtitle_text="Signs grouped by modality (cardinal, mutable, fixed) with equal weights.",
+            header_title="Dominant Modes",
+            subtitle_text="Modes weighted by dominant sign scoring (derived from sign weights).",
+            subtitle_by_mode={
+                "dominant_modes": "Modes weighted by dominant sign scoring (derived from sign weights).",
+                "modal_prevalence": "Signs grouped by modality (cardinal, mutable, fixed) with equal prevalence counts.",
+            },
             default_filename="ephemeraldaddy_chart_modal_distribution",
             chart_container_attr="modal_distribution_container",
             chart_layout_attr="modal_distribution_container_layout",
+            dropdown_options=[
+                ("Dominant Modes", "dominant_modes"),
+                ("Modal Prevalence", "modal_prevalence"),
+            ],
             expanded=False,
         )
         self.add_section(

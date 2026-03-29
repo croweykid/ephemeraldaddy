@@ -36,6 +36,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.birth_month": False,
     "database_metrics.birthplace": False,
     "database_metrics.gender": False,
+    "database_metrics.human_design": False,
 }
 
 DEFAULT_VISIBILITY: dict[str, bool] = {

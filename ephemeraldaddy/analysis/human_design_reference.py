@@ -92,6 +92,428 @@ AWARENESS_STREAMS = [
 {"name":"feeling","type":"solar plexus","gates":[41,30,36,35]},
 ]
 
+HD_CHANNELS = {
+    # =========================
+    # INDIVIDUAL CIRCUITRY
+    # =========================
+
+    "2-14": {
+        "name": "Channel of the Beat",
+        "gates": (2, 14),
+        "centers": ("G / Identity", "Sacral"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "A directional life-force channel that combines inner guidance with the energy and resources to move things forward. "
+            "It often shows up as a strong sense of where energy should go, with power for work, contribution, and movement when aligned with the correct direction."
+        ),
+    },
+
+    "61-24": {
+        "name": "Channel of Awareness",
+        "gates": (61, 24),
+        "centers": ("Head", "Ajna"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "A pressure to understand inner truths and mentally process mystery. "
+            "Often shows up as recurring contemplation, insight, and a need to make sense of the unknowable."
+        ),
+    },
+
+    "43-23": {
+        "name": "Channel of Structuring",
+        "gates": (43, 23),
+        "centers": ("Ajna", "Throat"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "The capacity to translate unusual insight into language. "
+            "This is the classic 'genius to freak' channel: brilliant when timing and audience are right, baffling when they are not."
+        ),
+    },
+
+    "8-1": {
+        "name": "Channel of Inspiration",
+        "gates": (8, 1),
+        "centers": ("Throat", "G / Identity"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "Creative self-expression that influences others by example rather than command. "
+            "Its power lies in originality, contribution, and style with substance."
+        ),
+    },
+
+    "57-20": {
+        "name": "Channel of the Brainwave",
+        "gates": (57, 20),
+        "centers": ("Spleen", "Throat"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "Immediate intuitive awareness expressed in the now. "
+            "This channel can speak or act from spontaneous clarity before the rational mind catches up."
+        ),
+    },
+
+    "34-20": {
+        "name": "Channel of Charisma",
+        "gates": (34, 20),
+        "centers": ("Sacral", "Throat"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "Powerful life-force energy available for direct action in the present moment. "
+            "This is highly self-directed, efficient energy that wants to do rather than discuss."
+        ),
+    },
+
+    "10-20": {
+        "name": "Channel of Awakening",
+        "gates": (10, 20),
+        "centers": ("G / Identity", "Throat"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "Authentic self-expression rooted in being true to oneself. "
+            "It often appears as a visible, lived example of self-alignment rather than a theory about it."
+        ),
+    },
+
+    "10-57": {
+        "name": "Channel of Perfected Form",
+        "gates": (10, 57),
+        "centers": ("G / Identity", "Spleen"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "An instinctive sense for correct behavior and survival through embodied intelligence. "
+            "This channel often 'just knows' how to move or respond in ways that preserve integrity and well-being."
+        ),
+    },
+
+    "34-57": {
+        "name": "Channel of Power",
+        "gates": (34, 57),
+        "centers": ("Sacral", "Spleen"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "Instinctive, responsive life-force energy. "
+            "Fast, capable, and often physically potent, this channel tends to act from immediate inner knowing."
+        ),
+    },
+
+    "28-38": {
+        "name": "Channel of Struggle",
+        "gates": (28, 38),
+        "centers": ("Spleen", "Root"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "A drive to fight for what has real meaning. "
+            "Its challenge is not struggle itself, but choosing battles worthy of one’s life-force."
+        ),
+    },
+
+    "39-55": {
+        "name": "Channel of Emoting",
+        "gates": (39, 55),
+        "centers": ("Root", "Solar Plexus"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "An emotionally creative and moody current that can provoke feeling and spirit. "
+            "This channel often moves in waves and seeks emotional depth, authenticity, and inspiration."
+        ),
+    },
+
+    "3-60": {
+        "name": "Channel of Mutation",
+        "gates": (3, 60),
+        "centers": ("Sacral", "Root"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "Transformational energy that brings new forms out of limitation and chaos. "
+            "It often works in pulses rather than steady output, initiating deep change over time."
+        ),
+    },
+
+    "12-22": {
+        "name": "Channel of Openness",
+        "gates": (12, 22),
+        "centers": ("Throat", "Solar Plexus"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "Emotional expression with social and artistic sensitivity. "
+            "Its impact depends heavily on mood and timing; when correct, it can be elegant, intimate, and influential."
+        ),
+    },
+
+    # =========================
+    # COLLECTIVE CIRCUITRY
+    # LOGIC / UNDERSTANDING
+    # =========================
+
+    "63-4": {
+        "name": "Channel of Logic",
+        "gates": (63, 4),
+        "centers": ("Head", "Ajna"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "A mental pressure to doubt, test, and resolve uncertainty through patterns and answers. "
+            "This channel is excellent for analysis, hypothesis, and structured reasoning."
+        ),
+    },
+
+    "17-62": {
+        "name": "Channel of Acceptance",
+        "gates": (17, 62),
+        "centers": ("Ajna", "Throat"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "The ability to organize opinions and articulate details clearly. "
+            "It excels at naming, categorizing, and explaining patterns in precise terms."
+        ),
+    },
+
+    "7-31": {
+        "name": "Channel of the Alpha",
+        "gates": (7, 31),
+        "centers": ("G / Identity", "Throat"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "Leadership through direction and recognized influence. "
+            "This channel is less about domination and more about being entrusted to guide the group."
+        ),
+    },
+
+    "15-5": {
+        "name": "Channel of Rhythm",
+        "gates": (15, 5),
+        "centers": ("G / Identity", "Sacral"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "A deep attunement to natural timing, routines, and life rhythms. "
+            "It can appear as either extreme consistency or a broad tolerance for irregularity."
+        ),
+    },
+
+    "16-48": {
+        "name": "Channel of Talent",
+        "gates": (16, 48),
+        "centers": ("Throat", "Spleen"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "Skill developed through repetition, depth, and refinement. "
+            "This is less 'instant genius' and more mastery through immersion and practice."
+        ),
+    },
+
+    "18-58": {
+        "name": "Channel of Judgment",
+        "gates": (18, 58),
+        "centers": ("Spleen", "Root"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "A drive to improve systems by identifying flaws and correcting them. "
+            "Healthy expression becomes constructive refinement rather than chronic dissatisfaction."
+        ),
+    },
+
+    "9-52": {
+        "name": "Channel of Concentration",
+        "gates": (9, 52),
+        "centers": ("Sacral", "Root"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "Sustained focus and the ability to hold attention on details over time. "
+            "Excellent for deep work, precision, and methodical effort."
+        ),
+    },
+
+    "42-53": {
+        "name": "Channel of Maturation",
+        "gates": (42, 53),
+        "centers": ("Sacral", "Root"),
+        "circuit": "Collective / Logic",
+        "explanation": (
+            "Energy for growth through cycles: beginning, developing, and completing processes. "
+            "It learns by moving things through stages rather than leaving them perpetually half-born."
+        ),
+    },
+
+    # =========================
+    # COLLECTIVE CIRCUITRY
+    # ABSTRACT / SENSING
+    # =========================
+
+    "64-47": {
+        "name": "Channel of Abstraction",
+        "gates": (64, 47),
+        "centers": ("Head", "Ajna"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "A pressure to make sense of past experience through reflection and mental synthesis. "
+            "Clarity often comes after confusion, not before it."
+        ),
+    },
+
+    "11-56": {
+        "name": "Channel of Curiosity",
+        "gates": (11, 56),
+        "centers": ("Ajna", "Throat"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "A love of ideas, stories, and stimulation through exploration. "
+            "This channel often communicates meaning through narrative, imagery, and lived impressions."
+        ),
+    },
+
+    "13-33": {
+        "name": "Channel of the Prodigal",
+        "gates": (13, 33),
+        "centers": ("G / Identity", "Throat"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "A capacity to listen to collective stories and later distill wisdom from the past. "
+            "It often needs retreat and privacy before speaking with authority about experience."
+        ),
+    },
+
+    "35-36": {
+        "name": "Channel of Transitoriness",
+        "gates": (35, 36),
+        "centers": ("Throat", "Solar Plexus"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "A drive for new experiences, change, and emotional learning through life events. "
+            "It often matures by discovering that novelty alone is not the same as fulfillment."
+        ),
+    },
+
+    "41-30": {
+        "name": "Channel of Recognition",
+        "gates": (41, 30),
+        "centers": ("Root", "Solar Plexus"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "Desire-fueled imagination and emotional anticipation for new experiences. "
+            "This channel often initiates experiential journeys through longing, fantasy, and appetite for life."
+        ),
+    },
+
+    # =========================
+    # TRIBAL CIRCUITRY
+    # DEFENSE / EGO / SUPPORT
+    # =========================
+
+    "27-50": {
+        "name": "Channel of Preservation",
+        "gates": (27, 50),
+        "centers": ("Sacral", "Spleen"),
+        "circuit": "Tribal / Defense",
+        "explanation": (
+            "A protective, sustaining energy concerned with care, nourishment, and responsibility. "
+            "Its central question is often: what and whom am I responsible for maintaining?"
+        ),
+    },
+
+    "32-54": {
+        "name": "Channel of Transformation",
+        "gates": (32, 54),
+        "centers": ("Spleen", "Root"),
+        "circuit": "Tribal / Ego",
+        "explanation": (
+            "Drive for ambition, advancement, and material evolution through alliances and persistence. "
+            "It seeks progress that can endure, not merely flashy ascent."
+        ),
+    },
+
+    "44-26": {
+        "name": "Channel of Surrender",
+        "gates": (44, 26),
+        "centers": ("Spleen", "Ego / Will"),
+        "circuit": "Tribal / Ego",
+        "explanation": (
+            "The instinct to recognize patterns from the past and strategically influence others. "
+            "Strong for persuasion, memory, sales, and knowing what will or won’t work."
+        ),
+    },
+
+    "21-45": {
+        "name": "Channel of Money",
+        "gates": (21, 45),
+        "centers": ("Ego / Will", "Throat"),
+        "circuit": "Tribal / Ego",
+        "explanation": (
+            "Management energy concerned with control, resources, and stewardship. "
+            "At its best, it governs material affairs responsibly rather than hoarding authority like a nervous duke."
+        ),
+    },
+
+    "37-40": {
+        "name": "Channel of Community",
+        "gates": (37, 40),
+        "centers": ("Solar Plexus", "Ego / Will"),
+        "circuit": "Tribal / Defense",
+        "explanation": (
+            "A bond-building channel centered on agreements, loyalty, reciprocity, and belonging. "
+            "It supports families, teams, and communities through emotional contracts and mutual support."
+        ),
+    },
+
+    "19-49": {
+        "name": "Channel of Synthesis",
+        "gates": (19, 49),
+        "centers": ("Root", "Solar Plexus"),
+        "circuit": "Tribal / Defense",
+        "explanation": (
+            "Sensitivity to needs, closeness, principles, and social belonging. "
+            "It often drives change in relationships or group norms when emotional needs are no longer met."
+        ),
+    },
+
+    "59-6": {
+        "name": "Channel of Mating",
+        "gates": (59, 6),
+        "centers": ("Sacral", "Solar Plexus"),
+        "circuit": "Tribal / Defense",
+        "explanation": (
+            "A potent bonding and intimacy channel that dissolves barriers between people. "
+            "It can manifest as sexual chemistry, emotional merging, or powerful interpersonal closeness."
+        ),
+    },
+
+    # =========================
+    # CENTERING / INTEGRATION / INDIVIDUAL-ADJACENT
+    # (Commonly listed separately, but part of the canonical 36)
+    # =========================
+
+    "10-34": {
+        "name": "Channel of Exploration",
+        "gates": (10, 34),
+        "centers": ("G / Identity", "Sacral"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "Self-empowered life-force expressed through authentic behavior and personal conviction. "
+            "This channel pushes a person to live according to what is true for them, often with a strong "
+            "drive toward independence, embodied self-direction, and exploration through direct experience."
+        ),
+    },
+
+    "25-51": {
+        "name": "Channel of Initiation",
+        "gates": (25, 51),
+        "centers": ("G / Identity", "Ego / Will"),
+        "circuit": "Individual / Centering",
+        "explanation": (
+            "A catalytic energy that initiates through shock, courage, and spiritual testing. "
+            "It often disrupts complacency and pushes growth through bold encounters."
+        ),
+    },
+
+    "29-46": {
+        "name": "Channel of Discovery",
+        "gates": (29, 46),
+        "centers": ("Sacral", "G / Identity"),
+        "circuit": "Collective / Sensing",
+        "explanation": (
+            "Commitment to life through embodied experience and perseverance. "
+            "Its wisdom comes from saying yes to the right experiences and discovering meaning through participation."
+        ),
+    },
+}
 
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
