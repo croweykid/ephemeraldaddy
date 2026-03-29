@@ -8,17 +8,20 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 0.93),
-    "Ajna": (0.5, 0.80),
+    "Head": (0.5, 0.95),
+    "Ajna": (0.5, 0.82),
     "Throat": (0.5, 0.66),
-    "G": (0.5, 0.51),
-    "Ego": (0.67, 0.51),
-    "Spleen": (0.33, 0.38),
-    "Solar Plexus": (0.67, 0.38),
-    "Sacral": (0.5, 0.36),
-    "Root": (0.5, 0.19),
+    "G": (0.5, 0.50),
+    "Ego": (0.74, 0.50),
+    "Spleen": (0.26, 0.36),
+    "Solar Plexus": (0.74, 0.36),
+    "Sacral": (0.5, 0.32),
+    "Root": (0.5, 0.13),
 }
 
+CENTER_HALF_WIDTH = 0.08
+CENTER_HALF_HEIGHT = 0.045
+CHANNEL_CENTER_MARGIN = 0.012
 CHANNEL_INACTIVE_COLOR = "#5e5e5e"
 CHANNEL_ACTIVE_COLOR = "#5dc26a"
 BODY_TEXT_COLOR: dict[str, str] = {
@@ -86,6 +89,27 @@ def draw_human_design_chart(
             y1 += normal_y * offset_distance
             x2 += normal_x * offset_distance
             y2 += normal_y * offset_distance
+
+        dx = x2 - x1
+        dy = y2 - y1
+        segment_length = (dx ** 2 + dy ** 2) ** 0.5 or 1.0
+        ux = dx / segment_length
+        uy = dy / segment_length
+        edge_distance_a = min(
+            CENTER_HALF_WIDTH / (abs(ux) or 1e-6),
+            CENTER_HALF_HEIGHT / (abs(uy) or 1e-6),
+        )
+        edge_distance_b = min(
+            CENTER_HALF_WIDTH / (abs(ux) or 1e-6),
+            CENTER_HALF_HEIGHT / (abs(uy) or 1e-6),
+        )
+        clipped_x1 = x1 + (ux * (edge_distance_a + CHANNEL_CENTER_MARGIN))
+        clipped_y1 = y1 + (uy * (edge_distance_a + CHANNEL_CENTER_MARGIN))
+        clipped_x2 = x2 - (ux * (edge_distance_b + CHANNEL_CENTER_MARGIN))
+        clipped_y2 = y2 - (uy * (edge_distance_b + CHANNEL_CENTER_MARGIN))
+        if ((clipped_x2 - clipped_x1) ** 2 + (clipped_y2 - clipped_y1) ** 2) < 1e-6:
+            continue
+        x1, y1, x2, y2 = clipped_x1, clipped_y1, clipped_x2, clipped_y2
         mid_x = (x1 + x2) / 2
         mid_y = (y1 + y2) / 2
         gate_a_active = gate_a in hd_result.active_gates
@@ -130,8 +154,8 @@ def draw_human_design_chart(
         ax.add_patch(
             Rectangle(
                 (x - 0.08, y - 0.045),
-                0.16,
-                0.09,
+                CENTER_HALF_WIDTH * 2,
+                CENTER_HALF_HEIGHT * 2,
                 linewidth=1.4,
                 edgecolor=edge,
                 facecolor=fill,
