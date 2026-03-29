@@ -366,7 +366,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
     calculate_gender_weight_score as _calculate_gender_weight_score,
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
-    calculate_modal_distribution_counts as _calculate_modal_distribution_counts,
+    calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
     calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
@@ -431,7 +431,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
     get_active_human_design_gates_and_lines,
 )
-from ephemeraldaddy.analysis.human_design_reference import format_gate_line_info
+from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS, format_gate_line_info
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -523,6 +523,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "age",
         "birth_month",
         "birthplace",
+        "human_design",
     }
 )
 SIMILAR_CHARTS_EXPORT_FORMAT_KEY = "exports/similar_charts_format"
@@ -998,8 +999,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     self._dnd_subheader_note_format,
                 )
 
-        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}$", stripped_text):
-            self.setFormat(0, self._qt_len(text), self._plain_bold_format)
+        if re.match(r"^Channel\s+\d{1,2}-\d{1,2}(?::.*)?$", stripped_text):
+            self.setFormat(0, self._qt_len(text), self._class_header_format)
 
         activation_match = re.match(r"^\s*(Personality|Design)\s+([A-Za-z]+)", text)
         if activation_match:
@@ -1833,6 +1834,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
         self._gender_mode = "actual_gender"
+        self._human_design_mode = "hd_gates"
         self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
@@ -2184,6 +2186,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
             "gender": self._gender_mode,
+            "human_design": self._human_design_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2401,6 +2404,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birth_month",
             "birthplace",
             "gender",
+            "human_design",
         ]
         return [
             section_key
@@ -2675,6 +2679,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "human_design":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._human_design_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/human_design_mode",
+                        self._human_design_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "planetary_sign_prevalence":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2843,6 +2864,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_gender_mode, str):
             self._gender_mode = stored_gender_mode
+
+        stored_human_design_mode = self._settings.value(
+            "manage_charts/human_design_mode",
+            self._human_design_mode,
+        )
+        if isinstance(stored_human_design_mode, str):
+            self._human_design_mode = stored_human_design_mode
 
         stored_baseline_mode = self._settings.value(
             "manage_charts/database_metrics_baseline_mode",
@@ -3633,6 +3661,42 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.gender_unknown_note.setVisible(False)
         gender_section_layout.addWidget(self.gender_unknown_note)
+
+        # HUMAN DESIGN SECTION
+        human_design_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Human Design",
+            section_key="human_design",
+            expanded=self._is_database_metrics_section_expanded("human_design"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "human_design",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["human_design"] = self._is_database_metrics_section_expanded("human_design")
+        self._create_analysis_chart_header(
+            human_design_section_layout,
+            "Human Design",
+            "human_design",
+            "human_design",
+            dropdown_options=[
+                ("Gates", "hd_gates"),
+                ("Lines", "hd_lines"),
+                ("Channels", "hd_channels"),
+            ],
+            show_title=False,
+        )
+        human_design_subheader = add_database_subheader(
+            "Human Design profile distribution by gate, line, and channel."
+        )
+        human_design_section_layout.addWidget(human_design_subheader)
+        (
+            self.human_design_chart_container,
+            self.human_design_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["human_design"] = self.human_design_chart_layout
+        human_design_section_layout.addWidget(self.human_design_chart_container)
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -7247,6 +7311,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             },
             "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
             "dnd_stat_count": 0,
+            "human_design_gate_totals": {gate: 0.0 for gate in range(1, 65)},
+            "human_design_line_totals": {line: 0.0 for line in range(1, 7)},
+            "human_design_channel_totals": {},
+            "human_design_gate_total_count": 0.0,
+            "human_design_line_total_count": 0.0,
+            "human_design_channel_total_count": 0.0,
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7312,6 +7382,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot["position_sign_count_by_body"][body] += 1
 
         dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
+        if not getattr(chart, "dominant_sign_weights", None):
+            chart.dominant_sign_weights = dominant_weights
         for sign in ZODIAC_NAMES:
             sign_weight = float(dominant_weights.get(sign, 0.0))
             if sign_weight <= 0:
@@ -7346,7 +7418,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot["dominant_house_totals"][house_num] += 1.0
             snapshot["dominant_house_total_weight"] += 1.0
 
-        dominant_element_weights = _calculate_dominant_element_weights(chart)
+        dominant_element_weights = (
+            getattr(chart, "dominant_element_weights", None)
+            or _calculate_dominant_element_weights(chart)
+        )
+        chart.dominant_element_weights = dominant_element_weights
         element_order = ["Fire", "Earth", "Air", "Water"]
         ranked_elements = sorted(
             element_order,
@@ -7355,6 +7431,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if ranked_elements and float(dominant_element_weights.get(ranked_elements[0], 0.0)) > 0:
             snapshot["dominant_element_totals"][ranked_elements[0]] += 1.0
             snapshot["dominant_element_total_weight"] += 1.0
+
+        # Human Design profile metrics (persisted on chart for fast lookup where possible).
+        hd_gates, hd_lines, hd_channels = self._extract_human_design_profile(chart)
+        for gate in hd_gates:
+            snapshot["human_design_gate_totals"][gate] += 1.0
+            snapshot["human_design_gate_total_count"] += 1.0
+        for line in hd_lines:
+            snapshot["human_design_line_totals"][line] += 1.0
+            snapshot["human_design_line_total_count"] += 1.0
+        for channel in hd_channels:
+            snapshot["human_design_channel_totals"][channel] = (
+                snapshot["human_design_channel_totals"].get(channel, 0.0) + 1.0
+            )
+            snapshot["human_design_channel_total_count"] += 1.0
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:
@@ -7436,6 +7526,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
+        totals["human_design_gate_total_count"] += direction * float(
+            snapshot.get("human_design_gate_total_count", 0.0)
+        )
+        totals["human_design_line_total_count"] += direction * float(
+            snapshot.get("human_design_line_total_count", 0.0)
+        )
+        totals["human_design_channel_total_count"] += direction * float(
+            snapshot.get("human_design_channel_total_count", 0.0)
+        )
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
@@ -7506,6 +7605,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             stat_snapshot = snapshot.get("dnd_stat_totals", {})
             stat_value = stat_snapshot.get(stat_key, 0.0) if isinstance(stat_snapshot, dict) else 0.0
             totals["dnd_stat_totals"][stat_key] += direction * float(stat_value)
+        for gate in range(1, 65):
+            gate_snapshot = snapshot.get("human_design_gate_totals", {})
+            totals["human_design_gate_totals"][gate] += direction * float(
+                gate_snapshot.get(gate, 0.0)
+            )
+        for line in range(1, 7):
+            line_snapshot = snapshot.get("human_design_line_totals", {})
+            totals["human_design_line_totals"][line] += direction * float(
+                line_snapshot.get(line, 0.0)
+            )
+        channel_snapshot = snapshot.get("human_design_channel_totals", {})
+        if isinstance(channel_snapshot, dict):
+            for channel, value in channel_snapshot.items():
+                channel_label = str(channel).strip()
+                if not channel_label:
+                    continue
+                totals["human_design_channel_totals"][channel_label] = (
+                    totals["human_design_channel_totals"].get(channel_label, 0.0)
+                    + (direction * float(value))
+                )
+                if abs(totals["human_design_channel_totals"][channel_label]) <= 1e-9:
+                    del totals["human_design_channel_totals"][channel_label]
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -9041,6 +9162,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     ],
                     loaded_charts=loaded_charts,
                 )
+            )
+
+            human_design_mode = self._human_design_mode
+            (
+                human_design_labels,
+                selection_human_design_counts,
+                database_human_design_counts,
+                selection_hd_total_count,
+                database_hd_total_count,
+            ) = self._human_design_mode_payload(
+                human_design_mode,
+                selection_cache,
+                database_cache,
+            )
+
+            selection_human_design = {
+                label: (
+                    float(selection_human_design_counts[label]) / selection_hd_total_count
+                    if selection_hd_total_count
+                    else 0.0
+                )
+                for label in human_design_labels
+            }
+            database_human_design = {
+                label: (
+                    float(database_human_design_counts[label]) / database_hd_total_count
+                    if database_hd_total_count
+                    else 0.0
+                )
+                for label in human_design_labels
+            }
+            if _should_refresh_database_metric_section("human_design"):
+                human_design_canvas = self._build_dominant_planet_chart(
+                    selection_planets=selection_human_design,
+                    database_planets=database_human_design,
+                    selection_planet_counts=selection_human_design_counts,
+                    database_planet_counts=database_human_design_counts,
+                    loaded_charts=loaded_charts,
+                    labels=human_design_labels,
+                    height_scale=2 if human_design_mode == "hd_gates" else 1.0,
+                )
+                self._clear_layout(self.human_design_chart_layout)
+                self.human_design_chart_layout.addWidget(
+                    human_design_canvas,
+                    0,
+                    Qt.AlignHCenter,
+                )
+            self._analysis_chart_export_rows["human_design"] = self._build_analysis_export_rows(
+                labels=human_design_labels,
+                selection_values=[selection_human_design[label] for label in human_design_labels],
+                database_values=[database_human_design[label] for label in human_design_labels],
+                selection_counts=[selection_human_design_counts[label] for label in human_design_labels],
+                database_counts=[database_human_design_counts[label] for label in human_design_labels],
+                loaded_charts=loaded_charts,
             )
 
             gender_mode = self._gender_mode
@@ -18396,7 +18571,12 @@ class MainWindow(QMainWindow):
             )
             return [[name, counts.get(name, 0)] for name, *_ in NAKSHATRA_RANGES]
         if chart_key == "modal_distribution":
-            counts = _calculate_modal_distribution_counts(chart)
+            mode = self._chart_analysis_selected_mode(chart_key, "dominant_modes")
+            counts = (
+                _calculate_modal_prevalence_counts(chart)
+                if mode == "modal_prevalence"
+                else _calculate_mode_weights(chart)
+            )
             return [[mode.capitalize(), counts.get(mode, 0)] for mode in ("cardinal", "mutable", "fixed")]
         if chart_key == "gender_guesser":
             return [
@@ -18532,6 +18712,7 @@ class MainWindow(QMainWindow):
     def _show_metric_canvas_popout(self, canvas: FigureCanvas, title: str) -> None:
         if self._latest_chart is None:
             return
+        popout_chart = self._latest_chart
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
@@ -18539,7 +18720,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.setContentsMargins(*STANDARD_NCV_POPOUT_LAYOUT["content_margins"]) #layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
-        figure = self._build_metric_popout_figure(title, self._latest_chart)
+        figure = self._build_metric_popout_figure(title, popout_chart)
         popout_canvas = FigureCanvas(figure)
         popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -18570,7 +18751,7 @@ class MainWindow(QMainWindow):
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title == "Gender Guesser":
-            info_panel.setPlainText(_build_gender_guesser_breakdown_text(self._latest_chart))
+            info_panel.setPlainText(_build_gender_guesser_breakdown_text(popout_chart))
         elif title in {"Signs", "Bodies", "Houses"}:
             info_panel.setPlaceholderText("Click a bar or label to view interpretation details.")
 
@@ -18585,7 +18766,7 @@ class MainWindow(QMainWindow):
                     return
                 if chart_key == "body":
                     info_panel.setPlainText(
-                        self._build_body_popout_info(self._latest_chart, raw_value)
+                        self._build_body_popout_info(popout_chart, raw_value)
                     )
                     return
                 if chart_key == "house":
@@ -19024,26 +19205,34 @@ class MainWindow(QMainWindow):
 
     def _draw_modal_distribution(self, ax, chart: Chart) -> None:
         modal_order = ["cardinal", "mutable", "fixed"]
-        mode_counts = {mode: 0 for mode in modal_order}
-        use_houses = _chart_uses_houses(chart)
+        selected_mode = self._chart_analysis_selected_mode(
+            "modal_distribution",
+            "dominant_modes",
+        )
+        mode_counts: dict[str, float]
         mode_colors = {
             "cardinal": "#993333", #burnt orange
             "mutable": "#6699ff", #blue
             "fixed": "#336600", #olive
         }
-
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            sign = _sign_for_longitude(lon)
-            weight = NATAL_WEIGHT.get(body, 1)
-            for mode in modal_order:
-                if sign in MODES.get(mode, set()):
-                    mode_counts[mode] += weight
-                    break
+        if selected_mode == "modal_prevalence":
+            mode_counts = {
+                mode: float(value)
+                for mode, value in _calculate_modal_prevalence_counts(chart).items()
+            }
+        else:
+            mode_counts = _calculate_mode_weights(chart)
+            chart.modal_distribution = dict(mode_counts)
+            nonzero_modes = {
+                mode: float(weight)
+                for mode, weight in mode_counts.items()
+                if float(weight) > 0
+            }
+            chart.dominant_mode = (
+                max(nonzero_modes.items(), key=lambda item: item[1])[0]
+                if nonzero_modes
+                else None
+            )
 
         values = [mode_counts[mode] for mode in modal_order]
         total = sum(values)
@@ -20208,15 +20397,32 @@ class MainWindow(QMainWindow):
         self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
-        header = f"Channel {min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
+        channel_key = f"{sorted_gates[0]}-{sorted_gates[1]}"
+        channel_info = HD_CHANNELS.get(channel_key)
+
+        if channel_info is None:
+            reverse_key = f"{sorted_gates[1]}-{sorted_gates[0]}"
+            channel_info = HD_CHANNELS.get(reverse_key)
+
+        channel_name = str(channel_info.get("name", "Unknown Channel")) if channel_info else "Unknown Channel"
+        channel_centers = channel_info.get("centers") if channel_info else None
+        channel_centers_text = ", ".join(channel_centers) if isinstance(channel_centers, tuple) else (center or "Unknown")
+        circuit = str(channel_info.get("circuit", "Unknown")) if channel_info else "Unknown"
+        explanation = str(channel_info.get("explanation", "")).strip() if channel_info else ""
+
+        header = f"Channel {channel_key}: {channel_name}"
         lines = [
             header,
             "",
-            f"• Center grouping: {center or 'Unknown'}",
-            f"• Endpoint gates: {gate_a} and {gate_b}",
+            f"• Circuit: {circuit}",
+            f"• Centers: {channel_centers_text}",
+            f"• Endpoint gates: {sorted_gates[0]} and {sorted_gates[1]}",
             "• A channel is defined when both endpoint gates are active.",
             "• Defined channels establish fixed connections between centers.",
         ]
+        if explanation:
+            lines.append(f"• {explanation}")
         self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_species_info(
@@ -22623,11 +22829,15 @@ class MainWindow(QMainWindow):
         )
 
     def _render_modal_distribution(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode(
+            "modal_distribution",
+            "dominant_modes",
+        )
         self._render_metric_panel(
             canvas_attr="modal_distribution_canvas",
             container_layout=self.modal_distribution_container_layout,
             figsize=(5.5, 3.2),
-            title="Modes",
+            title="Dominant Modes" if selected_mode == "dominant_modes" else "Modal Prevalence",
             draw_fn=self._draw_modal_distribution,
             chart=chart,
         )
