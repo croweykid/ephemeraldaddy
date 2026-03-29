@@ -1,6 +1,7 @@
 from skyfield.api import Loader
 from skyfield.framelib import ecliptic_frame  # true ecliptic & equinox of date :contentReference[oaicite:4]{index=4}
 import datetime
+import logging
 import math
 import os
 import shutil
@@ -12,6 +13,7 @@ import warnings
 from ephemeraldaddy.core.deps import ensure_package
 _swe = ensure_package("pyswisseph")
 swe = _swe
+logger = logging.getLogger(__name__)
 
 _SWE_CONFIGURED = False
 _SWE_EPHE_PATH: Path | None = None
@@ -269,6 +271,7 @@ _SWE_NAMED_BODY_IDS = {
 LILITH_CALCULATION_MEAN = "mean"
 LILITH_CALCULATION_TRUE = "true"
 _LILITH_CALCULATION_MODE = LILITH_CALCULATION_MEAN
+_LILITH_FALLBACK_WARNED = False
 
 
 def _normalize_lilith_calculation_mode(mode: str | None) -> str:
@@ -296,6 +299,10 @@ def get_lilith_display_name(mode: str | None = None) -> str:
     return "Black Moon Lilith"
 
 
+def lilith_mode_available(mode: str | None = None) -> bool:
+    return any(hasattr(swe, name) for name in _lilith_swe_id_names(mode))
+
+
 def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
     normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
     if normalized_mode == LILITH_CALCULATION_TRUE:
@@ -313,10 +320,19 @@ def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
     library build, include mean-apogee aliases as a compatibility fallback
     instead of dropping Lilith from output entirely.
     """
-    preferred = _lilith_swe_id_names(mode)
+    global _LILITH_FALLBACK_WARNED
+    preferred_mode = _normalize_lilith_calculation_mode(mode)
+    preferred = _lilith_swe_id_names(preferred_mode)
     mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
     if preferred == mean_aliases:
         return preferred
+    if preferred_mode == LILITH_CALCULATION_TRUE and not any(hasattr(swe, name) for name in preferred):
+        if not _LILITH_FALLBACK_WARNED:
+            logger.warning(
+                "True Lilith aliases are unavailable in this Swiss Ephemeris build; "
+                "falling back to mean-apogee aliases."
+            )
+            _LILITH_FALLBACK_WARNED = True
     return (*preferred, *mean_aliases)
 
 
