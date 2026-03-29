@@ -45,6 +45,13 @@ def _display_body_label(body: str) -> str:
         return get_lilith_display_name()
     return body
 
+
+def _resolve_supported_lilith_calculation_method(value: object) -> str:
+    normalized = _normalize_lilith_calculation_method(value)
+    if normalized == LILITH_CALCULATION_TRUE and not lilith_mode_available(LILITH_CALCULATION_TRUE):
+        return LILITH_CALCULATION_MEAN
+    return normalized
+
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -185,6 +192,7 @@ from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
     get_lilith_display_name,
+    lilith_mode_available,
     set_lilith_calculation_mode,
     planetary_positions,
     planetary_retrogrades,
@@ -1739,11 +1747,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
-        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+        self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
                 SETTINGS_KEY_LILITH_CALCULATION_METHOD,
                 LILITH_CALCULATION_MEAN,
             )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+            self._lilith_calculation_method,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -9201,7 +9213,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_planet_counts=database_human_design_counts,
                     loaded_charts=loaded_charts,
                     labels=human_design_labels,
-                    height_scale=1.3 if human_design_mode == "hd_gates" else 1.0,
+                    height_scale=2 if human_design_mode == "hd_gates" else 1.0,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
@@ -15960,6 +15972,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
         lilith_true_radio = QRadioButton("True Lilith (oscillating/osculating apogee)")
+        true_lilith_supported = lilith_mode_available(LILITH_CALCULATION_TRUE)
+        if not true_lilith_supported:
+            lilith_true_radio.setEnabled(False)
+            lilith_true_radio.setToolTip(
+                "True Lilith aliases are unavailable in this Swiss Ephemeris build."
+            )
         lilith_button_group = QButtonGroup(dialog)
         lilith_button_group.setExclusive(True)
         lilith_button_group.addButton(lilith_mean_radio)
@@ -16096,6 +16114,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
+        if normalized == LILITH_CALCULATION_TRUE and not lilith_mode_available(LILITH_CALCULATION_TRUE):
+            QMessageBox.warning(
+                self,
+                "True Lilith unavailable",
+                (
+                    "This Swiss Ephemeris build does not expose the true/osculating "
+                    "Lilith aliases. Reverting to Black Moon Lilith (mean apogee)."
+                ),
+            )
+            normalized = LILITH_CALCULATION_MEAN
         if normalized == self._lilith_calculation_method:
             return
         self._lilith_calculation_method = normalized
@@ -16938,11 +16966,15 @@ class MainWindow(QMainWindow):
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
-        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+        self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
                 SETTINGS_KEY_LILITH_CALCULATION_METHOD,
                 LILITH_CALCULATION_MEAN,
             )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+            self._lilith_calculation_method,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
@@ -22324,7 +22356,7 @@ class MainWindow(QMainWindow):
         *,
         invalidate_db_cache: bool = True,
     ) -> None:
-        normalized = _normalize_lilith_calculation_method(method)
+        normalized = _resolve_supported_lilith_calculation_method(method)
         self._lilith_calculation_method = normalized
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
