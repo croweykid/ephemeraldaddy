@@ -1360,12 +1360,14 @@ def list_chart_export_properties() -> list[dict[str, Any]]:
 def export_database_with_chart_property_selection(
     destination: Path,
     included_columns: list[str],
+    included_chart_ids: list[int] | None = None,
 ) -> Path:
     """
     Export a DB backup and reset excluded chart properties to app defaults.
     """
     destination = Path(destination)
     selected = {str(column).strip() for column in included_columns if str(column).strip()}
+    selected_chart_ids = sorted({int(chart_id) for chart_id in (included_chart_ids or [])})
     backup_database(destination)
 
     conn = sqlite3.connect(destination)
@@ -1378,21 +1380,39 @@ def export_database_with_chart_property_selection(
         excluded_columns = sorted(editable_columns - selected)
         pragma_by_column = {str(row[1]): row for row in pragma_rows}
         with conn:
+            if selected_chart_ids:
+                placeholders = ", ".join("?" for _ in selected_chart_ids)
+                conn.execute(
+                    f"DELETE FROM charts WHERE id NOT IN ({placeholders})",
+                    selected_chart_ids,
+                )
             for column in excluded_columns:
                 reset_value = _resolve_chart_export_reset_value(
                     column,
                     pragma_by_column.get(column),
                 )
-                conn.execute(f"UPDATE charts SET {column} = ?", (reset_value,))
+                if selected_chart_ids:
+                    placeholders = ", ".join("?" for _ in selected_chart_ids)
+                    conn.execute(
+                        f"UPDATE charts SET {column} = ? WHERE id IN ({placeholders})",
+                        (reset_value, *selected_chart_ids),
+                    )
+                else:
+                    conn.execute(f"UPDATE charts SET {column} = ?", (reset_value,))
     finally:
         conn.close()
     return destination
 
 
-def export_chart_properties_csv(destination: Path, included_columns: list[str]) -> Path:
+def export_chart_properties_csv(
+    destination: Path,
+    included_columns: list[str],
+    included_chart_ids: list[int] | None = None,
+) -> Path:
     """Export selected chart columns from DB as CSV."""
     destination = Path(destination)
     selected = [str(column).strip() for column in included_columns if str(column).strip()]
+    selected_chart_ids = sorted({int(chart_id) for chart_id in (included_chart_ids or [])})
     if not selected:
         raise ValueError("At least one property must be selected for CSV export.")
 
@@ -1405,7 +1425,14 @@ def export_chart_properties_csv(destination: Path, included_columns: list[str]) 
         if not final_columns:
             raise ValueError("Selected properties are not available in the current database.")
         quoted_columns = ", ".join([f'"{column}"' for column in final_columns])
-        rows = conn.execute(f"SELECT {quoted_columns} FROM charts ORDER BY id ASC").fetchall()
+        if selected_chart_ids:
+            placeholders = ", ".join("?" for _ in selected_chart_ids)
+            rows = conn.execute(
+                f"SELECT {quoted_columns} FROM charts WHERE id IN ({placeholders}) ORDER BY id ASC",
+                selected_chart_ids,
+            ).fetchall()
+        else:
+            rows = conn.execute(f"SELECT {quoted_columns} FROM charts ORDER BY id ASC").fetchall()
     finally:
         conn.close()
 
