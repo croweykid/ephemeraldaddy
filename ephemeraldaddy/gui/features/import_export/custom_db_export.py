@@ -147,10 +147,10 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             return [DEFAULT_COLLECTION_ALL]
         return selected_ids
 
-    def _selected_chart_ids() -> list[int]:
+    def _selected_chart_ids() -> list[int] | None:
         selected_ids = _selected_collection_ids()
         if DEFAULT_COLLECTION_ALL in selected_ids:
-            return []
+            return None
         rows = list_charts()
         selected_chart_ids: set[int] = set()
         for row in rows:
