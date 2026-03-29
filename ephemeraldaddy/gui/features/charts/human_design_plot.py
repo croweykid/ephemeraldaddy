@@ -61,9 +61,31 @@ def draw_human_design_chart(
         seen_channel_pairs.add(channel_key)
         unique_channels.append((gate_a, gate_b, center_a, center_b))
 
+    center_pair_totals: dict[tuple[str, str], int] = {}
+    for _gate_a, _gate_b, center_a, center_b in unique_channels:
+        center_pair_key = tuple(sorted((center_a, center_b)))
+        center_pair_totals[center_pair_key] = center_pair_totals.get(center_pair_key, 0) + 1
+
+    center_pair_seen: dict[tuple[str, str], int] = {}
     for gate_a, gate_b, center_a, center_b in unique_channels:
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
+        center_pair_key = tuple(sorted((center_a, center_b)))
+        channel_count = center_pair_totals[center_pair_key]
+        channel_index = center_pair_seen.get(center_pair_key, 0)
+        center_pair_seen[center_pair_key] = channel_index + 1
+        if channel_count > 1:
+            dx = x2 - x1
+            dy = y2 - y1
+            segment_length = (dx ** 2 + dy ** 2) ** 0.5 or 1.0
+            normal_x = -dy / segment_length
+            normal_y = dx / segment_length
+            offset_scale = channel_index - ((channel_count - 1) / 2)
+            offset_distance = 0.014 * offset_scale
+            x1 += normal_x * offset_distance
+            y1 += normal_y * offset_distance
+            x2 += normal_x * offset_distance
+            y2 += normal_y * offset_distance
         mid_x = (x1 + x2) / 2
         mid_y = (y1 + y2) / 2
         gate_a_active = gate_a in hd_result.active_gates
