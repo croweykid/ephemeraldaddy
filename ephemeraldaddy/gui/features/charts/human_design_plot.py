@@ -8,13 +8,13 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 0.95),
-    "Ajna": (0.5, 0.82),
-    "Throat": (0.5, 0.66),
+    "Head": (0.5, 0.96),
+    "Ajna": (0.5, 0.80),
+    "Throat": (0.5, 0.62),
     "G": (0.5, 0.50),
     "Ego": (0.74, 0.50),
     "Spleen": (0.26, 0.36),
-    "Solar Plexus": (0.74, 0.36),
+    "Solar Plexus": (0.74, 0.33),
     "Sacral": (0.5, 0.32),
     "Root": (0.5, 0.13),
 }
