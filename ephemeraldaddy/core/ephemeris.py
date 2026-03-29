@@ -305,6 +305,21 @@ def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
     return ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
 
 
+def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
+    """
+    Return candidate Swiss-Ephemeris identifiers for Lilith.
+
+    When true/apparent apogee identifiers are unavailable in the installed
+    library build, include mean-apogee aliases as a compatibility fallback
+    instead of dropping Lilith from output entirely.
+    """
+    preferred = _lilith_swe_id_names(mode)
+    mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
+    if preferred == mean_aliases:
+        return preferred
+    return (*preferred, *mean_aliases)
+
+
 def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | None:
     """
     Fast Swiss-Ephemeris-only longitude lookup for a single named body.
@@ -323,7 +338,7 @@ def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | 
         return None if rahu is None else (rahu + 180.0) % 360.0
 
     if normalized_name == "Lilith":
-        names = _lilith_swe_id_names()
+        names = _lilith_swe_id_name_candidates()
     else:
         names = _SWE_NAMED_BODY_IDS.get(normalized_name)
     if not names:
@@ -481,7 +496,7 @@ def planetary_positions(dt_aware, lat, lon):
     if rahu is not None:
         results["Rahu"] = rahu
         results["Ketu"] = (rahu + 180.0) % 360.0
-    lilith_id = _swe_body_id_optional(*_lilith_swe_id_names())
+    lilith_id = _swe_body_id_optional(*_lilith_swe_id_name_candidates())
     lilith = _swe_longitude(lilith_id) if lilith_id is not None else None
     if lilith is not None:
         results["Lilith"] = lilith
@@ -547,7 +562,7 @@ def planetary_retrogrades(dt_aware) -> dict[str, bool]:
         "Juno": _swe_body_id_optional("SE_JUNO", "JUNO"),
         "Vesta": _swe_body_id_optional("SE_VESTA", "VESTA"),
         "Rahu": _swe_body_id_optional("SE_TRUE_NODE", "TRUE_NODE"),
-        "Lilith": _swe_body_id_optional(*_lilith_swe_id_names()),
+        "Lilith": _swe_body_id_optional(*_lilith_swe_id_name_candidates()),
     }
 
     retrogrades: dict[str, bool] = {}
