@@ -3,6 +3,7 @@ from __future__ import annotations
 from matplotlib.patches import Rectangle
 from matplotlib.figure import Figure
 
+from ephemeraldaddy.core.human_design_system import CHANNELS
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
@@ -18,7 +19,8 @@ CENTER_POSITIONS: dict[str, tuple[float, float]] = {
     "Root": (0.5, 0.19),
 }
 
-STYLE_COLOR = {"black": "#101010", "red": "#d14d4d", "combined": "#8c4fd1"}
+CHANNEL_INACTIVE_COLOR = "#5e5e5e"
+CHANNEL_ACTIVE_COLOR = "#5dc26a"
 BODY_TEXT_COLOR: dict[str, str] = {
     "Sun": "#f5c542",
     "Earth": "#c8914f",
@@ -50,20 +52,76 @@ def draw_human_design_chart(
     ax.set_ylim(0, 1)
     ax.axis("off")
 
-    gate_style: dict[int, str] = {}
-    for activation in hd_result.personality_activations:
-        gate_style[activation.gate] = "black" if gate_style.get(activation.gate) != "red" else "combined"
-    for activation in hd_result.design_activations:
-        gate_style[activation.gate] = "red" if gate_style.get(activation.gate) != "black" else "combined"
+    unique_channels: list[tuple[int, int, str, str]] = []
+    seen_channel_pairs: set[tuple[int, int]] = set()
+    for gate_a, gate_b, center_a, center_b in CHANNELS:
+        channel_key = tuple(sorted((gate_a, gate_b)))
+        if channel_key in seen_channel_pairs:
+            continue
+        seen_channel_pairs.add(channel_key)
+        unique_channels.append((gate_a, gate_b, center_a, center_b))
 
-    for gate_a, gate_b, center_a, center_b in hd_result.defined_channels:
+    center_pair_totals: dict[tuple[str, str], int] = {}
+    for _gate_a, _gate_b, center_a, center_b in unique_channels:
+        center_pair_key = tuple(sorted((center_a, center_b)))
+        center_pair_totals[center_pair_key] = center_pair_totals.get(center_pair_key, 0) + 1
+
+    center_pair_seen: dict[tuple[str, str], int] = {}
+    for gate_a, gate_b, center_a, center_b in unique_channels:
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
-        style_a = gate_style.get(gate_a, "black")
-        style_b = gate_style.get(gate_b, "black")
-        channel_style = "combined" if style_a != style_b else style_a
-        ax.plot([x1, x2], [y1, y2], color=STYLE_COLOR[channel_style], linewidth=3.0, alpha=0.95)
-        ax.text((x1 + x2) / 2, (y1 + y2) / 2, f"{gate_a}-{gate_b}", color="#d6d6d6", fontsize=6, ha="center", va="center")
+        center_pair_key = tuple(sorted((center_a, center_b)))
+        channel_count = center_pair_totals[center_pair_key]
+        channel_index = center_pair_seen.get(center_pair_key, 0)
+        center_pair_seen[center_pair_key] = channel_index + 1
+        if channel_count > 1:
+            dx = x2 - x1
+            dy = y2 - y1
+            segment_length = (dx ** 2 + dy ** 2) ** 0.5 or 1.0
+            normal_x = -dy / segment_length
+            normal_y = dx / segment_length
+            offset_scale = channel_index - ((channel_count - 1) / 2)
+            offset_distance = 0.014 * offset_scale
+            x1 += normal_x * offset_distance
+            y1 += normal_y * offset_distance
+            x2 += normal_x * offset_distance
+            y2 += normal_y * offset_distance
+        mid_x = (x1 + x2) / 2
+        mid_y = (y1 + y2) / 2
+        gate_a_active = gate_a in hd_result.active_gates
+        gate_b_active = gate_b in hd_result.active_gates
+        ax.plot(
+            [x1, mid_x],
+            [y1, mid_y],
+            color=CHANNEL_ACTIVE_COLOR if gate_a_active else CHANNEL_INACTIVE_COLOR,
+            linewidth=3.0,
+            alpha=0.95,
+        )
+        ax.plot(
+            [mid_x, x2],
+            [mid_y, y2],
+            color=CHANNEL_ACTIVE_COLOR if gate_b_active else CHANNEL_INACTIVE_COLOR,
+            linewidth=3.0,
+            alpha=0.95,
+        )
+        ax.text(
+            x1 + ((mid_x - x1) * 0.6),
+            y1 + ((mid_y - y1) * 0.6),
+            f"{gate_a}",
+            color="#d6d6d6",
+            fontsize=6,
+            ha="center",
+            va="center",
+        )
+        ax.text(
+            mid_x + ((x2 - mid_x) * 0.4),
+            mid_y + ((y2 - mid_y) * 0.4),
+            f"{gate_b}",
+            color="#d6d6d6",
+            fontsize=6,
+            ha="center",
+            va="center",
+        )
 
     for center_name, (x, y) in CENTER_POSITIONS.items():
         defined = center_name in hd_result.defined_centers
