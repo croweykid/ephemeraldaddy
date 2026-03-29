@@ -264,9 +264,60 @@ _SWE_NAMED_BODY_IDS = {
     "Juno": ("SE_JUNO", "JUNO"),
     "Vesta": ("SE_VESTA", "VESTA"),
     "Rahu": ("SE_TRUE_NODE", "TRUE_NODE"),
-    # Black Moon Lilith (lunar apogee), not asteroid 1181 Lilith.
-    "Lilith": ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE"),
 }
+
+LILITH_CALCULATION_MEAN = "mean"
+LILITH_CALCULATION_TRUE = "true"
+_LILITH_CALCULATION_MODE = LILITH_CALCULATION_MEAN
+
+
+def _normalize_lilith_calculation_mode(mode: str | None) -> str:
+    normalized = str(mode or "").strip().lower()
+    if normalized in {LILITH_CALCULATION_MEAN, LILITH_CALCULATION_TRUE}:
+        return normalized
+    return LILITH_CALCULATION_MEAN
+
+
+def set_lilith_calculation_mode(mode: str | None) -> str:
+    global _LILITH_CALCULATION_MODE
+    normalized = _normalize_lilith_calculation_mode(mode)
+    _LILITH_CALCULATION_MODE = normalized
+    return normalized
+
+
+def get_lilith_calculation_mode() -> str:
+    return _LILITH_CALCULATION_MODE
+
+
+def get_lilith_display_name(mode: str | None = None) -> str:
+    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
+    if normalized_mode == LILITH_CALCULATION_TRUE:
+        return "True Lilith"
+    return "Black Moon Lilith"
+
+
+def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
+    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
+    if normalized_mode == LILITH_CALCULATION_TRUE:
+        # Osculating ("true") lunar apogee.
+        return ("SE_OSCU_APOG", "OSCU_APOG", "OSCU_APOGEE")
+    # Mean lunar apogee.
+    return ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
+
+
+def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
+    """
+    Return candidate Swiss-Ephemeris identifiers for Lilith.
+
+    When true/apparent apogee identifiers are unavailable in the installed
+    library build, include mean-apogee aliases as a compatibility fallback
+    instead of dropping Lilith from output entirely.
+    """
+    preferred = _lilith_swe_id_names(mode)
+    mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
+    if preferred == mean_aliases:
+        return preferred
+    return (*preferred, *mean_aliases)
 
 
 def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | None:
@@ -286,7 +337,10 @@ def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | 
         rahu = planetary_longitude(dt_aware, "Rahu")
         return None if rahu is None else (rahu + 180.0) % 360.0
 
-    names = _SWE_NAMED_BODY_IDS.get(normalized_name)
+    if normalized_name == "Lilith":
+        names = _lilith_swe_id_name_candidates()
+    else:
+        names = _SWE_NAMED_BODY_IDS.get(normalized_name)
     if not names:
         return None
 
@@ -442,11 +496,10 @@ def planetary_positions(dt_aware, lat, lon):
     if rahu is not None:
         results["Rahu"] = rahu
         results["Ketu"] = (rahu + 180.0) % 360.0
-    # Use Black Moon Lilith (mean lunar apogee) only.
-    mean_lilith_id = _swe_body_id_optional("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
-    mean_lilith = _swe_longitude(mean_lilith_id) if mean_lilith_id is not None else None
-    if mean_lilith is not None:
-        results["Lilith"] = mean_lilith
+    lilith_id = _swe_body_id_optional(*_lilith_swe_id_name_candidates())
+    lilith = _swe_longitude(lilith_id) if lilith_id is not None else None
+    if lilith is not None:
+        results["Lilith"] = lilith
 
     return results
 
@@ -509,7 +562,7 @@ def planetary_retrogrades(dt_aware) -> dict[str, bool]:
         "Juno": _swe_body_id_optional("SE_JUNO", "JUNO"),
         "Vesta": _swe_body_id_optional("SE_VESTA", "VESTA"),
         "Rahu": _swe_body_id_optional("SE_TRUE_NODE", "TRUE_NODE"),
-        "Lilith": _swe_body_id_optional("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE"),
+        "Lilith": _swe_body_id_optional(*_lilith_swe_id_name_candidates()),
     }
 
     retrogrades: dict[str, bool] = {}

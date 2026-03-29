@@ -18,7 +18,11 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_spe
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
-from ephemeraldaddy.core.ephemeris import planetary_positions, planetary_retrogrades
+from ephemeraldaddy.core.ephemeris import (
+    get_lilith_display_name,
+    planetary_positions,
+    planetary_retrogrades,
+)
 from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.interpretations import (
     ASPECT_BODY_ALIASES,
@@ -198,7 +202,7 @@ def _display_body_name(body: str) -> str:
     if body == "Lilith (mean)":
         return "Black Moon Lilith"
     if body == "Lilith":
-        return "Black Moon Lilith"
+        return get_lilith_display_name()
     if body == "Part of Fortune":
         return "Fortune"
     return body
