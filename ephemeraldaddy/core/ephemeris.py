@@ -1,6 +1,7 @@
 from skyfield.api import Loader
 from skyfield.framelib import ecliptic_frame  # true ecliptic & equinox of date :contentReference[oaicite:4]{index=4}
 import datetime
+import logging
 import math
 import os
 import shutil
@@ -12,6 +13,7 @@ import warnings
 from ephemeraldaddy.core.deps import ensure_package
 _swe = ensure_package("pyswisseph")
 swe = _swe
+logger = logging.getLogger(__name__)
 
 _SWE_CONFIGURED = False
 _SWE_EPHE_PATH: Path | None = None
@@ -269,6 +271,7 @@ _SWE_NAMED_BODY_IDS = {
 LILITH_CALCULATION_MEAN = "mean"
 LILITH_CALCULATION_TRUE = "true"
 _LILITH_CALCULATION_MODE = LILITH_CALCULATION_MEAN
+_LILITH_FALLBACK_WARNED = False
 
 
 def _normalize_lilith_calculation_mode(mode: str | None) -> str:
@@ -289,6 +292,17 @@ def get_lilith_calculation_mode() -> str:
     return _LILITH_CALCULATION_MODE
 
 
+def get_lilith_display_name(mode: str | None = None) -> str:
+    normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
+    if normalized_mode == LILITH_CALCULATION_TRUE:
+        return "True Lilith"
+    return "Black Moon Lilith"
+
+
+def lilith_mode_available(mode: str | None = None) -> bool:
+    return any(hasattr(swe, name) for name in _lilith_swe_id_names(mode))
+
+
 def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
     normalized_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
     if normalized_mode == LILITH_CALCULATION_TRUE:
@@ -296,6 +310,30 @@ def _lilith_swe_id_names(mode: str | None = None) -> tuple[str, ...]:
         return ("SE_OSCU_APOG", "OSCU_APOG", "OSCU_APOGEE")
     # Mean lunar apogee.
     return ("SE_MEAN_APOG", "MEAN_APOG", "MEAN_APOGEE")
+
+
+def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
+    """
+    Return candidate Swiss-Ephemeris identifiers for Lilith.
+
+    When true/apparent apogee identifiers are unavailable in the installed
+    library build, include mean-apogee aliases as a compatibility fallback
+    instead of dropping Lilith from output entirely.
+    """
+    global _LILITH_FALLBACK_WARNED
+    preferred_mode = _normalize_lilith_calculation_mode(mode)
+    preferred = _lilith_swe_id_names(preferred_mode)
+    mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
+    if preferred == mean_aliases:
+        return preferred
+    if preferred_mode == LILITH_CALCULATION_TRUE and not any(hasattr(swe, name) for name in preferred):
+        if not _LILITH_FALLBACK_WARNED:
+            logger.warning(
+                "True Lilith aliases are unavailable in this Swiss Ephemeris build; "
+                "falling back to mean-apogee aliases."
+            )
+            _LILITH_FALLBACK_WARNED = True
+    return (*preferred, *mean_aliases)
 
 
 def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | None:
@@ -316,7 +354,7 @@ def planetary_longitude(dt_aware: datetime.datetime, body_name: str) -> float | 
         return None if rahu is None else (rahu + 180.0) % 360.0
 
     if normalized_name == "Lilith":
-        names = _lilith_swe_id_names()
+        names = _lilith_swe_id_name_candidates()
     else:
         names = _SWE_NAMED_BODY_IDS.get(normalized_name)
     if not names:
@@ -474,7 +512,7 @@ def planetary_positions(dt_aware, lat, lon):
     if rahu is not None:
         results["Rahu"] = rahu
         results["Ketu"] = (rahu + 180.0) % 360.0
-    lilith_id = _swe_body_id_optional(*_lilith_swe_id_names())
+    lilith_id = _swe_body_id_optional(*_lilith_swe_id_name_candidates())
     lilith = _swe_longitude(lilith_id) if lilith_id is not None else None
     if lilith is not None:
         results["Lilith"] = lilith
@@ -540,7 +578,7 @@ def planetary_retrogrades(dt_aware) -> dict[str, bool]:
         "Juno": _swe_body_id_optional("SE_JUNO", "JUNO"),
         "Vesta": _swe_body_id_optional("SE_VESTA", "VESTA"),
         "Rahu": _swe_body_id_optional("SE_TRUE_NODE", "TRUE_NODE"),
-        "Lilith": _swe_body_id_optional(*_lilith_swe_id_names()),
+        "Lilith": _swe_body_id_optional(*_lilith_swe_id_name_candidates()),
     }
 
     retrogrades: dict[str, bool] = {}

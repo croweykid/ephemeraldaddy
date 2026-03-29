@@ -782,8 +782,10 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
         labels: list[str] | None = None,
+        height_scale: float = 1.0,
     ) -> FigureCanvas:
-        figure = Figure(figsize=(4.8, 5.8))
+        clamped_height_scale = max(0.5, float(height_scale))
+        figure = Figure(figsize=(4.8, 5.8 * clamped_height_scale))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])

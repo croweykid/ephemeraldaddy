@@ -2506,3 +2506,17 @@ def update_chart_dominant_sign_weights(
             ),
         )
     conn.close()
+
+
+def invalidate_all_dominant_weight_caches() -> None:
+    """Clear cached dominant-weight blobs so downstream reads recompute them."""
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            """
+            UPDATE charts
+            SET dominant_sign_weights = '',
+                dominant_planet_weights = ''
+            """
+        )
+    conn.close()
