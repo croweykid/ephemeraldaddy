@@ -97,6 +97,17 @@ HD_CHANNELS = {
     # INDIVIDUAL CIRCUITRY
     # =========================
 
+    "2-14": {
+        "name": "Channel of the Beat",
+        "gates": (2, 14),
+        "centers": ("G / Identity", "Sacral"),
+        "circuit": "Individual / Knowing",
+        "explanation": (
+            "A directional life-force channel that combines inner guidance with the energy and resources to move things forward. "
+            "It often shows up as a strong sense of where energy should go, with power for work, contribution, and movement when aligned with the correct direction."
+        ),
+    },
+
     "61-24": {
         "name": "Channel of Awareness",
         "gates": (61, 24),
@@ -338,6 +349,17 @@ HD_CHANNELS = {
         ),
     },
 
+    "29-46": {
+        "name": "Channel of Discovery",
+        "gates": (29, 46),
+        "centers": ("Sacral", "G / Identity"),
+        "circuit": "Collective / Sensing",
+        "explanation": (
+            "Commitment to life through embodied experience and perseverance. "
+            "Its wisdom comes from saying yes to the right experiences and discovering meaning through participation."
+        ),
+    },
+
     "11-56": {
         "name": "Channel of Curiosity",
         "gates": (11, 56),
@@ -469,6 +491,18 @@ HD_CHANNELS = {
     # (Commonly listed separately, but part of the canonical 36)
     # =========================
 
+    "10-34": {
+        "name": "Channel of Exploration",
+        "gates": (10, 34),
+        "centers": ("G / Identity", "Sacral"),
+        "circuit": "Individual / Integration",
+        "explanation": (
+            "Self-empowered life-force expressed through authentic behavior and personal conviction. "
+            "This channel pushes a person to live according to what is true for them, often with a strong "
+            "drive toward independence, embodied self-direction, and exploration through direct experience."
+        ),
+    },
+
     "25-51": {
         "name": "Channel of Initiation",
         "gates": (25, 51),
@@ -477,17 +511,6 @@ HD_CHANNELS = {
         "explanation": (
             "A catalytic energy that initiates through shock, courage, and spiritual testing. "
             "It often disrupts complacency and pushes growth through bold encounters."
-        ),
-    },
-
-    "29-46": {
-        "name": "Channel of Discovery",
-        "gates": (29, 46),
-        "centers": ("Sacral", "G / Identity"),
-        "circuit": "Collective / Sensing",
-        "explanation": (
-            "Commitment to life through embodied experience and perseverance. "
-            "Its wisdom comes from saying yes to the right experiences and discovering meaning through participation."
         ),
     },
 }

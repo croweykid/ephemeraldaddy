@@ -9,6 +9,7 @@ io/__pycache__/
 
 #venv
 venv/
+.venv/
 
 #python itself
 python

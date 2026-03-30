@@ -39,6 +39,19 @@ def _normalize_lilith_calculation_method(value: object) -> str:
         return normalized
     return LILITH_CALCULATION_MEAN
 
+
+def _display_body_label(body: str) -> str:
+    if body in {"Lilith", "Lilith (mean)"}:
+        return get_lilith_display_name()
+    return body
+
+
+def _resolve_supported_lilith_calculation_method(value: object) -> str:
+    normalized = _normalize_lilith_calculation_method(value)
+    if normalized == LILITH_CALCULATION_TRUE and not lilith_mode_available(LILITH_CALCULATION_TRUE):
+        return LILITH_CALCULATION_MEAN
+    return normalized
+
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -178,6 +191,8 @@ from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_
 from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
+    get_lilith_display_name,
+    lilith_mode_available,
     set_lilith_calculation_mode,
     planetary_positions,
     planetary_retrogrades,
@@ -214,6 +229,7 @@ from ephemeraldaddy.core.db import (
     load_chart,
     load_dominant_sign_weights,
     delete_charts,
+    invalidate_all_dominant_weight_caches,
     update_chart,
     update_chart_dominant_sign_weights,
     set_current_chart,
@@ -1731,11 +1747,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setWindowFlag(Qt.WindowCloseButtonHint, True)
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
-        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+        self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
                 SETTINGS_KEY_LILITH_CALCULATION_METHOD,
                 LILITH_CALCULATION_MEAN,
             )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+            self._lilith_calculation_method,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -6089,7 +6109,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _similarities_body_label(self, body: str) -> str:
-        return body
+        return _display_body_label(body)
 
     def _sorted_similarity_matches(
         self,
@@ -9193,6 +9213,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_planet_counts=database_human_design_counts,
                     loaded_charts=loaded_charts,
                     labels=human_design_labels,
+                    height_scale=2 if human_design_mode == "hd_gates" else 1.0,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
@@ -13409,7 +13430,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ("Pallas", "Pallas"),
             ("Juno", "Juno"),
             ("Vesta", "Vesta"),
-            ("Black Moon Lilith", "Lilith"),
+            (_display_body_label("Lilith"), "Lilith"),
             ("Part of Fortune", "Part of Fortune"),
             ("AS", "AS"),
             ("IC", "IC"),
@@ -15951,6 +15972,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
         lilith_true_radio = QRadioButton("True Lilith (oscillating/osculating apogee)")
+        true_lilith_supported = lilith_mode_available(LILITH_CALCULATION_TRUE)
+        if not true_lilith_supported:
+            lilith_true_radio.setEnabled(False)
+            lilith_true_radio.setToolTip(
+                "True Lilith aliases are unavailable in this Swiss Ephemeris build."
+            )
         lilith_button_group = QButtonGroup(dialog)
         lilith_button_group.setExclusive(True)
         lilith_button_group.addButton(lilith_mean_radio)
@@ -16087,15 +16114,51 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_lilith_calculation_method(self, method: str) -> None:
         normalized = _normalize_lilith_calculation_method(method)
+        if normalized == LILITH_CALCULATION_TRUE and not lilith_mode_available(LILITH_CALCULATION_TRUE):
+            QMessageBox.warning(
+                self,
+                "True Lilith unavailable",
+                (
+                    "This Swiss Ephemeris build does not expose the true/osculating "
+                    "Lilith aliases. Reverting to Black Moon Lilith (mean apogee)."
+                ),
+            )
+            normalized = LILITH_CALCULATION_MEAN
         if normalized == self._lilith_calculation_method:
             return
         self._lilith_calculation_method = normalized
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
+        self._chart_cache.clear()
+        self._database_metrics_cache = None
+        self._database_metrics_dirty_ids.clear()
+        invalidate_all_dominant_weight_caches()
+        self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._handle_lilith_calculation_method_changed(normalized)
+            parent._handle_lilith_calculation_method_changed(
+                normalized,
+                invalidate_db_cache=False,
+            )
+
+    def _refresh_lilith_body_labels_in_filters(self) -> None:
+        lilith_label = _display_body_label("Lilith")
+        for body_filters in self._search_body_filters:
+            combo = body_filters.get("body")
+            if isinstance(combo, QComboBox):
+                for index in range(combo.count()):
+                    if combo.itemData(index) == "Lilith":
+                        combo.setItemText(index, lilith_label)
+                        break
+        for aspect_filters in self._aspect_filters:
+            for key in ("planet_1", "planet_2"):
+                combo = aspect_filters.get(key)
+                if isinstance(combo, QComboBox):
+                    for index in range(combo.count()):
+                        if combo.itemData(index) == "Lilith":
+                            combo.setItemText(index, lilith_label)
+                            break
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -16903,11 +16966,15 @@ class MainWindow(QMainWindow):
         self._apply_dark_theme()
         self._settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
         self._visibility = VisibilityStore(self._settings)
-        self._lilith_calculation_method = _normalize_lilith_calculation_method(
+        self._lilith_calculation_method = _resolve_supported_lilith_calculation_method(
             self._settings.value(
                 SETTINGS_KEY_LILITH_CALCULATION_METHOD,
                 LILITH_CALCULATION_MEAN,
             )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_LILITH_CALCULATION_METHOD,
+            self._lilith_calculation_method,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
@@ -22283,11 +22350,18 @@ class MainWindow(QMainWindow):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         self._schedule_chart_render(chart)
 
-    def _handle_lilith_calculation_method_changed(self, method: str) -> None:
-        normalized = _normalize_lilith_calculation_method(method)
+    def _handle_lilith_calculation_method_changed(
+        self,
+        method: str,
+        *,
+        invalidate_db_cache: bool = True,
+    ) -> None:
+        normalized = _resolve_supported_lilith_calculation_method(method)
         self._lilith_calculation_method = normalized
         self._settings.setValue(SETTINGS_KEY_LILITH_CALCULATION_METHOD, normalized)
         set_lilith_calculation_mode(normalized)
+        if invalidate_db_cache:
+            invalidate_all_dominant_weight_caches()
         if self.current_chart_id is not None:
             self.load_chart_by_id(self.current_chart_id)
             return
