@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -23,6 +24,12 @@ from ephemeraldaddy.core.db import (
     export_chart_properties_csv,
     export_database_with_chart_property_selection,
     list_chart_export_properties,
+    list_charts,
+)
+from ephemeraldaddy.gui.features.charts.collections import (
+    DEFAULT_COLLECTION_ALL,
+    DEFAULT_COLLECTION_OPTIONS,
+    chart_belongs_to_collection,
 )
 
 
@@ -52,6 +59,41 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
     format_row.addWidget(csv_radio)
     format_row.addStretch(1)
     layout.addLayout(format_row)
+
+    divider = QFrame(dialog)
+    divider.setFrameShape(QFrame.HLine)
+    divider.setFrameShadow(QFrame.Sunken)
+    layout.addWidget(divider)
+
+    layout.addWidget(QLabel("Collections to include"))
+    collections_helper_label = QLabel(
+        "Select either All, or one or more specific collections."
+    )
+    collections_helper_label.setWordWrap(True)
+    layout.addWidget(collections_helper_label)
+
+    collections_widget = QWidget(dialog)
+    collections_layout = QVBoxLayout(collections_widget)
+    collections_layout.setContentsMargins(0, 0, 0, 0)
+    collections_layout.setSpacing(4)
+    collection_checkboxes: dict[str, QCheckBox] = {}
+
+    for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
+        checkbox = QCheckBox(collection_label)
+        checkbox.setChecked(collection_id == DEFAULT_COLLECTION_ALL)
+        collection_checkboxes[collection_id] = checkbox
+        collections_layout.addWidget(checkbox)
+
+    custom_collections = getattr(parent, "_custom_collections", {}) or {}
+    for custom_collection in sorted(
+        custom_collections.values(),
+        key=lambda collection: collection.name.casefold(),
+    ):
+        checkbox = QCheckBox(custom_collection.name)
+        checkbox.setChecked(False)
+        collection_checkboxes[custom_collection.collection_id] = checkbox
+        collections_layout.addWidget(checkbox)
+    layout.addWidget(collections_widget)
 
     helper_label = QLabel(
         "Select which chart properties to include.\n"
@@ -84,14 +126,82 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
     button_row = QHBoxLayout()
     select_all_button = QPushButton("Select all")
     select_minimum_button = QPushButton("Select minimum")
+    exclude_placeholders_checkbox = QCheckBox("Exclude placeholders")
+    exclude_placeholders_checkbox.setChecked(True)
     button_row.addWidget(select_all_button)
     button_row.addWidget(select_minimum_button)
+    button_row.addWidget(exclude_placeholders_checkbox)
     button_row.addStretch(1)
     cancel_button = QPushButton("Cancel")
     export_button = QPushButton("Export")
     button_row.addWidget(cancel_button)
     button_row.addWidget(export_button)
     layout.addLayout(button_row)
+
+    _collection_toggle_guard = False
+
+    def _selected_collection_ids() -> list[str]:
+        selected_ids = [
+            collection_id
+            for collection_id, checkbox in collection_checkboxes.items()
+            if checkbox.isChecked()
+        ]
+        if not selected_ids:
+            return [DEFAULT_COLLECTION_ALL]
+        return selected_ids
+
+    def _selected_chart_ids() -> list[int] | None:
+        selected_ids = _selected_collection_ids()
+        rows = list_charts()
+        if DEFAULT_COLLECTION_ALL in selected_ids and not exclude_placeholders_checkbox.isChecked():
+            return None
+        selected_chart_ids: set[int] = set()
+        for row in rows:
+            chart_id = int(row[0])
+            source = row[14] if len(row) > 14 else None
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
+            if exclude_placeholders_checkbox.isChecked() and is_placeholder:
+                continue
+            if DEFAULT_COLLECTION_ALL in selected_ids:
+                selected_chart_ids.add(chart_id)
+                continue
+            for collection_id in selected_ids:
+                if chart_belongs_to_collection(
+                    collection_id,
+                    chart=None,
+                    source=source,
+                    custom_collections=custom_collections,
+                    chart_id=chart_id,
+                ):
+                    selected_chart_ids.add(chart_id)
+                    break
+        return sorted(selected_chart_ids)
+
+    def _on_collection_checkbox_toggled(toggled_collection_id: str, checked: bool) -> None:
+        nonlocal _collection_toggle_guard
+        if _collection_toggle_guard:
+            return
+        _collection_toggle_guard = True
+        try:
+            all_checkbox = collection_checkboxes.get(DEFAULT_COLLECTION_ALL)
+            if all_checkbox is None:
+                return
+            if toggled_collection_id == DEFAULT_COLLECTION_ALL and checked:
+                for collection_id, checkbox in collection_checkboxes.items():
+                    if collection_id != DEFAULT_COLLECTION_ALL:
+                        checkbox.setChecked(False)
+            elif toggled_collection_id != DEFAULT_COLLECTION_ALL and checked:
+                all_checkbox.setChecked(False)
+            selected_ids = _selected_collection_ids()
+            if not selected_ids:
+                all_checkbox.setChecked(True)
+        finally:
+            _collection_toggle_guard = False
+
+    for collection_id, checkbox in collection_checkboxes.items():
+        checkbox.toggled.connect(
+            lambda checked, cid=collection_id: _on_collection_checkbox_toggled(cid, checked)
+        )
 
     def _refresh_lock_state() -> None:
         db_mode = db_radio.isChecked()
@@ -133,6 +243,7 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
         selected_columns = [
             column for column, checkbox in checkboxes.items() if checkbox.isChecked()
         ]
+        selected_chart_ids = _selected_chart_ids()
         if not selected_columns:
             QMessageBox.warning(
                 dialog,
@@ -157,6 +268,7 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
                 export_database_with_chart_property_selection(
                     Path(file_path),
                     selected_columns,
+                    included_chart_ids=selected_chart_ids,
                 )
             except Exception as exc:
                 QMessageBox.critical(
@@ -183,7 +295,11 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
         try:
-            export_chart_properties_csv(Path(file_path), selected_columns)
+            export_chart_properties_csv(
+                Path(file_path),
+                selected_columns,
+                included_chart_ids=selected_chart_ids,
+            )
         except Exception as exc:
             QMessageBox.critical(
                 dialog,
