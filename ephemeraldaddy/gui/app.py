@@ -23543,12 +23543,11 @@ class MainWindow(QMainWindow):
                 ]
             )
         )
-        header_label.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
+        header_label.setStyleSheet(f"{CHART_DATA_POPOUT_HEADER_STYLE} background: transparent;")
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
         header_font.setBold(True)
         header_label.setFont(header_font)
-        right_layout.addWidget(header_label, 0, Qt.AlignLeft | Qt.AlignTop)
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
@@ -23559,7 +23558,14 @@ class MainWindow(QMainWindow):
         )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()
-        right_layout.addWidget(canvas, 7)
+
+        chart_container = QWidget()
+        chart_container_layout = QGridLayout(chart_container)
+        chart_container_layout.setContentsMargins(0, 0, 0, 0)
+        chart_container_layout.setSpacing(0)
+        chart_container_layout.addWidget(canvas, 0, 0)
+        chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
+        right_layout.addWidget(chart_container, 7)
 
         summary_output = QPlainTextEdit()
         summary_output.setReadOnly(True)
