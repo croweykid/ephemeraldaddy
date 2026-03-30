@@ -8,9 +8,9 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 0.96),
-    "Ajna": (0.5, 0.80),
-    "Throat": (0.5, 0.62),
+    "Head": (0.5, 1.2),
+    "Ajna": (0.5, 0.85),
+    "Throat": (0.5, 0.67),
     "G": (0.5, 0.50),
     "Ego": (0.74, 0.50),
     "Spleen": (0.26, 0.36),
@@ -48,11 +48,13 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_subplot(111)
+    ax = figure.add_axes((0.0, 0.0, 1.0, 1.0))
+    figure.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
+    ax.margins(x=0.0, y=0.0)
     ax.axis("off")
 
     unique_channels: list[tuple[int, int, str, str]] = []

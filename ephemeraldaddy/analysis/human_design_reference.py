@@ -289,7 +289,7 @@ HD_CHANNELS = {
         ),
     },
 
-    "16-48": {
+    "16-48": { #not showing up
         "name": "Channel of Talent",
         "gates": (16, 48),
         "centers": ("Throat", "Spleen"),
@@ -337,6 +337,8 @@ HD_CHANNELS = {
     # COLLECTIVE CIRCUITRY
     # ABSTRACT / SENSING
     # =========================
+
+    "48-16"
 
     "64-47": {
         "name": "Channel of Abstraction",
@@ -513,6 +515,7 @@ HD_CHANNELS = {
             "It often disrupts complacency and pushes growth through bold encounters."
         ),
     },
+
 }
 
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
