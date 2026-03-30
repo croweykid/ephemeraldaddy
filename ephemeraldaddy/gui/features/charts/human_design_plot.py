@@ -53,10 +53,7 @@ def draw_human_design_chart(
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
-    center_min_y = min(y - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    center_max_y = max(y + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    vertical_padding = 0.02
-    ax.set_ylim(center_min_y - vertical_padding, center_max_y + vertical_padding)
+    ax.set_ylim(0, 1)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
 
