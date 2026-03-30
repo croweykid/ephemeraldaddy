@@ -1776,6 +1776,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_sign_filters = []
         self._dominant_planet_filters = []
         self._dominant_mode_filters = []
+        self._human_design_channel_filters = []
+        self._human_design_gate_filters = []
+        self._human_design_type_filter_combo = None
+        self._human_design_channel_filter_and = None
+        self._human_design_channel_filter_or = None
+        self._human_design_gate_filter_and = None
+        self._human_design_gate_filter_or = None
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
@@ -7924,6 +7931,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         notes_source_active = (
             notes_source_mode != QuadStateSlider.MODE_EMPTY and bool(notes_source_text)
         )
+        selected_human_design_channels = {
+            str(combo.currentData())
+            for combo in self._human_design_channel_filters
+            if str(combo.currentData()) != "Any"
+        }
+        selected_human_design_gates = {
+            int(combo.currentData())
+            for combo in self._human_design_gate_filters
+            if str(combo.currentData()) != "Any"
+        }
+        selected_human_design_type = (
+            str(self._human_design_type_filter_combo.currentData())
+            if self._human_design_type_filter_combo is not None
+            else "Any"
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -7973,6 +7995,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not include_blank_alignment
             and not notes_comments_active
             and not notes_source_active
+            and not selected_human_design_channels
+            and not selected_human_design_gates
+            and selected_human_design_type == "Any"
             and not self.search_text_input.text().strip()
             and (
                 not hasattr(self, "search_tags_input")
@@ -10177,6 +10202,80 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         gender_group_layout.addLayout(gender_guessed_layout)
 
         layout.addWidget(gender_section)
+
+        human_design_section, human_design_group_layout = add_collapsible_section("Human Design")
+
+        hd_channels_row = QHBoxLayout()
+        hd_channels_row.addWidget(QLabel("Channels"))
+        for _ in range(3):
+            channel_combo = QComboBox()
+            apply_default_dropdown_style(channel_combo)
+            channel_combo.addItem("Any", "Any")
+            channel_options = sorted(
+                {
+                    str(channel_key).strip()
+                    for channel_key in HD_CHANNELS.keys()
+                    if str(channel_key).strip()
+                },
+                key=lambda value: (
+                    int(value.split("-")[0]) if "-" in value and value.split("-")[0].isdigit() else 999,
+                    int(value.split("-")[1]) if "-" in value and len(value.split("-")) > 1 and value.split("-")[1].isdigit() else 999,
+                    value,
+                ),
+            )
+            for channel_label in channel_options:
+                channel_combo.addItem(channel_label, channel_label)
+            channel_combo.currentIndexChanged.connect(self._on_filter_changed)
+            self._human_design_channel_filters.append(channel_combo)
+            hd_channels_row.addWidget(channel_combo, 1)
+        self._human_design_channel_filter_and = QRadioButton("AND")
+        self._human_design_channel_filter_or = QRadioButton("OR")
+        hd_channel_group = QButtonGroup(self)
+        hd_channel_group.setExclusive(True)
+        hd_channel_group.addButton(self._human_design_channel_filter_and)
+        hd_channel_group.addButton(self._human_design_channel_filter_or)
+        self._human_design_channel_filter_and.setChecked(True)
+        hd_channel_group.buttonClicked.connect(self._on_filter_changed)
+        hd_channels_row.addWidget(self._human_design_channel_filter_and)
+        hd_channels_row.addWidget(self._human_design_channel_filter_or)
+        human_design_group_layout.addLayout(hd_channels_row)
+
+        hd_gates_row = QHBoxLayout()
+        hd_gates_row.addWidget(QLabel("Gates"))
+        for _ in range(3):
+            gate_combo = QComboBox()
+            apply_default_dropdown_style(gate_combo)
+            gate_combo.addItem("Any", "Any")
+            for gate_value in range(1, 65):
+                gate_combo.addItem(str(gate_value), gate_value)
+            gate_combo.currentIndexChanged.connect(self._on_filter_changed)
+            self._human_design_gate_filters.append(gate_combo)
+            hd_gates_row.addWidget(gate_combo, 1)
+        self._human_design_gate_filter_and = QRadioButton("AND")
+        self._human_design_gate_filter_or = QRadioButton("OR")
+        hd_gate_group = QButtonGroup(self)
+        hd_gate_group.setExclusive(True)
+        hd_gate_group.addButton(self._human_design_gate_filter_and)
+        hd_gate_group.addButton(self._human_design_gate_filter_or)
+        self._human_design_gate_filter_and.setChecked(True)
+        hd_gate_group.buttonClicked.connect(self._on_filter_changed)
+        hd_gates_row.addWidget(self._human_design_gate_filter_and)
+        hd_gates_row.addWidget(self._human_design_gate_filter_or)
+        human_design_group_layout.addLayout(hd_gates_row)
+
+        hd_type_row = QHBoxLayout()
+        hd_type_row.addWidget(QLabel("Type"))
+        self._human_design_type_filter_combo = QComboBox()
+        apply_default_dropdown_style(self._human_design_type_filter_combo)
+        self._human_design_type_filter_combo.addItem("Any", "Any")
+        self._human_design_type_filter_combo.addItem("Manifestor", "Manifestor")
+        self._human_design_type_filter_combo.addItem("Generator", "Generator")
+        self._human_design_type_filter_combo.addItem("Manifesting Generator", "Manifesting Generator")
+        self._human_design_type_filter_combo.addItem("Projector", "Projector")
+        self._human_design_type_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        hd_type_row.addWidget(self._human_design_type_filter_combo, 1)
+        human_design_group_layout.addLayout(hd_type_row)
+        layout.addWidget(human_design_section)
 
         bodies_section, bodies_group_layout = add_collapsible_section("Bodies/Angles")
 
@@ -13605,6 +13704,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.gender_filter_or.setChecked(False)
             self.gender_filter_and.setChecked(True)
             self.gender_guessed_filter_combo.setCurrentIndex(0)
+            for channel_combo in self._human_design_channel_filters:
+                channel_combo.setCurrentIndex(0)
+            for gate_combo in self._human_design_gate_filters:
+                gate_combo.setCurrentIndex(0)
+            if self._human_design_channel_filter_or is not None:
+                self._human_design_channel_filter_or.setChecked(False)
+            if self._human_design_channel_filter_and is not None:
+                self._human_design_channel_filter_and.setChecked(True)
+            if self._human_design_gate_filter_or is not None:
+                self._human_design_gate_filter_or.setChecked(False)
+            if self._human_design_gate_filter_and is not None:
+                self._human_design_gate_filter_and.setChecked(True)
+            if self._human_design_type_filter_combo is not None:
+                self._human_design_type_filter_combo.setCurrentIndex(0)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -14889,6 +15002,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_guessed_gender = str(
             self.gender_guessed_filter_combo.currentData() or ""
         )
+        selected_human_design_channels = {
+            str(combo.currentData())
+            for combo in self._human_design_channel_filters
+            if str(combo.currentData()) != "Any"
+        }
+        selected_human_design_gates = {
+            int(combo.currentData())
+            for combo in self._human_design_gate_filters
+            if str(combo.currentData()) != "Any"
+        }
+        selected_human_design_type = (
+            str(self._human_design_type_filter_combo.currentData())
+            if self._human_design_type_filter_combo is not None
+            else "Any"
+        )
         active_body_filters = [
             filters
             for filters in self._search_body_filters
@@ -15495,6 +15623,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ):
                     return False
 
+        if selected_human_design_channels:
+            chart_channels = self._chart_human_design_channels(chart)
+            if self._human_design_channel_filter_and is not None and self._human_design_channel_filter_and.isChecked():
+                if not selected_human_design_channels.issubset(chart_channels):
+                    return False
+            elif not chart_channels.intersection(selected_human_design_channels):
+                return False
+
+        if selected_human_design_gates:
+            chart_gates = self._chart_human_design_gates(chart)
+            if self._human_design_gate_filter_and is not None and self._human_design_gate_filter_and.isChecked():
+                if not selected_human_design_gates.issubset(chart_gates):
+                    return False
+            elif not chart_gates.intersection(selected_human_design_gates):
+                return False
+
+        if selected_human_design_type != "Any":
+            if self._chart_human_design_type(chart) != selected_human_design_type:
+                return False
+
         if dominant_element_primary != "Any" or dominant_element_secondary != "Any":
             dominant_elements = self._chart_ranked_dominant_elements(chart)
             if dominant_element_primary != "Any":
@@ -15597,6 +15745,53 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart = None
         self._chart_cache[chart_id] = chart
         return chart
+
+    def _chart_human_design_gates(self, chart: Chart) -> set[int]:
+        gates = {
+            int(gate)
+            for gate in (getattr(chart, "human_design_gates", None) or [])
+            if isinstance(gate, int) and 1 <= int(gate) <= 64
+        }
+        if gates:
+            return gates
+        try:
+            computed_gates, _computed_lines = get_active_human_design_gates_and_lines(chart)
+        except Exception:
+            computed_gates = set()
+        chart.human_design_gates = sorted(computed_gates)
+        return set(chart.human_design_gates)
+
+    def _chart_human_design_channels(self, chart: Chart) -> set[str]:
+        channels = {
+            str(channel).strip()
+            for channel in (getattr(chart, "human_design_channels", None) or [])
+            if str(channel).strip()
+        }
+        if channels:
+            return channels
+        positions = getattr(chart, "positions", None) or {}
+        longitudes = [
+            float(longitude)
+            for longitude in positions.values()
+            if isinstance(longitude, (int, float))
+        ]
+        computed_channels = {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b in get_active_channels(longitudes)
+        }
+        chart.human_design_channels = sorted(computed_channels)
+        return set(chart.human_design_channels)
+
+    def _chart_human_design_type(self, chart: Chart) -> str:
+        existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
+        if existing_type:
+            return existing_type
+        try:
+            resolved_type = build_human_design_result(chart).hd_type
+        except Exception:
+            resolved_type = ""
+        chart.human_design_type = resolved_type
+        return resolved_type
 
     def _chart_body_matches(
         self,
