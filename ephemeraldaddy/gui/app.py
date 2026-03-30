@@ -5847,6 +5847,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             min_height=160,
             list_style=similarities_list_style,
         )
+        (
+            self.similarities_common_hd_gates_toggle,
+            self.similarities_common_hd_gates_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Gates in common",
+            min_height=120,
+            list_style=similarities_list_style,
+        )
+        (
+            self.similarities_common_hd_channels_toggle,
+            self.similarities_common_hd_channels_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Channels in common",
+            min_height=120,
+            list_style=similarities_list_style,
+        )
         layout.addStretch(1)
         return panel
 
@@ -6447,6 +6465,77 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             total_counts_by_label=total_counts_by_label,
         )
 
+    def _build_common_human_design_gates(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        gate_counts: dict[str, int] = {}
+        for chart in charts:
+            hd_gates, _hd_lines, _hd_channels = self._extract_human_design_profile(chart)
+            for gate in sorted(set(hd_gates)):
+                label = f"Gate {gate}"
+                gate_counts[label] = gate_counts.get(label, 0) + 1
+
+        ordered_counts = {
+            f"Gate {gate}": gate_counts[f"Gate {gate}"]
+            for gate in range(1, 65)
+            if f"Gate {gate}" in gate_counts
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_human_design_channels(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        channel_counts: dict[str, int] = {}
+        for chart in charts:
+            _hd_gates, _hd_lines, hd_channels = self._extract_human_design_profile(chart)
+            normalized_channels: set[str] = set()
+            for channel in hd_channels:
+                normalized = str(channel).strip()
+                if not normalized:
+                    continue
+                channel_parts = normalized.split("-")
+                if (
+                    len(channel_parts) == 2
+                    and channel_parts[0].strip().isdigit()
+                    and channel_parts[1].strip().isdigit()
+                ):
+                    gate_a = int(channel_parts[0].strip())
+                    gate_b = int(channel_parts[1].strip())
+                    normalized = f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                normalized_channels.add(normalized)
+            for channel in normalized_channels:
+                channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+        ordered_labels = sorted(
+            channel_counts.keys(),
+            key=lambda label: (
+                int(label.split("-")[0])
+                if "-" in label and label.split("-")[0].isdigit()
+                else 999,
+                int(label.split("-")[1])
+                if "-" in label and len(label.split("-")) > 1 and label.split("-")[1].isdigit()
+                else 999,
+                label,
+            ),
+        )
+        ordered_counts = {
+            label: channel_counts[label]
+            for label in ordered_labels
+        }
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
         db_chart_ids = [
@@ -6534,6 +6623,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 [],
                 show_no_match_row=False,
             )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_gates_list,
+                self.similarities_common_hd_gates_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_channels_list,
+                self.similarities_common_hd_channels_toggle,
+                [],
+                show_no_match_row=False,
+            )
             return
 
         common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
@@ -6544,6 +6645,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
         common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
+        common_hd_gates = self._build_common_human_design_gates(selected_non_placeholder_chart_ids)
+        common_hd_channels = self._build_common_human_design_channels(selected_non_placeholder_chart_ids)
         db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
         db_common_positions = dict(
             (label, count) for label, count, _total in db_common_positions_matches
@@ -6583,6 +6686,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         db_common_aspects_totals = dict(
             (label, total) for label, _count, total in db_common_aspects_matches
+        )
+        db_common_hd_gates = dict(
+            (label, count)
+            for label, count, _total in self._build_common_human_design_gates(db_chart_ids)
+        )
+        db_common_hd_channels = dict(
+            (label, count)
+            for label, count, _total in self._build_common_human_design_channels(db_chart_ids)
         )
         self._similarities_export_sections = [
             (
@@ -6689,6 +6800,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for label, match_count, total_count in common_aspects
                 ],
             ),
+            (
+                "Gates in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_hd_gates.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_hd_gates
+                ],
+            ),
+            (
+                "Channels in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_hd_channels.get(label, 0)),
+                        db_total_count,
+                    )
+                    for label, match_count, total_count in common_hd_channels
+                ],
+            ),
         ]
 
         total_matches = (
@@ -6700,6 +6837,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             + len(common_dominant_houses)
             + len(common_dominant_nakshatras)
             + len(common_aspects)
+            + len(common_hd_gates)
+            + len(common_hd_channels)
         )
         if total_matches > 0:
             self.similarities_status_label.setText(
@@ -6778,6 +6917,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             db_match_counts=db_common_aspects,
             db_total_count=db_total_count,
             db_total_counts_by_label=db_common_aspects_totals,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_common_hd_gates_list,
+            self.similarities_common_hd_gates_toggle,
+            common_hd_gates,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_hd_gates,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_common_hd_channels_list,
+            self.similarities_common_hd_channels_toggle,
+            common_hd_channels,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_hd_channels,
+            db_total_count=db_total_count,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
