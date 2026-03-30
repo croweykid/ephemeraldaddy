@@ -8,7 +8,7 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 1.2),
+    "Head": (0.5, 1.05),
     "Ajna": (0.5, 0.85),
     "Throat": (0.5, 0.67),
     "G": (0.5, 0.50),
