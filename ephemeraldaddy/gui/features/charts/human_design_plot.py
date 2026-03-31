@@ -65,7 +65,7 @@ def _channel_key(gate_a: int, gate_b: int) -> tuple[int, int]:
 
 
 PAIR_CHANNEL_ORDER_INNER_TO_OUTER: dict[tuple[str, str], list[tuple[int, int]]] = {
-    ("Root", "Sacral"): [(42, 53), (3, 60), (9, 52)],
+    ("Root", "Sacral"): [(3, 60), (42, 53), (9, 52)],
     ("Root", "Solar Plexus"): [(19, 49), (39, 55), (30, 41)],
     ("Root", "Spleen"): [(32, 54), (28, 38), (18, 58)],
     ("Sacral", "Spleen"): [(27, 50), (34, 57)],
@@ -127,8 +127,56 @@ def draw_human_design_chart(
             ordered_channels.append((*channel, slot_index, channel_count))
 
     for gate_a, gate_b, center_a, center_b, channel_index, channel_count in ordered_channels:
+        channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
+
+        if channel_key == (20, 34):
+            sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
+            throat_x, throat_y = CENTER_POSITIONS["Throat"]
+            start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            start_y = sacral_y
+            end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            end_y = throat_y
+            elbow_x = min(start_x, end_x) - 0.065
+            elbow_y = (start_y + end_y) * 0.5
+
+            gate_a_active = gate_a in hd_result.active_gates
+            gate_b_active = gate_b in hd_result.active_gates
+            ax.plot(
+                [start_x, elbow_x],
+                [start_y, elbow_y],
+                color=CHANNEL_ACTIVE_COLOR if gate_a_active else CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+            )
+            ax.plot(
+                [elbow_x, end_x],
+                [elbow_y, end_y],
+                color=CHANNEL_ACTIVE_COLOR if gate_b_active else CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+            )
+            ax.text(
+                start_x + ((elbow_x - start_x) * 0.55),
+                start_y + ((elbow_y - start_y) * 0.55),
+                f"{gate_a}",
+                color="#d6d6d6",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            ax.text(
+                elbow_x + ((end_x - elbow_x) * 0.45),
+                elbow_y + ((end_y - elbow_y) * 0.45),
+                f"{gate_b}",
+                color="#d6d6d6",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            continue
+
         if channel_count > 1:
             dx = x2 - x1
             dy = y2 - y1
