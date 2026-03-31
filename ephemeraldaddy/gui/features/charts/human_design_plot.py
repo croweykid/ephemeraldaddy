@@ -40,6 +40,37 @@ BODY_TEXT_COLOR: dict[str, str] = {
     "Pluto": "#b86b8f",
 }
 
+CHART_CENTER = (0.5, 0.5)
+CHANNEL_SPACING = 0.014
+
+
+def _center_sort_key(center_name: str) -> tuple[float, float]:
+    x, y = CENTER_POSITIONS[center_name]
+    return (-y, x)
+
+
+def _canonicalize_channel(
+    gate_a: int,
+    gate_b: int,
+    center_a: str,
+    center_b: str,
+) -> tuple[int, int, str, str]:
+    if _center_sort_key(center_a) <= _center_sort_key(center_b):
+        return gate_a, gate_b, center_a, center_b
+    return gate_b, gate_a, center_b, center_a
+
+
+def _channel_key(gate_a: int, gate_b: int) -> tuple[int, int]:
+    return tuple(sorted((gate_a, gate_b)))
+
+
+PAIR_CHANNEL_ORDER_INNER_TO_OUTER: dict[tuple[str, str], list[tuple[int, int]]] = {
+    ("Root", "Sacral"): [(42, 53), (3, 60), (9, 52)],
+    ("Root", "Solar Plexus"): [(19, 49), (39, 55), (30, 41)],
+    ("Root", "Spleen"): [(32, 54), (28, 38), (18, 58)],
+    ("Sacral", "Spleen"): [(27, 50), (34, 57)],
+}
+
 
 def draw_human_design_chart(
     figure: Figure,
@@ -69,27 +100,53 @@ def draw_human_design_chart(
         seen_channel_pairs.add(channel_key)
         unique_channels.append((gate_a, gate_b, center_a, center_b))
 
-    center_pair_totals: dict[tuple[str, str], int] = {}
-    for _gate_a, _gate_b, center_a, center_b in unique_channels:
-        center_pair_key = tuple(sorted((center_a, center_b)))
-        center_pair_totals[center_pair_key] = center_pair_totals.get(center_pair_key, 0) + 1
-
-    center_pair_seen: dict[tuple[str, str], int] = {}
+    channels_by_pair: dict[tuple[str, str], list[tuple[int, int, str, str]]] = {}
     for gate_a, gate_b, center_a, center_b in unique_channels:
+        normalized = _canonicalize_channel(gate_a, gate_b, center_a, center_b)
+        pair_key = tuple(sorted((normalized[2], normalized[3])))
+        channels_by_pair.setdefault(pair_key, []).append(normalized)
+
+    ordered_channels: list[tuple[int, int, str, str, int, int]] = []
+    for pair_key, pair_channels in channels_by_pair.items():
+        channel_count = len(pair_channels)
+        default_order = sorted(pair_channels, key=lambda channel: _channel_key(channel[0], channel[1]))
+        explicit_order = PAIR_CHANNEL_ORDER_INNER_TO_OUTER.get(pair_key)
+        if explicit_order:
+            preferred_rank = {_channel_key(a, b): idx for idx, (a, b) in enumerate(explicit_order)}
+            default_rank_base = len(preferred_rank)
+            pair_ordered = sorted(
+                pair_channels,
+                key=lambda channel: (
+                    preferred_rank.get(_channel_key(channel[0], channel[1]), default_rank_base),
+                    _channel_key(channel[0], channel[1]),
+                ),
+            )
+        else:
+            pair_ordered = default_order
+        for slot_index, channel in enumerate(pair_ordered):
+            ordered_channels.append((*channel, slot_index, channel_count))
+
+    for gate_a, gate_b, center_a, center_b, channel_index, channel_count in ordered_channels:
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
-        center_pair_key = tuple(sorted((center_a, center_b)))
-        channel_count = center_pair_totals[center_pair_key]
-        channel_index = center_pair_seen.get(center_pair_key, 0)
-        center_pair_seen[center_pair_key] = channel_index + 1
         if channel_count > 1:
             dx = x2 - x1
             dy = y2 - y1
             segment_length = (dx ** 2 + dy ** 2) ** 0.5 or 1.0
             normal_x = -dy / segment_length
             normal_y = dx / segment_length
-            offset_scale = channel_index - ((channel_count - 1) / 2)
-            offset_distance = 0.014 * offset_scale
+            offset_scales = [idx - ((channel_count - 1) / 2) for idx in range(channel_count)]
+            inner_to_outer_scales = sorted(
+                offset_scales,
+                key=lambda scale: (
+                    (
+                        ((((x1 + x2) * 0.5) + (normal_x * CHANNEL_SPACING * scale) - CHART_CENTER[0]) ** 2)
+                        + ((((y1 + y2) * 0.5) + (normal_y * CHANNEL_SPACING * scale) - CHART_CENTER[1]) ** 2)
+                    ),
+                    abs(scale),
+                ),
+            )
+            offset_distance = CHANNEL_SPACING * inner_to_outer_scales[channel_index]
             x1 += normal_x * offset_distance
             y1 += normal_y * offset_distance
             x2 += normal_x * offset_distance

@@ -43,6 +43,7 @@ CHANNELS: tuple[tuple[int, int, str, str], ...] = (
     (31, 7, "Throat", "G"), (8, 1, "Throat", "G"), (33, 13, "Throat", "G"),
     (10, 20, "G", "Throat"), (20, 34, "Throat", "Sacral"), (57, 20, "Spleen", "Throat"),
     (12, 22, "Throat", "Solar Plexus"), (35, 36, "Throat", "Solar Plexus"), (45, 21, "Throat", "Ego"),
+    (16, 48, "Throat", "Spleen"),
     (10, 57, "G", "Spleen"), (10, 34, "G", "Sacral"), (57, 34, "Spleen", "Sacral"),
     (1, 8, "G", "Throat"), (25, 51, "G", "Ego"), (2, 14, "G", "Sacral"),
     (15, 5, "G", "Sacral"), (46, 29, "G", "Sacral"), (7, 31, "G", "Throat"),
