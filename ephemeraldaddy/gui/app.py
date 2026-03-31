@@ -436,6 +436,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
     build_human_design_result,
     build_human_design_chart_data_output,
+    get_active_human_design_gates_and_lines,
 )
 from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS, format_gate_line_info
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
@@ -15900,17 +15901,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return chart
 
     def _chart_human_design_gates(self, chart: Chart) -> set[int]:
-        hd_result = build_human_design_result(chart)
-        computed_gates = {int(gate) for gate in hd_result.active_gates}
+        gates = {
+            int(gate)
+            for gate in (getattr(chart, "human_design_gates", None) or [])
+            if isinstance(gate, int) and 1 <= int(gate) <= 64
+        }
+        if gates:
+            return gates
+        try:
+            computed_gates, _computed_lines = get_active_human_design_gates_and_lines(chart)
+        except Exception:
+            computed_gates = set()
         chart.human_design_gates = sorted(computed_gates)
         return set(chart.human_design_gates)
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
-        hd_result = build_human_design_result(chart)
-        computed_channels = {
-            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-            for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+        channels = {
+            str(channel).strip()
+            for channel in (getattr(chart, "human_design_channels", None) or [])
+            if str(channel).strip()
         }
+        if channels:
+            return channels
+        try:
+            hd_result = build_human_design_result(chart)
+        except Exception:
+            hd_result = None
+        computed_channels = (
+            {
+                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+            }
+            if hd_result is not None
+            else set()
+        )
         chart.human_design_channels = sorted(computed_channels)
         return set(chart.human_design_channels)
 
@@ -15918,7 +15942,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
         if existing_type:
             return existing_type
-        resolved_type = build_human_design_result(chart).hd_type
+        try:
+            resolved_type = build_human_design_result(chart).hd_type
+        except Exception:
+            resolved_type = ""
         chart.human_design_type = resolved_type
         return resolved_type
 
