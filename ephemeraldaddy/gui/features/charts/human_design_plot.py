@@ -8,15 +8,15 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, .96),
-    "Ajna": (0.5, 0.8),
-    "Throat": (0.5, 0.67),
-    "G": (0.5, 0.50),
-    "Ego": (0.74, 0.50),
+    "Head": (0.5, 0.90),
+    "Ajna": (0.5, 0.76),
+    "Throat": (0.5, 0.62),
+    "G": (0.5, 0.48),
+    "Ego": (0.74, 0.48),
     "Spleen": (0.26, 0.36),
     "Solar Plexus": (0.74, 0.33),
-    "Sacral": (0.5, 0.4),
-    "Root": (0.5, 0.23),
+    "Sacral": (0.5, 0.34),
+    "Root": (0.5, 0.20),
 }
 
 CENTER_HALF_WIDTH = 0.08
@@ -79,8 +79,7 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_axes((0.0, 0.0, 1.0, 1.0))
-    figure.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+    ax = figure.add_axes((0.10, 0.10, 0.80, 0.80))
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
@@ -141,26 +140,28 @@ def draw_human_design_chart(
             elbow_x = min(start_x, end_x) - 0.065
             elbow_y = (start_y + end_y) * 0.5
 
-            gate_a_active = gate_a in hd_result.active_gates
-            gate_b_active = gate_b in hd_result.active_gates
+            lower_gate = 34
+            upper_gate = 20
+            lower_gate_active = lower_gate in hd_result.active_gates
+            upper_gate_active = upper_gate in hd_result.active_gates
             ax.plot(
                 [start_x, elbow_x],
                 [start_y, elbow_y],
-                color=CHANNEL_ACTIVE_COLOR if gate_a_active else CHANNEL_INACTIVE_COLOR,
+                color=CHANNEL_ACTIVE_COLOR if lower_gate_active else CHANNEL_INACTIVE_COLOR,
                 linewidth=3.0,
                 alpha=0.95,
             )
             ax.plot(
                 [elbow_x, end_x],
                 [elbow_y, end_y],
-                color=CHANNEL_ACTIVE_COLOR if gate_b_active else CHANNEL_INACTIVE_COLOR,
+                color=CHANNEL_ACTIVE_COLOR if upper_gate_active else CHANNEL_INACTIVE_COLOR,
                 linewidth=3.0,
                 alpha=0.95,
             )
             ax.text(
                 start_x + ((elbow_x - start_x) * 0.55),
                 start_y + ((elbow_y - start_y) * 0.55),
-                f"{gate_a}",
+                f"{lower_gate}",
                 color="#d6d6d6",
                 fontsize=6,
                 ha="center",
@@ -169,7 +170,7 @@ def draw_human_design_chart(
             ax.text(
                 elbow_x + ((end_x - elbow_x) * 0.45),
                 elbow_y + ((end_y - elbow_y) * 0.45),
-                f"{gate_b}",
+                f"{upper_gate}",
                 color="#d6d6d6",
                 fontsize=6,
                 ha="center",
