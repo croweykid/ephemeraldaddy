@@ -22156,8 +22156,6 @@ class MainWindow(QMainWindow):
 
         self._on_charts_deleted({chart_id})
         self._manage_charts_pending_changed_ids.add(chart_id)
-        manage_dialog = self._get_or_create_manage_charts_dialog()
-        manage_dialog._refresh_charts(changed_ids={chart_id})
         self.on_manage_charts()
 
 
