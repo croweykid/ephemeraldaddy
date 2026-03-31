@@ -9,14 +9,14 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
     "Head": (0.5, .96),
-    "Ajna": (0.5, 0.85),
+    "Ajna": (0.5, 0.8),
     "Throat": (0.5, 0.67),
     "G": (0.5, 0.50),
     "Ego": (0.74, 0.50),
     "Spleen": (0.26, 0.36),
     "Solar Plexus": (0.74, 0.33),
-    "Sacral": (0.5, 0.3),
-    "Root": (0.5, 0.13),
+    "Sacral": (0.5, 0.4),
+    "Root": (0.5, 0.23),
 }
 
 CENTER_HALF_WIDTH = 0.08
