@@ -15900,39 +15900,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return chart
 
     def _chart_human_design_gates(self, chart: Chart) -> set[int]:
-        try:
-            hd_result = build_human_design_result(chart)
-        except Exception:
-            hd_result = None
-        computed_gates = (
-            {int(gate) for gate in hd_result.active_gates}
-            if hd_result is not None
-            else {
-                int(gate)
-                for gate in (getattr(chart, "human_design_gates", None) or [])
-                if isinstance(gate, int) and 1 <= int(gate) <= 64
-            }
-        )
+        hd_result = build_human_design_result(chart)
+        computed_gates = {int(gate) for gate in hd_result.active_gates}
         chart.human_design_gates = sorted(computed_gates)
         return set(chart.human_design_gates)
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
-        try:
-            hd_result = build_human_design_result(chart)
-        except Exception:
-            hd_result = None
-        computed_channels = (
-            {
-                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
-            }
-            if hd_result is not None
-            else {
-                str(channel).strip()
-                for channel in (getattr(chart, "human_design_channels", None) or [])
-                if str(channel).strip()
-            }
-        )
+        hd_result = build_human_design_result(chart)
+        computed_channels = {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+        }
         chart.human_design_channels = sorted(computed_channels)
         return set(chart.human_design_channels)
 
@@ -15940,10 +15918,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
         if existing_type:
             return existing_type
-        try:
-            resolved_type = build_human_design_result(chart).hd_type
-        except Exception:
-            resolved_type = ""
+        resolved_type = build_human_design_result(chart).hd_type
         chart.human_design_type = resolved_type
         return resolved_type
 

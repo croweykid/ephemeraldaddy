@@ -155,32 +155,13 @@ class DatabaseAnalyticsChartsMixin:
             if str(channel).strip()
         ]
         if getattr(chart, "positions", None):
-            try:
-                hd_result = build_human_design_result(chart)
-            except Exception:
-                hd_result = None
-            computed_gates = (
-                sorted(int(gate) for gate in hd_result.active_gates)
-                if hd_result is not None
-                else []
+            hd_result = build_human_design_result(chart)
+            hd_gates = sorted(int(gate) for gate in hd_result.active_gates)
+            hd_lines = sorted({int(activation.line) for activation in hd_result.activations})
+            hd_channels = sorted(
+                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
             )
-            computed_lines = (
-                sorted({int(activation.line) for activation in hd_result.activations})
-                if hd_result is not None
-                else []
-            )
-            computed_channels = (
-                sorted(
-                    f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-                    for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
-                )
-                if hd_result is not None
-                else []
-            )
-            if hd_result is not None:
-                hd_gates = computed_gates
-                hd_lines = computed_lines
-                hd_channels = computed_channels
             chart.human_design_gates = list(hd_gates)
             chart.human_design_lines = list(hd_lines)
             chart.human_design_channels = list(hd_channels)
