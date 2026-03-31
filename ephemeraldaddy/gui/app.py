@@ -198,7 +198,6 @@ from ephemeraldaddy.core.ephemeris import (
     planetary_retrogrades,
     is_offline_mode as ephemeris_offline_mode,
 )
-from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.composite import (
@@ -15924,16 +15923,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         if channels:
             return channels
-        positions = getattr(chart, "positions", None) or {}
-        longitudes = [
-            float(longitude)
-            for longitude in positions.values()
-            if isinstance(longitude, (int, float))
-        ]
-        computed_channels = {
-            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-            for gate_a, gate_b in get_active_channels(longitudes)
-        }
+        try:
+            hd_result = build_human_design_result(chart)
+        except Exception:
+            hd_result = None
+        computed_channels = (
+            {
+                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+            }
+            if hd_result is not None
+            else set()
+        )
         chart.human_design_channels = sorted(computed_channels)
         return set(chart.human_design_channels)
 
