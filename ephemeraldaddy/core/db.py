@@ -1390,14 +1390,16 @@ def export_database_with_chart_property_selection(
         pragma_by_column = {str(row[1]): row for row in pragma_rows}
         with conn:
             if selected_chart_ids is not None:
+                conn.execute("DROP TABLE IF EXISTS temp.selected_export_ids")
+                conn.execute("CREATE TEMP TABLE selected_export_ids (id INTEGER PRIMARY KEY)")
                 if selected_chart_ids:
-                    placeholders = ", ".join("?" for _ in selected_chart_ids)
-                    conn.execute(
-                        f"DELETE FROM charts WHERE id NOT IN ({placeholders})",
-                        selected_chart_ids,
+                    conn.executemany(
+                        "INSERT INTO selected_export_ids(id) VALUES (?)",
+                        [(chart_id,) for chart_id in selected_chart_ids],
                     )
-                else:
-                    conn.execute("DELETE FROM charts")
+                conn.execute(
+                    "DELETE FROM charts WHERE id NOT IN (SELECT id FROM selected_export_ids)"
+                )
             for column in excluded_columns:
                 reset_value = _resolve_chart_export_reset_value(
                     column,
@@ -1405,11 +1407,10 @@ def export_database_with_chart_property_selection(
                 )
                 if selected_chart_ids is None:
                     conn.execute(f"UPDATE charts SET {column} = ?", (reset_value,))
-                elif selected_chart_ids:
-                    placeholders = ", ".join("?" for _ in selected_chart_ids)
+                else:
                     conn.execute(
-                        f"UPDATE charts SET {column} = ? WHERE id IN ({placeholders})",
-                        (reset_value, *selected_chart_ids),
+                        f"UPDATE charts SET {column} = ? WHERE id IN (SELECT id FROM selected_export_ids)",
+                        (reset_value,),
                     )
     finally:
         conn.close()
@@ -1443,14 +1444,17 @@ def export_chart_properties_csv(
         quoted_columns = ", ".join([f'"{column}"' for column in final_columns])
         if selected_chart_ids is None:
             rows = conn.execute(f"SELECT {quoted_columns} FROM charts ORDER BY id ASC").fetchall()
-        elif selected_chart_ids:
-            placeholders = ", ".join("?" for _ in selected_chart_ids)
-            rows = conn.execute(
-                f"SELECT {quoted_columns} FROM charts WHERE id IN ({placeholders}) ORDER BY id ASC",
-                selected_chart_ids,
-            ).fetchall()
         else:
-            rows = []
+            conn.execute("DROP TABLE IF EXISTS temp.selected_export_ids")
+            conn.execute("CREATE TEMP TABLE selected_export_ids (id INTEGER PRIMARY KEY)")
+            if selected_chart_ids:
+                conn.executemany(
+                    "INSERT INTO selected_export_ids(id) VALUES (?)",
+                    [(chart_id,) for chart_id in selected_chart_ids],
+                )
+            rows = conn.execute(
+                f"SELECT {quoted_columns} FROM charts WHERE id IN (SELECT id FROM selected_export_ids) ORDER BY id ASC"
+            ).fetchall()
     finally:
         conn.close()
 
