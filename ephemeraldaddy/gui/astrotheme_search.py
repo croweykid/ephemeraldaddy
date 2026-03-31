@@ -29,6 +29,65 @@ def _normalize_astrotheme_name(raw_name: str) -> str:
     return value
 
 
+
+
+def _decode_percent_sequences(value: str) -> str:
+    if not value:
+        return ""
+    previous = value
+    for _ in range(3):
+        decoded = unquote(previous)
+        if decoded == previous:
+            break
+        previous = decoded
+    return previous
+
+
+def _astrotheme_name_variants(raw_name: str) -> list[str]:
+    base = html.unescape(raw_name or "").strip()
+    decoded = _decode_percent_sequences(base)
+    variants: list[str] = []
+
+    def _push(candidate: str) -> None:
+        cleaned = re.sub(r"\s+", " ", candidate).strip()
+        if cleaned and cleaned not in variants:
+            variants.append(cleaned)
+
+    _push(base)
+    _push(decoded)
+    _push(decoded.replace("_", " "))
+    normalized = _normalize_astrotheme_name(decoded)
+    if normalized:
+        _push(normalized)
+    return variants
+
+
+def _astrotheme_slug_variants(search_query: str) -> list[str]:
+    slugs: list[str] = []
+
+    def _push_slug(text: str, *, strip_accents: bool) -> None:
+        working = html.unescape(text or "")
+        working = _decode_percent_sequences(working)
+        if strip_accents:
+            working = unicodedata.normalize("NFKD", working)
+            working = "".join(ch for ch in working if not unicodedata.combining(ch))
+        else:
+            working = unicodedata.normalize("NFKC", working)
+        working = re.sub(r"[^\w\s'’-]", " ", working)
+        working = re.sub(r"\s+", " ", working).strip(" _-")
+        if not working:
+            return
+        slug = re.sub(r"\s+", "_", working)
+        if slug and slug not in slugs:
+            slugs.append(slug)
+
+    for variant in _astrotheme_name_variants(search_query):
+        _push_slug(variant, strip_accents=False)
+        _push_slug(variant, strip_accents=True)
+
+    return slugs
+
+
 def _astrotheme_profile_slug_to_name(profile_url: str) -> str:
     slug = Path(urlparse(profile_url).path).name
     if slug.lower().endswith(".php"):
@@ -124,37 +183,38 @@ def _candidate_score(query: str, candidate_name: str, url: str) -> int:
 
 def _collect_astrotheme_search_candidates(search_query: str) -> list[tuple[str, str]]:
     candidates: list[tuple[str, str]] = []
-    for param_name in ("nom", "q"):
-        search_url = f"{ASTROTHEME_SEARCH_URL}?{param_name}={quote_plus(search_query)}"
-        try:
-            html_text = _astrotheme_http_get(search_url)
-        except Exception:
-            continue
-        candidates.extend(_extract_profile_candidates_from_html(html_text))
+    for query_variant in _astrotheme_name_variants(search_query):
+        for param_name in ("nom", "q"):
+            search_url = f"{ASTROTHEME_SEARCH_URL}?{param_name}={quote_plus(query_variant)}"
+            try:
+                html_text = _astrotheme_http_get(search_url)
+            except Exception:
+                continue
+            candidates.extend(_extract_profile_candidates_from_html(html_text))
     return candidates
 
 
 def _collect_web_search_candidates(search_query: str) -> list[tuple[str, str]]:
-    q = quote_plus(f'{search_query} site:astrotheme.com/astrology')
-    search_urls = [
-        f"https://duckduckgo.com/html/?q={q}",
-        f"https://www.bing.com/search?q={q}",
-    ]
     candidates: list[tuple[str, str]] = []
-    for url in search_urls:
-        try:
-            html_text = _astrotheme_http_get(url)
-        except Exception:
-            continue
-        candidates.extend(_extract_profile_candidates_from_html(html_text))
+    for query_variant in _astrotheme_name_variants(search_query):
+        q = quote_plus(f'{query_variant} site:astrotheme.com/astrology')
+        search_urls = [
+            f"https://duckduckgo.com/html/?q={q}",
+            f"https://www.bing.com/search?q={q}",
+        ]
+        for url in search_urls:
+            try:
+                html_text = _astrotheme_http_get(url)
+            except Exception:
+                continue
+            candidates.extend(_extract_profile_candidates_from_html(html_text))
     return candidates
 
 
 def search_astrotheme_profile_url(search_query: str) -> str | None:
-    normalized_query = _normalize_astrotheme_name(search_query)
-    query_slug = re.sub(r"\s+", "_", normalized_query).strip("_")
-    if query_slug:
-        guessed_url = f"https://www.astrotheme.com/astrology/{query_slug}"
+    for query_slug in _astrotheme_slug_variants(search_query):
+        encoded_slug = quote_plus(query_slug).replace("+", "_")
+        guessed_url = f"https://www.astrotheme.com/astrology/{encoded_slug}"
         if _astrotheme_profile_has_fiche_table(guessed_url):
             return guessed_url
 
