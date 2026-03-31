@@ -23,7 +23,6 @@ from ephemeraldaddy.core.ephemeris import (
     planetary_positions,
     planetary_retrogrades,
 )
-from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.interpretations import (
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
@@ -41,7 +40,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import (
     format_degree_minutes,
-    format_hd_annotation,
     format_longitude,
     get_nakshatra,
     sign_for_longitude,
@@ -112,8 +110,6 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
     )
     positions_midnight = planetary_positions(midnight, chart.lat, chart.lon)
     positions_pre_noon = planetary_positions(pre_midnight, chart.lat, chart.lon)
-    active_channels_midnight = get_active_channels(positions_midnight.values())
-    active_channels_pre_noon = get_active_channels(positions_pre_noon.values())
     ordered_names = [body for body in PLANET_ORDER if body in positions_midnight]
     extras = sorted(
         set(positions_midnight)
@@ -132,11 +128,9 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
             dusk_pretty = format_longitude(dusk_lon)
             dawn_nakshatra = get_nakshatra(dawn_lon)
             dusk_nakshatra = get_nakshatra(dusk_lon)
-            dawn_hd = format_hd_annotation(dawn_lon, active_channels_midnight)
-            dusk_hd = format_hd_annotation(dusk_lon, active_channels_pre_noon)
             text = (
-                f"{_display_body_with_glyph(body):<11} 🌅{dawn_pretty} ({dawn_nakshatra} | {dawn_hd})ⓘ -> "
-                f"🌌{dusk_pretty} ({dusk_nakshatra} | {dusk_hd})ⓘ"
+                f"{_display_body_with_glyph(body):<11} 🌅{dawn_pretty} ({dawn_nakshatra})ⓘ -> "
+                f"🌌{dusk_pretty} ({dusk_nakshatra})ⓘ"
             )
             lines[body] = {
                 "text": text,
@@ -491,7 +485,6 @@ def format_chart_text(
     sign_width = 11
     degree_width = 12
     nakshatra_width = 22
-    gl_width = 30
     house_width = 5
     if use_houses:
         lines.append(
@@ -501,7 +494,6 @@ def format_chart_text(
                     _pad_display_column("Sign", sign_width),
                     _pad_display_column("Degree", degree_width),
                     _pad_display_column("Nakshatra", nakshatra_width),
-                    _pad_display_column("G/L", gl_width),
                     _pad_display_column("House", house_width),
                 ]
             )
@@ -514,7 +506,6 @@ def format_chart_text(
                     _pad_display_column("Sign", sign_width),
                     _pad_display_column("Degree", degree_width),
                     _pad_display_column("Nakshatra", nakshatra_width),
-                    _pad_display_column("G/L", gl_width),
                 ]
             )
         )
@@ -547,14 +538,6 @@ def format_chart_text(
     ]
     extras = sorted(set(chart.positions).difference(ordered_bodies))
     ordered_bodies.extend(extras)
-    visible_longitudes = [
-        chart.positions[body]
-        for body in ordered_bodies
-        if body in chart.positions
-        and chart.positions.get(body) is not None
-        and (use_houses or body not in {"AS", "MC", "DS", "IC"})
-    ]
-    active_channels = get_active_channels(visible_longitudes)
     for body in ordered_bodies:
         display_body = _display_body_with_glyph(body)
         lon = chart.positions.get(body)
@@ -576,7 +559,6 @@ def format_chart_text(
             pretty = f"{pretty} (Я)"
             degree_text = f"{degree_text} (Я)"
         nakshatra = get_nakshatra(lon)
-        hd_text = format_hd_annotation(lon, active_channels)
         nakshatra_with_info = f"{nakshatra} ⓘ"
 
         if use_houses:
@@ -588,7 +570,6 @@ def format_chart_text(
                     _pad_display_column(sign_label, sign_width),
                     _pad_display_column(degree_text, degree_width),
                     _pad_display_column(nakshatra_with_info, nakshatra_width),
-                    _pad_display_column(hd_text, gl_width),
                     _pad_display_column(house_label, house_width),
                 ]
             )
@@ -619,7 +600,6 @@ def format_chart_text(
                     _pad_display_column(sign_label, sign_width),
                     _pad_display_column(degree_text, degree_width),
                     _pad_display_column(nakshatra_with_info, nakshatra_width),
-                    _pad_display_column(hd_text, gl_width),
                 ]
             )
             line = f"{line} ⓘ"

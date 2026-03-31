@@ -26,7 +26,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
-from ephemeraldaddy.core.hd import get_active_channels, get_gate, get_line
+from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -154,21 +154,15 @@ class DatabaseAnalyticsChartsMixin:
             for channel in (getattr(chart, "human_design_channels", []) or [])
             if str(channel).strip()
         ]
-        if (not hd_gates or not hd_lines or not hd_channels) and getattr(chart, "positions", None):
-            valid_longitudes = [
-                float(longitude)
-                for longitude in chart.positions.values()
-                if isinstance(longitude, (int, float))
-            ]
-            computed_gates = sorted({get_gate(longitude) for longitude in valid_longitudes})
-            computed_lines = sorted({get_line(longitude)[1] for longitude in valid_longitudes})
-            computed_channels = sorted(
-                f"{gate_a}-{gate_b}"
-                for gate_a, gate_b in get_active_channels(valid_longitudes)
+        if getattr(chart, "positions", None):
+            hd_result = build_human_design_result(chart)
+            activations = (*hd_result.personality_activations, *hd_result.design_activations)
+            hd_gates = sorted(int(gate) for gate in hd_result.active_gates)
+            hd_lines = sorted({int(activation.line) for activation in activations})
+            hd_channels = sorted(
+                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
             )
-            hd_gates = hd_gates or computed_gates
-            hd_lines = hd_lines or computed_lines
-            hd_channels = hd_channels or computed_channels
             chart.human_design_gates = list(hd_gates)
             chart.human_design_lines = list(hd_lines)
             chart.human_design_channels = list(hd_channels)

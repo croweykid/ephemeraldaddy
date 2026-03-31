@@ -198,7 +198,6 @@ from ephemeraldaddy.core.ephemeris import (
     planetary_retrogrades,
     is_offline_mode as ephemeris_offline_mode,
 )
-from ephemeraldaddy.core.hd import get_active_channels
 from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.composite import (
@@ -437,7 +436,6 @@ from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
     build_human_design_result,
     build_human_design_chart_data_output,
-    get_active_human_design_gates_and_lines,
 )
 from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS, format_gate_line_info
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
@@ -15902,37 +15900,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return chart
 
     def _chart_human_design_gates(self, chart: Chart) -> set[int]:
-        gates = {
-            int(gate)
-            for gate in (getattr(chart, "human_design_gates", None) or [])
-            if isinstance(gate, int) and 1 <= int(gate) <= 64
-        }
-        if gates:
-            return gates
-        try:
-            computed_gates, _computed_lines = get_active_human_design_gates_and_lines(chart)
-        except Exception:
-            computed_gates = set()
+        hd_result = build_human_design_result(chart)
+        computed_gates = {int(gate) for gate in hd_result.active_gates}
         chart.human_design_gates = sorted(computed_gates)
         return set(chart.human_design_gates)
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
-        channels = {
-            str(channel).strip()
-            for channel in (getattr(chart, "human_design_channels", None) or [])
-            if str(channel).strip()
-        }
-        if channels:
-            return channels
-        positions = getattr(chart, "positions", None) or {}
-        longitudes = [
-            float(longitude)
-            for longitude in positions.values()
-            if isinstance(longitude, (int, float))
-        ]
+        hd_result = build_human_design_result(chart)
         computed_channels = {
             f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-            for gate_a, gate_b in get_active_channels(longitudes)
+            for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
         }
         chart.human_design_channels = sorted(computed_channels)
         return set(chart.human_design_channels)
@@ -15941,10 +15918,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
         if existing_type:
             return existing_type
-        try:
-            resolved_type = build_human_design_result(chart).hd_type
-        except Exception:
-            resolved_type = ""
+        resolved_type = build_human_design_result(chart).hd_type
         chart.human_design_type = resolved_type
         return resolved_type
 
