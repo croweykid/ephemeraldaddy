@@ -274,10 +274,11 @@ def draw_human_design_chart(
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
 
-    ax.text(0.55, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    
+    ax.text(0.86, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.personality_activations):
         ax.text(
-            0.55,
+            0.86,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
@@ -286,10 +287,10 @@ def draw_human_design_chart(
             va="top",
         )
 
-    ax.text(0.78, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    ax.text(0.72, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.design_activations):
         ax.text(
-            0.78,
+            0.72,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),

@@ -802,6 +802,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._unknown_format.setFontItalic(True)
         self._unknown_needles = (
             "unknown (birth time unknown)",
+            "unknown (🐣time unknown)"
             "unknown (birthtime unknown)",
         )
         self._label_format = QTextCharFormat()
@@ -3510,11 +3511,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         species_section_layout.addWidget(self.species_distribution_chart_container)
         
-        #BIRTH TIME SECTION
+        #BIRTH TIME SECTION #🐣time section
         birth_time_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Birth Time",
+            "🐣Time",
             section_key="birth_time",
             expanded=self._is_database_metrics_section_expanded("birth_time"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3525,7 +3526,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["birth_time"] = self._is_database_metrics_section_expanded("birth_time")
         self._create_analysis_chart_header(
             birth_time_section_layout,
-            "Birth Time",
+            "🐣Time",
             "birth_time",
             "birth_time",
             dropdown_options=[
@@ -3577,11 +3578,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts["age"] = self.age_chart_layout
         age_section_layout.addWidget(self.age_chart_container)
 
-        #BIRTH MONTH SECTION
+        #BIRTH MONTH SECTION #🐣Month Section
         birth_month_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Birthday",
+            "🐣Day", #birthday
             section_key="birth_month",
             expanded=self._is_database_metrics_section_expanded("birth_month"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3592,12 +3593,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["birth_month"] = self._is_database_metrics_section_expanded("birth_month")
         self._create_analysis_chart_header(
             birth_month_section_layout,
-            "Birth Month",
+            "🐣Month",
             "birth_month",
             "birth_month",
             dropdown_options=[
-                ("Birth Month", "month_distribution"),
-                ("Top Birth Dates", "top_birth_dates"),
+                ("🐣Month", "month_distribution"),
+                ("Top 🐣 Dates", "top_birth_dates"),
             ],
             show_title=False,
         )
@@ -3614,7 +3615,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_place_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Birthplace",
+            "🐣Place",
             section_key="birthplace",
             expanded=self._is_database_metrics_section_expanded("birthplace"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3625,13 +3626,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["birthplace"] = self._is_database_metrics_section_expanded("birthplace")
         self._create_analysis_chart_header(
             birth_place_section_layout,
-            "Birthplace",
+            "🐣Place",
             "birthplace",
             "birthplace",
             dropdown_options=[
-                ("Most Common Birth Towns", "towns"),
-                ("Most Common Countries", "countries"),
-                ("Most Common US States", "us_states"),
+                ("Most Common 🐣Towns", "towns"),
+                ("Most Common 🐣Countries", "countries"),
+                ("Most Common 🐣US States", "us_states"),
             ],
             show_title=False,
         )
@@ -5572,9 +5573,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 [
                     "Human Design",
                     f"Name:       {self._latest_chart.name}",
-                    f"Birth date: {date_label}",
-                    f"Birth time: {time_label}",
-                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    f"🐣date: {date_label}",
+                    f"🐣time: {time_label}",
+                    f"🐣place: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
                     "",
                     chart_data_text,
                 ]
@@ -5617,12 +5618,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             transit_visible_lines: list[str] = []
             for line in visible_summary_lines:
                 stripped = line.strip()
-                if stripped.startswith("Birth date:"):
-                    transit_visible_lines.append(line.replace("Birth date:", "Date:", 1))
-                elif stripped.startswith("Birth time:"):
-                    transit_visible_lines.append(line.replace("Birth time:", "Time:", 1))
-                elif stripped.startswith("Birthplace:"):
-                    transit_visible_lines.append(f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}")
+                if stripped.startswith("🐣date:"):
+                    transit_visible_lines.append(line.replace("🐣date:", "Date:", 1))
+                elif stripped.startswith("🐣time:"):
+                    transit_visible_lines.append(line.replace("🐣time:", "Time:", 1))
+                elif stripped.startswith("🐣place:"):
+                    transit_visible_lines.append(f"🐣Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}")
                 else:
                     transit_visible_lines.append(line)
             summary_output.setPlainText("\n".join(transit_visible_lines))
@@ -9525,9 +9526,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             birth_time_mode = self._birth_time_mode
             birth_time_label_by_mode = {
-                "mean": "Mean Birth Time",
-                "mode_hour": "Mode Birth Time (rounded hour)",
-                "median": "Median Birth Time",
+                "mean": "Mean 🐣Time",
+                "mode_hour": "Mode 🐣Time (rounded hour)",
+                "median": "Median 🐣Time",
             }
             selection_birth_time = {
                 "mean": float(birth_selection_analytics["mean_minutes"]),
@@ -9541,7 +9542,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }
             if _should_refresh_database_metric_section("birth_time"):
                 birth_time_canvas = self._build_single_metric_chart(
-                    label=birth_time_label_by_mode.get(birth_time_mode, "Birth Time"),
+                    label=birth_time_label_by_mode.get(birth_time_mode, "🐣Time"),
                     selection_value=selection_birth_time.get(birth_time_mode, 0.0),
                     database_value=database_birth_time.get(birth_time_mode, 0.0),
                     loaded_charts=loaded_charts,
@@ -9550,7 +9551,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.birth_time_chart_layout.addWidget(birth_time_canvas, 0, Qt.AlignHCenter)
             self._analysis_chart_export_rows["birth_time"] = [
                 (
-                    birth_time_label_by_mode.get(birth_time_mode, "Birth Time"),
+                    birth_time_label_by_mode.get(birth_time_mode, "🐣Time"),
                     selection_birth_time.get(birth_time_mode, 0.0) if loaded_charts else database_birth_time.get(birth_time_mode, 0.0),
                     database_birth_time.get(birth_time_mode, 0.0),
                     (selection_birth_time.get(birth_time_mode, 0.0) if loaded_charts else database_birth_time.get(birth_time_mode, 0.0)) - database_birth_time.get(birth_time_mode, 0.0),
@@ -10044,7 +10045,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return section, content_layout
 
         birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-            "Birth Info Status"
+            "🐣Info Status"
         )
 
         incomplete_birthdate_row = QHBoxLayout()
@@ -10055,7 +10056,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_info_status_layout.addLayout(incomplete_birthdate_row)
 
         birth_status_mode_row = QHBoxLayout()
-        birth_status_mode_row.addWidget(QLabel("Birth time:"))
+        birth_status_mode_row.addWidget(QLabel("🐣Time:"))
         birth_status_mode_row.addStretch(1)
         self.birth_status_filter_and = QRadioButton("AND")
         self.birth_status_filter_or = QRadioButton("OR")
@@ -11451,7 +11452,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         batch_gender_section_layout.addWidget(self.batch_gender_combo)
         layout.addWidget(batch_gender_section)
 
-        birthtime_unknown_section, birthtime_unknown_section_layout = add_collapsible_section("Birth info")
+        birthtime_unknown_section, birthtime_unknown_section_layout = add_collapsible_section("🐣Info")
 
         self.batch_birthtime_unknown_checkbox = QuadStateSlider("birthtime unknown")
         self.batch_birthtime_unknown_checkbox.modeChanged.connect(
@@ -17641,7 +17642,7 @@ class MainWindow(QMainWindow):
         form.addRow(name_row_widget)
 
         self.placeholder_chart_checkbox = QCheckBox(
-            "placeholder (check if birth date/year is unknown)"
+            "placeholder (check if birth date/year is unknown)" #🐣
         )
         self.placeholder_chart_checkbox.toggled.connect(self._on_placeholder_toggled)
         self.placeholder_chart_checkbox.toggled.connect(self._mark_lucygoosey)
@@ -17755,13 +17756,13 @@ class MainWindow(QMainWindow):
         birth_time_row = QHBoxLayout()
         birth_time_row.setContentsMargins(8, 0, 0, 0)
         birth_time_row.setSpacing(8)
-        birth_time_row.addWidget(QLabel("Birth date"), 0)
+        birth_time_row.addWidget(QLabel("🐣Date"), 0)
         birth_time_row.addWidget(birth_month_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_year_widget, 0)
-        birth_time_row.addWidget(QLabel("Birth Time:"), 0)
+        birth_time_row.addWidget(QLabel("🐣Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
         birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER)
@@ -19844,12 +19845,12 @@ class MainWindow(QMainWindow):
             "| --- | --- |",
             f"| Name | {chart.name or 'Unnamed'} |",
             f"| Alias | {alias or '—'} |",
-            f"| Birth date | {date_label} |",
-            f"| Birth time | {time_label} |",
-            f"| Birthplace | {birth_place} |",
+            f"| 🐣Date | {date_label} |",
+            f"| 🐣Time | {time_label} |",
+            f"| 🐣Place | {birth_place} |",
             f"| Latitude / Longitude | {chart.lat:.4f} / {chart.lon:.4f} |",
-            f"| Birth time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
-            f"| Rectified time used | {getattr(chart, 'retcon_time_used', False)} |",
+            f"| 🐣Time unknown | {getattr(chart, 'birthtime_unknown', False)} |",
+            f"| Rectified 🐣Time used | {getattr(chart, 'retcon_time_used', False)} |",
             f"| UTC fallback used | {getattr(chart, 'used_utc_fallback', False)} |",
         ]
 
@@ -19870,7 +19871,7 @@ class MainWindow(QMainWindow):
                 lines.append(f"| {body} | Unknown | Unknown | — |")
                 continue
             if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                lines.append(f"| {body} | Unknown (birth time unknown) | Unknown | — |")
+                lines.append(f"| {body} | Unknown (🐣Time unknown) | Unknown | — |")
                 continue
             sign = _sign_for_longitude(lon)
             pretty_position = _format_longitude(lon)
@@ -20749,6 +20750,9 @@ class MainWindow(QMainWindow):
                 "• Profile is derived from Personality Sun line / Design Sun line.\n"
                 "• Display format: PersonalityLine/DesignLine (for example, 1/3)."
             ),
+            # "definition": f"{_format_split_definition(hd_result.split_definition)}",
+            # "strategy": f"{hd_result.strategy}",
+            # "incarnation cross": f"{hd_result.incarnation_cross}",
         }
         self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
 
@@ -21599,7 +21603,7 @@ class MainWindow(QMainWindow):
             if show_feedback:
                 QMessageBox.warning(
                     self,
-                    "Invalid birth date",
+                    "Invalid 🐣Date",
                     f"Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}.",
                 )
             return
@@ -21641,7 +21645,7 @@ class MainWindow(QMainWindow):
                     self,
                     "Location not found",
                     (
-                        "Birth location could not be found.\n\n"
+                        "Birth location could not be found.\n\n" #🐣
                         "Do you want to default to UTC at (0.0, 0.0)?\n"
                         "Click 'No' to edit the location and try again."
                     ),
@@ -21659,7 +21663,7 @@ class MainWindow(QMainWindow):
                 lat, lon = 0.0, 0.0
                 tz_override = ZoneInfo("UTC")
                 location_msg = (
-                    "Birth location not found.\n"
+                    "Birth location not found.\n" #🐣
                     "Defaulting to UTC at (0.0, 0.0)."
                 )
 
@@ -23362,9 +23366,9 @@ class MainWindow(QMainWindow):
             "\n".join(
                 [
                     f"Name:       {self._latest_chart.name}",
-                    f"Birth date: {date_label}",
-                    f"Birth time: {time_label}",
-                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    f"🐣date: {date_label}",
+                    f"🐣time: {time_label}",
+                    f"🐣place: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
                 ]
             )
         )
@@ -23509,9 +23513,9 @@ class MainWindow(QMainWindow):
                 [
                     "Human Design",
                     f"Name:       {self._latest_chart.name}",
-                    f"Birth date: {date_label}",
-                    f"Birth time: {time_label}",
-                    f"Birthplace: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    f"🐣date: {date_label}",
+                    f"🐣time: {time_label}",
+                    f"🐣place: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
                 ]
             )
         )
