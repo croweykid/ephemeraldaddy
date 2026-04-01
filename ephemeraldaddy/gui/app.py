@@ -4739,9 +4739,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         host_window = output_widget.window()
         if not isinstance(host_window, QWidget):
             return
-        margin = 10
+
+        anchor_parent = button.parentWidget() if isinstance(button.parentWidget(), QWidget) else host_window
+        margin = 6
         button.move(
-            max(margin, host_window.width() - button.width() - margin),
+            max(margin, anchor_parent.width() - button.width() - margin),
             margin,
         )
         button.raise_()
@@ -20331,9 +20333,11 @@ class MainWindow(QMainWindow):
         host_window = output_widget.window()
         if not isinstance(host_window, QWidget):
             return
-        margin = 10
+
+        anchor_parent = button.parentWidget() if isinstance(button.parentWidget(), QWidget) else host_window
+        margin = 6
         button.move(
-            max(margin, host_window.width() - button.width() - margin),
+            max(margin, anchor_parent.width() - button.width() - margin),
             margin,
         )
         button.raise_()

@@ -1507,7 +1507,7 @@ SIGN_KEYWORDS = {
             "dramatically", "explosively", "provocatively", "in a fractured way", "combustively",
         ],
         "profile":"wxnder",
-        "verbs": ["distorting", "challening", "combusting", "reinventing", "disrupting", "electrifying", "exposing", "bleeding", "reclaiming", "detonating", "amplifying", "iconifying",],
+        "verbs": ["distorting", "challenging", "combusting", "reinventing", "disrupting", "electrifying", "exposing", "bleeding", "reclaiming", "detonating", "amplifying", "iconifying",],
         "core":"Drives toward freedom. Reinvents self to stay uncaged.",
         "strategy":"Identity through transformation. Expresses tension by breaking molds.",
         "function":"Must stay free. Tension magnet, not by intention—but because their aliveness offends the script. Can burn bridges to escape commitment. Emotionally catalytic.",
