@@ -30,13 +30,13 @@ _DND_SIGN_STAT_EFFECTS: Dict[str, Dict[str, str]] = {
     "Gemini": {"major": "INT", "minor": "CHA", "nerf": "CON"},
     "Cancer": {"major": "CON", "minor": "WIS", "nerf": "DEX"},
     "Leo": {"major": "CHA", "minor": "STR", "nerf": "WIS"},
-    "Virgo": {"major": "DEX", "minor": "STR", "nerf": "CON"},
+    "Virgo": {"major": "DEX", "minor": "STR", "nerf": "CHA"},
     "Libra": {"major": "CHA", "minor": "DEX", "nerf": "STR"},
     "Scorpio": {"major": "WIS", "minor": "CON", "nerf": "CHA"},
     "Sagittarius": {"major": "STR", "minor": "DEX", "nerf": "INT"},
     "Capricorn": {"major": "STR", "minor": "CON", "nerf": "INT"},
-    "Aquarius": {"major": "INT", "minor": "WIS", "nerf": "CHA"},
-    "Pisces": {"major": "WIS", "minor": "INT", "nerf": "STR"},
+    "Aquarius": {"major": "INT", "minor": "WIS", "nerf": "STR"},
+    "Pisces": {"major": "WIS", "minor": "INT", "nerf": "CON"},
 }
 
 _DND_STAT_DISPLAY_LABELS: Dict[str, str] = {
@@ -96,7 +96,7 @@ def score_dnd_statblock_from_features(
         "STR": _clamp01(
             0.40 * axis_scores["frontline_courage"]
             + 0.22 * axis_scores["instinct"]
-            + 0.14 * axis_scores["discipline"]
+            #+ 0.14 * axis_scores["discipline"] #strength isn't discipline
             + 0.08 * p.get("Mars", 0.0)
             + 0.06 * p.get("Sun", 0.0)
             + 0.05 * h.get("self", 0.0)
@@ -105,7 +105,7 @@ def score_dnd_statblock_from_features(
         "DEX": _clamp01(
             0.32 * axis_scores["stealth_indirection"]
             + 0.20 * axis_scores["control_planning"]
-            + 0.16 * axis_scores["risk_appetite"]
+            #+ 0.16 * axis_scores["risk_appetite"] #being dextrous isn't cowardice
             + 0.10 * p.get("Mercury", 0.0)
             + 0.08 * p.get("Uranus", 0.0)
             + 0.07 * e.get("Air", 0.0)
@@ -114,9 +114,9 @@ def score_dnd_statblock_from_features(
         "CON": _clamp01(
             0.28 * axis_scores["discipline"]
             + 0.20 * axis_scores["instinct"]
-            + 0.16 * axis_scores["mercy_restoration"]
-            + 0.12 * p.get("Saturn", 0.0)
-            + 0.08 * p.get("Moon", 0.0)
+            + 0.16 * axis_scores["mercy_restoration"] #how well you bounce back
+            #+ 0.12 * p.get("Saturn", 0.0) #depends how saturn is aspected!! could be antithetical!
+            #+ 0.08 * p.get("Moon", 0.0) #depends how moon is aspected & in what sign & house!
             + 0.08 * e.get("Earth", 0.0)
             + 0.08 * m.get("fixed", 0.0)
         ),
@@ -125,16 +125,17 @@ def score_dnd_statblock_from_features(
             + 0.20 * axis_scores["technical_inventiveness"]
             + 0.16 * axis_scores["control_planning"]
             + 0.12 * p.get("Mercury", 0.0)
-            + 0.08 * p.get("Saturn", 0.0)
+            + 0.08 * p.get("Saturn", 0.0) 
+            #many genius scientists are taurus, followed by aries, pisces & aquarius
             + 0.08 * h.get("craft", 0.0)
         ),
         "WIS": _clamp01(
-            0.28 * axis_scores["faith"]
-            + 0.24 * axis_scores["nature_attunement"]
+            0.24 * axis_scores["nature_attunement"]
+            #+ 0.28 * axis_scores["faith"] #don't mistake faith for wisdom...
             + 0.18 * axis_scores["instinct"]
             + 0.12 * axis_scores["mercy_restoration"]
-            + 0.08 * p.get("Moon", 0.0)
-            + 0.05 * p.get("Jupiter", 0.0)
+            + 0.08 * p.get("Moon", 0.0) #depends how it's aspected
+            + 0.05 * p.get("Jupiter", 0.0) #depends how it's aspected
             + 0.05 * ((h.get("wild", 0.0) + h.get("meaning", 0.0)) / 2.0)
         ),
         "CHA": _clamp01(
@@ -142,8 +143,9 @@ def score_dnd_statblock_from_features(
             + 0.24 * axis_scores["performance"]
             + 0.18 * axis_scores["innate_power"]
             + 0.10 * p.get("Sun", 0.0)
-            + 0.08 * p.get("Venus", 0.0)
+            + 0.08 * p.get("Venus", 0.0) #depends on aspects
             + 0.08 * h.get("social", 0.0)
+            #subtract Saturn weight if negatively aspected
         ),
     }
 
