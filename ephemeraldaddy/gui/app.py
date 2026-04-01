@@ -3489,6 +3489,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "User perception of good vs evil alignment within the selection/database"
         )
         alignment_section_layout.addWidget(alignment_norms_subheader)
+        #get rid of this graph:
         (
             self.alignment_summary_chart_container,
             self.alignment_summary_chart_layout,
@@ -3502,6 +3503,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "User perception of good vs evil alignment within the selection/database"
         )
         alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        #keep this graph:
         (
             self.alignment_cumulative_chart_container,
             self.alignment_cumulative_chart_layout,
