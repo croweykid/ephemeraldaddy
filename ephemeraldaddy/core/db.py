@@ -81,6 +81,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "familiarity_factors": "",
     "age_when_first_met": 0,
     "year_first_encountered": None,
+    "data_rating": "blank",
     "social_score": 0,
     "birthtime_unknown": 0,
     "retcon_time_used": 0,
@@ -172,7 +173,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -228,6 +229,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
+            data_rating TEXT NOT NULL DEFAULT 'blank',
             social_score INTEGER NOT NULL DEFAULT 0,
             birthtime_unknown INTEGER NOT NULL DEFAULT 0,
             retcon_time_used  INTEGER NOT NULL DEFAULT 0,
@@ -408,6 +410,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
         )
         added_year_first_encountered = True
+    if "data_rating" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN data_rating TEXT NOT NULL DEFAULT 'blank'
+            """
+        )
 
     conn.execute(
         """
@@ -776,6 +785,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 9:
         _create_indexes(conn)
         conn.execute("PRAGMA user_version = 9")
+        user_version = 9
+
+    if user_version < 10:
+        _migrate_charts_columns(conn)
+        conn.execute("PRAGMA user_version = 10")
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -1646,13 +1660,13 @@ def append_database(source: Path) -> dict[str, Any]:
                         (id, name, alias, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, familiarity_factors, age_when_first_met, year_first_encountered,
+                         alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1677,6 +1691,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("familiarity_factors"),
                         max(0, int(_row_value("age_when_first_met") or 0)),
                         _normalize_year_first_encountered(_row_value("year_first_encountered")),
+                        str(_row_value("data_rating") or "blank"),
                         int(social_score),
                         int(_row_value("birthtime_unknown") or 0),
                         int(_row_value("retcon_time_used") or 0),
@@ -1776,7 +1791,7 @@ def save_chart(
                  comments,
                  chart_data_source,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, social_score,
+                 familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
                  retcon_time_used, retcon_hour, retcon_minute,
                  dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
@@ -1789,7 +1804,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1831,6 +1846,7 @@ def save_chart(
                 ),
                 max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
                 _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                str(getattr(chart, "data_rating", "blank") or "blank"),
                 calculate_social_score(
                     getattr(chart, "positive_sentiment_intensity", None),
                     getattr(chart, "negative_sentiment_intensity", None),
@@ -1972,6 +1988,7 @@ def update_chart(
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
+                data_rating = ?,
                 social_score = ?,
                 birthtime_unknown = ?,
                 retcon_time_used = ?,
@@ -2034,6 +2051,7 @@ def update_chart(
                 ),
                 max(0, int(getattr(chart, "age_when_first_met", 0) or 0)),
                 _normalize_year_first_encountered(getattr(chart, "year_first_encountered", None)),
+                str(getattr(chart, "data_rating", "blank") or "blank"),
                 calculate_social_score(
                     getattr(chart, "positive_sentiment_intensity", None),
                     getattr(chart, "negative_sentiment_intensity", None),
@@ -2301,7 +2319,7 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                tags, comments, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, birthtime_unknown,
+               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown,
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
@@ -2340,6 +2358,7 @@ def load_chart(chart_id: int):
         familiarity_factors,
         age_when_first_met,
         year_first_encountered,
+        data_rating,
         birthtime_unknown,
         retcon_time_used,
         retcon_hour,
@@ -2392,6 +2411,7 @@ def load_chart(chart_id: int):
         )
         placeholder.age_when_first_met = max(0, int(age_when_first_met or 0))
         placeholder.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
+        placeholder.data_rating = str(data_rating or "blank")
         placeholder.birthtime_unknown = bool(birthtime_unknown)
         placeholder.retcon_time_used = bool(retcon_time_used)
         placeholder.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
@@ -2447,6 +2467,7 @@ def load_chart(chart_id: int):
     )
     chart.age_when_first_met = max(0, int(age_when_first_met or 0))
     chart.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
+    chart.data_rating = str(data_rating or "blank")
     chart.birthtime_unknown = bool(birthtime_unknown)
     chart.retcon_time_used = bool(retcon_time_used)
     chart.retcon_hour = int(retcon_hour) if retcon_hour is not None else None

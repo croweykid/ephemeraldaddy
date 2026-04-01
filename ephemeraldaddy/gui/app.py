@@ -286,6 +286,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_ORDER,
     PLANET_RULERSHIP,
     RELATION_TYPE,
+    RODDEN_RATING,
     FAMILIARITY_INDEX,
     GENDER_GLYPHS,
     GENDER_OPTIONS,
@@ -17914,6 +17915,16 @@ class MainWindow(QMainWindow):
             self.gender_combo.addItem(gender_option, gender_option)
         self.gender_combo.setFixedWidth(120)
         self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
+        self.data_rating_combo = QComboBox()
+        self.data_rating_combo.addItem("RR", "blank")
+        for rating in RODDEN_RATING:
+            grade = str(rating.get("grade", "")).strip()
+            if not grade:
+                continue
+            self.data_rating_combo.addItem(grade, grade)
+        self.data_rating_combo.setFixedWidth(70)
+        self.data_rating_combo.setToolTip("Rodden Rating")
+        self.data_rating_combo.currentIndexChanged.connect(self._on_sentiment_metric_changed)
         name_row = QHBoxLayout()
         #name_row.setContentsMargins(0, 0, 0, 0)
         name_row.setSpacing(8)
@@ -18244,6 +18255,10 @@ class MainWindow(QMainWindow):
         source_controls_layout.addWidget(self.chart_source_combo)
         source_controls_layout.addWidget(QLabel("Gender:"))
         source_controls_layout.addWidget(self.gender_combo)
+        rr_label = QLabel("RR:")
+        rr_label.setToolTip("Rodden Rating")
+        source_controls_layout.addWidget(rr_label)
+        source_controls_layout.addWidget(self.data_rating_combo)
         source_controls_layout.addWidget(QLabel("1st Encounter:"))
         source_controls_layout.addWidget(self.year_first_encountered_edit)
         source_controls_layout.addStretch(1)
@@ -18455,6 +18470,7 @@ class MainWindow(QMainWindow):
             self.name_edit,
             self.alias_edit,
             self.gender_combo,
+            self.data_rating_combo,
             self.birth_month_edit,
             self.birth_day_edit,
             self.birth_year_edit,
@@ -21308,6 +21324,7 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
+        self.data_rating_combo.setCurrentIndex(0)
 
     def _apply_chart_type_ui_state(self, chart_type: str | None) -> None:
         is_event_chart = chart_type == SOURCE_EVENT
@@ -21849,6 +21866,7 @@ class MainWindow(QMainWindow):
         placeholder.alignment_score = self.alignment_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+        placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
         placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
@@ -21998,6 +22016,8 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
             chart.age_when_first_met = 0
+        if hasattr(chart, "data_rating"):
+            chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
         if hasattr(chart, "source"):
             chart.source = chart_type_value
 
@@ -22234,6 +22254,7 @@ class MainWindow(QMainWindow):
                 )
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+                chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
                 chart.gender = self.gender_combo.currentData() or None
@@ -22412,6 +22433,7 @@ class MainWindow(QMainWindow):
         self.name_edit.clear()
         self.alias_edit.clear()
         self.gender_combo.setCurrentIndex(0)
+        self.data_rating_combo.setCurrentIndex(0)
         self.place_edit.clear()
         self.placeholder_chart_checkbox.setChecked(False)
         self._set_sentiment_selection([])
@@ -22712,6 +22734,9 @@ class MainWindow(QMainWindow):
         self.year_first_encountered_edit.setText(
             "" if getattr(chart, "year_first_encountered", None) is None else str(getattr(chart, "year_first_encountered"))
         )
+        data_rating_value = str(getattr(chart, "data_rating", "blank") or "blank")
+        data_rating_index = self.data_rating_combo.findData(data_rating_value)
+        self.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
         source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
         source_index = self.chart_source_combo.findData(source_value)
         if source_index < 0:
