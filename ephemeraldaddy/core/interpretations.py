@@ -2220,6 +2220,8 @@ ASPECT_KEYWORDS = {
     ],
 }
 
+#=================== SOCIOLOGICAL STUFF
+
 GENERATIONAL_COHORTS = [
     {
         "name": "Awakening Generation",
@@ -2367,7 +2369,24 @@ GENERATIONAL_COHORTS = [
     },
 ]
 
-#=================== SOCIOLOGICAL STUFF
+GENERATION_COLORS = {
+    "Awakening Generation": "#C9A227",   # Enlightenment amber
+    "Liberty Generation": "#2E5B8A",     # Liberty blue
+    "Republican Generation": "#A33A2B",  # Revolutionary crimson
+    "Compromise Generation": "#8A7F5A",  # Olive taupe
+    "Transcendental Generation": "#6E5A9E",  # Romantic violet
+    "Gilded Generation": "#D4AF37",      # Gilded gold
+    "Progressive Generation": "#2F7E79", # Reform teal
+    "Missionary Generation": "#7A3E48",  # Imperial maroon
+    "Lost Generation": "#6C6F73",        # Ash gray
+    "Greatest Generation": "#1F3A5F",    # Victory navy
+    "Silent Generation": "#7C8A99",      # Muted slate
+    "Baby Boomers": "#C97A2B",           # Harvest orange
+    "Generation X": "#4E6E6A",           # Grunge teal
+    "Millennials": "#F2B8C6",            # Millennial pink
+    "Generation Z": "#7B61FF",           # Digital violet
+    "Generation Alpha": "#00BFA5",       # AI mint
+}
 
 GENDER_OPTIONS = ["F", "M", "AMAB-F", "AFAB-M", "AFAB-NB", "AMAB-NB", "n/a", "?"]
 
