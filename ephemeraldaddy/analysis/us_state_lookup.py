@@ -52,9 +52,22 @@ US_STATE_ABBREVIATIONS = {
     "WI": "Wisconsin",
     "WY": "Wyoming",
     "DC": "District of Columbia",
+    "AS": "American Samoa",
+    "GU": "Guam",
+    "MP": "Northern Mariana Islands",
+    "PR": "Puerto Rico",
+    "UM": "United States Minor Outlying Islands",
+    "VI": "U.S. Virgin Islands",
 }
 
 _STATE_NAME_TO_ABBREV = {name.lower(): abbrev for abbrev, name in US_STATE_ABBREVIATIONS.items()}
+_STATE_NAME_TO_ABBREV.update(
+    {
+        "us virgin islands": "VI",
+        "u.s. virgin islands": "VI",
+        "virgin islands": "VI",
+    }
+)
 _TOKEN_SPLIT_PATTERN = re.compile(r"[,\s/|]+")
 _ZIP_PATTERN = re.compile(r"\b\d{5}(?:-\d{4})?\b")
 
@@ -95,4 +108,3 @@ def normalize_us_state(raw_value: str) -> str | None:
                 return match
 
     return None
-
