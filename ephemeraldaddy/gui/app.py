@@ -8392,6 +8392,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             
         if update_database_metrics:
             loaded_charts = int(selection_cache["loaded_charts"])
+            selected_chart_count = len(chart_ids)
             database_loaded_charts = int(database_cache["loaded_charts"])
             self._update_dominant_factors_subheader(use_selection_scope=loaded_charts > 0)
             self._update_cumulativedom_factors_subheader(use_selection_scope=loaded_charts > 0)
@@ -8630,7 +8631,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selection_alignment_total = float(sum(selection_alignment_scores))
             database_alignment_total = float(sum(database_alignment_scores))
             selection_social_average = (
-                selection_social_total / loaded_charts if loaded_charts else 0.0
+                selection_social_total / len(selection_social_scores)
+                if selection_social_scores
+                else 0.0
             )
             database_social_average = (
                 database_social_total / database_loaded_charts
@@ -8638,7 +8641,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else 0.0
             )
             selection_alignment_average = (
-                selection_alignment_total / loaded_charts if loaded_charts else 0.0
+                selection_alignment_total / len(selection_alignment_scores)
+                if selection_alignment_scores
+                else 0.0
             )
             database_alignment_average = (
                 database_alignment_total / database_loaded_charts
@@ -8909,7 +8914,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 database_social_median,
                 database_social_average,
             ]
-            social_score_selection_counts = [loaded_charts] * len(social_score_labels)
+            social_score_selection_counts = [selected_chart_count] * len(social_score_labels)
             social_score_database_counts = [database_loaded_charts] * len(social_score_labels)
 
             self._analysis_chart_export_rows["social_score_summary"] = (
@@ -8938,7 +8943,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 database_alignment_average,
                 database_alignment_total,
             ]
-            alignment_selection_counts = [loaded_charts] * len(alignment_labels)
+            alignment_selection_counts = [selected_chart_count] * len(alignment_labels)
             alignment_database_counts = [database_loaded_charts] * len(alignment_labels)
             if _should_refresh_database_metric_section("alignment_summary"):
                 selected_alignment_social_mode = getattr(self, "_alignment_social_mode", "alignment")
@@ -8949,7 +8954,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         labels=social_score_labels,
                         selection_values=social_score_selection_values,
                         database_values=social_score_database_values,
-                        loaded_charts=loaded_charts,
+                        loaded_charts=selected_chart_count,
                         social_score_min=database_social_score_min,
                         social_score_max=database_social_score_max,
                         figure_height=0.84,
@@ -8968,7 +8973,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_cumulative=selection_alignment_total,
                         selection_average=selection_alignment_average,
                         database_average=database_alignment_average,
-                        loaded_charts=loaded_charts,
+                        loaded_charts=selected_chart_count,
                     )
                     self.alignment_cumulative_chart_layout.addWidget(
                         alignment_cumulative_canvas,
@@ -8986,7 +8991,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_values=alignment_database_values,
                     selection_counts=alignment_selection_counts,
                     database_counts=alignment_database_counts,
-                    loaded_charts=loaded_charts,
+                    loaded_charts=selected_chart_count,
                 )
             )
 
