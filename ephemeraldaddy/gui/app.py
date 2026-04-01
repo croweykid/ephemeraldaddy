@@ -18283,12 +18283,12 @@ class MainWindow(QMainWindow):
         relevance_box_layout.setSpacing(6)
         relevance_box.setLayout(relevance_box_layout)
 
-        self.relevance_panel_toggle = QToolButton()
-        configure_collapsible_header_toggle(
-            self.relevance_panel_toggle,
-            title="Relevance",
-            expanded=False,
-            style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+        relevance_header = QLabel("Relevance")
+        relevance_header.setStyleSheet(
+            "QLabel {"
+            "font-weight: 600;"
+            "color: #cfcfcf;"
+            "}"
         )
 
         relevance_content_widget = QWidget()
@@ -18298,15 +18298,8 @@ class MainWindow(QMainWindow):
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
         sentiment_metrics_layout.setAlignment(Qt.AlignTop)
         relevance_content_widget.setLayout(sentiment_metrics_layout)
-        self.relevance_panel_toggle.toggled.connect(
-            lambda expanded: self._toggle_chart_panel_content(
-                self.relevance_panel_toggle,
-                relevance_content_widget,
-                expanded,
-            )
-        )
-        relevance_box_layout.addWidget(self.relevance_panel_toggle)
-        relevance_content_widget.setVisible(False)
+        relevance_box_layout.addWidget(relevance_header)
+        relevance_content_widget.setVisible(True)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
@@ -18569,8 +18562,8 @@ class MainWindow(QMainWindow):
         subjective_notes_layout.setContentsMargins(6, 6, 6, 6)
         subjective_notes_layout.setSpacing(6)
         subjective_notes_panel.setLayout(subjective_notes_layout)
-        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
         subjective_notes_layout.addWidget(self.sentiment_metrics_widget)
+        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
         subjective_notes_layout.addStretch(1)
         chart_right_panel = build_chart_right_panel_stack(
             analytics_content_widget=metrics_content,
