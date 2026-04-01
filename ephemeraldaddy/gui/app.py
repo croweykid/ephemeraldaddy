@@ -10229,7 +10229,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sentiment_filter_and = QRadioButton("AND")
         self.sentiment_filter_or = QRadioButton("OR")
         self.sentiment_filter_group = QButtonGroup(self)
-        self.sentiment_filter_group.setExclusive(True)""
+        self.sentiment_filter_group.setExclusive(True)
         self.sentiment_filter_group.addButton(self.sentiment_filter_and)
         self.sentiment_filter_group.addButton(self.sentiment_filter_or)
         self.sentiment_filter_and.setChecked(True)
