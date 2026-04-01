@@ -15,7 +15,9 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
-from ephemeraldaddy.analysis.country_lookup import resolve_country
+from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
+from ephemeraldaddy.analysis.city_lookup import normalize_city
+from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
@@ -1487,14 +1489,20 @@ class DatabaseAnalyticsChartsMixin:
 
             birthplace = str(getattr(chart, "birth_place", "") or "").strip()
             city, state, country = self._extract_birthplace_components(birthplace)
-            if city:
-                city_counts[city] += 1
+            canonical_city = normalize_city(city or "", country)
+            if canonical_city:
+                city_counts[canonical_city] += 1
+
             if country:
+                canonical_country = normalize_country(country)
+                if canonical_country:
+                    country_counts[canonical_country] += 1
+
                 resolved_country = resolve_country(country)
-                canonical_country = str(resolved_country.get("name", "")).strip() if resolved_country else ""
-                country_counts[canonical_country or country] += 1
-                if resolved_country and resolved_country.get("alpha_2") == "US" and state:
-                    us_state_counts[state] += 1
+                if resolved_country and resolved_country.get("alpha_2") == "US":
+                    canonical_state = normalize_us_state(state or birthplace)
+                    if canonical_state:
+                        us_state_counts[canonical_state] += 1
 
         mode_minutes = 0
         if birth_minutes:
