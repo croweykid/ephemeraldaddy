@@ -1852,6 +1852,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_factors_mode = "top3_signs"
         self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_species"
+        self._alignment_social_mode = "alignment"
         self._birth_time_mode = "mean"
         # Startup-only guard: on Windows we pulse top-most once so Database View
         # reliably foregrounds at launch without repeated focus flicker later.
@@ -2207,6 +2208,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "dominant_signs": self._dominant_factors_mode,
             "cumulativedom_factors": self._cumulativedom_factors_mode,
             "species_distribution": self._species_distribution_mode,
+            "alignment_summary": self._alignment_social_mode,
             "birth_time": self._birth_time_mode,
             "age": self._age_mode,
             "birth_month": self._birth_month_mode,
@@ -2420,7 +2422,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "planetary_sign_prevalence",
             "sentiment_prevalence",
             "relationship_prevalence",
-            "social_score_summary",
             "alignment_summary",
             "sign_prevalence",
             "dominant_signs",
@@ -2797,6 +2798,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             self._update_cumulativedom_factors_subheader()
 
+        if chart_key == "alignment_summary":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._alignment_social_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/alignment_social_mode",
+                        self._alignment_social_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
     def _restore_manage_charts_preferences(self) -> None:
         stored_sort_mode = self._settings.value("manage_charts/sort_mode", "alpha")
         if isinstance(stored_sort_mode, str):
@@ -2856,6 +2874,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "top_three_ranked": "top_three_species",
                 "top_two_three_only": "top_three_species",
             }.get(stored_species_mode, stored_species_mode)
+
+        stored_alignment_social_mode = self._settings.value(
+            "manage_charts/alignment_social_mode",
+            self._alignment_social_mode,
+        )
+        if isinstance(stored_alignment_social_mode, str):
+            self._alignment_social_mode = stored_alignment_social_mode
 
         stored_birth_time_mode = self._settings.value(
             "manage_charts/birth_time_mode",
@@ -3436,43 +3461,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.include_placeholder_relationship_checkbox
         )
 
-        #SOCIAL SCORE SUMMARY SECTION
-        social_score_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "💭Social Score",
-            section_key="social_score_summary",
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "social_score_summary",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["social_score_summary"] = self._is_database_metrics_section_expanded("social_score_summary")
-        self._create_analysis_chart_header(
-            social_score_section_layout,
-            "💭Social Score",
-            "social_score_summary",
-            "social_score_summary",
-            show_title=False,
-        )
-        social_score_subheader = add_database_subheader(
-            "How favorably the user feels about the selection/database, independent of perceived 'good/evil' alignment"
-        )
-        social_score_section_layout.addWidget(social_score_subheader)
-        (
-            self.social_score_summary_chart_container,
-            self.social_score_summary_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["social_score_summary"] = (
-            self.social_score_summary_chart_layout
-        )
-        social_score_section_layout.addWidget(self.social_score_summary_chart_container)
-
-        #ALIGNMENT SUMMARY SECTION
+        #ALIGNMENT + SOCIAL SCORE SECTION
         alignment_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "💭Alignment",
+            "💭Alignment & Social Score",
             section_key="alignment_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "alignment_summary",
@@ -3482,29 +3475,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
         self._create_analysis_chart_header(
             alignment_section_layout,
-            "💭Alignment",
+            "💭Alignment & Social Score",
             "alignment_summary",
             "alignment_summary",
+            dropdown_options=[
+                ("Alignment", "alignment"),
+                ("Social Score", "social_score"),
+            ],
             show_title=False,
         )
-        alignment_norms_subheader = add_database_subheader(
+        self.alignment_cumulative_subheader = add_database_subheader(
             "User perception of good vs evil alignment within the selection/database"
         )
-        alignment_section_layout.addWidget(alignment_norms_subheader)
-        #get rid of this graph:
-        (
-            self.alignment_summary_chart_container,
-            self.alignment_summary_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["alignment_summary"] = (
-            self.alignment_summary_chart_layout
-        )
-        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
-
-        alignment_cumulative_subheader = add_database_subheader(
-            "User perception of good vs evil alignment within the selection/database"
-        )
-        alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        alignment_section_layout.addWidget(self.alignment_cumulative_subheader)
         #keep this graph:
         (
             self.alignment_cumulative_chart_container,
@@ -3513,7 +3496,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
             self.alignment_cumulative_chart_layout
         )
+        self._database_metrics_chart_layouts["alignment_summary"] = (
+            self.alignment_cumulative_chart_layout
+        )
         alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
+
+        self.social_score_summary_subheader = add_database_subheader(
+            "How favorably the user feels about the selection/database, independent of perceived 'good/evil' alignment"
+        )
+        alignment_section_layout.addWidget(self.social_score_summary_subheader)
+        (
+            self.social_score_summary_chart_container,
+            self.social_score_summary_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["social_score_summary"] = (
+            self.social_score_summary_chart_layout
+        )
+        alignment_section_layout.addWidget(self.social_score_summary_chart_container)
 
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
@@ -8885,19 +8884,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             social_score_selection_counts = [loaded_charts] * len(social_score_labels)
             social_score_database_counts = [database_loaded_charts] * len(social_score_labels)
 
-            if _should_refresh_database_metric_section("social_score_summary"):
-                social_score_canvas = self._build_social_score_summary_chart(
-                    labels=social_score_labels,
-                    selection_values=social_score_selection_values,
-                    database_values=social_score_database_values,
-                    loaded_charts=loaded_charts,
-                )
-                self._clear_layout(self.social_score_summary_chart_layout)
-                self.social_score_summary_chart_layout.addWidget(
-                    social_score_canvas,
-                    0,
-                    Qt.AlignHCenter,
-                )
             self._analysis_chart_export_rows["social_score_summary"] = (
                 self._build_analysis_export_rows(
                     labels=social_score_labels,
@@ -8927,31 +8913,41 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             alignment_selection_counts = [loaded_charts] * len(alignment_labels)
             alignment_database_counts = [database_loaded_charts] * len(alignment_labels)
             if _should_refresh_database_metric_section("alignment_summary"):
-                alignment_summary_canvas = self._build_social_score_summary_chart(
-                    labels=alignment_labels[:2],
-                    selection_values=alignment_selection_values[:2],
-                    database_values=alignment_database_values[:2],
-                    loaded_charts=loaded_charts,
-                    color_resolver=alignment_score_to_rgb,
-                )
-                self._clear_layout(self.alignment_summary_chart_layout)
-                self.alignment_summary_chart_layout.addWidget(
-                    alignment_summary_canvas,
-                    0,
-                    Qt.AlignHCenter,
-                )
-                alignment_cumulative_canvas = self._build_alignment_cumulative_chart(
-                    selection_cumulative=selection_alignment_total,
-                    selection_average=selection_alignment_average,
-                    database_average=database_alignment_average,
-                    loaded_charts=loaded_charts,
-                )
+                selected_alignment_social_mode = getattr(self, "_alignment_social_mode", "alignment")
                 self._clear_layout(self.alignment_cumulative_chart_layout)
-                self.alignment_cumulative_chart_layout.addWidget(
-                    alignment_cumulative_canvas,
-                    0,
-                    Qt.AlignHCenter,
-                )
+                self._clear_layout(self.social_score_summary_chart_layout)
+                if selected_alignment_social_mode == "social_score":
+                    social_score_canvas = self._build_social_score_summary_chart(
+                        labels=social_score_labels,
+                        selection_values=social_score_selection_values,
+                        database_values=social_score_database_values,
+                        loaded_charts=loaded_charts,
+                    )
+                    self.social_score_summary_chart_layout.addWidget(
+                        social_score_canvas,
+                        0,
+                        Qt.AlignHCenter,
+                    )
+                    self.alignment_cumulative_chart_container.setVisible(False)
+                    self.social_score_summary_chart_container.setVisible(True)
+                    self.alignment_cumulative_subheader.setVisible(False)
+                    self.social_score_summary_subheader.setVisible(True)
+                else:
+                    alignment_cumulative_canvas = self._build_alignment_cumulative_chart(
+                        selection_cumulative=selection_alignment_total,
+                        selection_average=selection_alignment_average,
+                        database_average=database_alignment_average,
+                        loaded_charts=loaded_charts,
+                    )
+                    self.alignment_cumulative_chart_layout.addWidget(
+                        alignment_cumulative_canvas,
+                        0,
+                        Qt.AlignHCenter,
+                    )
+                    self.alignment_cumulative_chart_container.setVisible(True)
+                    self.social_score_summary_chart_container.setVisible(False)
+                    self.alignment_cumulative_subheader.setVisible(True)
+                    self.social_score_summary_subheader.setVisible(False)
             self._analysis_chart_export_rows["alignment_summary"] = (
                 self._build_analysis_export_rows(
                     labels=alignment_labels,

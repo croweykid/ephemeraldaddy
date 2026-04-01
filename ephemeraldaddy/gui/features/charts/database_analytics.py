@@ -1126,6 +1126,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
         color_resolver: Any = None,
         fixed_axis_limit: float | None = None,
+        value_precision: int = 2,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 2.8))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1146,8 +1147,8 @@ class DatabaseAnalyticsChartsMixin:
 
         def _format_metric_value(metric_label: str, value: float, *, signed: bool = False) -> str:
             if _is_percent_metric(metric_label):
-                return f"{value:+.2f}%" if signed else f"{value:.2f}%"
-            return f"{value:+.2f}" if signed else f"{value:.2f}"
+                return f"{value:+.{value_precision}f}%" if signed else f"{value:.{value_precision}f}%"
+            return f"{value:+.{value_precision}f}" if signed else f"{value:.{value_precision}f}"
 
         display_labels = []
         for label, selection_value in zip(labels, selection_values):
@@ -1272,6 +1273,7 @@ class DatabaseAnalyticsChartsMixin:
             loaded_charts=loaded_charts,
             color_resolver=lambda label, _value: DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
             fixed_axis_limit=20.0,
+            value_precision=0,
         )
 
     def _compute_dnd_statblock_averages(
