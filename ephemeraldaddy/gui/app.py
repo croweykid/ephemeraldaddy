@@ -3599,7 +3599,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Age",
+            "Age & Time Known",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3610,7 +3610,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
         self._create_analysis_chart_header(
             age_section_layout,
-            "Age",
+            "Age & Time Known",
             "age",
             "age",
             dropdown_options=[
@@ -9680,6 +9680,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[age_database_counts.get(label, 0) for label in age_labels],
                         loaded_charts=loaded_charts,
                         auto_height=True,
+                        use_earthtone_cycle=True,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0, Qt.AlignHCenter)
                 else:
@@ -9821,6 +9822,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             database_counts=[database_country_counts.get(label, 0) for label in country_labels],
                             loaded_charts=loaded_charts,
                             auto_height=True,
+                            use_earthtone_cycle=True,
                         )
                         self.birthplace_chart_layout.addWidget(country_canvas, 0, Qt.AlignHCenter)
                     else:
