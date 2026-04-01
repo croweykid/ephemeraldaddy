@@ -1796,6 +1796,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._alignment_score_min_input = None
         self._alignment_score_max_input = None
         self._alignment_score_blank_checkbox = None
+        self._dnd_stat_filter_min_inputs: dict[str, QLineEdit] = {}
+        self._dnd_stat_filter_max_inputs: dict[str, QLineEdit] = {}
         self._notes_comments_filter_checkbox = None
         self._notes_comments_filter_input = None
         self._notes_source_filter_checkbox = None
@@ -8126,6 +8128,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._human_design_type_filter_combo is not None
             else "Any"
         )
+        dnd_stat_ranges_active = any(
+            (
+                self._parse_integer_filter_text(min_input.text()) is not None
+                or self._parse_integer_filter_text(
+                    self._dnd_stat_filter_max_inputs.get(stat_key).text()
+                    if stat_key in self._dnd_stat_filter_max_inputs
+                    else ""
+                )
+                is not None
+            )
+            for stat_key, min_input in self._dnd_stat_filter_min_inputs.items()
+        )
 
         return not (
             self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
@@ -8163,6 +8177,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 not hasattr(self, "dnd_class_filter_combo")
                 or self.dnd_class_filter_combo.currentData() == "Any"
             )
+            and not dnd_stat_ranges_active
             and not guessed_gender_filter
             and positive_sentiment_intensity_min is None
             and positive_sentiment_intensity_max is None
@@ -10711,6 +10726,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.species_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         species_filter_row.addWidget(self.species_filter_combo, 1)
         dnd_species_group_layout.addLayout(species_filter_row)
+
+        dnd_stats_header = QLabel("Stat ranges")
+        dnd_stats_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        dnd_species_group_layout.addWidget(dnd_stats_header)
+        dnd_stat_grid = QGridLayout()
+        dnd_stat_grid.setContentsMargins(0, 0, 0, 0)
+        dnd_stat_grid.setHorizontalSpacing(14)
+        dnd_stat_grid.setVerticalSpacing(4)
+        dnd_stat_filter_order = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+        for idx, stat_key in enumerate(dnd_stat_filter_order):
+            row_layout = QHBoxLayout()
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(4)
+            row_layout.addWidget(QLabel(stat_key))
+            row_layout.addWidget(QLabel("min:"))
+            min_input = QLineEdit()
+            min_input.setFixedWidth(40)
+            min_input.setMaxLength(2)
+            min_input.setValidator(QIntValidator(1, 30, self))
+            min_input.setPlaceholderText("min")
+            min_input.textChanged.connect(self._on_filter_changed)
+            row_layout.addWidget(min_input)
+            row_layout.addWidget(QLabel("max:"))
+            max_input = QLineEdit()
+            max_input.setFixedWidth(40)
+            max_input.setMaxLength(2)
+            max_input.setValidator(QIntValidator(1, 30, self))
+            max_input.setPlaceholderText("max")
+            max_input.textChanged.connect(self._on_filter_changed)
+            row_layout.addWidget(max_input)
+            row_layout.addStretch(1)
+            self._dnd_stat_filter_min_inputs[stat_key] = min_input
+            self._dnd_stat_filter_max_inputs[stat_key] = max_input
+            row = idx % 3
+            col = idx // 3
+            dnd_stat_grid.addLayout(row_layout, row, col)
+        dnd_species_group_layout.addLayout(dnd_stat_grid)
         layout.addWidget(dnd_species_section)
 
 #Search: Mortality section
@@ -13934,6 +13986,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
+            for min_input in self._dnd_stat_filter_min_inputs.values():
+                min_input.setText("")
+            for max_input in self._dnd_stat_filter_max_inputs.values():
+                max_input.setText("")
             self.search_text_input.setText("")
             if self._search_location_country_input is not None:
                 self._search_location_country_input.setText("")
@@ -15244,6 +15300,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None
             else "Any"
         )
+        dnd_stat_filter_ranges = {
+            stat_key: (
+                self._parse_integer_filter_text(min_input.text()),
+                self._parse_integer_filter_text(
+                    self._dnd_stat_filter_max_inputs.get(stat_key).text()
+                    if stat_key in self._dnd_stat_filter_max_inputs
+                    else ""
+                ),
+            )
+            for stat_key, min_input in self._dnd_stat_filter_min_inputs.items()
+        }
+        has_active_dnd_stat_ranges = any(
+            stat_min is not None or stat_max is not None
+            for stat_min, stat_max in dnd_stat_filter_ranges.values()
+        )
         selected_sentiments = {
             name
             for name, checkbox in self.sentiment_filter_checkboxes.items()
@@ -15542,6 +15613,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }
             if selected_dnd_class not in top_three_classes:
                 return False
+
+        if has_active_dnd_stat_ranges:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                return False
+            try:
+                statblock = score_dnd_statblock(chart)
+            except Exception:
+                statblock = None
+            if statblock is None:
+                return False
+            for stat_key, (stat_min, stat_max) in dnd_stat_filter_ranges.items():
+                if stat_min is None and stat_max is None:
+                    continue
+                stat_value = int(statblock.scores.get(stat_key, 0))
+                if stat_min is not None and stat_value < stat_min:
+                    return False
+                if stat_max is not None and stat_value > stat_max:
+                    return False
 
         birth_status_filter_states: list[bool] = []
         if (
