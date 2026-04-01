@@ -36,6 +36,7 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
+    value_to_red_blue_rgb,
 )
 
 
@@ -1123,6 +1124,8 @@ class DatabaseAnalyticsChartsMixin:
         selection_values: list[float],
         database_values: list[float],
         loaded_charts: int,
+        social_score_min: float | None = None,
+        social_score_max: float | None = None,
         bar_height: float = 0.6,
         color_resolver: Any = None,
         fixed_axis_limit: float | None = None,
@@ -1160,8 +1163,16 @@ class DatabaseAnalyticsChartsMixin:
                 display_labels.append(label)
 
         positions = list(range(len(labels)))
+        range_min = float(social_score_min) if social_score_min is not None else None
+        range_max = float(social_score_max) if social_score_max is not None else None
+
+        def _resolve_social_color(value: float) -> Any:
+            if range_min is None or range_max is None:
+                return _resolve_bar_color("", value)
+            return value_to_red_blue_rgb(value, range_min, range_max)
+
         if loaded_charts == 0:
-            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, database_values)]
+            colors = [_resolve_social_color(value) for value in database_values]
             bars = ax.barh(
                 positions,
                 database_values,
@@ -1170,9 +1181,15 @@ class DatabaseAnalyticsChartsMixin:
                 zorder=2,
             )
             if fixed_axis_limit is not None:
-                lower_bound = min(0.0, -float(fixed_axis_limit))
-                upper_bound = max(0.0, float(fixed_axis_limit))
-                ax.set_xlim(0.0, float(fixed_axis_limit))
+                limit = float(fixed_axis_limit)
+                lower_bound = -limit
+                upper_bound = limit
+                ax.set_xlim(-limit, limit)
+            elif range_min is not None and range_max is not None:
+                limit = max(abs(range_min), abs(range_max), 1.0)
+                lower_bound = -limit
+                upper_bound = limit
+                ax.set_xlim(-limit, limit)
             else:
                 lower_bound = min(0.0, min(database_values, default=0.0))
                 upper_bound = max(0.0, max(database_values, default=0.0))
@@ -1201,7 +1218,7 @@ class DatabaseAnalyticsChartsMixin:
                 selection - database
                 for selection, database in zip(selection_values, database_values)
             ]
-            colors = [_resolve_bar_color(label, value) for label, value in zip(labels, differences)]
+            colors = [_resolve_social_color(value) for value in selection_values]
             widths = [abs(value) for value in differences]
             bars = ax.barh(
                 positions,
@@ -1215,6 +1232,10 @@ class DatabaseAnalyticsChartsMixin:
             if fixed_axis_limit is not None:
                 max_abs_difference = max(max_abs_difference, float(fixed_axis_limit))
                 ax.set_xlim(-float(fixed_axis_limit), float(fixed_axis_limit))
+            elif range_min is not None and range_max is not None:
+                range_limit = max(abs(range_min), abs(range_max), 1.0)
+                max_abs_difference = max(max_abs_difference, range_limit)
+                ax.set_xlim(-range_limit, range_limit)
             else:
                 self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
             ax.set_yticks(positions, labels=display_labels)

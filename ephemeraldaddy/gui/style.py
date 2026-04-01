@@ -65,6 +65,35 @@ def alignment_score_to_rgb(value: float) -> tuple[float, float, float]:
     return (red / 100.0, green / 100.0, blue / 100.0)
 
 
+def value_to_red_blue_rgb(
+    value: float,
+    min_value: float,
+    max_value: float,
+) -> tuple[float, float, float]:
+    """Map any scalar value to the shared red→blue gradient for a numeric range."""
+    if max_value > min_value:
+        ratio = (float(value) - float(min_value)) / (float(max_value) - float(min_value))
+    else:
+        ratio = 0.5
+    clamped_ratio = max(0.0, min(1.0, ratio))
+    red = _interpolate_rgb_channel(
+        ALIGNMENT_NEGATIVE_RGB[0],
+        ALIGNMENT_POSITIVE_RGB[0],
+        clamped_ratio,
+    )
+    green = _interpolate_rgb_channel(
+        ALIGNMENT_NEGATIVE_RGB[1],
+        ALIGNMENT_POSITIVE_RGB[1],
+        clamped_ratio,
+    )
+    blue = _interpolate_rgb_channel(
+        ALIGNMENT_NEGATIVE_RGB[2],
+        ALIGNMENT_POSITIVE_RGB[2],
+        clamped_ratio,
+    )
+    return (red / 100.0, green / 100.0, blue / 100.0)
+
+
 def format_chart_header(template_key: str, **kwargs: object) -> str:
     """Format a standard chart header line using the shared template catalog."""
     return CHART_HEADER_TEMPLATES[template_key].format(**kwargs)
