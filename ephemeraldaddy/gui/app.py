@@ -1898,19 +1898,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_todays_transits_panel
         )
 
-        self.database_metrics_panel_button = QPushButton("⛁📊") #🗂️Database Metrics
+        self.database_metrics_panel_button = QPushButton("🗄️📊") #🗂️Database Analytics panel (aka database Metrics) #📚?
         self.database_metrics_panel_button.setObjectName("manage_toggle_database_metrics_panel_button")
         self.database_metrics_panel_button.clicked.connect(
             self._toggle_database_metrics_panel
         )
 
-        self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊")
+        self.gen_pop_norms_panel_button = QPushButton("👨‍👨‍👧‍👧📊") #Gen Pop Comparison panel
         self.gen_pop_norms_panel_button.setObjectName("manage_toggle_gen_pop_norms_panel_button")
         self.gen_pop_norms_panel_button.clicked.connect(
             self._toggle_gen_pop_norms_panel
         )
 
-        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis
+        self.similarities_panel_button = QPushButton("👬📊") #Similarities Analysis panel
         self.similarities_panel_button.setObjectName("manage_toggle_similarities_panel_button")
         self.similarities_panel_button.clicked.connect(
             self._toggle_similarities_panel
@@ -3157,7 +3157,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         position_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Sign Distribution by Placement",
+            "🪐Sign Distribution by Placement",
             section_key="planetary_sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("planetary_sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3168,7 +3168,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["planetary_sign_prevalence"] = self._is_database_metrics_section_expanded("planetary_sign_prevalence")
         self._create_analysis_chart_header(
             position_sign_section_layout,
-            "Sign Distribution by Placement",
+            "🪐Sign Distribution by Placement",
             "planetary_sign_prevalence",
             "planetary_sign_prevalence",
             dropdown_options=SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
@@ -3186,176 +3186,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         position_sign_section_layout.addWidget(self.position_sign_distribution_chart_container)
 
-        #SENTIMENT PREVALENCE SECTION
-        sentiment_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Sentiment Prevalence",
-            section_key="sentiment_prevalence",
-            expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "sentiment_prevalence",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["sentiment_prevalence"] = self._is_database_metrics_section_expanded("sentiment_prevalence")
-        #Sentiment Prevalence Chart Header
-        self._create_analysis_chart_header(
-            sentiment_section_layout,
-            "Sentiment Prevalence",
-            "sentiment_prevalence",
-            "sentiment_prevalence",
-            show_title=False,
-        )
-        sentiment_subheader = add_database_subheader("Distribution of sentiments in database")
-        sentiment_section_layout.addWidget(sentiment_subheader)
-        #Sentiment Prevalence Chart
-        (
-            self.sentiment_chart_container,
-            self.sentiment_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["sentiment_prevalence"] = (
-            self.sentiment_chart_layout
-        )
-        sentiment_section_layout.addWidget(self.sentiment_chart_container)
-
-        self.include_placeholder_sentiment_checkbox = QCheckBox(
-            "include placeholders"
-        )
-        self.include_placeholder_sentiment_checkbox.setChecked(True)
-        self.include_placeholder_sentiment_checkbox.toggled.connect(
-            lambda _checked: self._update_sentiment_tally(update_similarities=False)
-        )
-        sentiment_section_layout.addWidget(self.include_placeholder_sentiment_checkbox)
-
-        #RELATIONSHIP PREVALENCE SECTION
-        relationship_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Relationship Prevalence",
-            section_key="relationship_prevalence",
-            expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "relationship_prevalence",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["relationship_prevalence"] = self._is_database_metrics_section_expanded("relationship_prevalence")
-        #Relationship Prevalence Chart Header
-        self._create_analysis_chart_header(
-            relationship_section_layout,
-            "Relationship Prevalence",
-            "relationship_prevalence",
-            "relationship_prevalence",
-            show_title=False,
-        )
-        relationship_subheader = add_database_subheader(
-            "Distribution of relationship types in database"
-        )
-        relationship_section_layout.addWidget(relationship_subheader)
-
-        #Relationship Prevalence Chart
-        (
-            self.relationship_chart_container,
-            self.relationship_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["relationship_prevalence"] = (
-            self.relationship_chart_layout
-        )
-        relationship_section_layout.addWidget(self.relationship_chart_container)
-        self.include_placeholder_relationship_checkbox = QCheckBox(
-            "include placeholders"
-        )
-        self.include_placeholder_relationship_checkbox.setChecked(True)
-        self.include_placeholder_relationship_checkbox.toggled.connect(
-            lambda _checked: self._update_sentiment_tally(update_similarities=False)
-        )
-        relationship_section_layout.addWidget(
-            self.include_placeholder_relationship_checkbox
-        )
-
-        #SOCIAL SCORE SUMMARY SECTION
-        social_score_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Social Score",
-            section_key="social_score_summary",
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "social_score_summary",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["social_score_summary"] = self._is_database_metrics_section_expanded("social_score_summary")
-        self._create_analysis_chart_header(
-            social_score_section_layout,
-            "Social Score",
-            "social_score_summary",
-            "social_score_summary",
-            show_title=False,
-        )
-        social_score_subheader = add_database_subheader(
-            "Median and average social score"
-        )
-        social_score_section_layout.addWidget(social_score_subheader)
-        (
-            self.social_score_summary_chart_container,
-            self.social_score_summary_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["social_score_summary"] = (
-            self.social_score_summary_chart_layout
-        )
-        social_score_section_layout.addWidget(self.social_score_summary_chart_container)
-
-        #ALIGNMENT SUMMARY SECTION
-        alignment_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Alignment",
-            section_key="alignment_summary",
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "alignment_summary",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
-        self._create_analysis_chart_header(
-            alignment_section_layout,
-            "Alignment",
-            "alignment_summary",
-            "alignment_summary",
-            show_title=False,
-        )
-        alignment_norms_subheader = add_database_subheader(
-            "Median and average alignment score"
-        )
-        alignment_section_layout.addWidget(alignment_norms_subheader)
-        (
-            self.alignment_summary_chart_container,
-            self.alignment_summary_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["alignment_summary"] = (
-            self.alignment_summary_chart_layout
-        )
-        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
-
-        alignment_cumulative_subheader = add_database_subheader(
-            "Cumulative alignment of current selection"
-        )
-        alignment_section_layout.addWidget(alignment_cumulative_subheader)
-        (
-            self.alignment_cumulative_chart_container,
-            self.alignment_cumulative_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
-            self.alignment_cumulative_chart_layout
-        )
-        alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
-
         #SIGN PREVALENCE SECTION
         sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Prevalence",
+            "🪐Astro Chart Prevalences",
             section_key="sign_prevalence",
             expanded=self._is_database_metrics_section_expanded("sign_prevalence"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3367,7 +3202,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Sign Prevalence Chart Header
         self._create_analysis_chart_header(
             sign_section_layout,
-            "Prevalence",
+            "🪐Astro Chart Prevalences",
             "sign_prevalence",
             "sign_prevalence",
             dropdown_options=[
@@ -3395,7 +3230,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dominant_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Dominant Factors (by top 3)",
+            "🪐Dominant Factors (Top 3)",
             section_key="dominant_signs",
             expanded=self._is_database_metrics_section_expanded("dominant_signs"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3407,7 +3242,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #Dominant Factors Chart Header
         self._create_analysis_chart_header(
             dominant_sign_section_layout,
-            "Dominant Factors (by top 3)",
+            "🪐Dominant Factors (Top 3)",
             "dominant_signs",
             "dominant_signs",
             dropdown_options=[
@@ -3417,7 +3252,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.dominant_factors_subheader = add_database_subheader("top 3 dominant signs for charts in database")
+        self.dominant_factors_subheader = add_database_subheader("Top 3 most dominant signs in selection/database")
         dominant_sign_section_layout.addWidget(self.dominant_factors_subheader)
         self._update_dominant_factors_subheader()
         #Dominant Sign Chart
@@ -3434,7 +3269,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Dominant Factors (cumulative weight)",
+            "🪐Dominant Factors (cumulative)",
             section_key="cumulativedom_factors",
             expanded=self._is_database_metrics_section_expanded("cumulativedom_factors"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3445,7 +3280,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["cumulativedom_factors"] = self._is_database_metrics_section_expanded("cumulativedom_factors")
         self._create_analysis_chart_header(
             cumulativedom_sign_section_layout,
-            "Dominant Factors (cumulative weight)",
+            "🪐Dominant Factors (cumulative weight)",
             "cumulativedom_factors",
             "cumulativedom_factors",
             dropdown_options=[
@@ -3456,7 +3291,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             show_title=False,
         )
         self.cumulativedom_factors_subheader = add_database_subheader(
-            "Dominant signs in database (by cumulative weight)"
+            "Dominant signs in selection/database (by cumulative weight)"
         )
         cumulativedom_sign_section_layout.addWidget(self.cumulativedom_factors_subheader)
         self._update_cumulativedom_factors_subheader()
@@ -3469,11 +3304,212 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         cumulativedom_sign_section_layout.addWidget(self.cumulativedom_sign_chart_container)
 
+        # HUMAN DESIGN SECTION
+        human_design_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🪐Human Design",
+            section_key="human_design",
+            expanded=self._is_database_metrics_section_expanded("human_design"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "human_design",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["human_design"] = self._is_database_metrics_section_expanded("human_design")
+        self._create_analysis_chart_header(
+            human_design_section_layout,
+            "🪐Human Design",
+            "human_design",
+            "human_design",
+            dropdown_options=[
+                ("Gates", "hd_gates"),
+                ("Lines", "hd_lines"),
+                ("Channels", "hd_channels"),
+            ],
+            show_title=False,
+        )
+        human_design_subheader = add_database_subheader(
+            "Human Design profile distribution by gate, line, and channel."
+        )
+        human_design_section_layout.addWidget(human_design_subheader)
+        (
+            self.human_design_chart_container,
+            self.human_design_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["human_design"] = self.human_design_chart_layout
+        human_design_section_layout.addWidget(self.human_design_chart_container)
+
+        #SENTIMENT PREVALENCE SECTION
+        sentiment_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "💭Sentiment Prevalence",
+            section_key="sentiment_prevalence",
+            expanded=self._is_database_metrics_section_expanded("sentiment_prevalence"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "sentiment_prevalence",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["sentiment_prevalence"] = self._is_database_metrics_section_expanded("sentiment_prevalence")
+        #Sentiment Prevalence Chart Header
+        self._create_analysis_chart_header(
+            sentiment_section_layout,
+            "💭Sentiment Prevalence",
+            "sentiment_prevalence",
+            "sentiment_prevalence",
+            show_title=False,
+        )
+        sentiment_subheader = add_database_subheader("Distribution of user sentiments in relation to selection/database")
+        sentiment_section_layout.addWidget(sentiment_subheader)
+        #Sentiment Prevalence Chart
+        (
+            self.sentiment_chart_container,
+            self.sentiment_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["sentiment_prevalence"] = (
+            self.sentiment_chart_layout
+        )
+        sentiment_section_layout.addWidget(self.sentiment_chart_container)
+
+        self.include_placeholder_sentiment_checkbox = QCheckBox(
+            "include placeholders"
+        )
+        self.include_placeholder_sentiment_checkbox.setChecked(True)
+        self.include_placeholder_sentiment_checkbox.toggled.connect(
+            lambda _checked: self._update_sentiment_tally(update_similarities=False)
+        )
+        sentiment_section_layout.addWidget(self.include_placeholder_sentiment_checkbox)
+
+        #RELATIONSHIP PREVALENCE SECTION
+        relationship_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "💭Relationship Prevalence",
+            section_key="relationship_prevalence",
+            expanded=self._is_database_metrics_section_expanded("relationship_prevalence"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "relationship_prevalence",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["relationship_prevalence"] = self._is_database_metrics_section_expanded("relationship_prevalence")
+        #Relationship Prevalence Chart Header
+        self._create_analysis_chart_header(
+            relationship_section_layout,
+            "💭Relationship Prevalence",
+            "relationship_prevalence",
+            "relationship_prevalence",
+            show_title=False,
+        )
+        relationship_subheader = add_database_subheader(
+            "Distribution of user's relationship types in relation to selection/database"
+        )
+        relationship_section_layout.addWidget(relationship_subheader)
+
+        #Relationship Prevalence Chart
+        (
+            self.relationship_chart_container,
+            self.relationship_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["relationship_prevalence"] = (
+            self.relationship_chart_layout
+        )
+        relationship_section_layout.addWidget(self.relationship_chart_container)
+        self.include_placeholder_relationship_checkbox = QCheckBox(
+            "include placeholders"
+        )
+        self.include_placeholder_relationship_checkbox.setChecked(True)
+        self.include_placeholder_relationship_checkbox.toggled.connect(
+            lambda _checked: self._update_sentiment_tally(update_similarities=False)
+        )
+        relationship_section_layout.addWidget(
+            self.include_placeholder_relationship_checkbox
+        )
+
+        #SOCIAL SCORE SUMMARY SECTION
+        social_score_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "💭Social Score",
+            section_key="social_score_summary",
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "social_score_summary",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["social_score_summary"] = self._is_database_metrics_section_expanded("social_score_summary")
+        self._create_analysis_chart_header(
+            social_score_section_layout,
+            "💭Social Score",
+            "social_score_summary",
+            "social_score_summary",
+            show_title=False,
+        )
+        social_score_subheader = add_database_subheader(
+            "How favorably the user feels about the selection/database, independent of perceived 'good/evil' alignment"
+        )
+        social_score_section_layout.addWidget(social_score_subheader)
+        (
+            self.social_score_summary_chart_container,
+            self.social_score_summary_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["social_score_summary"] = (
+            self.social_score_summary_chart_layout
+        )
+        social_score_section_layout.addWidget(self.social_score_summary_chart_container)
+
+        #ALIGNMENT SUMMARY SECTION
+        alignment_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "💭Alignment",
+            section_key="alignment_summary",
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "alignment_summary",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
+        self._create_analysis_chart_header(
+            alignment_section_layout,
+            "💭Alignment",
+            "alignment_summary",
+            "alignment_summary",
+            show_title=False,
+        )
+        alignment_norms_subheader = add_database_subheader(
+            "User perception of good vs evil alignment within the selection/database"
+        )
+        alignment_section_layout.addWidget(alignment_norms_subheader)
+        (
+            self.alignment_summary_chart_container,
+            self.alignment_summary_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary"] = (
+            self.alignment_summary_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_summary_chart_container)
+
+        alignment_cumulative_subheader = add_database_subheader(
+            "Cumulative alignment of current selection"
+        )
+        alignment_section_layout.addWidget(alignment_cumulative_subheader)
+        (
+            self.alignment_cumulative_chart_container,
+            self.alignment_cumulative_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["alignment_summary_cumulative"] = (
+            self.alignment_cumulative_chart_layout
+        )
+        alignment_section_layout.addWidget(self.alignment_cumulative_chart_container)
+
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "D&&D Typing",
+            "⚔️D&&D-ification",
             section_key="species_distribution",
             expanded=self._is_database_metrics_section_expanded("species_distribution"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3486,7 +3522,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #D&D Typing Chart Header
         self._create_analysis_chart_header(
             species_section_layout,
-            "D&&D Typing",
+            "⚔️D&&D-ification",
             "species_distribution",
             "species_distribution",
             dropdown_options=[
@@ -3498,7 +3534,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ],
             show_title=False,
         )
-        self.species_distribution_subheader = add_database_subheader("Distribution of D&D species/classes in database")
+        self.species_distribution_subheader = add_database_subheader("D&D-themed subjective taxonomical distribution in selection/database, because it's fun.")
         species_section_layout.addWidget(self.species_distribution_subheader)
         self._update_species_distribution_subheader()
 
@@ -3512,140 +3548,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         species_section_layout.addWidget(self.species_distribution_chart_container)
         
-        #BIRTH TIME SECTION #🐣time section
-        birth_time_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🐣Time",
-            section_key="birth_time",
-            expanded=self._is_database_metrics_section_expanded("birth_time"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "birth_time",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["birth_time"] = self._is_database_metrics_section_expanded("birth_time")
-        self._create_analysis_chart_header(
-            birth_time_section_layout,
-            "🐣Time",
-            "birth_time",
-            "birth_time",
-            dropdown_options=[
-                ("Mean", "mean"),
-                ("Mode (rounded hour)", "mode_hour"),
-                ("Median", "median"),
-            ],
-            show_title=False,
-        )
-        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
-        birth_time_section_layout.addWidget(birth_time_subheader)
-        (
-            self.birth_time_chart_container,
-            self.birth_time_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["birth_time"] = self.birth_time_chart_layout
-        birth_time_section_layout.addWidget(self.birth_time_chart_container)
-
-        # AGE SECTION
-        age_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "Age",
-            section_key="age",
-            expanded=self._is_database_metrics_section_expanded("age"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "age",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
-        self._create_analysis_chart_header(
-            age_section_layout,
-            "Age",
-            "age",
-            "age",
-            dropdown_options=[
-                ("Age", "age_distribution"),
-                ("Time Known", "time_known_distribution"),
-            ],
-            show_title=False,
-        )
-        age_subheader = add_database_subheader("Distribution of age and total time known")
-        age_section_layout.addWidget(age_subheader)
-        (
-            self.age_chart_container,
-            self.age_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["age"] = self.age_chart_layout
-        age_section_layout.addWidget(self.age_chart_container)
-
-        #BIRTH MONTH SECTION #🐣Month Section
-        birth_month_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🐣Day", #birthday
-            section_key="birth_month",
-            expanded=self._is_database_metrics_section_expanded("birth_month"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "birth_month",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["birth_month"] = self._is_database_metrics_section_expanded("birth_month")
-        self._create_analysis_chart_header(
-            birth_month_section_layout,
-            "🐣Month",
-            "birth_month",
-            "birth_month",
-            dropdown_options=[
-                ("🐣Month", "month_distribution"),
-                ("Top 🐣 Dates", "top_birth_dates"),
-            ],
-            show_title=False,
-        )
-        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
-        birth_month_section_layout.addWidget(birth_month_subheader)
-        (
-            self.birth_month_chart_container,
-            self.birth_month_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["birth_month"] = self.birth_month_chart_layout
-        birth_month_section_layout.addWidget(self.birth_month_chart_container)
-
-        #BIRTH PLACE SECTION
-        birth_place_section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🐣Place",
-            section_key="birthplace",
-            expanded=self._is_database_metrics_section_expanded("birthplace"),
-            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "birthplace",
-                checked,
-            ),
-        )
-        self._database_metrics_section_expanded["birthplace"] = self._is_database_metrics_section_expanded("birthplace")
-        self._create_analysis_chart_header(
-            birth_place_section_layout,
-            "🐣Place",
-            "birthplace",
-            "birthplace",
-            dropdown_options=[
-                ("Most Common 🐣Towns", "towns"),
-                ("Most Common 🐣Countries", "countries"),
-                ("Most Common 🐣US States", "us_states"),
-            ],
-            show_title=False,
-        )
-        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
-        birth_place_section_layout.addWidget(birthplace_subheader)
-        (
-            self.birthplace_chart_container,
-            self.birthplace_chart_layout,
-        ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
-        birth_place_section_layout.addWidget(self.birthplace_chart_container)
-
         # GENDER SECTION
         gender_section_layout = self._add_left_panel_collapsible_section(
             panel,
@@ -3681,41 +3583,142 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.gender_unknown_note.setVisible(False)
         gender_section_layout.addWidget(self.gender_unknown_note)
 
-        # HUMAN DESIGN SECTION
-        human_design_section_layout = self._add_left_panel_collapsible_section(
+        # AGE SECTION
+        age_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Human Design",
-            section_key="human_design",
-            expanded=self._is_database_metrics_section_expanded("human_design"),
+            "Age",
+            section_key="age",
+            expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
-                "human_design",
+                "age",
                 checked,
             ),
         )
-        self._database_metrics_section_expanded["human_design"] = self._is_database_metrics_section_expanded("human_design")
+        self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
         self._create_analysis_chart_header(
-            human_design_section_layout,
-            "Human Design",
-            "human_design",
-            "human_design",
+            age_section_layout,
+            "Age",
+            "age",
+            "age",
             dropdown_options=[
-                ("Gates", "hd_gates"),
-                ("Lines", "hd_lines"),
-                ("Channels", "hd_channels"),
+                ("Age", "age_distribution"),
+                ("Time Known", "time_known_distribution"),
             ],
             show_title=False,
         )
-        human_design_subheader = add_database_subheader(
-            "Human Design profile distribution by gate, line, and channel."
-        )
-        human_design_section_layout.addWidget(human_design_subheader)
+        age_subheader = add_database_subheader("Distribution of age and total time known")
+        age_section_layout.addWidget(age_subheader)
         (
-            self.human_design_chart_container,
-            self.human_design_chart_layout,
+            self.age_chart_container,
+            self.age_chart_layout,
         ) = self._create_database_analytics_chart_container()
-        self._database_metrics_chart_layouts["human_design"] = self.human_design_chart_layout
-        human_design_section_layout.addWidget(self.human_design_chart_container)
+        self._database_metrics_chart_layouts["age"] = self.age_chart_layout
+        age_section_layout.addWidget(self.age_chart_container)
+
+
+        #BIRTH TIME SECTION #Birth Time section
+        birth_time_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Birth Time",
+            section_key="birth_time",
+            expanded=self._is_database_metrics_section_expanded("birth_time"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "birth_time",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["birth_time"] = self._is_database_metrics_section_expanded("birth_time")
+        self._create_analysis_chart_header(
+            birth_time_section_layout,
+            "Birth Time",
+            "birth_time",
+            "birth_time",
+            dropdown_options=[
+                ("Mean", "mean"),
+                ("Mode (rounded hour)", "mode_hour"),
+                ("Median", "median"),
+            ],
+            show_title=False,
+        )
+        birth_time_subheader = add_database_subheader("Birth time summary across loaded charts")
+        birth_time_section_layout.addWidget(birth_time_subheader)
+        (
+            self.birth_time_chart_container,
+            self.birth_time_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["birth_time"] = self.birth_time_chart_layout
+        birth_time_section_layout.addWidget(self.birth_time_chart_container)
+
+        #BIRTH MONTH SECTION #Birth Month Section
+        birth_month_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Birth Day", #birthday
+            section_key="birth_month",
+            expanded=self._is_database_metrics_section_expanded("birth_month"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "birth_month",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["birth_month"] = self._is_database_metrics_section_expanded("birth_month")
+        self._create_analysis_chart_header(
+            birth_month_section_layout,
+            "Birth Month",
+            "birth_month",
+            "birth_month",
+            dropdown_options=[
+                ("🐣Month", "month_distribution"),
+                ("Top 🐣 Dates", "top_birth_dates"),
+            ],
+            show_title=False,
+        )
+        birth_month_subheader = add_database_subheader("Birth month and recurring birth date patterns")
+        birth_month_section_layout.addWidget(birth_month_subheader)
+        (
+            self.birth_month_chart_container,
+            self.birth_month_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["birth_month"] = self.birth_month_chart_layout
+        birth_month_section_layout.addWidget(self.birth_month_chart_container)
+
+        #BIRTH PLACE SECTION
+        birth_place_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "Birth Place",
+            section_key="birthplace",
+            expanded=self._is_database_metrics_section_expanded("birthplace"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "birthplace",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["birthplace"] = self._is_database_metrics_section_expanded("birthplace")
+        self._create_analysis_chart_header(
+            birth_place_section_layout,
+            "Birth Place",
+            "birthplace",
+            "birthplace",
+            dropdown_options=[
+                ("🐣Countries represented", "countries"),
+                ("🐣Cities represented", "towns"),
+                ("🐣US States represented", "us_states"),
+            ],
+            show_title=False,
+        )
+        birthplace_subheader = add_database_subheader("Birthplace distribution and recurring locations")
+        birth_place_section_layout.addWidget(birthplace_subheader)
+        (
+            self.birthplace_chart_container,
+            self.birthplace_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
+        birth_place_section_layout.addWidget(self.birthplace_chart_container)
+
+#end of lefthand Database Analytics panel, it closes below:
         return panel
 
     def _build_todays_transits_panel(self) -> QWidget:
@@ -5574,7 +5577,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _build_human_design_export_text(chart_data_text: str) -> str:
             return "\n".join(
                 [
-                    "Human Design",
+                    "🪐Human Design",
                     f"Name:       {self._latest_chart.name}",
                     f"🐣date: {date_label}",
                     f"🐣time: {time_label}",
@@ -10053,7 +10056,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Search: data completeness & accuracy
         birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-            "Data Completeness && Accuracy"
+            "🧩 Data Completeness && Accuracy" #data icon contenders: 🧮 🗄️ 🪪 𖦏 🔢 🧩 ℹ️
         )
 
         incomplete_birthdate_row = QHBoxLayout()
@@ -10089,286 +10092,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_filters_row.addStretch(1)
         birth_info_status_layout.addLayout(birth_filters_row)
         layout.addWidget(birth_info_status_section)
-
-#Search: Mortality section
-        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
-        mortality_row = QHBoxLayout()
-        self.living_checkbox = QuadStateSlider("living")
-        self.living_checkbox.modeChanged.connect(self._on_filter_changed)
-        mortality_row.addWidget(self.living_checkbox)
-        mortality_row.addStretch(1)
-        mortality_section_layout.addLayout(mortality_row)
-
-        generation_divider = QFrame()
-        generation_divider.setFrameShape(QFrame.HLine)
-        generation_divider.setStyleSheet("color: #2f2f2f;")
-        mortality_section_layout.addWidget(generation_divider)
-
-        generation_header = QLabel("Generation")
-        generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-        mortality_section_layout.addWidget(generation_header)
-
-        generation_layout = QGridLayout()
-        generation_layout.setContentsMargins(0, 0, 0, 0)
-        self.generation_filter_checkboxes = {}
-        generation_rows = (len(GENERATION_FILTER_OPTIONS) + 1) // 2
-        for idx, generation_name in enumerate(GENERATION_FILTER_OPTIONS):
-            checkbox = QuadStateSlider(generation_name)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.generation_filter_checkboxes[generation_name] = checkbox
-            row = idx % generation_rows
-            col = idx // generation_rows
-            generation_layout.addWidget(checkbox, row, col)
-        mortality_section_layout.addLayout(generation_layout)
-
-        layout.addWidget(mortality_section)
-
-#Search: gender section
-        gender_section, gender_group_layout = add_collapsible_section("Gender")
-        gender_mode_layout = QHBoxLayout()
-        gender_mode_layout.addWidget(QLabel("Gender"))
-        gender_mode_layout.addStretch(1)
-        self.gender_filter_and = QRadioButton("AND")
-        self.gender_filter_or = QRadioButton("OR")
-        self.gender_filter_group = QButtonGroup(self)
-        self.gender_filter_group.setExclusive(True)
-        self.gender_filter_group.addButton(self.gender_filter_and)
-        self.gender_filter_group.addButton(self.gender_filter_or)
-        self.gender_filter_and.setChecked(True)
-        self.gender_filter_group.buttonClicked.connect(self._on_filter_changed)
-        gender_mode_layout.addWidget(self.gender_filter_and)
-        gender_mode_layout.addWidget(self.gender_filter_or)
-        gender_group_layout.addLayout(gender_mode_layout)
-
-        gender_layout = QGridLayout()
-        gender_layout.setContentsMargins(0, 0, 0, 0)
-        self.gender_filter_checkboxes = {}
-        gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
-            checkbox_label = "blank" if label == "none" else label
-            checkbox = QuadStateSlider(checkbox_label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.gender_filter_checkboxes[label] = checkbox
-            row = idx % gender_rows
-            col = idx // gender_rows
-            gender_layout.addWidget(checkbox, row, col)
-        gender_group_layout.addLayout(gender_layout)
-
-        gender_guessed_layout = QHBoxLayout()
-        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
-        self.gender_guessed_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.gender_guessed_filter_combo)
-        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
-            self.gender_guessed_filter_combo.addItem(label, value)
-        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
-        gender_group_layout.addLayout(gender_guessed_layout)
-
-        layout.addWidget(gender_section)
-
-#Search: chart type section
-        chart_type_section, chart_type_group_layout = add_collapsible_section(
-            "Chart Type"
-        )
-        chart_type_layout = QGridLayout()
-        chart_type_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_type_filter_checkboxes = {}
-        chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
-        for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
-            checkbox = QuadStateSlider(source_label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.chart_type_filter_checkboxes[source_value] = checkbox
-            row = idx % chart_type_rows
-            col = idx // chart_type_rows
-            chart_type_layout.addWidget(checkbox, row, col)
-        chart_type_group_layout.addLayout(chart_type_layout)
-        layout.addWidget(chart_type_section)
-
-#Search: year first encountered
-        year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
-            "💭Year 1st Encountered" #year user first encountered
-        )
-        year_first_encountered_range_row = QHBoxLayout()
-        year_first_encountered_range_row.addWidget(QLabel("Earliest"))
-        self._year_first_encountered_earliest_input = QLineEdit()
-        self._year_first_encountered_earliest_input.setMaxLength(4)
-        self._year_first_encountered_earliest_input.setFixedWidth(56)
-        self._year_first_encountered_earliest_input.setPlaceholderText("YYYY")
-        self._year_first_encountered_earliest_input.setValidator(
-            QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self)
-        )
-        self._year_first_encountered_earliest_input.textChanged.connect(self._on_filter_changed)
-        year_first_encountered_range_row.addWidget(self._year_first_encountered_earliest_input)
-        year_first_encountered_range_row.addSpacing(10)
-        year_first_encountered_range_row.addWidget(QLabel("Latest"))
-        self._year_first_encountered_latest_input = QLineEdit()
-        self._year_first_encountered_latest_input.setMaxLength(4)
-        self._year_first_encountered_latest_input.setFixedWidth(56)
-        self._year_first_encountered_latest_input.setPlaceholderText("YYYY")
-        self._year_first_encountered_latest_input.setValidator(
-            QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self)
-        )
-        self._year_first_encountered_latest_input.textChanged.connect(self._on_filter_changed)
-        year_first_encountered_range_row.addWidget(self._year_first_encountered_latest_input)
-        year_first_encountered_range_row.addStretch(1)
-        year_first_encountered_group_layout.addLayout(year_first_encountered_range_row)
-
-        year_first_encountered_blank_row = QHBoxLayout()
-        self._year_first_encountered_blank_checkbox = QuadStateSlider("blank")
-        self._year_first_encountered_blank_checkbox.modeChanged.connect(self._on_filter_changed)
-        year_first_encountered_blank_row.addWidget(self._year_first_encountered_blank_checkbox)
-        year_first_encountered_blank_row.addStretch(1)
-        year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
-        layout.addWidget(year_first_encountered_section)
-
-        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiments")
-
-        sentiment_mode_layout = QHBoxLayout()
-        sentiment_mode_layout.addWidget(QLabel("Sentiment type"))
-        sentiment_mode_layout.addStretch(1)
-        self.sentiment_filter_and = QRadioButton("AND")
-        self.sentiment_filter_or = QRadioButton("OR")
-        self.sentiment_filter_group = QButtonGroup(self)
-        self.sentiment_filter_group.setExclusive(True)
-        self.sentiment_filter_group.addButton(self.sentiment_filter_and)
-        self.sentiment_filter_group.addButton(self.sentiment_filter_or)
-        self.sentiment_filter_and.setChecked(True)
-        # Use group-level click handling so we only refresh once per selection
-        # change and avoid transient states where neither option is checked.
-        self.sentiment_filter_group.buttonClicked.connect(self._on_filter_changed)
-        sentiment_mode_layout.addWidget(self.sentiment_filter_and)
-        sentiment_mode_layout.addWidget(self.sentiment_filter_or)
-        sentiment_group_layout.addLayout(sentiment_mode_layout)
-        sentiment_layout = QGridLayout()
-        sentiment_layout.setContentsMargins(0, 0, 0, 0)
-        self.sentiment_filter_checkboxes = {}
-        sentiment_rows = (len(SEARCH_SENTIMENT_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SEARCH_SENTIMENT_OPTIONS):
-            checkbox = QuadStateSlider(label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.sentiment_filter_checkboxes[label] = checkbox
-            row = idx % sentiment_rows
-            col = idx // sentiment_rows
-            sentiment_layout.addWidget(checkbox, row, col)
-        sentiment_group_layout.addLayout(sentiment_layout)
-
-        sentiment_intensity_row = QHBoxLayout()
-        sentiment_intensity_row.addWidget(QLabel("💖"))
-        self._positive_sentiment_intensity_min_input = QLineEdit()
-        self._positive_sentiment_intensity_min_input.setFixedWidth(44)
-        self._positive_sentiment_intensity_min_input.setMaxLength(2)
-        self._positive_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
-        self._positive_sentiment_intensity_min_input.setPlaceholderText("min")
-        self._positive_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
-        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_min_input)
-        sentiment_intensity_row.addWidget(QLabel("max"))
-        self._positive_sentiment_intensity_max_input = QLineEdit()
-        self._positive_sentiment_intensity_max_input.setFixedWidth(44)
-        self._positive_sentiment_intensity_max_input.setMaxLength(2)
-        self._positive_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
-        self._positive_sentiment_intensity_max_input.setPlaceholderText("max")
-        self._positive_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
-        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_max_input)
-        sentiment_intensity_row.addSpacing(10)
-        sentiment_intensity_row.addWidget(QLabel("💔"))
-        self._negative_sentiment_intensity_min_input = QLineEdit()
-        self._negative_sentiment_intensity_min_input.setFixedWidth(44)
-        self._negative_sentiment_intensity_min_input.setMaxLength(2)
-        self._negative_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
-        self._negative_sentiment_intensity_min_input.setPlaceholderText("min")
-        self._negative_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
-        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_min_input)
-        sentiment_intensity_row.addWidget(QLabel("max"))
-        self._negative_sentiment_intensity_max_input = QLineEdit()
-        self._negative_sentiment_intensity_max_input.setFixedWidth(44)
-        self._negative_sentiment_intensity_max_input.setMaxLength(2)
-        self._negative_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
-        self._negative_sentiment_intensity_max_input.setPlaceholderText("max")
-        self._negative_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
-        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_max_input)
-        sentiment_intensity_row.addStretch(1)
-        sentiment_group_layout.addLayout(sentiment_intensity_row)
-
-        familiarity_row = QHBoxLayout()
-        familiarity_row.addWidget(QLabel("Familiarity"))
-        self._familiarity_min_input = QLineEdit()
-        self._familiarity_min_input.setFixedWidth(44)
-        self._familiarity_min_input.setMaxLength(2)
-        self._familiarity_min_input.setValidator(QIntValidator(1, 10, self))
-        self._familiarity_min_input.setPlaceholderText("min")
-        self._familiarity_min_input.textChanged.connect(self._on_filter_changed)
-        familiarity_row.addWidget(self._familiarity_min_input)
-        familiarity_row.addWidget(QLabel("max"))
-        self._familiarity_max_input = QLineEdit()
-        self._familiarity_max_input.setFixedWidth(44)
-        self._familiarity_max_input.setMaxLength(2)
-        self._familiarity_max_input.setValidator(QIntValidator(1, 10, self))
-        self._familiarity_max_input.setPlaceholderText("max")
-        self._familiarity_max_input.textChanged.connect(self._on_filter_changed)
-        familiarity_row.addWidget(self._familiarity_max_input)
-        familiarity_row.addStretch(1)
-        sentiment_group_layout.addLayout(familiarity_row)
-
-        layout.addWidget(sentiment_section)
-
-        alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
-        alignment_range_row = QHBoxLayout()
-        alignment_range_row.addWidget(QLabel("💭Alignment"))
-        self._alignment_score_min_input = QLineEdit()
-        self._alignment_score_min_input.setFixedWidth(44)
-        self._alignment_score_min_input.setMaxLength(3)
-        self._alignment_score_min_input.setValidator(QIntValidator(-10, 10, self))
-        self._alignment_score_min_input.setPlaceholderText("min")
-        self._alignment_score_min_input.textChanged.connect(self._on_filter_changed)
-        alignment_range_row.addWidget(self._alignment_score_min_input)
-        alignment_range_row.addWidget(QLabel("max"))
-        self._alignment_score_max_input = QLineEdit()
-        self._alignment_score_max_input.setFixedWidth(44)
-        self._alignment_score_max_input.setMaxLength(3)
-        self._alignment_score_max_input.setValidator(QIntValidator(-10, 10, self))
-        self._alignment_score_max_input.setPlaceholderText("max")
-        self._alignment_score_max_input.textChanged.connect(self._on_filter_changed)
-        alignment_range_row.addWidget(self._alignment_score_max_input)
-        alignment_range_row.addStretch(1)
-        alignment_group_layout.addLayout(alignment_range_row)
-
-        self._alignment_score_blank_checkbox = QCheckBox("no alignment assigned")
-        self._alignment_score_blank_checkbox.stateChanged.connect(self._on_filter_changed)
-        alignment_group_layout.addWidget(self._alignment_score_blank_checkbox)
-        layout.addWidget(alignment_section)
-
-        relationship_section, relationship_group_layout = add_collapsible_section(
-            "💭Relationship Types"
-        )
-        relationship_mode_layout = QHBoxLayout()
-        relationship_mode_layout.addWidget(QLabel("Relationship type"))
-        relationship_mode_layout.addStretch(1)
-        self.relationship_filter_and = QRadioButton("AND")
-        self.relationship_filter_or = QRadioButton("OR")
-        self.relationship_filter_group = QButtonGroup(self)
-        self.relationship_filter_group.setExclusive(True)
-        self.relationship_filter_group.addButton(self.relationship_filter_and)
-        self.relationship_filter_group.addButton(self.relationship_filter_or)
-        self.relationship_filter_and.setChecked(True)
-        self.relationship_filter_group.buttonClicked.connect(self._on_filter_changed)
-        relationship_mode_layout.addWidget(self.relationship_filter_and)
-        relationship_mode_layout.addWidget(self.relationship_filter_or)
-        relationship_group_layout.addLayout(relationship_mode_layout)
-
-        relationship_layout = QGridLayout()
-        relationship_layout.setContentsMargins(0, 0, 0, 0)
-        self.relationship_filter_checkboxes = {}
-        relationship_rows = (len(SEARCH_RELATIONSHIP_TYPE_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SEARCH_RELATIONSHIP_TYPE_OPTIONS):
-            checkbox = QuadStateSlider(label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.relationship_filter_checkboxes[label] = checkbox
-            row = idx % relationship_rows
-            col = idx // relationship_rows
-            relationship_layout.addWidget(checkbox, row, col)
-        relationship_group_layout.addLayout(relationship_layout)
-        layout.addWidget(relationship_section)
-
         
 #human design section
         human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
@@ -10741,6 +10464,195 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(dominant_element_section)
 
+#Search: year first encountered
+        year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
+            "💭Year 1st Encountered" #year user first encountered
+        )
+        year_first_encountered_range_row = QHBoxLayout()
+        year_first_encountered_range_row.addWidget(QLabel("Earliest"))
+        self._year_first_encountered_earliest_input = QLineEdit()
+        self._year_first_encountered_earliest_input.setMaxLength(4)
+        self._year_first_encountered_earliest_input.setFixedWidth(56)
+        self._year_first_encountered_earliest_input.setPlaceholderText("YYYY")
+        self._year_first_encountered_earliest_input.setValidator(
+            QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self)
+        )
+        self._year_first_encountered_earliest_input.textChanged.connect(self._on_filter_changed)
+        year_first_encountered_range_row.addWidget(self._year_first_encountered_earliest_input)
+        year_first_encountered_range_row.addSpacing(10)
+        year_first_encountered_range_row.addWidget(QLabel("Latest"))
+        self._year_first_encountered_latest_input = QLineEdit()
+        self._year_first_encountered_latest_input.setMaxLength(4)
+        self._year_first_encountered_latest_input.setFixedWidth(56)
+        self._year_first_encountered_latest_input.setPlaceholderText("YYYY")
+        self._year_first_encountered_latest_input.setValidator(
+            QIntValidator(NATAL_CHART_MIN_YEAR, NATAL_CHART_MAX_YEAR, self)
+        )
+        self._year_first_encountered_latest_input.textChanged.connect(self._on_filter_changed)
+        year_first_encountered_range_row.addWidget(self._year_first_encountered_latest_input)
+        year_first_encountered_range_row.addStretch(1)
+        year_first_encountered_group_layout.addLayout(year_first_encountered_range_row)
+
+        year_first_encountered_blank_row = QHBoxLayout()
+        self._year_first_encountered_blank_checkbox = QuadStateSlider("blank")
+        self._year_first_encountered_blank_checkbox.modeChanged.connect(self._on_filter_changed)
+        year_first_encountered_blank_row.addWidget(self._year_first_encountered_blank_checkbox)
+        year_first_encountered_blank_row.addStretch(1)
+        year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
+        layout.addWidget(year_first_encountered_section)
+
+        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiments")
+
+#Search: Sentiments section
+        sentiment_mode_layout = QHBoxLayout()
+        sentiment_mode_layout.addWidget(QLabel("Sentiments"))
+        sentiment_mode_layout.addStretch(1)
+        self.sentiment_filter_and = QRadioButton("AND")
+        self.sentiment_filter_or = QRadioButton("OR")
+        self.sentiment_filter_group = QButtonGroup(self)
+        self.sentiment_filter_group.setExclusive(True)
+        self.sentiment_filter_group.addButton(self.sentiment_filter_and)
+        self.sentiment_filter_group.addButton(self.sentiment_filter_or)
+        self.sentiment_filter_and.setChecked(True)
+        # Use group-level click handling so we only refresh once per selection
+        # change and avoid transient states where neither option is checked.
+        self.sentiment_filter_group.buttonClicked.connect(self._on_filter_changed)
+        sentiment_mode_layout.addWidget(self.sentiment_filter_and)
+        sentiment_mode_layout.addWidget(self.sentiment_filter_or)
+        sentiment_group_layout.addLayout(sentiment_mode_layout)
+        sentiment_layout = QGridLayout()
+        sentiment_layout.setContentsMargins(0, 0, 0, 0)
+        self.sentiment_filter_checkboxes = {}
+        sentiment_rows = (len(SEARCH_SENTIMENT_OPTIONS) + 1) // 2
+        for idx, label in enumerate(SEARCH_SENTIMENT_OPTIONS):
+            checkbox = QuadStateSlider(label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.sentiment_filter_checkboxes[label] = checkbox
+            row = idx % sentiment_rows
+            col = idx // sentiment_rows
+            sentiment_layout.addWidget(checkbox, row, col)
+        sentiment_group_layout.addLayout(sentiment_layout)
+
+        sentiment_intensity_row = QHBoxLayout()
+        sentiment_intensity_row.addWidget(QLabel("💖"))
+        self._positive_sentiment_intensity_min_input = QLineEdit()
+        self._positive_sentiment_intensity_min_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_min_input.setMaxLength(2)
+        self._positive_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._positive_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._positive_sentiment_intensity_max_input = QLineEdit()
+        self._positive_sentiment_intensity_max_input.setFixedWidth(44)
+        self._positive_sentiment_intensity_max_input.setMaxLength(2)
+        self._positive_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._positive_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._positive_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._positive_sentiment_intensity_max_input)
+        sentiment_intensity_row.addSpacing(10)
+        sentiment_intensity_row.addWidget(QLabel("💔"))
+        self._negative_sentiment_intensity_min_input = QLineEdit()
+        self._negative_sentiment_intensity_min_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_min_input.setMaxLength(2)
+        self._negative_sentiment_intensity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_min_input.setPlaceholderText("min")
+        self._negative_sentiment_intensity_min_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_min_input)
+        sentiment_intensity_row.addWidget(QLabel("max"))
+        self._negative_sentiment_intensity_max_input = QLineEdit()
+        self._negative_sentiment_intensity_max_input.setFixedWidth(44)
+        self._negative_sentiment_intensity_max_input.setMaxLength(2)
+        self._negative_sentiment_intensity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._negative_sentiment_intensity_max_input.setPlaceholderText("max")
+        self._negative_sentiment_intensity_max_input.textChanged.connect(self._on_filter_changed)
+        sentiment_intensity_row.addWidget(self._negative_sentiment_intensity_max_input)
+        sentiment_intensity_row.addStretch(1)
+        sentiment_group_layout.addLayout(sentiment_intensity_row)
+
+        familiarity_row = QHBoxLayout()
+        familiarity_row.addWidget(QLabel("Familiarity"))
+        self._familiarity_min_input = QLineEdit()
+        self._familiarity_min_input.setFixedWidth(44)
+        self._familiarity_min_input.setMaxLength(2)
+        self._familiarity_min_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_min_input.setPlaceholderText("min")
+        self._familiarity_min_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_min_input)
+        familiarity_row.addWidget(QLabel("max"))
+        self._familiarity_max_input = QLineEdit()
+        self._familiarity_max_input.setFixedWidth(44)
+        self._familiarity_max_input.setMaxLength(2)
+        self._familiarity_max_input.setValidator(QIntValidator(1, 10, self))
+        self._familiarity_max_input.setPlaceholderText("max")
+        self._familiarity_max_input.textChanged.connect(self._on_filter_changed)
+        familiarity_row.addWidget(self._familiarity_max_input)
+        familiarity_row.addStretch(1)
+        sentiment_group_layout.addLayout(familiarity_row)
+
+        layout.addWidget(sentiment_section)
+
+#Search: Alignment section
+        alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
+        alignment_range_row = QHBoxLayout()
+        alignment_range_row.addWidget(QLabel("💭Alignment"))
+        self._alignment_score_min_input = QLineEdit()
+        self._alignment_score_min_input.setFixedWidth(44)
+        self._alignment_score_min_input.setMaxLength(3)
+        self._alignment_score_min_input.setValidator(QIntValidator(-10, 10, self))
+        self._alignment_score_min_input.setPlaceholderText("min")
+        self._alignment_score_min_input.textChanged.connect(self._on_filter_changed)
+        alignment_range_row.addWidget(self._alignment_score_min_input)
+        alignment_range_row.addWidget(QLabel("max"))
+        self._alignment_score_max_input = QLineEdit()
+        self._alignment_score_max_input.setFixedWidth(44)
+        self._alignment_score_max_input.setMaxLength(3)
+        self._alignment_score_max_input.setValidator(QIntValidator(-10, 10, self))
+        self._alignment_score_max_input.setPlaceholderText("max")
+        self._alignment_score_max_input.textChanged.connect(self._on_filter_changed)
+        alignment_range_row.addWidget(self._alignment_score_max_input)
+        alignment_range_row.addStretch(1)
+        alignment_group_layout.addLayout(alignment_range_row)
+
+        self._alignment_score_blank_checkbox = QCheckBox("no alignment assigned")
+        self._alignment_score_blank_checkbox.stateChanged.connect(self._on_filter_changed)
+        alignment_group_layout.addWidget(self._alignment_score_blank_checkbox)
+        layout.addWidget(alignment_section)
+
+#Search: relationship types section
+        relationship_section, relationship_group_layout = add_collapsible_section(
+            "💭Relationships"
+        )
+        relationship_mode_layout = QHBoxLayout()
+        relationship_mode_layout.addWidget(QLabel("Relationship type"))
+        relationship_mode_layout.addStretch(1)
+        self.relationship_filter_and = QRadioButton("AND")
+        self.relationship_filter_or = QRadioButton("OR")
+        self.relationship_filter_group = QButtonGroup(self)
+        self.relationship_filter_group.setExclusive(True)
+        self.relationship_filter_group.addButton(self.relationship_filter_and)
+        self.relationship_filter_group.addButton(self.relationship_filter_or)
+        self.relationship_filter_and.setChecked(True)
+        self.relationship_filter_group.buttonClicked.connect(self._on_filter_changed)
+        relationship_mode_layout.addWidget(self.relationship_filter_and)
+        relationship_mode_layout.addWidget(self.relationship_filter_or)
+        relationship_group_layout.addLayout(relationship_mode_layout)
+
+        relationship_layout = QGridLayout()
+        relationship_layout.setContentsMargins(0, 0, 0, 0)
+        self.relationship_filter_checkboxes = {}
+        relationship_rows = (len(SEARCH_RELATIONSHIP_TYPE_OPTIONS) + 1) // 2
+        for idx, label in enumerate(SEARCH_RELATIONSHIP_TYPE_OPTIONS):
+            checkbox = QuadStateSlider(label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.relationship_filter_checkboxes[label] = checkbox
+            row = idx % relationship_rows
+            col = idx // relationship_rows
+            relationship_layout.addWidget(checkbox, row, col)
+        relationship_group_layout.addLayout(relationship_layout)
+        layout.addWidget(relationship_section)
+
+#Search: D&D section
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
             "⚔️D&&D-ification"
         )
@@ -10767,6 +10679,101 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dnd_species_group_layout.addLayout(species_filter_row)
         layout.addWidget(dnd_species_section)
 
+#Search: Mortality section
+        mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
+        mortality_row = QHBoxLayout()
+        self.living_checkbox = QuadStateSlider("living")
+        self.living_checkbox.modeChanged.connect(self._on_filter_changed)
+        mortality_row.addWidget(self.living_checkbox)
+        mortality_row.addStretch(1)
+        mortality_section_layout.addLayout(mortality_row)
+
+        generation_divider = QFrame()
+        generation_divider.setFrameShape(QFrame.HLine)
+        generation_divider.setStyleSheet("color: #2f2f2f;")
+        mortality_section_layout.addWidget(generation_divider)
+
+        generation_header = QLabel("Generation")
+        generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        mortality_section_layout.addWidget(generation_header)
+
+        generation_layout = QGridLayout()
+        generation_layout.setContentsMargins(0, 0, 0, 0)
+        self.generation_filter_checkboxes = {}
+        generation_rows = (len(GENERATION_FILTER_OPTIONS) + 1) // 2
+        for idx, generation_name in enumerate(GENERATION_FILTER_OPTIONS):
+            checkbox = QuadStateSlider(generation_name)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.generation_filter_checkboxes[generation_name] = checkbox
+            row = idx % generation_rows
+            col = idx // generation_rows
+            generation_layout.addWidget(checkbox, row, col)
+        mortality_section_layout.addLayout(generation_layout)
+
+        layout.addWidget(mortality_section)
+
+#Search: gender section
+        gender_section, gender_group_layout = add_collapsible_section("Gender")
+        gender_mode_layout = QHBoxLayout()
+        gender_mode_layout.addWidget(QLabel("Gender"))
+        gender_mode_layout.addStretch(1)
+        self.gender_filter_and = QRadioButton("AND")
+        self.gender_filter_or = QRadioButton("OR")
+        self.gender_filter_group = QButtonGroup(self)
+        self.gender_filter_group.setExclusive(True)
+        self.gender_filter_group.addButton(self.gender_filter_and)
+        self.gender_filter_group.addButton(self.gender_filter_or)
+        self.gender_filter_and.setChecked(True)
+        self.gender_filter_group.buttonClicked.connect(self._on_filter_changed)
+        gender_mode_layout.addWidget(self.gender_filter_and)
+        gender_mode_layout.addWidget(self.gender_filter_or)
+        gender_group_layout.addLayout(gender_mode_layout)
+
+        gender_layout = QGridLayout()
+        gender_layout.setContentsMargins(0, 0, 0, 0)
+        self.gender_filter_checkboxes = {}
+        gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
+        for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
+            checkbox_label = "blank" if label == "none" else label
+            checkbox = QuadStateSlider(checkbox_label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.gender_filter_checkboxes[label] = checkbox
+            row = idx % gender_rows
+            col = idx // gender_rows
+            gender_layout.addWidget(checkbox, row, col)
+        gender_group_layout.addLayout(gender_layout)
+
+        gender_guessed_layout = QHBoxLayout()
+        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
+        self.gender_guessed_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.gender_guessed_filter_combo)
+        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
+            self.gender_guessed_filter_combo.addItem(label, value)
+        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
+        gender_group_layout.addLayout(gender_guessed_layout)
+
+        layout.addWidget(gender_section)
+
+#Search: chart type section
+        chart_type_section, chart_type_group_layout = add_collapsible_section(
+            "Chart Type"
+        )
+        chart_type_layout = QGridLayout()
+        chart_type_layout.setContentsMargins(0, 0, 0, 0)
+        self.chart_type_filter_checkboxes = {}
+        chart_type_rows = (len(SOURCE_OPTIONS) + 1) // 2
+        for idx, (source_label, source_value) in enumerate(SOURCE_OPTIONS):
+            checkbox = QuadStateSlider(source_label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.chart_type_filter_checkboxes[source_value] = checkbox
+            row = idx % chart_type_rows
+            col = idx // chart_type_rows
+            chart_type_layout.addWidget(checkbox, row, col)
+        chart_type_group_layout.addLayout(chart_type_layout)
+        layout.addWidget(chart_type_section)
+
+#Search: Notes section
         notes_section, notes_group_layout = add_collapsible_section("Notes")
 
         comments_row = QHBoxLayout()
@@ -23487,7 +23494,7 @@ class MainWindow(QMainWindow):
             return
         dialog = QDialog(self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setWindowTitle("Human Design")
+        dialog.setWindowTitle("🪐Human Design")
         dialog.setMinimumSize(780, 780)
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)
@@ -23527,7 +23534,7 @@ class MainWindow(QMainWindow):
         header_label = QLabel(
             "\n".join(
                 [
-                    "Human Design",
+                    "🪐Human Design",
                     f"Name:       {self._latest_chart.name}",
                     f"🐣date: {date_label}",
                     f"🐣time: {time_label}",
