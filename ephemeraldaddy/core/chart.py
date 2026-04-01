@@ -33,6 +33,7 @@ class Chart:
         self.human_design_channels = []
         self.age_when_first_met = 0
         self.year_first_encountered = None
+        self.data_rating = "blank"
         self.chart_type = "personal"
         self.name = name
         self.alias = alias
@@ -114,6 +115,7 @@ class Chart:
             "dominant_mode": self.dominant_mode,
             "age_when_first_met": self.age_when_first_met,
             "year_first_encountered": self.year_first_encountered,
+            "data_rating": self.data_rating,
             "positions": self.positions,
             "retrogrades": self.retrogrades,
             "houses": self.houses,
