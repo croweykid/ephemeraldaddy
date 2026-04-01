@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
+    COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
@@ -151,6 +152,7 @@ class ChartAnalysisSectionsController:
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
+        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         content.setVisible(expanded)
 
         def toggle_content(checked: bool) -> None:
