@@ -1789,6 +1789,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self.data_rating_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._positive_sentiment_intensity_min_input = None
         self._positive_sentiment_intensity_max_input = None
         self._negative_sentiment_intensity_min_input = None
@@ -7984,6 +7985,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_generations = {
             name
             for name, checkbox in self.generation_filter_checkboxes.items()
@@ -8176,6 +8187,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and not selected_chart_types
             and not excluded_chart_types
+            and not selected_data_ratings
+            and not excluded_data_ratings
             and not selected_generations
             and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
@@ -10147,6 +10160,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_filters_row.addWidget(self.retconned_checkbox)
         birth_filters_row.addStretch(1)
         birth_info_status_layout.addLayout(birth_filters_row)
+
+        rodden_divider = QFrame()
+        rodden_divider.setFrameShape(QFrame.HLine)
+        rodden_divider.setStyleSheet("color: #2f2f2f;")
+        birth_info_status_layout.addWidget(rodden_divider)
+
+        rodden_header = QLabel("Rodden Rating")
+        rodden_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_info_status_layout.addWidget(rodden_header)
+
+        rodden_layout = QGridLayout()
+        rodden_layout.setContentsMargins(0, 0, 0, 0)
+        rodden_layout.setHorizontalSpacing(10)
+        rodden_layout.setVerticalSpacing(4)
+        self.data_rating_filter_checkboxes = {}
+        rodden_rows = (len(RODDEN_RATING) + 1) // 2
+        for idx, rating in enumerate(RODDEN_RATING):
+            grade = str(rating.get("grade", "")).strip()
+            if not grade:
+                continue
+            checkbox = QuadStateSlider(grade)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.data_rating_filter_checkboxes[grade] = checkbox
+            row = idx % rodden_rows
+            col = idx // rodden_rows
+            rodden_layout.addWidget(checkbox, row, col)
+        birth_info_status_layout.addLayout(rodden_layout)
         layout.addWidget(birth_info_status_section)
 
 #Search: Astrological Positions section
@@ -14060,6 +14100,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in self.data_rating_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birth_status_filter_or.setChecked(False)
             self.birth_status_filter_and.setChecked(True)
             self.sentiment_filter_or.setChecked(False)
@@ -15308,6 +15350,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_generations = {
             name
             for name, checkbox in self.generation_filter_checkboxes.items()
@@ -15590,6 +15642,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if source_value in excluded_chart_types:
                 return False
             if selected_chart_types and source_value not in selected_chart_types:
+                return False
+
+        if selected_data_ratings or excluded_data_ratings:
+            chart_data_rating = str(getattr(self._get_chart_for_filter(chart_id), "data_rating", "blank") or "blank")
+            if chart_data_rating in excluded_data_ratings:
+                return False
+            if selected_data_ratings and chart_data_rating not in selected_data_ratings:
                 return False
 
         if selected_generations or excluded_generations:
