@@ -8,15 +8,15 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, .96),
-    "Ajna": (0.5, 0.85),
-    "Throat": (0.5, 0.67),
-    "G": (0.5, 0.50),
-    "Ego": (0.74, 0.50),
-    "Spleen": (0.26, 0.36),
-    "Solar Plexus": (0.74, 0.33),
-    "Sacral": (0.5, 0.3),
-    "Root": (0.5, 0.13),
+    "Head": (0.5, 0.94),
+    "Ajna": (0.5, 0.772),
+    "Throat": (0.5, 0.604),
+    "G": (0.5, 0.436),
+    "Ego": (0.74, 0.436),
+    "Spleen": (0.26, 0.30),
+    "Solar Plexus": (0.74, 0.30),
+    "Sacral": (0.5, 0.268),
+    "Root": (0.5, 0.10),
 }
 
 CENTER_HALF_WIDTH = 0.08
@@ -65,7 +65,7 @@ def _channel_key(gate_a: int, gate_b: int) -> tuple[int, int]:
 
 
 PAIR_CHANNEL_ORDER_INNER_TO_OUTER: dict[tuple[str, str], list[tuple[int, int]]] = {
-    ("Root", "Sacral"): [(42, 53), (3, 60), (9, 52)],
+    ("Root", "Sacral"): [(3, 60), (42, 53), (9, 52)],
     ("Root", "Solar Plexus"): [(19, 49), (39, 55), (30, 41)],
     ("Root", "Spleen"): [(32, 54), (28, 38), (18, 58)],
     ("Sacral", "Spleen"): [(27, 50), (34, 57)],
@@ -79,8 +79,7 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_axes((0.0, 0.0, 1.0, 1.0))
-    figure.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+    ax = figure.add_axes((0.10, 0.10, 0.80, 0.80))
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
@@ -127,8 +126,58 @@ def draw_human_design_chart(
             ordered_channels.append((*channel, slot_index, channel_count))
 
     for gate_a, gate_b, center_a, center_b, channel_index, channel_count in ordered_channels:
+        channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
+
+        if channel_key == (20, 34):
+            sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
+            throat_x, throat_y = CENTER_POSITIONS["Throat"]
+            start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            start_y = sacral_y
+            end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            end_y = throat_y
+            elbow_x = min(start_x, end_x) - 0.065
+            elbow_y = (start_y + end_y) * 0.5
+
+            lower_gate = 34
+            upper_gate = 20
+            lower_gate_active = lower_gate in hd_result.active_gates
+            upper_gate_active = upper_gate in hd_result.active_gates
+            ax.plot(
+                [start_x, elbow_x],
+                [start_y, elbow_y],
+                color=CHANNEL_ACTIVE_COLOR if lower_gate_active else CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+            )
+            ax.plot(
+                [elbow_x, end_x],
+                [elbow_y, end_y],
+                color=CHANNEL_ACTIVE_COLOR if upper_gate_active else CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+            )
+            ax.text(
+                start_x + ((elbow_x - start_x) * 0.55),
+                start_y + ((elbow_y - start_y) * 0.55),
+                f"{lower_gate}",
+                color="#d6d6d6",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            ax.text(
+                elbow_x + ((end_x - elbow_x) * 0.45),
+                elbow_y + ((end_y - elbow_y) * 0.45),
+                f"{upper_gate}",
+                color="#d6d6d6",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            continue
+
         if channel_count > 1:
             dx = x2 - x1
             dy = y2 - y1
@@ -225,10 +274,10 @@ def draw_human_design_chart(
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
 
-    ax.text(0.03, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    ax.text(0.55, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.personality_activations):
         ax.text(
-            0.03,
+            0.55,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
@@ -237,10 +286,10 @@ def draw_human_design_chart(
             va="top",
         )
 
-    ax.text(0.72, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    ax.text(0.78, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.design_activations):
         ax.text(
-            0.72,
+            0.78,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
@@ -248,26 +297,3 @@ def draw_human_design_chart(
             ha="left",
             va="top",
         )
-
-    ax.text(
-        0.5,
-        0.06,
-        (
-            f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   "
-            f"Profile: {hd_result.profile}   {hd_result.split_definition}"
-        ),
-        color="#f4e0c6",
-        fontsize=7,
-        ha="center",
-        va="center",
-        fontweight="bold",
-    )
-    ax.text(
-        0.5,
-        0.03,
-        f"Strategy: {hd_result.strategy}   Incarnation: {hd_result.incarnation_cross}",
-        color="#f4e0c6",
-        fontsize=6,
-        ha="center",
-        va="center",
-    )
