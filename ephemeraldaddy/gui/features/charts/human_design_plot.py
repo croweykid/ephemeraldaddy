@@ -8,15 +8,15 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 0.90),
-    "Ajna": (0.5, 0.76),
-    "Throat": (0.5, 0.62),
-    "G": (0.5, 0.48),
-    "Ego": (0.74, 0.48),
-    "Spleen": (0.26, 0.36),
-    "Solar Plexus": (0.74, 0.33),
-    "Sacral": (0.5, 0.34),
-    "Root": (0.5, 0.20),
+    "Head": (0.5, 0.94),
+    "Ajna": (0.5, 0.772),
+    "Throat": (0.5, 0.604),
+    "G": (0.5, 0.436),
+    "Ego": (0.74, 0.436),
+    "Spleen": (0.26, 0.30),
+    "Solar Plexus": (0.74, 0.30),
+    "Sacral": (0.5, 0.268),
+    "Root": (0.5, 0.10),
 }
 
 CENTER_HALF_WIDTH = 0.08
@@ -274,10 +274,10 @@ def draw_human_design_chart(
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
 
-    ax.text(0.03, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    ax.text(0.55, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.personality_activations):
         ax.text(
-            0.03,
+            0.55,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
@@ -286,10 +286,10 @@ def draw_human_design_chart(
             va="top",
         )
 
-    ax.text(0.72, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    ax.text(0.78, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.design_activations):
         ax.text(
-            0.72,
+            0.78,
             0.94 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
@@ -297,26 +297,3 @@ def draw_human_design_chart(
             ha="left",
             va="top",
         )
-
-    ax.text(
-        0.5,
-        0.06,
-        (
-            f"Type: {hd_result.hd_type}   Authority: {hd_result.authority}   "
-            f"Profile: {hd_result.profile}   {hd_result.split_definition}"
-        ),
-        color="#f4e0c6",
-        fontsize=7,
-        ha="center",
-        va="center",
-        fontweight="bold",
-    )
-    ax.text(
-        0.5,
-        0.03,
-        f"Strategy: {hd_result.strategy}   Incarnation: {hd_result.incarnation_cross}",
-        color="#f4e0c6",
-        fontsize=6,
-        ha="center",
-        va="center",
-    )
