@@ -10052,11 +10052,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return section, content_layout
 
         birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-            "🐣Info Status"
+            "Data Quality"
         )
 
         incomplete_birthdate_row = QHBoxLayout()
-        self.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate")
+        self.incomplete_birthdate_checkbox = QuadStateSlider("incomplete birthdate (placeholder chart)")
         self.incomplete_birthdate_checkbox.modeChanged.connect(self._on_filter_changed)
         incomplete_birthdate_row.addWidget(self.incomplete_birthdate_checkbox)
         incomplete_birthdate_row.addStretch(1)
@@ -10079,9 +10079,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_info_status_layout.addLayout(birth_status_mode_row)
 
         birth_filters_row = QHBoxLayout()
-        self.birthtime_unknown_checkbox = QuadStateSlider("BT unknown")
+        self.birthtime_unknown_checkbox = QuadStateSlider("unknown")
         self.birthtime_unknown_checkbox.modeChanged.connect(self._on_filter_changed)
-        self.retconned_checkbox = QuadStateSlider("BT retconned")
+        self.retconned_checkbox = QuadStateSlider("rectified")
         self.retconned_checkbox.modeChanged.connect(self._on_filter_changed)
         birth_filters_row.addWidget(self.birthtime_unknown_checkbox)
         birth_filters_row.addWidget(self.retconned_checkbox)
