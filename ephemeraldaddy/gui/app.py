@@ -286,6 +286,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_ORDER,
     PLANET_RULERSHIP,
     RELATION_TYPE,
+    RODDEN_RATING,
     FAMILIARITY_INDEX,
     GENDER_GLYPHS,
     GENDER_OPTIONS,
@@ -1788,6 +1789,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
+        self.data_rating_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._positive_sentiment_intensity_min_input = None
         self._positive_sentiment_intensity_max_input = None
         self._negative_sentiment_intensity_min_input = None
@@ -7983,6 +7985,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_generations = {
             name
             for name, checkbox in self.generation_filter_checkboxes.items()
@@ -8175,6 +8187,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and dominant_element_secondary == "Any"
             and not selected_chart_types
             and not excluded_chart_types
+            and not selected_data_ratings
+            and not excluded_data_ratings
             and not selected_generations
             and not excluded_generations
             and self.species_filter_combo.currentData() == "Any"
@@ -10146,6 +10160,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_filters_row.addWidget(self.retconned_checkbox)
         birth_filters_row.addStretch(1)
         birth_info_status_layout.addLayout(birth_filters_row)
+
+        rodden_divider = QFrame()
+        rodden_divider.setFrameShape(QFrame.HLine)
+        rodden_divider.setStyleSheet("color: #2f2f2f;")
+        birth_info_status_layout.addWidget(rodden_divider)
+
+        rodden_header = QLabel("Rodden Rating")
+        rodden_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        birth_info_status_layout.addWidget(rodden_header)
+
+        rodden_layout = QGridLayout()
+        rodden_layout.setContentsMargins(0, 0, 0, 0)
+        rodden_layout.setHorizontalSpacing(10)
+        rodden_layout.setVerticalSpacing(4)
+        self.data_rating_filter_checkboxes = {}
+        rodden_rows = (len(RODDEN_RATING) + 1) // 2
+        for idx, rating in enumerate(RODDEN_RATING):
+            grade = str(rating.get("grade", "")).strip()
+            if not grade:
+                continue
+            checkbox = QuadStateSlider(grade)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.data_rating_filter_checkboxes[grade] = checkbox
+            row = idx % rodden_rows
+            col = idx // rodden_rows
+            rodden_layout.addWidget(checkbox, row, col)
+        birth_info_status_layout.addLayout(rodden_layout)
         layout.addWidget(birth_info_status_section)
 
 #Search: Astrological Positions section
@@ -14059,6 +14100,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.gender_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in self.data_rating_filter_checkboxes.values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birth_status_filter_or.setChecked(False)
             self.birth_status_filter_and.setChecked(True)
             self.sentiment_filter_or.setChecked(False)
@@ -15307,6 +15350,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for source, checkbox in self.chart_type_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_data_ratings = {
+            grade
+            for grade, checkbox in self.data_rating_filter_checkboxes.items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_generations = {
             name
             for name, checkbox in self.generation_filter_checkboxes.items()
@@ -15589,6 +15642,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if source_value in excluded_chart_types:
                 return False
             if selected_chart_types and source_value not in selected_chart_types:
+                return False
+
+        if selected_data_ratings or excluded_data_ratings:
+            chart_data_rating = str(getattr(self._get_chart_for_filter(chart_id), "data_rating", "blank") or "blank")
+            if chart_data_rating in excluded_data_ratings:
+                return False
+            if selected_data_ratings and chart_data_rating not in selected_data_ratings:
                 return False
 
         if selected_generations or excluded_generations:
@@ -17914,6 +17974,16 @@ class MainWindow(QMainWindow):
             self.gender_combo.addItem(gender_option, gender_option)
         self.gender_combo.setFixedWidth(120)
         self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
+        self.data_rating_combo = QComboBox()
+        self.data_rating_combo.addItem("RR", "blank")
+        for rating in RODDEN_RATING:
+            grade = str(rating.get("grade", "")).strip()
+            if not grade:
+                continue
+            self.data_rating_combo.addItem(grade, grade)
+        self.data_rating_combo.setFixedWidth(70)
+        self.data_rating_combo.setToolTip("Rodden Rating")
+        self.data_rating_combo.currentIndexChanged.connect(self._on_sentiment_metric_changed)
         name_row = QHBoxLayout()
         #name_row.setContentsMargins(0, 0, 0, 0)
         name_row.setSpacing(8)
@@ -18244,6 +18314,10 @@ class MainWindow(QMainWindow):
         source_controls_layout.addWidget(self.chart_source_combo)
         source_controls_layout.addWidget(QLabel("Gender:"))
         source_controls_layout.addWidget(self.gender_combo)
+        rr_label = QLabel("RR:")
+        rr_label.setToolTip("Rodden Rating")
+        source_controls_layout.addWidget(rr_label)
+        source_controls_layout.addWidget(self.data_rating_combo)
         source_controls_layout.addWidget(QLabel("1st Encounter:"))
         source_controls_layout.addWidget(self.year_first_encountered_edit)
         source_controls_layout.addStretch(1)
@@ -18462,6 +18536,7 @@ class MainWindow(QMainWindow):
             self.name_edit,
             self.alias_edit,
             self.gender_combo,
+            self.data_rating_combo,
             self.birth_month_edit,
             self.birth_day_edit,
             self.birth_year_edit,
@@ -21315,6 +21390,7 @@ class MainWindow(QMainWindow):
         self.familiarity_spin.setToolTip("")
         self._chart_familiarity_factors = []
         self.year_first_encountered_edit.setText("")
+        self.data_rating_combo.setCurrentIndex(0)
 
     def _apply_chart_type_ui_state(self, chart_type: str | None) -> None:
         is_event_chart = chart_type == SOURCE_EVENT
@@ -21787,6 +21863,11 @@ class MainWindow(QMainWindow):
                 # self.birth_day_edit.clear()
                 # self.birth_year_edit.clear()
 
+        target_data_rating = "XX" if checked else "blank"
+        rating_index = self.data_rating_combo.findData(target_data_rating)
+        if rating_index >= 0 and self.data_rating_combo.currentIndex() != rating_index:
+            self.data_rating_combo.setCurrentIndex(rating_index)
+
     def _clear_required_field_highlights(self) -> None:
         for widget in (
             self.birth_month_edit,
@@ -21856,6 +21937,7 @@ class MainWindow(QMainWindow):
         placeholder.alignment_score = self.alignment_slider.value()
         placeholder.familiarity_factors = list(getattr(self, "_chart_familiarity_factors", []))
         placeholder.year_first_encountered = self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+        placeholder.data_rating = str(self.data_rating_combo.currentData() or "blank")
         placeholder.age_when_first_met = 0
         placeholder.sentiment_confidence = placeholder.familiarity
         placeholder.chart_type = _normalize_gui_source(self.chart_source_combo.currentData())
@@ -22005,6 +22087,8 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "age_when_first_met"):
             chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
             chart.age_when_first_met = 0
+        if hasattr(chart, "data_rating"):
+            chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
         if hasattr(chart, "source"):
             chart.source = chart_type_value
 
@@ -22241,6 +22325,7 @@ class MainWindow(QMainWindow):
                 )
                 chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
                 chart.year_first_encountered = None if is_event_chart else self._parse_year_first_encountered_text(self.year_first_encountered_edit.text())
+                chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
                 chart.gender = self.gender_combo.currentData() or None
@@ -22419,6 +22504,7 @@ class MainWindow(QMainWindow):
         self.name_edit.clear()
         self.alias_edit.clear()
         self.gender_combo.setCurrentIndex(0)
+        self.data_rating_combo.setCurrentIndex(0)
         self.place_edit.clear()
         self.placeholder_chart_checkbox.setChecked(False)
         self._set_sentiment_selection([])
@@ -22719,6 +22805,9 @@ class MainWindow(QMainWindow):
         self.year_first_encountered_edit.setText(
             "" if getattr(chart, "year_first_encountered", None) is None else str(getattr(chart, "year_first_encountered"))
         )
+        data_rating_value = str(getattr(chart, "data_rating", "blank") or "blank")
+        data_rating_index = self.data_rating_combo.findData(data_rating_value)
+        self.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
         source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
         source_index = self.chart_source_combo.findData(source_value)
         if source_index < 0:
