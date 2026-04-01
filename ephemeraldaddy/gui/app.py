@@ -2150,6 +2150,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
         configure_splitter_handle_resize_cursor(self._content_splitter)
+        self._content_splitter.splitterMoved.connect(self._on_content_splitter_moved)
         layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -13076,6 +13077,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _is_right_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
+
+    def _on_content_splitter_moved(self, *_args) -> None:
+        sizes = self._content_splitter.sizes()
+        if len(sizes) < 3:
+            return
+        if self._left_panel_visible and sizes[0] > 0:
+            self._left_panel_sizes = list(sizes)
+        if self._right_panel_visible and sizes[2] > 0:
+            self._right_panel_sizes = list(sizes)
+        self._settings.setValue("manage_charts/splitter_sizes", sizes)
 
     def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
