@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
+from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
@@ -1495,8 +1496,10 @@ class DatabaseAnalyticsChartsMixin:
                     country_counts[canonical_country] += 1
 
                 resolved_country = resolve_country(country)
-                if resolved_country and resolved_country.get("alpha_2") == "US" and state:
-                    us_state_counts[state] += 1
+                if resolved_country and resolved_country.get("alpha_2") == "US":
+                    canonical_state = normalize_us_state(state or birthplace)
+                    if canonical_state:
+                        us_state_counts[canonical_state] += 1
 
         mode_minutes = 0
         if birth_minutes:
