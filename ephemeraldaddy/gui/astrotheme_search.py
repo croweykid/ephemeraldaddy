@@ -338,11 +338,17 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         table_html,
         flags=re.IGNORECASE | re.DOTALL,
     )
+    rodden_match = re.search(
+        r">\s*Rodden\s*Rating\s*:?\s*</td>\s*<td[^>]*>(.*?)</td>",
+        table_html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if born_match is None:
         raise ValueError("Could not parse born date from Astrotheme profile.")
 
     born_text = _strip_html_text(born_match.group(1))
     place_text = _strip_html_text(place_match.group(1)) if place_match else ""
+    rodden_text = _strip_html_text(rodden_match.group(1)) if rodden_match else ""
 
     parsed_url = urlparse(profile_url)
     slug = Path(parsed_url.path).name
@@ -386,6 +392,13 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
     if not cleaned_place:
         raise ValueError("Could not parse Astrotheme birthplace.")
 
+    data_rating = "blank"
+    rodden_upper = rodden_text.upper()
+    for candidate in ("AA", "DD", "XX", "A", "B", "C", "X"):
+        if re.search(rf"\b{re.escape(candidate)}\b", rodden_upper):
+            data_rating = candidate
+            break
+
     return {
         "name": name,
         "birth_year": year_number,
@@ -395,5 +408,6 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         "birth_minute": minute,
         "time_unknown": time_unknown,
         "birth_place": cleaned_place,
+        "data_rating": data_rating,
         "profile_url": profile_url,
     }

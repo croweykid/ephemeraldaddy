@@ -11120,6 +11120,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         profile_time = QTime(profile_data["birth_hour"], profile_data["birth_minute"])
         parent.time_edit.setTime(profile_time)
         parent.retcon_time_edit.setTime(profile_time)
+        parent_data_rating = str(profile_data.get("data_rating", "blank") or "blank")
+        data_rating_index = parent.data_rating_combo.findData(parent_data_rating)
+        parent.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
         parent.source_edit.setPlainText(profile_data["profile_url"])
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
@@ -11137,6 +11140,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.source = SOURCE_PUBLIC_DB
         chart.relationship_types = ["public figure"]
         chart.chart_data_source = profile_data["profile_url"]
+        chart.data_rating = str(profile_data.get("data_rating", "blank") or "blank")
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
