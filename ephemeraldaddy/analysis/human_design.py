@@ -236,6 +236,8 @@ def build_human_design_chart_data_output(
         f"Definition: {_format_split_definition(hd_result.split_definition)}",
         f"Strategy: {hd_result.strategy}",
         f"Incarnation Cross: {hd_result.incarnation_cross}",
+        "",
+        CHART_DATA_DIVIDER,
         *position_lines,
         "",
         CHART_DATA_DIVIDER,
