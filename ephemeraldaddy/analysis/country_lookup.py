@@ -5,10 +5,12 @@ from pathlib import Path
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "compiled" / "country_data.json"
 
 COUNTRY_DISPLAY_OVERRIDES = {
+    "GB": "UK",
     "NZ": "New Zealand",
     "PS": "Palestine",
     "RU": "Russia",
     "TR": "Turkey",
+    "US": "USA",
     "VA": "Vatican City",
 }
 
