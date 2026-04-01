@@ -11878,9 +11878,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state:
                 states.add(state)
 
-        self._apply_location_completer(self._search_location_country_input, sorted(countries))
-        self._apply_location_completer(self._search_location_city_input, sorted(cities))
-        self._apply_location_completer(self._search_location_state_input, sorted(states))
+        self._apply_location_completer(
+            getattr(self, "_search_location_country_input", None),
+            sorted(countries),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_city_input", None),
+            sorted(cities),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_state_input", None),
+            sorted(states),
+        )
 
     def _update_tag_completers(self) -> None:
         known_tags = list_recognized_tags()
@@ -21993,9 +22002,18 @@ class MainWindow(QMainWindow):
             if state:
                 states.add(state)
 
-        self._apply_location_completer(self._search_location_country_input, sorted(countries))
-        self._apply_location_completer(self._search_location_city_input, sorted(cities))
-        self._apply_location_completer(self._search_location_state_input, sorted(states))
+        self._apply_location_completer(
+            getattr(self, "_search_location_country_input", None),
+            sorted(countries),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_city_input", None),
+            sorted(cities),
+        )
+        self._apply_location_completer(
+            getattr(self, "_search_location_state_input", None),
+            sorted(states),
+        )
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
