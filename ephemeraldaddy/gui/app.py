@@ -17724,7 +17724,7 @@ class MainWindow(QMainWindow):
         self.time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
         self.time_edit.setTime(QTime(12, 0))
         self.time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
-        self.time_unknown_checkbox = QCheckBox("unknown time")
+        self.time_unknown_checkbox = QCheckBox("Unknown")
         self.time_unknown_checkbox.toggled.connect(self._on_unknown_time_toggled)
         self.time_unknown_checkbox.toggled.connect(self._mark_lucygoosey)
         self.time_edit.timeChanged.connect(self._on_birth_time_changed)
@@ -17739,9 +17739,6 @@ class MainWindow(QMainWindow):
         self.retcon_time_checkbox.toggled.connect(self._mark_lucygoosey)
         self.retcon_time_edit.timeChanged.connect(self._on_retcon_time_changed)
         self.retcon_time_edit.timeChanged.connect(self._mark_lucygoosey)
-        self.time_unknown_checkbox.setText("?")
-
-
         self.year_first_encountered_edit = QLineEdit()
         self.year_first_encountered_edit.setMaxLength(4)
         self.year_first_encountered_edit.setPlaceholderText("Year 1st Encountered")
@@ -17764,6 +17761,8 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(birth_day_widget, 0)
         #birth_time_row.addWidget(QLabel("."), 0)
         birth_time_row.addWidget(birth_year_widget, 0)
+        birth_time_row.addWidget(self.deceased_checkbox, 0)
+        birth_time_row.addSpacing(14)
         birth_time_row.addWidget(QLabel("🐣Time:"), 0)
         birth_time_row.addWidget(self.time_unknown_checkbox, 0)
         birth_time_row.addWidget(self.time_edit, 0)
@@ -17772,9 +17771,9 @@ class MainWindow(QMainWindow):
         birth_time_row.addSpacing(CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING)
         birth_time_row.addWidget(self.retcon_time_checkbox, 0)
         birth_time_row.addWidget(self.retcon_time_edit, 0)
-        birth_time_row.addWidget(self.deceased_checkbox, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
+        self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
         self.chart_source_combo = QComboBox()
@@ -22565,9 +22564,7 @@ class MainWindow(QMainWindow):
         self._retcon_dialog_controller.show(self)
 
     def _on_unknown_time_toggled(self, checked: bool) -> None:
-        if checked:
-            self._birth_time_user_overridden = False
-            self.time_edit.setTime(QTime(12, 0))
+        self._update_time_input_visibility()
         self._update_time_input_text_colors()
         self._refresh_chart_preview()
         self._autosave_checkbox_state()
@@ -22633,6 +22630,7 @@ class MainWindow(QMainWindow):
         return qdate
 
     def _on_retcon_time_toggled(self, _checked: bool) -> None:
+        self._update_time_input_visibility()
         self._update_time_input_text_colors()
         self._refresh_chart_preview()
         self._autosave_checkbox_state()
@@ -22649,6 +22647,10 @@ class MainWindow(QMainWindow):
         if not self._suppress_lucygoosey:
             self._retcon_time_user_overridden = True
         self._update_time_input_text_colors()
+
+    def _update_time_input_visibility(self) -> None:
+        self.time_edit.setVisible(not self.time_unknown_checkbox.isChecked())
+        self.retcon_time_edit.setVisible(self.retcon_time_checkbox.isChecked())
 
     def _update_time_input_text_colors(self) -> None:
         birth_time_color = (
