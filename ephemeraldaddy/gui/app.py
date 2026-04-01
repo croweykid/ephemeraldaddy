@@ -3499,7 +3499,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         alignment_section_layout.addWidget(self.alignment_summary_chart_container)
 
         alignment_cumulative_subheader = add_database_subheader(
-            "Cumulative alignment of current selection"
+            "User perception of good vs evil alignment within the selection/database"
         )
         alignment_section_layout.addWidget(alignment_cumulative_subheader)
         (
