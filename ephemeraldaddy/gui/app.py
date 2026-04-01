@@ -11865,7 +11865,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         countries: set[str] = set()
         cities: set[str] = set()
         states: set[str] = set()
-        for chart_row in self._chart_rows:
+        chart_rows = getattr(self, "_chart_rows", [])
+        for chart_row in chart_rows:
             birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
             if not birth_place:
                 continue
@@ -21979,7 +21980,8 @@ class MainWindow(QMainWindow):
         countries: set[str] = set()
         cities: set[str] = set()
         states: set[str] = set()
-        for chart_row in self._chart_rows:
+        chart_rows = getattr(self, "_chart_rows", [])
+        for chart_row in chart_rows:
             birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
             if not birth_place:
                 continue
