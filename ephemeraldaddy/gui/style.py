@@ -24,6 +24,28 @@ GENDER_GUESSER_COLORS = {
     "androgynous": "#ffd966",
 }
 
+EARTH_TONE_COLOR_CYCLE = (
+    "#7b5b45",  # clay brown
+    "#8f7a5a",  # tan umber
+    "#6e7f52",  # muted olive
+    "#8d5f4d",  # terracotta
+    "#6a6d58",  # moss gray
+    "#a07855",  # saddle
+    "#7a6a4f",  # bark
+    "#8c735d",  # warm taupe
+    "#5f6b4f",  # forest dust
+)
+
+
+def get_cycled_earthtone_colors(count: int) -> list[str]:
+    """Return `count` colors cycling through the shared 9-color earthtone palette."""
+    total = max(0, int(count))
+    palette_size = len(EARTH_TONE_COLOR_CYCLE)
+    if total == 0 or palette_size == 0:
+        return []
+    return [EARTH_TONE_COLOR_CYCLE[index % palette_size] for index in range(total)]
+
+
 CHART_HEADER_TEMPLATES = {
     "name_alias": "Name: {name} | Alias: {alias}",
     "date_times": "Date: {date} | Official Time: {official_time} | Retcon Time: {retcon_time}",
