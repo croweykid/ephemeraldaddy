@@ -635,7 +635,6 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
-from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE,
@@ -7372,9 +7371,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             birthplace = str(getattr(chart, "birth_place", "") or "").strip()
             city, state, country = self._extract_birthplace_components(birthplace)
-            canonical_city = normalize_city(city or "", country)
-            if canonical_city:
-                city_counts[canonical_city] += 1
+            if city:
+                city_counts[city] += 1
             if country:
                 canonical_country = normalize_country(country)
                 if canonical_country:
