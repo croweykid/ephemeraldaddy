@@ -2111,7 +2111,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.installEventFilter(self)
         
         self.list_panel = QWidget()
-        self.list_panel.setMinimumWidth(420)
+        self.list_panel.setMinimumWidth(280)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_panel.setLayout(list_layout)
@@ -2150,6 +2150,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setStretchFactor(1, 1)
         self._content_splitter.setStretchFactor(2, 0)
         configure_splitter_handle_resize_cursor(self._content_splitter)
+        self._content_splitter.splitterMoved.connect(self._on_content_splitter_moved)
         layout.addWidget(self._content_splitter, 1)
 
         self._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -9957,11 +9958,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(panel.minimumWidth())
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMinimumWidth(120)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        panel.setMinimumWidth(0)
+        panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
         scroll.setWidget(panel)
         return scroll
 
@@ -9970,17 +9972,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(panel.minimumWidth())
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMinimumWidth(120)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
+        panel.setMinimumWidth(0)
+        panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         scroll.setWidget(panel)
         return scroll
 
     def _build_search_panel(self) -> QWidget:
         # Search panel (right sidebar).
         panel = EmojiTiledPanel("🔎", font_size=100, opacity=0.12) #Search panel background
-        panel.setMinimumWidth(420)
+        panel.setMinimumWidth(260)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
@@ -11162,7 +11166,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _build_edit_panel(self) -> QWidget:
         # Batch edit panel (right sidebar).
         panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
-        panel.setMinimumWidth(420)
+        panel.setMinimumWidth(260)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
@@ -13077,6 +13081,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[2] <= 0
 
+    def _on_content_splitter_moved(self, *_args) -> None:
+        sizes = self._content_splitter.sizes()
+        if len(sizes) < 3:
+            return
+        if self._left_panel_visible and sizes[0] > 0:
+            self._left_panel_sizes = list(sizes)
+        if self._right_panel_visible and sizes[2] > 0:
+            self._right_panel_sizes = list(sizes)
+        self._settings.setValue("manage_charts/splitter_sizes", sizes)
+
     def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
         if self._right_panel_visible == visible:
             if visible and restore_default_size:
@@ -13718,7 +13732,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             normalized[0] = 0
             return normalized
 
-        min_left_width = max(self._left_panel_widgets["database_metrics"].minimumWidth(), 320)
+        active_left_widget = self.left_panel_stack.currentWidget()
+        min_left_width = max(
+            active_left_widget.minimumWidth() if active_left_widget is not None else 0,
+            220,
+        )
         if normalized[0] >= min_left_width:
             return normalized
 
