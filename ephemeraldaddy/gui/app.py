@@ -1800,6 +1800,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._notes_comments_filter_input = None
         self._notes_source_filter_checkbox = None
         self._notes_source_filter_input = None
+        self._search_location_country_input = None
+        self._search_location_city_input = None
+        self._search_location_state_input = None
         self.living_checkbox = None
         self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
         self._dominant_element_primary_combo = None
@@ -7241,6 +7244,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return city, state, country
 
     @staticmethod
+    def _normalized_location_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
+        city, state, country = ManageChartsDialog._extract_birthplace_components(raw_place)
+        canonical_city = normalize_city(city or "", country)
+        canonical_country = normalize_country(country) if country else None
+        canonical_state = None
+        resolved_country = resolve_country(country) if country else None
+        if resolved_country and resolved_country.get("alpha_2") == "US":
+            canonical_state = normalize_us_state(state or raw_place)
+        return canonical_country, canonical_city, canonical_state
+
+    @staticmethod
     def _bucket_age_value(age_value: int) -> str | None:
         for label, min_age, max_age in AGE_BRACKETS:
             if min_age is None:
@@ -8165,6 +8179,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not selected_human_design_gates
             and selected_human_design_type == "Any"
             and not self.search_text_input.text().strip()
+            and (
+                self._search_location_country_input is None
+                or not self._search_location_country_input.text().strip()
+            )
+            and (
+                self._search_location_city_input is None
+                or not self._search_location_city_input.text().strip()
+            )
+            and (
+                self._search_location_state_input is None
+                or not self._search_location_state_input.text().strip()
+            )
             and (
                 not hasattr(self, "search_tags_input")
                 or not self.search_tags_input.text().strip()
@@ -10763,6 +10789,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(gender_section)
 
+#Search: Locations section
+        locations_section, locations_group_layout = add_collapsible_section("Locations")
+
+        country_row = QHBoxLayout()
+        country_row.addWidget(QLabel("Country"))
+        self._search_location_country_input = QLineEdit()
+        self._search_location_country_input.setPlaceholderText("e.g. USA, UK, Italy")
+        self._search_location_country_input.textChanged.connect(self._on_filter_changed)
+        self._search_location_country_input.returnPressed.connect(self._on_filter_changed)
+        country_row.addWidget(self._search_location_country_input, 1)
+        locations_group_layout.addLayout(country_row)
+
+        city_row = QHBoxLayout()
+        city_row.addWidget(QLabel("City"))
+        self._search_location_city_input = QLineEdit()
+        self._search_location_city_input.setPlaceholderText("e.g. London")
+        self._search_location_city_input.textChanged.connect(self._on_filter_changed)
+        self._search_location_city_input.returnPressed.connect(self._on_filter_changed)
+        city_row.addWidget(self._search_location_city_input, 1)
+        locations_group_layout.addLayout(city_row)
+
+        state_row = QHBoxLayout()
+        state_row.addWidget(QLabel("State"))
+        self._search_location_state_input = QLineEdit()
+        self._search_location_state_input.setPlaceholderText("e.g. CA, NY, PR")
+        self._search_location_state_input.textChanged.connect(self._on_filter_changed)
+        self._search_location_state_input.returnPressed.connect(self._on_filter_changed)
+        state_row.addWidget(self._search_location_state_input, 1)
+        locations_group_layout.addLayout(state_row)
+        layout.addWidget(locations_section)
+
 #Search: chart type section
         chart_type_section, chart_type_group_layout = add_collapsible_section(
             "Chart Type"
@@ -11796,6 +11853,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(value)
         return None
 
+    def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
+        if not isinstance(line_edit, QLineEdit):
+            return
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
+
+    def _update_location_completers(self) -> None:
+        countries: set[str] = set()
+        cities: set[str] = set()
+        states: set[str] = set()
+        for chart_row in self._chart_rows:
+            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+            if not birth_place:
+                continue
+            country, city, state = self._normalized_location_components(birth_place)
+            if country:
+                countries.add(country)
+            if city:
+                cities.add(city)
+            if state:
+                states.add(state)
+
+        self._apply_location_completer(self._search_location_country_input, sorted(countries))
+        self._apply_location_completer(self._search_location_city_input, sorted(cities))
+        self._apply_location_completer(self._search_location_state_input, sorted(states))
+
     def _update_tag_completers(self) -> None:
         known_tags = list_recognized_tags()
         self._known_chart_tags = known_tags
@@ -11806,6 +11891,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not isinstance(line_edit, QLineEdit):
                 continue
             apply_tag_completer(line_edit, known_tags)
+        self._update_location_completers()
         self._refresh_search_tags_list(known_tags)
         self._refresh_batch_tags_list(known_tags)
 
@@ -13839,6 +13925,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.dnd_class_filter_combo.setCurrentIndex(0)
             self.species_filter_combo.setCurrentIndex(0)
             self.search_text_input.setText("")
+            if self._search_location_country_input is not None:
+                self._search_location_country_input.setText("")
+            if self._search_location_city_input is not None:
+                self._search_location_city_input.setText("")
+            if self._search_location_state_input is not None:
+                self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
             if (
@@ -15098,6 +15190,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         retconned_state = self.retconned_checkbox.mode()
         living_state = self.living_checkbox.mode() if self.living_checkbox is not None else QuadStateSlider.MODE_EMPTY
         search_text = self.search_text_input.text().strip()
+        search_country = (
+            self._search_location_country_input.text().strip()
+            if isinstance(self._search_location_country_input, QLineEdit)
+            else ""
+        )
+        search_city = (
+            self._search_location_city_input.text().strip()
+            if isinstance(self._search_location_city_input, QLineEdit)
+            else ""
+        )
+        search_state = (
+            self._search_location_state_input.text().strip()
+            if isinstance(self._search_location_state_input, QLineEdit)
+            else ""
+        )
         search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
@@ -15322,6 +15429,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
 
         chart_row = self._active_chart_rows_by_id.get(int(chart_id))
+        if search_country or search_city or search_state:
+            birth_place_value = chart_row[5] if chart_row else None
+            if birth_place_value is None:
+                chart = self._get_chart_for_filter(chart_id)
+                birth_place_value = getattr(chart, "birth_place", None) if chart else None
+            canonical_country, canonical_city, canonical_state = self._normalized_location_components(
+                str(birth_place_value or "")
+            )
+            if search_country and (
+                not canonical_country
+                or search_country.casefold() not in canonical_country.casefold()
+            ):
+                return False
+            if search_city and (
+                not canonical_city
+                or search_city.casefold() not in canonical_city.casefold()
+            ):
+                return False
+            if search_state and (
+                not canonical_state
+                or search_state.casefold() not in canonical_state.casefold()
+            ):
+                return False
         if search_text:
             def matches(value: str | None) -> bool:
                 return bool(value) and search_text.casefold() in value.casefold()
@@ -21866,6 +21996,7 @@ class MainWindow(QMainWindow):
             apply_tag_completer(self.search_tags_input, sorted_tags)
         if hasattr(self, "batch_tags_input"):
             apply_tag_completer(self.batch_tags_input, sorted_tags)
+        self._update_location_completers()
         refresh_search_tags_list = getattr(self, "_refresh_search_tags_list", None)
         if callable(refresh_search_tags_list):
             refresh_search_tags_list(sorted_tags)
