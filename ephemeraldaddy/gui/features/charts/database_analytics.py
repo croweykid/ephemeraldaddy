@@ -22,6 +22,7 @@ from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
     SENTIMENT_COLORS,
@@ -36,6 +37,7 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
+    get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
 )
 
@@ -261,7 +263,7 @@ class DatabaseAnalyticsChartsMixin:
             for relationship in relationship_labels
         ]
         relationship_positions = list(range(len(relationship_labels)))
-        relationship_colors = ["#6fa8dc" for _ in relationship_labels]
+        relationship_colors = get_cycled_earthtone_colors(len(relationship_labels))
         selection_values = [
             selection_relationships[relationship]
             for relationship in relationship_labels
@@ -799,7 +801,13 @@ class DatabaseAnalyticsChartsMixin:
         colors = [
             PLANET_COLORS.get(
                 label,
-                HOUSE_COLORS.get(label, ELEMENT_COLORS.get(label, "#6fa8dc")),
+                HOUSE_COLORS.get(
+                    label,
+                    ELEMENT_COLORS.get(
+                        label,
+                        NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
+                    ),
+                ),
             )
             for label in labels
         ]
