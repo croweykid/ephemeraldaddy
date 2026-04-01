@@ -10051,8 +10051,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_layout.addWidget(content)
             return section, content_layout
 
+#Search: data completeness & accuracy
         birth_info_status_section, birth_info_status_layout = add_collapsible_section(
-            "Data Quality"
+            "Data Completeness && Accuracy"
         )
 
         incomplete_birthdate_row = QHBoxLayout()
@@ -10089,6 +10090,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_info_status_layout.addLayout(birth_filters_row)
         layout.addWidget(birth_info_status_section)
 
+#Search: Mortality section
         mortality_section, mortality_section_layout = add_collapsible_section("Mortality")
         mortality_row = QHBoxLayout()
         self.living_checkbox = QuadStateSlider("living")
@@ -10121,6 +10123,50 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(mortality_section)
 
+#Search: gender section
+        gender_section, gender_group_layout = add_collapsible_section("Gender")
+        gender_mode_layout = QHBoxLayout()
+        gender_mode_layout.addWidget(QLabel("Gender"))
+        gender_mode_layout.addStretch(1)
+        self.gender_filter_and = QRadioButton("AND")
+        self.gender_filter_or = QRadioButton("OR")
+        self.gender_filter_group = QButtonGroup(self)
+        self.gender_filter_group.setExclusive(True)
+        self.gender_filter_group.addButton(self.gender_filter_and)
+        self.gender_filter_group.addButton(self.gender_filter_or)
+        self.gender_filter_and.setChecked(True)
+        self.gender_filter_group.buttonClicked.connect(self._on_filter_changed)
+        gender_mode_layout.addWidget(self.gender_filter_and)
+        gender_mode_layout.addWidget(self.gender_filter_or)
+        gender_group_layout.addLayout(gender_mode_layout)
+
+        gender_layout = QGridLayout()
+        gender_layout.setContentsMargins(0, 0, 0, 0)
+        self.gender_filter_checkboxes = {}
+        gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
+        for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
+            checkbox_label = "blank" if label == "none" else label
+            checkbox = QuadStateSlider(checkbox_label)
+            checkbox.modeChanged.connect(self._on_filter_changed)
+            self.gender_filter_checkboxes[label] = checkbox
+            row = idx % gender_rows
+            col = idx // gender_rows
+            gender_layout.addWidget(checkbox, row, col)
+        gender_group_layout.addLayout(gender_layout)
+
+        gender_guessed_layout = QHBoxLayout()
+        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
+        self.gender_guessed_filter_combo = QComboBox()
+        apply_default_dropdown_style(self.gender_guessed_filter_combo)
+        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
+            self.gender_guessed_filter_combo.addItem(label, value)
+        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
+        gender_group_layout.addLayout(gender_guessed_layout)
+
+        layout.addWidget(gender_section)
+
+#Search: chart type section
         chart_type_section, chart_type_group_layout = add_collapsible_section(
             "Chart Type"
         )
@@ -10138,8 +10184,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_type_group_layout.addLayout(chart_type_layout)
         layout.addWidget(chart_type_section)
 
+#Search: year first encountered
         year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(
-            "Year 1st Encountered"
+            "💭Year 1st Encountered" #year user first encountered
         )
         year_first_encountered_range_row = QHBoxLayout()
         year_first_encountered_range_row.addWidget(QLabel("Earliest"))
@@ -10174,7 +10221,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
         layout.addWidget(year_first_encountered_section)
 
-        sentiment_section, sentiment_group_layout = add_collapsible_section("Sentiments")
+        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiments")
 
         sentiment_mode_layout = QHBoxLayout()
         sentiment_mode_layout.addWidget(QLabel("Sentiment type"))
@@ -10182,7 +10229,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sentiment_filter_and = QRadioButton("AND")
         self.sentiment_filter_or = QRadioButton("OR")
         self.sentiment_filter_group = QButtonGroup(self)
-        self.sentiment_filter_group.setExclusive(True)
+        self.sentiment_filter_group.setExclusive(True)""
         self.sentiment_filter_group.addButton(self.sentiment_filter_and)
         self.sentiment_filter_group.addButton(self.sentiment_filter_or)
         self.sentiment_filter_and.setChecked(True)
@@ -10264,9 +10311,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(sentiment_section)
 
-        alignment_section, alignment_group_layout = add_collapsible_section("Alignments")
+        alignment_section, alignment_group_layout = add_collapsible_section("💭Alignment")
         alignment_range_row = QHBoxLayout()
-        alignment_range_row.addWidget(QLabel("Alignment"))
+        alignment_range_row.addWidget(QLabel("💭Alignment"))
         self._alignment_score_min_input = QLineEdit()
         self._alignment_score_min_input.setFixedWidth(44)
         self._alignment_score_min_input.setMaxLength(3)
@@ -10291,7 +10338,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(alignment_section)
 
         relationship_section, relationship_group_layout = add_collapsible_section(
-            "Relationship Types"
+            "💭Relationship Types"
         )
         relationship_mode_layout = QHBoxLayout()
         relationship_mode_layout.addWidget(QLabel("Relationship type"))
@@ -10322,49 +10369,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         relationship_group_layout.addLayout(relationship_layout)
         layout.addWidget(relationship_section)
 
-        gender_section, gender_group_layout = add_collapsible_section("Gender")
-        gender_mode_layout = QHBoxLayout()
-        gender_mode_layout.addWidget(QLabel("Gender"))
-        gender_mode_layout.addStretch(1)
-        self.gender_filter_and = QRadioButton("AND")
-        self.gender_filter_or = QRadioButton("OR")
-        self.gender_filter_group = QButtonGroup(self)
-        self.gender_filter_group.setExclusive(True)
-        self.gender_filter_group.addButton(self.gender_filter_and)
-        self.gender_filter_group.addButton(self.gender_filter_or)
-        self.gender_filter_and.setChecked(True)
-        self.gender_filter_group.buttonClicked.connect(self._on_filter_changed)
-        gender_mode_layout.addWidget(self.gender_filter_and)
-        gender_mode_layout.addWidget(self.gender_filter_or)
-        gender_group_layout.addLayout(gender_mode_layout)
-
-        gender_layout = QGridLayout()
-        gender_layout.setContentsMargins(0, 0, 0, 0)
-        self.gender_filter_checkboxes = {}
-        gender_rows = (len(SEARCH_GENDER_OPTIONS) + 1) // 2
-        for idx, label in enumerate(SEARCH_GENDER_OPTIONS):
-            checkbox_label = "blank" if label == "none" else label
-            checkbox = QuadStateSlider(checkbox_label)
-            checkbox.modeChanged.connect(self._on_filter_changed)
-            self.gender_filter_checkboxes[label] = checkbox
-            row = idx % gender_rows
-            col = idx // gender_rows
-            gender_layout.addWidget(checkbox, row, col)
-        gender_group_layout.addLayout(gender_layout)
-
-        gender_guessed_layout = QHBoxLayout()
-        gender_guessed_layout.addWidget(QLabel("Gender Guessed"))
-        self.gender_guessed_filter_combo = QComboBox()
-        apply_default_dropdown_style(self.gender_guessed_filter_combo)
-        for label, value in SEARCH_GENDER_GUESSED_OPTIONS:
-            self.gender_guessed_filter_combo.addItem(label, value)
-        self.gender_guessed_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        gender_guessed_layout.addWidget(self.gender_guessed_filter_combo)
-        gender_group_layout.addLayout(gender_guessed_layout)
-
-        layout.addWidget(gender_section)
-
-        human_design_section, human_design_group_layout = add_collapsible_section("Human Design")
+        
+#human design section
+        human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
 
         hd_channels_row = QHBoxLayout()
         hd_channels_row.addWidget(QLabel("Channels"))
@@ -10438,7 +10445,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         human_design_group_layout.addLayout(hd_type_row)
         layout.addWidget(human_design_section)
 
-        bodies_section, bodies_group_layout = add_collapsible_section("Bodies/Angles")
+        bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
 
         bodies_layout = QFormLayout()
         bodies_layout.setLabelAlignment(Qt.AlignLeft)
@@ -10498,7 +10505,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         layout.addWidget(bodies_section)
 
-        aspect_section, aspect_group_layout = add_collapsible_section("Search by Aspect")
+        aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
 
         aspect_layout = QFormLayout()
         aspect_layout.setLabelAlignment(Qt.AlignLeft)
@@ -10569,7 +10576,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(aspect_section)
 
         dominant_section, dominant_group_layout = add_collapsible_section(
-            "Dominant Sign"
+            "🪐Dominant Sign" #dominant astrological sign
         )
 
         dominant_layout = QFormLayout()
@@ -10613,7 +10620,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_section)
 
         dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-            "Dominant Bodies"
+            "🪐Dominant Bodies" #dominant astrological bodies
         )
 
         dominant_planet_layout = QFormLayout()
@@ -10659,7 +10666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_planet_section)
 
         dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-            "Dominant Mode"
+            "🪐Dominant Modes" #dominant astrological modes
         )
 
         dominant_mode_layout = QFormLayout()
@@ -10704,7 +10711,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_mode_section)
 
         dominant_element_section, dominant_element_group_layout = add_collapsible_section(
-            "Elemental Dominance"
+            "🪐Dominant Elements" #dominatn astrological elements
         )
         dominant_element_layout = QFormLayout()
         dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
@@ -10735,7 +10742,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(dominant_element_section)
 
         dnd_species_section, dnd_species_group_layout = add_collapsible_section(
-            "D&&D-ification"
+            "⚔️D&&D-ification"
         )
         class_filter_row = QHBoxLayout()
         class_filter_row.addWidget(QLabel("Top 3 Classes"))
@@ -11200,7 +11207,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_layout.addWidget(content)
             return section, content_layout
 
-        sentiment_section, sentiment_section_layout = add_collapsible_section("Sentiment")
+        sentiment_section, sentiment_section_layout = add_collapsible_section("💭Sentiment") #user sentiment
 
         self.batch_sentiment_checkboxes = {}
         sentiment_widget = QWidget()
@@ -11223,7 +11230,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_section_layout.addWidget(sentiment_widget)
         layout.addWidget(sentiment_section)
 
-        relationship_section, relationship_section_layout = add_collapsible_section("Relationship types")
+        relationship_section, relationship_section_layout = add_collapsible_section("💭Relationships") #user relationships
 
         self.batch_relationship_type_checkboxes = {}
         relationship_widget = QWidget()
@@ -11295,7 +11302,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
-        sentiment_metrics_section, sentiment_metrics_section_layout = add_collapsible_section("Sentiment metrics")
+        sentiment_metrics_section, sentiment_metrics_section_layout = add_collapsible_section("💭Sentiments") #user sentiments
 
         sentiment_metrics_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
@@ -11325,7 +11332,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._parse_year_first_encountered_text(self.batch_year_first_encountered_edit.text()),
             )
         )
-        sentiment_metrics_layout.addWidget(QLabel("Year 1st Encountered"), 3, 0)
+        sentiment_metrics_layout.addWidget(QLabel("💭Year 1st Encountered"), 3, 0)
         sentiment_metrics_layout.addWidget(
             self.batch_year_first_encountered_edit,
             3,
@@ -11477,7 +11484,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         mortality_section_layout.addWidget(self.batch_deceased_checkbox)
         layout.addWidget(mortality_section)
 
-        alignment_section, alignment_section_layout = add_collapsible_section("Alignment")
+        alignment_section, alignment_section_layout = add_collapsible_section("💭Alignment")
 
         self.batch_alignment_slider = AlignmentEmojiSlider()
         self.batch_alignment_slider.valueChanged.connect(self._on_batch_alignment_changed)
@@ -17883,7 +17890,7 @@ class MainWindow(QMainWindow):
         self.relationship_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.relationship_panel_toggle,
-            title="Relationship Types",
+            title="💭Relationship Types",
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
@@ -18124,7 +18131,7 @@ class MainWindow(QMainWindow):
         self.alignment_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
             self.alignment_panel_toggle,
-            title="Alignment",
+            title="💭Alignment",
             expanded=True,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
