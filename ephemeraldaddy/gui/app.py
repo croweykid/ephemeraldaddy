@@ -8589,6 +8589,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 float(snapshot.get("social_score", 0.0))
                 for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
             ]
+            database_social_score_min = (
+                min(database_social_scores) if database_social_scores else 0.0
+            )
+            database_social_score_max = (
+                max(database_social_scores) if database_social_scores else 0.0
+            )
             selection_alignment_scores = [
                 float(snapshot.get("alignment_score", 0.0))
                 for snapshot in self._iter_database_metric_snapshots(chart_ids)
@@ -8922,6 +8928,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_values=social_score_selection_values,
                         database_values=social_score_database_values,
                         loaded_charts=loaded_charts,
+                        social_score_min=database_social_score_min,
+                        social_score_max=database_social_score_max,
                     )
                     self.social_score_summary_chart_layout.addWidget(
                         social_score_canvas,
