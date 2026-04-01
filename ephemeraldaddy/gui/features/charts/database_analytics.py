@@ -1038,7 +1038,7 @@ class DatabaseAnalyticsChartsMixin:
             for species in labels
         ]
         positions = list(range(len(labels)))
-        colors = ["#6fa8dc" for _ in labels]
+        colors = get_cycled_earthtone_colors(len(labels))
         selection_values = [selection_species[species] for species in labels]
         database_values = [database_species[species] for species in labels]
         if loaded_charts == 0:
@@ -1307,6 +1307,11 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
     ) -> FigureCanvas:
         labels = list(self.DND_STAT_KEYS)
+        dnd_stat_colors = get_cycled_earthtone_colors(len(labels))
+        stat_color_lookup = {
+            label: dnd_stat_colors[index]
+            for index, label in enumerate(labels)
+        }
         selection_values_map = self._compute_dnd_statblock_averages(selection_cache)
         database_values_map = self._compute_dnd_statblock_averages(database_cache)
         selection_values = [selection_values_map[label] for label in labels]
@@ -1316,7 +1321,10 @@ class DatabaseAnalyticsChartsMixin:
             selection_values=selection_values,
             database_values=database_values,
             loaded_charts=loaded_charts,
-            color_resolver=lambda label, _value: DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
+            color_resolver=lambda label, _value: stat_color_lookup.get(
+                label,
+                DND_STAT_EARTHTONE_COLORS.get(label, "#6fa8dc"),
+            ),
             fixed_axis_limit=20.0,
             value_precision=0,
         )
@@ -1633,6 +1641,7 @@ class DatabaseAnalyticsChartsMixin:
         database_counts: list[int],
         loaded_charts: int,
         auto_height: bool = False,
+        use_earthtone_cycle: bool = False,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
         figure = Figure(figsize=(4.8, chart_height))
@@ -1643,7 +1652,12 @@ class DatabaseAnalyticsChartsMixin:
         values = selection_counts if loaded_charts else database_counts
         display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
         positions = list(range(len(labels)))
-        bars = ax.barh(positions, values, color="#6fa8dc", height=0.55, zorder=2)
+        colors = (
+            get_cycled_earthtone_colors(len(labels))
+            if use_earthtone_cycle
+            else ["#6fa8dc" for _ in labels]
+        )
+        bars = ax.barh(positions, values, color=colors, height=0.55, zorder=2)
         max_value = max(values, default=0)
         self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
         ax.set_yticks(positions, labels=display_labels)
