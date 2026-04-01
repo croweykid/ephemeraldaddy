@@ -10008,7 +10008,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(panel.minimumWidth())
+        scroll.setMinimumWidth(220)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
@@ -10021,7 +10021,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(panel.minimumWidth())
+        scroll.setMinimumWidth(220)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
@@ -10031,7 +10031,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _build_search_panel(self) -> QWidget:
         # Search panel (right sidebar).
         panel = EmojiTiledPanel("🔎", font_size=100, opacity=0.12) #Search panel background
-        panel.setMinimumWidth(420)
+        panel.setMinimumWidth(260)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
@@ -11244,7 +11244,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _build_edit_panel(self) -> QWidget:
         # Batch edit panel (right sidebar).
         panel = EmojiTiledPanel("✏️", font_size=70, opacity=0.10) #Batch Edit panelbackground
-        panel.setMinimumWidth(420)
+        panel.setMinimumWidth(260)
         layout = QVBoxLayout()
         panel.setLayout(layout)
 
@@ -13810,7 +13810,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             normalized[0] = 0
             return normalized
 
-        min_left_width = max(self._left_panel_widgets["database_metrics"].minimumWidth(), 320)
+        active_left_widget = self.left_panel_stack.currentWidget()
+        min_left_width = max(
+            active_left_widget.minimumWidth() if active_left_widget is not None else 0,
+            220,
+        )
         if normalized[0] >= min_left_width:
             return normalized
 
