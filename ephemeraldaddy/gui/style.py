@@ -244,14 +244,18 @@ CHART_VIEW_TIME_OVERWRITE_ENABLED = True
 CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER = 12
 CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING = 4
 DATABASE_VIEW_HEADER_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+COLLAPSIBLE_SECTION_BACKGROUND = "#362b3d"
+COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
 DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = (
-    f"font-weight: bold; font-size: 12px; color: #ffffff; padding: 6px; text-align: left;"
+    f"font-weight: bold; font-size: 12px; color: #ffffff; padding: 6px; text-align: left; "
+    f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 )
 SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = (
-    f"font-weight: bold; font-size: 12px; color: {DATABASE_VIEW_HEADER_COLOR}; padding: 6px; text-align: left;"
+    f"font-weight: bold; font-size: 12px; color: {DATABASE_VIEW_HEADER_COLOR}; padding: 6px; text-align: left; "
+    f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
 )
 SETTINGS_SECTION_SUBHEADER_STYLE = "font-weight: 700;"
 DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE

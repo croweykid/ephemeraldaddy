@@ -559,6 +559,7 @@ from ephemeraldaddy.gui.style import (
     CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT,
     CHART_VIEW_TIME_INPUT_WIDTH,
     CHART_VIEW_TIME_OVERWRITE_ENABLED,
+    COLLAPSIBLE_SECTION_CONTENT_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -2275,6 +2276,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
+        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         content.setVisible(expanded)
 
         def toggle_content(checked: bool) -> None:
@@ -6029,6 +6031,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
         content.setLayout(content_layout)
+        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         content.setVisible(False)
 
         section_list = QListWidget()
@@ -10081,6 +10084,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout = QVBoxLayout()
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
+            content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
             content.setVisible(False)
 
             def toggle_content(checked: bool) -> None:
@@ -11315,6 +11319,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout = QVBoxLayout()
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
+            content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
             content.setVisible(False)
 
             def toggle_content(checked: bool) -> None:
@@ -16898,6 +16903,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         section_content = QFrame()
         section_content.setObjectName("settings_section_content")
+        section_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
         section_content_layout = QVBoxLayout(section_content)
         section_content_layout.setContentsMargins(12, 10, 12, 10)
         section_content_layout.setSpacing(8)
