@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
+from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
@@ -1488,8 +1489,10 @@ class DatabaseAnalyticsChartsMixin:
 
             birthplace = str(getattr(chart, "birth_place", "") or "").strip()
             city, state, country = self._extract_birthplace_components(birthplace)
-            if city:
-                city_counts[city] += 1
+            canonical_city = normalize_city(city or "", country)
+            if canonical_city:
+                city_counts[canonical_city] += 1
+
             if country:
                 canonical_country = normalize_country(country)
                 if canonical_country:
