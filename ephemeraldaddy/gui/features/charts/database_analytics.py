@@ -22,6 +22,7 @@ from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
     SENTIMENT_COLORS,
@@ -36,6 +37,7 @@ from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
     DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
+    get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
 )
 
@@ -261,7 +263,7 @@ class DatabaseAnalyticsChartsMixin:
             for relationship in relationship_labels
         ]
         relationship_positions = list(range(len(relationship_labels)))
-        relationship_colors = ["#6fa8dc" for _ in relationship_labels]
+        relationship_colors = get_cycled_earthtone_colors(len(relationship_labels))
         selection_values = [
             selection_relationships[relationship]
             for relationship in relationship_labels
@@ -799,7 +801,13 @@ class DatabaseAnalyticsChartsMixin:
         colors = [
             PLANET_COLORS.get(
                 label,
-                HOUSE_COLORS.get(label, ELEMENT_COLORS.get(label, "#6fa8dc")),
+                HOUSE_COLORS.get(
+                    label,
+                    ELEMENT_COLORS.get(
+                        label,
+                        NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
+                    ),
+                ),
             )
             for label in labels
         ]
@@ -1010,11 +1018,12 @@ class DatabaseAnalyticsChartsMixin:
         database_species_counts: dict[str, float],
         loaded_charts: int,
         bar_height: float = 0.32,
+        show_x_axis_labels: bool = False,
     ) -> FigureCanvas:
         labels = list(selection_species.keys())
         # Keep D&D species and class distributions visually consistent and compact
         # so the full graph remains visible above the fold.
-        chart_height = 4.8
+        chart_height = 4.9
         figure = Figure(figsize=(4.8, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
@@ -1044,12 +1053,16 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            if show_x_axis_labels:
+                ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            else:
+                ax.tick_params(axis="x", length=0, labelbottom=False)
             ax.set_xlabel("")
-            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
-            ax.set_xticklabels(
-                [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
-            )
+            if show_x_axis_labels:
+                ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+                ax.set_xticklabels(
+                    [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
+                )
             for bar, database_value in zip(species_bars, database_values):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 label_x = min(database_value + 0.02, 0.95)
@@ -1080,12 +1093,16 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
-            ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            if show_x_axis_labels:
+                ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
+            else:
+                ax.tick_params(axis="x", length=0, labelbottom=False)
             ax.set_xlabel("")
-            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            ax.set_xticklabels(
-                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-            )
+            if show_x_axis_labels:
+                ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+                ax.set_xticklabels(
+                    [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
+                )
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(species_bars, differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
@@ -1130,8 +1147,9 @@ class DatabaseAnalyticsChartsMixin:
         color_resolver: Any = None,
         fixed_axis_limit: float | None = None,
         value_precision: int = 2,
+        figure_height: float = 2.8,
     ) -> FigureCanvas:
-        figure = Figure(figsize=(4.8, 2.8))
+        figure = Figure(figsize=(4.8, figure_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1166,13 +1184,16 @@ class DatabaseAnalyticsChartsMixin:
         range_min = float(social_score_min) if social_score_min is not None else None
         range_max = float(social_score_max) if social_score_max is not None else None
 
-        def _resolve_social_color(value: float) -> Any:
+        def _resolve_social_color(label: str, value: float) -> Any:
             if range_min is None or range_max is None:
-                return _resolve_bar_color("", value)
+                return _resolve_bar_color(label, value)
             return value_to_red_blue_rgb(value, range_min, range_max)
 
         if loaded_charts == 0:
-            colors = [_resolve_social_color(value) for value in database_values]
+            colors = [
+                _resolve_social_color(label, value)
+                for label, value in zip(labels, database_values)
+            ]
             bars = ax.barh(
                 positions,
                 database_values,
@@ -1218,7 +1239,10 @@ class DatabaseAnalyticsChartsMixin:
                 selection - database
                 for selection, database in zip(selection_values, database_values)
             ]
-            colors = [_resolve_social_color(value) for value in selection_values]
+            colors = [
+                _resolve_social_color(label, value)
+                for label, value in zip(labels, selection_values)
+            ]
             widths = [abs(value) for value in differences]
             bars = ax.barh(
                 positions,
