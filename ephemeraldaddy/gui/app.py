@@ -21858,6 +21858,11 @@ class MainWindow(QMainWindow):
                 # self.birth_day_edit.clear()
                 # self.birth_year_edit.clear()
 
+        target_data_rating = "XX" if checked else "blank"
+        rating_index = self.data_rating_combo.findData(target_data_rating)
+        if rating_index >= 0 and self.data_rating_combo.currentIndex() != rating_index:
+            self.data_rating_combo.setCurrentIndex(rating_index)
+
     def _clear_required_field_highlights(self) -> None:
         for widget in (
             self.birth_month_edit,
