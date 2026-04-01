@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLayout, QSizePolicy
 
-from ephemeraldaddy.analysis.country_lookup import resolve_country
+from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     ELEMENT_COLORS,
@@ -1490,9 +1490,11 @@ class DatabaseAnalyticsChartsMixin:
             if city:
                 city_counts[city] += 1
             if country:
+                canonical_country = normalize_country(country)
+                if canonical_country:
+                    country_counts[canonical_country] += 1
+
                 resolved_country = resolve_country(country)
-                canonical_country = str(resolved_country.get("name", "")).strip() if resolved_country else ""
-                country_counts[canonical_country or country] += 1
                 if resolved_country and resolved_country.get("alpha_2") == "US" and state:
                     us_state_counts[state] += 1
 
