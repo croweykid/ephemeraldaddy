@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
 
+from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
+
 ASTROTHEME_SEARCH_URL = "https://www.astrotheme.com/celebrities/recherche.php"
 ASTROTHEME_USER_AGENT = "Mozilla/5.0 (compatible; EphemeralDaddy Astrotheme helper)"
 
@@ -104,6 +106,82 @@ def _astrotheme_is_profile_like_url(url: str) -> bool:
     slug = Path(parsed.path).name
     return bool(slug and slug.lower() not in {"astrology", "index.php"})
 
+
+
+
+_US_COUNTRY_TOKENS = {
+    "us",
+    "u.s.",
+    "usa",
+    "u.s.a.",
+    "united states",
+    "united states of america",
+}
+
+_US_NON_CITY_MARKERS = (
+    "county",
+    "avenue",
+    "ave",
+    "street",
+    "st",
+    "highway",
+    "hwy",
+    "road",
+    "rd",
+    "boulevard",
+    "blvd",
+    "drive",
+    "dr",
+    "lane",
+    "ln",
+    "parkway",
+    "pkwy",
+    "route",
+    "post office",
+    "zip",
+)
+
+
+def _normalize_astrotheme_birth_place(raw_place: str) -> str:
+    cleaned = raw_place.replace(") (", ", ").replace("(", "").replace(")", "").strip()
+    if not cleaned:
+        return ""
+
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+    if len(parts) < 3:
+        return cleaned
+
+    country_token = parts[-1].lower()
+    if country_token not in _US_COUNTRY_TOKENS:
+        return cleaned
+
+    state_index = None
+    state_code = None
+    for idx in range(len(parts) - 2, -1, -1):
+        candidate_code = normalize_us_state(parts[idx])
+        if candidate_code:
+            state_index = idx
+            state_code = candidate_code
+            break
+
+    if state_index is None or state_code is None:
+        return cleaned
+
+    city = None
+    for idx in range(state_index - 1, -1, -1):
+        token = parts[idx]
+        lowered = token.lower()
+        if any(ch.isdigit() for ch in token):
+            continue
+        if any(marker in lowered for marker in _US_NON_CITY_MARKERS):
+            continue
+        city = token
+        break
+
+    if not city:
+        return cleaned
+
+    return f"{city}, {state_code}, US"
 
 def _astrotheme_profile_has_fiche_table(profile_url: str) -> bool:
     try:
@@ -304,7 +382,7 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         else:
             time_unknown = True
 
-    cleaned_place = place_text.replace(") (", ", ").replace("(", "").replace(")", "").strip()
+    cleaned_place = _normalize_astrotheme_birth_place(place_text)
     if not cleaned_place:
         raise ValueError("Could not parse Astrotheme birthplace.")
 
