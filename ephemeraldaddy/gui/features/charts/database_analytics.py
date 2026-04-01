@@ -1642,6 +1642,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         auto_height: bool = False,
         use_earthtone_cycle: bool = False,
+        bar_colors: list[str] | None = None,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
         figure = Figure(figsize=(4.8, chart_height))
@@ -1653,9 +1654,13 @@ class DatabaseAnalyticsChartsMixin:
         display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
         positions = list(range(len(labels)))
         colors = (
-            get_cycled_earthtone_colors(len(labels))
-            if use_earthtone_cycle
-            else ["#6fa8dc" for _ in labels]
+            list(bar_colors)
+            if bar_colors is not None
+            else (
+                get_cycled_earthtone_colors(len(labels))
+                if use_earthtone_cycle
+                else ["#6fa8dc" for _ in labels]
+            )
         )
         bars = ax.barh(positions, values, color=colors, height=0.55, zorder=2)
         max_value = max(values, default=0)

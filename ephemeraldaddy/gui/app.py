@@ -308,6 +308,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     GENERATIONAL_COHORTS,
+    GENERATION_COLORS,
     ASPECT_COLORS,
     ASPECT_FRICTION,
     ASPECT_TYPES,
@@ -3616,6 +3617,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=[
                 ("Age", "age_distribution"),
                 ("Time Known", "time_known_distribution"),
+                ("Generations", "generation_distribution"),
             ],
             show_title=False,
         )
@@ -7320,6 +7322,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_counts: Counter[int] = Counter()
         known_duration_counts: Counter[int] = Counter()
         age_bracket_counts: Counter[str] = Counter()
+        generation_counts: Counter[str] = Counter()
 
         for chart_id in chart_ids:
             chart = self._get_chart_for_filter(int(chart_id))
@@ -7340,6 +7343,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     age_bracket = self._bucket_age_value(age_value)
                     if age_bracket is not None:
                         age_bracket_counts[age_bracket] += 1
+                generation_name = self._generation_for_birth_year(int(birth_year_value))
+                if generation_name is not None:
+                    generation_counts[generation_name] += 1
 
             year_first_encountered = getattr(chart, "year_first_encountered", None)
             if isinstance(year_first_encountered, int):
@@ -7351,6 +7357,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age_counts": dict(age_counts),
             "age_bracket_counts": dict(age_bracket_counts),
             "known_duration_counts": dict(known_duration_counts),
+            "generation_counts": dict(generation_counts),
         }
 
     def _collect_birth_analytics(self, chart_ids: list[int] | set[int]) -> dict[str, Any]:
@@ -9640,7 +9647,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ]
 
             age_mode = self._age_mode
-            age_axis_label = "Age" if age_mode == "age_distribution" else "Time Known"
+            age_axis_label = {
+                "age_distribution": "Age",
+                "time_known_distribution": "Time Known",
+                "generation_distribution": "Generations",
+            }.get(age_mode, "Age")
+            generation_bar_colors: list[str] | None = None
             if age_mode == "age_distribution":
                 ordered_bracket_labels = [label for label, _min_age, _max_age in AGE_BRACKETS]
                 age_selection_counts = {
@@ -9656,6 +9668,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for label in ordered_bracket_labels
                     if (age_selection_counts.get(label, 0) > 0 if loaded_charts else age_database_counts.get(label, 0) > 0)
                 ]
+            elif age_mode == "generation_distribution":
+                ordered_generation_labels = [
+                    str(cohort.get("name"))
+                    for cohort in GENERATIONAL_COHORTS
+                    if isinstance(cohort.get("name"), str) and str(cohort.get("name")).strip()
+                ]
+                age_selection_counts = {
+                    label: int(age_selection_analytics["generation_counts"].get(label, 0))
+                    for label in ordered_generation_labels
+                }
+                age_database_counts = {
+                    label: int(age_database_analytics["generation_counts"].get(label, 0))
+                    for label in ordered_generation_labels
+                }
+                age_labels = [
+                    label
+                    for label in ordered_generation_labels
+                    if (age_selection_counts.get(label, 0) > 0 if loaded_charts else age_database_counts.get(label, 0) > 0)
+                ]
+                generation_bar_colors = [GENERATION_COLORS.get(label, "#6fa8dc") for label in age_labels]
             else:
                 age_selection_counts = {
                     str(int(key)): int(value)
@@ -9680,7 +9712,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[age_database_counts.get(label, 0) for label in age_labels],
                         loaded_charts=loaded_charts,
                         auto_height=True,
-                        use_earthtone_cycle=True,
+                        use_earthtone_cycle=(age_mode != "generation_distribution"),
+                        bar_colors=generation_bar_colors,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0, Qt.AlignHCenter)
                 else:
