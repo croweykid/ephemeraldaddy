@@ -10094,8 +10094,310 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_filters_row.addStretch(1)
         birth_info_status_layout.addLayout(birth_filters_row)
         layout.addWidget(birth_info_status_section)
-        
-#human design section
+
+#Search: Astrological Positions section
+        bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
+
+        bodies_layout = QFormLayout()
+        bodies_layout.setLabelAlignment(Qt.AlignLeft)
+        bodies_group_layout.addLayout(bodies_layout)
+
+        for idx in range(len(self._searchable_bodies())):
+            filter_row = QWidget()
+            filter_layout = QHBoxLayout()
+            filter_layout.setContentsMargins(0, 0, 0, 0)
+            filter_row.setLayout(filter_layout)
+
+            body_combo = QComboBox()
+            apply_default_dropdown_style(body_combo)
+            for body_label, body_key in self._searchable_body_options():
+                body_combo.addItem(body_label, body_key)
+            body_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            sign_combo = QComboBox()
+            apply_default_dropdown_style(sign_combo)
+            sign_combo.addItem("Any")
+            for sign in ZODIAC_NAMES:
+                sign_combo.addItem(sign)
+            sign_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            house_combo = QComboBox()
+            apply_default_dropdown_style(house_combo)
+            house_combo.addItem("Any")
+            for house_num in range(1, 13):
+                house_combo.addItem(str(house_num))
+            house_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_layout.addWidget(QLabel("🪐"))
+            filter_layout.addWidget(body_combo)
+            filter_layout.addWidget(QLabel("🪧"))
+            filter_layout.addWidget(sign_combo, 1)
+            filter_layout.addWidget(QLabel("🏠"))
+            filter_layout.addWidget(house_combo)
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(filter_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+            filter_layout.addWidget(filter_and)
+            filter_layout.addWidget(filter_or)
+
+            self._search_body_filters.append({
+                "body": body_combo,
+                "sign": sign_combo,
+                "house": house_combo,
+                "and": filter_and,
+                "or": filter_or,
+            })
+            bodies_layout.addRow(filter_row)
+
+        layout.addWidget(bodies_section)
+
+#Search: Aspects section
+        aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
+
+        aspect_layout = QFormLayout()
+        aspect_layout.setLabelAlignment(Qt.AlignLeft)
+        aspect_group_layout.addLayout(aspect_layout)
+
+        aspect_options = [("Any", "Any")]
+        for aspect_name in sorted(ASPECT_DEFS):
+            aspect_options.append((aspect_name.replace("_", " ").title(), aspect_name))
+
+        searchable_planets = [
+            (label, key)
+            for label, key in self._searchable_bodies()
+            if key not in {"AS", "IC", "DS", "MC"}
+        ]
+
+        for _ in range(3):
+            aspect_row = QWidget()
+            aspect_row_layout = QHBoxLayout()
+            aspect_row_layout.setContentsMargins(0, 0, 0, 0)
+            aspect_row.setLayout(aspect_row_layout)
+
+            planet_1_combo = QComboBox()
+            apply_default_dropdown_style(planet_1_combo)
+            planet_1_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_1_combo.addItem(label, key)
+            planet_1_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            aspect_combo = QComboBox()
+            apply_default_dropdown_style(aspect_combo)
+            for label, key in aspect_options:
+                aspect_combo.addItem(label, key)
+            aspect_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            planet_2_combo = QComboBox()
+            apply_default_dropdown_style(planet_2_combo)
+            planet_2_combo.addItem("Any", "Any")
+            for label, key in searchable_planets:
+                planet_2_combo.addItem(label, key)
+            planet_2_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(aspect_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            aspect_row_layout.addWidget(planet_1_combo, 1)
+            aspect_row_layout.addWidget(aspect_combo, 1)
+            aspect_row_layout.addWidget(planet_2_combo, 1)
+            aspect_row_layout.addWidget(filter_and)
+            aspect_row_layout.addWidget(filter_or)
+
+            self._aspect_filters.append(
+                {
+                    "planet_1": planet_1_combo,
+                    "aspect": aspect_combo,
+                    "planet_2": planet_2_combo,
+                    "and": filter_and,
+                    "or": filter_or,
+                }
+            )
+            aspect_layout.addRow(aspect_row)
+
+        layout.addWidget(aspect_section)
+
+#Search: Dominant Sign section
+        dominant_section, dominant_group_layout = add_collapsible_section(
+            "🪐Dominant Sign" #dominant astrological sign
+        )
+
+        dominant_layout = QFormLayout()
+        dominant_layout.setLabelAlignment(Qt.AlignLeft)
+        dominant_group_layout.addLayout(dominant_layout)
+
+        for _ in range(3):
+            dominant_row = QWidget()
+            dominant_row_layout = QHBoxLayout()
+            dominant_row_layout.setContentsMargins(0, 0, 0, 0)
+            dominant_row.setLayout(dominant_row_layout)
+
+            sign_combo = QComboBox()
+            apply_default_dropdown_style(sign_combo)
+            sign_combo.addItem("Any")
+            for sign in ZODIAC_NAMES:
+                sign_combo.addItem(sign)
+            sign_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(dominant_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            dominant_row_layout.addWidget(QLabel("🪧"))
+            dominant_row_layout.addWidget(sign_combo, 1)
+            dominant_row_layout.addWidget(filter_and)
+            dominant_row_layout.addWidget(filter_or)
+
+            self._dominant_sign_filters.append({
+                "sign": sign_combo,
+                "and": filter_and,
+                "or": filter_or,
+            })
+            dominant_layout.addRow(dominant_row)
+
+        layout.addWidget(dominant_section)
+
+#Search: Dominant Bodies section
+        dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
+            "🪐Dominant Bodies" #dominant astrological bodies
+        )
+
+        dominant_planet_layout = QFormLayout()
+        dominant_planet_layout.setLabelAlignment(Qt.AlignLeft)
+        dominant_planet_group_layout.addLayout(dominant_planet_layout)
+
+        for _ in range(3):
+            dominant_planet_row = QWidget()
+            dominant_planet_row_layout = QHBoxLayout()
+            dominant_planet_row_layout.setContentsMargins(0, 0, 0, 0)
+            dominant_planet_row.setLayout(dominant_planet_row_layout)
+
+            planet_combo = QComboBox()
+            apply_default_dropdown_style(planet_combo)
+            planet_combo.addItem("Any", "Any")
+            for planet_label, planet_key in self._searchable_bodies():
+                if planet_key in {"AS", "IC", "DS", "MC"}:
+                    continue
+                planet_combo.addItem(planet_label, planet_key)
+            planet_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(dominant_planet_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            dominant_planet_row_layout.addWidget(QLabel("🪐"))
+            dominant_planet_row_layout.addWidget(planet_combo, 1)
+            dominant_planet_row_layout.addWidget(filter_and)
+            dominant_planet_row_layout.addWidget(filter_or)
+
+            self._dominant_planet_filters.append({
+                "planet": planet_combo,
+                "and": filter_and,
+                "or": filter_or,
+            })
+            dominant_planet_layout.addRow(dominant_planet_row)
+
+        layout.addWidget(dominant_planet_section)
+
+#Search: Dominant Modes section
+        dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
+            "🪐Dominant Modes" #dominant astrological modes
+        )
+
+        dominant_mode_layout = QFormLayout()
+        dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
+        dominant_mode_group_layout.addLayout(dominant_mode_layout)
+
+        for _ in range(3):
+            dominant_mode_row = QWidget()
+            dominant_mode_row_layout = QHBoxLayout()
+            dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
+            dominant_mode_row.setLayout(dominant_mode_row_layout)
+
+            mode_combo = QComboBox()
+            apply_default_dropdown_style(mode_combo)
+            mode_combo.addItem("Any", "Any")
+            mode_combo.addItem("Cardinal", "cardinal")
+            mode_combo.addItem("Mutable", "mutable")
+            mode_combo.addItem("Fixed", "fixed")
+            mode_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(dominant_mode_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            dominant_mode_row_layout.addWidget(QLabel("⚙️"))
+            dominant_mode_row_layout.addWidget(mode_combo, 1)
+            dominant_mode_row_layout.addWidget(filter_and)
+            dominant_mode_row_layout.addWidget(filter_or)
+
+            self._dominant_mode_filters.append({
+                "mode": mode_combo,
+                "and": filter_and,
+                "or": filter_or,
+            })
+            dominant_mode_layout.addRow(dominant_mode_row)
+
+        layout.addWidget(dominant_mode_section)
+
+#Search: Dominant Elements section
+        dominant_element_section, dominant_element_group_layout = add_collapsible_section(
+            "🪐Dominant Elements" #dominatn astrological elements
+        )
+        dominant_element_layout = QFormLayout()
+        dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
+        dominant_element_group_layout.addLayout(dominant_element_layout)
+
+        primary_row = QHBoxLayout()
+        primary_row.addWidget(QLabel("1st"))
+        self._dominant_element_primary_combo = QComboBox()
+        apply_default_dropdown_style(self._dominant_element_primary_combo)
+        self._dominant_element_primary_combo.addItem("Any", "Any")
+        for element in ("Fire", "Earth", "Air", "Water"):
+            self._dominant_element_primary_combo.addItem(element, element)
+        self._dominant_element_primary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+        primary_row.addWidget(self._dominant_element_primary_combo, 1)
+        dominant_element_layout.addRow(primary_row)
+
+        secondary_row = QHBoxLayout()
+        secondary_row.addWidget(QLabel("2nd"))
+        self._dominant_element_secondary_combo = QComboBox()
+        apply_default_dropdown_style(self._dominant_element_secondary_combo)
+        self._dominant_element_secondary_combo.addItem("Any", "Any")
+        for element in ("Fire", "Earth", "Air", "Water"):
+            self._dominant_element_secondary_combo.addItem(element, element)
+        self._dominant_element_secondary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+        secondary_row.addWidget(self._dominant_element_secondary_combo, 1)
+        dominant_element_layout.addRow(secondary_row)
+
+        layout.addWidget(dominant_element_section)
+
+#Search: Human Design section
         human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
 
         hd_channels_row = QHBoxLayout()
@@ -10169,302 +10471,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         hd_type_row.addWidget(self._human_design_type_filter_combo, 1)
         human_design_group_layout.addLayout(hd_type_row)
         layout.addWidget(human_design_section)
-
-        bodies_section, bodies_group_layout = add_collapsible_section("🪐Positions") #astrological positions
-
-        bodies_layout = QFormLayout()
-        bodies_layout.setLabelAlignment(Qt.AlignLeft)
-        bodies_group_layout.addLayout(bodies_layout)
-
-        for idx in range(len(self._searchable_bodies())):
-            filter_row = QWidget()
-            filter_layout = QHBoxLayout()
-            filter_layout.setContentsMargins(0, 0, 0, 0)
-            filter_row.setLayout(filter_layout)
-
-            body_combo = QComboBox()
-            apply_default_dropdown_style(body_combo)
-            for body_label, body_key in self._searchable_body_options():
-                body_combo.addItem(body_label, body_key)
-            body_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            sign_combo = QComboBox()
-            apply_default_dropdown_style(sign_combo)
-            sign_combo.addItem("Any")
-            for sign in ZODIAC_NAMES:
-                sign_combo.addItem(sign)
-            sign_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            house_combo = QComboBox()
-            apply_default_dropdown_style(house_combo)
-            house_combo.addItem("Any")
-            for house_num in range(1, 13):
-                house_combo.addItem(str(house_num))
-            house_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            filter_layout.addWidget(QLabel("🪐"))
-            filter_layout.addWidget(body_combo)
-            filter_layout.addWidget(QLabel("🪧"))
-            filter_layout.addWidget(sign_combo, 1)
-            filter_layout.addWidget(QLabel("🏠"))
-            filter_layout.addWidget(house_combo)
-            filter_and = QRadioButton("AND")
-            filter_or = QRadioButton("OR")
-            filter_group = QButtonGroup(filter_row)
-            filter_group.setExclusive(True)
-            filter_group.addButton(filter_and)
-            filter_group.addButton(filter_or)
-            filter_and.setChecked(True)
-            filter_group.buttonClicked.connect(self._on_filter_changed)
-            filter_layout.addWidget(filter_and)
-            filter_layout.addWidget(filter_or)
-
-            self._search_body_filters.append({
-                "body": body_combo,
-                "sign": sign_combo,
-                "house": house_combo,
-                "and": filter_and,
-                "or": filter_or,
-            })
-            bodies_layout.addRow(filter_row)
-
-        layout.addWidget(bodies_section)
-
-        aspect_section, aspect_group_layout = add_collapsible_section("🪐Aspect") #astrological aspect
-
-        aspect_layout = QFormLayout()
-        aspect_layout.setLabelAlignment(Qt.AlignLeft)
-        aspect_group_layout.addLayout(aspect_layout)
-
-        aspect_options = [("Any", "Any")]
-        for aspect_name in sorted(ASPECT_DEFS):
-            aspect_options.append((aspect_name.replace("_", " ").title(), aspect_name))
-
-        searchable_planets = [
-            (label, key)
-            for label, key in self._searchable_bodies()
-            if key not in {"AS", "IC", "DS", "MC"}
-        ]
-
-        for _ in range(3):
-            aspect_row = QWidget()
-            aspect_row_layout = QHBoxLayout()
-            aspect_row_layout.setContentsMargins(0, 0, 0, 0)
-            aspect_row.setLayout(aspect_row_layout)
-
-            planet_1_combo = QComboBox()
-            apply_default_dropdown_style(planet_1_combo)
-            planet_1_combo.addItem("Any", "Any")
-            for label, key in searchable_planets:
-                planet_1_combo.addItem(label, key)
-            planet_1_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            aspect_combo = QComboBox()
-            apply_default_dropdown_style(aspect_combo)
-            for label, key in aspect_options:
-                aspect_combo.addItem(label, key)
-            aspect_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            planet_2_combo = QComboBox()
-            apply_default_dropdown_style(planet_2_combo)
-            planet_2_combo.addItem("Any", "Any")
-            for label, key in searchable_planets:
-                planet_2_combo.addItem(label, key)
-            planet_2_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            filter_and = QRadioButton("AND")
-            filter_or = QRadioButton("OR")
-            filter_group = QButtonGroup(aspect_row)
-            filter_group.setExclusive(True)
-            filter_group.addButton(filter_and)
-            filter_group.addButton(filter_or)
-            filter_and.setChecked(True)
-            filter_group.buttonClicked.connect(self._on_filter_changed)
-
-            aspect_row_layout.addWidget(planet_1_combo, 1)
-            aspect_row_layout.addWidget(aspect_combo, 1)
-            aspect_row_layout.addWidget(planet_2_combo, 1)
-            aspect_row_layout.addWidget(filter_and)
-            aspect_row_layout.addWidget(filter_or)
-
-            self._aspect_filters.append(
-                {
-                    "planet_1": planet_1_combo,
-                    "aspect": aspect_combo,
-                    "planet_2": planet_2_combo,
-                    "and": filter_and,
-                    "or": filter_or,
-                }
-            )
-            aspect_layout.addRow(aspect_row)
-
-        layout.addWidget(aspect_section)
-
-        dominant_section, dominant_group_layout = add_collapsible_section(
-            "🪐Dominant Sign" #dominant astrological sign
-        )
-
-        dominant_layout = QFormLayout()
-        dominant_layout.setLabelAlignment(Qt.AlignLeft)
-        dominant_group_layout.addLayout(dominant_layout)
-
-        for _ in range(3):
-            dominant_row = QWidget()
-            dominant_row_layout = QHBoxLayout()
-            dominant_row_layout.setContentsMargins(0, 0, 0, 0)
-            dominant_row.setLayout(dominant_row_layout)
-
-            sign_combo = QComboBox()
-            apply_default_dropdown_style(sign_combo)
-            sign_combo.addItem("Any")
-            for sign in ZODIAC_NAMES:
-                sign_combo.addItem(sign)
-            sign_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            filter_and = QRadioButton("AND")
-            filter_or = QRadioButton("OR")
-            filter_group = QButtonGroup(dominant_row)
-            filter_group.setExclusive(True)
-            filter_group.addButton(filter_and)
-            filter_group.addButton(filter_or)
-            filter_and.setChecked(True)
-            filter_group.buttonClicked.connect(self._on_filter_changed)
-
-            dominant_row_layout.addWidget(QLabel("🪧"))
-            dominant_row_layout.addWidget(sign_combo, 1)
-            dominant_row_layout.addWidget(filter_and)
-            dominant_row_layout.addWidget(filter_or)
-
-            self._dominant_sign_filters.append({
-                "sign": sign_combo,
-                "and": filter_and,
-                "or": filter_or,
-            })
-            dominant_layout.addRow(dominant_row)
-
-        layout.addWidget(dominant_section)
-
-        dominant_planet_section, dominant_planet_group_layout = add_collapsible_section(
-            "🪐Dominant Bodies" #dominant astrological bodies
-        )
-
-        dominant_planet_layout = QFormLayout()
-        dominant_planet_layout.setLabelAlignment(Qt.AlignLeft)
-        dominant_planet_group_layout.addLayout(dominant_planet_layout)
-
-        for _ in range(3):
-            dominant_planet_row = QWidget()
-            dominant_planet_row_layout = QHBoxLayout()
-            dominant_planet_row_layout.setContentsMargins(0, 0, 0, 0)
-            dominant_planet_row.setLayout(dominant_planet_row_layout)
-
-            planet_combo = QComboBox()
-            apply_default_dropdown_style(planet_combo)
-            planet_combo.addItem("Any", "Any")
-            for planet_label, planet_key in self._searchable_bodies():
-                if planet_key in {"AS", "IC", "DS", "MC"}:
-                    continue
-                planet_combo.addItem(planet_label, planet_key)
-            planet_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            filter_and = QRadioButton("AND")
-            filter_or = QRadioButton("OR")
-            filter_group = QButtonGroup(dominant_planet_row)
-            filter_group.setExclusive(True)
-            filter_group.addButton(filter_and)
-            filter_group.addButton(filter_or)
-            filter_and.setChecked(True)
-            filter_group.buttonClicked.connect(self._on_filter_changed)
-
-            dominant_planet_row_layout.addWidget(QLabel("🪐"))
-            dominant_planet_row_layout.addWidget(planet_combo, 1)
-            dominant_planet_row_layout.addWidget(filter_and)
-            dominant_planet_row_layout.addWidget(filter_or)
-
-            self._dominant_planet_filters.append({
-                "planet": planet_combo,
-                "and": filter_and,
-                "or": filter_or,
-            })
-            dominant_planet_layout.addRow(dominant_planet_row)
-
-        layout.addWidget(dominant_planet_section)
-
-        dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-            "🪐Dominant Modes" #dominant astrological modes
-        )
-
-        dominant_mode_layout = QFormLayout()
-        dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
-        dominant_mode_group_layout.addLayout(dominant_mode_layout)
-
-        for _ in range(3):
-            dominant_mode_row = QWidget()
-            dominant_mode_row_layout = QHBoxLayout()
-            dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
-            dominant_mode_row.setLayout(dominant_mode_row_layout)
-
-            mode_combo = QComboBox()
-            apply_default_dropdown_style(mode_combo)
-            mode_combo.addItem("Any", "Any")
-            mode_combo.addItem("Cardinal", "cardinal")
-            mode_combo.addItem("Mutable", "mutable")
-            mode_combo.addItem("Fixed", "fixed")
-            mode_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-
-            filter_and = QRadioButton("AND")
-            filter_or = QRadioButton("OR")
-            filter_group = QButtonGroup(dominant_mode_row)
-            filter_group.setExclusive(True)
-            filter_group.addButton(filter_and)
-            filter_group.addButton(filter_or)
-            filter_and.setChecked(True)
-            filter_group.buttonClicked.connect(self._on_filter_changed)
-
-            dominant_mode_row_layout.addWidget(QLabel("⚙️"))
-            dominant_mode_row_layout.addWidget(mode_combo, 1)
-            dominant_mode_row_layout.addWidget(filter_and)
-            dominant_mode_row_layout.addWidget(filter_or)
-
-            self._dominant_mode_filters.append({
-                "mode": mode_combo,
-                "and": filter_and,
-                "or": filter_or,
-            })
-            dominant_mode_layout.addRow(dominant_mode_row)
-
-        layout.addWidget(dominant_mode_section)
-
-        dominant_element_section, dominant_element_group_layout = add_collapsible_section(
-            "🪐Dominant Elements" #dominatn astrological elements
-        )
-        dominant_element_layout = QFormLayout()
-        dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
-        dominant_element_group_layout.addLayout(dominant_element_layout)
-
-        primary_row = QHBoxLayout()
-        primary_row.addWidget(QLabel("1st"))
-        self._dominant_element_primary_combo = QComboBox()
-        apply_default_dropdown_style(self._dominant_element_primary_combo)
-        self._dominant_element_primary_combo.addItem("Any", "Any")
-        for element in ("Fire", "Earth", "Air", "Water"):
-            self._dominant_element_primary_combo.addItem(element, element)
-        self._dominant_element_primary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-        primary_row.addWidget(self._dominant_element_primary_combo, 1)
-        dominant_element_layout.addRow(primary_row)
-
-        secondary_row = QHBoxLayout()
-        secondary_row.addWidget(QLabel("2nd"))
-        self._dominant_element_secondary_combo = QComboBox()
-        apply_default_dropdown_style(self._dominant_element_secondary_combo)
-        self._dominant_element_secondary_combo.addItem("Any", "Any")
-        for element in ("Fire", "Earth", "Air", "Water"):
-            self._dominant_element_secondary_combo.addItem(element, element)
-        self._dominant_element_secondary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-        secondary_row.addWidget(self._dominant_element_secondary_combo, 1)
-        dominant_element_layout.addRow(secondary_row)
-
-        layout.addWidget(dominant_element_section)
 
 #Search: year first encountered
         year_first_encountered_section, year_first_encountered_group_layout = add_collapsible_section(

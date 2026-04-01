@@ -2755,3 +2755,13 @@ AWARENESS_STREAMS = [
 {"name":"emoting","type":"solar plexus","gates":[39,55,22,12]},
 {"name":"feeling","type":"solar plexus","gates":[41,30,36,35]},
 ]
+
+RODDEN_RATING = [
+    {"grade":"AA", "data_source":"Official testimony", "description":"Data recorded by the family or state, such as a birth certificate, birth record, baptismal certificate, or family Bible."},
+    {"grade":"A", "data_source":"Undocumented Testimony", "description":"Data quoted by the person, kin, friend, or associate, often based on memory or family legend, but lacking official documentation."},
+    {"grade":"B", "data_source":"Biography","description":"Data substantiated by a quote in a biography or autobiography, which is considered reliable if the quote qualifies the information."},
+    {"grade":"C", "data_source":"Caution", "description":"Data with no source or an ambiguous source, often found in magazines or journals without direct links to the origin."},
+    {"grade":"DD", "data_source":"Conflicting","description":"Conflicting quotes that are unqualified, indicating multiple different birth times for the same person with no way to choose between them."},
+    {"grade":"X", "data_source":"Time unknown","description":"Data with no time of birth provided."},
+    {"grade":"XX", "data_source":"Date unconfirmed","description":"Data without a known or confirmed date."},
+]
