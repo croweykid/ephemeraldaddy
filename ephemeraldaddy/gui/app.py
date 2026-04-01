@@ -3465,7 +3465,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         alignment_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "💭Alignment & Social Score",
+            "💭Alignment && Social Score",
             section_key="alignment_summary",
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
                 "alignment_summary",
@@ -3475,7 +3475,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["alignment_summary"] = self._is_database_metrics_section_expanded("alignment_summary")
         self._create_analysis_chart_header(
             alignment_section_layout,
-            "💭Alignment & Social Score",
+            "💭Alignment && Social Score",
             "alignment_summary",
             "alignment_summary",
             dropdown_options=[
