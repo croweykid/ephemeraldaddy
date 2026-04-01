@@ -8931,6 +8931,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                         social_score_min=database_social_score_min,
                         social_score_max=database_social_score_max,
+                        figure_height=0.84,
                     )
                     self.social_score_summary_chart_layout.addWidget(
                         social_score_canvas,
