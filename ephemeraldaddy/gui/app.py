@@ -21967,6 +21967,34 @@ class MainWindow(QMainWindow):
             return int(value)
         return None
 
+    def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
+        if not isinstance(line_edit, QLineEdit):
+            return
+        completer = QCompleter(choices, line_edit)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        line_edit.setCompleter(completer)
+
+    def _update_location_completers(self) -> None:
+        countries: set[str] = set()
+        cities: set[str] = set()
+        states: set[str] = set()
+        for chart_row in self._chart_rows:
+            birth_place = str(chart_row[5] if len(chart_row) > 5 else "" or "").strip()
+            if not birth_place:
+                continue
+            country, city, state = self._normalized_location_components(birth_place)
+            if country:
+                countries.add(country)
+            if city:
+                cities.add(city)
+            if state:
+                states.add(state)
+
+        self._apply_location_completer(self._search_location_country_input, sorted(countries))
+        self._apply_location_completer(self._search_location_city_input, sorted(cities))
+        self._apply_location_completer(self._search_location_state_input, sorted(states))
+
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
             return
