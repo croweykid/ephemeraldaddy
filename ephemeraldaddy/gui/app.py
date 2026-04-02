@@ -8390,6 +8390,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else {
                     "age_bracket_counts": {},
                     "known_duration_counts": {},
+                    "generation_counts": {},
                 }
             )
             age_database_analytics = (
@@ -8398,6 +8399,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else {
                     "age_bracket_counts": {},
                     "known_duration_counts": {},
+                    "generation_counts": {},
                 }
             )
             
