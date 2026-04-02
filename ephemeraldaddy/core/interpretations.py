@@ -2450,7 +2450,7 @@ SENTIMENT_COLORS = {
     "intriguing":"#754db3",
     "relatable":"#993300",
     "relatable (intellectually)":"#993300",
-    "relatable (emotionally)":"#993300",
+    "relatable (fears/coping)":"#993300",
     "relatable (values)":"#993300",
     "relatable (interests)":"#993300",
     "relatable (mannerisms)":"#993300",
