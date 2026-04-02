@@ -564,16 +564,33 @@ def format_chart_text(
         if use_houses:
             house_num = house_for_longitude(houses, lon)
             house_label = f"H{house_num}" if house_num is not None else "-"
-            line = "  ".join(
-                [
-                    _pad_display_column(display_body, body_width),
-                    _pad_display_column(sign_label, sign_width),
-                    _pad_display_column(degree_text, degree_width),
-                    _pad_display_column(nakshatra_with_info, nakshatra_width),
-                    _pad_display_column(house_label, house_width),
-                ]
-            )
+            body_column = _pad_display_column(display_body, body_width)
+            sign_column = _pad_display_column(sign_label, sign_width)
+            degree_column = _pad_display_column(degree_text, degree_width)
+            nakshatra_column = _pad_display_column(nakshatra_with_info, nakshatra_width)
+            house_column = _pad_display_column(house_label, house_width)
+            columns = [body_column, sign_column, degree_column, nakshatra_column, house_column]
+            column_offsets: list[int] = []
+            line_cursor = 0
+            for index, column in enumerate(columns):
+                column_offsets.append(line_cursor)
+                line_cursor += len(column)
+                if index < len(columns) - 1:
+                    line_cursor += 2
+            line = "  ".join(columns)
             entry_list = [
+                {
+                    "kind": "planet_keyword",
+                    "body": body,
+                    "span_start": column_offsets[0],
+                    "span_end": column_offsets[0] + len(display_body),
+                },
+                {
+                    "kind": "sign_keyword",
+                    "sign": sign_label,
+                    "span_start": column_offsets[1],
+                    "span_end": column_offsets[1] + len(sign_label),
+                },
                 {
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
@@ -581,6 +598,14 @@ def format_chart_text(
                 }
             ]
             if house_num is not None:
+                entry_list.append(
+                    {
+                        "kind": "house_keyword",
+                        "house": house_num,
+                        "span_start": column_offsets[4],
+                        "span_end": column_offsets[4] + len(house_label),
+                    }
+                )
                 line = f"{line} ⓘ"
                 entry_list.append(
                     {
@@ -594,16 +619,33 @@ def format_chart_text(
             position_info_map[len(lines)] = entry_list
             lines.append(line)
         else:
-            line = "  ".join(
-                [
-                    _pad_display_column(display_body, body_width),
-                    _pad_display_column(sign_label, sign_width),
-                    _pad_display_column(degree_text, degree_width),
-                    _pad_display_column(nakshatra_with_info, nakshatra_width),
-                ]
-            )
+            body_column = _pad_display_column(display_body, body_width)
+            sign_column = _pad_display_column(sign_label, sign_width)
+            degree_column = _pad_display_column(degree_text, degree_width)
+            nakshatra_column = _pad_display_column(nakshatra_with_info, nakshatra_width)
+            columns = [body_column, sign_column, degree_column, nakshatra_column]
+            column_offsets: list[int] = []
+            line_cursor = 0
+            for index, column in enumerate(columns):
+                column_offsets.append(line_cursor)
+                line_cursor += len(column)
+                if index < len(columns) - 1:
+                    line_cursor += 2
+            line = "  ".join(columns)
             line = f"{line} ⓘ"
             position_info_map[len(lines)] = [
+                {
+                    "kind": "planet_keyword",
+                    "body": body,
+                    "span_start": column_offsets[0],
+                    "span_end": column_offsets[0] + len(display_body),
+                },
+                {
+                    "kind": "sign_keyword",
+                    "sign": sign_label,
+                    "span_start": column_offsets[1],
+                    "span_end": column_offsets[1] + len(sign_label),
+                },
                 {
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
