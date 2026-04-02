@@ -2125,7 +2125,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_widget.installEventFilter(self)
         
         self.list_panel = QWidget()
-        self.list_panel.setMinimumWidth(420)
+        self.list_panel.setMinimumWidth(280) #was 420
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_panel.setLayout(list_layout)
@@ -10024,8 +10024,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(220)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMinimumWidth(120)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded) #vs ScrollBarAlwaysOff
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
         panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
@@ -10037,10 +10037,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setMinimumWidth(220)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setMinimumWidth(120)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
+        panel.setMinimumWidth(0)
+        panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         scroll.setWidget(panel)
         return scroll
 
