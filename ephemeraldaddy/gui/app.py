@@ -20947,9 +20947,35 @@ class MainWindow(QMainWindow):
 
             info_entries = position_info_map.get(block_number, [])
             if info_entries:
+                for entry in info_entries:
+                    span_start = entry.get("span_start")
+                    span_end = entry.get("span_end")
+                    if (
+                        isinstance(span_start, int)
+                        and isinstance(span_end, int)
+                        and span_start <= cursor_pos < span_end
+                    ):
+                        if entry.get("kind") == "planet_keyword":
+                            self._show_planet_keyword_info(str(entry.get("body", "")))
+                            return True
+                        if entry.get("kind") == "sign_keyword":
+                            self._show_sign_keyword_info(str(entry.get("sign", "")))
+                            return True
+                        if entry.get("kind") == "house_keyword":
+                            try:
+                                house_num = int(entry.get("house", 0))
+                            except (TypeError, ValueError):
+                                continue
+                            self._show_house_keyword_info(house_num)
+                            return True
                 selected_entry = None
-                for entry in sorted(info_entries, key=lambda item: item["icon_index"]):
-                    if cursor_pos >= entry["icon_index"]:
+                icon_entries = [
+                    entry
+                    for entry in info_entries
+                    if isinstance(entry.get("icon_index"), int)
+                ]
+                for entry in sorted(icon_entries, key=lambda item: int(item["icon_index"])):
+                    if cursor_pos >= int(entry["icon_index"]):
                         selected_entry = entry
                 if selected_entry:
                     if selected_entry.get("kind") == "nakshatra":
@@ -21125,6 +21151,49 @@ class MainWindow(QMainWindow):
         title = lines[0]
         bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
         self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
+
+    def _show_planet_keyword_info(self, body: str) -> None:
+        body_name = str(body or "").strip()
+        display_body = _display_body_name(body_name)
+        verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
+        clean_verbs = [str(item).strip() for item in verbs if str(item).strip()]
+        if not clean_verbs:
+            self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
+            return
+        lines = [f"• {keyword}" for keyword in clean_verbs]
+        self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
+
+    def _show_sign_keyword_info(self, sign_name: str) -> None:
+        sign_key = str(sign_name or "").strip().title()
+        sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
+        best_keywords = [
+            str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
+        ]
+        worst_keywords = [
+            str(item).strip() for item in sign_keywords.get("worst", []) if str(item).strip()
+        ]
+        if not (best_keywords or worst_keywords):
+            self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
+            return
+        lines = [sign_key, ""]
+        if best_keywords:
+            lines.append("best:")
+            lines.extend(f"• {keyword}" for keyword in best_keywords)
+        if worst_keywords:
+            if best_keywords:
+                lines.append("")
+            lines.append("worst:")
+            lines.extend(f"• {keyword}" for keyword in worst_keywords)
+        self.chart_info_output.setPlainText("\n".join(lines))
+
+    def _show_house_keyword_info(self, house_num: int) -> None:
+        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
+        clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
+        if not clean_keywords:
+            self.chart_info_output.setPlainText(f"H{house_num}\n\nNo house keywords available.")
+            return
+        lines = [f"H{house_num}", "", *(f"• {keyword}" for keyword in clean_keywords)]
+        self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
         line_number = int(line) if isinstance(line, int) else None
