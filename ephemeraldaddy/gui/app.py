@@ -2059,6 +2059,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._left_panel_sizes = None
 
         left_panel_container = QWidget()
+        left_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        left_panel_container.setMinimumWidth(0)
         left_panel_container_layout = QVBoxLayout()
         left_panel_container_layout.setContentsMargins(0, 0, 0, 0)
         left_panel_container_layout.setSpacing(0)
@@ -2066,6 +2068,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         left_panel_container_layout.addWidget(self.left_panel_stack, 1)
 
         right_panel_container = QWidget()
+        right_panel_container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        right_panel_container.setMinimumWidth(0)
         right_panel_container_layout = QVBoxLayout()
         right_panel_container_layout.setContentsMargins(0, 0, 0, 0)
         right_panel_container_layout.setSpacing(0)
@@ -2126,6 +2130,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         
         self.list_panel = QWidget()
         self.list_panel.setMinimumWidth(280) #was 420
+        self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
         self.list_panel.setLayout(list_layout)
@@ -13917,11 +13922,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.setWindowState(
                 (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
             )
+            QTimer.singleShot(0, self._refresh_content_splitter_handle_cursor)
             return
         self.setWindowState(self.windowState() | Qt.WindowFullScreen)
+        QTimer.singleShot(0, self._refresh_content_splitter_handle_cursor)
+
+    def _refresh_content_splitter_handle_cursor(self) -> None:
+        splitter = getattr(self, "_content_splitter", None)
+        if splitter is None:
+            return
+        configure_splitter_handle_resize_cursor(splitter)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._refresh_content_splitter_handle_cursor()
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
