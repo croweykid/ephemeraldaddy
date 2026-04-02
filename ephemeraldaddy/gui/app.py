@@ -1178,6 +1178,10 @@ def _find_children_for_types(container: QObject, *widget_types: type[QObject]) -
     return matches
 
 
+def _sentiment_label_color(label: str) -> str | None:
+    return SENTIMENT_COLORS.get((label or "").strip().lower())
+
+
 class TriStateCheckBox(QCheckBox):
     def __init__(self, label: str) -> None:
         super().__init__(label)
@@ -1217,6 +1221,13 @@ class QuadStateSlider(QWidget):
         layout.addStretch(1)
         self.setLayout(layout)
         self._render_mode()
+
+    def setLabelColor(self, color_hex: str | None) -> None:
+        label_style = "padding-left: 2px;"
+        color_value = str(color_hex or "").strip()
+        if color_value:
+            label_style += f" color: {color_value};"
+        self._label.setStyleSheet(label_style)
 
     def mode(self) -> int:
         return self._mode
@@ -11438,6 +11449,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_rows = (len(SENTIMENT_OPTIONS) + 1) // 2
         for idx, label in enumerate(SENTIMENT_OPTIONS):
             checkbox = QuadStateSlider(label)
+            checkbox.setLabelColor(_sentiment_label_color(label))
             checkbox.modeChanged.connect(
                 lambda state, name=label: self._on_batch_sentiment_state_changed(
                     name,
@@ -18191,6 +18203,9 @@ class MainWindow(QMainWindow):
         sentiment_rows = (len(sentiment_options) + sentiment_columns - 1) // sentiment_columns
         for idx, label in enumerate(sentiment_options):
             checkbox = QCheckBox(label)
+            sentiment_color = _sentiment_label_color(label)
+            if sentiment_color:
+                checkbox.setStyleSheet(f"QCheckBox {{ color: {sentiment_color}; }}")
             checkbox.toggled.connect(self._on_sentiment_toggled)
             self.sentiment_checkboxes[label] = checkbox
             row = idx % sentiment_rows
