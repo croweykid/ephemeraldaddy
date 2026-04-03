@@ -22,7 +22,7 @@ def build_import_chart(
 
     Returns (chart, birth_place, used_utc_fallback).
     """
-    used_fallback = False
+    force_utc_fallback = False
 
     lower_row = [cell.lower() for cell in row]
     if "datetime_iso" in lower_row and "latitude" in lower_row:
@@ -55,17 +55,18 @@ def build_import_chart(
             try:
                 tz_override = ZoneInfo(tz_name)
             except Exception:
-                used_fallback = True
+                tz_override = None
         try:
             lat = float(row[5]) if len(row) > 5 else None
             lon = float(row[6]) if len(row) > 6 else None
         except Exception:
-            used_fallback = True
+            lat, lon = None, None
         if len(row) > 7 and row[7].strip():
             try:
-                used_fallback = used_fallback or bool(int(row[7]))
+                if bool(int(row[7])):
+                    force_utc_fallback = True
             except Exception:
-                used_fallback = True
+                pass
             sentiments = parse_sentiments(row[8]) if len(row) > 8 else []
             relationship_types = (
                 parse_relationship_types(row[9]) if len(row) > 9 else []
@@ -96,19 +97,19 @@ def build_import_chart(
                     if geocode_cache is not None:
                         geocode_cache[birth_place] = (lat, lon, _label)
                 except Exception:
-                    used_fallback = True
+                    lat, lon = None, None
         else:
-            used_fallback = True
+            lat, lon = None, None
 
     if dt_value is None:
-        used_fallback = True
+        force_utc_fallback = True
         dt_value = datetime.datetime(1990, 1, 1, 12, 0)
 
     if lat is None or lon is None:
-        used_fallback = True
+        force_utc_fallback = True
         lat, lon = 0.0, 0.0
 
-    if used_fallback:
+    if force_utc_fallback:
         base_date = dt_value.date() if dt_value else datetime.date.today()
         dt_value = datetime.datetime(
             base_date.year,
@@ -139,6 +140,6 @@ def build_import_chart(
     chart.relationship_types = relationship_types
     chart.source = source
     chart.comments = comments
-    chart.used_utc_fallback = used_fallback or getattr(chart, "used_utc_fallback", False)
+    chart.used_utc_fallback = force_utc_fallback or getattr(chart, "used_utc_fallback", False)
     chart.birthtime_unknown = bool(time_missing)
     return chart, birth_place, chart.used_utc_fallback
