@@ -524,6 +524,131 @@ HD_CIRCUIT_GROUPS: Dict[str, dict] = {
     'Tribal': {'aliases': ['Support', 'Sustainability', 'Tradition'], 'subcircuits': {'Ego': {'aliases': ['Ego Circuit Group', 'Ego / Economic'], 'channels': [('32-54', 'Transformation', (32, 54)), ('44-26', 'Surrender', (44, 26)), ('19-49', 'Synthesis', (19, 49)), ('40-37', 'Community', (40, 37)), ('21-45', 'Money', (21, 45))], 'gates': (19, 21, 26, 32, 37, 40, 44, 45, 49, 54), 'channel_count': 5}, 'Defense': {'aliases': ['Defense / Nurture'], 'channels': [('50-27', 'Preservation', (50, 27)), ('59-6', 'Mating', (59, 6))], 'gates': (6, 27, 50, 59), 'channel_count': 2}}, 'gates': (6, 19, 21, 26, 27, 32, 37, 40, 44, 45, 49, 50, 54, 59), 'channel_count': 7}
 }
 
+HD_AUTHORITIES = {
+    "emotional": (
+        "Make decisions over time, not in the heat of the moment. "
+        "You need emotional clarity, so sleep on big choices and wait until the wave settles."
+    ),
+    "sacral": (
+        "Trust your gut response in the moment. "
+        "This authority works through a clear body yes or no, not through overthinking."
+    ),
+    "splenic": (
+        "Trust the first quiet instinct. "
+        "This authority is immediate, subtle, and only speaks once, so it is about instant body knowing."
+    ),
+    "ego": (
+        "Decide from real desire and available willpower. "
+        "What matters is whether you truly want it and have the energy to back it."
+    ),
+    "ego_manifested": (
+        "Decide from what you truly want, then say it clearly and act on it. "
+        "This is desire and will expressed directly."
+    ),
+    "ego_projected": (
+        "Talk it out and listen for whether your desire feels true when you say it. "
+        "This is still will-based authority, but clarity comes through your spoken words."
+    ),
+    "self_projected": (
+        "Talk it out and listen to your own voice. "
+        "If it sounds like you and feels like your direction, that is your answer."
+    ),
+    "mental": (
+        "Do not force a fast answer. "
+        "Clarity comes by talking things through in the right environment with trusted people, "
+        "so you can hear yourself clearly."
+    ),
+    "environmental": (
+        "Do not force a fast answer. "
+        "Clarity comes by talking things through in the right environment with trusted people, "
+        "so you can hear yourself clearly."
+    ),
+    "sounding_board": (
+        "Do not force a fast answer. "
+        "Clarity comes by talking things through in the right environment with trusted people, "
+        "so you can hear yourself clearly."
+    ),
+    "lunar": (
+        "Give major decisions a full lunar cycle. "
+        "You are not meant to decide on the spot; clarity comes over roughly 29 days."
+    ),
+}
+
+HD_DEFINITIONS = {
+    "single_definition": (
+        "Your defined centers are all connected as one system. "
+        "Your processing tends to be self-contained and internally consistent."
+    ),
+    "split_definition": (
+        "Your defined centers are split into two separate groups. "
+        "You may feel like you process things in two tracks rather than one continuous flow."
+    ),
+    "triple_split_definition": (
+        "Your defined centers are split into three separate groups. "
+        "You often need more movement, variety, or time before everything clicks together."
+    ),
+    "quadruple_split_definition": (
+        "Your defined centers are split into four separate groups. "
+        "Your processing is highly compartmentalized, so time and the right setting matter a lot."
+    ),
+    "no_definition": (
+        "No centers are defined. "
+        "This is the Reflector setup, where nothing is fixed in the same way as other charts, "
+        "so timing and environment matter more."
+    ),
+}
+
+HD_TYPES = {
+    "manifestor": (
+        "A starter type. "
+        "Manifestors are here to initiate, get things moving, and act independently."
+    ),
+    "generator": (
+        "A sustainable energy type. "
+        "Generators are here to build, work, and respond to what life brings them."
+    ),
+    "manifesting_generator": (
+        "A fast-moving Generator subtype. "
+        "Manifesting Generators are built to respond first, then move quickly once the body says yes."
+    ),
+    "projector": (
+        "A guidance type. "
+        "Projectors are here to understand people and direct energy well, not to run on constant output."
+    ),
+    "reflector": (
+        "A sampling type with no fixed definition. "
+        "Reflectors are highly affected by their surroundings and need time before major decisions."
+    ),
+}
+
+HD_STRATEGIES = {
+    "to_inform": (
+        "Tell the people who will be affected before you act. "
+        "This is not asking permission; it is reducing pushback and confusion."
+    ),
+    "wait_to_respond": (
+        "Do not force the first move. "
+        "Let life give you something to respond to, then follow the body's response."
+    ),
+    "respond_then_move": (
+        "Respond first, then move. "
+        "Your speed works best when it comes after a real body yes."
+    ),
+    "respond_then_inform": (
+        "Respond first, then let people know what you are doing if they will be affected. "
+        "The response comes first; the informing keeps things smoother."
+    ),
+    "wait_for_invitation": (
+        "Wait for real recognition and invitation in the big areas of life. "
+        "Your guidance works best when it is wanted."
+    ),
+    "wait_a_lunar_cycle": (
+        "For major decisions, give it a full lunar cycle. "
+        "Time is part of how you get clarity."
+    ),
+}
+
+
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
     gate_info = GATE_REFERENCE.get(gate_num, {"name": "Unknown Gate", "meaning": "No gate reference available."})
