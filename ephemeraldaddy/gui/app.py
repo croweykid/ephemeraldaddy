@@ -11374,7 +11374,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_export_selection_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_export_selection_button)
 
-        self.batch_import_csv_button = QPushButton("Import from CSV")
+        self.batch_import_csv_button = QPushButton("CSV Import")
         self.batch_import_csv_button.clicked.connect(self._on_import_csv)
         self.batch_import_csv_button.setStyleSheet(action_button_style)
         actions_row_bottom_layout.addWidget(self.batch_import_csv_button)
@@ -11404,7 +11404,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         actions_row_top_layout.addWidget(self.batch_new_chart_button)
 
-        self.batch_delete_chart_button = QPushButton("❌ Delete 0 Charts")
+        self.batch_delete_chart_button = QPushButton("❌ 0 Charts")
         self.batch_delete_chart_button.clicked.connect(self._on_delete)
         self.batch_delete_chart_button.setStyleSheet(
             action_button_style + "QPushButton { color: #ff7b7b; font-weight: 600; }"
@@ -14299,7 +14299,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if hasattr(self, "batch_delete_chart_button"):
             chart_label = "Chart" if selected_count == 1 else "Charts"
             self.batch_delete_chart_button.setText(
-                f"❌ Delete {selected_count} {chart_label}"
+                f"❌ {selected_count} {chart_label}"
             )
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
