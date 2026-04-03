@@ -648,6 +648,57 @@ HD_STRATEGIES = {
     ),
 }
 
+HD_PROFILES = {
+    "1/3": (
+        "A researcher who learns by testing things in real life. "
+        "This profile wants a solid foundation and usually learns what works by direct experience."
+    ),
+    "1/4": (
+        "A researcher whose influence works through relationships. "
+        "This profile wants to understand things deeply, then share what it knows through its network."
+    ),
+    "2/4": (
+        "A naturally gifted person who needs both alone time and connection. "
+        "This profile often does best when other people recognize its talent and draw it out."
+    ),
+    "2/5": (
+        "A private natural who ends up being seen as a practical problem-solver. "
+        "This profile prefers space, but others often expect it to help or fix things."
+    ),
+    "3/5": (
+        "An experimenter with practical impact. "
+        "This profile learns through trial and error, then turns those lessons into useful solutions."
+    ),
+    "3/6": (
+        "A long-term experimenter who grows into wisdom. "
+        "This profile learns through lived testing early on, then becomes more observant and eventually more exemplary."
+    ),
+    "4/1": (
+        "A fixed, steady profile built on relationships and knowledge. "
+        "This profile is less adaptable than most and tends to stay rooted in its own way of seeing things."
+    ),
+    "4/6": (
+        "A relationship-based profile that matures into a role model. "
+        "Its life is shaped by community, trust, and eventually leading by example."
+    ),
+    "5/1": (
+        "A practical solver with strong research behind it. "
+        "This profile is often looked to for answers and needs a solid knowledge base to support what it offers."
+    ),
+    "5/2": (
+        "A behind-the-scenes natural who gets pulled into helping. "
+        "This profile often prefers privacy, but other people project leadership or solutions onto it."
+    ),
+    "6/2": (
+        "A natural talent that matures into a role model over time. "
+        "This profile tends to live in stages: early experimentation, a more detached middle phase, and later wisdom."
+    ),
+    "6/3": (
+        "A highly experiential profile that becomes wise through a lot of real-world testing. "
+        "This profile can have a bumpy path early on, then grows into grounded perspective."
+    ),
+}
+
 
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
