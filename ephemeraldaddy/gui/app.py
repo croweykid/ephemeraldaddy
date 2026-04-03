@@ -439,7 +439,14 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     build_human_design_chart_data_output,
 )
-from ephemeraldaddy.analysis.human_design_reference import HD_CHANNELS, format_gate_line_info
+from ephemeraldaddy.analysis.human_design_reference import (
+    HD_AUTHORITIES,
+    HD_CHANNELS,
+    HD_DEFINITIONS,
+    HD_STRATEGIES,
+    HD_TYPES,
+    format_gate_line_info,
+)
 from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
@@ -21041,7 +21048,10 @@ class MainWindow(QMainWindow):
                         )
                         return True
                     if selected_entry.get("kind") == "hd_property":
-                        self._show_human_design_property_info(str(selected_entry.get("property_key", "")))
+                        self._show_human_design_property_info(
+                            str(selected_entry.get("property_key", "")),
+                            str(selected_entry.get("property_value", "")),
+                        )
                         return True
                     if selected_entry.get("kind") == "hd_channel":
                         self._show_human_design_channel_info(
@@ -21252,31 +21262,110 @@ class MainWindow(QMainWindow):
         line_number = int(line) if isinstance(line, int) else None
         self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
 
-    def _show_human_design_property_info(self, property_key: str) -> None:
-        info_map = {
-            "type": (
-                "Type\n\n"
-                "• Mechanical category derived from center and channel definition.\n"
-                "• Reflector: no defined centers.\n"
-                "• Generator / Manifesting Generator: Sacral defined.\n"
-                "• Manifestor: no Sacral, but motor connected to Throat.\n"
-                "• Projector: no Sacral and no motor-to-Throat connection."
-            ),
-            "authority": (
-                "Authority\n\n"
-                "• Inner Authority is prioritized from center configuration.\n"
-                "• Emotional > Sacral > Splenic > Ego variants > Self-Projected/Mental > Lunar."
-            ),
-            "profile": (
+    def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
+        key = str(property_key or "").strip().lower()
+        raw_value = str(property_value or "").strip()
+
+        def _normalize(value: str) -> str:
+            normalized = (
+                value.lower()
+                .replace("/", " ")
+                .replace("-", " ")
+                .replace("(", " ")
+                .replace(")", " ")
+                .replace(",", " ")
+            )
+            return " ".join(normalized.split())
+
+        def _lookup_reference(lookup_table: dict[str, str], aliases: dict[str, str]) -> str | None:
+            if not raw_value:
+                return None
+            direct = raw_value.lower().replace(" ", "_").replace("-", "_")
+            candidate_keys = [direct, aliases.get(_normalize(raw_value), "")]
+            for candidate in candidate_keys:
+                clean_candidate = str(candidate or "").strip().lower()
+                if clean_candidate and clean_candidate in lookup_table:
+                    return lookup_table[clean_candidate]
+            return None
+
+        if key == "type":
+            alias_map = {
+                "manifestor": "manifestor",
+                "generator": "generator",
+                "manifesting generator": "manifesting_generator",
+                "projector": "projector",
+                "reflector": "reflector",
+            }
+            description = _lookup_reference(HD_TYPES, alias_map)
+            header = f"Type: {raw_value or 'Unknown'}"
+            if description:
+                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                return
+        elif key == "authority":
+            alias_map = {
+                "emotional": "emotional",
+                "sacral": "sacral",
+                "splenic": "splenic",
+                "ego": "ego",
+                "ego manifested": "ego_manifested",
+                "ego projected": "ego_projected",
+                "self projected": "self_projected",
+                "mental environmental sounding board": "mental",
+                "mental": "mental",
+                "environmental": "environmental",
+                "sounding board": "sounding_board",
+                "lunar": "lunar",
+                "no inner authority": "",
+            }
+            description = _lookup_reference(HD_AUTHORITIES, alias_map)
+            header = f"Authority: {raw_value or 'Unknown'}"
+            if description:
+                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                return
+        elif key == "definition":
+            alias_map = {
+                "single definition": "single_definition",
+                "split definition": "split_definition",
+                "triple split definition": "triple_split_definition",
+                "quadruple split definition": "quadruple_split_definition",
+                "no definition": "no_definition",
+                "single": "single_definition",
+                "split": "split_definition",
+                "triple split": "triple_split_definition",
+                "quadruple split": "quadruple_split_definition",
+            }
+            description = _lookup_reference(HD_DEFINITIONS, alias_map)
+            header = f"Definition: {raw_value or 'Unknown'}"
+            if description:
+                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                return
+        elif key == "strategy":
+            alias_map = {
+                "to inform": "to_inform",
+                "to respond": "wait_to_respond",
+                "wait to respond": "wait_to_respond",
+                "respond then move": "respond_then_move",
+                "respond then inform": "respond_then_inform",
+                "wait for the invitation": "wait_for_invitation",
+                "wait for invitation": "wait_for_invitation",
+                "wait a lunar cycle": "wait_a_lunar_cycle",
+            }
+            description = _lookup_reference(HD_STRATEGIES, alias_map)
+            header = f"Strategy: {raw_value or 'Unknown'}"
+            if description:
+                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                return
+        elif key == "profile":
+            self.chart_info_output.setPlainText(
                 "Profile\n\n"
                 "• Profile is derived from Personality Sun line / Design Sun line.\n"
                 "• Display format: PersonalityLine/DesignLine (for example, 1/3)."
-            ),
-            # "definition": f"{_format_split_definition(hd_result.split_definition)}",
-            # "strategy": f"{hd_result.strategy}",
-            # "incarnation cross": f"{hd_result.incarnation_cross}",
-        }
-        self.chart_info_output.setPlainText(info_map.get(property_key, "No details available for this Human Design property."))
+            )
+            return
+
+        self.chart_info_output.setPlainText(
+            "No details available for this Human Design property."
+        )
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
         sorted_gates = (min(gate_a, gate_b), max(gate_a, gate_b))
