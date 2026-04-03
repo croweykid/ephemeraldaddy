@@ -79,17 +79,17 @@ GATE_REFERENCE: dict[int, dict[str, str]] = {
 }
 
 AWARENESS_STREAMS = [
-{"name":"sensing","type":"ajna","gates":[64,47,11,56]},
-{"name":"knowing","type":"ajna","gates":[61,24,43,23]},
-{"name":"understanding","type":"ajna","gates":[63,4,17,62]},
+    {"name":"sensing","type":"ajna","gates":[64,47,11,56],"function":"Processes life by reflecting on experience and turning it into meaning, images, and stories.","description":"This stream tends to understand things in hindsight rather than all at once."},
+    {"name":"knowing","type":"ajna","gates":[61,24,43,23],"function":"Works through sudden inner knowing and original insight.","description":"It often knows first and explains later, so its clarity can arrive in flashes."},
+    {"name":"understanding","type":"ajna","gates":[63,4,17,62],"function":"Seeks patterns, proof, and clear logic. ","description":"This stream wants things to make sense, hold up under scrutiny, and be explained in practical terms."},
 
-{"name":"instinct","type":"spleen","gates":[54,32,44,26]},
-{"name":"intuition","type":"spleen","gates":[38,28,57,20]},
-{"name":"taste","type":"spleen","gates":[58,18,48,16]},
+    {"name":"instinct","type":"spleen","gates":[54,32,44,26],"function":"Tracks survival, timing, and what is materially or socially safe. ","description":"This stream reads what can be trusted, what has value, and what will hold up over time."},
+    {"name":"intuition","type":"spleen","gates":[38,28,57,20],"function":"Gives immediate, in-the-moment body awareness.","description":"It is subtle, fast, and spontaneous, often showing up as a quiet sense of what is right or wrong right now."},
+    {"name":"taste","type":"spleen","gates":[58,18,48,16],"function":"Evaluates quality, correctness, and what needs improvement.","description":"This stream notices what is off, what has depth, and what can be refined into something better."},
 
-{"name":"sensitivity","type":"solar plexus","gates":[19,49,37,40]},
-{"name":"emoting","type":"solar plexus","gates":[39,55,22,12]},
-{"name":"feeling","type":"solar plexus","gates":[41,30,36,35]},
+    {"name":"sensitivity","type":"solar plexus","gates":[19,49,37,40],"function":"Feels needs, agreements, closeness, and emotional boundaries in relationships.","description":"This stream is tuned to support, reciprocity, and whether a bond feels workable."},
+    {"name":"emoting","type":"solar plexus","gates":[39,55,22,12],"function":"Expresses feeling in a deeply personal and changeable way.","description":"This stream moves through mood and emotional atmosphere, and its expression depends heavily on timing."},
+    {"name":"feeling","type":"solar plexus","gates":[41,30,36,35],"function":"Learns through desire, experience, and emotional impact.","description":"This stream is driven to feel life directly and understand it by going through it."},
 ]
 
 HD_CHANNELS = {
