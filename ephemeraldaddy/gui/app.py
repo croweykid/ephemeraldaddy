@@ -443,6 +443,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CHANNELS,
     HD_DEFINITIONS,
+    HD_PROFILES,
     HD_STRATEGIES,
     HD_TYPES,
     format_gate_line_info,
@@ -21356,6 +21357,19 @@ class MainWindow(QMainWindow):
                 self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
                 return
         elif key == "profile":
+            cleaned_profile = raw_value.replace(" ", "")
+            description = HD_PROFILES.get(cleaned_profile)
+            if description:
+                self.chart_info_output.setPlainText(
+                    "\n".join(
+                        [
+                            f"Profile: {cleaned_profile}",
+                            "",
+                            f"• {description}",
+                        ]
+                    )
+                )
+                return
             self.chart_info_output.setPlainText(
                 "Profile\n\n"
                 "• Profile is derived from Personality Sun line / Design Sun line.\n"
