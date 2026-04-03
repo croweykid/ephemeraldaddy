@@ -108,9 +108,6 @@ def build_import_chart(
         used_fallback = True
         lat, lon = 0.0, 0.0
 
-    if time_missing:
-        used_fallback = True
-
     if used_fallback:
         base_date = dt_value.date() if dt_value else datetime.date.today()
         dt_value = datetime.datetime(
@@ -122,6 +119,18 @@ def build_import_chart(
             tzinfo=ZoneInfo("UTC"),
         )
         tz_override = ZoneInfo("UTC")
+    elif time_missing and dt_value is not None:
+        # Keep the resolved timezone path for date-only imports so lunar motion
+        # is not shifted by forcing an arbitrary UTC conversion.
+        if dt_value.tzinfo is None:
+            dt_value = dt_value.replace(hour=12, minute=0, second=0, microsecond=0)
+        else:
+            dt_value = dt_value.astimezone(dt_value.tzinfo).replace(
+                hour=12,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
 
     source = SOURCE_PERSONAL if "source" not in locals() else source
     chart = Chart(name, dt_value, lat, lon, tz=tz_override)
