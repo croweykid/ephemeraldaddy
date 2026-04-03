@@ -122,9 +122,20 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
     return "".join(parts), info_entries
 
 
-def _render_clickable_property(label: str, value: str, property_key: str) -> tuple[str, dict[str, object]]:
+def _render_clickable_property(
+    label: str,
+    value: str,
+    property_key: str,
+    *,
+    lookup_value: str | None = None,
+) -> tuple[str, dict[str, object]]:
     line = f"{label}: {value} ⓘ"
-    entry = {"kind": "hd_property", "property_key": property_key, "icon_index": len(f"{label}: {value} ") }
+    entry = {
+        "kind": "hd_property",
+        "property_key": property_key,
+        "property_value": lookup_value if lookup_value is not None else value,
+        "icon_index": len(f"{label}: {value} "),
+    }
     return line, entry
 
 def _format_split_definition(split_definition: str) -> str:
@@ -218,6 +229,17 @@ def build_human_design_chart_data_output(
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
+    definition_line, definition_info_entry = _render_clickable_property(
+        "Definition",
+        _format_split_definition(hd_result.split_definition),
+        "definition",
+        lookup_value=hd_result.split_definition,
+    )
+    strategy_line, strategy_info_entry = _render_clickable_property(
+        "Strategy",
+        hd_result.strategy,
+        "strategy",
+    )
     channel_lines, channel_info_map = _render_channel_lines(hd_result.defined_channels)
 
     awareness_lines: list[str] = []
@@ -233,8 +255,8 @@ def build_human_design_chart_data_output(
         type_line,
         authority_line,
         profile_line,
-        f"Definition: {_format_split_definition(hd_result.split_definition)}",
-        f"Strategy: {hd_result.strategy}",
+        definition_line,
+        strategy_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,
@@ -243,8 +265,8 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         "BODYGRAPH PROPERTIES",
         CHART_DATA_DIVIDER,
-        f"Definition: {_format_split_definition(hd_result.split_definition)}",
-        f"Strategy: {hd_result.strategy}",
+        definition_line,
+        strategy_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,
@@ -277,6 +299,8 @@ def build_human_design_chart_data_output(
         (type_line, type_info_entry),
         (authority_line, authority_info_entry),
         (profile_line, profile_info_entry),
+        (definition_line, definition_info_entry),
+        (strategy_line, strategy_info_entry),
     ):
         line_index = rendered_lines.index(line_text)
         position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
