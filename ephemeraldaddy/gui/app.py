@@ -5151,16 +5151,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             while len(self._transit_window_result_cache) > TRANSIT_WINDOW_CACHE_LIMIT:
                 self._transit_window_result_cache.popitem(last=False)
 
+        _transit_shutdown_in_progress = False
+        _transit_shutdown_callbacks: list[Callable[[], None]] = []
+
+        def _finalize_transit_worker_shutdown() -> None:
+            pending_keys = list(transit_workers.keys())
+            for key in pending_keys:
+                worker_entry = transit_workers.get(key)
+                if worker_entry is None:
+                    continue
+                thread, _worker = worker_entry
+                if thread.isRunning():
+                    return
+                transit_workers.pop(key, None)
+
+            callbacks = list(_transit_shutdown_callbacks)
+            _transit_shutdown_callbacks.clear()
+            for callback in callbacks:
+                callback()
+
         #ojo: changes here feel risky...
         def _begin_transit_worker_shutdown(on_complete: Callable[[], None]) -> None:
-            for _worker_key, (thread, _worker) in list(transit_workers.items()):
+            nonlocal _transit_shutdown_in_progress
+
+            _transit_shutdown_callbacks.append(on_complete)
+            if _transit_shutdown_in_progress:
+                return
+            _transit_shutdown_in_progress = True
+
+            for key, (thread, _worker) in list(transit_workers.items()):
                 try:
+                    thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
                     thread.quit()
+                    if not thread.isRunning():
+                        transit_workers.pop(key, None)
                 except RuntimeError:
+                    transit_workers.pop(key, None)
                     continue
-            transit_workers.clear()
-            on_complete()
+            _finalize_transit_worker_shutdown()
 
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
@@ -5316,7 +5345,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if refresh:
                 _refresh_summary()
 
-            thread = QThread(dialog)
+            thread = QThread()
             worker = TransitAspectWindowWorker(
                 natal_chart,
                 transit_chart.dt,
