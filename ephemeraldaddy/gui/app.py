@@ -14914,7 +14914,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_custom_db_export(self) -> None:
         open_custom_db_export_dialog(self)
 
-    def _on_force_refresh_database_analysis(self) -> None:
+    def _on_recalculate_all_weights_in_db(self) -> None:
         chart_ids: list[int] = []
         for row in self._chart_rows:
             normalized = self._normalize_chart_row(row)
@@ -14945,6 +14945,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             chart,
                             dominant_sign_weights=chart.dominant_sign_weights,
                             dominant_planet_weights=chart.dominant_planet_weights,
+                            birth_month=getattr(chart, "birth_month", None),
+                            birth_day=getattr(chart, "birth_day", None),
+                            birth_year=getattr(chart, "birth_year", None),
                         )
                     progress.setValue(index)
                     QApplication.processEvents()
@@ -14957,6 +14960,116 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 progress.close()
                 return
             progress.close()
+
+        self._chart_cache.clear()
+        self._database_metrics_cache = None
+        self._database_metric_snapshots = {}
+        self._database_metrics_dirty_ids.clear()
+        self._refresh_charts(force_full_analysis_refresh=True)
+
+    def _on_force_refresh_database_analysis(self) -> None:
+        chart_ids: list[int] = []
+        for row in self._chart_rows:
+            normalized = self._normalize_chart_row(row)
+            if normalized is None:
+                raise RuntimeError(f"Encountered malformed chart row during refresh: {row!r}")
+            chart_ids.append(normalized[0])
+
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "Refresh Database",
+                "No charts were found to recalculate.",
+            )
+            return
+
+        confirmation = QMessageBox.question(
+            self,
+            "Refresh Database",
+            (
+                "This will recalculate all non-placeholder charts in the database "
+                "using their stored date/time/location data.\n\n"
+                "Continue?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmation != QMessageBox.StandardButton.Yes:
+            return
+
+        progress = QProgressDialog(
+            "Recalculating charts using stored chart data...",
+            "Cancel",
+            0,
+            len(chart_ids),
+            self,
+        )
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(250)
+        progress.setValue(0)
+        progress.setStyleSheet(
+            "QProgressBar { border: 1px solid #3f3f3f; text-align: center; }"
+            "QProgressBar::chunk { background-color: #8a2be2; }"
+        )
+
+        processed = 0
+        try:
+            for index, chart_id in enumerate(chart_ids, start=1):
+                if progress.wasCanceled():
+                    break
+                chart = load_chart(chart_id)
+                if chart is not None and not getattr(chart, "is_placeholder", False):
+                    chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
+                    chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_element_weights = _calculate_dominant_element_weights(chart)
+                    mode_weights = _calculate_mode_weights(chart)
+                    chart.modal_distribution = dict(mode_weights)
+                    nonzero_modes = {
+                        mode: float(weight)
+                        for mode, weight in mode_weights.items()
+                        if float(weight) > 0
+                    }
+                    chart.dominant_mode = (
+                        max(nonzero_modes.items(), key=lambda item: item[1])[0]
+                        if nonzero_modes
+                        else None
+                    )
+                    hd_result = build_human_design_result(chart)
+                    chart.human_design_gates = sorted(int(gate) for gate in hd_result.active_gates)
+                    chart.human_design_lines = sorted(int(line) for line in hd_result.active_lines)
+                    chart.human_design_channels = sorted(
+                        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+                        for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+                    )
+                    update_chart(
+                        chart_id,
+                        chart,
+                        dominant_sign_weights=chart.dominant_sign_weights,
+                        dominant_planet_weights=chart.dominant_planet_weights,
+                        birth_month=getattr(chart, "birth_month", None),
+                        birth_day=getattr(chart, "birth_day", None),
+                        birth_year=getattr(chart, "birth_year", None),
+                    )
+                    self._chart_cache[chart_id] = chart
+                progress.setValue(index)
+                processed = index
+                QApplication.processEvents()
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Database refresh error",
+                f"Could not recalculate all chart data:\n{exc}",
+            )
+            progress.close()
+            return
+
+        progress.close()
+        if progress.wasCanceled():
+            QMessageBox.information(
+                self,
+                "Refresh canceled",
+                f"Chart recalculation canceled after processing {processed} chart(s).",
+            )
 
         self._chart_cache.clear()
         self._database_metrics_cache = None
@@ -16779,6 +16892,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button = QPushButton("Toggle Size Checker")
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
+
+        recalculate_all_weights_button = QPushButton("Recalculate All Weights in DB")
+        recalculate_all_weights_button.setToolTip(
+            "Recompute stored dominant sign/planet weights for all non-placeholder charts."
+        )
+        recalculate_all_weights_button.clicked.connect(self._on_recalculate_all_weights_in_db)
+        dev_tools_section.addWidget(recalculate_all_weights_button)
 
         custom_db_export_button = QPushButton("Custom DB Export")
         custom_db_export_button.setToolTip(
