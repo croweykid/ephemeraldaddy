@@ -117,11 +117,19 @@ def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: b
         target_dir = Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph"
         target_dir.mkdir(parents=True, exist_ok=True)
         swe.set_ephe_path(str(target_dir))
-    missing_bodies = set(required_bodies)
+    file_backed_bodies: set[str] = set()
+    for mapped_bodies, _urls in _SWE_ASTEROID_FILES.values():
+        file_backed_bodies.update(mapped_bodies)
+    bodies_requiring_files = set(required_bodies).intersection(file_backed_bodies)
+    if not bodies_requiring_files:
+        _SWE_READY_BODIES.update(required_bodies)
+        return
+
+    missing_bodies = set(bodies_requiring_files)
     available_files = {path.name.lower() for path in target_dir.iterdir() if path.is_file()}
 
     for filename, (bodies, urls) in _SWE_ASTEROID_FILES.items():
-        if not required_bodies.intersection(bodies):
+        if not bodies_requiring_files.intersection(bodies):
             continue
         if filename.lower() in available_files:
             missing_bodies.difference_update(bodies)
