@@ -497,8 +497,14 @@ def planetary_positions(dt_aware, lat, lon):
         return lon[0] % 360.0
 
     for name, body in planets.items():
+        # Swiss Ephemeris is the default longitude engine across the board so
+        # chart output matches astrology providers that use Swiss data.
         longitude: float | None = None
-        if earth_at_t is not None:
+        fallback_names = _SWE_PLANET_FALLBACK_IDS.get(name)
+        if fallback_names:
+            longitude = _swe_longitude(_swe_body_id(*fallback_names))
+
+        if longitude is None and earth_at_t is not None:
             try:
                 apparent = earth_at_t.observe(body).apparent()
                 _ecl_lat, ecl_lon, _dist = apparent.frame_latlon(ecliptic_frame)
@@ -506,11 +512,6 @@ def planetary_positions(dt_aware, lat, lon):
                     longitude = ecl_lon.degrees % 360.0
             except Exception:
                 longitude = None
-
-        if longitude is None:
-            fallback_names = _SWE_PLANET_FALLBACK_IDS.get(name)
-            if fallback_names:
-                longitude = _swe_longitude(_swe_body_id(*fallback_names))
 
         if longitude is not None:
             results[name] = longitude
