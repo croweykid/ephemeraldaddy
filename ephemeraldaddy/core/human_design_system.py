@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal
 
+from ephemeraldaddy.analysis.hd_incarnation_crosses import HD_INCARNATION_CROSSES
 from ephemeraldaddy.core.ephemeris import planetary_longitude
 
 if TYPE_CHECKING:
@@ -314,7 +315,10 @@ def _split_definition(defined_channels: tuple[tuple[int, int, str, str], ...]) -
     return "Quadruple Split Definition"
 
 
-INCARNATION_CROSS_LOOKUP: dict[tuple[int, int, int, int], str] = {}
+INCARNATION_CROSS_LOOKUP: dict[tuple[int, int, int, int], str] = {
+    tuple(entry["gates"]): entry["full_name"]
+    for entry in HD_INCARNATION_CROSSES
+}
 
 
 def _incarnation_cross_angle(line: int) -> str:
@@ -334,7 +338,10 @@ def _resolve_incarnation_cross(
     key = (personality_sun.gate, personality_earth.gate, design_sun.gate, design_earth.gate)
     named = INCARNATION_CROSS_LOOKUP.get(key)
     if named:
-        return named
+        return (
+            f"{named} (gates {personality_sun.gate}/{personality_earth.gate}"
+            f" • {design_sun.gate}/{design_earth.gate})"
+        )
     angle = _incarnation_cross_angle(personality_sun.line)
     return (
         f"{angle} Incarnation (gates {personality_sun.gate}/{personality_earth.gate}"
