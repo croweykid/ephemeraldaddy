@@ -518,6 +518,49 @@ HD_CHANNELS = {
 
 }
 
+HD_CIRCUIT_GROUPS = {
+    "Individual": {
+        "subcircuits": {
+            "Integration": {
+                "channels": ["10-20", "20-34", "10-57", "34-57"],
+                "gates": (10, 20, 34, 57),
+            },
+            "Knowing": {
+                "channels": ["1-8", "2-14", "3-60", "28-38", "20-57", "39-55", "12-22", "43-23", "61-24"],
+                "gates": (1, 2, 3, 8, 12, 14, 20, 22, 23, 24, 28, 38, 39, 43, 55, 57, 60, 61),
+            },
+            "Centering": {
+                "channels": ["25-51", "10-34"],
+                "gates": (10, 25, 34, 51),
+            },
+        },
+    },
+    "Collective": {
+        "subcircuits": {
+            "Logic": {
+                "channels": ["63-4", "17-62", "16-48", "18-58", "52-9", "15-5", "31-7"],
+                "gates": (4, 5, 7, 9, 15, 16, 17, 18, 31, 48, 52, 58, 62, 63),
+            },
+            "Abstract": {
+                "channels": ["64-47", "11-56", "35-36", "41-30", "42-53", "46-29", "33-13"],
+                "gates": (11, 13, 29, 30, 33, 35, 36, 41, 42, 46, 47, 53, 56, 64),
+            },
+        },
+    },
+    "Tribal": {
+        "subcircuits": {
+            "Ego": {
+                "channels": ["32-54", "44-26", "19-49", "40-37", "21-45"],
+                "gates": (19, 21, 26, 32, 37, 40, 44, 45, 49, 54),
+            },
+            "Defense": {
+                "channels": ["50-27", "59-6"],
+                "gates": (6, 27, 50, 59),
+            },
+        },
+    },
+}
+
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
     gate_info = GATE_REFERENCE.get(gate_num, {"name": "Unknown Gate", "meaning": "No gate reference available."})
