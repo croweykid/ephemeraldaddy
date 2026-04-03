@@ -16,9 +16,26 @@ def timezone_from_latlon(lat: float, lon: float) -> tuple[ZoneInfo, bool]:
     inferred_ok == False means: could not infer a local timezone, used UTC instead.
     """
     try:
-        name = _tf.timezone_at(lat=lat, lng=lon)
+        latitude = float(lat)
+        longitude = float(lon)
+    except Exception:
+        return ZoneInfo("UTC"), False
+
+    if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+        return ZoneInfo("UTC"), False
+
+    try:
+        name = _tf.timezone_at(lat=latitude, lng=longitude)
     except Exception:
         name = None
+
+    if not name:
+        # `timezone_at()` can return None around coastlines/border cells.
+        # Use the stricter fallback before conceding UTC.
+        try:
+            name = _tf.certain_timezone_at(lat=latitude, lng=longitude)
+        except Exception:
+            name = None
 
     if not name:
         return ZoneInfo("UTC"), False
@@ -68,4 +85,3 @@ def local_sidereal_time(dt_aware: _dt.datetime, lon_deg: float) -> float:
 
     lst_deg = (gast_deg + lon_deg) % 360.0
     return lst_deg
-

@@ -117,11 +117,19 @@ def _ensure_swiss_ephemeris_data(required_bodies: set[str], *, allow_download: b
         target_dir = Path.home() / ".local" / "share" / "ephemeraldaddy" / "sweph"
         target_dir.mkdir(parents=True, exist_ok=True)
         swe.set_ephe_path(str(target_dir))
-    missing_bodies = set(required_bodies)
+    file_backed_bodies: set[str] = set()
+    for mapped_bodies, _urls in _SWE_ASTEROID_FILES.values():
+        file_backed_bodies.update(mapped_bodies)
+    bodies_requiring_files = set(required_bodies).intersection(file_backed_bodies)
+    if not bodies_requiring_files:
+        _SWE_READY_BODIES.update(required_bodies)
+        return
+
+    missing_bodies = set(bodies_requiring_files)
     available_files = {path.name.lower() for path in target_dir.iterdir() if path.is_file()}
 
     for filename, (bodies, urls) in _SWE_ASTEROID_FILES.items():
-        if not required_bodies.intersection(bodies):
+        if not bodies_requiring_files.intersection(bodies):
             continue
         if filename.lower() in available_files:
             missing_bodies.difference_update(bodies)
@@ -164,6 +172,7 @@ _EPH = None
 _EARTH = None
 _PLANETS = None
 _SKYFIELD_LOADER = None
+_SKYFIELD_EPH_FILENAME = None
 
 
 def _get_ephemeraldaddy_data_dir() -> Path:
@@ -176,15 +185,24 @@ def _get_ephemeraldaddy_data_dir() -> Path:
     return Path.home() / ".local" / "share" / "ephemeraldaddy"
 
 
-def _iter_de421_source_candidates() -> tuple[Path, ...]:
+def _skyfield_ephemeris_filename_preference() -> tuple[str, ...]:
+    env_name = str(os.environ.get("EPHEMERALDADDY_SKYFIELD_EPHEMERIS", "")).strip().lower()
+    if env_name:
+        normalized = env_name if env_name.endswith(".bsp") else f"{env_name}.bsp"
+        return (normalized,)
+    # Prefer newer short-range kernel first when available.
+    return ("de440s.bsp", "de440.bsp", "de421.bsp")
+
+
+def _iter_bsp_source_candidates(filename: str) -> tuple[Path, ...]:
     candidates: list[Path] = []
 
     bundled_root = getattr(sys, "_MEIPASS", None)
     if bundled_root:
-        candidates.append(Path(bundled_root) / "de421.bsp")
+        candidates.append(Path(bundled_root) / filename)
 
-    candidates.append(Path(__file__).resolve().parents[2] / "de421.bsp")
-    candidates.append(Path.cwd() / "de421.bsp")
+    candidates.append(Path(__file__).resolve().parents[2] / filename)
+    candidates.append(Path.cwd() / filename)
     return tuple(candidates)
 
 
@@ -197,12 +215,14 @@ def _get_skyfield_loader() -> Loader:
     data_dir = Path(override).expanduser() if override else (_get_ephemeraldaddy_data_dir() / "skyfield")
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    target_de421 = data_dir / "de421.bsp"
-    if not target_de421.exists():
-        for candidate in _iter_de421_source_candidates():
+    for filename in _skyfield_ephemeris_filename_preference():
+        target = data_dir / filename
+        if target.exists():
+            continue
+        for candidate in _iter_bsp_source_candidates(filename):
             if candidate.exists():
                 try:
-                    shutil.copyfile(candidate, target_de421)
+                    shutil.copyfile(candidate, target)
                     break
                 except Exception:
                     continue
@@ -213,12 +233,22 @@ def _get_skyfield_loader() -> Loader:
 
 def _get_skyfield_context():
     """Lazily load heavy Skyfield resources on first use."""
-    global _TS, _EPH, _EARTH, _PLANETS
+    global _TS, _EPH, _EARTH, _PLANETS, _SKYFIELD_EPH_FILENAME
     loader = _get_skyfield_loader()
     if _TS is None:
         _TS = loader.timescale()
     if _EPH is None:
-        _EPH = loader("de421.bsp")
+        for filename in _skyfield_ephemeris_filename_preference():
+            target = Path(loader.directory) / filename
+            if target.exists():
+                _EPH = loader(filename)
+                _SKYFIELD_EPH_FILENAME = filename
+                break
+        if _EPH is None:
+            # Last resort: allow Skyfield to fetch the preferred file when online.
+            filename = _skyfield_ephemeris_filename_preference()[0]
+            _EPH = loader(filename)
+            _SKYFIELD_EPH_FILENAME = filename
     if _EARTH is None:
         _EARTH = _EPH[399]  # hard-code geocenter; avoids accidentally using ID 3
     if _PLANETS is None:
@@ -433,7 +463,7 @@ def planetary_positions(dt_aware, lat, lon):
     jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, hour)
 
     ts, earth, planets = _get_skyfield_context()
-    t = ts.from_datetime(dt_aware)
+    t = ts.from_datetime(dt_utc)
     #location = EARTH + wgs84.latlon(lat * N, lon * E)
 
     results = {}
@@ -475,8 +505,14 @@ def planetary_positions(dt_aware, lat, lon):
         return lon[0] % 360.0
 
     for name, body in planets.items():
+        # Swiss Ephemeris is the default longitude engine across the board so
+        # chart output matches astrology providers that use Swiss data.
         longitude: float | None = None
-        if earth_at_t is not None:
+        fallback_names = _SWE_PLANET_FALLBACK_IDS.get(name)
+        if fallback_names:
+            longitude = _swe_longitude(_swe_body_id(*fallback_names))
+
+        if longitude is None and earth_at_t is not None:
             try:
                 apparent = earth_at_t.observe(body).apparent()
                 _ecl_lat, ecl_lon, _dist = apparent.frame_latlon(ecliptic_frame)
@@ -484,11 +520,6 @@ def planetary_positions(dt_aware, lat, lon):
                     longitude = ecl_lon.degrees % 360.0
             except Exception:
                 longitude = None
-
-        if longitude is None:
-            fallback_names = _SWE_PLANET_FALLBACK_IDS.get(name)
-            if fallback_names:
-                longitude = _swe_longitude(_swe_body_id(*fallback_names))
 
         if longitude is not None:
             results[name] = longitude
