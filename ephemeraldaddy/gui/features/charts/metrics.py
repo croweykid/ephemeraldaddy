@@ -613,7 +613,7 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
     sign_prevalence_counts = calculate_sign_prevalence_counts(chart)
     for sign, count in sign_prevalence_counts.items():
         if count >= 3:
-            weighted_counts[sign] += float(count)
+            weighted_counts[sign] += 1.0 #float(count) #used to double stellium score, now just give a lil bonus
 
     return weighted_counts
 
