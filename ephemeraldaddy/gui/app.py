@@ -332,6 +332,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
+from ephemeraldaddy.gui.features.charts.chart_data_table_output import ChartDataTableOutput
 from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     build_popout_left_panel as _build_popout_left_panel_widget,
     collect_aspect_category_totals as _collect_aspect_category_totals,
@@ -4535,7 +4536,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -5022,7 +5023,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -5623,7 +5624,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -18808,7 +18809,7 @@ class MainWindow(QMainWindow):
         output_panel_layout.addLayout(output_controls)
 
         # Output panel: read-only chart summary (below inputs).
-        self.output_text = QPlainTextEdit()
+        self.output_text = ChartDataTableOutput()
         self.output_text.setReadOnly(True)
         output_font = self.output_text.font()
         output_font.setStyleHint(QFont.StyleHint.Monospace)
@@ -24216,7 +24217,7 @@ class MainWindow(QMainWindow):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -24352,7 +24353,7 @@ class MainWindow(QMainWindow):
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
         right_layout.addWidget(chart_container, 7)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
