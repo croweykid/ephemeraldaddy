@@ -166,12 +166,11 @@ class ChartDataTableWidget(QTableWidget):
         self._raw_text = ""
         self._placeholder_text = ""
         self._document = QTextDocument(self)
-        self._row_to_line_index: list[int] = []
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setAlternatingRowColors(True)
         self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setVisible(False)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.horizontalHeader().setStretchLastSection(True)
         self.setWordWrap(False)
@@ -193,10 +192,7 @@ class ChartDataTableWidget(QTableWidget):
         return self._raw_text
 
     def line_index_for_position(self, point: QPoint) -> int:
-        row_index = self.rowAt(point.y())
-        if row_index < 0 or row_index >= len(self._row_to_line_index):
-            return -1
-        return self._row_to_line_index[row_index]
+        return self.rowAt(point.y())
 
     def column_index_for_position(self, point: QPoint) -> int:
         return self.columnAt(point.x())
@@ -204,7 +200,6 @@ class ChartDataTableWidget(QTableWidget):
     def clear(self) -> None:  # type: ignore[override]
         self._raw_text = ""
         self._document.setPlainText("")
-        self._row_to_line_index = []
         self.setRowCount(0)
         self.setColumnCount(0)
 
@@ -212,75 +207,38 @@ class ChartDataTableWidget(QTableWidget):
         self._raw_text = text
         self._document.setPlainText(text)
         lines = text.splitlines()
-        positions_start_index = next(
-            (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
-            0,
-        )
         if not lines:
             self.setRowCount(0)
             self.setColumnCount(0)
-            self._row_to_line_index = []
             if self._placeholder_text:
                 self.setColumnCount(1)
+                self.setHorizontalHeaderLabels(["Info"])
                 self.setRowCount(1)
                 self.setItem(0, 0, QTableWidgetItem(self._placeholder_text.splitlines()[0]))
             return
 
-        split_rows: list[tuple[int, list[str]]] = []
+        split_rows: list[list[str]] = []
         max_cols = 1
-        for line_index, line in enumerate(lines):
-            if not line.strip():
-                continue
+        for line in lines:
             parts = [part.strip() for part in re.split(r"\s{2,}", line.strip()) if part.strip()]
             if not parts:
-                continue
-            split_rows.append((line_index, parts))
+                parts = [""]
+            split_rows.append(parts)
             max_cols = max(max_cols, len(parts))
 
-        if not split_rows:
-            self.setRowCount(0)
-            self.setColumnCount(0)
-            self._row_to_line_index = []
-            return
-
+        headers = [f"Col {index + 1}" for index in range(max_cols)]
         self.setColumnCount(max_cols)
+        self.setHorizontalHeaderLabels(headers)
         self.setRowCount(len(split_rows))
-        self._row_to_line_index = []
-        for row_index, (line_index, parts) in enumerate(split_rows):
-            self._row_to_line_index.append(line_index)
-            is_divider = bool(re.fullmatch(r"[-─=]{3,}", lines[line_index].strip()))
-            is_section = lines[line_index].strip().upper() in CHART_DATA_SECTION_HEADERS
+        for row_index, parts in enumerate(split_rows):
             for col_index in range(max_cols):
                 value = parts[col_index] if col_index < len(parts) else ""
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 if col_index == 0:
-                    item.setData(Qt.UserRole, lines[line_index])
-                if is_section:
-                    section_font = QFont(item.font())
-                    section_font.setBold(True)
-                    item.setFont(section_font)
-                    item.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-                elif is_divider:
-                    item.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+                    item.setData(Qt.UserRole, lines[row_index])
                 self.setItem(row_index, col_index, item)
-        body_row_indices = [
-            row_idx
-            for row_idx, original_line_idx in enumerate(self._row_to_line_index)
-            if original_line_idx >= positions_start_index
-        ]
-        if not body_row_indices:
-            body_row_indices = list(range(self.rowCount()))
-
-        metrics = self.fontMetrics()
-        for col_index in range(self.columnCount()):
-            widest_px = 0
-            for row_idx in body_row_indices:
-                cell_item = self.item(row_idx, col_index)
-                if cell_item is None:
-                    continue
-                widest_px = max(widest_px, metrics.horizontalAdvance(cell_item.text()))
-            self.setColumnWidth(col_index, widest_px + 16)
+        self.resizeColumnsToContents()
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
