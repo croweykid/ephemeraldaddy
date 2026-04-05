@@ -15043,8 +15043,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         else None
                     )
                     hd_result = build_human_design_result(chart)
+                    activations = (*hd_result.personality_activations, *hd_result.design_activations)
                     chart.human_design_gates = sorted(int(gate) for gate in hd_result.active_gates)
-                    chart.human_design_lines = sorted(int(line) for line in hd_result.active_lines)
+                    chart.human_design_lines = sorted({int(activation.line) for activation in activations})
                     chart.human_design_channels = sorted(
                         f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
                         for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
