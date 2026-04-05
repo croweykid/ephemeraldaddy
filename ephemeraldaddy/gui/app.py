@@ -15122,6 +15122,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._refresh_charts(force_full_analysis_refresh=True)
     def _set_sort_mode(self, mode: str) -> None:
+        selected_ids = set(self._selected_chart_ids())
         default_descending_by_mode = {
             "alpha": False,
             "date": True,
@@ -15141,7 +15142,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sort_button_label()
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
-        self._populate_list()
+        self._populate_list(selected_ids=selected_ids or None)
+        self._on_selection_changed()
 
     @staticmethod
     def _age_sort_key(datetime_iso: str | None) -> datetime.datetime:
