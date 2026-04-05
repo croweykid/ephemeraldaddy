@@ -6250,7 +6250,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if body not in chart.positions:
                     continue
                 sign = _sign_for_longitude(chart.positions[body])
-                label = f"{self._similarities_body_label(body)}: {sign}"
+                label = f"{self._similarities_body_label(body)} in {sign}"
                 signs_by_body[label] = signs_by_body.get(label, 0) + 1
                 if label not in total_counts_by_label:
                     total_counts_by_label[label] = (
