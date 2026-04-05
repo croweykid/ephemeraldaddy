@@ -582,18 +582,21 @@ def format_chart_text(
                 {
                     "kind": "planet_keyword",
                     "body": body,
+                    "column": 0,
                     "span_start": column_offsets[0],
                     "span_end": column_offsets[0] + len(display_body),
                 },
                 {
                     "kind": "sign_keyword",
                     "sign": sign_label,
+                    "column": 1,
                     "span_start": column_offsets[1],
                     "span_end": column_offsets[1] + len(sign_label),
                 },
                 {
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
+                    "column": 3,
                     "icon_index": line.find("ⓘ"),
                 }
             ]
@@ -602,6 +605,7 @@ def format_chart_text(
                     {
                         "kind": "house_keyword",
                         "house": house_num,
+                        "column": 4,
                         "span_start": column_offsets[4],
                         "span_end": column_offsets[4] + len(house_label),
                     }
@@ -613,6 +617,7 @@ def format_chart_text(
                         "body": body,
                         "sign": sign_for_longitude(lon),
                         "house": house_num,
+                        "column": 4,
                         "icon_index": line.rfind("ⓘ"),
                     }
                 )
@@ -637,18 +642,21 @@ def format_chart_text(
                 {
                     "kind": "planet_keyword",
                     "body": body,
+                    "column": 0,
                     "span_start": column_offsets[0],
                     "span_end": column_offsets[0] + len(display_body),
                 },
                 {
                     "kind": "sign_keyword",
                     "sign": sign_label,
+                    "column": 1,
                     "span_start": column_offsets[1],
                     "span_end": column_offsets[1] + len(sign_label),
                 },
                 {
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
+                    "column": 3,
                     "icon_index": line.find("ⓘ"),
                 },
                 {
@@ -656,6 +664,7 @@ def format_chart_text(
                     "body": body,
                     "sign": sign_for_longitude(lon),
                     "house": None,
+                    "column": 3,
                     "icon_index": line.rfind("ⓘ"),
                 }
             ]
