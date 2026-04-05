@@ -10061,6 +10061,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel_layout = panel_widget.layout()
         if panel_layout is not None:
             panel_layout.activate()
+            panel_content_width = panel_layout.sizeHint().width()
+        else:
+            panel_content_width = panel_widget.sizeHint().width()
+        if panel_content_width > 0:
+            panel_widget.setMinimumWidth(panel_content_width + 30)
         panel_widget.updateGeometry()
 
     @staticmethod
