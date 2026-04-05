@@ -65,6 +65,7 @@ from PySide6.QtGui import (
     QShortcut,
     QSyntaxHighlighter,
     QTextCharFormat,
+    QTextDocument,
     QIntValidator,
     QRegularExpressionValidator,
 )
@@ -114,6 +115,9 @@ from PySide6.QtWidgets import (
     QStyleOptionSlider,
     QAbstractButton,
     QSlider,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
 from PySide6.QtCore import (
     Qt,
@@ -152,6 +156,131 @@ class _GlobalCloseShortcutFilter(QObject):
 
         target.close()
         return True
+
+
+class ChartDataTableWidget(QTableWidget):
+    """Table-backed chart data output widget with a QPlainTextEdit-compatible surface."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._raw_text = ""
+        self._placeholder_text = ""
+        self._document = QTextDocument(self)
+        self._row_to_line_index: list[int] = []
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.verticalHeader().setVisible(False)
+        self.horizontalHeader().setVisible(False)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.horizontalHeader().setStretchLastSection(True)
+        self.setWordWrap(False)
+
+    def setReadOnly(self, read_only: bool) -> None:
+        triggers = QAbstractItemView.NoEditTriggers if read_only else QAbstractItemView.AllEditTriggers
+        self.setEditTriggers(triggers)
+
+    def setPlaceholderText(self, text: str) -> None:
+        self._placeholder_text = text
+
+    def setTabStopDistance(self, _distance: float) -> None:
+        return
+
+    def document(self) -> QTextDocument:
+        return self._document
+
+    def toPlainText(self) -> str:
+        return self._raw_text
+
+    def line_index_for_position(self, point: QPoint) -> int:
+        row_index = self.rowAt(point.y())
+        if row_index < 0 or row_index >= len(self._row_to_line_index):
+            return -1
+        return self._row_to_line_index[row_index]
+
+    def column_index_for_position(self, point: QPoint) -> int:
+        return self.columnAt(point.x())
+
+    def clear(self) -> None:  # type: ignore[override]
+        self._raw_text = ""
+        self._document.setPlainText("")
+        self._row_to_line_index = []
+        self.setRowCount(0)
+        self.setColumnCount(0)
+
+    def setPlainText(self, text: str) -> None:
+        self._raw_text = text
+        self._document.setPlainText(text)
+        lines = text.splitlines()
+        positions_start_index = next(
+            (idx for idx, line in enumerate(lines) if line.strip() == "POSITIONS"),
+            0,
+        )
+        if not lines:
+            self.setRowCount(0)
+            self.setColumnCount(0)
+            self._row_to_line_index = []
+            if self._placeholder_text:
+                self.setColumnCount(1)
+                self.setRowCount(1)
+                self.setItem(0, 0, QTableWidgetItem(self._placeholder_text.splitlines()[0]))
+            return
+
+        split_rows: list[tuple[int, list[str]]] = []
+        max_cols = 1
+        for line_index, line in enumerate(lines):
+            if not line.strip():
+                continue
+            parts = [part.strip() for part in re.split(r"\s{2,}", line.strip()) if part.strip()]
+            if not parts:
+                continue
+            split_rows.append((line_index, parts))
+            max_cols = max(max_cols, len(parts))
+
+        if not split_rows:
+            self.setRowCount(0)
+            self.setColumnCount(0)
+            self._row_to_line_index = []
+            return
+
+        self.setColumnCount(max_cols)
+        self.setRowCount(len(split_rows))
+        self._row_to_line_index = []
+        for row_index, (line_index, parts) in enumerate(split_rows):
+            self._row_to_line_index.append(line_index)
+            is_divider = bool(re.fullmatch(r"[-─=]{3,}", lines[line_index].strip()))
+            is_section = lines[line_index].strip().upper() in CHART_DATA_SECTION_HEADERS
+            for col_index in range(max_cols):
+                value = parts[col_index] if col_index < len(parts) else ""
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                if col_index == 0:
+                    item.setData(Qt.UserRole, lines[line_index])
+                if is_section:
+                    section_font = QFont(item.font())
+                    section_font.setBold(True)
+                    item.setFont(section_font)
+                    item.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+                elif is_divider:
+                    item.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+                self.setItem(row_index, col_index, item)
+        body_row_indices = [
+            row_idx
+            for row_idx, original_line_idx in enumerate(self._row_to_line_index)
+            if original_line_idx >= positions_start_index
+        ]
+        if not body_row_indices:
+            body_row_indices = list(range(self.rowCount()))
+
+        metrics = self.fontMetrics()
+        for col_index in range(self.columnCount()):
+            widest_px = 0
+            for row_idx in body_row_indices:
+                cell_item = self.item(row_idx, col_index)
+                if cell_item is None:
+                    continue
+                widest_px = max(widest_px, metrics.horizontalAdvance(cell_item.text()))
+            self.setColumnWidth(col_index, widest_px + 16)
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
@@ -3882,7 +4011,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_chart_container.setLayout(self.todays_transits_chart_layout)
         section_layout.addWidget(self.todays_transits_chart_container)
 
-        self.todays_transits_output = QPlainTextEdit()
+        self.todays_transits_output = ChartDataTableWidget()
         self.todays_transits_output.setReadOnly(True)
         output_font = self.todays_transits_output.font()
         output_font.setPointSize(9)
@@ -4535,7 +4664,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableWidget()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -4776,7 +4905,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return f"{default_stem}_{self._sanitize_export_token(chart_name_for_personal_transit)}"
         # return default_stem
 
-    def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
+    def _position_popout_share_button(self, output_widget: QPlainTextEdit | ChartDataTableWidget, button: QToolButton) -> None:
         host_window = output_widget.window()
         if not isinstance(host_window, QWidget):
             return
@@ -4792,7 +4921,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _attach_popout_share_button(
         self,
-        output_widget: QPlainTextEdit,
+        output_widget: QPlainTextEdit | ChartDataTableWidget,
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
@@ -4821,7 +4950,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _export_popout_chart_data_output(
         self,
-        output_widget: QPlainTextEdit,
+        output_widget: QPlainTextEdit | ChartDataTableWidget,
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> None:
@@ -5022,7 +5151,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableWidget()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -5623,7 +5752,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableWidget()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -6250,7 +6379,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if body not in chart.positions:
                     continue
                 sign = _sign_for_longitude(chart.positions[body])
-                label = f"{self._similarities_body_label(body)} in {sign}"
+                label = f"{self._similarities_body_label(body)}: {sign}"
                 signs_by_body[label] = signs_by_body.get(label, 0) + 1
                 if label not in total_counts_by_label:
                     total_counts_by_label[label] = (
@@ -18808,7 +18937,7 @@ class MainWindow(QMainWindow):
         output_panel_layout.addLayout(output_controls)
 
         # Output panel: read-only chart summary (below inputs).
-        self.output_text = QPlainTextEdit()
+        self.output_text = ChartDataTableWidget()
         self.output_text.setReadOnly(True)
         output_font = self.output_text.font()
         output_font.setStyleHint(QFont.StyleHint.Monospace)
@@ -21086,22 +21215,30 @@ class MainWindow(QMainWindow):
 
     def _handle_summary_info_click(
         self,
-        output_widget: QPlainTextEdit,
+        output_widget: QPlainTextEdit | ChartDataTableWidget,
         cursor,
         position_info_map: dict[int, list[dict[str, object]]],
         aspect_info_map: dict[int, dict[str, object]],
         species_info_map: dict[int, list[dict[str, object]]],
         target_info_widget: QPlainTextEdit,
         block_offset: int = 0,
+        *,
+        line_index: int | None = None,
+        column_index: int | None = None,
     ) -> bool:
-        block = cursor.block()
-        block_number = block.blockNumber() + block_offset
-        block_text = block.text()
-        info_index = block_text.rfind("ⓘ")
-        if info_index == -1:
-            return False
-
-        cursor_pos = cursor.positionInBlock()
+        if line_index is not None:
+            block_number = line_index + block_offset
+            block_text = ""
+            info_index = 0
+            cursor_pos = 0
+        else:
+            block = cursor.block()
+            block_number = block.blockNumber() + block_offset
+            block_text = block.text()
+            info_index = block_text.rfind("ⓘ")
+            if info_index == -1:
+                return False
+            cursor_pos = cursor.positionInBlock()
         original_chart_info_output = self.chart_info_output
         self.chart_info_output = target_info_widget
         try:
@@ -21136,6 +21273,33 @@ class MainWindow(QMainWindow):
 
             info_entries = position_info_map.get(block_number, [])
             if info_entries:
+                if line_index is not None and isinstance(column_index, int):
+                    for entry in info_entries:
+                        if entry.get("column") != column_index:
+                            continue
+                        if entry.get("kind") == "planet_keyword":
+                            self._show_planet_keyword_info(str(entry.get("body", "")))
+                            return True
+                        if entry.get("kind") == "sign_keyword":
+                            self._show_sign_keyword_info(str(entry.get("sign", "")))
+                            return True
+                        if entry.get("kind") == "house_keyword":
+                            try:
+                                house_num = int(entry.get("house", 0))
+                            except (TypeError, ValueError):
+                                continue
+                            self._show_house_keyword_info(house_num)
+                            return True
+                        if entry.get("kind") == "nakshatra":
+                            self._show_nakshatra_info(str(entry.get("nakshatra", "")))
+                            return True
+                        if entry.get("kind") == "position":
+                            self._show_position_info(
+                                str(entry.get("body", "")),
+                                str(entry.get("sign", "")),
+                                entry.get("house"),
+                            )
+                            return True
                 for entry in info_entries:
                     span_start = entry.get("span_start")
                     span_end = entry.get("span_end")
@@ -21196,7 +21360,7 @@ class MainWindow(QMainWindow):
                     )
                     return True
 
-            if cursor.positionInBlock() >= info_index:
+            if line_index is not None or cursor.positionInBlock() >= info_index:
                 aspect_info = aspect_info_map.get(block_number)
                 if aspect_info:
                     self._show_aspect_info(
@@ -21222,6 +21386,19 @@ class MainWindow(QMainWindow):
         if popout_context is not None:
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 output_widget = popout_context["output_widget"]
+                if isinstance(output_widget, ChartDataTableWidget):
+                    point = event.position().toPoint()
+                    return self._handle_summary_info_click(
+                        output_widget,
+                        None,
+                        popout_context["position_info_map"],
+                        popout_context["aspect_info_map"],
+                        popout_context["species_info_map"],
+                        popout_context["chart_info_output"],
+                        popout_context.get("summary_block_offset", 0),
+                        line_index=output_widget.line_index_for_position(point),
+                        column_index=output_widget.column_index_for_position(point),
+                    )
                 cursor = output_widget.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
                     output_widget,
@@ -21238,6 +21415,18 @@ class MainWindow(QMainWindow):
                 self._position_output_share_button()
         if output_text is not None and obj is output_text.viewport():
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                if isinstance(output_text, ChartDataTableWidget):
+                    point = event.position().toPoint()
+                    return self._handle_summary_info_click(
+                        output_text,
+                        None,
+                        self._position_info_map,
+                        self._aspect_info_map,
+                        self._species_info_map,
+                        self.chart_info_output,
+                        line_index=output_text.line_index_for_position(point),
+                        column_index=output_text.column_index_for_position(point),
+                    )
                 cursor = output_text.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
                     output_text,
@@ -24216,7 +24405,7 @@ class MainWindow(QMainWindow):
         summary_controls.addWidget(summary_sort_combo)
         right_layout.addLayout(summary_controls)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableWidget()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
@@ -24352,7 +24541,7 @@ class MainWindow(QMainWindow):
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
         right_layout.addWidget(chart_container, 7)
 
-        summary_output = QPlainTextEdit()
+        summary_output = ChartDataTableWidget()
         summary_output.setReadOnly(True)
         output_font = summary_output.font()
         summary_output.setFont(output_font)
