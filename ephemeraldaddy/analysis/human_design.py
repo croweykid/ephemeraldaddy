@@ -32,6 +32,26 @@ def build_human_design_result(chart: Chart) -> HumanDesignResult:
     return calculate_human_design(chart)
 
 
+def derive_human_design_profile(
+    chart: Chart,
+) -> tuple[list[int], list[int], list[str], str]:
+    """Return canonical HD gates/lines/channels/type derived from chart positions.
+
+    This helper is the shared, canonical profile derivation path for all UI
+    surfaces that need Human Design filter/analytics values.
+    """
+    hd_result = calculate_human_design(chart)
+    activations = (*hd_result.personality_activations, *hd_result.design_activations)
+    gates = sorted(int(gate) for gate in hd_result.active_gates)
+    lines = sorted({int(activation.line) for activation in activations})
+    channels = sorted(
+        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
+    )
+    hd_type = str(hd_result.hd_type or "").strip()
+    return gates, lines, channels, hd_type
+
+
 def build_awareness_stream_completion(active_gate_set: set[int]) -> list[dict[str, Any]]:
     """Build per-stream completion payload used by Human Design text + visuals."""
     awareness_payload: list[dict[str, Any]] = []
