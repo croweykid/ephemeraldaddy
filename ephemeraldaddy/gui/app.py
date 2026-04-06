@@ -254,6 +254,7 @@ from ephemeraldaddy.data.genpop import (
 from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.core.interpretations import (
     PLANET_KEYWORDS,
+    DOMINANT_BODY_MEANINGS,
     SIGN_KEYWORDS,
     ASPECT_KEYWORDS,
     ELEMENT_COLORS,
@@ -19265,7 +19266,7 @@ class MainWindow(QMainWindow):
         popout_canvas = FigureCanvas(figure)
         popout_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        info_panel = QPlainTextEdit()
+        info_panel = QTextEdit()
         info_panel.setReadOnly(True)
         info_panel.setPlaceholderText(STANDARD_NCV_POPOUT_LAYOUT["info_placeholder"])
         info_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -19306,7 +19307,7 @@ class MainWindow(QMainWindow):
                     info_panel.setPlainText(self._build_sign_popout_info(raw_value))
                     return
                 if chart_key == "body":
-                    info_panel.setPlainText(
+                    info_panel.setHtml(
                         self._build_body_popout_info(popout_chart, raw_value)
                     )
                     return
@@ -19400,36 +19401,68 @@ class MainWindow(QMainWindow):
 
     def _build_body_popout_info(self, chart: Chart, body: str) -> str:
         body_name = str(body or "").strip()
-        body_keywords = PLANET_KEYWORDS.get(body_name, {})
-        nouns = body_keywords.get("nouns", [])
-        longitude = chart.positions.get(body_name)
-        sign_name = _sign_for_longitude(longitude) if longitude is not None else None
-        if sign_name is None:
-            sign_name = "Unknown Sign"
+        meaning = DOMINANT_BODY_MEANINGS.get(body_name, {})
         display_body = _display_body_name(body_name)
-        header = f"{display_body} in {sign_name}"
+        shorthand = str(meaning.get("shorthand", "")).strip()
+        summary = str(meaning.get("summary", "")).strip()
+        typical_traits = [
+            str(entry).strip()
+            for entry in meaning.get("typical_traits", [])
+            if str(entry).strip()
+        ]
+        at_best = [
+            str(entry).strip()
+            for entry in meaning.get("at_best", [])
+            if str(entry).strip()
+        ]
+        at_worst = [
+            str(entry).strip()
+            for entry in meaning.get("at_worst", [])
+            if str(entry).strip()
+        ]
+        life_lesson = str(meaning.get("life_lesson", "")).strip()
+        reaction = str(meaning.get("reaction", "")).strip()
 
-        clean_nouns = [str(noun).strip() for noun in nouns if str(noun).strip()]
-        noun_text = ", ".join(clean_nouns) if clean_nouns else "No noun keywords available."
+        if not any(
+            [shorthand, summary, typical_traits, at_best, at_worst, life_lesson, reaction]
+        ):
+            return f"{display_body}\n\nNo dominant-body interpretation data available."
 
-        sign_keywords = SIGN_KEYWORDS.get(str(sign_name).title(), {})
-        strategy = str(sign_keywords.get("strategy", "")).strip()
-        core = str(sign_keywords.get("core", "")).strip()
-        behavior = sign_keywords.get("behavior", [])
-        behavior_text = " ".join(
-            str(entry).strip() for entry in behavior if str(entry).strip()
+        section_header_style = (
+            f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
         )
 
-        sign_parts = [part for part in [strategy, core, behavior_text] if part]
-        sign_text = " ".join(f"{part}." for part in sign_parts) if sign_parts else "No sign keywords available."
+        def _section_header(label: str) -> str:
+            return f'<div style="{section_header_style}">{html.escape(label)}</div>'
 
-        return "\n".join(
-            [
-                header,
-                f"{display_body}: {noun_text}",
-                f"{sign_name}: {sign_text}",
-            ]
-        )
+        def _list_section(items: list[str]) -> str:
+            return "".join(
+                f"<li>{html.escape(entry)}</li>"
+                for entry in items
+            )
+
+        html_parts = [f"<h3>{html.escape(display_body)}</h3>"]
+        if shorthand:
+            html_parts.append(f"<div><em>{html.escape(shorthand)}</em></div>")
+        if summary:
+            html_parts.append(_section_header("Summary:"))
+            html_parts.append(f"<div>{html.escape(summary)}</div>")
+        if typical_traits:
+            html_parts.append(_section_header("Traits:"))
+            html_parts.append(f"<ul>{_list_section(typical_traits)}</ul>")
+        if at_best:
+            html_parts.append(_section_header("At Best:"))
+            html_parts.append(f"<ul>{_list_section(at_best)}</ul>")
+        if at_worst:
+            html_parts.append(_section_header("At Worst:"))
+            html_parts.append(f"<ul>{_list_section(at_worst)}</ul>")
+        if life_lesson:
+            html_parts.append(_section_header("Life Lesson:"))
+            html_parts.append(f"<div>{html.escape(life_lesson)}</div>")
+        if reaction:
+            html_parts.append(_section_header("Reactions from Others"))
+            html_parts.append(f"<div>{html.escape(reaction)}</div>")
+        return "".join(html_parts)
 
     def _build_house_popout_info(self, house_num: int) -> str:
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
@@ -19521,7 +19554,7 @@ class MainWindow(QMainWindow):
         self._apply_standard_ncv_bar_chart_axes(ax, x_labels)
         for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
             tick_label.set_gid(f"body:{body}")
-            tick_label.set_picker(True)
+            tick_label.set_picker(5)
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -19541,7 +19574,7 @@ class MainWindow(QMainWindow):
                 fontsize=9,
             )
             glyph_text.set_gid(f"body:{label}")
-            glyph_text.set_picker(True)
+            glyph_text.set_picker(5)
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
         ax.figure.tight_layout()
