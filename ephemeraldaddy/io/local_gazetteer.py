@@ -1,12 +1,17 @@
 import os
 import re
 import sqlite3
+import socket
 import tempfile
+import time
+import math
+import threading
 import urllib.request
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
 
 from ephemeraldaddy.io.gazetteer_builder import build_db
 
@@ -102,8 +107,15 @@ def _tokenize(query: str) -> List[str]:
 
 _LOCAL_GAZETTEER: Optional[LocalGazetteer] = None
 _LOCAL_GAZETTEER_ERROR: Optional[Exception] = None
+_LOCAL_GAZETTEER_ERROR_AT: Optional[float] = None
+_LOCAL_GAZETTEER_ERROR_COUNT = 0
+_LOCAL_GAZETTEER_LAST_ERROR_CLASS = "unknown"
+_LOCAL_GAZETTEER_RETRY_DELAY_SECONDS = 0.0
+_LOCAL_GAZETTEER_LOCK = threading.RLock()
 _GEONAMES_URL_DEFAULT = "https://download.geonames.org/export/dump/cities1500.zip"
 _GEONAMES_FILENAME_DEFAULT = "cities1500.txt"
+_LOCAL_GAZETTEER_RETRY_SECONDS = 2.0
+_LOCAL_GAZETTEER_RETRY_MAX_SECONDS = 30.0
 
 
 def _auto_download_enabled() -> bool:
@@ -122,6 +134,79 @@ def _geonames_filename() -> str:
     return os.environ.get(
         "EPHEMERALDADDY_GAZETTEER_FILENAME", _GEONAMES_FILENAME_DEFAULT
     )
+
+
+def _env_nonnegative_finite_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    if not math.isfinite(value):
+        return default
+    return max(0.0, value)
+
+
+def _gazetteer_retry_seconds() -> float:
+    return _env_nonnegative_finite_float(
+        "EPHEMERALDADDY_GAZETTEER_RETRY_SECONDS",
+        _LOCAL_GAZETTEER_RETRY_SECONDS,
+    )
+
+
+def _gazetteer_retry_max_seconds() -> float:
+    return _env_nonnegative_finite_float(
+        "EPHEMERALDADDY_GAZETTEER_RETRY_MAX_SECONDS",
+        _LOCAL_GAZETTEER_RETRY_MAX_SECONDS,
+    )
+
+
+def _is_transient_gazetteer_error(exc: Exception) -> bool:
+    if isinstance(exc, HTTPError):
+        return 500 <= int(getattr(exc, "code", 0) or 0) < 600
+    if isinstance(exc, (TimeoutError, socket.timeout, URLError)):
+        return True
+    return False
+
+
+def _record_gazetteer_failure(exc: Exception) -> None:
+    global _LOCAL_GAZETTEER_ERROR
+    global _LOCAL_GAZETTEER_ERROR_AT
+    global _LOCAL_GAZETTEER_ERROR_COUNT
+    global _LOCAL_GAZETTEER_LAST_ERROR_CLASS
+    global _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS
+    error_class = "transient" if _is_transient_gazetteer_error(exc) else "persistent"
+    if error_class != _LOCAL_GAZETTEER_LAST_ERROR_CLASS:
+        _LOCAL_GAZETTEER_ERROR_COUNT = 0
+    _LOCAL_GAZETTEER_ERROR_COUNT += 1
+    _LOCAL_GAZETTEER_LAST_ERROR_CLASS = error_class
+    _LOCAL_GAZETTEER_ERROR = exc
+    _LOCAL_GAZETTEER_ERROR_AT = time.monotonic()
+
+    base = _gazetteer_retry_seconds()
+    cap = max(base, _gazetteer_retry_max_seconds())
+    if error_class == "transient":
+        _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS = min(
+            cap,
+            base * (2 ** max(0, _LOCAL_GAZETTEER_ERROR_COUNT - 1)),
+        )
+    else:
+        _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS = min(cap, max(base, 2.0))
+
+
+def _clear_gazetteer_failure_state() -> None:
+    global _LOCAL_GAZETTEER_ERROR
+    global _LOCAL_GAZETTEER_ERROR_AT
+    global _LOCAL_GAZETTEER_ERROR_COUNT
+    global _LOCAL_GAZETTEER_LAST_ERROR_CLASS
+    global _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS
+    _LOCAL_GAZETTEER_ERROR = None
+    _LOCAL_GAZETTEER_ERROR_AT = None
+    _LOCAL_GAZETTEER_ERROR_COUNT = 0
+    _LOCAL_GAZETTEER_LAST_ERROR_CLASS = "unknown"
+    _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS = 0.0
 
 
 def _download_and_build(path: Path) -> None:
@@ -148,34 +233,39 @@ def _bundled_geonames_path() -> Optional[Path]:
 
 def get_local_gazetteer() -> Optional[LocalGazetteer]:
     global _LOCAL_GAZETTEER
-    global _LOCAL_GAZETTEER_ERROR
+    with _LOCAL_GAZETTEER_LOCK:
+        if _LOCAL_GAZETTEER is not None:
+            return _LOCAL_GAZETTEER
+        if _LOCAL_GAZETTEER_ERROR is not None:
+            now = time.monotonic()
+            retry_after = _LOCAL_GAZETTEER_RETRY_DELAY_SECONDS or _gazetteer_retry_seconds()
+            if _LOCAL_GAZETTEER_ERROR_AT is not None and (now - _LOCAL_GAZETTEER_ERROR_AT) < retry_after:
+                return None
 
-    if _LOCAL_GAZETTEER is not None or _LOCAL_GAZETTEER_ERROR is not None:
+        path = gazetteer_path()
+        if not path.exists():
+            bundled_path = _bundled_geonames_path()
+            if bundled_path is not None:
+                try:
+                    build_db(bundled_path, path)
+                except Exception as exc:
+                    _record_gazetteer_failure(exc)
+                    return None
+            elif _auto_download_enabled():
+                try:
+                    _download_and_build(path)
+                except Exception as exc:
+                    _record_gazetteer_failure(exc)
+                    return None
+
+        try:
+            _LOCAL_GAZETTEER = LocalGazetteer(path)
+        except Exception as exc:
+            _record_gazetteer_failure(exc)
+            return None
+
+        _clear_gazetteer_failure_state()
         return _LOCAL_GAZETTEER
-
-    path = gazetteer_path()
-    if not path.exists():
-        bundled_path = _bundled_geonames_path()
-        if bundled_path is not None:
-            try:
-                build_db(bundled_path, path)
-            except Exception as exc:
-                _LOCAL_GAZETTEER_ERROR = exc
-                return None
-        elif _auto_download_enabled():
-            try:
-                _download_and_build(path)
-            except Exception as exc:
-                _LOCAL_GAZETTEER_ERROR = exc
-                return None
-
-    try:
-        _LOCAL_GAZETTEER = LocalGazetteer(path)
-    except Exception as exc:
-        _LOCAL_GAZETTEER_ERROR = exc
-        return None
-
-    return _LOCAL_GAZETTEER
 
 
 def local_search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float]]:
