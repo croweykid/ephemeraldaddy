@@ -19324,7 +19324,7 @@ class MainWindow(QMainWindow):
                     return
                 chart_key, raw_value = artist_gid.split(":", 1)
                 if chart_key == "sign":
-                    info_panel.setHtml(self._build_sign_popout_info(raw_value))
+                    info_panel.setHtml(self._build_sign_popout_info(popout_chart, raw_value))
                     return
                 if chart_key == "body":
                     info_panel.setHtml(
@@ -19395,13 +19395,60 @@ class MainWindow(QMainWindow):
             self._draw_planet_dynamics(ax, chart)
         return figure
 
-    def _build_sign_popout_info(self, sign: str) -> str:
+    def _build_sign_popout_info(self, chart: Chart, sign: str) -> str:
         sign_name = str(sign or "").strip().title()
         sign_keywords = SIGN_KEYWORDS.get(sign_name, {})
         core = str(sign_keywords.get("core", "")).strip()
         strategy = str(sign_keywords.get("strategy", "")).strip()
         function = str(sign_keywords.get("function", "")).strip()
         behavior = sign_keywords.get("behavior", [])
+
+        mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
+        ranked_weights = (
+            _calculate_sign_prevalence_counts(chart)
+            if mode == "sign_prevalence"
+            else _calculate_dominant_sign_weights(chart)
+        )
+        ranked_signs = list(ZODIAC_NAMES)
+        sorted_signs = sorted(
+            ranked_signs,
+            key=lambda key: float(ranked_weights.get(key, 0.0)),
+            reverse=True,
+        )
+        rank_index = (
+            sorted_signs.index(sign_name)
+            if sign_name in sorted_signs
+            else None
+        )
+        total_signs = len(sorted_signs)
+        current_weight = float(ranked_weights.get(sign_name, 0.0))
+        next_weight = (
+            float(ranked_weights.get(sorted_signs[rank_index + 1], 0.0))
+            if rank_index is not None and (rank_index + 1) < total_signs
+            else None
+        )
+        total_weight = sum(float(ranked_weights.get(key, 0.0)) for key in sorted_signs)
+        share_percent = (
+            (current_weight / total_weight) * 100.0
+            if total_weight > 0
+            else 0.0
+        )
+        rank_delta_percent = (
+            ((current_weight - next_weight) / current_weight) * 100.0
+            if next_weight is not None and current_weight > 0
+            else None
+        )
+        rank_blurb = (
+            f"(#{rank_index + 1} of {total_signs} by {rank_delta_percent:.2f}%; "
+            f"{share_percent:.2f}% of all sign weights)"
+            if rank_index is not None and rank_delta_percent is not None
+            else (
+                f"(#{rank_index + 1} of {total_signs} by n/a; "
+                f"{share_percent:.2f}% of all sign weights)"
+                if rank_index is not None
+                else f"(rank unavailable; {share_percent:.2f}% of all sign weights)"
+            )
+        )
 
         if not any([core, strategy, function, behavior]):
             return f"No interpretation data available for {sign_name}."
@@ -19420,6 +19467,7 @@ class MainWindow(QMainWindow):
             "<h3>"
             f'<span style="color: {html.escape(sign_header_color)};">'
             f"{html.escape(sign_name)}"
+            f" {html.escape(rank_blurb)}"
             "</span>"
             "</h3>"
         ]
