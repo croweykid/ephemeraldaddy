@@ -39,14 +39,20 @@ class ChartDataTableOutput(QPlainTextEdit):
 
     def setPlainText(self, text: str) -> None:
         self._plain_text = text or ""
-        super().setPlainText(self._plain_text)
-        self._rebuild_tables(self._plain_text)
+        self.setUpdatesEnabled(False)
+        try:
+            super().setPlainText(self._plain_text)
+            self._rebuild_tables(self._plain_text)
+        finally:
+            self.setUpdatesEnabled(True)
 
     def _clear_layout(self) -> None:
         while self._layout.count():
             item = self._layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.hide()
+                widget.setParent(None)
                 widget.deleteLater()
 
     def _rebuild_tables(self, text: str) -> None:
@@ -76,6 +82,7 @@ class ChartDataTableOutput(QPlainTextEdit):
 
         flush()
         self._layout.addStretch(1)
+        self._content_widget.adjustSize()
 
     def _build_section_table(self, section: str, rows: list[str]) -> QTableWidget | None:
         parsed_rows = [self._parse_row(section, row) for row in rows if row.strip()]
