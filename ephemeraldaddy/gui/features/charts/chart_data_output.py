@@ -41,7 +41,13 @@ from ephemeraldaddy.gui.style import (
 class ChartDataTableOutput(QPlainTextEdit):
     """Read-only chart output widget using shared chart-data rendering settings."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        emphasize_dnd_class_headers: bool = False,
+        emphasize_species_info_headers: bool = False,
+    ) -> None:
         super().__init__(parent)
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
@@ -53,6 +59,14 @@ class ChartDataTableOutput(QPlainTextEdit):
         if CHART_DATA_MONOSPACE_FONT_FAMILY:
             output_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
         self.setFont(output_font)
+
+        # Ensure every chart-data output panel gets the shared visual formatter by default.
+        # This keeps in-view and popout chart-data styling aligned app-wide.
+        apply_chart_data_highlighter(
+            self,
+            emphasize_dnd_class_headers=emphasize_dnd_class_headers,
+            emphasize_species_info_headers=emphasize_species_info_headers,
+        )
 
 
 class ChartSummaryHighlighter(QSyntaxHighlighter):
