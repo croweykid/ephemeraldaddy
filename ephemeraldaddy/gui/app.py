@@ -437,6 +437,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
+    derive_human_design_profile,
     build_human_design_result,
     build_human_design_chart_data_output,
 )
@@ -16471,27 +16472,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return chart
 
     def _chart_human_design_gates(self, chart: Chart) -> set[int]:
-        hd_result = build_human_design_result(chart)
-        computed_gates = {int(gate) for gate in hd_result.active_gates}
-        chart.human_design_gates = sorted(computed_gates)
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        if hd_type:
+            chart.human_design_type = hd_type
         return set(chart.human_design_gates)
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
-        hd_result = build_human_design_result(chart)
-        computed_channels = {
-            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-            for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
-        }
-        chart.human_design_channels = sorted(computed_channels)
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        if hd_type:
+            chart.human_design_type = hd_type
         return set(chart.human_design_channels)
 
     def _chart_human_design_type(self, chart: Chart) -> str:
-        existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
-        if existing_type:
-            return existing_type
-        resolved_type = build_human_design_result(chart).hd_type
-        chart.human_design_type = resolved_type
-        return resolved_type
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        chart.human_design_type = hd_type
+        return hd_type
 
     def _chart_body_matches(
         self,

@@ -29,7 +29,7 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
-from ephemeraldaddy.analysis.human_design import build_human_design_result
+from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -144,6 +144,15 @@ class DatabaseAnalyticsChartsMixin:
         self,
         chart: Any,
     ) -> tuple[list[int], list[int], list[str]]:
+        if getattr(chart, "positions", None):
+            hd_gates, hd_lines, hd_channels, hd_type = derive_human_design_profile(chart)
+            chart.human_design_gates = list(hd_gates)
+            chart.human_design_lines = list(hd_lines)
+            chart.human_design_channels = list(hd_channels)
+            if hd_type:
+                chart.human_design_type = hd_type
+            return hd_gates, hd_lines, hd_channels
+
         hd_gates = [
             int(gate)
             for gate in (getattr(chart, "human_design_gates", []) or [])
@@ -159,18 +168,6 @@ class DatabaseAnalyticsChartsMixin:
             for channel in (getattr(chart, "human_design_channels", []) or [])
             if str(channel).strip()
         ]
-        if getattr(chart, "positions", None):
-            hd_result = build_human_design_result(chart)
-            activations = (*hd_result.personality_activations, *hd_result.design_activations)
-            hd_gates = sorted(int(gate) for gate in hd_result.active_gates)
-            hd_lines = sorted({int(activation.line) for activation in activations})
-            hd_channels = sorted(
-                f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-                for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
-            )
-            chart.human_design_gates = list(hd_gates)
-            chart.human_design_lines = list(hd_lines)
-            chart.human_design_channels = list(hd_channels)
         return hd_gates, hd_lines, hd_channels
 
     @staticmethod
