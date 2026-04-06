@@ -2105,6 +2105,782 @@ PLANET_KEYWORDS = {
     },
 }
 
+ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
+    "Sun": {
+        "symbol": "☉",
+        "category": "planet",
+        "core_theme": "Identity, vitality, central purpose, self-definition, will.",
+        "summary": (
+            "A Sun-dominant person is usually trying, consciously or not, to become "
+            "more fully themselves. Their life often revolves around authorship, "
+            "self-expression, dignity, and the question: 'Who am I when I stand in my own authority?'"
+        ),
+        "typical_traits": [
+            "noticeable presence",
+            "strong need to matter, create, lead, or define",
+            "often charismatic, proud, self-aware, or dramatically self-conscious",
+            "tends to orient life around purpose and personal coherence",
+            "can feel 'seen' or 'exposed' very intensely",
+        ],
+        "at_best": [
+            "radiant",
+            "steady",
+            "self-possessed",
+            "creative and life-giving",
+            "naturally galvanizes others",
+            "strong sense of mission",
+        ],
+        "at_worst": [
+            "vanity",
+            "ego fragility",
+            "excessive self-reference",
+            "needing recognition to prop up identity insecurity",
+            "performative confidence covering identity insecurity",
+        ],
+        "life_lesson": "To develop a self that is real, not merely admired.",
+        "what_people_feel": "There is a person here.",
+        "shorthand": "I must become myself.",
+    },
+
+    "Moon": {
+        "symbol": "☽",
+        "category": "planet",
+        "core_theme": "Emotional life, instinct, needs, bonding, memory, internal safety.",
+        "summary": (
+            "A Moon-dominant person lives through felt experience first. Their inner "
+            "weather is not background—it is infrastructure. They often absorb atmosphere "
+            "rapidly and can be deeply shaped by family systems, attachment patterns, "
+            "nostalgia, rhythms, and unconscious emotional expectations."
+        ),
+        "typical_traits": [
+            "emotionally responsive",
+            "receptive",
+            "impressionable",
+            "intuitive about tone, subtext, mood, and belonging",
+            "can be nurturing, protective, sentimental, private, or reactive",
+            "often highly influenced by environment",
+            "usually needs emotional continuity more than they admit",
+        ],
+        "at_best": [
+            "caring",
+            "attuned",
+            "psychologically perceptive",
+            "strong emotional intelligence",
+            "creates safety and belonging",
+            "deeply human and connective",
+        ],
+        "at_worst": [
+            "mood-led decision-making",
+            "clinginess",
+            "defensiveness",
+            "regression",
+            "overidentification with feelings",
+            "difficulty separating present reality from old emotional conditioning",
+        ],
+        "life_lesson": "To distinguish what is true now from what feels familiar.",
+        "what_people_feel": "This person is feeling everything.",
+        "shorthand": "I must feel safe and connected.",
+    },
+
+    "Mercury": {
+        "symbol": "☿",
+        "category": "planet",
+        "core_theme": "Mind, language, pattern recognition, interpretation, exchange.",
+        "summary": (
+            "A Mercury-dominant person lives by naming, sorting, comparing, decoding, "
+            "and articulating. Their relationship to reality is often mediated through "
+            "thought and language."
+        ),
+        "typical_traits": [
+            "curious",
+            "verbal",
+            "observant",
+            "mentally quick",
+            "restless",
+            "analytical",
+            "witty",
+            "adaptable",
+            "often highly sensitive to ambiguity, contradiction, and precision",
+            "may collect frameworks, trivia, methods, or systems",
+            "often gifted at translation between people, ideas, or domains",
+        ],
+        "at_best": [
+            "clever",
+            "lucid",
+            "flexible",
+            "insightful",
+            "excellent communicator or synthesizer",
+            "can make complexity understandable",
+        ],
+        "at_worst": [
+            "overthinking",
+            "anxiety",
+            "intellectualization",
+            "scattered attention",
+            "compulsive analysis",
+            "using cleverness to avoid conviction or vulnerability",
+        ],
+        "life_lesson": "To move from constant processing to meaningful understanding.",
+        "what_people_feel": "Their mind is always on.",
+        "shorthand": "I must understand and articulate.",
+    },
+
+    "Venus": {
+        "symbol": "♀",
+        "category": "planet",
+        "core_theme": "Attraction, harmony, values, pleasure, aesthetics, social magnetism, relating.",
+        "summary": (
+            "A Venus-dominant person is often organized around taste, connection, "
+            "desirability, reciprocity, and what feels worth loving. Venus is not just "
+            "'pretty' or 'romantic'—it is an organizing intelligence about value."
+        ),
+        "typical_traits": [
+            "charming",
+            "relational",
+            "diplomatic",
+            "attractive or aesthetically coherent",
+            "often refined in taste, style, voice, space, or social instinct",
+            "values mutuality and emotional/social equilibrium",
+            "tends to notice what is pleasing, elegant, or discordant",
+        ],
+        "at_best": [
+            "gracious",
+            "magnetic",
+            "artistic",
+            "socially intelligent",
+            "creates warmth, beauty, and relational balance",
+            "deeply aware of what is meaningful and worth preserving",
+        ],
+        "at_worst": [
+            "conflict avoidance",
+            "vanity",
+            "passivity",
+            "people-pleasing",
+            "seduction as strategy",
+            "overvaluing comfort, approval, or desirability",
+        ],
+        "life_lesson": "To choose what is truly valuable, not merely attractive or agreeable.",
+        "what_people_feel": "Being around them has a texture.",
+        "shorthand": "I must attract, harmonize, and value.",
+    },
+
+    "Mars": {
+        "symbol": "♂",
+        "category": "planet",
+        "core_theme": "Drive, assertion, action, desire, courage, aggression, survival force.",
+        "summary": (
+            "A Mars-dominant person tends to meet life as a thing to engage, pursue, "
+            "challenge, confront, or move through. Mars dominance often produces a person "
+            "asking: 'What do I want, and am I willing to go get it?'"
+        ),
+        "typical_traits": [
+            "direct",
+            "active",
+            "decisive",
+            "competitive",
+            "bold",
+            "often impatient with dithering, vagueness, or passivity",
+            "strong instinct for conflict, urgency, and tactical movement",
+            "often highly sexual, physical, or will-driven",
+        ],
+        "at_best": [
+            "brave",
+            "effective",
+            "energetic",
+            "self-starting",
+            "knows how to act under pressure",
+            "can cut through nonsense efficiently",
+        ],
+        "at_worst": [
+            "irritability",
+            "impulsiveness",
+            "domination",
+            "hostility",
+            "acting before reflecting",
+            "confusing force with strength",
+        ],
+        "life_lesson": "To use power cleanly, not compulsively.",
+        "what_people_feel": "This person has thrust.",
+        "shorthand": "I must act, pursue, and assert.",
+    },
+
+    "Jupiter": {
+        "symbol": "♃",
+        "category": "planet",
+        "core_theme": "Growth, meaning, faith, expansion, philosophy, abundance, worldview.",
+        "summary": (
+            "A Jupiter-dominant person often lives in relation to possibility. They tend "
+            "to orient toward growth, perspective, big-picture meaning, and what could be "
+            "made larger, wiser, freer, or more significant."
+        ),
+        "typical_traits": [
+            "optimistic",
+            "generous",
+            "broad-minded",
+            "future-oriented",
+            "philosophical",
+            "humorous",
+            "exploratory",
+            "often drawn to travel, learning, spirituality, law, ethics, publishing, or teaching",
+            "tends to dislike pettiness and constriction",
+        ],
+        "at_best": [
+            "inspiring",
+            "wise",
+            "expansive",
+            "encouraging",
+            "sees patterns and larger significance",
+            "can restore morale and meaning",
+        ],
+        "at_worst": [
+            "excess",
+            "exaggeration",
+            "arrogance",
+            "overpromising",
+            "spiritual or intellectual grandiosity",
+            "mistaking confidence for truth",
+        ],
+        "life_lesson": "To cultivate discernment, not just expansion.",
+        "what_people_feel": "They make reality feel bigger.",
+        "shorthand": "I must grow, believe, and expand.",
+    },
+
+    "Saturn": {
+        "symbol": "♄",
+        "category": "planet",
+        "core_theme": "Structure, responsibility, time, discipline, fear, legitimacy, endurance, mastery.",
+        "summary": (
+            "A Saturn-dominant person often develops early around constraint, seriousness, "
+            "pressure, standards, or the need to become competent. Saturn dominance often "
+            "marks a person with enormous staying power and capacity for excellence."
+        ),
+        "typical_traits": [
+            "reserved",
+            "controlled",
+            "disciplined",
+            "realistic",
+            "self-monitoring",
+            "highly sensitive to competence, hierarchy, failure, and consequences",
+            "often private, stoic, or dryly funny",
+            "may feel they must earn everything",
+        ],
+        "at_best": [
+            "mature",
+            "dependable",
+            "principled",
+            "masterful",
+            "capable of real depth and sustained achievement",
+            "builds what lasts",
+        ],
+        "at_worst": [
+            "inhibition",
+            "pessimism",
+            "rigidity",
+            "self-criticism",
+            "emotional withholding",
+            "chronic defensiveness",
+            "overidentifying with duty or deprivation",
+        ],
+        "life_lesson": "To build structure without becoming imprisoned by it.",
+        "what_people_feel": "This person has gravity.",
+        "shorthand": "I must master, endure, and legitimize.",
+    },
+
+    "Uranus": {
+        "symbol": "♅",
+        "category": "planet",
+        "core_theme": "Freedom, disruption, originality, individuation, awakening, unconventionality.",
+        "summary": (
+            "A Uranus-dominant person is usually built to differentiate. They often have "
+            "a sharp instinct to detach from stale systems, reject false conformity, and "
+            "pursue authenticity—even if it makes life less comfortable."
+        ),
+        "typical_traits": [
+            "independent",
+            "unusual",
+            "inventive",
+            "anti-boring",
+            "mentally fast",
+            "contrarian",
+            "future-facing",
+            "often allergic to control, stagnation, or social scripts",
+            "may oscillate between detachment and sudden intensity",
+        ],
+        "at_best": [
+            "visionary",
+            "liberating",
+            "original",
+            "reform-minded",
+            "helps others break out of dead structures",
+            "often brilliantly insightful",
+        ],
+        "at_worst": [
+            "erratic",
+            "emotionally avoidant",
+            "oppositional for its own sake",
+            "commitment issues",
+            "instability",
+            "self-exile",
+            "mistaking reactivity for freedom",
+        ],
+        "life_lesson": "To become truly free without becoming ungrounded or unreachable.",
+        "what_people_feel": "They are operating on a different frequency.",
+        "shorthand": "I must differentiate and liberate.",
+    },
+
+    "Neptune": {
+        "symbol": "♆",
+        "category": "planet",
+        "core_theme": "Imagination, transcendence, sensitivity, spirituality, longing, permeability, illusion.",
+        "summary": (
+            "A Neptune-dominant person often experiences life through symbol, atmosphere, "
+            "longing, beauty, mystery, and porous boundaries. This often creates a major "
+            "theme of inspiration versus confusion."
+        ),
+        "typical_traits": [
+            "dreamy",
+            "empathic",
+            "artistic",
+            "mystical",
+            "suggestible",
+            "deeply responsive to music, symbolism, mood, fantasy, or collective feeling",
+            "often compassionate and spiritually attuned",
+            "can struggle with clarity, boundaries, or concrete self-definition",
+        ],
+        "at_best": [
+            "imaginative",
+            "soulful",
+            "transcendent",
+            "compassionate",
+            "gifted in art, spirituality, healing, symbolism, or emotional resonance",
+            "can perceive subtle realities others miss",
+        ],
+        "at_worst": [
+            "escapism",
+            "idealization",
+            "denial",
+            "self-deception",
+            "porous boundaries",
+            "projection",
+            "romantic delusion",
+            "difficulty with practical reality",
+        ],
+        "life_lesson": "To protect sensitivity with discernment and form.",
+        "what_people_feel": "There’s something ungraspable about them.",
+        "shorthand": "I must imagine, dissolve, and transcend.",
+    },
+
+    "Pluto": {
+        "symbol": "♇",
+        "category": "planet",
+        "core_theme": "Intensity, transformation, power, compulsion, depth, taboo, psychological truth.",
+        "summary": (
+            "A Pluto-dominant person rarely does 'light and easy' in any sustained way. "
+            "Even when externally calm, they often carry a deep instinct toward penetration, "
+            "control, survival, truth, and metamorphosis."
+        ),
+        "typical_traits": [
+            "intense",
+            "private",
+            "magnetic",
+            "psychologically sharp",
+            "emotionally all-or-nothing",
+            "often resilient",
+            "self-protective",
+            "difficult to fool",
+            "may attract crisis, projection, obsession, or catalytic relationships",
+        ],
+        "at_best": [
+            "profound",
+            "transformative",
+            "fearless about depth",
+            "powerful capacity for regeneration",
+            "capable of tremendous honesty and psychological insight",
+        ],
+        "at_worst": [
+            "control issues",
+            "suspicion",
+            "obsession",
+            "possessiveness",
+            "secrecy",
+            "power struggles",
+            "emotional extremity",
+            "compulsive attachment to suffering, intensity, or domination",
+        ],
+        "life_lesson": "To seek truth without needing control over everything it reveals.",
+        "what_people_feel": "This person sees too much.",
+        "shorthand": "I must penetrate, transform, and survive.",
+    },
+
+    "Rahu": {
+        "symbol": "☊",
+        "category": "lunar_node",
+        "core_theme": "Appetite, obsession, amplification, worldly hunger, future pull, destabilizing desire.",
+        "summary": (
+            "A Rahu-dominant person is often organized around appetite, ambition, fascination, "
+            "and unfinished desire. Rahu tends to act like a magnifier: it makes certain life "
+            "areas feel urgent, intoxicating, destabilizing, and strangely fated. The person is "
+            "often pulled toward what is unfamiliar, socially potent, taboo, or materially promising."
+        ),
+        "typical_traits": [
+            "intense ambition or fixation",
+            "attraction to novelty, status, edge, or transgression",
+            "future-oriented but often restless",
+            "can feel perpetually unfinished or unsatisfied",
+            "strong instinct to become more, have more, know more, or reach further",
+            "often socially strategic or unusually adaptive",
+            "drawn to karmically charged experiences",
+        ],
+        "at_best": [
+            "boldly evolutionary",
+            "socially intelligent",
+            "magnetic",
+            "innovative",
+            "fearless about entering unfamiliar terrain",
+            "capable of dramatic worldly growth",
+        ],
+        "at_worst": [
+            "obsession",
+            "compulsiveness",
+            "insatiability",
+            "status hunger",
+            "manipulation",
+            "inflation",
+            "chasing what cannot satisfy",
+            "mistaking stimulation for destiny",
+        ],
+        "life_lesson": "To pursue growth without becoming possessed by craving.",
+        "what_people_feel": "This person is being pulled by something larger and less settled.",
+        "shorthand": "I must chase the next frontier.",
+    },
+
+    "Ketu": {
+        "symbol": "☋",
+        "category": "lunar_node",
+        "core_theme": "Detachment, past mastery, renunciation, karmic residue, spiritual subtraction, release.",
+        "summary": (
+            "A Ketu-dominant person often feels partially disenchanted with ordinary worldly "
+            "rewards. Ketu can indicate old mastery, old exhaustion, and a tendency to withdraw "
+            "from what others are still trying to prove. It often gives instinctive competence "
+            "alongside strange emptiness or disinterest."
+        ),
+        "typical_traits": [
+            "detached or inwardly removed",
+            "strong intuition and pattern memory",
+            "can seem ancient, elusive, or hard to pin down",
+            "often gifted in an area they do not particularly worship",
+            "periodic withdrawal from ego structures or worldly incentives",
+            "tendency toward minimalism, negation, or severance",
+            "may feel alienated from ordinary ambition",
+        ],
+        "at_best": [
+            "spiritually incisive",
+            "nonattached",
+            "intuitive",
+            "subtle",
+            "capable of profound discernment",
+            "less easily seduced by social nonsense",
+        ],
+        "at_worst": [
+            "disengagement",
+            "avoidance",
+            "fatalism",
+            "alienation",
+            "difficulty investing in material life",
+            "self-erasure",
+            "retreating from incarnation altogether, which is very rude of the soul frankly",
+        ],
+        "life_lesson": "To release old overidentification without abandoning participation in life.",
+        "what_people_feel": "This person is partly elsewhere.",
+        "shorthand": "I must let go of what I already know too well.",
+    },
+
+    "Lilith": {
+        "symbol": "⚸",
+        "category": "lunar_apogee",
+        "core_theme": "Raw autonomy, refusal, erotic sovereignty, exile, taboo selfhood, untamed instinct.",
+        "summary": (
+            "A Lilith-dominant person often carries themes of refusal, autonomy, erotic charge, "
+            "social noncompliance, and the parts of the psyche that will not submit politely. "
+            "Lilith tends to describe where a person feels cast out, hypervisible, misunderstood, "
+            "or unwilling to perform domesticated acceptability."
+        ),
+        "typical_traits": [
+            "fiercely independent",
+            "highly reactive to control, shame, or moral policing",
+            "strong taboo radar",
+            "sexual or instinctual intensity",
+            "can provoke projection in others without trying",
+            "often allergic to false sweetness or social falseness",
+            "may oscillate between concealment and defiant exposure",
+        ],
+        "at_best": [
+            "self-possessed",
+            "psychologically honest",
+            "sexually and creatively autonomous",
+            "immune to cheap social conditioning",
+            "capable of radical integrity",
+        ],
+        "at_worst": [
+            "reactive defiance",
+            "alienation",
+            "self-isolation",
+            "destructive refusal",
+            "weaponized sexuality or contempt",
+            "identifying so hard with rejection that intimacy becomes difficult",
+        ],
+        "life_lesson": "To embody untamed truth without becoming ruled by exile or antagonism.",
+        "what_people_feel": "This person does not submit cleanly.",
+        "shorthand": "I must remain sovereign, even if it costs belonging.",
+    },
+
+    "Chiron": {
+        "symbol": "⚷",
+        "category": "asteroid",
+        "core_theme": "Wound, wisdom, sensitivity, apprenticeship through pain, healing intelligence.",
+        "summary": (
+            "A Chiron-dominant person often develops identity around a core sensitivity, rupture, "
+            "or unresolved ache that becomes a source of unusual understanding. Chiron tends to "
+            "describe where someone becomes both vulnerable and instructive—where pain and meaning "
+            "become intertwined."
+        ),
+        "typical_traits": [
+            "heightened sensitivity around a recurring life theme",
+            "often insightful about suffering, repair, or human limitation",
+            "may become a guide, teacher, helper, or translator of difficult material",
+            "often carries visible competence alongside hidden soreness",
+            "drawn to healing, mentoring, or making meaning from difficulty",
+        ],
+        "at_best": [
+            "wise",
+            "compassionate",
+            "deeply instructive",
+            "capable of nuanced healing work",
+            "able to turn injury into understanding",
+        ],
+        "at_worst": [
+            "overidentification with woundedness",
+            "martyr patterns",
+            "chronic insecurity",
+            "trying to heal others instead of addressing oneself",
+            "making pain the organizing center of identity",
+        ],
+        "life_lesson": "To let sensitivity become wisdom without making it a permanent throne.",
+        "what_people_feel": "This person understands pain in a precise way.",
+        "shorthand": "I must turn pain into knowledge.",
+    },
+
+    "Ceres": {
+        "symbol": "⚳",
+        "category": "asteroid",
+        "core_theme": "Nourishment, caretaking, provision, grief, cycles of attachment and loss.",
+        "summary": (
+            "A Ceres-dominant person is often organized around feeding, protecting, supporting, "
+            "or sustaining life. Ceres tends to describe how someone nourishes and how they cope "
+            "with separation, deprivation, and the fear of not being able to keep what they love alive."
+        ),
+        "typical_traits": [
+            "strong caretaking or provisioning instinct",
+            "attentive to food, health, rhythms, routines, and practical support",
+            "often deeply affected by abandonment, separation, or inconsistency",
+            "can be maternal, agricultural, ecological, or body-centered in orientation",
+            "often tracks whether others are truly cared for",
+        ],
+        "at_best": [
+            "nurturing",
+            "steadfast",
+            "supportive",
+            "embodied",
+            "capable of sustaining others through real care",
+        ],
+        "at_worst": [
+            "smothering",
+            "control through caretaking",
+            "anxiety around loss",
+            "resentful overgiving",
+            "equating love with management or provision",
+        ],
+        "life_lesson": "To nourish without controlling, and to love without gripping.",
+        "what_people_feel": "This person knows how to keep life going.",
+        "shorthand": "I must feed, sustain, and protect.",
+    },
+
+    "Pallas": {
+        "symbol": "⚴",
+        "category": "asteroid",
+        "core_theme": "Pattern intelligence, strategy, design, wisdom, systems thinking, tactical perception.",
+        "summary": (
+            "A Pallas-dominant person often leads with pattern recognition, strategic intelligence, "
+            "and elegant problem-solving. Pallas tends to describe the mind as architect: seeing "
+            "how parts fit, where leverage exists, and how order can be imposed intelligently."
+        ),
+        "typical_traits": [
+            "strategic and perceptive",
+            "good at pattern matching and systems design",
+            "often politically or socially aware in a structural sense",
+            "can think tactically under pressure",
+            "often drawn to planning, analysis, architecture, coding, design, or negotiation",
+        ],
+        "at_best": [
+            "brilliantly strategic",
+            "inventive",
+            "elegant in execution",
+            "able to solve complex problems with economy",
+        ],
+        "at_worst": [
+            "overintellectualization",
+            "coldness",
+            "detachment from feeling",
+            "treating life as a puzzle instead of a lived reality",
+            "using intelligence defensively",
+        ],
+        "life_lesson": "To unite wisdom with embodiment and not confuse analysis with wholeness.",
+        "what_people_feel": "This person sees the structure underneath the structure.",
+        "shorthand": "I must understand the pattern and outmaneuver the problem.",
+    },
+
+    "Juno": {
+        "symbol": "⚵",
+        "category": "asteroid",
+        "core_theme": "Commitment, partnership, vows, loyalty, power in union, relational contract.",
+        "summary": (
+            "A Juno-dominant person often organizes life around the meaning of commitment, reciprocity, "
+            "and what constitutes a true bond. Juno tends to describe how a person approaches formal "
+            "partnership, loyalty, betrayal, and the politics of long-term union."
+        ),
+        "typical_traits": [
+            "serious about commitment and relational fairness",
+            "sensitive to power imbalance or betrayal",
+            "often oriented toward defining what a partnership should be",
+            "can be deeply loyal and contract-minded",
+            "may attract fated or politically significant unions",
+        ],
+        "at_best": [
+            "faithful",
+            "devoted",
+            "principled in relationship",
+            "capable of mature mutuality",
+            "understands partnership as a structure, not just a mood",
+        ],
+        "at_worst": [
+            "jealousy",
+            "possessiveness",
+            "rigidity around relational roles",
+            "power struggles in commitment",
+            "overidentifying with couplehood or betrayal narratives",
+        ],
+        "life_lesson": "To build sacred reciprocity without turning commitment into ownership.",
+        "what_people_feel": "This person takes partnership very seriously.",
+        "shorthand": "I must define and protect the bond.",
+    },
+
+    "Vesta": {
+        "symbol": "⚶",
+        "category": "asteroid",
+        "core_theme": "Devotion, focus, sacred work, inner flame, disciplined consecration.",
+        "summary": (
+            "A Vesta-dominant person often has a strong capacity for concentration, devotion, "
+            "and self-contained purpose. Vesta tends to describe what a person treats as sacred, "
+            "what they guard fiercely, and where they can become almost priestlike in dedication."
+        ),
+        "typical_traits": [
+            "deep focus",
+            "capacity for disciplined solitude",
+            "strong private standards",
+            "protective of energy, purpose, or sanctity",
+            "often drawn to ritual, craft, vocation, or concentrated service",
+            "can alternate between erotic intensity and celibate self-containment",
+        ],
+        "at_best": [
+            "devoted",
+            "pure in intent",
+            "highly disciplined",
+            "spiritually or vocationally focused",
+            "capable of extraordinary concentration",
+        ],
+        "at_worst": [
+            "rigidity",
+            "self-denial",
+            "isolation",
+            "purity fixation",
+            "burnout through overconsecration",
+            "treating intensity of focus as moral superiority",
+        ],
+        "life_lesson": "To protect the sacred flame without sacrificing the rest of life to it.",
+        "what_people_feel": "This person is devoted to something with unusual seriousness.",
+        "shorthand": "I must serve what is sacred to me.",
+    },
+
+    "Psyche": {
+        "symbol": "Ψ",
+        "category": "asteroid",
+        "core_theme": "Soul sensitivity, intimacy of perception, longing for deep recognition, psychic receptivity.",
+        "summary": (
+            "A Psyche-dominant person often experiences relationships and meaning through unusually "
+            "fine emotional or symbolic sensitivity. Psyche tends to describe where the soul wants "
+            "to be recognized, joined, and transformed through profound contact."
+        ),
+        "typical_traits": [
+            "deeply sensitive to emotional and symbolic nuance",
+            "often romantic or soul-oriented in perception",
+            "can feel psychically porous in close relationships",
+            "strong longing for profound recognition or union",
+            "often gifted in subtle emotional reading",
+        ],
+        "at_best": [
+            "soulful",
+            "intimate",
+            "emotionally perceptive",
+            "capable of profound relational depth",
+        ],
+        "at_worst": [
+            "overidealization",
+            "fragility in love",
+            "projection",
+            "fusion tendencies",
+            "mistaking psychic intensity for compatibility",
+        ],
+        "life_lesson": "To seek soul-level connection without surrendering discernment.",
+        "what_people_feel": "This person is receiving more than they say.",
+        "shorthand": "I must be deeply seen and psychically met.",
+    },
+
+    "Eros": {
+        "symbol": "♥",
+        "category": "asteroid",
+        "core_theme": "Erotic vitality, creative desire, fascination, arousal, enlivening intensity.",
+        "summary": (
+            "A Eros-dominant person often leads with desire, fascination, creative hunger, and the "
+            "animating force of attraction itself. Eros is not just sexuality; it is the principle "
+            "of enlivened wanting—the current that makes life feel charged and worth pursuing."
+        ),
+        "typical_traits": [
+            "magnetic desire nature",
+            "strong attraction field",
+            "creative and erotic intensity",
+            "responsive to chemistry, beauty, and psychic charge",
+            "often experiences longing as energizing and meaningful",
+        ],
+        "at_best": [
+            "vital",
+            "passionate",
+            "creatively fertile",
+            "sensually alive",
+            "capable of inspiring desire and movement",
+        ],
+        "at_worst": [
+            "obsession",
+            "compulsiveness",
+            "seduction without substance",
+            "addiction to intensity",
+            "difficulty tolerating flatness or ordinary attachment",
+        ],
+        "life_lesson": "To honor desire as sacred fuel without becoming enslaved to stimulation.",
+        "what_people_feel": "This person has charge.",
+        "shorthand": "I must follow what enlivens and arouses me.",
+    },
+}
+
 
 ASPECT_TYPES = {
     "chill vibes": {
@@ -2416,13 +3192,14 @@ SENTIMENT_OPTIONS = [ #you can reorder these,
     "respect",
     "protect",
     "intriguing",
-    "relatable",
     "relatable (intellectually)",
     "relatable (fears/coping)",
     "relatable (values)",
     "relatable (interests)",
     "relatable (mannerisms)",
     "relatable (background)",
+    "relatable",
+    "hilarious",
 #neg
     "can't trust",
     "can't respect",
@@ -2448,20 +3225,28 @@ SENTIMENT_COLORS = {
     "respect": "#4169e1", #990000
     "protect": "#0000ff",
     "intriguing":"#754db3",
-    "relatable":"#993300",
-    "relatable (intellectually)":"blue",
-    "relatable (fears/coping)":"blue",
-    "relatable (values)":"blue",
-    "relatable (interests)":"blue",
-    "relatable (mannerisms)":"blue",
-    "relatable (background)":"blue",
+    "relatable (intellectually)":"#33ccff",
+    "relatable (fears/coping)":"#33ccff",
+    "relatable (values)":"#33ccff",
+    "relatable (interests)":"#33ccff",
+    "relatable (mannerisms)":"#33ccff",
+    "relatable (background)":"#33ccff",
+    "relatable":"#33ccff",
+    "hilarious":"#ffd966",
 #neg
+    "frustrating":"#993300",
+    "unreachable":"#dbccbd",
+    "power struggles":"#993333",
+    "disappointing":"#9999ff",
+    "betrayal":"#8000ff",
+    "failed":"#cc9900",
+    "annoying":"#ff1a1a",
+    "creepy":"#ff6666",
     "can't trust": "#7f7f7f",
     "can't respect": "#a67c52",
     "can't forgive": "#4d4d4d",
     "dislike": "#5b0f0f",
     "despise": "#df3a3a",
-    "power struggles":"#993333",
  }
 
 #Don't rename these or delete them without first taking remedial actions.

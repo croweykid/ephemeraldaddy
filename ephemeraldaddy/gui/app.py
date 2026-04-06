@@ -437,6 +437,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
+    derive_human_design_profile,
     build_human_design_result,
     build_human_design_chart_data_output,
 )
@@ -4541,7 +4542,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -5028,7 +5029,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -5629,7 +5630,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -12438,27 +12439,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             spinbox.setToolTip("")
 
     def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
-        selected_chart_ids = set(chart_ids or [])
-        if self.current_chart_id is not None and int(self.current_chart_id) in selected_chart_ids:
+        selected_chart_ids = set(chart_ids or self._selected_chart_ids())
+        if not hasattr(self, "_pending_batch_refresh_ids"):
+            self._pending_batch_refresh_ids: set[int] = set()
+        if not hasattr(self, "_batch_refresh_in_progress"):
+            self._batch_refresh_in_progress = False
+
+        self._pending_batch_refresh_ids.update(selected_chart_ids)
+        pending_ids = set(self._pending_batch_refresh_ids)
+        if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
             self._mark_chart_analytics_sections_dirty()
             if self._latest_chart is not None:
                 self._schedule_chart_render(self._latest_chart)
 
-        if not selected_chart_ids:
-            selected_chart_ids = set(self._selected_chart_ids())
-
         def _refresh_and_restore_selection() -> None:
-            if not self.isVisible():
+            if self._batch_refresh_in_progress:
                 return
+            if not self.isVisible():
+                self._pending_batch_refresh_ids.clear()
+                return
+
+            changed_ids = set(self._pending_batch_refresh_ids)
+            if not changed_ids:
+                return
+            self._pending_batch_refresh_ids.clear()
+            self._batch_refresh_in_progress = True
             try:
                 self._refresh_charts(
-                    selected_ids=selected_chart_ids,
-                    changed_ids=selected_chart_ids,
+                    selected_ids=changed_ids,
+                    changed_ids=changed_ids,
                 )
-                if not selected_chart_ids:
-                    return
-
-                self._flash_batch_updated_rows(selected_chart_ids)
+                self._flash_batch_updated_rows(changed_ids)
                 self._on_selection_changed()
             except RuntimeError:
                 # Dialog widgets may be gone if the user navigated away before
@@ -12471,8 +12482,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     "Filter error",
                     f"Could not apply filters:\n{exc}",
                 )
+            finally:
+                self._batch_refresh_in_progress = False
+                if self._pending_batch_refresh_ids and hasattr(self, "_batch_refresh_timer"):
+                    self._batch_refresh_timer.start()
 
-        QTimer.singleShot(0, _refresh_and_restore_selection)
+        if not hasattr(self, "_batch_refresh_timer"):
+            self._batch_refresh_timer = QTimer(self)
+            self._batch_refresh_timer.setSingleShot(True)
+            self._batch_refresh_timer.setInterval(40)
+            self._batch_refresh_timer.timeout.connect(_refresh_and_restore_selection)
+        self._batch_refresh_timer.start()
 
     def _flash_batch_updated_rows(self, chart_ids: set[int]) -> None:
         if not chart_ids:
@@ -16471,27 +16491,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return chart
 
     def _chart_human_design_gates(self, chart: Chart) -> set[int]:
-        hd_result = build_human_design_result(chart)
-        computed_gates = {int(gate) for gate in hd_result.active_gates}
-        chart.human_design_gates = sorted(computed_gates)
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        if hd_type:
+            chart.human_design_type = hd_type
         return set(chart.human_design_gates)
 
     def _chart_human_design_channels(self, chart: Chart) -> set[str]:
-        hd_result = build_human_design_result(chart)
-        computed_channels = {
-            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-            for gate_a, gate_b, _center_a, _center_b in hd_result.defined_channels
-        }
-        chart.human_design_channels = sorted(computed_channels)
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        if hd_type:
+            chart.human_design_type = hd_type
         return set(chart.human_design_channels)
 
     def _chart_human_design_type(self, chart: Chart) -> str:
-        existing_type = str(getattr(chart, "human_design_type", "") or "").strip()
-        if existing_type:
-            return existing_type
-        resolved_type = build_human_design_result(chart).hd_type
-        chart.human_design_type = resolved_type
-        return resolved_type
+        gates, lines, channels, hd_type = derive_human_design_profile(chart)
+        chart.human_design_gates = list(gates)
+        chart.human_design_lines = list(lines)
+        chart.human_design_channels = list(channels)
+        chart.human_design_type = hd_type
+        return hd_type
 
     def _chart_body_matches(
         self,
@@ -18820,9 +18843,7 @@ class MainWindow(QMainWindow):
             "Chart summary will appear here.\n\n"
             "Generate a chart to see positions, houses, and aspects."
         )
-        self._output_highlighter = ChartSummaryHighlighter(
-            self.output_text.document()
-        )
+        self._output_highlighter = None
         self.output_text.viewport().installEventFilter(self)
         self.output_share_button = QToolButton(self.output_text.viewport())
         share_icon_path = _get_share_icon_path()
@@ -24222,7 +24243,7 @@ class MainWindow(QMainWindow):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -24358,7 +24379,7 @@ class MainWindow(QMainWindow):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
