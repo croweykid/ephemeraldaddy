@@ -2105,7 +2105,7 @@ PLANET_KEYWORDS = {
     },
 }
 
-ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
+DOMINANT_BODY_MEANINGS = {
     "Sun": {
         "symbol": "☉",
         "category": "planet",
@@ -2138,7 +2138,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "performative confidence covering identity insecurity",
         ],
         "life_lesson": "To develop a self that is real, not merely admired.",
-        "what_people_feel": "There is a person here.",
+        "reaction": "There is a person here.",
         "shorthand": "I must become myself.",
     },
 
@@ -2178,7 +2178,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "difficulty separating present reality from old emotional conditioning",
         ],
         "life_lesson": "To distinguish what is true now from what feels familiar.",
-        "what_people_feel": "This person is feeling everything.",
+        "reaction": "This person is feeling everything.",
         "shorthand": "I must feel safe and connected.",
     },
 
@@ -2221,7 +2221,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "using cleverness to avoid conviction or vulnerability",
         ],
         "life_lesson": "To move from constant processing to meaningful understanding.",
-        "what_people_feel": "Their mind is always on.",
+        "reaction": "Their mind is always on.",
         "shorthand": "I must understand and articulate.",
     },
 
@@ -2260,7 +2260,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "overvaluing comfort, approval, or desirability",
         ],
         "life_lesson": "To choose what is truly valuable, not merely attractive or agreeable.",
-        "what_people_feel": "Being around them has a texture.",
+        "reaction": "Being around them has a texture.",
         "shorthand": "I must attract, harmonize, and value.",
     },
 
@@ -2300,7 +2300,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "confusing force with strength",
         ],
         "life_lesson": "To use power cleanly, not compulsively.",
-        "what_people_feel": "This person has thrust.",
+        "reaction": "This person has thrust.",
         "shorthand": "I must act, pursue, and assert.",
     },
 
@@ -2341,7 +2341,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "mistaking confidence for truth",
         ],
         "life_lesson": "To cultivate discernment, not just expansion.",
-        "what_people_feel": "They make reality feel bigger.",
+        "reaction": "They make reality feel bigger.",
         "shorthand": "I must grow, believe, and expand.",
     },
 
@@ -2382,7 +2382,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "overidentifying with duty or deprivation",
         ],
         "life_lesson": "To build structure without becoming imprisoned by it.",
-        "what_people_feel": "This person has gravity.",
+        "reaction": "This person has gravity.",
         "shorthand": "I must master, endure, and legitimize.",
     },
 
@@ -2424,7 +2424,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "mistaking reactivity for freedom",
         ],
         "life_lesson": "To become truly free without becoming ungrounded or unreachable.",
-        "what_people_feel": "They are operating on a different frequency.",
+        "reaction": "They are operating on a different frequency.",
         "shorthand": "I must differentiate and liberate.",
     },
 
@@ -2466,7 +2466,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "difficulty with practical reality",
         ],
         "life_lesson": "To protect sensitivity with discernment and form.",
-        "what_people_feel": "There’s something ungraspable about them.",
+        "reaction": "There’s something ungraspable about them.",
         "shorthand": "I must imagine, dissolve, and transcend.",
     },
 
@@ -2508,7 +2508,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "compulsive attachment to suffering, intensity, or domination",
         ],
         "life_lesson": "To seek truth without needing control over everything it reveals.",
-        "what_people_feel": "This person sees too much.",
+        "reaction": "This person sees too much.",
         "shorthand": "I must penetrate, transform, and survive.",
     },
 
@@ -2550,7 +2550,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "mistaking stimulation for destiny",
         ],
         "life_lesson": "To pursue growth without becoming possessed by craving.",
-        "what_people_feel": "This person is being pulled by something larger and less settled.",
+        "reaction": "This person is being pulled by something larger and less settled.",
         "shorthand": "I must chase the next frontier.",
     },
 
@@ -2591,7 +2591,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "retreating from incarnation altogether, which is very rude of the soul frankly",
         ],
         "life_lesson": "To release old overidentification without abandoning participation in life.",
-        "what_people_feel": "This person is partly elsewhere.",
+        "reaction": "This person is partly elsewhere.",
         "shorthand": "I must let go of what I already know too well.",
     },
 
@@ -2630,7 +2630,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "identifying so hard with rejection that intimacy becomes difficult",
         ],
         "life_lesson": "To embody untamed truth without becoming ruled by exile or antagonism.",
-        "what_people_feel": "This person does not submit cleanly.",
+        "reaction": "This person does not submit cleanly.",
         "shorthand": "I must remain sovereign, even if it costs belonging.",
     },
 
@@ -2666,7 +2666,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "making pain the organizing center of identity",
         ],
         "life_lesson": "To let sensitivity become wisdom without making it a permanent throne.",
-        "what_people_feel": "This person understands pain in a precise way.",
+        "reaction": "This person understands pain in a precise way.",
         "shorthand": "I must turn pain into knowledge.",
     },
 
@@ -2701,7 +2701,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "equating love with management or provision",
         ],
         "life_lesson": "To nourish without controlling, and to love without gripping.",
-        "what_people_feel": "This person knows how to keep life going.",
+        "reaction": "This person knows how to keep life going.",
         "shorthand": "I must feed, sustain, and protect.",
     },
 
@@ -2735,7 +2735,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "using intelligence defensively",
         ],
         "life_lesson": "To unite wisdom with embodiment and not confuse analysis with wholeness.",
-        "what_people_feel": "This person sees the structure underneath the structure.",
+        "reaction": "This person sees the structure underneath the structure.",
         "shorthand": "I must understand the pattern and outmaneuver the problem.",
     },
 
@@ -2770,7 +2770,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "overidentifying with couplehood or betrayal narratives",
         ],
         "life_lesson": "To build sacred reciprocity without turning commitment into ownership.",
-        "what_people_feel": "This person takes partnership very seriously.",
+        "reaction": "This person takes partnership very seriously.",
         "shorthand": "I must define and protect the bond.",
     },
 
@@ -2807,7 +2807,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "treating intensity of focus as moral superiority",
         ],
         "life_lesson": "To protect the sacred flame without sacrificing the rest of life to it.",
-        "what_people_feel": "This person is devoted to something with unusual seriousness.",
+        "reaction": "This person is devoted to something with unusual seriousness.",
         "shorthand": "I must serve what is sacred to me.",
     },
 
@@ -2841,7 +2841,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "mistaking psychic intensity for compatibility",
         ],
         "life_lesson": "To seek soul-level connection without surrendering discernment.",
-        "what_people_feel": "This person is receiving more than they say.",
+        "reaction": "This person is receiving more than they say.",
         "shorthand": "I must be deeply seen and psychically met.",
     },
 
@@ -2876,7 +2876,7 @@ ASTROLOGICAL_DOMINANT_BODY_MEANINGS = {
             "difficulty tolerating flatness or ordinary attachment",
         ],
         "life_lesson": "To honor desire as sacred fuel without becoming enslaved to stimulation.",
-        "what_people_feel": "This person has charge.",
+        "reaction": "This person has charge.",
         "shorthand": "I must follow what enlivens and arouses me.",
     },
 }
