@@ -13262,89 +13262,68 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._right_panel_sizes = list(sizes)
         self._settings.setValue("manage_charts/splitter_sizes", sizes)
 
+    def _apply_content_splitter_layout(self, base_sizes: list[int]) -> None:
+        normalized = self._normalize_content_splitter_sizes(base_sizes)
+        left_size, middle_size, right_size = normalized
+
+        if not self._left_panel_visible:
+            middle_size += left_size
+            left_size = 0
+        if not self._right_panel_visible:
+            middle_size += right_size
+            right_size = 0
+
+        self._content_splitter.setSizes([left_size, middle_size, right_size])
+
     def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
-        if self._right_panel_visible == visible:
-            if visible and restore_default_size:
-                self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        if self._right_panel_visible == visible and not restore_default_size:
             return
+
+        if not visible:
+            self._right_panel_sizes = self._normalize_content_splitter_sizes(
+                self._content_splitter.sizes()
+            )
+
         self._right_panel_visible = visible
         self.right_panel_stack.setVisible(visible)
-        if not visible:
-            self._right_panel_sizes = self._content_splitter.sizes()
-            sizes = self._right_panel_sizes
-            if len(sizes) >= 3:
-                total = sum(sizes)
-                left_size = sizes[0]
-                middle_size = max(0, total - left_size)
-                self._content_splitter.setSizes([left_size, middle_size, 0])
-            return
 
         if restore_default_size:
-            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+            self._apply_content_splitter_layout(self._default_content_splitter_sizes())
             return
 
-        current_total = max(1, sum(self._content_splitter.sizes()))
-        left_hidden = (not self._left_panel_visible) or self._is_left_panel_collapsed()
-
-        if self._right_panel_sizes and len(self._right_panel_sizes) >= 3:
-            sizes = list(self._right_panel_sizes)
-            right_size = max(0, sizes[2])
-            if left_hidden:
-                self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
-                return
-            self._content_splitter.setSizes(sizes)
+        candidate_sizes = self._right_panel_sizes if visible else self._content_splitter.sizes()
+        if candidate_sizes and len(candidate_sizes) >= 3:
+            self._apply_content_splitter_layout(list(candidate_sizes))
             return
 
-        default_sizes = self._default_content_splitter_sizes()
-        right_size = max(0, default_sizes[2])
-        if left_hidden:
-            self._content_splitter.setSizes([0, max(0, current_total - right_size), right_size])
-            return
-        self._content_splitter.setSizes(default_sizes)
+        self._apply_content_splitter_layout(self._default_content_splitter_sizes())
 
     def _is_left_panel_collapsed(self) -> bool:
         sizes = self._content_splitter.sizes()
         return len(sizes) >= 3 and sizes[0] <= 0
 
     def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
-        if self._left_panel_visible == visible:
-            if visible and restore_default_size:
-                self._content_splitter.setSizes(self._default_content_splitter_sizes())
+        if self._left_panel_visible == visible and not restore_default_size:
             return
+
+        if not visible:
+            self._left_panel_sizes = self._normalize_content_splitter_sizes(
+                self._content_splitter.sizes()
+            )
+
         self._left_panel_visible = visible
         self.left_panel_stack.setVisible(visible)
-        if not visible:
-            self._left_panel_sizes = self._content_splitter.sizes()
-            sizes = self._left_panel_sizes
-            if len(sizes) >= 3:
-                total = sum(sizes)
-                right_size = sizes[2]
-                middle_size = max(0, total - right_size)
-                self._content_splitter.setSizes([0, middle_size, right_size])
-            return
 
         if restore_default_size:
-            self._content_splitter.setSizes(self._default_content_splitter_sizes())
+            self._apply_content_splitter_layout(self._default_content_splitter_sizes())
             return
 
-        current_total = max(1, sum(self._content_splitter.sizes()))
-        right_hidden = (not self._right_panel_visible) or self._is_right_panel_collapsed()
-
-        if self._left_panel_sizes and len(self._left_panel_sizes) >= 3:
-            sizes = self._normalize_content_splitter_sizes(self._left_panel_sizes)
-            left_size = max(0, sizes[0])
-            if right_hidden:
-                self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
-                return
-            self._content_splitter.setSizes(sizes)
+        candidate_sizes = self._left_panel_sizes if visible else self._content_splitter.sizes()
+        if candidate_sizes and len(candidate_sizes) >= 3:
+            self._apply_content_splitter_layout(list(candidate_sizes))
             return
 
-        default_sizes = self._default_content_splitter_sizes()
-        left_size = max(0, default_sizes[0])
-        if right_hidden:
-            self._content_splitter.setSizes([left_size, max(0, current_total - left_size), 0])
-            return
-        self._content_splitter.setSizes(default_sizes)
+        self._apply_content_splitter_layout(self._default_content_splitter_sizes())
 
     def _show_left_panel(self, panel_name: str) -> None:
         try:
