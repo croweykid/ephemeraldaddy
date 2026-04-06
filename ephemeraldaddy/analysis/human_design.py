@@ -223,6 +223,25 @@ def _render_channel_lines(
     return lines, info_map
 
 
+def _format_defined_centers(defined_centers: set[str]) -> str:
+    if not defined_centers:
+        return "None"
+    center_order = (
+        "Head",
+        "Ajna",
+        "Throat",
+        "G",
+        "Ego",
+        "Spleen",
+        "Solar Plexus",
+        "Sacral",
+        "Root",
+    )
+    ordered = [center for center in center_order if center in defined_centers]
+    ordered.extend(sorted(center for center in defined_centers if center not in center_order))
+    return ", ".join(ordered)
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -260,6 +279,7 @@ def build_human_design_chart_data_output(
         hd_result.strategy,
         "strategy",
     )
+    defined_centers_line = f"Defined Centers: {_format_defined_centers(set(hd_result.defined_centers))}"
     channel_lines, channel_info_map = _render_channel_lines(hd_result.defined_channels)
 
     awareness_lines: list[str] = []
@@ -277,6 +297,7 @@ def build_human_design_chart_data_output(
         profile_line,
         definition_line,
         strategy_line,
+        defined_centers_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,
