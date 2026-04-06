@@ -2423,6 +2423,7 @@ SENTIMENT_OPTIONS = [ #you can reorder these,
     "relatable (mannerisms)",
     "relatable (background)",
     "relatable",
+    "hilarious",
 #neg
     "can't trust",
     "can't respect",
@@ -2455,6 +2456,7 @@ SENTIMENT_COLORS = {
     "relatable (mannerisms)":"#33ccff",
     "relatable (background)":"#33ccff",
     "relatable":"#33ccff",
+    "hilarious":"#ffd966",
 #neg
     "frustrating":"#993300",
     "unreachable":"#dbccbd",
