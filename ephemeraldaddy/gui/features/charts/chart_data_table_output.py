@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import re
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from ephemeraldaddy.core.interpretations import HOUSE_COLORS, PLANET_COLORS, SIGN_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 _DIVIDER = "---------"
-_SECTION_NAMES = {"POSITIONS", "HOUSES", "ASPECTS", "D&D-ification", "D&D STATBLOCK", "Top 3 Species", "Top 3 Classes* (alpha phase prototype, not amazing yet)"}
+_SECTION_NAMES = {
+    "POSITIONS",
+    "HOUSES",
+    "ASPECTS",
+    "D&D-ification",
+    "D&D STATBLOCK",
+    "CURSEDNESS",
+    "Top 3 Species",
+    "Top 3 Classes* (alpha phase prototype, not amazing yet)",
+}
 
 
 class ChartDataTableOutput(QPlainTextEdit):
@@ -20,16 +29,26 @@ class ChartDataTableOutput(QPlainTextEdit):
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setFrameShape(QFrame.NoFrame)
+        palette = self.palette()
+        transparent_text = QColor(0, 0, 0, 0)
+        palette.setColor(QPalette.Text, transparent_text)
+        palette.setColor(QPalette.HighlightedText, transparent_text)
+        self.setPalette(palette)
         self._plain_text = ""
+        self._content_height = 0
 
         self._content_widget = QWidget(self.viewport())
+        self._content_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self._layout = QVBoxLayout(self._content_widget)
         self._layout.setContentsMargins(4, 4, 4, 4)
         self._layout.setSpacing(6)
 
+        self.verticalScrollBar().valueChanged.connect(self._position_content_widget)
+        self.horizontalScrollBar().valueChanged.connect(self._position_content_widget)
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._content_widget.setGeometry(self.viewport().rect())
+        self._position_content_widget()
 
     def clear(self) -> None:
         self.setPlainText("")
@@ -48,6 +67,14 @@ class ChartDataTableOutput(QPlainTextEdit):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    def _position_content_widget(self) -> None:
+        viewport_rect = self.viewport().rect()
+        width = max(viewport_rect.width(), self._content_widget.sizeHint().width())
+        height = max(viewport_rect.height(), self._content_height)
+        x = -self.horizontalScrollBar().value()
+        y = -self.verticalScrollBar().value()
+        self._content_widget.setGeometry(x, y, width, height)
 
     def _rebuild_tables(self, text: str) -> None:
         self._clear_layout()
@@ -76,6 +103,8 @@ class ChartDataTableOutput(QPlainTextEdit):
 
         flush()
         self._layout.addStretch(1)
+        self._content_height = self._layout.sizeHint().height() + self._layout.contentsMargins().top() + self._layout.contentsMargins().bottom()
+        self._position_content_widget()
 
     def _build_section_table(self, section: str, rows: list[str]) -> QTableWidget | None:
         parsed_rows = [self._parse_row(section, row) for row in rows if row.strip()]
@@ -85,6 +114,8 @@ class ChartDataTableOutput(QPlainTextEdit):
 
         col_count = max(len(row) for row in parsed_rows)
         table = QTableWidget(len(parsed_rows), col_count)
+        table.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        table.viewport().setAttribute(Qt.WA_TransparentForMouseEvents, True)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionMode(QTableWidget.NoSelection)
         table.setFocusPolicy(Qt.NoFocus)
@@ -120,6 +151,8 @@ class ChartDataTableOutput(QPlainTextEdit):
                 return [left.strip() + ":", right.strip()]
             return [line.strip()]
         if section == "POSITIONS":
+            if "->" in line:
+                return [line.strip()]
             if line.startswith("☉") or line.startswith("☽") or line.startswith("☿") or line.startswith("♀") or line.startswith("♂") or line.startswith("♃") or line.startswith("♄") or line.startswith("♅") or line.startswith("♆") or line.startswith("♇") or line.startswith("⚷") or line.startswith("⚳") or line.startswith("⚴") or line.startswith("⚵") or line.startswith("⚶") or line.startswith("🌅") or line.startswith("☊") or line.startswith("☋"):
                 parts = re.split(r"\s{2,}", line.strip())
                 if len(parts) >= 4:
