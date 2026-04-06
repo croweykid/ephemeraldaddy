@@ -19336,7 +19336,7 @@ class MainWindow(QMainWindow):
                         house_num = int(raw_value)
                     except ValueError:
                         return
-                    info_panel.setPlainText(self._build_house_popout_info(house_num))
+                    info_panel.setHtml(self._build_house_popout_info(popout_chart, house_num))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
@@ -19624,13 +19624,80 @@ class MainWindow(QMainWindow):
             html_parts.append(f"<div>{html.escape(reaction)}</div>")
         return "".join(html_parts)
 
-    def _build_house_popout_info(self, house_num: int) -> str:
+    def _build_house_popout_info(self, chart: Chart, house_num: int) -> str:
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
+        ranked_weights = (
+            _calculate_house_prevalence_counts(chart)
+            if mode == "house_prevalence"
+            else _calculate_dominant_house_weights(chart)
+        )
+        ranked_houses = list(range(1, 13))
+        sorted_houses = sorted(
+            ranked_houses,
+            key=lambda key: float(ranked_weights.get(key, 0.0)),
+            reverse=True,
+        )
+        rank_index = (
+            sorted_houses.index(house_num)
+            if house_num in sorted_houses
+            else None
+        )
+        total_houses = len(sorted_houses)
+        current_weight = float(ranked_weights.get(house_num, 0.0))
+        next_weight = (
+            float(ranked_weights.get(sorted_houses[rank_index + 1], 0.0))
+            if rank_index is not None and (rank_index + 1) < total_houses
+            else None
+        )
+        total_weight = sum(float(ranked_weights.get(key, 0.0)) for key in sorted_houses)
+        share_percent = (
+            (current_weight / total_weight) * 100.0
+            if total_weight > 0
+            else 0.0
+        )
+        rank_delta_percent = (
+            ((current_weight - next_weight) / current_weight) * 100.0
+            if next_weight is not None and current_weight > 0
+            else None
+        )
+        rank_blurb = (
+            f"(#{rank_index + 1} of {total_houses} by {rank_delta_percent:.2f}%; "
+            f"{share_percent:.2f}% of all house weights)"
+            if rank_index is not None and rank_delta_percent is not None
+            else (
+                f"(#{rank_index + 1} of {total_houses} by n/a; "
+                f"{share_percent:.2f}% of all house weights)"
+                if rank_index is not None
+                else f"(rank unavailable; {share_percent:.2f}% of all house weights)"
+            )
+        )
         house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
-        noun_lines = [f"• {noun}" for noun in house_keywords if str(noun).strip()]
-        header = f"House {house_num}"
-        if not noun_lines:
-            return f"{header}\n\nNo core_domains entries available."
-        return "\n".join([header, "", *noun_lines])
+        keyword_lines = [
+            f"<li>{html.escape(str(noun).strip())}</li>"
+            for noun in house_keywords
+            if str(noun).strip()
+        ]
+        section_header_style = (
+            f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        )
+        house_header_color = str(
+            HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        ).strip() or CHART_THEME_COLORS.get("text", "#f5f5f5")
+        header = (
+            "<h3>"
+            f'<span style="color: {html.escape(house_header_color)};">'
+            f"House {house_num}"
+            "</span> "
+            f"{html.escape(rank_blurb)}"
+            "</h3>"
+        )
+        if not keyword_lines:
+            return f"{header}<div>No core_domains entries available.</div>"
+        return (
+            f"{header}"
+            f'<div style="{section_header_style}">Keywords:</div>'
+            f"<ul>{''.join(keyword_lines)}</ul>"
+        )
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
         mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
