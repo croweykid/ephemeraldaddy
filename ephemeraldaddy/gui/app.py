@@ -19461,12 +19461,17 @@ class MainWindow(QMainWindow):
                 for entry in items
             )
 
-        html_parts = [f"<h3>{html.escape(display_body)}</h3>"]
+        body_header_color = str(
+            PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        ).strip() or CHART_THEME_COLORS.get("text", "#f5f5f5")
+        html_parts = [
+            f'<h3 style="color: {html.escape(body_header_color)};">{html.escape(display_body)}</h3>'
+        ]
         if shorthand:
-            html_parts.append(f"<div><em>{html.escape(shorthand)}</em></div>")
+            html_parts.append(f"<div><em>{html.escape(shorthand)}</em></div><br>")
         if summary:
             html_parts.append(_section_header("Summary:"))
-            html_parts.append(f"<div>{html.escape(summary)}</div>")
+            html_parts.append(f"<div>{html.escape(summary)}</div><br>")
         if typical_traits:
             html_parts.append(_section_header("Traits:"))
             html_parts.append(f"<ul>{_list_section(typical_traits)}</ul>")
@@ -19478,7 +19483,7 @@ class MainWindow(QMainWindow):
             html_parts.append(f"<ul>{_list_section(at_worst)}</ul>")
         if life_lesson:
             html_parts.append(_section_header("Life Lesson:"))
-            html_parts.append(f"<div>{html.escape(life_lesson)}</div>")
+            html_parts.append(f"<div>{html.escape(life_lesson)}</div><br>")
         if reaction:
             html_parts.append(_section_header("Reactions from Others"))
             html_parts.append(f"<div>{html.escape(reaction)}</div>")
