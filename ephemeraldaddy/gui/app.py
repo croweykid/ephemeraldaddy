@@ -2995,6 +2995,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Gates", "hd_gates"),
                 ("Lines", "hd_lines"),
                 ("Channels", "hd_channels"),
+                ("Defined Centers", "hd_defined_centers"),
             ],
             show_title=False,
         )
@@ -6155,7 +6156,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         gate_counts: dict[str, int] = {}
         for chart in charts:
-            hd_gates, _hd_lines, _hd_channels = self._extract_human_design_profile(chart)
+            hd_gates, _hd_lines, _hd_channels, _hd_defined_centers = self._extract_human_design_profile(chart)
             for gate in sorted(set(hd_gates)):
                 label = f"Gate {gate}"
                 gate_counts[label] = gate_counts.get(label, 0) + 1
@@ -6178,7 +6179,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         channel_counts: dict[str, int] = {}
         for chart in charts:
-            _hd_gates, _hd_lines, hd_channels = self._extract_human_design_profile(chart)
+            _hd_gates, _hd_lines, hd_channels, _hd_defined_centers = self._extract_human_design_profile(chart)
             normalized_channels: set[str] = set()
             for channel in hd_channels:
                 normalized = str(channel).strip()
@@ -7188,9 +7189,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design_gate_totals": {gate: 0.0 for gate in range(1, 65)},
             "human_design_line_totals": {line: 0.0 for line in range(1, 7)},
             "human_design_channel_totals": {},
+            "human_design_defined_center_totals": {
+                center: 0.0 for center in self.HD_DEFINED_CENTER_ORDER
+            },
             "human_design_gate_total_count": 0.0,
             "human_design_line_total_count": 0.0,
             "human_design_channel_total_count": 0.0,
+            "human_design_defined_center_total_count": 0.0,
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7307,7 +7312,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             snapshot["dominant_element_total_weight"] += 1.0
 
         # Human Design profile metrics (persisted on chart for fast lookup where possible).
-        hd_gates, hd_lines, hd_channels = self._extract_human_design_profile(chart)
+        hd_gates, hd_lines, hd_channels, hd_defined_centers = self._extract_human_design_profile(chart)
         for gate in hd_gates:
             snapshot["human_design_gate_totals"][gate] += 1.0
             snapshot["human_design_gate_total_count"] += 1.0
@@ -7319,6 +7324,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["human_design_channel_totals"].get(channel, 0.0) + 1.0
             )
             snapshot["human_design_channel_total_count"] += 1.0
+        for center in hd_defined_centers:
+            center_name = str(center).strip()
+            if center_name not in snapshot["human_design_defined_center_totals"]:
+                continue
+            snapshot["human_design_defined_center_totals"][center_name] += 1.0
+            snapshot["human_design_defined_center_total_count"] += 1.0
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:
@@ -7408,6 +7419,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         totals["human_design_channel_total_count"] += direction * float(
             snapshot.get("human_design_channel_total_count", 0.0)
+        )
+        totals["human_design_defined_center_total_count"] += direction * float(
+            snapshot.get("human_design_defined_center_total_count", 0.0)
         )
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
@@ -7501,6 +7515,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 if abs(totals["human_design_channel_totals"][channel_label]) <= 1e-9:
                     del totals["human_design_channel_totals"][channel_label]
+        center_snapshot = snapshot.get("human_design_defined_center_totals", {})
+        if isinstance(center_snapshot, dict):
+            for center in self.HD_DEFINED_CENTER_ORDER:
+                totals["human_design_defined_center_totals"][center] += direction * float(
+                    center_snapshot.get(center, 0.0)
+                )
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -9143,7 +9163,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_planet_counts=database_human_design_counts,
                     loaded_charts=loaded_charts,
                     labels=human_design_labels,
-                    height_scale=2 if human_design_mode == "hd_gates" else 1.0,
+                    height_scale=2 if human_design_mode in {"hd_gates", "hd_defined_centers"} else 1.0,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(

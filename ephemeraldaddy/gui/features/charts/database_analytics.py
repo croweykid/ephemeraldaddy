@@ -29,7 +29,10 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_NAMES,
 )
-from ephemeraldaddy.analysis.human_design import derive_human_design_profile
+from ephemeraldaddy.analysis.human_design import (
+    build_human_design_result,
+    derive_human_design_profile,
+)
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -44,6 +47,17 @@ from ephemeraldaddy.gui.style import (
 
 class DatabaseAnalyticsChartsMixin:
     DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+    HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
+        "Head",
+        "Ajna",
+        "Throat",
+        "G",
+        "Ego",
+        "Spleen",
+        "Solar Plexus",
+        "Sacral",
+        "Root",
+    )
 
     @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
@@ -143,15 +157,26 @@ class DatabaseAnalyticsChartsMixin:
     def _extract_human_design_profile(
         self,
         chart: Any,
-    ) -> tuple[list[int], list[int], list[str]]:
+    ) -> tuple[list[int], list[int], list[str], list[str]]:
         if getattr(chart, "positions", None):
             hd_gates, hd_lines, hd_channels, hd_type = derive_human_design_profile(chart)
+            hd_result = build_human_design_result(chart)
+            hd_defined_centers = sorted(
+                {str(center).strip() for center in hd_result.defined_centers if str(center).strip()},
+                key=lambda center_name: (
+                    self.HD_DEFINED_CENTER_ORDER.index(center_name)
+                    if center_name in self.HD_DEFINED_CENTER_ORDER
+                    else len(self.HD_DEFINED_CENTER_ORDER),
+                    center_name,
+                ),
+            )
             chart.human_design_gates = list(hd_gates)
             chart.human_design_lines = list(hd_lines)
             chart.human_design_channels = list(hd_channels)
+            chart.human_design_defined_centers = list(hd_defined_centers)
             if hd_type:
                 chart.human_design_type = hd_type
-            return hd_gates, hd_lines, hd_channels
+            return hd_gates, hd_lines, hd_channels, hd_defined_centers
 
         hd_gates = [
             int(gate)
@@ -168,7 +193,12 @@ class DatabaseAnalyticsChartsMixin:
             for channel in (getattr(chart, "human_design_channels", []) or [])
             if str(channel).strip()
         ]
-        return hd_gates, hd_lines, hd_channels
+        hd_defined_centers = [
+            str(center)
+            for center in (getattr(chart, "human_design_defined_centers", []) or [])
+            if str(center).strip()
+        ]
+        return hd_gates, hd_lines, hd_channels, hd_defined_centers
 
     @staticmethod
     def _human_design_mode_payload(
@@ -217,6 +247,23 @@ class DatabaseAnalyticsChartsMixin:
                 database_counts,
                 float(selection_cache["human_design_channel_total_count"]),
                 float(database_cache["human_design_channel_total_count"]),
+            )
+        if mode == "hd_defined_centers":
+            labels = list(DatabaseAnalyticsChartsMixin.HD_DEFINED_CENTER_ORDER)
+            selection_counts = {
+                label: int(selection_cache["human_design_defined_center_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_defined_center_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_defined_center_total_count"]),
+                float(database_cache["human_design_defined_center_total_count"]),
             )
         labels = [str(gate) for gate in range(1, 65)]
         selection_counts = {
