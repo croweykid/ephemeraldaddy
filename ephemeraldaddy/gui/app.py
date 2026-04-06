@@ -20947,6 +20947,9 @@ class MainWindow(QMainWindow):
                                 continue
                             self._show_house_keyword_info(house_num)
                             return True
+                        if entry.get("kind") == "nakshatra":
+                            self._show_nakshatra_info(str(entry.get("nakshatra", "")))
+                            return True
                 selected_entry = None
                 icon_entries = [
                     entry

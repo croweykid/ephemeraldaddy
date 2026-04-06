@@ -559,7 +559,7 @@ def format_chart_text(
             pretty = f"{pretty} (Я)"
             degree_text = f"{degree_text} (Я)"
         nakshatra = get_nakshatra(lon)
-        nakshatra_with_info = f"{nakshatra} ⓘ"
+        #nakshatra_with_info = f"{nakshatra} ⓘ"
 
         if use_houses:
             house_num = house_for_longitude(houses, lon)
@@ -567,7 +567,7 @@ def format_chart_text(
             body_column = _pad_display_column(display_body, body_width)
             sign_column = _pad_display_column(sign_label, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
-            nakshatra_column = _pad_display_column(nakshatra_with_info, nakshatra_width)
+            nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
             house_column = _pad_display_column(house_label, house_width)
             columns = [body_column, sign_column, degree_column, nakshatra_column, house_column]
             column_offsets: list[int] = []
@@ -597,7 +597,8 @@ def format_chart_text(
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
                     "column": 3,
-                    "icon_index": line.find("ⓘ"),
+                    "span_start": column_offsets[3],
+                    "span_end": column_offsets[3] + len(nakshatra),
                 }
             ]
             if house_num is not None:
@@ -627,7 +628,7 @@ def format_chart_text(
             body_column = _pad_display_column(display_body, body_width)
             sign_column = _pad_display_column(sign_label, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
-            nakshatra_column = _pad_display_column(nakshatra_with_info, nakshatra_width)
+            nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
             columns = [body_column, sign_column, degree_column, nakshatra_column]
             column_offsets: list[int] = []
             line_cursor = 0
@@ -657,7 +658,8 @@ def format_chart_text(
                     "kind": "nakshatra",
                     "nakshatra": nakshatra,
                     "column": 3,
-                    "icon_index": line.find("ⓘ"),
+                    "span_start": column_offsets[3],
+                    "span_end": column_offsets[3] + len(nakshatra),
                 },
                 {
                     "kind": "position",
