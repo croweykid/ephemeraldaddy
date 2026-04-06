@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 import tempfile
+import time
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -102,8 +103,10 @@ def _tokenize(query: str) -> List[str]:
 
 _LOCAL_GAZETTEER: Optional[LocalGazetteer] = None
 _LOCAL_GAZETTEER_ERROR: Optional[Exception] = None
+_LOCAL_GAZETTEER_ERROR_AT: Optional[float] = None
 _GEONAMES_URL_DEFAULT = "https://download.geonames.org/export/dump/cities1500.zip"
 _GEONAMES_FILENAME_DEFAULT = "cities1500.txt"
+_LOCAL_GAZETTEER_RETRY_SECONDS = 30.0
 
 
 def _auto_download_enabled() -> bool:
@@ -122,6 +125,17 @@ def _geonames_filename() -> str:
     return os.environ.get(
         "EPHEMERALDADDY_GAZETTEER_FILENAME", _GEONAMES_FILENAME_DEFAULT
     )
+
+
+def _gazetteer_retry_seconds() -> float:
+    raw = os.environ.get("EPHEMERALDADDY_GAZETTEER_RETRY_SECONDS")
+    if raw is None:
+        return _LOCAL_GAZETTEER_RETRY_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return _LOCAL_GAZETTEER_RETRY_SECONDS
+    return max(0.0, value)
 
 
 def _download_and_build(path: Path) -> None:
@@ -149,9 +163,15 @@ def _bundled_geonames_path() -> Optional[Path]:
 def get_local_gazetteer() -> Optional[LocalGazetteer]:
     global _LOCAL_GAZETTEER
     global _LOCAL_GAZETTEER_ERROR
+    global _LOCAL_GAZETTEER_ERROR_AT
 
-    if _LOCAL_GAZETTEER is not None or _LOCAL_GAZETTEER_ERROR is not None:
+    if _LOCAL_GAZETTEER is not None:
         return _LOCAL_GAZETTEER
+    if _LOCAL_GAZETTEER_ERROR is not None:
+        now = time.monotonic()
+        retry_after = _gazetteer_retry_seconds()
+        if _LOCAL_GAZETTEER_ERROR_AT is not None and (now - _LOCAL_GAZETTEER_ERROR_AT) < retry_after:
+            return None
 
     path = gazetteer_path()
     if not path.exists():
@@ -161,20 +181,25 @@ def get_local_gazetteer() -> Optional[LocalGazetteer]:
                 build_db(bundled_path, path)
             except Exception as exc:
                 _LOCAL_GAZETTEER_ERROR = exc
+                _LOCAL_GAZETTEER_ERROR_AT = time.monotonic()
                 return None
         elif _auto_download_enabled():
             try:
                 _download_and_build(path)
             except Exception as exc:
                 _LOCAL_GAZETTEER_ERROR = exc
+                _LOCAL_GAZETTEER_ERROR_AT = time.monotonic()
                 return None
 
     try:
         _LOCAL_GAZETTEER = LocalGazetteer(path)
     except Exception as exc:
         _LOCAL_GAZETTEER_ERROR = exc
+        _LOCAL_GAZETTEER_ERROR_AT = time.monotonic()
         return None
 
+    _LOCAL_GAZETTEER_ERROR = None
+    _LOCAL_GAZETTEER_ERROR_AT = None
     return _LOCAL_GAZETTEER
 
 
