@@ -4541,7 +4541,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -5028,7 +5028,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -5629,7 +5629,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -18820,9 +18820,7 @@ class MainWindow(QMainWindow):
             "Chart summary will appear here.\n\n"
             "Generate a chart to see positions, houses, and aspects."
         )
-        self._output_highlighter = ChartSummaryHighlighter(
-            self.output_text.document()
-        )
+        self._output_highlighter = None
         self.output_text.viewport().installEventFilter(self)
         self.output_share_button = QToolButton(self.output_text.viewport())
         share_icon_path = _get_share_icon_path()
@@ -24222,7 +24220,7 @@ class MainWindow(QMainWindow):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -24358,7 +24356,7 @@ class MainWindow(QMainWindow):
         output_font = summary_output.font()
         summary_output.setFont(output_font)
         summary_output.setTabStopDistance(6)
-        summary_output._summary_highlighter = ChartSummaryHighlighter(summary_output.document())
+        summary_output._summary_highlighter = None
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
