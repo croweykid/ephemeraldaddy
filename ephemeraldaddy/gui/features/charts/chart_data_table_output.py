@@ -66,6 +66,8 @@ class ChartDataTableOutput(QPlainTextEdit):
             item = self._layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.hide()
+                widget.setParent(None)
                 widget.deleteLater()
 
     def _position_content_widget(self) -> None:
