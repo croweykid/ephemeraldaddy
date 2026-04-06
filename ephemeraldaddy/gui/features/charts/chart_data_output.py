@@ -113,7 +113,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._unknown_format.setFontItalic(True)
         self._unknown_needles = (
             "unknown (birth time unknown)",
-            "unknown (🐣time unknown)"
+            "unknown (🐣time unknown)",
             "unknown (birthtime unknown)",
         )
         self._label_format = QTextCharFormat()
@@ -173,6 +173,19 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             for planet, color in PLANET_COLORS.items()
             if color
         }
+        self._planet_aliases = {
+            "Black Moon Lilith": "Lilith",
+            "Part of Fortune": "Fortune",
+            "Ascendant": "AS",
+            "Descendant": "DS",
+            "Medium Coeli": "MC",
+            "Imum Coeli": "IC",
+        }
+        self._planet_alias_formats = {
+            alias: self._planet_formats[target]
+            for alias, target in self._planet_aliases.items()
+            if target in self._planet_formats
+        }
         self._sign_formats = {
             sign: self._make_format(color)
             for sign, color in SIGN_COLORS.items()
@@ -191,6 +204,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             if isinstance(house, (str, int)) and str(house).isdigit() and color
         }
         self._house_token_pattern = re.compile(r"\bH(1[0-2]|[1-9])\b")
+        self._house_label_patterns = tuple(
+            re.compile(pattern, flags=re.IGNORECASE)
+            for pattern in (
+                r"\bHouse\s+(1[0-2]|[1-9])\b",
+                r"\b(1[0-2]|[1-9])(st|nd|rd|th)\s+House\b",
+            )
+        )
         self._relative_year_formats = {
             label: self._make_format(color)
             for label, color in RELATIVE_YEAR_COLORS.items()
@@ -243,6 +263,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             if stripped_text.upper() == header:
                 self.setFormat(0, self._qt_len(text), self._section_format)
                 break
+        if (
+            stripped_text
+            and stripped_text == stripped_text.upper()
+            and any(char.isalpha() for char in stripped_text)
+            and all(char.isupper() or not char.isalpha() for char in stripped_text)
+        ):
+            self.setFormat(0, self._qt_len(text), self._section_format)
         for prefix in self._HD_SUBHEADER_PREFIXES:
             if (
                 stripped_text == prefix
@@ -339,6 +366,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(0, self._qt_len(text), awareness_format)
         if lowered_stripped.startswith("synastry chart for "):
             self.setFormat(0, self._qt_len(text), self._section_format)
+        if lowered_stripped.startswith("personal transit chart for "):
+            self.setFormat(0, self._qt_len(text), self._section_format)
         if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:
             self.setFormat(0, self._qt_len(text), self._section_format)
         for label in (
@@ -385,6 +414,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         else:
             for body, fmt in self._planet_formats.items():
                 self._highlight_phrase(text, body, fmt)
+            for alias, fmt in self._planet_alias_formats.items():
+                self._highlight_phrase(text, alias, fmt)
         for aspect, fmt in self._aspect_formats.items():
             self._highlight_phrase(lowered, aspect, fmt)
         for sign, fmt in self._sign_formats.items():
@@ -411,6 +442,16 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             house_fmt = self._house_formats.get(house_num)
             if house_fmt:
                 self.setFormat(match.start(), len(match.group(0)), house_fmt)
+        for pattern in self._house_label_patterns:
+            for match in pattern.finditer(text):
+                house_num = match.group(1)
+                house_fmt = self._house_formats.get(house_num)
+                if house_fmt:
+                    self.setFormat(
+                        self._qt_index(text, match.start()),
+                        self._qt_len(match.group(0)),
+                        house_fmt,
+                    )
 
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         for match in self._transit_range_date_pattern.finditer(text):
