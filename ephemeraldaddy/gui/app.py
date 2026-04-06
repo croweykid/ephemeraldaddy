@@ -19423,6 +19423,63 @@ class MainWindow(QMainWindow):
         body_name = str(body or "").strip()
         meaning = DOMINANT_BODY_MEANINGS.get(body_name, {})
         display_body = _display_body_name(body_name)
+        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
+        if mode == "sidereal_planet_prevalence":
+            ranked_bodies = [
+                "Sun",
+                "Moon",
+                "Mars",
+                "Mercury",
+                "Jupiter",
+                "Venus",
+                "Saturn",
+                "Rahu",
+                "Ketu",
+            ]
+            ranked_weights = _calculate_sidereal_planet_prevalence_counts(chart)
+        else:
+            ranked_bodies = _dominant_planet_keys(chart)
+            ranked_weights = _calculate_dominant_planet_weights(chart)
+
+        sorted_bodies = sorted(
+            ranked_bodies,
+            key=lambda key: float(ranked_weights.get(key, 0.0)),
+            reverse=True,
+        )
+        rank_index = (
+            sorted_bodies.index(body_name)
+            if body_name in sorted_bodies
+            else None
+        )
+        total_bodies = len(sorted_bodies)
+        current_weight = float(ranked_weights.get(body_name, 0.0)) #ojo: planets/bodies get ranked here, and differentiated by % of all body weights; this is a useful scoring system that may come into play later!
+        next_weight = (
+            float(ranked_weights.get(sorted_bodies[rank_index + 1], 0.0))
+            if rank_index is not None and (rank_index + 1) < total_bodies
+            else None
+        )
+        total_weight = sum(float(ranked_weights.get(key, 0.0)) for key in sorted_bodies)
+        share_percent = (
+            (current_weight / total_weight) * 100.0
+            if total_weight > 0
+            else 0.0
+        )
+        rank_delta_percent = (
+            ((current_weight - next_weight) / current_weight) * 100.0
+            if next_weight is not None and current_weight > 0
+            else None
+        )
+        rank_blurb = (
+            f"(#{rank_index + 1} of {total_bodies} by {rank_delta_percent:.2f}%; "
+            f"{share_percent:.2f}% of all body weights)"
+            if rank_index is not None and rank_delta_percent is not None
+            else (
+                f"(#{rank_index + 1} of {total_bodies} by n/a; "
+                f"{share_percent:.2f}% of all body weights)"
+                if rank_index is not None
+                else f"(rank unavailable; {share_percent:.2f}% of all body weights)"
+            )
+        )
         shorthand = str(meaning.get("shorthand", "")).strip()
         summary = str(meaning.get("summary", "")).strip()
         typical_traits = [
@@ -19465,7 +19522,13 @@ class MainWindow(QMainWindow):
             PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
         ).strip() or CHART_THEME_COLORS.get("text", "#f5f5f5")
         html_parts = [
-            f'<h3 style="color: {html.escape(body_header_color)};">{html.escape(display_body)}</h3>'
+            (
+                "<h3>"
+                f'<span style="color: {html.escape(body_header_color)};">'
+                f"{html.escape(display_body)}</span> "
+                f"{html.escape(rank_blurb)}"
+                "</h3>"
+            )
         ]
         if shorthand:
             html_parts.append(f"<div><em>{html.escape(shorthand)}</em></div><br>")
