@@ -1152,6 +1152,452 @@ PLANET_GLYPHS = {
     "IC": "IC",
 }
 
+SIGN_KEYWORDS_CANONICAL = {
+    "aries": {
+        "function": "starts",
+        "adverbs": [
+            "directly",
+            "impatiently",
+            "boldly",
+            "competitively",
+            "impulsively",
+        ],
+        "talents": [
+            "initiating action before consensus forms",
+            "forcing movement where others stall out",
+            "deciding under pressure without hand-wringing",
+            "taking risks other signs keep theorizing about",
+            "bouncing back fast after embarrassment, failure, or conflict",
+        ],
+        "challenges": [
+            "creating avoidable messes through haste",
+            "treating delay like disrespect",
+            "starting on adrenaline and abandoning on boredom",
+            "picking fights just to feel motion",
+            "confusing nerve with competence",
+        ],
+        "greatest_fears": [
+            "being blocked, bossed, or slowed by weaker people",
+            "looking hesitant",
+            "having to wait on consensus",
+            "feeling powerless in real time",
+        ],
+        "motivations": [
+            "first access",
+            "freedom to act without permission",
+            "testing themselves against resistance",
+            "proving they can move before others even wake up",
+        ],
+    },
+
+    "taurus": {
+        "function": "sustains",
+        "adverbs": [
+            "steadily",
+            "stubbornly",
+            "deliberately",
+            "sensually",
+            "possessively",
+        ],
+        "talents": [
+            "stabilizing what more restless signs destabilize",
+            "building value slowly and keeping it",
+            "judging quality through direct material reality rather than hype",
+            "enduring discomfort without theatricality",
+            "making repetition productive instead of soul-killing",
+        ],
+        "challenges": [
+            "digging in long after common sense has left the room",
+            "mistaking inertia for wisdom",
+            "becoming territorial about things, routines, and people",
+            "refusing necessary change because comfort has seniority",
+            "going inert when pressured",
+        ],
+        "greatest_fears": [
+            "sudden instability",
+            "being rushed into bad decisions",
+            "losing control of money, body, or home",
+            "dependence on people who are inconsistent",
+        ],
+        "motivations": [
+            "security that is tangible, not conceptual",
+            "comfort with permanence",
+            "ownership",
+            "proving that what lasts beats what merely dazzles",
+        ],
+    },
+
+    "gemini": {
+        "function": "connects",
+        "adverbs": [
+            "quickly",
+            "restlessly",
+            "cleverly",
+            "verbally",
+            "adaptably",
+        ],
+        "talents": [
+            "linking facts before slower minds notice the pattern",
+            "switching tone, subject, and audience without strain",
+            "collecting usable information at high speed",
+            "making complexity portable through language",
+            "keeping several possibilities alive at once",
+        ],
+        "challenges": [
+            "talking around commitment until the subject dies",
+            "mistaking fluency for depth",
+            "scattering attention across too many inputs",
+            "staying mobile so nobody can pin them down",
+            "using wit to dodge seriousness",
+        ],
+        "greatest_fears": [
+            "mental stagnation",
+            "being trapped in one role or one answer",
+            "silence with no stimulation",
+            "having to live inside a single rigid framework",
+        ],
+        "motivations": [
+            "novelty",
+            "access to information",
+            "mental agility",
+            "the freedom to compare, classify, and keep moving",
+        ],
+    },
+
+    "cancer": {
+        "function": "protects",
+        "adverbs": [
+            "guardedly",
+            "tenaciously",
+            "privately",
+            "emotionally",
+            "defensively",
+        ],
+        "talents": [
+            "detecting shifts in emotional climate before anyone names them",
+            "creating shelter, loyalty, and continuity",
+            "remembering what matters to people when they are exposed or distressed",
+            "binding others through care, history, and belonging",
+            "protecting what is theirs with remarkable persistence",
+        ],
+        "challenges": [
+            "using retreat, guilt, or mood as indirect control",
+            "treating old attachments as sacred even when they have expired",
+            "becoming prickly when plain speech would solve the issue",
+            "confusing protectiveness with ownership",
+            "letting memory rule over present evidence",
+        ],
+        "greatest_fears": [
+            "exposure without cover",
+            "rejection by those they fed, helped, or defended",
+            "emotional homelessness",
+            "having their attachments dismissed as weakness",
+        ],
+        "motivations": [
+            "safety",
+            "belonging",
+            "continuity of bond and home",
+            "the right to keep what they love from intrusion",
+        ],
+    },
+
+    "leo": {
+        "function": "radiates",
+        "adverbs": [
+            "proudly",
+            "dramatically",
+            "warmly",
+            "visibly",
+            "commandingly",
+        ],
+        "talents": [
+            "organizing attention around themselves without begging for it",
+            "leading through confidence, style, and personal force",
+            "animating a room through warmth and theatrical conviction",
+            "making creative output unmistakably personal",
+            "giving others courage through open-hearted presence",
+        ],
+        "challenges": [
+            "turning sulky when they are not appreciated enough",
+            "taking ordinary neglect as a moral offense",
+            "becoming vain, bossy, or embarrassingly approval-hungry",
+            "confusing generosity with entitlement to the center",
+            "performing strength instead of admitting hurt",
+        ],
+        "greatest_fears": [
+            "humiliation",
+            "irrelevance",
+            "being treated as ordinary after giving everything full voltage",
+            "offering loyalty and getting indifference back",
+        ],
+        "motivations": [
+            "recognition",
+            "creative self-expression",
+            "honor",
+            "being loved for a visible, undeniable personal identity",
+        ],
+    },
+
+    "virgo": {
+        "function": "refines",
+        "adverbs": [
+            "precisely",
+            "methodically",
+            "critically",
+            "usefully",
+            "fastidiously",
+        ],
+        "talents": [
+            "detecting error, waste, slop, and inconsistency with irritating accuracy",
+            "improving systems through small exact corrections",
+            "separating what is useful from what is decorative nonsense",
+            "translating vague goals into workable procedure",
+            "serving through competence instead of noise",
+        ],
+        "challenges": [
+            "becoming impossible to satisfy",
+            "editing life to death",
+            "treating anxiety as responsibility",
+            "reducing people to flaws, habits, and maintenance issues",
+            "stalling action because the standard keeps crawling upward",
+        ],
+        "greatest_fears": [
+            "being sloppy, unprepared, or unnecessary",
+            "causing preventable failure",
+            "loss of control over meaningful details",
+            "disorder that could have been fixed earlier",
+        ],
+        "motivations": [
+            "functional order",
+            "competence",
+            "clean execution",
+            "the relief of knowing nothing obvious has been neglected",
+        ],
+    },
+
+    "libra": {
+        "function": "balances",
+        "adverbs": [
+            "gracefully",
+            "relationally",
+            "diplomatically",
+            "measuredly",
+            "indecisively",
+        ],
+        "talents": [
+            "judging proportion, fairness, and tone with sharp social accuracy",
+            "making opposing sides legible to each other",
+            "reducing friction through wording, timing, and style",
+            "understanding that presentation changes outcomes",
+            "creating cooperation where cruder signs would just escalate",
+        ],
+        "challenges": [
+            "delaying decisions until the choice has gone stale",
+            "sacrificing conviction to keep things pretty",
+            "outsourcing judgment to anticipated reactions",
+            "using charm as a substitute for honesty",
+            "preferring elegance over clarity when the two conflict",
+        ],
+        "greatest_fears": [
+            "social ugliness",
+            "being cast as unreasonable or undesirable",
+            "direct conflict with no graceful exit",
+            "making the wrong choice and having to live with it publicly",
+        ],
+        "motivations": [
+            "mutuality",
+            "equilibrium",
+            "social legitimacy",
+            "being met halfway instead of dragged into brute contests",
+        ],
+    },
+
+    "scorpio": {
+        "function": "penetrates",
+        "adverbs": [
+            "intensely",
+            "secretively",
+            "strategically",
+            "obsessively",
+            "unflinchingly",
+        ],
+        "talents": [
+            "reading hidden motives and pressure points with unnerving accuracy",
+            "staying present in taboo, crisis, and high-stakes conditions",
+            "committing completely when others stay half-invested",
+            "operating well under secrecy, depth, and psychological complexity",
+            "forcing contact with what others prefer to keep buried",
+        ],
+        "challenges": [
+            "assuming rot beneath every surface",
+            "testing loyalty until the relationship becomes a laboratory",
+            "preferring control over trust",
+            "holding grudges like treasured property",
+            "making intensity the price of admission for everything",
+        ],
+        "greatest_fears": [
+            "betrayal after total investment",
+            "loss of control in intimate or exposed conditions",
+            "being truly known by the wrong person",
+            "superficiality masking corruption underneath",
+        ],
+        "motivations": [
+            "truth under pressure",
+            "absolute loyalty",
+            "power through psychological precision",
+            "the need to know what is really going on, not the sanitized version",
+        ],
+    },
+
+    "sagittarius": {
+        "function": "expands",
+        "adverbs": [
+            "freely",
+            "bluntly",
+            "enthusiastically",
+            "speculatively",
+            "restlessly",
+        ],
+        "talents": [
+            "extracting broad meaning from scattered experience",
+            "moving toward distant aims with confidence and appetite",
+            "teaching through vision rather than technical fussiness",
+            "lifting morale through candor and scale",
+            "spotting how a local issue fits into a larger belief structure",
+        ],
+        "challenges": [
+            "overshooting the facts because the bigger story feels better",
+            "becoming preachy, reckless, or intellectually lazy",
+            "treating precision as petty",
+            "assuming conviction excuses sloppiness",
+            "running from limits as though adulthood were a clerical error",
+        ],
+        "greatest_fears": [
+            "confinement",
+            "small-minded routine",
+            "cynicism",
+            "a life with no horizon beyond immediate obligation",
+        ],
+        "motivations": [
+            "freedom",
+            "discovery",
+            "belief with range",
+            "the right to chase meaning beyond what is already mapped",
+        ],
+    },
+
+    "capricorn": {
+        "function": "consolidates",
+        "adverbs": [
+            "seriously",
+            "strategically",
+            "disciplinedly",
+            "patiently",
+            "unsentimentally",
+        ],
+        "talents": [
+            "working within real limits instead of whining about them",
+            "building authority through discipline and timing",
+            "turning ambition into durable structure",
+            "assuming responsibility when consequences are real",
+            "valuing what survives fashion, mood, and fantasy",
+        ],
+        "challenges": [
+            "treating warmth like a luxury item",
+            "equating worth with output, rank, or usefulness",
+            "defaulting to severity because softness looks risky",
+            "staying in barren conditions out of pride",
+            "confusing control with maturity",
+        ],
+        "greatest_fears": [
+            "public failure",
+            "dependency",
+            "wasted effort",
+            "loss of status, structure, or command",
+        ],
+        "motivations": [
+            "mastery",
+            "credibility",
+            "earned authority",
+            "building something solid enough to outlast weaker people and passing moods",
+        ],
+    },
+
+    "aquarius": {
+        "function": "differentiates",
+        "adverbs": [
+            "independently",
+            "coolly",
+            "abstractly",
+            "contrarily",
+            "systematically",
+        ],
+        "talents": [
+            "seeing systems from outside their usual assumptions",
+            "thinking against group pressure without immediate panic",
+            "organizing around principles instead of personal favoritism",
+            "spotting future patterns before they become obvious",
+            "holding an intellectual line when convention is plainly irrational",
+        ],
+        "challenges": [
+            "mistaking emotional distance for objectivity",
+            "becoming contrary on autopilot",
+            "using theory to dodge ordinary human obligation",
+            "treating personal warmth like a design flaw",
+            "hardening into dogma while congratulating themselves for independence",
+        ],
+        "greatest_fears": [
+            "being absorbed into the herd",
+            "coercive conformity",
+            "dependence on approval",
+            "closed systems that punish experiment",
+        ],
+        "motivations": [
+            "freedom of thought",
+            "reform",
+            "participation in a larger pattern",
+            "living by chosen principles instead of inherited social scripts",
+        ],
+    },
+
+    "pisces": {
+        "function": "dissolves",
+        "adverbs": [
+            "fluidly",
+            "softly",
+            "imaginatively",
+            "porously",
+            "evasively",
+        ],
+        "talents": [
+            "perceiving subtle atmospheres and symbolic undertones",
+            "softening hard boundaries so empathy, art, and faith can function",
+            "inhabiting emotional ambiguity without immediate judgment",
+            "translating longing, sorrow, and transcendence into image or devotion",
+            "adapting where rigid definitions fail",
+        ],
+        "challenges": [
+            "leaking boundaries until there is barely a self left to defend",
+            "escaping into fantasy, passivity, or denial",
+            "idealizing what should be inspected soberly",
+            "avoiding confrontation because blunt reality feels vulgar",
+            "drifting when structure is non-negotiable",
+        ],
+        "greatest_fears": [
+            "spiritual desolation",
+            "a world with no mercy, mystery, or symbolic depth",
+            "harsh separation from what they yearn for",
+            "being trapped in conditions too rigid for imagination or surrender",
+        ],
+        "motivations": [
+            "union",
+            "transcendence",
+            "compassion",
+            "release from hard separateness, category, and ego rigidity",
+        ],
+    },
+}
+
 SIGN_KEYWORDS = {
     "aries": {
         "best": [
@@ -1672,6 +2118,8 @@ PLANET_KEYWORDS = {
             "leading", "deciding", "expressing", "commanding", "directing", "choosing",
             "affirming", "claiming", "centering", "radiating", "authoring", "standing forth",
         ],
+        "definition1":"", #just use SIGN_KEYWORDS_CANONICAL's "talents"
+        "definition2":"living", #append SIGN_KEYWORDS_CANONICAL's "adverbs" property for the sign, separated by commas in sentence form & throw in an & for the last one in the list
         "explanation":[""],
         "archetypes":[
         ],
@@ -1689,6 +2137,8 @@ PLANET_KEYWORDS = {
             "reacting", "feeling", "noticing moods", "seeking comfort", "caring",
             "finding familiarity", "seeking safety", "remembering", "settling into", "protecting", "recharging",
         ],
+        "definition1":"scared of", #append SIGN_KEYWORDS_CANONICAL's "greatest_fears" for the moon sign
+        "definition2":"comforted by", #append SIGN_KEYWORDS_CANONICAL's "talents"
         "explanation":[""],
         "archetypes":[
         ],
@@ -1706,6 +2156,8 @@ PLANET_KEYWORDS = {
             "thinking", "talking", "asking", "answering", "writing", "reading",
             "explaining", "learning", "sorting", "editing", "naming", "translating",
         ],
+        "definition1":"a lot of thought given to ", #append SIGN_KEYWORDS_CANONICAL's "motivations" property
+        "definition2":"thinking", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
         "explanation":[""],
         "archetypes":[
             "Hermes",
@@ -1726,6 +2178,8 @@ PLANET_KEYWORDS = {
             "being attracted", "sharing", "decorating", "appreciating", "savoring", "valuing",
             "harmonizing", "beautifying", "making an art out of", "interpreting femininity",
         ],
+        "definition1":"enamoured with people", #append SIGN_KEYWORDS_CANONICAL's "talents" 
+        "definition2":"attracted to", #append SIGN_KEYWORDS_CANONICAL's "motivations" 
         "explanation":[""],
         "archetypes":[
         ],
@@ -1745,6 +2199,8 @@ PLANET_KEYWORDS = {
             "getting fired up", "arguing", "pursuing", "challenging", "asserting", "building",
             "fixing", "taking risks", "forcing the issue", "interpreting masculinity",
         ],
+        "definition1":"most compelled by", #get SIGN_KEYWORDS_CANONICAL's "motivations"
+        "definition1":"made vital by", #get SIGN_KEYWORDS_CANONICAL's "motivations"
         "explanation":[""],
         "archetypes":[
         ],
@@ -1762,6 +2218,8 @@ PLANET_KEYWORDS = {
             "teaching", "learning", "traveling", "exploring", "advising", "studying",
             "publishing", "expanding", "blessing", "encouraging", "believing", "broadening",
         ],
+        "definition1":"fortunate in", #append SIGN_KEYWORDS_CANONICAL's "motivations" 
+        "definition2":"great at", #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "explanation":[""],
         "archetypes":[
             "Santa Clause",
@@ -1780,6 +2238,8 @@ PLANET_KEYWORDS = {
             "working", "committing", "practicing", "reviewing", "testing", "maintaining",
             "limiting", "being restricted", "enduring", "structuring", "bearing", "delaying", #
         ],
+        "definition1":"burdened by",  #append SIGN_KEYWORDS_CANONICAL's "challenges" 
+        "definition2":"responsible for",  #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "explanation": [
             "the condition under which order hardens, persists, decays and must be re-won","Saturn builds canyons and monuments, Saturn also ossifies, leaves residue and wears down. Saturn slowly moves mountains and erodes them. It's just time, bro.","The neutral reckoning of what persists, for better or worse.",
         ],
@@ -1804,6 +2264,8 @@ PLANET_KEYWORDS = {
             "challenging rules", "surprising", "deviating", "liberating", "destabilizing",
             "electrifying", "refusing",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[""],
         "archetypes":[
             "a live wire",
@@ -1825,6 +2287,8 @@ PLANET_KEYWORDS = {
             "trusting", "doubting", "dissolving", "drifting", "surrendering",
             "romanticizing", "misunderstanding", "finding beauty", "blurring", "intoxicating",
         ],
+        "definition1":"dreaming of",  #append SIGN_KEYWORDS_CANONICAL's "motivations" 
+        "definition2":"believing in", #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "explanation":[
             "the beautiful lie and the beautiful possibility, often in the same bottle",
         ],
@@ -1846,6 +2310,8 @@ PLANET_KEYWORDS = {
             "investigating", "tracking", "controlling", "probing", "testing limits", "resetting",
             "cutting off", "eliminating", "insisting", "obsessing", "confronting", "rebuilding",
         ],
+        "definition1":"maintaining control by",  #append SIGN_KEYWORDS_CANONICAL's "challenges" 
+        "definition2":"achieving power by",  #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "explanation":[""],
         "archetypes":[
             "Kafka plots", #lol
@@ -1865,6 +2331,8 @@ PLANET_KEYWORDS = {
             "noticing vulnerabilities", "working through", "adapting", "learning from mistakes",
             "teaching through", "practicing", "compensating", "reframing", "recovering", "guiding",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the place where difficulty becomes method, and sensitivity becomes instruction",
         ],
@@ -1885,6 +2353,8 @@ PLANET_KEYWORDS = {
             "feeding", "cooking", "shopping", "providing", "cleaning", "hosting",
             "gardening", "budgeting", "caring","nurturing others", "providing support",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[
             "the instinct to feed, tend, preserve, and keep life going through seasons of scarcity and plenty alike.",
         ],
@@ -1905,6 +2375,8 @@ PLANET_KEYWORDS = {
             "planning", "strategizing", "problem-solving", "noticing patterns", "designing", "organizing",
             "mapping", "negotiating", "advising", "spotting risks", "outmaneuvering", "synthesizing",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the intelligence that reads patterns, designs solutions, and turns perception into strategy",
         ],
@@ -1925,6 +2397,8 @@ PLANET_KEYWORDS = {
             "committing", "partnering", "negotiating", "making agreements", "sharing responsibilities",
             "keeping promises", "insisting on fairness", "checking expectations", "remaining loyal", "cooperating", "honoring vows",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the formal bond: commitment, reciprocity, and the terms under which two people agree to belong to one another",
         ],
@@ -1945,6 +2419,8 @@ PLANET_KEYWORDS = {
             "focusing", "practicing", "studying", "working alone", "maintaining devotion", "keeping vigil",
             "protecting time", "limiting distractions", "dedicating oneself", "concentrating", "tending", "preserving",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the devoted flame: disciplined concentration, protected interiority, and the work one serves with sustained focus.","#1 premium choice for ceremonial sacrifice to a dragon. Totally won't piss off the gods. *fingers crossed*",#"Prime ceremonial-sacrifice material.",
         ],
@@ -1965,6 +2441,8 @@ PLANET_KEYWORDS = {
             "wanting more", "chasing", "fixating", "amplifying", "overreaching", "becoming fascinated",
             "crossing boundaries", "competing", "grasping", "inflating", "consuming", "pushing past",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the appetite that does not know when it is fed: fixation, worldly hunger, and the restless pursuit of what seems necessary for completion",
         ],
@@ -1985,6 +2463,8 @@ PLANET_KEYWORDS = {
             "letting go", "quitting", "walking away", "detaching", "withdrawing", "cutting off",
             "ending", "simplifying", "renouncing", "releasing", "subtracting", "disidentifying",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the severing principle: release, detachment, and the strange familiarity that no longer promises fulfillment.",
         ],
@@ -2007,6 +2487,8 @@ PLANET_KEYWORDS = {
             "provoking", "refusing subordination", "claiming autonomy", "disrupting expectations",
             "testing limits", "walking away", "remaining unapologetic",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation": [
             "the part that would rather be exiled than domesticated: taboo desire, refusal of subordination, and the social cost of remaining unassimilated",
         ],
@@ -2028,6 +2510,8 @@ PLANET_KEYWORDS = {
             "finding a groove", "prospering", "landing well", "working smoothly","finding a niche",
             "meeting the right people", "being in the zone", "being in the right place",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[
             "the place of natural ease, embodied coherence, and conditions under which life tends to become more fruitful",
         ],
@@ -2048,6 +2532,8 @@ PLANET_KEYWORDS = {
             "introducing yourself", "showing up", "meeting people", "making first impressions", "taking initiative",
             "reacting", "approaching", "trying", "testing the waters", "leading with your style", "setting the tone",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[""],
         "archetypes":[
         ],
@@ -2065,6 +2551,8 @@ PLANET_KEYWORDS = {
             "working", "leading", "managing", "presenting", "delivering", "getting promoted",
             "building a reputation", "taking responsibility", "making decisions", "obtaining visibility", "owning outcomes",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[""],
         "archetypes":[
         ],
@@ -2082,6 +2570,8 @@ PLANET_KEYWORDS = {
             "dating", "partnering", "listening", "compromising", "negotiating", "collaborating",
             "sharing", "matching energy", "setting terms", "arguing", "reconciling", "committing",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[""],
         "archetypes":[
         ],
@@ -2099,6 +2589,8 @@ PLANET_KEYWORDS = {
             "resting", "going home", "bunkering down", "recovering", "nesting", "cooking",
             "cleaning", "spending family time with", "remembering", "reflecting", "saving money", "recharging",
         ],
+        "definition1":"",
+        "definition2":"",
         "explanation":[""],
         "archetypes":[
         ],
