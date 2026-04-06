@@ -1763,6 +1763,9 @@ class ChartListWidget(QListWidget):
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
+    _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.298, 0.429, 0.273)
+    _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (418, 601, 383)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
@@ -2167,6 +2170,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter = QSplitter(Qt.Horizontal)
         self._content_splitter.setHandleWidth(6)
         self._content_splitter.setChildrenCollapsible(False)
+        self._content_splitter.setOpaqueResize(True)
         self._content_splitter.addWidget(left_panel_container)
         self._content_splitter.addWidget(self.list_panel)
         self._content_splitter.addWidget(right_panel_container)
@@ -13888,36 +13892,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _default_content_splitter_sizes(self) -> list[int]:
-        return [387, 530, 420]
+        total_width = 0
+        if hasattr(self, "_content_splitter"):
+            total_width = max(0, int(self._content_splitter.width()))
+
+        if total_width <= 0:
+            return list(self._DATABASE_VIEW_FALLBACK_SPLITTER_SIZES)
+
+        ratios = self._DATABASE_VIEW_PANEL_WIDTH_RATIOS
+        left_size = max(0, int(round(total_width * ratios[0])))
+        middle_size = max(0, int(round(total_width * ratios[1])))
+        right_size = max(0, total_width - left_size - middle_size)
+        return [left_size, middle_size, right_size]
 
     def _normalize_content_splitter_sizes(self, sizes: list[int]) -> list[int]:
         if len(sizes) < 3:
             return self._default_content_splitter_sizes()
 
         normalized = [max(0, int(size)) for size in sizes[:3]]
-        if not self._left_panel_visible:
-            normalized[0] = 0
-            return normalized
-
-        active_left_widget = self.left_panel_stack.currentWidget()
-        min_left_width = max(
-            active_left_widget.minimumWidth() if active_left_widget is not None else 0,
-            220,
-        )
-        if normalized[0] >= min_left_width:
-            return normalized
-
-        needed = min_left_width - normalized[0]
-        normalized[0] = min_left_width
-
-        take_from_middle = min(needed, normalized[1])
-        normalized[1] -= take_from_middle
-        needed -= take_from_middle
-
-        if needed > 0:
-            take_from_right = min(needed, normalized[2])
-            normalized[2] -= take_from_right
-
+        if sum(normalized) <= 0:
+            return self._default_content_splitter_sizes()
         return normalized
 
     def _restore_window_settings(self) -> None:
@@ -13990,6 +13984,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if hasattr(self, "_content_splitter"):
+            configure_splitter_handle_resize_cursor(self._content_splitter)
         if hasattr(self, "_help_scrim"):
             self._help_resize_overlay()
         # if self._help_overlay_active:
