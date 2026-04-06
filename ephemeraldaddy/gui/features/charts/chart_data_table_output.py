@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
-from ephemeraldaddy.core.chart import HOUSE_COLORS, PLANET_COLORS, SIGN_COLORS
+from ephemeraldaddy.core.interpretations import HOUSE_COLORS, PLANET_COLORS, SIGN_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 _DIVIDER = "---------"
