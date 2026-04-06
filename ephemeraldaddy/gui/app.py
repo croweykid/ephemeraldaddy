@@ -19324,7 +19324,7 @@ class MainWindow(QMainWindow):
                     return
                 chart_key, raw_value = artist_gid.split(":", 1)
                 if chart_key == "sign":
-                    info_panel.setPlainText(self._build_sign_popout_info(raw_value))
+                    info_panel.setHtml(self._build_sign_popout_info(raw_value))
                     return
                 if chart_key == "body":
                     info_panel.setHtml(
@@ -19406,18 +19406,42 @@ class MainWindow(QMainWindow):
         if not any([core, strategy, function, behavior]):
             return f"No interpretation data available for {sign_name}."
 
-        lines = [f"{sign_name}", ""]
+        section_header_style = (
+            f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        )
+        sign_header_color = str(
+            SIGN_COLORS.get(sign_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        ).strip() or CHART_THEME_COLORS.get("text", "#f5f5f5")
+
+        def _section_header(label: str) -> str:
+            return f'<div style="{section_header_style}">{html.escape(label)}</div>'
+
+        lines = [
+            "<h3>"
+            f'<span style="color: {html.escape(sign_header_color)};">'
+            f"{html.escape(sign_name)}"
+            "</span>"
+            "</h3>"
+        ]
         if core:
-            lines.append(f"Core: {core}")
+            lines.append(_section_header("Core:"))
+            lines.append(f"<div>{html.escape(core)}</div><br>")
         if strategy:
-            lines.append(f"Strategy: {strategy}")
+            lines.append(_section_header("Strategy:"))
+            lines.append(f"<div>{html.escape(strategy)}</div><br>")
         if function:
-            lines.append(f"Function: {function}")
+            lines.append(_section_header("Function:"))
+            lines.append(f"<div>{html.escape(function)}</div><br>")
         if behavior:
-            behavior_lines = [f"• {entry}" for entry in behavior if str(entry).strip()]
+            behavior_lines = [
+                f"<li>{html.escape(str(entry).strip())}</li>"
+                for entry in behavior
+                if str(entry).strip()
+            ]
             if behavior_lines:
-                lines.extend(["", "Behavior:", *behavior_lines])
-        return "\n".join(lines)
+                lines.append(_section_header("Behavior:"))
+                lines.append(f"<ul>{''.join(behavior_lines)}</ul>")
+        return "".join(lines)
 
     def _build_body_popout_info(self, chart: Chart, body: str) -> str:
         body_name = str(body or "").strip()
