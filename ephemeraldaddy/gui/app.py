@@ -12438,27 +12438,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             spinbox.setToolTip("")
 
     def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
-        selected_chart_ids = set(chart_ids or [])
-        if self.current_chart_id is not None and int(self.current_chart_id) in selected_chart_ids:
+        selected_chart_ids = set(chart_ids or self._selected_chart_ids())
+        if not hasattr(self, "_pending_batch_refresh_ids"):
+            self._pending_batch_refresh_ids: set[int] = set()
+        if not hasattr(self, "_batch_refresh_in_progress"):
+            self._batch_refresh_in_progress = False
+
+        self._pending_batch_refresh_ids.update(selected_chart_ids)
+        pending_ids = set(self._pending_batch_refresh_ids)
+        if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
             self._mark_chart_analytics_sections_dirty()
             if self._latest_chart is not None:
                 self._schedule_chart_render(self._latest_chart)
 
-        if not selected_chart_ids:
-            selected_chart_ids = set(self._selected_chart_ids())
-
         def _refresh_and_restore_selection() -> None:
-            if not self.isVisible():
+            if self._batch_refresh_in_progress:
                 return
+            if not self.isVisible():
+                self._pending_batch_refresh_ids.clear()
+                return
+
+            changed_ids = set(self._pending_batch_refresh_ids)
+            if not changed_ids:
+                return
+            self._pending_batch_refresh_ids.clear()
+            self._batch_refresh_in_progress = True
             try:
                 self._refresh_charts(
-                    selected_ids=selected_chart_ids,
-                    changed_ids=selected_chart_ids,
+                    selected_ids=changed_ids,
+                    changed_ids=changed_ids,
                 )
-                if not selected_chart_ids:
-                    return
-
-                self._flash_batch_updated_rows(selected_chart_ids)
+                self._flash_batch_updated_rows(changed_ids)
                 self._on_selection_changed()
             except RuntimeError:
                 # Dialog widgets may be gone if the user navigated away before
@@ -12471,8 +12481,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     "Filter error",
                     f"Could not apply filters:\n{exc}",
                 )
+            finally:
+                self._batch_refresh_in_progress = False
+                if self._pending_batch_refresh_ids and hasattr(self, "_batch_refresh_timer"):
+                    self._batch_refresh_timer.start()
 
-        QTimer.singleShot(0, _refresh_and_restore_selection)
+        if not hasattr(self, "_batch_refresh_timer"):
+            self._batch_refresh_timer = QTimer(self)
+            self._batch_refresh_timer.setSingleShot(True)
+            self._batch_refresh_timer.setInterval(40)
+            self._batch_refresh_timer.timeout.connect(_refresh_and_restore_selection)
+        self._batch_refresh_timer.start()
 
     def _flash_batch_updated_rows(self, chart_ids: set[int]) -> None:
         if not chart_ids:
@@ -15149,8 +15168,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sort_button_label()
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
-        self._populate_list(selected_ids=selected_ids or None)
-        self._on_selection_changed()
+        if not hasattr(self, "_pending_sort_selected_ids"):
+            self._pending_sort_selected_ids: set[int] = set()
+        if not hasattr(self, "_sort_refresh_in_progress"):
+            self._sort_refresh_in_progress = False
+        self._pending_sort_selected_ids.update(selected_ids)
+
+        def _apply_sort_refresh() -> None:
+            if self._sort_refresh_in_progress:
+                return
+            self._sort_refresh_in_progress = True
+            try:
+                pending_ids = set(self._pending_sort_selected_ids)
+                self._pending_sort_selected_ids.clear()
+                self._populate_list(selected_ids=pending_ids or None)
+                self._on_selection_changed()
+            finally:
+                self._sort_refresh_in_progress = False
+                if self._pending_sort_selected_ids and hasattr(self, "_sort_refresh_timer"):
+                    self._sort_refresh_timer.start()
+
+        if not hasattr(self, "_sort_refresh_timer"):
+            self._sort_refresh_timer = QTimer(self)
+            self._sort_refresh_timer.setSingleShot(True)
+            self._sort_refresh_timer.setInterval(25)
+            self._sort_refresh_timer.timeout.connect(_apply_sort_refresh)
+        self._sort_refresh_timer.start()
 
     @staticmethod
     def _age_sort_key(datetime_iso: str | None) -> datetime.datetime:
