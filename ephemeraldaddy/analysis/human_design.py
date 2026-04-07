@@ -17,6 +17,22 @@ ZODIAC_NAMES = (
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
 
+HD_GATE_OCCURRENCE_COLORS: dict[int, str] = {
+    1: "#c24a4a",
+    2: "#d98e2f",
+    3: "#8ea63b",
+    4: "#2f9e44",
+    5: "#5dc26a",  # 5 is the "4+" bucket key
+}
+
+
+def get_hd_gate_occurrence_color(gate_occurrence_count: int) -> str:
+    """Return heatmap color for a gate occurrence count."""
+    if gate_occurrence_count <= 0:
+        return "#d6d6d6"
+    bucket = 5 if gate_occurrence_count > 4 else gate_occurrence_count
+    return HD_GATE_OCCURRENCE_COLORS.get(bucket, "#d6d6d6")
+
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""

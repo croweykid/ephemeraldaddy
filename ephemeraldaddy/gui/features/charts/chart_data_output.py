@@ -246,15 +246,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._awareness_completion_pattern = re.compile(r"^\s*[A-Za-z ]+:\s+.+-\s+(\d{1,3})%\.\s+.*$")
         self._defined_center_formats = self._build_defined_center_formats()
-        self._hd_gate_count_formats = {
-            1: self._make_format("#c24a4a"),
-            2: self._make_format("#d98e2f"),
-            3: self._make_format("#8ea63b"),
-            4: self._make_format("#2f9e44"),
-            5: self._make_format("#5dc26a"),
-        }
-        self._hd_gate_count_cache_revision = -1
-        self._hd_gate_count_cache: Counter[int] = Counter()
 
     @staticmethod
     def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
@@ -571,8 +562,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(match.group(0)),
                         house_fmt,
                     )
-        self._apply_hd_gate_heatmap(text, stripped_text)
-
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         for match in self._transit_range_date_pattern.finditer(text):
             year = int(match.group(1))
