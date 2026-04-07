@@ -3811,59 +3811,70 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.warning(self, "Generate Personal Transit", str(exc))
             return
 
-        transit_datetime_utc, include_time = self._selected_transit_datetime_utc()
-        place_label = getattr(self, "_transit_location_label", "Unknown")
-        timestamp_label = (
-            transit_datetime_utc.strftime("%Y-%m-%d %H:%M UTC")
-            if include_time
-            else transit_datetime_utc.strftime("%Y-%m-%d")
-        )
-        personal_transit_name = (
-            f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {place_label}"
-        )
-        transit_chart = Chart(
-            personal_transit_name,
-            transit_datetime_utc,
-            self._transit_lat,
-            self._transit_lon,
-            tz=datetime.timezone.utc,
-        )
-        transit_chart.birthtime_unknown = not include_time
-        transit_chart.retcon_time_used = False
+        try:
+            transit_datetime_utc, include_time = self._selected_transit_datetime_utc()
+            place_label = getattr(self, "_transit_location_label", "Unknown")
+            timestamp_label = (
+                transit_datetime_utc.strftime("%Y-%m-%d %H:%M UTC")
+                if include_time
+                else transit_datetime_utc.strftime("%Y-%m-%d")
+            )
+            personal_transit_name = (
+                f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {place_label}"
+            )
+            transit_chart = Chart(
+                personal_transit_name,
+                transit_datetime_utc,
+                self._transit_lat,
+                self._transit_lon,
+                tz=datetime.timezone.utc,
+            )
+            transit_chart.birthtime_unknown = not include_time
+            transit_chart.retcon_time_used = False
 
-        natal_normalized = normalize_chart(natal_chart, chart_id=chart_id, chart_type="natal")
-        transit_normalized = normalize_chart(transit_chart, chart_type="transit")
-        transit_in_natal = assign_houses(
-            transit_normalized.bodies,
-            natal_normalized.houses,
-            layer="TRANSIT",
-        )
-        natal_targets = assign_houses(
-            natal_normalized.bodies,
-            natal_normalized.houses,
-            layer="NATAL",
-        )
-        life_forecast_hits = compute_aspects(
-            transit_in_natal.values(),
-            natal_targets.values(),
-            personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST),
-        )
-        daily_vibe_hits = compute_aspects(
-            transit_in_natal.values(),
-            natal_targets.values(),
-            personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
-        )
+            natal_normalized = normalize_chart(natal_chart, chart_id=chart_id, chart_type="natal")
+            transit_normalized = normalize_chart(transit_chart, chart_type="transit")
+            transit_in_natal = assign_houses(
+                transit_normalized.bodies,
+                natal_normalized.houses,
+                layer="TRANSIT",
+            )
+            natal_targets = assign_houses(
+                natal_normalized.bodies,
+                natal_normalized.houses,
+                layer="NATAL",
+            )
+            life_forecast_hits = compute_aspects(
+                transit_in_natal.values(),
+                natal_targets.values(),
+                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST),
+            )
+            daily_vibe_hits = compute_aspects(
+                transit_in_natal.values(),
+                natal_targets.values(),
+                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
+            )
 
-        self._show_personal_transit_chart_popout(
-            natal_chart,
-            transit_chart,
-            transit_in_natal,
-            {
-                PERSONAL_TRANSIT_MODE_LIFE_FORECAST: life_forecast_hits,
-                PERSONAL_TRANSIT_MODE_DAILY_VIBE: daily_vibe_hits,
-            },
-            include_time=include_time,
-        )
+            self._show_personal_transit_chart_popout(
+                natal_chart,
+                transit_chart,
+                transit_in_natal,
+                {
+                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST: life_forecast_hits,
+                    PERSONAL_TRANSIT_MODE_DAILY_VIBE: daily_vibe_hits,
+                },
+                include_time=include_time,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to generate personal transit for chart_id=%s",
+                chart_id,
+            )
+            QMessageBox.critical(
+                self,
+                "Generate Personal Transit",
+                f"Failed to generate personal transit chart.\n\n{exc}",
+            )
 
     def _on_generate_composite_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
@@ -24641,61 +24652,72 @@ class MainWindow(QMainWindow):
 
         self._settings.setValue("main_window/transit_last_location", raw_location.strip())
 
-        transit_datetime_utc = datetime.datetime.now(datetime.timezone.utc)
-        local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        timestamp_label = transit_datetime_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M %Z")
-        natal_chart = copy.deepcopy(chart)
-        personal_transit_name = (
-            f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {location_label}"
-        )
-        transit_chart = Chart(
-            personal_transit_name,
-            transit_datetime_utc,
-            transit_lat,
-            transit_lon,
-            tz=datetime.timezone.utc,
-        )
-        transit_chart.birthtime_unknown = False
-        transit_chart.retcon_time_used = False
+        try:
+            transit_datetime_utc = datetime.datetime.now(datetime.timezone.utc)
+            local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+            timestamp_label = transit_datetime_utc.astimezone(local_tz).strftime("%Y-%m-%d %H:%M %Z")
+            natal_chart = copy.deepcopy(chart)
+            personal_transit_name = (
+                f"Personal Transit Chart for {natal_chart.name} on {timestamp_label} @ {location_label}"
+            )
+            transit_chart = Chart(
+                personal_transit_name,
+                transit_datetime_utc,
+                transit_lat,
+                transit_lon,
+                tz=datetime.timezone.utc,
+            )
+            transit_chart.birthtime_unknown = False
+            transit_chart.retcon_time_used = False
 
-        natal_kwargs: dict[str, Any] = {"chart_type": "natal"}
-        if chart_id is not None:
-            natal_kwargs["chart_id"] = chart_id
-        natal_normalized = normalize_chart(natal_chart, **natal_kwargs)
-        transit_normalized = normalize_chart(transit_chart, chart_type="transit")
-        transit_in_natal = assign_houses(
-            transit_normalized.bodies,
-            natal_normalized.houses,
-            layer="TRANSIT",
-        )
-        natal_targets = assign_houses(
-            natal_normalized.bodies,
-            natal_normalized.houses,
-            layer="NATAL",
-        )
-        life_forecast_hits = compute_aspects(
-            transit_in_natal.values(),
-            natal_targets.values(),
-            personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST),
-        )
-        daily_vibe_hits = compute_aspects(
-            transit_in_natal.values(),
-            natal_targets.values(),
-            personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
-        )
+            natal_kwargs: dict[str, Any] = {"chart_type": "natal"}
+            if chart_id is not None:
+                natal_kwargs["chart_id"] = chart_id
+            natal_normalized = normalize_chart(natal_chart, **natal_kwargs)
+            transit_normalized = normalize_chart(transit_chart, chart_type="transit")
+            transit_in_natal = assign_houses(
+                transit_normalized.bodies,
+                natal_normalized.houses,
+                layer="TRANSIT",
+            )
+            natal_targets = assign_houses(
+                natal_normalized.bodies,
+                natal_normalized.houses,
+                layer="NATAL",
+            )
+            life_forecast_hits = compute_aspects(
+                transit_in_natal.values(),
+                natal_targets.values(),
+                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_LIFE_FORECAST),
+            )
+            daily_vibe_hits = compute_aspects(
+                transit_in_natal.values(),
+                natal_targets.values(),
+                personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
+            )
 
-        manage_dialog = self._get_or_create_manage_charts_dialog()
-        manage_dialog._transit_location_label = location_label
-        manage_dialog._show_personal_transit_chart_popout(
-            natal_chart,
-            transit_chart,
-            transit_in_natal,
-            {
-                PERSONAL_TRANSIT_MODE_LIFE_FORECAST: life_forecast_hits,
-                PERSONAL_TRANSIT_MODE_DAILY_VIBE: daily_vibe_hits,
-            },
-            include_time=True,
-        )
+            manage_dialog = self._get_or_create_manage_charts_dialog()
+            manage_dialog._transit_location_label = location_label
+            manage_dialog._show_personal_transit_chart_popout(
+                natal_chart,
+                transit_chart,
+                transit_in_natal,
+                {
+                    PERSONAL_TRANSIT_MODE_LIFE_FORECAST: life_forecast_hits,
+                    PERSONAL_TRANSIT_MODE_DAILY_VIBE: daily_vibe_hits,
+                },
+                include_time=True,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to generate current transits for chart_id=%s",
+                chart_id,
+            )
+            QMessageBox.critical(
+                self,
+                "Get Current Transits",
+                f"Failed to generate personal transit chart.\n\n{exc}",
+            )
 
     def on_get_current_transits(self) -> None:
         self._generate_current_transits_for_chart(self._latest_chart, self.current_chart_id)
