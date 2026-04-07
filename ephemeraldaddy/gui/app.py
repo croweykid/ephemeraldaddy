@@ -1962,7 +1962,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_container = QWidget()
         chart_layout = QVBoxLayout()
         chart_layout.setContentsMargins(*DATABASE_ANALYTICS_CHART_CONTENT_MARGINS)
-        chart_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         chart_container.setLayout(chart_layout)
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             chart_container.setStyleSheet(DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE)
@@ -8661,7 +8661,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     self.sentiment_chart_layout.addWidget(
                         sentiment_canvas,
                         0,
-                        Qt.AlignHCenter,
+                        Qt.AlignLeft,
                     )
                 self._analysis_chart_export_rows["sentiment_prevalence"] = (
                     self._build_analysis_export_rows(
@@ -8703,7 +8703,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.relationship_chart_layout.addWidget(
                     relationship_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             self._analysis_chart_export_rows["relationship_prevalence"] = (
                 self._build_analysis_export_rows(
@@ -8788,7 +8788,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     self.social_score_summary_chart_layout.addWidget(
                         social_score_canvas,
                         0,
-                        Qt.AlignHCenter,
+                        Qt.AlignLeft,
                     )
                     self.alignment_cumulative_chart_container.setVisible(False)
                     self.social_score_summary_chart_container.setVisible(True)
@@ -8804,7 +8804,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     self.alignment_cumulative_chart_layout.addWidget(
                         alignment_cumulative_canvas,
                         0,
-                        Qt.AlignHCenter,
+                        Qt.AlignLeft,
                     )
                     self.alignment_cumulative_chart_container.setVisible(True)
                     self.social_score_summary_chart_container.setVisible(False)
@@ -8848,7 +8848,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.position_sign_distribution_chart_layout.addWidget(
                     position_sign_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             export_selection_values = (
                 [selection_position_signs[sign] for sign in ZODIAC_NAMES]
@@ -8950,7 +8950,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.dominant_sign_chart_layout.addWidget(
                     dominant_sign_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             if not _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
@@ -9048,7 +9048,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.cumulativedom_sign_chart_layout.addWidget(
                     cumulativedom_sign_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             if not _should_refresh_database_metric_section("cumulativedom_factors"):
                 cumulativedom_mode = self._cumulativedom_factors_mode
@@ -9197,7 +9197,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.sign_distribution_chart_layout.addWidget(
                     sign_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             self._analysis_chart_export_rows["sign_prevalence"] = (
                 self._build_analysis_export_rows(
@@ -9251,7 +9251,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.species_distribution_chart_layout.addWidget(
                     species_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             species_labels = list(selection_species.keys())
             self._analysis_chart_export_rows["species_distribution"] = (
@@ -9320,7 +9320,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.human_design_chart_layout.addWidget(
                     human_design_canvas,
                     0,
-                    Qt.AlignHCenter,
+                    Qt.AlignLeft,
                 )
             self._analysis_chart_export_rows["human_design"] = self._build_analysis_export_rows(
                 labels=human_design_labels,
@@ -9436,7 +9436,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.gender_chart_layout)
-                self.gender_chart_layout.addWidget(gender_canvas, 0, Qt.AlignHCenter)
+                self.gender_chart_layout.addWidget(gender_canvas, 0, Qt.AlignLeft)
             self._analysis_chart_export_rows["gender"] = self._build_analysis_export_rows(
                 labels=gender_labels,
                 selection_values=[selection_gender_distribution[label] for label in gender_labels],
@@ -9470,7 +9470,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     loaded_charts=loaded_charts,
                 )
                 self._clear_layout(self.birth_time_chart_layout)
-                self.birth_time_chart_layout.addWidget(birth_time_canvas, 0, Qt.AlignHCenter)
+                self.birth_time_chart_layout.addWidget(birth_time_canvas, 0, Qt.AlignLeft)
             self._analysis_chart_export_rows["birth_time"] = [
                 (
                     birth_time_label_by_mode.get(birth_time_mode, "🐣Time"),
@@ -9552,7 +9552,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         use_earthtone_cycle=(age_mode != "generation_distribution"),
                         bar_colors=generation_bar_colors,
                     )
-                    self.age_chart_layout.addWidget(age_canvas, 0, Qt.AlignHCenter)
+                    self.age_chart_layout.addWidget(age_canvas, 0, Qt.AlignLeft)
                 else:
                     self.age_chart_layout.addWidget(self._build_text_analysis_widget(["None available"]), 0, Qt.AlignTop)
             self._analysis_chart_export_rows["age"] = self._build_analysis_export_rows(
@@ -9587,7 +9587,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         loaded_charts=loaded_charts,
                     )
                     self._clear_layout(self.birth_month_chart_layout)
-                    self.birth_month_chart_layout.addWidget(month_canvas, 0, Qt.AlignHCenter)
+                    self.birth_month_chart_layout.addWidget(month_canvas, 0, Qt.AlignLeft)
                 self._analysis_chart_export_rows["birth_month"] = self._build_analysis_export_rows(
                     labels=month_labels,
                     selection_values=[float(value) for value in month_selection_counts],
@@ -9623,7 +9623,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             database_counts=[database_date_counts.get(label, 0) for label in top_date_labels],
                             loaded_charts=loaded_charts,
                         )
-                        self.birth_month_chart_layout.addWidget(date_canvas, 0, Qt.AlignHCenter)
+                        self.birth_month_chart_layout.addWidget(date_canvas, 0, Qt.AlignLeft)
                     else:
                         self.birth_month_chart_layout.addWidget(
                             self._build_text_analysis_widget(["None available"]),
@@ -9694,7 +9694,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             auto_height=True,
                             use_earthtone_cycle=True,
                         )
-                        self.birthplace_chart_layout.addWidget(country_canvas, 0, Qt.AlignHCenter)
+                        self.birthplace_chart_layout.addWidget(country_canvas, 0, Qt.AlignLeft)
                     else:
                         self.birthplace_chart_layout.addWidget(self._build_text_analysis_widget(["None available"]), 0, Qt.AlignTop)
                 else:
