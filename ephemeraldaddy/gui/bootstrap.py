@@ -6,6 +6,7 @@ module so users get immediate visual feedback during cold starts.
 
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6.QtCore import Qt
@@ -32,6 +33,10 @@ def main() -> None:
     loading = StartupLoadingWidget()
     loading.show()
     loading.update_status("Loading application modules…", 15)
+    # `bootstrap` already provides our preferred startup identity/window
+    # behavior, so avoid app.py's macOS re-exec path (which can interrupt
+    # splash progress on interpreter launches).
+    os.environ.setdefault("EPHEMERALDADDY_APPNAME_REEXEC", "1")
 
     from ephemeraldaddy.gui import app as gui_app
 
