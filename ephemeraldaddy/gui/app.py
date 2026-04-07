@@ -493,6 +493,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
+    resolve_transit_window_scan_config_for_transit_body,
     validate_transit_window_mode_flags,
 )
 from ephemeraldaddy.gui.features.coordination.event_hub import FeatureEventHub
@@ -4729,9 +4730,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             PERSONAL_TRANSIT_MODE_DAILY_VIBE: personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
         }
         transit_scan_config = resolve_transit_window_scan_config()
-        scan_step_hours = transit_scan_config.scan_step_hours
-        scan_precision_minutes = transit_scan_config.scan_precision_minutes
         include_time = transit_scan_config.include_time
+
+        def _scan_config_for_hit(hit_obj: Any):
+            return resolve_transit_window_scan_config_for_transit_body(
+                str(hit_obj.a.name),
+                base_config=transit_scan_config,
+            )
         natal_planet_weights = getattr(natal_chart, "dominant_planet_weights", None)
         if not natal_planet_weights:
             natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
@@ -4793,6 +4798,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_dt = transit_chart.dt
             chart_dt_utc = chart_dt.astimezone(datetime.timezone.utc) if chart_dt.tzinfo else chart_dt.replace(tzinfo=datetime.timezone.utc)
             rules = mode_rules.get(mode, TRANSIT_ASPECT_RULES)
+            scan_config = _scan_config_for_hit(hit_obj)
             return (
                 mode,
                 hit_obj.a.name,
@@ -4802,8 +4808,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 round(float(transit_location[0]), 4),
                 round(float(transit_location[1]), 4),
                 tuple((asp.name, float(asp.angle_deg), float(asp.orb_deg)) for asp in rules.aspect_types),
-                float(scan_step_hours),
-                float(scan_precision_minutes),
+                float(scan_config.scan_step_hours),
+                float(scan_config.scan_precision_minutes),
             )
 
         def _window_cache_get(cache_key: tuple[object, ...]) -> dict[str, object] | None:
@@ -4892,11 +4898,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                                 "hit": hit,
                                 "cache_key": _window_cache_key(source_mode, hit),
                                 "mode": source_mode,
+                                "include_time": include_time,
                             },
                         )
+                        scan_config = _scan_config_for_hit(hit)
                         state["hit"] = hit
                         state["cache_key"] = _window_cache_key(source_mode, hit)
                         state["mode"] = source_mode
+                        state["include_time"] = scan_config.include_time
                         suffix = "📆"
                         if state["resolving"]:
                             suffix = "📆 …"
@@ -4907,7 +4916,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             suffix = _format_transit_range(
                                 state["start"],
                                 state["end"],
-                                include_time=include_time,
+                                include_time=bool(state.get("include_time", include_time)),
                                 start_truncated_to_scope=bool(state.get("start_truncated_to_scope", False)),
                                 end_truncated_to_scope=bool(state.get("end_truncated_to_scope", False)),
                             )
@@ -5024,14 +5033,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _refresh_summary()
 
             thread = QThread(dialog)
+            scan_config = _scan_config_for_hit(hit)
+            state["include_time"] = scan_config.include_time
             worker = TransitAspectWindowWorker(
                 natal_chart,
                 transit_chart.dt,
                 transit_location,
                 hit,
                 mode_rules.get(mode, TRANSIT_ASPECT_RULES),
-                step_hours=scan_step_hours,
-                precision_minutes=scan_precision_minutes,
+                step_hours=scan_config.scan_step_hours,
+                precision_minutes=scan_config.scan_precision_minutes,
             )
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
@@ -5136,8 +5147,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                                     transit_location,
                                     hit,
                                     mode_rules.get(source_mode, TRANSIT_ASPECT_RULES),
-                                    step_hours=scan_step_hours,
-                                    precision_minutes=scan_precision_minutes,
+                                    step_hours=_scan_config_for_hit(hit).scan_step_hours,
+                                    precision_minutes=_scan_config_for_hit(hit).scan_precision_minutes,
                                 )
                                 if result.out_of_scope:
                                     failed = True
@@ -5153,10 +5164,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                                 error_text = "window lookup failed"
 
                         if resolved:
+                            row_include_time = bool(state.get("include_time", _scan_config_for_hit(hit).include_time))
                             window_text = _format_transit_range(
                                 start_dt,
                                 end_dt,
-                                include_time=include_time,
+                                include_time=row_include_time,
                                 start_truncated_to_scope=start_truncated,
                                 end_truncated_to_scope=end_truncated,
                             )
