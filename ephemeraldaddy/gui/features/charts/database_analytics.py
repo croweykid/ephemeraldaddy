@@ -848,22 +848,20 @@ class DatabaseAnalyticsChartsMixin:
             )
             for label in labels
         ]
-        colors = [
-            PLANET_COLORS.get(
+        def _resolve_distribution_color(label: str) -> str:
+            if label in DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS:
+                return DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS[label]
+            return PLANET_COLORS.get(
                 label,
                 HOUSE_COLORS.get(
                     label,
                     ELEMENT_COLORS.get(
                         label,
-                        DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS.get(
-                            label,
-                            NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
-                        ),
+                        NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
                     ),
                 ),
             )
-            for label in labels
-        ]
+        colors = [_resolve_distribution_color(label) for label in labels]
         positions = list(range(len(labels)))
         selection_values = [selection_planets[label] for label in labels]
         database_values = [database_planets[label] for label in labels]
