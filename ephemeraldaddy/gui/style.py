@@ -476,3 +476,47 @@ RELATIVE_YEAR_COLORS = {
     "year after next":"#ffff66",
     "other":"#ffffff"
 }
+
+
+#COLOR SPECTRUM GENERATOR:
+def get_blended_color(color1, color2, color3, color4, totalsteps, getstep):
+    # accepts 4 anchor colors; blends in totalsteps; returns color at getstep
+
+    def hex_to_rgb(h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(rgb):
+        return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+    def lerp(a, b, t):
+        return round(a + (b - a) * t)
+
+    if totalsteps <= 0:
+        raise ValueError("totalsteps must be > 0")
+
+    anchors = [hex_to_rgb(c) for c in (color1, color2, color3, color4)]
+
+    # wrap getstep so any integer works
+    t = (getstep % totalsteps) / totalsteps * 4
+    segment = int(t) % 4
+    frac = t - segment
+
+    a = anchors[segment]
+    b = anchors[(segment + 1) % 4]
+
+    rgb = tuple(lerp(a[i], b[i], frac) for i in range(3))
+    return rgb_to_hex(rgb)
+
+
+def build_spectrum(color1, color2, color3, color4, totalsteps):
+    return [
+        get_blended_color(color1, color2, color3, color4, totalsteps, getstep)
+        for getstep in range(totalsteps)
+    ]
+
+
+# example
+palette = build_spectrum("#ccffcc", "#ffff00", "#cc3300", "#ccccff", 12)
+print(palette)
+print(get_blended_color("#ccffcc", "#ffff00", "#cc3300", "#ccccff", 12, 7))

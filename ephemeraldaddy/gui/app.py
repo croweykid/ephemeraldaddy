@@ -9367,6 +9367,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             }.get(age_mode, "Age")
             generation_bar_colors: list[str] | None = None
             age_bracket_bar_colors: list[str] | None = None
+            age_chart_bar_colors: list[str] | None = None
             if age_mode == "age_distribution":
                 ordered_bracket_labels = [label for label, _min_age, _max_age in AGE_BRACKETS]
                 age_selection_counts = {
@@ -9400,6 +9401,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 age_bracket_bar_colors = [
                     age_bracket_color_by_label.get(label, "#6fa8dc") for label in age_labels
                 ]
+                age_chart_bar_colors = age_bracket_bar_colors
             elif age_mode == "generation_distribution":
                 ordered_generation_labels = [
                     str(cohort.get("name"))
@@ -9420,6 +9422,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if (age_selection_counts.get(label, 0) > 0 if loaded_charts else age_database_counts.get(label, 0) > 0)
                 ]
                 generation_bar_colors = [GENERATION_COLORS.get(label, "#6fa8dc") for label in age_labels]
+                age_chart_bar_colors = generation_bar_colors
             else:
                 age_selection_counts = {
                     str(int(key)): int(value)
@@ -9444,8 +9447,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[age_database_counts.get(label, 0) for label in age_labels],
                         loaded_charts=loaded_charts,
                         auto_height=True,
-                        use_earthtone_cycle=(age_mode != "generation_distribution"),
-                        bar_colors=generation_bar_colors or age_bracket_bar_colors,
+                        use_earthtone_cycle=(age_mode == "time_known_distribution"),
+                        bar_colors=age_chart_bar_colors,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0)
                 else:
