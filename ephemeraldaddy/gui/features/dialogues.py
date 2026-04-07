@@ -162,6 +162,7 @@ class RetconEngineDialog(QDialog):
         selectors_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
         sign_options = ["Any", *ZODIAC_NAMES]
+        half_count = (len(RETCON_BODIES) + 1) // 2
         for idx, body in enumerate(RETCON_BODIES):
             label = QLabel(body)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -175,8 +176,12 @@ class RetconEngineDialog(QDialog):
             combo.addItems(sign_options)
             combo.setCurrentText("Any")
             combo.currentTextChanged.connect(self._update_defined_position_styles)
-            row = idx // 2
-            col = (idx % 2) * 2
+            if idx < half_count:
+                row = idx
+                col = 0
+            else:
+                row = idx - half_count
+                col = 2
             selectors_layout.addWidget(label, row, col)
             selectors_layout.addWidget(combo, row, col + 1)
             self._body_sign_combos[body] = combo
