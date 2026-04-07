@@ -340,7 +340,7 @@ def build_popout_left_panel(
                     row_count = max(1, len(gate_rows))
                     y_tick_positions.append(row_start + ((row_count - 1) * row_step / 2))
                     y_tick_labels.append(str(entry.get("name", "Unknown")))
-                    if entry_index < len(entries) - 1:
+                    if is_circuits_mode and entry_index < len(entries) - 1:
                         divider_positions.append(current_row + (section_gap / 2))
                     current_row += section_gap
 
