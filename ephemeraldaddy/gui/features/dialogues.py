@@ -1,4 +1,5 @@
 """Shared dialog classes extracted from the legacy app module."""
+#Includes Retcon Engine
 
 import datetime
 import html
