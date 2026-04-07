@@ -1,0 +1,11 @@
+{
+  "time_known": {
+    "min_year": null,
+    "max_year": null,
+    "colors_by_year": {}
+  },
+  "top_birth_dates": {
+    "labels": [],
+    "colors_by_label": {}
+  }
+}

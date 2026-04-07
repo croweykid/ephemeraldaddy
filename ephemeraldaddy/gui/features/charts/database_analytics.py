@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime
+import json
 import math
 import re
 import statistics
 import textwrap
 import warnings
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -26,9 +28,13 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
+    SEASONAL_COLORS,
+    SEASONAL_COLOR_SPECTRUM,
     SENTIMENT_COLORS,
     SIGN_COLORS,
     ZODIAC_NAMES,
+    build_spectrum,
+    get_blended_color,
 )
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
@@ -51,6 +57,9 @@ from ephemeraldaddy.gui.style import (
 
 
 class DatabaseAnalyticsChartsMixin:
+    _SEASONAL_COLOR_CACHE_PATH = (
+        Path(__file__).resolve().parents[3] / "data" / "compiled" / "database_analytics_color_cache.json"
+    )
     DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
     HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
         "Head",
@@ -1917,6 +1926,153 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    @classmethod
+    def _load_seasonal_color_cache(cls) -> dict[str, Any]:
+        default_cache: dict[str, Any] = {
+            "time_known": {"min_year": None, "max_year": None, "colors_by_year": {}},
+            "top_birth_dates": {"labels": [], "colors_by_label": {}},
+        }
+        try:
+            raw = cls._SEASONAL_COLOR_CACHE_PATH.read_text(encoding="utf-8")
+            loaded = json.loads(raw)
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return default_cache
+        if not isinstance(loaded, dict):
+            return default_cache
+        default_cache.update(loaded)
+        return default_cache
+
+    @classmethod
+    def _write_seasonal_color_cache(cls, cache_data: dict[str, Any]) -> None:
+        try:
+            cls._SEASONAL_COLOR_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            cls._SEASONAL_COLOR_CACHE_PATH.write_text(
+                json.dumps(cache_data, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+        except OSError:
+            return
+
+    @staticmethod
+    def _birth_month_distribution_bar_colors() -> list[str]:
+        month_keys = (
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+        )
+        return [SEASONAL_COLOR_SPECTRUM.get(key, "#6fa8dc") for key in month_keys]
+
+    def _time_known_distribution_bar_colors(self, year_labels: list[str]) -> list[str]:
+        year_values: list[int] = []
+        for label in year_labels:
+            try:
+                year_values.append(int(label))
+            except (TypeError, ValueError):
+                continue
+        if not year_values:
+            return []
+
+        current_min_year = min(year_values)
+        current_max_year = max(year_values)
+        cache_data = self._load_seasonal_color_cache()
+        time_known_cache = cache_data.setdefault(
+            "time_known",
+            {"min_year": None, "max_year": None, "colors_by_year": {}},
+        )
+        cached_min_year = time_known_cache.get("min_year")
+        cached_max_year = time_known_cache.get("max_year")
+        cached_colors_by_year = time_known_cache.get("colors_by_year", {})
+        if not isinstance(cached_colors_by_year, dict):
+            cached_colors_by_year = {}
+
+        needs_rebuild = (
+            not cached_colors_by_year
+            or not isinstance(cached_min_year, int)
+            or not isinstance(cached_max_year, int)
+            or current_min_year < cached_min_year
+            or current_max_year > cached_max_year
+        )
+
+        if needs_rebuild:
+            total_steps = (current_max_year - current_min_year) + 1
+            spectrum = build_spectrum(
+                SEASONAL_COLORS["spring"],
+                SEASONAL_COLORS["summer"],
+                SEASONAL_COLORS["fall"],
+                SEASONAL_COLORS["winter"],
+                total_steps,
+            )
+            rebuilt_colors_by_year = {
+                str(year): spectrum[index]
+                for index, year in enumerate(range(current_min_year, current_max_year + 1))
+            }
+            time_known_cache["min_year"] = current_min_year
+            time_known_cache["max_year"] = current_max_year
+            time_known_cache["colors_by_year"] = rebuilt_colors_by_year
+            cache_data["time_known"] = time_known_cache
+            self._write_seasonal_color_cache(cache_data)
+            cached_colors_by_year = rebuilt_colors_by_year
+
+        return [str(cached_colors_by_year.get(str(int(label)), "#6fa8dc")) for label in year_labels]
+
+    def _top_birth_dates_bar_colors(self, date_labels: list[str]) -> list[str]:
+        cache_data = self._load_seasonal_color_cache()
+        top_dates_cache = cache_data.setdefault(
+            "top_birth_dates",
+            {"labels": [], "colors_by_label": {}},
+        )
+        cached_labels = top_dates_cache.get("labels", [])
+        if not isinstance(cached_labels, list):
+            cached_labels = []
+        colors_by_label = top_dates_cache.get("colors_by_label", {})
+        if not isinstance(colors_by_label, dict):
+            colors_by_label = {}
+
+        labels_changed = list(date_labels) != cached_labels
+        if labels_changed:
+            for label in date_labels:
+                if label in colors_by_label:
+                    continue
+                month_text, _dash, day_text = label.partition("-")
+                try:
+                    month_value = int(month_text)
+                    day_value = int(day_text)
+                    day_of_year = datetime.date(2001, month_value, day_value).timetuple().tm_yday
+                except (TypeError, ValueError):
+                    day_of_year = 1
+                colors_by_label[label] = get_blended_color(
+                    SEASONAL_COLORS["spring"],
+                    SEASONAL_COLORS["summer"],
+                    SEASONAL_COLORS["fall"],
+                    SEASONAL_COLORS["winter"],
+                    365,
+                    day_of_year,
+                )
+            top_dates_cache["labels"] = list(date_labels)
+            top_dates_cache["colors_by_label"] = {
+                label: colors_by_label[label]
+                for label in date_labels
+                if label in colors_by_label
+            }
+            cache_data["top_birth_dates"] = top_dates_cache
+            self._write_seasonal_color_cache(cache_data)
+            colors_by_label = top_dates_cache["colors_by_label"]
+
+        colors: list[str] = []
+        for label in date_labels:
+            colors.append(str(colors_by_label.get(label, "#6fa8dc")))
+        return colors
+
     @staticmethod
     def _database_analytics_figure_facecolor() -> str:
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:

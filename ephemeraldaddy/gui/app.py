@@ -9450,19 +9450,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     age_selection_counts.keys() if loaded_charts else age_database_counts.keys(),
                     key=int,
                 )
-            if _should_refresh_database_metric_section("age"):
-                self._clear_layout(self.age_chart_layout)
-                if age_labels:
-                    age_canvas = self._build_count_distribution_chart(
-                        labels=age_labels,
-                        selection_counts=[age_selection_counts.get(label, 0) for label in age_labels],
-                        database_counts=[age_database_counts.get(label, 0) for label in age_labels],
-                        loaded_charts=loaded_charts,
-                        auto_height=True,
-                        use_earthtone_cycle=(age_mode == "time_known_distribution"),
-                        bar_colors=age_chart_bar_colors,
-                    )
-                    self.age_chart_layout.addWidget(age_canvas, 0)
+                if _should_refresh_database_metric_section("age"):
+                    self._clear_layout(self.age_chart_layout)
+                    if age_labels:
+                        time_known_bar_colors = (
+                            self._time_known_distribution_bar_colors(age_labels)
+                            if age_mode == "time_known_distribution"
+                            else None
+                        )
+                        age_canvas = self._build_count_distribution_chart(
+                            labels=age_labels,
+                            selection_counts=[age_selection_counts.get(label, 0) for label in age_labels],
+                            database_counts=[age_database_counts.get(label, 0) for label in age_labels],
+                            loaded_charts=loaded_charts,
+                            auto_height=True,
+                            use_earthtone_cycle=False,
+                            bar_colors=time_known_bar_colors if time_known_bar_colors is not None else age_chart_bar_colors,
+                        )
+                        self.age_chart_layout.addWidget(age_canvas, 0)
                 else:
                     self.age_chart_layout.addWidget(self._build_text_analysis_widget(["None available"]), 0, Qt.AlignTop)
             self._analysis_chart_export_rows["age"] = self._build_analysis_export_rows(
@@ -9495,6 +9500,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=month_selection_counts,
                         database_counts=month_database_counts,
                         loaded_charts=loaded_charts,
+                        bar_colors=self._birth_month_distribution_bar_colors(),
                     )
                     self._clear_layout(self.birth_month_chart_layout)
                     self.birth_month_chart_layout.addWidget(month_canvas, 0)
@@ -9532,6 +9538,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             selection_counts=[selection_date_counts.get(label, 0) for label in top_date_labels],
                             database_counts=[database_date_counts.get(label, 0) for label in top_date_labels],
                             loaded_charts=loaded_charts,
+                            bar_colors=self._top_birth_dates_bar_colors(top_date_labels),
                         )
                         self.birth_month_chart_layout.addWidget(date_canvas, 0)
                     else:
