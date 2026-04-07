@@ -44,7 +44,10 @@ from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
-from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
+from ephemeraldaddy.gui.style import (
+    MIDDLE_PANEL_ACCENT_COLOR,
+    configure_share_export_icon_button,
+)
 
 
 def _format_longitude(lon: float) -> str:
@@ -237,10 +240,13 @@ class RetconEngineDialog(QDialog):
         self.status_label = QLabel("Ready.")
         status_row.addWidget(self.status_label)
         status_row.addStretch(1)
-        self.export_button = QPushButton("Share / Export")
+        self.export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            self.export_button.setIcon(QIcon(share_icon_path))
+        configure_share_export_icon_button(
+            self.export_button,
+            share_icon_path=share_icon_path,
+            tooltip="Export Retcon results as TXT or Markdown",
+        )
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_results)
         status_row.addWidget(self.export_button, 0, Qt.AlignRight)
