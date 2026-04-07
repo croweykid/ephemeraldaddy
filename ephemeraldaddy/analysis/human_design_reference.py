@@ -654,6 +654,28 @@ HD_AUTHORITY_COLORS = {
     "lunar": "#00ffff", #'Moon' colored
 }
 
+HD_STANDARD_TYPES: tuple[str, ...] = (
+    "Manifestor",
+    "Generator",
+    "Manifesting Generator",
+    "Projector",
+    "Reflector",
+)
+
+HD_STANDARD_AUTHORITIES: tuple[str, ...] = (
+    "Emotional",
+    "Sacral",
+    "Splenic",
+    "Ego",
+    "Self-Projected",
+    "Mental",
+    "Lunar",
+)
+
+HD_AUTHORITY_ALIASES: dict[str, str] = {
+    "No Inner Authority": "Lunar",
+}
+
 HD_DEFINITIONS = {
     "single_definition": (
         "Your defined centers are all connected as one system. "
