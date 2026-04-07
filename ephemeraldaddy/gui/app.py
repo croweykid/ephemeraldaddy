@@ -383,6 +383,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     chart_uses_houses as _chart_uses_houses,
     dominant_planet_keys as _dominant_planet_keys,
     house_for_longitude as _house_for_longitude,
+    house_membership_weights as _house_membership_weights,
     house_span_signs as _house_span_signs,
     planet_sign_weight as _planet_sign_weight,
     planet_weight as _planet_weight,
@@ -19500,6 +19501,62 @@ class MainWindow(QMainWindow):
             if behavior_lines:
                 lines.append(_section_header("Behavior:"))
                 lines.append(f"<ul>{''.join(behavior_lines)}</ul>")
+        lines.append(self._build_sign_dominance_section(chart, sign_name))
+        return "".join(lines)
+
+    def _dominance_section_header_html(self, chart: Chart) -> str:
+        chart_name = str(getattr(chart, "name", "") or "").strip() or "this chart"
+        return (
+            f'<div style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
+            f"Why Dominant (or Not)? (for {html.escape(chart_name)})"
+            "</div>"
+        )
+
+    def _build_sign_dominance_section(self, chart: Chart, sign_name: str) -> str:
+        mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
+        lines: list[str] = [self._dominance_section_header_html(chart)]
+        if mode == "sign_prevalence":
+            lines.append("<ul><li>Sign Prevalence mode is active (raw placements, not weighted dominance).</li></ul>")
+            return "".join(lines)
+
+        use_houses = _chart_uses_houses(chart)
+        houses = getattr(chart, "houses", None) if use_houses else None
+        placement_lines: list[str] = []
+        for body in PLANET_ORDER:
+            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                continue
+            lon = chart.positions.get(body)
+            if lon is None or _sign_for_longitude(lon) != sign_name:
+                continue
+            house_num = _house_for_longitude(houses, lon)
+            _weighted_sign, body_weight = _planet_sign_weight(body, lon, houses, house_num)
+            placement_lines.append(
+                f"{html.escape(_display_body_name(body))} in {html.escape(sign_name)}"
+                + (f", House {house_num}" if house_num else "")
+                + f" (base sign weight {body_weight:.2f})"
+            )
+
+        if placement_lines:
+            lines.append("<ul>" + "".join(f"<li>{entry}</li>" for entry in placement_lines) + "</ul>")
+        else:
+            lines.append("<ul><li>No chart points are currently in this sign.</li></ul>")
+
+        aspect_lines: list[str] = []
+        for aspect in getattr(chart, "aspects", []) or []:
+            p1 = str(aspect.get("p1", ""))
+            p2 = str(aspect.get("p2", ""))
+            lon1 = chart.positions.get(p1)
+            lon2 = chart.positions.get(p2)
+            if lon1 is None or lon2 is None:
+                continue
+            if sign_name not in {_sign_for_longitude(lon1), _sign_for_longitude(lon2)}:
+                continue
+            aspect_type = str(aspect.get("type", "")).strip() or "aspect"
+            aspect_lines.append(
+                f"{html.escape(_display_body_name(p1))} {html.escape(aspect_type)} {html.escape(_display_body_name(p2))}"
+            )
+        if aspect_lines:
+            lines.append("<ul>" + "".join(f"<li>Aspect contribution: {entry}</li>" for entry in aspect_lines[:8]) + "</ul>")
         return "".join(lines)
 
     def _build_body_popout_info(self, chart: Chart, body: str) -> str:
@@ -19633,7 +19690,64 @@ class MainWindow(QMainWindow):
         if reaction:
             html_parts.append(_section_header("Reactions from Others"))
             html_parts.append(f"<div>{html.escape(reaction)}</div>")
+        html_parts.append(self._build_body_dominance_section(chart, body_name))
         return "".join(html_parts)
+
+    def _build_body_dominance_section(self, chart: Chart, body_name: str) -> str:
+        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
+        lines: list[str] = [self._dominance_section_header_html(chart)]
+        if mode == "sidereal_planet_prevalence":
+            lines.append("<ul><li>Sidereal Planet Prevalence mode is active (raw prevalence count, not weighted dominance).</li></ul>")
+            return "".join(lines)
+
+        lon = chart.positions.get(body_name)
+        if lon is None:
+            lines.append("<ul><li>This body is unavailable in the current chart.</li></ul>")
+            return "".join(lines)
+
+        use_houses = _chart_uses_houses(chart)
+        houses = getattr(chart, "houses", None) if use_houses else None
+        sign = _sign_for_longitude(lon)
+        house_num = _house_for_longitude(houses, lon)
+        _weighted_sign, sign_weight = _planet_sign_weight(body_name, lon, houses, house_num)
+        total_weight = _planet_weight(body_name, lon, houses, house_num)
+        bullets = [
+            f"{html.escape(_display_body_name(body_name))} in {html.escape(sign)}"
+            + (f", House {house_num}" if house_num else "")
+            + f" (base {sign_weight:.2f}, with natural-house/body additions {total_weight:.2f})"
+        ]
+
+        if house_num and houses:
+            membership = _house_membership_weights(houses, lon)
+            blended = [f"House {h}: {share * 100:.1f}%" for h, share in sorted(membership.items())]
+            if blended:
+                bullets.append("House blend: " + ", ".join(blended))
+
+        rulerships = PLANET_RULERSHIP.get(body_name) or ()
+        if sign in rulerships:
+            bullets.append(f"In rulership in {sign} (+{RULERSHIP_WEIGHT:g}).")
+        exaltation = PLANET_EXALTATION.get(body_name)
+        if exaltation and sign == exaltation.get("sign"):
+            bullets.append(f"Exalted in {sign} (+{EXALTATION_WEIGHT:g}).")
+        detriments = PLANET_DETRIMENT.get(body_name) or ()
+        if sign in detriments:
+            bullets.append(f"In detriment in {sign} ({DETRIMENT_WEIGHT:g}).")
+        fall = PLANET_FALL.get(body_name)
+        if fall and sign == fall.get("sign"):
+            bullets.append(f"In fall in {sign} ({FALL_WEIGHT:g}).")
+
+        aspect_bullets: list[str] = []
+        for aspect in getattr(chart, "aspects", []) or []:
+            p1 = str(aspect.get("p1", ""))
+            p2 = str(aspect.get("p2", ""))
+            if body_name not in {p1, p2}:
+                continue
+            other = p2 if p1 == body_name else p1
+            aspect_type = str(aspect.get("type", "")).strip() or "aspect"
+            aspect_bullets.append(f"{html.escape(_display_body_name(body_name))} {html.escape(aspect_type)} {html.escape(_display_body_name(other))}")
+        bullets.extend(aspect_bullets[:10])
+        lines.append("<ul>" + "".join(f"<li>{bullet}</li>" for bullet in bullets) + "</ul>")
+        return "".join(lines)
 
     def _build_house_popout_info(self, chart: Chart, house_num: int) -> str:
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
@@ -19702,13 +19816,57 @@ class MainWindow(QMainWindow):
             f"{html.escape(rank_blurb)}"
             "</h3>"
         )
+        info_parts = [header]
         if not keyword_lines:
-            return f"{header}<div>No core_domains entries available.</div>"
-        return (
-            f"{header}"
-            f'<div style="{section_header_style}">Keywords:</div>'
-            f"<ul>{''.join(keyword_lines)}</ul>"
-        )
+            info_parts.append("<div>No core_domains entries available.</div>")
+        else:
+            info_parts.append(f'<div style="{section_header_style}">Keywords:</div>')
+            info_parts.append(f"<ul>{''.join(keyword_lines)}</ul>")
+        info_parts.append(self._build_house_dominance_section(chart, house_num))
+        return "".join(info_parts)
+
+    def _build_house_dominance_section(self, chart: Chart, target_house: int) -> str:
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
+        lines: list[str] = [self._dominance_section_header_html(chart)]
+        if mode == "house_prevalence":
+            lines.append("<ul><li>House Prevalence mode is active (raw placements, not weighted dominance).</li></ul>")
+            return "".join(lines)
+        if not _chart_uses_houses(chart):
+            lines.append("<ul><li>Houses are unavailable for this chart, so no house-dominance scoring can be applied.</li></ul>")
+            return "".join(lines)
+        houses = getattr(chart, "houses", None)
+        if not houses:
+            lines.append("<ul><li>House cusp data is missing.</li></ul>")
+            return "".join(lines)
+
+        house_sign_spans = _house_span_signs(houses)
+        span = house_sign_spans[target_house - 1] if 1 <= target_house <= 12 else []
+        bullets = [
+            f"House {target_house} spans: {', '.join(html.escape(sign) for sign in span) if span else 'n/a'}."
+        ]
+
+        contributing_points: list[str] = []
+        for body in list(_dominant_planet_keys(chart)) + ["AS", "IC", "DS", "MC"]:
+            lon = chart.positions.get(body)
+            if lon is None:
+                continue
+            membership = _house_membership_weights(houses, lon)
+            share = float(membership.get(target_house, 0.0))
+            if share <= 0:
+                continue
+            primary_house = _house_for_longitude(houses, lon)
+            if primary_house is None:
+                continue
+            body_weight = _planet_weight(body, lon, houses, primary_house)
+            contributing_points.append(
+                f"{html.escape(_display_body_name(body))}: {body_weight:.2f} × {share:.2f} share"
+            )
+        if contributing_points:
+            bullets.extend(contributing_points[:14])
+        else:
+            bullets.append("No bodies/angles contributed weight to this house.")
+        lines.append("<ul>" + "".join(f"<li>{entry}</li>" for entry in bullets) + "</ul>")
+        return "".join(lines)
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
         mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
