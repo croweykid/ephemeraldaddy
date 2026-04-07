@@ -17438,20 +17438,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        chart_id = item.data(Qt.UserRole)
-        if chart_id is None:
+        chart_id_value = item.data(Qt.UserRole)
+        if chart_id_value is None:
             QMessageBox.warning(
                 self,
                 "Personal Transit Chart",
                 "The selected row does not reference a saved chart.",
             )
             return
+        try:
+            chart_id = int(chart_id_value)
+        except (TypeError, ValueError):
+            QMessageBox.warning(
+                self,
+                "Personal Transit Chart",
+                "The selected row does not reference a valid chart id.",
+            )
+            return
 
         self._refresh_personal_transit_chart_options()
         selected_label = None
-        suffix = f"[#{int(chart_id)}]"
-        for label in self._personal_transit_chart_lookup:
-            if label.endswith(suffix):
+        for label, candidate_id in self._personal_transit_chart_lookup.items():
+            if candidate_id == chart_id:
                 selected_label = label
                 break
         if selected_label is None:
