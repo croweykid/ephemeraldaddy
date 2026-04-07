@@ -4717,6 +4717,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not natal_planet_weights:
             natal_planet_weights = _calculate_dominant_planet_weights(natal_chart)
 
+        def _transit_range_key(mode: str, hit_obj: Any) -> tuple[str, str, str, str]:
+            return (
+                str(mode),
+                str(hit_obj.a.name),
+                str(hit_obj.aspect),
+                str(hit_obj.b.name),
+            )
+
         def _build_personal_transit_sections(sort_mode: str) -> list[tuple[str, str, list[tuple[Any, str]], str]]:
             daily_hits, rollover_hits = split_daily_vibe_hits_by_expected_duration(
                 aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, [])
@@ -4849,7 +4857,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
                     for hit, source_mode in entries[:80]:
-                        key = (source_mode, hit.a.name, hit.aspect, hit.b.name)
+                        key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.setdefault(
                             key,
                             {
@@ -4876,7 +4884,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         elif state["failed"]:
                             error_text = state.get("error", "")
                             suffix = f"📆 ⚠ {error_text}" if error_text else "📆 ⚠"
-                        elif state["expanded"] and state["resolved"]:
+                        elif state["resolved"]:
                             suffix = _format_transit_range(
                                 state["start"],
                                 state["end"],
@@ -4915,8 +4923,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 lines.append("")
             summary_output.setPlainText("\n".join(lines))
             popout_context["aspect_info_map"] = aspect_info_map
-            vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
-            horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
+            def _restore_scroll_positions() -> None:
+                vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
+                horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
+
+            QTimer.singleShot(0, _restore_scroll_positions)
         def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
             transit_workers.pop(key, None)
             _finalize_transit_worker_shutdown()
@@ -5005,14 +5016,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             thread.started.connect(worker.run)
             worker.finished.connect(
                 lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
-                    (mode, a, b, c),
+                    (str(mode), str(a), str(b), str(c)),
                     start_dt,
                     end_dt,
                     metadata,
                 )
             )
             worker.failed.connect(
-                lambda a, b, c, error_text, mode=mode: _on_window_failed((mode, a, b, c), error_text)
+                lambda a, b, c, error_text, mode=mode: _on_window_failed(
+                    (str(mode), str(a), str(b), str(c)),
+                    error_text,
+                )
             )
             worker.finished.connect(thread.quit)
             worker.failed.connect(thread.quit)
@@ -5071,7 +5085,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 lines.extend([section_title, section_subtitle, ""])
                 if entries:
                     for hit, source_mode in entries[:80]:
-                        key = (source_mode, hit.a.name, hit.aspect, hit.b.name)
+                        key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.get(key, {})
                         start_dt = state.get("start")
                         end_dt = state.get("end")
@@ -5154,9 +5168,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                if not bool(state["expanded"]):
-                    state["expanded"] = True
-                    _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
