@@ -436,6 +436,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
+    build_circuit_group_completion,
     derive_human_design_profile,
     build_human_design_result,
     build_human_design_chart_data_output,
@@ -4304,6 +4305,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
         awareness_stream_entries: list[dict[str, Any]] | None = None,
+        circuit_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4321,6 +4323,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
+            circuit_entries=circuit_entries,
         )
 
     def _sort_popout_aspects(
@@ -24225,6 +24228,7 @@ class MainWindow(QMainWindow):
         aspect_subheader: str | None = None,
         show_aspect_distribution: bool = True,
         awareness_stream_entries: list[dict[str, Any]] | None = None,
+        circuit_entries: list[dict[str, Any]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -24242,6 +24246,7 @@ class MainWindow(QMainWindow):
             chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
+            circuit_entries=circuit_entries,
         )
 
     def on_popout_chart(self) -> None:
@@ -24416,6 +24421,7 @@ class MainWindow(QMainWindow):
             return 0.0
         hd_result = build_human_design_result(self._latest_chart)
         awareness_stream_entries = build_awareness_stream_completion(set(hd_result.active_gates))
+        circuit_entries = build_circuit_group_completion(set(hd_result.active_gates))
 
         chart_info_output = self._build_popout_left_panel(
             layout,
@@ -24425,6 +24431,7 @@ class MainWindow(QMainWindow):
             weighted_score_for_entry=_weighted_natal_score,
             show_aspect_distribution=False,
             awareness_stream_entries=awareness_stream_entries,
+            circuit_entries=circuit_entries,
         )
 
         right_layout = QVBoxLayout()

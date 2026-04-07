@@ -9,7 +9,7 @@ from ephemeraldaddy.core.human_design_system import (
     HumanDesignResult,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
@@ -86,6 +86,40 @@ def build_awareness_stream_completion(active_gate_set: set[int]) -> list[dict[st
             }
         )
     return awareness_payload
+
+
+def build_circuit_group_completion(active_gate_set: set[int]) -> list[dict[str, Any]]:
+    """Build per-circuit completion payload for Human Design visuals."""
+    circuit_payload: list[dict[str, Any]] = []
+    for group_name, group_meta in HD_CIRCUIT_GROUPS.items():
+        required_gates = sorted({int(gate) for gate in group_meta.get("gates", ()) if isinstance(gate, int)})
+        if not required_gates:
+            circuit_payload.append(
+                {
+                    "type": "Circuit",
+                    "name": str(group_name),
+                    "gates": [],
+                    "present_gates": [],
+                    "completion_pct": 0,
+                    "missing_text": "Missing all gates",
+                }
+            )
+            continue
+        present_gates = [gate for gate in required_gates if gate in active_gate_set]
+        completion_pct = int(round((len(present_gates) / len(required_gates)) * 100))
+        missing = [str(gate) for gate in required_gates if gate not in active_gate_set]
+        missing_text = f"Missing {', '.join(missing)}" if missing else "Complete"
+        circuit_payload.append(
+            {
+                "type": "Circuit",
+                "name": str(group_name),
+                "gates": required_gates,
+                "present_gates": present_gates,
+                "completion_pct": completion_pct,
+                "missing_text": missing_text,
+            }
+        )
+    return circuit_payload
 
 
 def _build_hd_positions_lines(hd_result: HumanDesignResult) -> list[str]:

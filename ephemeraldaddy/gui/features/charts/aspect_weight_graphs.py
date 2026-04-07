@@ -185,25 +185,30 @@ def build_popout_left_panel(
     chart_theme_colors: dict[str, str],
     show_aspect_distribution: bool = True,
     awareness_stream_entries: list[dict[str, Any]] | None = None,
+    circuit_entries: list[dict[str, Any]] | None = None,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
     analytics_header_layout = QHBoxLayout()
     analytics_header_layout.setContentsMargins(0, 0, 0, 0)
     analytics_header_layout.setSpacing(6)
-    showing_awareness_streams = bool(awareness_stream_entries)
-    analytics_label = QLabel("Awareness Streams" if showing_awareness_streams else "Aspect Distribution")
+    showing_human_design_streams = bool(awareness_stream_entries or circuit_entries)
+    analytics_label = QLabel("Awareness Streams" if showing_human_design_streams else "Aspect Distribution")
     analytics_label.setStyleSheet(chart_data_info_label_style)
     analytics_header_layout.addWidget(analytics_label)
 
     analytics_view_dropdown = QComboBox()
     analytics_view_dropdown.setStyleSheet(database_analytics_dropdown_style)
-    analytics_view_dropdown.addItem("ASPECTS (WEIGHTED)", "aspects_weighted")
-    analytics_view_dropdown.addItem("ASPECT TYPES (WEIGHTED)", "aspect_types_weighted")
-    analytics_view_dropdown.addItem("ASPECT FRICTION (WEIGHTED)", "aspect_friction_weighted")
-    analytics_view_dropdown.addItem("ASPECTS (PREVALENCE)", "aspects")
-    analytics_view_dropdown.addItem("ASPECT TYPES (PREVALENCE)", "aspect_types")
-    analytics_view_dropdown.addItem("ASPECT FRICTION (PREVALENCE)", "aspect_friction")
+    if showing_human_design_streams:
+        analytics_view_dropdown.addItem("AWARENESS STREAMS", "awareness_streams")
+        analytics_view_dropdown.addItem("CIRCUITS", "circuits")
+    else:
+        analytics_view_dropdown.addItem("ASPECTS (WEIGHTED)", "aspects_weighted")
+        analytics_view_dropdown.addItem("ASPECT TYPES (WEIGHTED)", "aspect_types_weighted")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (WEIGHTED)", "aspect_friction_weighted")
+        analytics_view_dropdown.addItem("ASPECTS (PREVALENCE)", "aspects")
+        analytics_view_dropdown.addItem("ASPECT TYPES (PREVALENCE)", "aspect_types")
+        analytics_view_dropdown.addItem("ASPECT FRICTION (PREVALENCE)", "aspect_friction")
     analytics_header_layout.addWidget(analytics_view_dropdown, 0, Qt.AlignLeft)
 
     analytics_header_layout.addStretch(1)
@@ -221,16 +226,17 @@ def build_popout_left_panel(
     analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
     left_panel_layout.addLayout(analytics_header_layout)
 
-    show_legacy_aspect_controls = show_aspect_distribution and not showing_awareness_streams
-    analytics_label.setVisible(show_aspect_distribution or showing_awareness_streams)
-    analytics_view_dropdown.setVisible(show_legacy_aspect_controls)
+    show_legacy_aspect_controls = show_aspect_distribution and not showing_human_design_streams
+    show_human_design_dropdown = showing_human_design_streams
+    analytics_label.setVisible(show_aspect_distribution or showing_human_design_streams)
+    analytics_view_dropdown.setVisible(show_legacy_aspect_controls or show_human_design_dropdown)
     analytics_export_button.setVisible(show_legacy_aspect_controls)
 
     if aspect_subheader:
         aspect_subheader_label = QLabel(aspect_subheader)
         aspect_subheader_label.setWordWrap(True)
         aspect_subheader_label.setStyleSheet(f"color: {chart_theme_colors['text']};")
-        aspect_subheader_label.setVisible(show_aspect_distribution or showing_awareness_streams)
+        aspect_subheader_label.setVisible(show_aspect_distribution or showing_human_design_streams)
         left_panel_layout.addWidget(aspect_subheader_label)
 
     analytics_figure = Figure(figsize=(4.2, 3.4))
@@ -280,7 +286,7 @@ def build_popout_left_panel(
     analytics_export_button.clicked.connect(_export_selected_aspect_distribution)
 
     def _render_analytics_chart() -> None:
-        if showing_awareness_streams:
+        if showing_human_design_streams:
             analytics_ax.clear()
             analytics_ax.set_facecolor(chart_theme_colors["background"])
             color_by_completion = {
@@ -290,18 +296,22 @@ def build_popout_left_panel(
                 3: "#7e9f3a",
                 4: "#2f8f86",
             }
-            entries = awareness_stream_entries or []
+            selected_mode = str(analytics_view_dropdown.currentData() or "awareness_streams")
+            entries = circuit_entries if selected_mode == "circuits" else awareness_stream_entries
+            entries = entries or []
             if entries:
                 y_positions = list(range(len(entries)))
-                analytics_ax.set_xlim(0, 4)
+                max_gate_count = max(1, max(len([gate for gate in entry.get("gates", []) if isinstance(gate, int)]) for entry in entries))
+                analytics_ax.set_xlim(0, max_gate_count)
                 analytics_ax.set_ylim(-0.5, len(entries) - 0.5)
                 analytics_ax.invert_yaxis()
                 for row_index, entry in enumerate(entries):
                     gates = [int(gate) for gate in entry.get("gates", []) if isinstance(gate, int)]
                     present_gates = set(int(gate) for gate in entry.get("present_gates", []))
                     completion_count = len([gate for gate in gates if gate in present_gates])
-                    segment_color = color_by_completion.get(completion_count, color_by_completion[0])
-                    for segment_index, gate in enumerate(gates[:4]):
+                    completion_level = int(round((completion_count / max(1, len(gates))) * 4)) if gates else 0
+                    segment_color = color_by_completion.get(completion_level, color_by_completion[0])
+                    for segment_index, gate in enumerate(gates):
                         gate_present = gate in present_gates
                         face_color = segment_color if gate_present else "#4f4f4f"
                         label_color = "#ffffff" if gate_present else "#b8b8b8"
@@ -337,7 +347,7 @@ def build_popout_left_panel(
                 analytics_ax.text(
                     0.5,
                     0.5,
-                    "No awareness stream data",
+                    "No Human Design stream data",
                     color=chart_theme_colors["muted_text"],
                     ha="center",
                     va="center",
@@ -371,7 +381,7 @@ def build_popout_left_panel(
     _render_analytics_chart()
     analytics_canvas.setMinimumHeight(220)
     analytics_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    analytics_canvas.setVisible(show_aspect_distribution or showing_awareness_streams)
+    analytics_canvas.setVisible(show_aspect_distribution or showing_human_design_streams)
     left_panel_layout.addWidget(analytics_canvas, 2)
 
     chart_info_label = QLabel("Chart Info!")
@@ -401,7 +411,7 @@ def build_popout_left_panel(
             parent.chart_info_output = original_chart_info_output
 
     def _on_awareness_pick(event: Any) -> None:
-        if not showing_awareness_streams:
+        if not showing_human_design_streams:
             return
         artist = getattr(event, "artist", None)
         artist_gid = artist.get_gid() if artist is not None else None
