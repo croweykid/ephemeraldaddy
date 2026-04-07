@@ -4961,7 +4961,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _finalize_transit_worker_shutdown()
             # Drain in the next event-loop tick so worker/thread teardown fully settles
             # before potentially spawning another preload worker.
-            #QTimer.singleShot(0, _drain_preload_queue) #this is causing crashes.
+            QTimer.singleShot(0, _drain_preload_queue) #this is causing crashes.
 
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
@@ -5210,7 +5210,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
         _refresh_summary()
         preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
-        _drain_preload_queue()
+        QTimer.singleShot(0, _drain_preload_queue)
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
