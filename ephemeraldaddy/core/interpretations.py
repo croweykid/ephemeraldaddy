@@ -1152,6 +1152,43 @@ PLANET_GLYPHS = {
     "IC": "IC",
 }
 
+SYNASTRY_PAIR_WEIGHTS = {
+    ("Sun", "Moon"): 10.0,
+    ("Moon", "Moon"): 9.5,
+    ("Venus", "Mars"): 9.0,
+    ("Venus", "Venus"): 8.5,
+    ("Sun", "Venus"): 8.0,
+    ("Moon", "Venus"): 8.0,
+    ("Mercury", "Mercury"): 7.5,
+    ("Saturn", "Sun"): 8.5,
+    ("Saturn", "Moon"): 9.0,
+    ("Saturn", "Venus"): 8.5,
+    ("Mars", "Mars"): 7.0,
+    ("Pluto", "Venus"): 6.5,
+    ("Uranus", "Moon"): 6.0,
+}
+
+SYNASTRY_AXES = {
+    "emotional harmony",
+    "romance",
+    "sexiness",
+    "communication",
+    "stability",
+    "friction",
+    "obsession & intensity",
+    "domestic compatibility",
+    "overall",
+}
+
+# contact_score = [
+#     SYNASTRY_PAIR_WEIGHTS
+#     * aspect_strength
+#     * exactness
+#     * natal_relevance
+#     * directional_receptivity
+#     * repetition_bonus
+# ]
+
 SIGN_KEYWORDS_CANONICAL = {
     "aries": {
         "function": "starts",

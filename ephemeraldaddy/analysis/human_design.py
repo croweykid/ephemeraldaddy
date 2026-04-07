@@ -288,6 +288,7 @@ def build_human_design_chart_data_output(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
 
+#Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
         CHART_DATA_DIVIDER,
         "CORE DESIGNATION",
@@ -302,13 +303,6 @@ def build_human_design_chart_data_output(
         "",
         CHART_DATA_DIVIDER,
         *position_lines,
-        "",
-        CHART_DATA_DIVIDER,
-        "BODYGRAPH PROPERTIES",
-        CHART_DATA_DIVIDER,
-        definition_line,
-        strategy_line,
-        f"Incarnation Cross: {hd_result.incarnation_cross}",
         "",
         CHART_DATA_DIVIDER,
         "GATES",
