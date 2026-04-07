@@ -770,18 +770,10 @@ def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
     gate_info = GATE_REFERENCE.get(gate_num, {"name": "Unknown Gate", "meaning": "No gate reference available."})
     header = f"Gate {gate_num} • {gate_info['name']}"
-    body_lines = [
-        f"• Core meaning: {gate_info['meaning']}",
-        "• Reference: Human Design gate keynotes (Rave Mandala / I’Ching gate framework).",
-    ]
+    body_lines = [f"Gate {gate_num}: {gate_info['meaning']}"]
     if line is not None:
         line_num = int(line)
         line_text = LINE_ARCHETYPES.get(line_num, "No line archetype available.")
-        body_lines.extend(
-            [
-                f"• Line {line_num} archetype: {line_text}",
-                "• Color/Tone/Base values for this activation are shown directly in the Human Design chart panel.",
-            ]
-        )
+        body_lines.append(f"Line {line_num} Archetype: {line_text}")
         header = f"Gate {gate_num} • Line {line_num}"
     return "\n".join([header, "", *body_lines])
