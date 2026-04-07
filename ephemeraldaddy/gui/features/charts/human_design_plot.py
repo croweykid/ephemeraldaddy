@@ -65,10 +65,15 @@ def _channel_key(gate_a: int, gate_b: int) -> tuple[int, int]:
 
 
 PAIR_CHANNEL_ORDER_INNER_TO_OUTER: dict[tuple[str, str], list[tuple[int, int]]] = {
+    ("Ajna", "Head"): [(61, 24), (64, 47), (63, 4)],
+    ("Ajna", "Throat"): [(43, 23), (17, 62), (11, 56)],
+    ("G", "Sacral"): [(15, 5), (2, 14)],
+    ("G", "Throat"): [(31, 7), (8, 1), (13, 33)],
     ("Root", "Sacral"): [(3, 60), (42, 53), (9, 52)],
     ("Root", "Solar Plexus"): [(19, 49), (39, 55), (30, 41)],
     ("Root", "Spleen"): [(32, 54), (28, 38), (18, 58)],
-    ("Sacral", "Spleen"): [(27, 50), (34, 57)],
+    ("Sacral", "Spleen"): [(34, 57), (27, 50)],
+    ("Spleen", "Throat"): [(16, 48), (20, 57)],
 }
 
 
