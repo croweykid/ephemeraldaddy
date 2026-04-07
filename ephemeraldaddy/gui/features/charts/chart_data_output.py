@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import re
+from collections import Counter
 
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QWidget
@@ -14,6 +15,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -243,6 +245,16 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             0: self._make_format("#777777"),
         }
         self._awareness_completion_pattern = re.compile(r"^\s*[A-Za-z ]+:\s+.+-\s+(\d{1,3})%\.\s+.*$")
+        self._defined_center_formats = self._build_defined_center_formats()
+        self._hd_gate_count_formats = {
+            1: self._make_format("#c24a4a"),
+            2: self._make_format("#d98e2f"),
+            3: self._make_format("#8ea63b"),
+            4: self._make_format("#2f9e44"),
+            5: self._make_format("#5dc26a"),
+        }
+        self._hd_gate_count_cache_revision = -1
+        self._hd_gate_count_cache: Counter[int] = Counter()
 
     @staticmethod
     def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
@@ -256,9 +268,56 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     def _qt_len(text: str) -> int:
         return len(text.encode("utf-16-le")) // 2
 
+    @staticmethod
+    def _build_defined_center_formats() -> dict[str, QTextCharFormat]:
+        center_formats: dict[str, QTextCharFormat] = {}
+        for center_entry in HD_CENTERS.values():
+            center_name = str(center_entry.get("center", "")).strip()
+            center_color = str(center_entry.get("color", "")).strip()
+            if not center_name or not center_color:
+                continue
+            text_format = QTextCharFormat()
+            text_format.setForeground(QColor(center_color))
+            center_formats[center_name] = text_format
+        return center_formats
+
     @classmethod
     def _qt_index(cls, text: str, index: int) -> int:
         return cls._qt_len(text[:index])
+
+    def _get_hd_gate_occurrence_counts(self) -> Counter[int]:
+        document = self.document()
+        revision = int(document.revision())
+        if revision == self._hd_gate_count_cache_revision:
+            return self._hd_gate_count_cache
+        all_text = document.toPlainText()
+        counts: Counter[int] = Counter()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.[1-6]\b", all_text):
+            gate = int(match.group(1))
+            counts[gate] += 1
+        self._hd_gate_count_cache_revision = revision
+        self._hd_gate_count_cache = counts
+        return counts
+
+    def _apply_hd_gate_heatmap(self, text: str, stripped_text: str) -> None:
+        if not stripped_text or "," not in stripped_text:
+            return
+        if not re.fullmatch(r"(?:\d{1,2}(?:\.[1-6])?)(?:,\s*\d{1,2}(?:\.[1-6])?)*", stripped_text):
+            return
+        counts = self._get_hd_gate_occurrence_counts()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])(?:\.[1-6])?\b", text):
+            gate = int(match.group(1))
+            occurrence_count = counts.get(gate, 0)
+            if occurrence_count <= 0:
+                continue
+            bucket = 5 if occurrence_count > 4 else occurrence_count
+            text_format = self._hd_gate_count_formats.get(bucket)
+            if text_format:
+                self.setFormat(
+                    self._qt_index(text, match.start(1)),
+                    self._qt_len(match.group(1)),
+                    text_format,
+                )
 
     def highlightBlock(self, text: str) -> None:
         if self.previousBlockState() == 1:
@@ -296,6 +355,23 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+        if stripped_text.startswith("Defined Centers:"):
+            label = "Defined Centers:"
+            self.setFormat(0, self._qt_len(label), self._plain_bold_format)
+            centers_text = stripped_text[len(label):].strip()
+            if centers_text and centers_text.lower() != "none":
+                for raw_center in [segment.strip() for segment in centers_text.split(",") if segment.strip()]:
+                    center_key = "G" if raw_center == "G" else raw_center
+                    center_format = self._defined_center_formats.get(center_key)
+                    if center_format is None:
+                        continue
+                    center_start = text.find(raw_center)
+                    if center_start != -1:
+                        self.setFormat(
+                            self._qt_index(text, center_start),
+                            self._qt_len(raw_center),
+                            center_format,
+                        )
         if lowered_stripped in {"defined", "undefined"}:
             self.setFormat(0, self._qt_len(text), self._copper_header_format)
         if (
@@ -495,6 +571,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(match.group(0)),
                         house_fmt,
                     )
+        self._apply_hd_gate_heatmap(text, stripped_text)
 
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         for match in self._transit_range_date_pattern.finditer(text):
