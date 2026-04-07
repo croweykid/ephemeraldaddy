@@ -651,7 +651,7 @@ HD_AUTHORITY_COLORS = {
     "mental": HD_CENTERS["Head"]["color"],
     "environmental":  HD_CENTERS["Ajna"]["color"],
     "sounding_board":  HD_CENTERS["Throat"]["color"],
-    "lunar": "#00ffff", #'Moon' colored
+    "lunar": "#00ffff", #'Moon' colored #n=No inner authority
 }
 
 HD_DEFINITIONS = {
