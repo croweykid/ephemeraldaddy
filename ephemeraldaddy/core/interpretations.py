@@ -40,6 +40,31 @@ AGE_BRACKETS: tuple[tuple[str, int | None, int | None], ...] = (
     (">110", 110, None),
 )
 
+SEASONAL_COLORS: {
+    "spring":"#ccffcc", #pale spring green
+    "summer":"#ffff00", #bright sunshine yellow
+    "fall":"#cc3300", #mahogany, or #993600 or #b34019
+    "winter":"#ccccff", #pale periwinkle
+}
+
+SEASONAL_COLOR_SPECTRUM = {
+    "march": "#ccffcc",
+    "april": "#ddff88",
+    "may": "#eeff44",
+
+    "june": "#ffff00",
+    "july": "#eebb00",
+    "august": "#dd7700",
+
+    "september": "#cc3300",
+    "october": "#cc6655",
+    "november": "#cc99aa",
+
+    "december": "#ccccff",
+    "january": "#ccddee",
+    "february": "#cceedd",
+}
+
 #Here for reference but not imported to any other file.
 OUTER_PLANETS = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}  # slow / structural
 INNER_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}       # fast / personal
@@ -538,7 +563,7 @@ ELEMENT_COLORS = {
     "Water": "#5f5f8f", #was 2d2d5c
 }
 
-BAZI_ELEMENTS = {
+BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     "wood": "#cccc00",
     "water": "#3333ff",
     "earth": "#009900",
@@ -1168,6 +1193,8 @@ SYNASTRY_PAIR_WEIGHTS = {
     ("Uranus", "Moon"): 6.0,
 }
 
+# composite_natal_relevance = (relevance_A[planetA] + relevance_B[planetB]) / 2
+
 SYNASTRY_AXES = {
     "emotional harmony",
     "romance",
@@ -1180,11 +1207,12 @@ SYNASTRY_AXES = {
     "overall",
 }
 
+
 # contact_score = [
 #     SYNASTRY_PAIR_WEIGHTS
-#     * aspect_strength
-#     * exactness
-#     * natal_relevance
+#     * aspect_weight
+#     * orb_factor
+#     * composite_natal_relevance #the weight of each planet from each chart
 #     * directional_receptivity
 #     * repetition_bonus
 # ]
@@ -3529,7 +3557,7 @@ ASPECT_KEYWORDS = {
 
 GENERATIONAL_COHORTS = [
     {
-        "name": "Awakening Generation",
+        "name": "Awakening Gen",
         "start_year": 1701,
         "end_year": 1723,
         "global_context": "Expansion of maritime trade networks and early Enlightenment thought.",
@@ -3538,7 +3566,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Spanish colonial administration across the Captaincy General of Guatemala; plantation and mission systems dominate."
     },
     {
-        "name": "Liberty Generation",
+        "name": "Liberty Gen",
         "start_year": 1724,
         "end_year": 1741,
         "global_context": "Spread of Enlightenment political philosophy.",
@@ -3547,7 +3575,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Colonial economic expansion tied to silver trade and agricultural estates."
     },
     {
-        "name": "Republican Generation",
+        "name": "Republican Gen",
         "start_year": 1742,
         "end_year": 1766,
         "global_context": "Age of revolutions begins in the Atlantic world.",
@@ -3556,7 +3584,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Late colonial reforms and increased taxation under Bourbon administrative reforms."
     },
     {
-        "name": "Compromise Generation",
+        "name": "Compromise Gen",
         "start_year": 1767,
         "end_year": 1791,
         "global_context": "Post-revolutionary political restructuring.",
@@ -3565,7 +3593,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Growing colonial tensions leading toward independence movements in the early 19th century."
     },
     {
-        "name": "Transcendental Generation",
+        "name": "Transcendental Gen",
         "start_year": 1792,
         "end_year": 1821,
         "global_context": "Romantic era intellectual movements and early industrialization.",
@@ -3574,7 +3602,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Independence from Spain in 1821 and formation of early Central American republic structures."
     },
     {
-        "name": "Gilded Generation",
+        "name": "Gilded Gen",
         "start_year": 1822,
         "end_year": 1842,
         "global_context": "Industrial revolution accelerates global trade.",
@@ -3583,7 +3611,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Early republic instability and regional federation attempts."
     },
     {
-        "name": "Progressive Generation",
+        "name": "Progressive Gen",
         "start_year": 1843,
         "end_year": 1859,
         "global_context": "Industrial capitalism and reform movements.",
@@ -3592,7 +3620,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Coffee economies expand; growing influence of export agriculture."
     },
     {
-        "name": "Missionary Generation",
+        "name": "Missionary Gen",
         "start_year": 1860,
         "end_year": 1882,
         "global_context": "High imperial era.",
@@ -3601,7 +3629,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Export-driven economies dominated by coffee and banana industries."
     },
     {
-        "name": "Lost Generation",
+        "name": "Lost Gen",
         "start_year": 1883,
         "end_year": 1900,
         "global_context": "World War I and collapse of empires.",
@@ -3610,7 +3638,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "U.S. political and economic influence increases in the region."
     },
     {
-        "name": "Greatest Generation",
+        "name": "'Greatest' Gen",
         "start_year": 1901,
         "end_year": 1927,
         "global_context": "Great Depression and World War II.",
@@ -3619,7 +3647,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Economic disruption during the Great Depression and political instability."
     },
     {
-        "name": "Silent Generation",
+        "name": "Silent Gen",
         "start_year": 1928,
         "end_year": 1945,
         "global_context": "Postwar reconstruction and early Cold War.",
@@ -3637,7 +3665,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Agrarian reforms, political revolutions, and Cold War interventions."
     },
     {
-        "name": "Generation X",
+        "name": "Gen X",
         "start_year": 1965,
         "end_year": 1980,
         "global_context": "Late Cold War and globalization.",
@@ -3646,7 +3674,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Civil conflicts and political transitions in several countries."
     },
     {
-        "name": "Millennials",
+        "name": "Gen Y: Millennials",
         "start_year": 1981,
         "end_year": 1996,
         "global_context": "Rise of the internet and globalization.",
@@ -3655,7 +3683,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Post-conflict democratization and integration into global trade systems."
     },
     {
-        "name": "Generation Z",
+        "name": "Gen Z",
         "start_year": 1997,
         "end_year": 2012,
         "global_context": "Smartphone and social-media era.",
@@ -3664,7 +3692,7 @@ GENERATIONAL_COHORTS = [
         "central_america_context": "Digital connectivity growth and migration pressures."
     },
     {
-        "name": "Generation Alpha",
+        "name": "Gen Alpha",
         "start_year": 2013,
         "end_year": 2028,
         "global_context": "AI, automation, and climate policy transitions.",
@@ -3692,6 +3720,8 @@ GENERATION_COLORS = {
     "Generation Z": "#7B61FF",           # Digital violet
     "Generation Alpha": "#00BFA5",       # AI mint
 }
+
+
 
 GENDER_OPTIONS = ["F", "M", "AMAB-F", "AFAB-M", "AFAB-NB", "AMAB-NB", "n/a", "?"]
 

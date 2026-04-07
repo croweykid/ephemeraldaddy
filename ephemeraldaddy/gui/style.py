@@ -272,7 +272,7 @@ DATABASE_ANALYTICS_CHART_CONTENT_MARGINS = (0, 0, 0, 0)
 
 
 # Temporary debug colors for visualizing Database Analytics panel boundaries.
-DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = True
+DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS = False
 DATABASE_ANALYTICS_PANEL_DEBUG_STYLE = "background-color: #240046;" #black currant/dark purple
 DATABASE_ANALYTICS_SECTION_DEBUG_STYLE = "background-color: #3c096c;" #brighter purple
 DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = "background-color: #5a189a;" #even brighter purple
