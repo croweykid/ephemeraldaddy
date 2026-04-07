@@ -4920,6 +4920,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
             transit_workers.pop(key, None)
             _finalize_transit_worker_shutdown()
+            _drain_preload_queue()
 
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
