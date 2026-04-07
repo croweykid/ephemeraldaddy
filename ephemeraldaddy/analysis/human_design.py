@@ -17,6 +17,22 @@ ZODIAC_NAMES = (
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
 
+HD_GATE_OCCURRENCE_COLORS: dict[int, str] = {
+    1: "#c24a4a",
+    2: "#d98e2f",
+    3: "#8ea63b",
+    4: "#2f9e44",
+    5: "#5dc26a",  # 5 is the "4+" bucket key
+}
+
+
+def get_hd_gate_occurrence_color(gate_occurrence_count: int) -> str:
+    """Return heatmap color for a gate occurrence count."""
+    if gate_occurrence_count <= 0:
+        return "#d6d6d6"
+    bucket = 5 if gate_occurrence_count > 4 else gate_occurrence_count
+    return HD_GATE_OCCURRENCE_COLORS.get(bucket, "#d6d6d6")
+
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
@@ -147,9 +163,19 @@ def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str,
     info_entries: list[dict[str, object]] = []
     cursor = 0
     for idx, gate in enumerate(sorted(active_gates)):
-        token = f"{gate} ⓘ"
+        token = f"{gate}"
         parts.append(token)
-        info_entries.append({"kind": "hd_gate_line", "gate": gate, "line": None, "icon_index": cursor + len(str(gate)) + 1})
+        span_start = cursor
+        span_end = cursor + len(token)
+        info_entries.append(
+            {
+                "kind": "hd_gate_line",
+                "gate": gate,
+                "line": None,
+                "span_start": span_start,
+                "span_end": span_end,
+            }
+        )
         cursor += len(token)
         if idx < len(active_gates) - 1:
             parts.append(", ")
@@ -166,9 +192,19 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
     cursor = 0
     for idx, (gate, line) in enumerate(sorted_lines):
         label = f"{gate}.{line}"
-        token = f"{label} ⓘ"
+        token = label
         parts.append(token)
-        info_entries.append({"kind": "hd_gate_line", "gate": gate, "line": line, "icon_index": cursor + len(label) + 1})
+        span_start = cursor
+        span_end = cursor + len(token)
+        info_entries.append(
+            {
+                "kind": "hd_gate_line",
+                "gate": gate,
+                "line": line,
+                "span_start": span_start,
+                "span_end": span_end,
+            }
+        )
         cursor += len(token)
         if idx < len(sorted_lines) - 1:
             parts.append(", ")
