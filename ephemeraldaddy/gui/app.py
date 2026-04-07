@@ -444,7 +444,7 @@ from ephemeraldaddy.analysis.human_design import (
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
-    HD_CENTERS,
+    HD_CENTERS_BY_CODE,
     HD_CHANNELS,
     HD_DEFINITIONS,
     HD_PROFILES,
@@ -24448,11 +24448,7 @@ class MainWindow(QMainWindow):
             chart_theme_colors=CHART_THEME_COLORS,
         )
 
-        center_reference_by_name = {
-            str(center_data.get("center", "")).strip(): center_data
-            for center_data in HD_CENTERS
-            if str(center_data.get("center", "")).strip()
-        }
+        center_reference_by_name = HD_CENTERS_BY_CODE
 
         def _show_center_info(center_name: str) -> None:
             center_meta = center_reference_by_name.get(center_name, {})

@@ -34,7 +34,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     derive_human_design_profile,
 )
-from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTER_SEQUENCE
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -65,7 +65,7 @@ class DatabaseAnalyticsChartsMixin:
     )
     HD_CENTER_COLORS: dict[str, str] = {
         str(center_data.get("center", "")).strip(): str(center_data.get("color", "#6fa8dc"))
-        for center_data in HD_CENTERS
+        for center_data in HD_CENTER_SEQUENCE
         if str(center_data.get("center", "")).strip()
     }
     HD_STANDARD_PROFILES: tuple[str, ...] = (
