@@ -34,7 +34,13 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     derive_human_design_profile,
 )
-from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.analysis.human_design_reference import (
+    HD_AUTHORITIES,
+    HD_AUTHORITY_ALIASES,
+    HD_AUTHORITY_COLORS,
+    HD_CENTERS,
+    HD_TYPES,
+)
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -82,22 +88,13 @@ class DatabaseAnalyticsChartsMixin:
         "6/2",
         "6/3",
     )
-    HD_STANDARD_TYPES: tuple[str, ...] = (
-        "Manifestor",
-        "Generator",
-        "Manifesting Generator",
-        "Projector",
-        "Reflector",
+    HD_STANDARD_TYPES: tuple[str, ...] = tuple(
+        "Manifesting Generator" if key == "manifesting_generator" else key.replace("_", " ").title()
+        for key in HD_TYPES.keys()
     )
-    HD_STANDARD_AUTHORITIES: tuple[str, ...] = (
-        "Emotional",
-        "Sacral",
-        "Splenic",
-        "Ego",
-        "Self-Projected",
-        "Mental",
-        "Lunar",
-        "No Inner Authority",
+    HD_STANDARD_AUTHORITIES: tuple[str, ...] = tuple(
+        "Lunar" if key == "lunar" else key.replace("_", " ").title()
+        for key in HD_AUTHORITIES.keys()
     )
 
     @staticmethod
@@ -1010,6 +1007,17 @@ class DatabaseAnalyticsChartsMixin:
             for label in labels
         ]
         def _resolve_distribution_color(label: str) -> str:
+            authority_label = HD_AUTHORITY_ALIASES.get(str(label).strip(), str(label).strip())
+            authority_key = (
+                authority_label
+                .strip()
+                .casefold()
+                .replace("-", "_")
+                .replace(" ", "_")
+            )
+            authority_color = HD_AUTHORITY_COLORS.get(authority_key)
+            if authority_color:
+                return authority_color
             if label in DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS:
                 return DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS[label]
             return PLANET_COLORS.get(

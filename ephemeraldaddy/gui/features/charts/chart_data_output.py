@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import re
+from collections import Counter
 
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QWidget
@@ -274,6 +275,40 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     @classmethod
     def _qt_index(cls, text: str, index: int) -> int:
         return cls._qt_len(text[:index])
+
+    def _get_hd_gate_occurrence_counts(self) -> Counter[int]:
+        document = self.document()
+        revision = int(document.revision())
+        if revision == self._hd_gate_count_cache_revision:
+            return self._hd_gate_count_cache
+        all_text = document.toPlainText()
+        counts: Counter[int] = Counter()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.[1-6]\b", all_text):
+            gate = int(match.group(1))
+            counts[gate] += 1
+        self._hd_gate_count_cache_revision = revision
+        self._hd_gate_count_cache = counts
+        return counts
+
+    def _apply_hd_gate_heatmap(self, text: str, stripped_text: str) -> None:
+        if not stripped_text or "," not in stripped_text:
+            return
+        if not re.fullmatch(r"(?:\d{1,2}(?:\.[1-6])?)(?:,\s*\d{1,2}(?:\.[1-6])?)*", stripped_text):
+            return
+        counts = self._get_hd_gate_occurrence_counts()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])(?:\.[1-6])?\b", text):
+            gate = int(match.group(1))
+            occurrence_count = counts.get(gate, 0)
+            if occurrence_count <= 0:
+                continue
+            bucket = 5 if occurrence_count > 4 else occurrence_count
+            text_format = self._hd_gate_count_formats.get(bucket)
+            if text_format:
+                self.setFormat(
+                    self._qt_index(text, match.start(1)),
+                    self._qt_len(match.group(1)),
+                    text_format,
+                )
 
     def highlightBlock(self, text: str) -> None:
         if self.previousBlockState() == 1:
