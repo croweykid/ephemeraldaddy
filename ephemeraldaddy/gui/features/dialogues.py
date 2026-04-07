@@ -2,6 +2,7 @@
 
 import datetime
 import html
+from pathlib import Path
 
 from PySide6.QtCore import QDate, QThread, Qt
 from PySide6.QtGui import QFont
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QTextEdit,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -40,7 +43,10 @@ from ephemeraldaddy.core.retcon import RETCON_BODIES
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
-from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
+from ephemeraldaddy.gui.style import (
+    MIDDLE_PANEL_ACCENT_COLOR,
+    configure_share_export_icon_button,
+)
 
 
 def _format_longitude(lon: float) -> str:
@@ -52,6 +58,14 @@ def _format_longitude(lon: float) -> str:
         minutes = 0
     deg %= 360
     return f"{deg:03d}°{minutes:02d}'"
+
+
+def _get_share_icon_path() -> str | None:
+    module_root = Path(__file__).resolve().parents[2]
+    icon_path = module_root / "graphics" / "share_icon2.png"
+    if icon_path.exists():
+        return str(icon_path)
+    return None
 
 
 class RetconEngineDialog(QDialog):
@@ -77,6 +91,8 @@ class RetconEngineDialog(QDialog):
         self._active_lon: float | None = None
         self._active_matches: list[dict] = []
         self._active_criteria: dict[str, str] = {}
+        self._active_start_dt: datetime.datetime | None = None
+        self._active_end_dt: datetime.datetime | None = None
 
         root = QVBoxLayout()
         self.setLayout(root)
@@ -121,6 +137,21 @@ class RetconEngineDialog(QDialog):
         top_row.addStretch(1)
         form.addRow(top_row)
 
+        time_row = QHBoxLayout()
+        time_row.setSpacing(12)
+        time_row.addStretch(1)
+        time_row.addWidget(_make_bold_label("Time Range"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(datetime.time(0, 0))
+        time_row.addWidget(self.start_time_edit)
+        time_row.addWidget(QLabel("to"))
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(datetime.time(23, 59))
+        time_row.addWidget(self.end_time_edit)
+        form.addRow(time_row)
+
         options_row = QHBoxLayout()
         self.step_combo = QComboBox()
         step_options = [
@@ -135,7 +166,7 @@ class RetconEngineDialog(QDialog):
         ]
         for label, minutes in step_options:
             self.step_combo.addItem(label, minutes)
-        self.step_combo.setCurrentText("1 day")
+        self.step_combo.setCurrentText("12 hrs")
         self.max_results_spin = QSpinBox()
         self.max_results_spin.setRange(1, 10000)
         self.max_results_spin.setValue(100)
@@ -204,8 +235,21 @@ class RetconEngineDialog(QDialog):
         controls_row.addWidget(self.cancel_button, 0, Qt.AlignRight)
         root.addLayout(controls_row)
 
+        status_row = QHBoxLayout()
         self.status_label = QLabel("Ready.")
-        root.addWidget(self.status_label)
+        status_row.addWidget(self.status_label)
+        status_row.addStretch(1)
+        self.export_button = QPushButton()
+        share_icon_path = _get_share_icon_path()
+        configure_share_export_icon_button(
+            self.export_button,
+            share_icon_path=share_icon_path,
+            tooltip="Export Retcon results as TXT or Markdown",
+        )
+        self.export_button.setEnabled(False)
+        self.export_button.clicked.connect(self._on_export_results)
+        status_row.addWidget(self.export_button, 0, Qt.AlignRight)
+        root.addLayout(status_row)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -271,8 +315,22 @@ class RetconEngineDialog(QDialog):
 
         start_date = self.start_date_edit.date()
         end_date = self.end_date_edit.date()
-        start_naive = datetime.datetime(start_date.year(), start_date.month(), start_date.day(), 0, 0)
-        end_naive = datetime.datetime(end_date.year(), end_date.month(), end_date.day(), 23, 59)
+        start_time = self.start_time_edit.time()
+        end_time = self.end_time_edit.time()
+        start_naive = datetime.datetime(
+            start_date.year(),
+            start_date.month(),
+            start_date.day(),
+            start_time.hour(),
+            start_time.minute(),
+        )
+        end_naive = datetime.datetime(
+            end_date.year(),
+            end_date.month(),
+            end_date.day(),
+            end_time.hour(),
+            end_time.minute(),
+        )
 
         start_dt, _ = localize_naive_datetime(start_naive, lat, lon)
         end_dt, _ = localize_naive_datetime(end_naive, lat, lon)
@@ -280,11 +338,11 @@ class RetconEngineDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Retcon Engine",
-                "End date must be on or after start date.",
+                "End date/time must be on or after start date/time.",
             )
             return
 
-        step_minutes = int(self.step_combo.currentData() or 1440)
+        step_minutes = int(self.step_combo.currentData() or 720)
         max_results = self.max_results_spin.value()
 
         self._active_location_label = label
@@ -292,8 +350,11 @@ class RetconEngineDialog(QDialog):
         self._active_lon = lon
         self._active_matches = []
         self._active_criteria = dict(criteria)
+        self._active_start_dt = start_dt
+        self._active_end_dt = end_dt
         self.results_list.clear()
         self.create_chart_button.setEnabled(False)
+        self.export_button.setEnabled(False)
 
         self.submit_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
@@ -383,6 +444,7 @@ class RetconEngineDialog(QDialog):
     def _on_failed(self, error_message: str) -> None:
         self.submit_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
+        self.export_button.setEnabled(bool(self._active_matches))
         self.status_label.setText("Search failed.")
         QMessageBox.critical(self, "Retcon Engine error", f"Search failed:\n{error_message}")
 
@@ -402,7 +464,82 @@ class RetconEngineDialog(QDialog):
             line = self._format_match_line(idx, match)
             self.results_list.addItem(line)
         self.create_chart_button.setEnabled(bool(matches))
+        self.export_button.setEnabled(bool(matches))
         self.results_output.setHtml(self._build_results_html(matches, is_final=True))
+
+    def _export_payload(self) -> tuple[str, str]:
+        location_label = self._active_location_label or self.place_edit.text().strip() or "Unknown"
+        lat = self._active_lat
+        lon = self._active_lon
+        location_text = (
+            f"{location_label} ({lat:.4f}, {lon:.4f})"
+            if lat is not None and lon is not None
+            else location_label
+        )
+        if self._active_start_dt is not None and self._active_end_dt is not None:
+            range_text = (
+                f"{self._active_start_dt.strftime('%Y-%m-%d %H:%M %Z')} "
+                f"to {self._active_end_dt.strftime('%Y-%m-%d %H:%M %Z')}"
+            )
+        else:
+            range_text = "Unknown"
+        criteria_text = ", ".join(
+            f"{body} in {sign}" for body, sign in self._active_criteria.items()
+        ) or "None"
+        lines = [
+            f"Location: {location_text}",
+            f"Date & Time Range: {range_text}",
+            f"Chart Criteria: {criteria_text}",
+            f"Results Returned: {len(self._active_matches)}",
+            "",
+            "Results:",
+        ]
+        for idx, match in enumerate(self._active_matches, 1):
+            lines.append(self._format_match_line(idx, match))
+        txt_content = "\n".join(lines)
+
+        md_lines = [
+            "# Retcon Engine Search Export",
+            "",
+            f"- **Location:** {location_text}",
+            f"- **Date & Time Range:** {range_text}",
+            f"- **Chart Criteria:** {criteria_text}",
+            f"- **Results Returned:** {len(self._active_matches)}",
+            "",
+            "## Results",
+            "",
+        ]
+        for idx, match in enumerate(self._active_matches, 1):
+            md_lines.append(f"{idx}. `{self._format_match_line(idx, match)}`")
+        md_content = "\n".join(md_lines)
+        return txt_content, md_content
+
+    def _on_export_results(self) -> None:
+        if not self._active_matches:
+            QMessageBox.information(
+                self,
+                "Retcon Engine",
+                "No completed search results are available to export yet.",
+            )
+            return
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Retcon Search Results",
+            "retcon-search-results.txt",
+            "Text File (*.txt);;Markdown File (*.md)",
+        )
+        if not file_path:
+            return
+        txt_content, md_content = self._export_payload()
+        use_markdown = "Markdown" in selected_filter or file_path.lower().endswith(".md")
+        if use_markdown and not file_path.lower().endswith(".md"):
+            file_path = f"{file_path}.md"
+        if not use_markdown and not file_path.lower().endswith(".txt"):
+            file_path = f"{file_path}.txt"
+        payload = md_content if use_markdown else txt_content
+        with open(file_path, "w", encoding="utf-8") as export_file:
+            export_file.write(payload)
+        QMessageBox.information(self, "Retcon Engine", f"Exported search results to:\n{file_path}")
 
     def _open_selected_match(self) -> None:
         row = self.results_list.currentRow()

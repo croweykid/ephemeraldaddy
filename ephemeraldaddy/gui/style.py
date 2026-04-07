@@ -1,6 +1,7 @@
 """Shared GUI styling and interface constants."""
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QToolButton, QSizePolicy
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QAbstractButton, QSizePolicy, QToolButton
 
 DARK_THEME = {
     "background": "#111111",
@@ -380,6 +381,30 @@ DND_STAT_EARTHTONE_COLORS = {
 CHART_INFO_SPECIES_HEADER_COLOR = CHART_DATA_HIGHLIGHT_COLOR
 CHART_INFO_SPECIES_DESCRIPTION_ITALIC = True
 CHART_INFO_EVIDENCE_LABEL_BOLD = True
+
+
+def configure_share_export_icon_button(
+    button: QAbstractButton,
+    *,
+    share_icon_path: str | None,
+    tooltip: str,
+    fallback_text: str = "↗",
+) -> None:
+    """Apply shared visual behavior for compact share/export icon buttons."""
+    if share_icon_path:
+        button.setIcon(QIcon(share_icon_path))
+        button.setIconSize(QSize(*DATABASE_ANALYTICS_EXPORT_ICON_SIZE))
+    else:
+        button.setText(fallback_text)
+
+    if hasattr(button, "setFlat"):
+        button.setFlat(True)
+    if isinstance(button, QToolButton):
+        button.setAutoRaise(True)
+
+    button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setToolTip(tooltip)
 
 
 def configure_collapsible_header_toggle(
