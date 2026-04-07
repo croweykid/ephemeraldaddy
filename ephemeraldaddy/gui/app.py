@@ -9821,16 +9821,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     @staticmethod
     def _wrap_left_panel(panel: QWidget) -> QScrollArea:
         scroll = QScrollArea()
-        # Keep left-panel content at its natural width so horizontal scrolling
-        # remains available for analytics chart labels when the panel is narrow.
-        scroll.setWidgetResizable(False)
+        scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
         scroll.setMinimumWidth(120)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet(RIGHT_PANEL_SCROLLBAR_STYLE)
         panel.setMinimumWidth(0)
-        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         scroll.setWidget(panel)
         return scroll
 
