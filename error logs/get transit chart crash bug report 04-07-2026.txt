@@ -1,0 +1,472 @@
+-------------------------------------
+Translated Report (Full Report Below)
+-------------------------------------
+
+Process:               Python [58570]
+Path:                  /opt/homebrew/*/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+Identifier:            org.python.python
+Version:               3.14.0 (3.14.0)
+Code Type:             ARM-64 (Native)
+Parent Process:        zsh [1298]
+Responsible:           Terminal [1204]
+User ID:               501
+
+Date/Time:             2026-04-07 09:42:12.1027 -0400
+OS Version:            macOS 15.7.5 (24G624)
+Report Version:        12
+Anonymous UUID:        739A3A5B-FE1F-915D-636E-058B588F03C0
+
+Sleep/Wake UUID:       6BE0A0C1-3CBE-4D36-87B9-65D627E6E784
+
+Time Awake Since Boot: 330000 seconds
+Time Since Wake:       3559 seconds
+
+System Integrity Protection: enabled
+
+Crashed Thread:        13  QThread
+
+Exception Type:        EXC_CRASH (SIGABRT)
+Exception Codes:       0x0000000000000000, 0x0000000000000000
+
+Termination Reason:    Namespace SIGNAL, Code 6 Abort trap: 6
+Terminating Process:   Ephemeral Daddy [58570]
+
+Application Specific Information:
+abort() called
+
+
+Thread 0::  Dispatch queue: com.apple.main-thread
+0   libz.1.dylib                  	       0x1a953f6fc inflate + 3608
+1   QtGui                         	       0x1027f0ca0 0x1021dc000 + 6376608
+2   QtGui                         	       0x1027e5ba4 0x1021dc000 + 6331300
+3   QtGui                         	       0x1027e6094 0x1021dc000 + 6332564
+4   QtGui                         	       0x1025f37dc 0x1021dc000 + 4290524
+5   QtGui                         	       0x10222e430 QImageReader::read(QImage*) + 1084
+6   QtGui                         	       0x10222dfa4 QImageReader::read() + 72
+7   QtGui                         	       0x1021ef094 0x1021dc000 + 77972
+8   QtGui                         	       0x1021eed30 QPixmapIconEngine::bestMatch(QSize const&, double, QIcon::Mode, QIcon::State) + 420
+9   QtGui                         	       0x1021ef2a0 QPixmapIconEngine::scaledPixmap(QSize const&, QIcon::Mode, QIcon::State, double) + 116
+10  QtGui                         	       0x1021f1b78 QIcon::pixmap(QSize const&, double, QIcon::Mode, QIcon::State) const + 132
+11  QtWidgets                     	       0x107969ba8 QCommonStyle::drawControl(QStyle::ControlElement, QStyleOption const*, QPainter*, QWidget const*) const + 11624
+12  libqmacstyle.dylib            	       0x1120f85ac 0x1120e8000 + 66988
+13  AppKit                        	       0x19f38d5d8 +[NSAppearance _performWithCurrentAppearance:usingBlock:] + 72
+14  libqmacstyle.dylib            	       0x112102de4 0x1120e8000 + 110052
+15  QtWidgets                     	       0x1079c1268 0x1078ec000 + 873064
+16  QtWidgets                     	       0x10796e604 QCommonStyle::drawComplexControl(QStyle::ComplexControl, QStyleOptionComplex const*, QPainter*, QWidget const*) const + 3084
+17  QtWidgets                     	       0x1079be934 0x1078ec000 + 862516
+18  QtWidgets                     	       0x107b08730 QToolButton::paintEvent(QPaintEvent*) + 204
+19  QtWidgets.abi3.so             	       0x10354201c QToolButtonWrapper::paintEvent(QPaintEvent*) + 140
+20  QtWidgets                     	       0x107947eb8 QWidget::event(QEvent*) + 132
+21  QtWidgets                     	       0x107b0a294 QToolButton::event(QEvent*) + 272
+22  QtWidgets.abi3.so             	       0x103540568 QToolButtonWrapper::event(QEvent*) + 176
+23  QtWidgets                     	       0x1078f91a8 QApplicationPrivate::notify_helper(QObject*, QEvent*) + 332
+24  QtWidgets                     	       0x1078fad98 QApplication::notify(QObject*, QEvent*) + 3484
+25  QtWidgets.abi3.so             	       0x1038e34a8 QApplicationWrapper::notify(QObject*, QEvent*) + 188
+26  QtCore                        	       0x1041a9b34 QCoreApplication::sendSpontaneousEvent(QObject*, QEvent*) + 176
+27  QtWidgets                     	       0x107937918 QWidgetPrivate::drawWidget(QPaintDevice*, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 2956
+28  QtWidgets                     	       0x10793ffb8 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 892
+29  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+30  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+31  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+32  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+33  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+34  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+35  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+36  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+37  QtWidgets                     	       0x10793fea0 QWidgetPrivate::paintSiblingsRecursive(QPaintDevice*, QList<QObject*> const&, int, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 612
+38  QtWidgets                     	       0x107937b2c QWidgetPrivate::drawWidget(QPaintDevice*, QRegion const&, QPoint const&, QFlags<QWidgetPrivate::DrawWidgetFlag>, QPainter*, QWidgetRepaintManager*) + 3488
+39  QtWidgets                     	       0x10795a4a4 QWidgetRepaintManager::paintAndFlush() + 5120
+40  QtWidgets                     	       0x107958548 QWidgetRepaintManager::sync(QWidget*, QRegion const&) + 616
+41  QtWidgets                     	       0x10795fd24 0x1078ec000 + 474404
+42  QtWidgets                     	       0x10795d814 0x1078ec000 + 464916
+43  QtWidgets                     	       0x1078f91a8 QApplicationPrivate::notify_helper(QObject*, QEvent*) + 332
+44  QtWidgets                     	       0x1078fa200 QApplication::notify(QObject*, QEvent*) + 516
+45  QtWidgets.abi3.so             	       0x1038e34a8 QApplicationWrapper::notify(QObject*, QEvent*) + 188
+46  QtCore                        	       0x1041a9b34 QCoreApplication::sendSpontaneousEvent(QObject*, QEvent*) + 176
+47  QtGui                         	       0x102270688 QGuiApplicationPrivate::processExposeEvent(QWindowSystemInterfacePrivate::ExposeEvent*) + 460
+48  QtGui                         	       0x1022d7d48 0x1021dc000 + 1031496
+49  QtGui                         	       0x1022d3794 bool QWindowSystemInterface::handleExposeEvent<QWindowSystemInterface::SynchronousDelivery>(QWindow*, QRegion const&) + 76
+50  libqcocoa.dylib               	       0x110026a20 0x10ffe0000 + 289312
+51  libqcocoa.dylib               	       0x11003d900 0x10ffe0000 + 383232
+52  libqcocoa.dylib               	       0x11003d4dc 0x10ffe0000 + 382172
+53  QuartzCore                    	       0x1a44fb8b0 -[CALayer display] + 212
+54  QuartzCore                    	       0x1a44fb0b4 CA::Layer::display_if_needed(CA::Transaction*) + 748
+55  QuartzCore                    	       0x1a468f474 CA::Context::commit_transaction(CA::Transaction*, double, double*) + 492
+56  QuartzCore                    	       0x1a44dc3a8 CA::Transaction::commit() + 644
+57  AppKit                        	       0x19f4bffb4 __62+[CATransaction(NSCATransaction) NS_setFlushesWithDisplayLink]_block_invoke + 272
+58  AppKit                        	       0x19ff093fc ___NSRunLoopObserverCreateWithHandler_block_invoke + 64
+59  CoreFoundation                	       0x19b47de28 __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__ + 36
+60  CoreFoundation                	       0x19b47dd10 __CFRunLoopDoObservers + 536
+61  CoreFoundation                	       0x19b47d380 __CFRunLoopRun + 784
+62  CoreFoundation                	       0x19b47c9e8 CFRunLoopRunSpecific + 572
+63  HIToolbox                     	       0x1a6f2027c RunCurrentEventLoopInMode + 324
+64  HIToolbox                     	       0x1a6f234e8 ReceiveNextEventCommon + 676
+65  HIToolbox                     	       0x1a70ae484 _BlockUntilNextEventMatchingListInModeWithFilter + 76
+66  AppKit                        	       0x19f39da34 _DPSNextEvent + 684
+67  AppKit                        	       0x19fd3c5cc -[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:] + 688
+68  AppKit                        	       0x19f390be4 -[NSApplication run] + 480
+69  libqcocoa.dylib               	       0x10fff8540 0x10ffe0000 + 99648
+70  QtCore                        	       0x1041b30f8 QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>) + 588
+71  QtCore                        	       0x1041a9700 QCoreApplication::exec() + 228
+72  QtWidgets.abi3.so             	       0x10391843c Sbk_QApplicationFunc_exec(_object*) + 44
+73  Python                        	       0x100ee58d8 PyObject_Vectorcall + 88
+74  Python                        	       0x10101decc _PyEval_EvalFrameDefault + 25212
+75  Python                        	       0x101017754 PyEval_EvalCode + 248
+76  Python                        	       0x1010126bc builtin_exec + 376
+77  Python                        	       0x100ee58d8 PyObject_Vectorcall + 88
+78  Python                        	       0x10101decc _PyEval_EvalFrameDefault + 25212
+79  Python                        	       0x10101794c _PyEval_Vector + 268
+80  Python                        	       0x1010c0480 pymain_run_module + 204
+81  Python                        	       0x1010bfafc Py_RunMain + 208
+82  Python                        	       0x1010c0218 pymain_main + 232
+83  Python                        	       0x1010c02b4 Py_BytesMain + 40
+84  dyld                          	       0x19aff2b98 start + 6076
+
+Thread 1:: com.apple.NSEventThread
+0   libsystem_kernel.dylib        	       0x19b351c34 mach_msg2_trap + 8
+1   libsystem_kernel.dylib        	       0x19b364338 mach_msg2_internal + 76
+2   libsystem_kernel.dylib        	       0x19b35a764 mach_msg_overwrite + 484
+3   libsystem_kernel.dylib        	       0x19b351fa8 mach_msg + 24
+4   CoreFoundation                	       0x19b47ec0c __CFRunLoopServiceMachPort + 160
+5   CoreFoundation                	       0x19b47d528 __CFRunLoopRun + 1208
+6   CoreFoundation                	       0x19b47c9e8 CFRunLoopRunSpecific + 572
+7   AppKit                        	       0x19f4c178c _NSEventThread + 140
+8   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+9   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 2:
+0   libsystem_pthread.dylib       	       0x19b38eb6c start_wqthread + 0
+
+Thread 3:: Thread (pooled)
+0   libsystem_kernel.dylib        	       0x19b3553cc __psynch_cvwait + 8
+1   libsystem_pthread.dylib       	       0x19b39409c _pthread_cond_wait + 984
+2   QtCore                        	       0x1043609a4 0x10410c000 + 2443684
+3   QtCore                        	       0x104360834 QWaitCondition::wait(QMutex*, QDeadlineTimer) + 108
+4   QtCore                        	       0x1042a83e0 0x10410c000 + 1688544
+5   QtCore                        	       0x104357b60 0x10410c000 + 2407264
+6   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+7   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 4:: Thread (pooled)
+0   libsystem_kernel.dylib        	       0x19b3553cc __psynch_cvwait + 8
+1   libsystem_pthread.dylib       	       0x19b39409c _pthread_cond_wait + 984
+2   QtCore                        	       0x1043609a4 0x10410c000 + 2443684
+3   QtCore                        	       0x104360834 QWaitCondition::wait(QMutex*, QDeadlineTimer) + 108
+4   QtCore                        	       0x1042a83e0 0x10410c000 + 1688544
+5   QtCore                        	       0x104357b60 0x10410c000 + 2407264
+6   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+7   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 5:: Thread (pooled)
+0   libsystem_kernel.dylib        	       0x19b3553cc __psynch_cvwait + 8
+1   libsystem_pthread.dylib       	       0x19b39409c _pthread_cond_wait + 984
+2   QtCore                        	       0x1043609a4 0x10410c000 + 2443684
+3   QtCore                        	       0x104360834 QWaitCondition::wait(QMutex*, QDeadlineTimer) + 108
+4   QtCore                        	       0x1042a83e0 0x10410c000 + 1688544
+5   QtCore                        	       0x104357b60 0x10410c000 + 2407264
+6   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+7   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 6:: Thread (pooled)
+0   libsystem_kernel.dylib        	       0x19b3553cc __psynch_cvwait + 8
+1   libsystem_pthread.dylib       	       0x19b39409c _pthread_cond_wait + 984
+2   QtCore                        	       0x1043609a4 0x10410c000 + 2443684
+3   QtCore                        	       0x104360834 QWaitCondition::wait(QMutex*, QDeadlineTimer) + 108
+4   QtCore                        	       0x1042a83e0 0x10410c000 + 1688544
+5   QtCore                        	       0x104357b60 0x10410c000 + 2407264
+6   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+7   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 7:: Thread (pooled)
+0   libsystem_kernel.dylib        	       0x19b3553cc __psynch_cvwait + 8
+1   libsystem_pthread.dylib       	       0x19b39409c _pthread_cond_wait + 984
+2   QtCore                        	       0x1043609a4 0x10410c000 + 2443684
+3   QtCore                        	       0x104360834 QWaitCondition::wait(QMutex*, QDeadlineTimer) + 108
+4   QtCore                        	       0x1042a83e0 0x10410c000 + 1688544
+5   QtCore                        	       0x104357b60 0x10410c000 + 2407264
+6   libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+7   libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 8:
+0   libsystem_pthread.dylib       	       0x19b38eb6c start_wqthread + 0
+
+Thread 9:
+0   libsystem_pthread.dylib       	       0x19b38eb6c start_wqthread + 0
+
+Thread 10::  Dispatch queue: com.apple.libtrace.state.block-list
+0   libsystem_kernel.dylib        	       0x19b3539b8 __ulock_wait + 8
+1   libdispatch.dylib             	       0x19b1ddcbc _dlock_wait + 56
+2   libdispatch.dylib             	       0x19b1ddadc _dispatch_thread_event_wait_slow + 56
+3   libdispatch.dylib             	       0x19b1eba88 __DISPATCH_WAIT_FOR_QUEUE__ + 368
+4   libdispatch.dylib             	       0x19b1eb640 _dispatch_sync_f_slow + 148
+5   libsystem_trace.dylib         	       0x19b0e27a8 ___os_state_request_for_self_block_invoke + 372
+6   libdispatch.dylib             	       0x19b1dbb2c _dispatch_call_block_and_release + 32
+7   libdispatch.dylib             	       0x19b1f585c _dispatch_client_callout + 16
+8   libdispatch.dylib             	       0x19b1e4350 _dispatch_lane_serial_drain + 740
+9   libdispatch.dylib             	       0x19b1e4e60 _dispatch_lane_invoke + 440
+10  libdispatch.dylib             	       0x19b1ef264 _dispatch_root_queue_drain_deferred_wlh + 292
+11  libdispatch.dylib             	       0x19b1eeae8 _dispatch_workloop_worker_thread + 540
+12  libsystem_pthread.dylib       	       0x19b38fe20 _pthread_wqthread + 292
+13  libsystem_pthread.dylib       	       0x19b38eb74 start_wqthread + 8
+
+Thread 11:
+0   libsystem_pthread.dylib       	       0x19b38eb6c start_wqthread + 0
+
+Thread 12:: QThread
+0   _multiarray_umath.cpython-314-darwin.so	       0x101a3afb8 DYLD-STUB$$PyCapsule_GetPointer + 4
+1   _multiarray_umath.cpython-314-darwin.so	       0x101885d60 PyDataMem_UserFREE + 40
+2   _multiarray_umath.cpython-314-darwin.so	       0x101887f98 array_dealloc + 396
+3   Python                        	       0x100f1b998 list_dealloc + 244
+4   Python                        	       0x10105a13c _PyFrame_ClearExceptCode + 180
+5   Python                        	       0x101025d0c _PyEval_FrameClearAndPop + 140
+6   Python                        	       0x10101ea90 _PyEval_EvalFrameDefault + 28224
+7   Python                        	       0x100f06a5c gen_send_ex2 + 196
+8   Python                        	       0x100f05a8c gen_iternext + 36
+9   Python                        	       0x100ec8c74 PySequence_Tuple + 308
+10  Python                        	       0x10101bf48 _PyEval_EvalFrameDefault + 17144
+11  Python                        	       0x10101794c _PyEval_Vector + 268
+12  Python                        	       0x100ee4a8c _PyObject_VectorcallDictTstate + 200
+13  Python                        	       0x100f865b8 call_method + 204
+14  Python                        	       0x100f8e0c0 slot_tp_init + 52
+15  Python                        	       0x100f7cbcc type_call + 152
+16  Python                        	       0x100ee4be8 _PyObject_MakeTpCall + 120
+17  Python                        	       0x10101aca4 _PyEval_EvalFrameDefault + 12372
+18  Python                        	       0x10101794c _PyEval_Vector + 268
+19  Python                        	       0x100ee857c method_vectorcall + 392
+20  libpyside6.abi3.6.11.dylib    	       0x101d630e4 callPythonMetaMethodHelper(QList<QByteArray> const&, char const*, void**, _object*) + 392
+21  libpyside6.abi3.6.11.dylib    	       0x101d62834 PySide::SignalManager::callPythonMetaMethod(QMetaMethod, void**, _object*) + 84
+22  libpyside6.abi3.6.11.dylib    	       0x101d62540 SignalManagerPrivate::qtPythonMetacall(QObject*, QMetaObject const*, QMetaMethod const&, int, void**) + 708
+23  libpyside6.abi3.6.11.dylib    	       0x101d62eac PySide::SignalManager::qt_metacall(QObject*, QMetaObject::Call, int, void**) + 840
+24  QtCore                        	       0x1041fe6b8 0x10410c000 + 992952
+25  QtCore                        	       0x1042a7038 QThread::started(QThread::QPrivateSignal) + 56
+26  QtCore                        	       0x104357b50 0x10410c000 + 2407248
+27  libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+28  libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+Thread 13 Crashed:: QThread
+0   libsystem_kernel.dylib        	       0x19b35a388 __pthread_kill + 8
+1   libsystem_pthread.dylib       	       0x19b393848 pthread_kill + 296
+2   libsystem_c.dylib             	       0x19b29ca2c abort + 124
+3   QtCore                        	       0x10411a96c 0x10410c000 + 59756
+4   QtCore                        	       0x1041323c8 0x10410c000 + 156616
+5   QtCore                        	       0x104492660 QMessageLogger::fatal(char const*, ...) const + 96
+6   QtCore                        	       0x1044985f4 0x10410c000 + 3720692
+7   QtCore                        	       0x1042a58d0 QThread::~QThread() + 324
+8   QtCore.abi3.so                	       0x1067da414 QThreadWrapper::~QThreadWrapper() + 72
+9   libshiboken6.abi3.6.11.dylib  	       0x10206dfd0 SbkDeallocWrapperCommon(_object*, bool) + 376
+10  Python                        	       0x100f74a30 tuple_dealloc + 252
+11  Python                        	       0x10105a13c _PyFrame_ClearExceptCode + 180
+12  Python                        	       0x101025ca4 _PyEval_FrameClearAndPop + 36
+13  Python                        	       0x10101ea90 _PyEval_EvalFrameDefault + 28224
+14  Python                        	       0x10101794c _PyEval_Vector + 268
+15  libpyside6.abi3.6.11.dylib    	       0x101d630e4 callPythonMetaMethodHelper(QList<QByteArray> const&, char const*, void**, _object*) + 392
+16  libpyside6.abi3.6.11.dylib    	       0x101d5c440 PySide::SignalManager::callPythonMetaMethod(QList<QByteArray> const&, char const*, void**, _object*) + 68
+17  libpyside6.abi3.6.11.dylib    	       0x101d5c3b8 PySide::CallbackDynamicSlot::call(QList<QByteArray> const&, char const*, void**) + 36
+18  libpyside6.abi3.6.11.dylib    	       0x101d66784 PySide::PySideQSlotObject::impl(int, QtPrivate::QSlotObjectBase*, QObject*, void**, bool*) + 188
+19  QtCore                        	       0x1041fe714 0x10410c000 + 993044
+20  libpyside6.abi3.6.11.dylib    	       0x101d62118 SignalManagerPrivate::qtSignalMetacall(QObject*, QMetaObject const*, QMetaMethod const&, int, void**) + 620
+21  libpyside6.abi3.6.11.dylib    	       0x101d62d14 PySide::SignalManager::qt_metacall(QObject*, QMetaObject::Call, int, void**) + 432
+22  libpyside6.abi3.6.11.dylib    	       0x101d60b74 PySide::MetaFunction::call(QObject*, int, _object*, _object**) + 1848
+23  libpyside6.abi3.6.11.dylib    	       0x101d74894 signalInstanceEmit(_object*, _object*) + 424
+24  Python                        	       0x100ef3c78 method_vectorcall_VARARGS + 128
+25  Python                        	       0x100ee58d8 PyObject_Vectorcall + 88
+26  Python                        	       0x10101decc _PyEval_EvalFrameDefault + 25212
+27  Python                        	       0x10101794c _PyEval_Vector + 268
+28  Python                        	       0x100ee857c method_vectorcall + 392
+29  libpyside6.abi3.6.11.dylib    	       0x101d630e4 callPythonMetaMethodHelper(QList<QByteArray> const&, char const*, void**, _object*) + 392
+30  libpyside6.abi3.6.11.dylib    	       0x101d62834 PySide::SignalManager::callPythonMetaMethod(QMetaMethod, void**, _object*) + 84
+31  libpyside6.abi3.6.11.dylib    	       0x101d62540 SignalManagerPrivate::qtPythonMetacall(QObject*, QMetaObject const*, QMetaMethod const&, int, void**) + 708
+32  libpyside6.abi3.6.11.dylib    	       0x101d62eac PySide::SignalManager::qt_metacall(QObject*, QMetaObject::Call, int, void**) + 840
+33  QtCore                        	       0x1041fe6b8 0x10410c000 + 992952
+34  QtCore                        	       0x1042a7038 QThread::started(QThread::QPrivateSignal) + 56
+35  QtCore                        	       0x104357b50 0x10410c000 + 2407248
+36  libsystem_pthread.dylib       	       0x19b393bc8 _pthread_start + 136
+37  libsystem_pthread.dylib       	       0x19b38eb80 thread_start + 8
+
+
+Thread 13 crashed with ARM Thread State (64-bit):
+    x0: 0x0000000000000000   x1: 0x0000000000000000   x2: 0x0000000000000000   x3: 0x0000000000000000
+    x4: 0x00006000018fe9c0   x5: 0x000000030b54a920   x6: 0x000000000000000a   x7: 0x000000000000015a
+    x8: 0x7012ea18d62b50d5   x9: 0x7012ea1bdd7fa0d5  x10: 0x0000000000000002  x11: 0x0000010000000000
+   x12: 0x00000000fffffffd  x13: 0x0000000000000000  x14: 0x0000000000000000  x15: 0x0000000000000000
+   x16: 0x0000000000000148  x17: 0x000000020a389548  x18: 0x0000000000000000  x19: 0x0000000000000006
+   x20: 0x000000000001f807  x21: 0x000000030b54f0e0  x22: 0x000000012780edb8  x23: 0x0000600000ca2080
+   x24: 0x0000000000000001  x25: 0x000000019b39d0f8  x26: 0x0000000000005600  x27: 0x00000000000000f3
+   x28: 0x00000000000000f3   fp: 0x000000030b54a9c0   lr: 0x000000019b393848
+    sp: 0x000000030b54a9a0   pc: 0x000000019b35a388 cpsr: 0x40000000
+   far: 0x0000000000000000  esr: 0x56000080  Address size fault
+
+Binary Images:
+       0x100418000 -        0x10041bfff org.python.python (3.14.0) <2292c723-fff1-3724-bcc9-118bc45294ba> /opt/homebrew/*/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+       0x100e78000 -        0x10124bfff org.python.python (3.14.0, (c) 2001-2024 Python Software Foundation.) <f82e67ce-513a-3171-9862-f52eee425d10> /opt/homebrew/*/Python.framework/Versions/3.14/Python
+       0x10089c000 -        0x1008a3fff _csv.cpython-314-darwin.so (*) <4e6696ce-b8fc-3d40-968d-3d304c565e2e> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_csv.cpython-314-darwin.so
+       0x100a64000 -        0x100a7bfff _ctypes.cpython-314-darwin.so (*) <68cad45d-a838-3ded-8c17-f94d7c8b2074> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_ctypes.cpython-314-darwin.so
+       0x100a34000 -        0x100a3bfff libffi-trampolines.dylib (*) <42996791-868d-3ae4-a498-6aaeae8d9643> /usr/lib/libffi-trampolines.dylib
+       0x100a44000 -        0x100a4bfff _struct.cpython-314-darwin.so (*) <2de16469-0ed9-3adf-8805-7a8012471a4f> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_struct.cpython-314-darwin.so
+       0x100a94000 -        0x100a9bfff _json.cpython-314-darwin.so (*) <11af78db-c24c-345d-b87e-0cc0cc006bba> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_json.cpython-314-darwin.so
+       0x100aac000 -        0x100ab7fff math.cpython-314-darwin.so (*) <47851c54-c0dc-37d0-ac91-e3d747c2f6af> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/math.cpython-314-darwin.so
+       0x1017b4000 -        0x101aa3fff _multiarray_umath.cpython-314-darwin.so (*) <f70ab3f4-f93d-30eb-9613-9cff2bb75ca9> /Users/USER/Documents/*/_multiarray_umath.cpython-314-darwin.so
+       0x100df4000 -        0x100e0bfff _pickle.cpython-314-darwin.so (*) <cb575138-9c86-3612-9cef-18d6afea2b57> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_pickle.cpython-314-darwin.so
+       0x100e20000 -        0x100e37fff _umath_linalg.cpython-314-darwin.so (*) <db11f106-e295-3c29-90ca-af4b71a96d77> /Users/USER/Documents/*/_umath_linalg.cpython-314-darwin.so
+       0x100dc8000 -        0x100dcbfff _bisect.cpython-314-darwin.so (*) <1fa1d8a7-bc64-362f-992d-00bf750b848b> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_bisect.cpython-314-darwin.so
+       0x100ddc000 -        0x100ddffff _random.cpython-314-darwin.so (*) <b02790b8-2684-3f5f-9261-c0bbc4eff513> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_random.cpython-314-darwin.so
+       0x10172c000 -        0x101747fff _decimal.cpython-314-darwin.so (*) <2239a89d-f9c4-3af5-aa5c-2666f821c0da> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_decimal.cpython-314-darwin.so
+       0x10175c000 -        0x101777fff libmpdec.4.0.1.dylib (*) <52d16117-fcf0-3704-984f-ce4454923a78> /opt/homebrew/*/libmpdec.4.0.1.dylib
+       0x100e48000 -        0x100e4bfff _statistics.cpython-314-darwin.so (*) <4b26c840-9070-3985-9ced-413496e70578> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_statistics.cpython-314-darwin.so
+       0x100e5c000 -        0x100e5ffff fcntl.cpython-314-darwin.so (*) <43ce08a0-cdb2-346e-8a81-bace96a396ad> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/fcntl.cpython-314-darwin.so
+       0x10178c000 -        0x10178ffff _posixsubprocess.cpython-314-darwin.so (*) <cc5f74a0-d0bb-3f31-84ba-393ba768c536> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_posixsubprocess.cpython-314-darwin.so
+       0x101b54000 -        0x101b5bfff select.cpython-314-darwin.so (*) <ca56a21f-27fe-3bfe-bad4-56ec36d6203c> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/select.cpython-314-darwin.so
+       0x1017a0000 -        0x1017a3fff _heapq.cpython-314-darwin.so (*) <fae9f9ae-4940-3476-9d3e-54ecde208a6c> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_heapq.cpython-314-darwin.so
+       0x101c6c000 -        0x101c6ffff grp.cpython-314-darwin.so (*) <e4ca60bf-601c-336d-a28f-1044599f3071> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/grp.cpython-314-darwin.so
+       0x101c80000 -        0x101c87fff zlib.cpython-314-darwin.so (*) <8a9ef953-6d4b-3d78-9df5-090713fcdda0> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/zlib.cpython-314-darwin.so
+       0x101c98000 -        0x101c9bfff _bz2.cpython-314-darwin.so (*) <c261b16f-b2f8-3b7e-a434-e24fa78c8465> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_bz2.cpython-314-darwin.so
+       0x101cac000 -        0x101cb3fff _lzma.cpython-314-darwin.so (*) <63319359-6d3e-3417-9472-bf8e3ee327cc> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_lzma.cpython-314-darwin.so
+       0x101cf4000 -        0x101d13fff liblzma.5.dylib (*) <bc9cf488-263b-371e-a310-197d38b4b182> /opt/homebrew/*/liblzma.5.dylib
+       0x101cc4000 -        0x101ccffff _zstd.cpython-314-darwin.so (*) <8ed03602-d8b1-3e2e-8c0f-af5192930377> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_zstd.cpython-314-darwin.so
+       0x101dc4000 -        0x101e4bfff libzstd.1.5.7.dylib (*) <f85645bb-8df7-325e-b22d-ff4b265f9465> /opt/homebrew/*/libzstd.1.5.7.dylib
+       0x101d24000 -        0x101d2bfff _zoneinfo.cpython-314-darwin.so (*) <a29011fa-63b0-3760-beff-1e7ed5780239> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_zoneinfo.cpython-314-darwin.so
+       0x101d3c000 -        0x101d3ffff binascii.cpython-314-darwin.so (*) <a02ecdcb-52b8-3533-bbdb-adeb17ede28e> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/binascii.cpython-314-darwin.so
+       0x101ce4000 -        0x101ce7fff Shiboken.abi3.so (*) <0ade699d-c23f-36bf-addb-a55839f388ca> /Users/USER/Documents/*/Shiboken.abi3.so
+       0x102060000 -        0x1020affff libshiboken6.abi3.6.11.dylib (*) <b8ff54b9-9ad3-3ba7-9fe3-811a5f694a48> /Users/USER/Documents/*/libshiboken6.abi3.6.11.dylib
+       0x102e94000 -        0x10328bfff QtGui.abi3.so (*) <6424c540-121c-32e3-9164-683ef71ea775> /Users/USER/Documents/*/QtGui.abi3.so
+       0x101d50000 -        0x101d8ffff libpyside6.abi3.6.11.dylib (*) <3a089e7d-d1fe-3dc2-9931-6e157e72ad57> /Users/USER/Documents/*/libpyside6.abi3.6.11.dylib
+       0x1021dc000 -        0x1028a7fff org.qt-project.QtGui (6.11) <69a761e1-e8ae-3ff4-b13e-97088d69e666> /Users/USER/Documents/*/QtGui.framework/Versions/A/QtGui
+       0x10410c000 -        0x1045f7fff org.qt-project.QtCore (6.11) <b0667a98-b1fe-378b-8a52-255db2e29c5a> /Users/USER/Documents/*/QtCore.framework/Versions/A/QtCore
+       0x101f68000 -        0x101feffff org.qt-project.QtDBus (6.11) <ec505890-3bf1-3f55-815d-ae73e1849238> /Users/USER/Documents/*/QtDBus.framework/Versions/A/QtDBus
+       0x106740000 -        0x106aa7fff QtCore.abi3.so (*) <d2307a43-fb37-31f0-8aeb-d552dee970a9> /Users/USER/Documents/*/QtCore.abi3.so
+       0x103508000 -        0x103a33fff QtWidgets.abi3.so (*) <b956f18a-ae09-370a-ac76-5e7cef837cf1> /Users/USER/Documents/*/QtWidgets.abi3.so
+       0x1078ec000 -        0x107d57fff org.qt-project.QtWidgets (6.11) <b97170bc-6bbb-3977-9e66-f307b7f5f0e1> /Users/USER/Documents/*/QtWidgets.framework/Versions/A/QtWidgets
+       0x102dbc000 -        0x102e0ffff QtPositioning.abi3.so (*) <c64f660a-f474-35bf-abe1-4d1470b9aca8> /Users/USER/Documents/*/QtPositioning.abi3.so
+       0x103dd0000 -        0x103e3bfff org.qt-project.QtPositioning (6.11) <bef4d1b7-9c15-3ef6-8860-bb21ea016ffb> /Users/USER/Documents/*/QtPositioning.framework/Versions/A/QtPositioning
+       0x102a1c000 -        0x102a33fff _c_internal_utils.cpython-314-darwin.so (*) <eebd2a70-8a1e-3d63-84cb-c2756b741a50> /Users/USER/Documents/*/_c_internal_utils.cpython-314-darwin.so
+       0x106de4000 -        0x106e43fff _imaging.cpython-314-darwin.so (*) <48f16a09-4866-3741-ab6a-96ad77774581> /Users/USER/Documents/*/_imaging.cpython-314-darwin.so
+       0x106f30000 -        0x106fcffff libtiff.6.dylib (*) <6374b130-ffd6-3443-a718-c6417d6376b2> /Users/USER/Documents/*/libtiff.6.dylib
+       0x106e70000 -        0x106ef7fff libjpeg.62.4.0.dylib (*) <b38c6eca-d6c6-395e-bad3-8758e8b02f03> /Users/USER/Documents/*/libjpeg.62.4.0.dylib
+       0x106ff0000 -        0x10707bfff libopenjp2.2.5.4.dylib (*) <fb411ffe-72b1-30c1-94c9-d579edfd5808> /Users/USER/Documents/*/libopenjp2.2.5.4.dylib
+       0x102d90000 -        0x102dabfff libz.1.3.1.zlib-ng.dylib (*) <a0dbea0e-227e-3c20-8cef-dec8cb0977eb> /Users/USER/Documents/*/libz.1.3.1.zlib-ng.dylib
+       0x1040a0000 -        0x1040c7fff libxcb.1.1.0.dylib (*) <b8cc0bb4-84bd-3527-9e9b-0b07096d9206> /Users/USER/Documents/*/libxcb.1.1.0.dylib
+       0x1070e4000 -        0x10711ffff liblzma.5.dylib (*) <1269e243-ab01-393c-b865-252735a667d7> /Users/USER/Documents/*/liblzma.5.dylib
+       0x102a04000 -        0x102a07fff libXau.6.dylib (*) <cbbc6aad-c544-3d83-a1c4-59709f2bdeca> /Users/USER/Documents/*/libXau.6.dylib
+       0x102e54000 -        0x102e5ffff array.cpython-314-darwin.so (*) <754ddda7-a779-35b0-a410-9c463da95253> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/array.cpython-314-darwin.so
+       0x107390000 -        0x1073cbfff _path.cpython-314-darwin.so (*) <39f42479-86a3-3179-ae67-8d2d96c23801> /Users/USER/Documents/*/_path.cpython-314-darwin.so
+       0x1074ec000 -        0x10752bfff _image.cpython-314-darwin.so (*) <24598ddb-9985-3436-a472-19231dad20c1> /Users/USER/Documents/*/_image.cpython-314-darwin.so
+       0x1080c0000 -        0x10818ffff ft2font.cpython-314-darwin.so (*) <dccf03ff-eafd-3448-ac31-6047b0921a5e> /Users/USER/Documents/*/ft2font.cpython-314-darwin.so
+       0x107094000 -        0x1070affff _cext.cpython-314-darwin.so (*) <f91b4079-3757-38c0-9e25-367eee9b086b> /Users/USER/Documents/*/_cext.cpython-314-darwin.so
+       0x102e70000 -        0x102e77fff pyexpat.cpython-314-darwin.so (*) <9e2cbff4-656e-36b5-be0f-74b73578a250> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/pyexpat.cpython-314-darwin.so
+       0x10405c000 -        0x10406bfff _socket.cpython-314-darwin.so (*) <6f544744-e45c-3fb8-8ce6-fee8b49d40f6> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_socket.cpython-314-darwin.so
+       0x102a48000 -        0x102a4bfff _uuid.cpython-314-darwin.so (*) <63da8e6d-e4db-3aed-af5b-057286308ace> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_uuid.cpython-314-darwin.so
+       0x10898c000 -        0x108a3ffff unicodedata.cpython-314-darwin.so (*) <70129cf6-9ed7-33c1-a2bb-990cce6f916e> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/unicodedata.cpython-314-darwin.so
+       0x1040e4000 -        0x1040ebfff _hashlib.cpython-314-darwin.so (*) <13b273e8-2291-3a4d-a586-091beda330a4> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hashlib.cpython-314-darwin.so
+       0x108ff8000 -        0x109337fff libcrypto.3.dylib (*) <e1408fbe-ce8d-3380-8e64-ac65f0f9f656> /opt/homebrew/*/libcrypto.3.dylib
+       0x106f10000 -        0x106f17fff _blake2.cpython-314-darwin.so (*) <1c137381-e92b-3c61-8ca9-0bd0111aefa4> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_blake2.cpython-314-darwin.so
+       0x1088c8000 -        0x10891bfff _backend_agg.cpython-314-darwin.so (*) <cc9095a0-73ac-3028-8323-217bc6e9c106> /Users/USER/Documents/*/_backend_agg.cpython-314-darwin.so
+       0x107360000 -        0x107373fff _sqlite3.cpython-314-darwin.so (*) <fab9bb4e-0483-39c6-b006-6014dc4e4b5d> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_sqlite3.cpython-314-darwin.so
+       0x109ad8000 -        0x109bdffff libsqlite3.3.51.2.dylib (*) <bb50ff9d-6ed3-3d9b-9f0b-cbdd74d5c6da> /opt/homebrew/*/libsqlite3.3.51.2.dylib
+       0x107880000 -        0x10789bfff _ssl.cpython-314-darwin.so (*) <2a4a7365-944f-34b3-a37c-75881db92709> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_ssl.cpython-314-darwin.so
+       0x109cf0000 -        0x109d83fff libssl.3.dylib (*) <46f224c4-b4e5-3938-9fbe-9f6a4fa5770d> /opt/homebrew/*/libssl.3.dylib
+       0x102a5c000 -        0x102a5ffff _scproxy.cpython-314-darwin.so (*) <13169f6a-f6a7-3ec8-8db2-c15c3edc8e8f> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_scproxy.cpython-314-darwin.so
+       0x104080000 -        0x104083fff mmap.cpython-314-darwin.so (*) <6fec200e-c714-30d1-90a2-69aed96b514e> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/mmap.cpython-314-darwin.so
+       0x107848000 -        0x107853fff _elementtree.cpython-314-darwin.so (*) <13f68f14-49d8-3541-b305-309c3721c07a> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_elementtree.cpython-314-darwin.so
+       0x1070cc000 -        0x1070d3fff vallado_cpp.cpython-314-darwin.so (*) <e8db96cf-5ee3-3486-a01e-41e690d2f6da> /Users/USER/Documents/*/vallado_cpp.cpython-314-darwin.so
+       0x10a408000 -        0x10a5bffff swisseph.cpython-314-darwin.so (*) <c9de17b7-1271-3d8c-addc-35f7d9e20cf7> /Users/USER/Documents/*/swisseph.cpython-314-darwin.so
+       0x108fa0000 -        0x108fdffff cells.cpython-314-darwin.so (*) <de824c8e-23fd-3814-94bd-2757a77f7771> /Users/USER/Documents/*/cells.cpython-314-darwin.so
+       0x1078b8000 -        0x1078d7fff memory.cpython-314-darwin.so (*) <adb1dce0-93f9-36ad-9bc3-801fc7b62553> /Users/USER/Documents/*/memory.cpython-314-darwin.so
+       0x108940000 -        0x10895bfff util.cpython-314-darwin.so (*) <72d2bad7-a9ba-39f2-82db-858348f49c87> /Users/USER/Documents/*/util.cpython-314-darwin.so
+       0x10896c000 -        0x10897ffff error_system.cpython-314-darwin.so (*) <9ea6ab5a-4714-3db2-bd78-630c56194022> /Users/USER/Documents/*/error_system.cpython-314-darwin.so
+       0x109c10000 -        0x109c3ffff edges.cpython-314-darwin.so (*) <6ae48f16-7f83-3a6e-8c2f-3d7b320b76f8> /Users/USER/Documents/*/edges.cpython-314-darwin.so
+       0x109c50000 -        0x109c8bfff latlng.cpython-314-darwin.so (*) <e027443d-26b0-3b09-8a9b-6f7c803677cf> /Users/USER/Documents/*/latlng.cpython-314-darwin.so
+       0x109c9c000 -        0x109ccbfff vertex.cpython-314-darwin.so (*) <6dbc41fb-38ec-360e-8538-90c0dc441e7f> /Users/USER/Documents/*/vertex.cpython-314-darwin.so
+       0x10a1d0000 -        0x10a1fffff to_multipoly.cpython-314-darwin.so (*) <3514fa6e-ad30-398f-8c78-5bf918ca4382> /Users/USER/Documents/*/to_multipoly.cpython-314-darwin.so
+       0x1029f0000 -        0x1029f3fff inside_polygon_ext.abi3.so (*) <8ef7f2f1-c102-3940-b1d2-f5ca69895807> /Users/USER/Documents/*/inside_polygon_ext.abi3.so
+       0x10a310000 -        0x10a333fff _cffi_backend.cpython-314-darwin.so (*) <0f4530a9-be00-3233-93ca-f2b0eacda2cc> /Users/USER/Documents/*/_cffi_backend.cpython-314-darwin.so
+       0x108f50000 -        0x108f63fff _hmac.cpython-314-darwin.so (*) <11eb9357-c3e6-3e97-b746-3afe637e6931> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hmac.cpython-314-darwin.so
+       0x107348000 -        0x10734bfff _queue.cpython-314-darwin.so (*) <bc36ad5d-8815-3698-a547-5d050bddc020> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_queue.cpython-314-darwin.so
+       0x102050000 -        0x102053fff cd.cpython-314-darwin.so (*) <4ed37a64-61f0-3eea-8404-3eb82c9e5812> /Users/USER/Documents/*/cd.cpython-314-darwin.so
+       0x10f58c000 -        0x10f5c7fff 81d243bd2c585b0f4821__mypyc.cpython-314-darwin.so (*) <73606ea8-fe8b-389c-9b80-06e8c3f6843e> /Users/USER/Documents/*/81d243bd2c585b0f4821__mypyc.cpython-314-darwin.so
+       0x107334000 -        0x107337fff md.cpython-314-darwin.so (*) <c67a1688-945a-3582-933c-7d8e8cef7290> /Users/USER/Documents/*/md.cpython-314-darwin.so
+       0x108f74000 -        0x108f7bfff _multibytecodec.cpython-314-darwin.so (*) <9aad203e-5706-3537-b9df-d8ed9adb44db> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_multibytecodec.cpython-314-darwin.so
+       0x10a34c000 -        0x10a363fff _codecs_tw.cpython-314-darwin.so (*) <455cda31-4b3b-39dc-a6e8-ad09de757682> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_tw.cpython-314-darwin.so
+       0x10a378000 -        0x10a39bfff _codecs_hk.cpython-314-darwin.so (*) <b91f26e4-59f6-336d-ad3c-9f8961d8e5a4> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_hk.cpython-314-darwin.so
+       0x10f6e8000 -        0x10f717fff _codecs_jp.cpython-314-darwin.so (*) <2df2f62e-0c26-3f4c-8492-302fc70765df> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_jp.cpython-314-darwin.so
+       0x10a3ac000 -        0x10a3c7fff _codecs_kr.cpython-314-darwin.so (*) <fceae97b-e1ab-3b90-975a-1d2cde957b5a> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_kr.cpython-314-darwin.so
+       0x10a3d8000 -        0x10a3f3fff _codecs_cn.cpython-314-darwin.so (*) <dbae5b1a-f009-34d6-a906-e26a4ec5ad34> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_cn.cpython-314-darwin.so
+       0x108f8c000 -        0x108f8ffff _codecs_iso2022.cpython-314-darwin.so (*) <732b6005-ffea-30c3-a440-dfdc18450b79> /opt/homebrew/*/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_codecs_iso2022.cpython-314-darwin.so
+       0x10ffe0000 -        0x11008ffff libqcocoa.dylib (*) <0d61082f-4583-39ec-81fe-89dd43afcc6f> /Users/USER/Documents/*/libqcocoa.dylib
+       0x1117e0000 -        0x1117ebfff libobjc-trampolines.dylib (*) <9a87f143-aa9d-3c46-b2e8-b3fb9215e33e> /usr/lib/libobjc-trampolines.dylib
+       0x1120e8000 -        0x11210bfff libqmacstyle.dylib (*) <d367df20-39d1-3dc7-847d-9a982ad4eef8> /Users/USER/Documents/*/libqmacstyle.dylib
+       0x116a00000 -        0x117133fff com.apple.AGXMetalG16G-B0 (329.2) <0e26b74f-2e37-3338-bd21-410cf4b9d199> /System/Library/Extensions/AGXMetalG16G_B0.bundle/Contents/MacOS/AGXMetalG16G_B0
+       0x132544000 -        0x13254bfff libqtposition_cl.dylib (*) <98881c56-c0f1-357b-a40c-88e15564def9> /Users/USER/Documents/*/libqtposition_cl.dylib
+       0x1a953e000 -        0x1a954ce97 libz.1.dylib (*) <2ab05ccb-9e32-3b66-9e12-51b6ff7a9c40> /usr/lib/libz.1.dylib
+       0x19f363000 -        0x1a07f375f com.apple.AppKit (6.9) <93588b4a-92ed-31d5-941c-fde64e4b5ed8> /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit
+       0x1a44da000 -        0x1a48adc7f com.apple.QuartzCore (1.11) <f4b507c4-0fac-308a-ac29-fb3e64505cd8> /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+       0x19b402000 -        0x19b940fff com.apple.CoreFoundation (6.9) <b670b809-77c2-36d2-ac51-eddc00ce8d74> /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+       0x1a6e5d000 -        0x1a7163fdf com.apple.HIToolbox (2.1.1) <7537dc6d-3280-335e-9259-ed5d308d29ec> /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/HIToolbox
+       0x19afec000 -        0x19b08757b dyld (*) <90247822-b5b5-3de1-a35f-8328f371626f> /usr/lib/dyld
+               0x0 - 0xffffffffffffffff ??? (*) <00000000-0000-0000-0000-000000000000> ???
+       0x19b351000 -        0x19b38c5f3 libsystem_kernel.dylib (*) <bf2be9c2-05ea-372a-ad72-80441cad5380> /usr/lib/system/libsystem_kernel.dylib
+       0x19b38d000 -        0x19b399a77 libsystem_pthread.dylib (*) <c0519bf8-8fc4-3222-a4a7-d98af817277c> /usr/lib/system/libsystem_pthread.dylib
+       0x1ff182000 -        0x20028ee7f com.apple.MetalPerformanceShadersGraph (5.6.2) <beb79d2b-6605-3c53-948a-1fced35232eb> /System/Library/Frameworks/MetalPerformanceShadersGraph.framework/Versions/A/MetalPerformanceShadersGraph
+       0x19b1da000 -        0x19b22075f libdispatch.dylib (*) <63a54ce1-2ab6-3673-82e4-d8489d811475> /usr/lib/system/libdispatch.dylib
+       0x19b0d7000 -        0x19b0f27ff libsystem_trace.dylib (*) <9dbbee92-6c08-39f7-a05e-5054a79d28f6> /usr/lib/system/libsystem_trace.dylib
+       0x19b224000 -        0x19b2a5247 libsystem_c.dylib (*) <89e4e823-2117-3e30-92da-4fdfec463893> /usr/lib/system/libsystem_c.dylib
+       0x19b39a000 -        0x19b3c9ba3 libdyld.dylib (*) <e4fe35c9-8aee-3728-89b9-89a64239ed74> /usr/lib/system/libdyld.dylib
+
+External Modification Summary:
+  Calls made by other processes targeting this process:
+    task_for_pid: 0
+    thread_create: 0
+    thread_set_state: 0
+  Calls made by this process:
+    task_for_pid: 0
+    thread_create: 0
+    thread_set_state: 0
+  Calls made by all processes on this machine:
+    task_for_pid: 0
+    thread_create: 0
+    thread_set_state: 0
+
+VM Region Summary:
+ReadOnly portion of Libraries: Total=1.7G resident=0K(0%) swapped_out_or_unallocated=1.7G(100%)
+Writable regions: Total=2.0G written=1394K(0%) resident=1154K(0%) swapped_out=240K(0%) unallocated=2.0G(100%)
+
+                                VIRTUAL   REGION 
+REGION TYPE                        SIZE    COUNT (non-coalesced) 
+===========                     =======  ======= 
+Accelerate framework               256K        2 
+Activity Tracing                   256K        1 
+CG image                          5520K       10 
+CG raster data                    3296K        7 
+ColorSync                          560K       29 
+CoreAnimation                     1296K       76 
+CoreGraphics                        48K        3 
+CoreUI image data                 1568K       11 
+Foundation                         240K        4 
+Image IO                           544K       28 
+Kernel Alloc Once                   32K        1 
+MALLOC                             1.8G      106 
+MALLOC guard page                  288K       18 
+STACK GUARD                        224K       14 
+Stack                             22.9M       14 
+VM_ALLOCATE                      127.5M      143 
+VM_ALLOCATE (reserved)              16K        1         reserved VM address space (unallocated)
+__AUTH                            5443K      689 
+__AUTH_CONST                      76.5M      930 
+__CTF                               824        1 
+__DATA                            29.2M     1013 
+__DATA_CONST                      29.8M     1035 
+__DATA_DIRTY                      2763K      337 
+__FONT_DATA                        2352        1 
+__INFO_FILTER                         8        1 
+__LINKEDIT                       635.5M      100 
+__OBJC_RO                         61.4M        1 
+__OBJC_RW                         2397K        1 
+__TEXT                             1.1G     1057 
+__TPRO_CONST                       128K        2 
+dyld private memory                256K        2 
+mapped file                      819.7M       96 
+page table in kernel              1154K        1 
+shared memory                     1088K       28 
+===========                     =======  ======= 
+TOTAL                              4.7G     5763 
+TOTAL, minus reserved VM space     4.7G     5763 
+
