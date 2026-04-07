@@ -39,6 +39,9 @@ from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
     CHART_AXES_STYLE,
     CHART_THEME_COLORS,
+    DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
+    DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR,
+    DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR,
     DND_STAT_EARTHTONE_COLORS,
     GENDER_GUESSER_COLORS,
     get_cycled_earthtone_colors,
@@ -170,6 +173,7 @@ class DatabaseAnalyticsChartsMixin:
     ) -> None:
         height = int(round(figure.get_size_inches()[1] * figure.dpi))
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        canvas.setMinimumWidth(0)
         canvas.setMinimumHeight(height)
         canvas.setMaximumHeight(height)
         #adds trackpad scrolling & hoverstate arrow scroll:
@@ -420,9 +424,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         relationship_figure = Figure(figsize=(2.7, 5.8))
-        relationship_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        relationship_figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         relationship_ax = relationship_figure.add_subplot(111)
-        relationship_ax.set_facecolor(CHART_THEME_COLORS["background"])
+        relationship_ax.set_facecolor(self._database_analytics_axes_facecolor())
         relationship_labels = list(RELATION_TYPE)
         relationship_display_labels = [
             self._format_selection_database_count_label(
@@ -565,9 +569,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         # DB View's lefthand panel top graph dimensions
         figure = Figure(figsize=(3.15, 6.8))  # graph dimensions
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
         positive_total_color = "#39ff14"
         negative_total_color = "#ff1744"
         negative_start_display = len(positive_labels) + 1
@@ -713,9 +717,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         # DB View's lefthand panel graph dimensions (for sign graph)?
         sign_figure = Figure(figsize=(2.7, 5.8))
-        sign_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        sign_figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         sign_ax = sign_figure.add_subplot(111)
-        sign_ax.set_facecolor(CHART_THEME_COLORS["background"])
+        sign_ax.set_facecolor(self._database_analytics_axes_facecolor())
         sign_labels = list(ZODIAC_NAMES)
         sign_display_labels = [
             self._format_selection_database_count_label(
@@ -838,9 +842,9 @@ class DatabaseAnalyticsChartsMixin:
         sign_labels: list[str] | None = None,
     ) -> FigureCanvas:
         dominant_figure = Figure(figsize=(2.7, 5.8))
-        dominant_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        dominant_figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         dominant_ax = dominant_figure.add_subplot(111)
-        dominant_ax.set_facecolor(CHART_THEME_COLORS["background"])
+        dominant_ax.set_facecolor(self._database_analytics_axes_facecolor())
         sign_labels = list(sign_labels or ZODIAC_NAMES)
         sign_display_labels = [
             self._format_selection_database_count_label(
@@ -964,9 +968,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
         figure = Figure(figsize=(2.7, 5.8 * clamped_height_scale))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
         labels = list(labels or selection_planets.keys())
         display_labels = [
             self._format_selection_database_count_label(
@@ -1076,9 +1080,9 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         figure = Figure(figsize=(2.7, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
 
         color_by_label = {
             "masculine": GENDER_GUESSER_COLORS["masculine"],
@@ -1209,9 +1213,9 @@ class DatabaseAnalyticsChartsMixin:
         # so the full graph remains visible above the fold.
         chart_height = 4.9
         figure = Figure(figsize=(2.7, chart_height))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
         display_labels = [
             self._format_selection_database_count_label(
                 species,
@@ -1336,9 +1340,9 @@ class DatabaseAnalyticsChartsMixin:
         figure_height: float = 2.8,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, figure_height))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
         def _resolve_bar_color(label: str, value: float) -> Any:
             if callable(color_resolver):
                 try:
@@ -1541,9 +1545,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 1.6))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
 
         ax.hlines(
             y=0,
@@ -1784,9 +1788,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
     ) -> FigureCanvas:
         figure = Figure(figsize=(4.8, 1.8))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
 
         display_value = selection_value if loaded_charts else database_value
         labels = [f"({self._minutes_to_label(display_value)}) {label}"]
@@ -1834,9 +1838,9 @@ class DatabaseAnalyticsChartsMixin:
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
         figure = Figure(figsize=(2.7, chart_height))
-        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
-        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
 
         values = selection_counts if loaded_charts else database_counts
         display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
@@ -1880,3 +1884,14 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+    @staticmethod
+    def _database_analytics_figure_facecolor() -> str:
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            return DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR
+        return CHART_THEME_COLORS["background"]
+
+    @staticmethod
+    def _database_analytics_axes_facecolor() -> str:
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            return DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR
+        return CHART_THEME_COLORS["background"]
