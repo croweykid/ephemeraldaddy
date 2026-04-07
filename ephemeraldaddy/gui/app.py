@@ -1383,8 +1383,8 @@ class ChartListWidget(QListWidget):
 
 # Database View / Manage Charts Window
 class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
-    _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.298, 0.429, 0.273)
-    _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (418, 601, 383)
+    _DATABASE_VIEW_PANEL_WIDTH_RATIOS: tuple[float, float, float] = (0.276, 0.447, 0.277)
+    _DATABASE_VIEW_FALLBACK_SPLITTER_SIZES: tuple[int, int, int] = (387, 627, 388)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -13626,8 +13626,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def apply_launch_window_policy(self, *, use_topmost_pulse: bool = False) -> None:
-        # Do not force Database View back to the primary screen or maximized state.
-        # MainWindow coordinates placement handoff to avoid dual-monitor jumps.
+        # Keep Database View launch maximized across platforms (including macOS)
+        # while still preserving monitor placement handoff from MainWindow.
         if use_topmost_pulse and self._launch_foreground_completed:
             use_topmost_pulse = False
         logger.debug(
@@ -13637,6 +13637,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             use_topmost_pulse,
         )
         clear_fullscreen_and_minimized(self)
+        if not self.isMaximized():
+            self.setWindowState(
+                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
+            )
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
         if use_topmost_pulse:
             self._launch_foreground_completed = True
