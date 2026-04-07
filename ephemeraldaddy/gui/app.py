@@ -9257,7 +9257,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_planet_counts=database_human_design_counts,
                     loaded_charts=loaded_charts,
                     labels=human_design_labels,
-                    height_scale=2 if human_design_mode in {"hd_gates", "hd_incarnation_crosses"} else 1.0,
+                    height_scale=(
+                        3.5
+                        if human_design_mode == "hd_incarnation_crosses"
+                        else 2
+                        if human_design_mode == "hd_gates"
+                        else 1.0
+                    ),
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
