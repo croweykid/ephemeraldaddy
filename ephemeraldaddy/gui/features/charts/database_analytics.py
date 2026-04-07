@@ -1827,7 +1827,7 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
 
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.30, bottom=0.24, right=0.97, top=0.9)
+        figure.subplots_adjust(left=0.51, bottom=0.24, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
