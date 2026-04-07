@@ -33,6 +33,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     derive_human_design_profile,
 )
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -58,6 +59,11 @@ class DatabaseAnalyticsChartsMixin:
         "Sacral",
         "Root",
     )
+    HD_CENTER_COLORS: dict[str, str] = {
+        str(center_data.get("center", "")).strip(): str(center_data.get("color", "#6fa8dc"))
+        for center_data in HD_CENTERS
+        if str(center_data.get("center", "")).strip()
+    }
 
     @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
@@ -849,7 +855,10 @@ class DatabaseAnalyticsChartsMixin:
                     label,
                     ELEMENT_COLORS.get(
                         label,
-                        NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
+                        DatabaseAnalyticsChartsMixin.HD_CENTER_COLORS.get(
+                            label,
+                            NAKSHATRA_PLANET_COLOR.get(label, (None, "#6fa8dc"))[1],
+                        ),
                     ),
                 ),
             )
