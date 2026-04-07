@@ -3246,7 +3246,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         age_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Age & Time Known",
+            "Eras && Ages",
             section_key="age",
             expanded=self._is_database_metrics_section_expanded("age"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3257,7 +3257,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["age"] = self._is_database_metrics_section_expanded("age")
         self._create_analysis_chart_header(
             age_section_layout,
-            "Age & Time Known",
+            "Eras && Ages",
             "age",
             "age",
             dropdown_options=[
