@@ -9440,9 +9440,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             birth_time_mode = self._birth_time_mode
             birth_time_label_by_mode = {
-                "mean": "Mean 🐣Time",
-                "mode_hour": "Mode 🐣Time (rounded hour)",
-                "median": "Median 🐣Time",
+                "mean": "Mean",
+                "mode_hour": "Mode (rounded hr)",
+                "median": "Median",
             }
             selection_birth_time = {
                 "mean": float(birth_selection_analytics["mean_minutes"]),
