@@ -727,6 +727,14 @@ HD_TYPES = {
     ),
 }
 
+HD_TYPE_COLORS = {
+    "manifestor":"",
+    "generator": "",
+    "manifesting_generator": "",
+    "projector": "",
+    "reflector": "",
+}
+
 HD_STRATEGIES = {
     "to_inform": (
         "Tell the people who will be affected before you act. "
