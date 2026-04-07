@@ -136,6 +136,25 @@ class DatabaseAnalyticsChartsMixin:
         ax.set_xlim(minimum - data_pad, maximum + data_pad)
 
     @staticmethod
+    def _set_compact_barh_y_limits(
+        ax,
+        item_count: int,
+        bar_height: float,
+    ) -> None:
+        """Trim excess top/bottom whitespace around horizontal bar charts."""
+        if item_count <= 0:
+            return
+        half_height = max(float(bar_height) / 2.0, 0.01)
+        # Keep a tiny gutter so bars/labels do not feel clipped.
+        edge_padding = max(0.02, min(0.08, half_height * 0.25))
+        lower = -half_height - edge_padding
+        upper = (item_count - 1) + half_height + edge_padding
+        if ax.yaxis_inverted():
+            ax.set_ylim(upper, lower)
+        else:
+            ax.set_ylim(lower, upper)
+
+    @staticmethod
     def _clear_layout(layout: QLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
@@ -438,6 +457,7 @@ class DatabaseAnalyticsChartsMixin:
                 labels=relationship_display_labels,
             )
             relationship_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(relationship_ax, len(relationship_labels), bar_height)
             relationship_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
             relationship_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
             relationship_ax.set_xlabel("")
@@ -479,6 +499,7 @@ class DatabaseAnalyticsChartsMixin:
                 labels=relationship_display_labels,
             )
             relationship_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(relationship_ax, len(relationship_labels), bar_height)
             relationship_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
             relationship_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
             relationship_ax.set_xlabel("")
@@ -592,6 +613,7 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, 0, 1)
             ax.set_yticks(y_positions, labels=display_labels_with_counts)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(display_labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
@@ -631,6 +653,7 @@ class DatabaseAnalyticsChartsMixin:
             self._set_x_limits_with_padding(ax, -1, 1)
             ax.set_yticks(y_positions, labels=display_labels_with_counts)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(display_labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
@@ -718,6 +741,7 @@ class DatabaseAnalyticsChartsMixin:
             sign_ax.set_xlim(0, 1)
             sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
             sign_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(sign_ax, len(sign_labels), bar_height)
             sign_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
@@ -760,6 +784,7 @@ class DatabaseAnalyticsChartsMixin:
             sign_ax.set_xlim(-1, 1)
             sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
             sign_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(sign_ax, len(sign_labels), bar_height)
             sign_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
@@ -841,6 +866,7 @@ class DatabaseAnalyticsChartsMixin:
             dominant_ax.set_xlim(0, 1)
             dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
             dominant_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(dominant_ax, len(sign_labels), bar_height)
             dominant_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
@@ -883,6 +909,7 @@ class DatabaseAnalyticsChartsMixin:
             dominant_ax.set_xlim(-1, 1)
             dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
             dominant_ax.invert_yaxis()
+            self._set_compact_barh_y_limits(dominant_ax, len(sign_labels), bar_height)
             dominant_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
@@ -972,6 +999,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(0, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
@@ -992,6 +1020,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(-1, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
@@ -1084,6 +1113,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(0, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
@@ -1112,6 +1142,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(-1, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
@@ -1205,6 +1236,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(0, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             if show_x_axis_labels:
                 ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
@@ -1245,6 +1277,7 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xlim(-1, 1)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             if show_x_axis_labels:
                 ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
@@ -1370,6 +1403,7 @@ class DatabaseAnalyticsChartsMixin:
                 self._set_x_limits_with_padding(ax, lower_bound, upper_bound)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
@@ -1417,6 +1451,7 @@ class DatabaseAnalyticsChartsMixin:
                 self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
+            self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
@@ -1820,6 +1855,7 @@ class DatabaseAnalyticsChartsMixin:
         self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
         ax.set_yticks(positions, labels=display_labels)
         ax.invert_yaxis()
+        self._set_compact_barh_y_limits(ax, len(labels), 0.55)
         ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
         ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_xlabel("")
