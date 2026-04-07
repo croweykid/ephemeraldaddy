@@ -99,7 +99,7 @@ class SpeciesAssigner:
         feats = self._extract_features(positions, aspects)
         scores = self._score_families(positions, aspects, feats)
 
-        ranked = sorted(scores.items(), key=lambda kv: kv[1].score, reverse=True)
+        ranked = self._rank_families(scores)
         top = ranked[:3]
         (fam1, card1) = top[0]
         subtype1, subtype_ev1 = self._pick_subtype(fam1, positions, aspects, feats)
@@ -125,6 +125,27 @@ class SpeciesAssigner:
             top_three=top_three,
             evidence=evidence,
         )
+
+    @staticmethod
+    def _rank_families(scores: Mapping[str, ScoreCard]) -> List[Tuple[str, ScoreCard]]:
+        """
+        Rank *all* species families by score (best first).
+
+        We explicitly iterate `SPECIES_FAMILIES` so ranking always considers the
+        full option set, not just whichever score entries happen to be present.
+        """
+        ranked: List[Tuple[str, ScoreCard]] = []
+        for family in SPECIES_FAMILIES:
+            card = scores.get(family, ScoreCard())
+            try:
+                numeric_score = float(card.score)
+            except (TypeError, ValueError):
+                numeric_score = float("-inf")
+            if math.isnan(numeric_score):
+                numeric_score = float("-inf")
+            ranked.append((family, ScoreCard(score=numeric_score, reasons=list(card.reasons or []))))
+        ranked.sort(key=lambda kv: kv[1].score, reverse=True)
+        return ranked
 
     # ----------------------------
     # Data ingestion
@@ -1188,7 +1209,7 @@ def assign_top_three_species_with_evidence(chart: Any) -> List[Tuple[str, str, f
     aspects = assigner._get_aspects(chart, positions)
     feats = assigner._extract_features(positions, aspects)
     scores = assigner._score_families(positions, aspects, feats)
-    ranked = sorted(scores.items(), key=lambda kv: kv[1].score, reverse=True)
+    ranked = assigner._rank_families(scores)
 
     out: List[Tuple[str, str, float, List[str]]] = []
     for family, card in ranked[:3]:
