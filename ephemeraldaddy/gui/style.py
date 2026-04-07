@@ -279,6 +279,8 @@ DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE = "background-color: #5a189a;" #even brig
 DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE = "background-color: #0f4c5c;" #dark teal
 DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE = "background-color: #1b4332;" #dark green
 DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE = "background-color: #ff006e;" #hot pink
+DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR = "#111827" # graphite blue: entire figure (graph + labels)
+DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR = "#020617" # near-black navy: axes-only graph area
 
 SETTINGS_ORG = "EphemeralDaddy"
 SETTINGS_APP = "EphemeralDaddy"
