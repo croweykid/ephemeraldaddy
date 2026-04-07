@@ -3,10 +3,9 @@
 
 import datetime
 import html
-from pathlib import Path
 
 from PySide6.QtCore import QDate, QThread, Qt
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -56,14 +55,6 @@ def _format_longitude(lon: float) -> str:
         minutes = 0
     deg %= 360
     return f"{deg:03d}°{minutes:02d}'"
-
-
-def _get_share_icon_path() -> str | None:
-    module_root = Path(__file__).resolve().parents[2]
-    icon_path = module_root / "graphics" / "share_icon2.png"
-    if icon_path.exists():
-        return str(icon_path)
-    return None
 
 
 class RetconEngineDialog(QDialog):
@@ -238,9 +229,6 @@ class RetconEngineDialog(QDialog):
         status_row.addWidget(self.status_label)
         status_row.addStretch(1)
         self.export_button = QPushButton("Share / Export")
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            self.export_button.setIcon(QIcon(share_icon_path))
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_results)
         status_row.addWidget(self.export_button, 0, Qt.AlignRight)
