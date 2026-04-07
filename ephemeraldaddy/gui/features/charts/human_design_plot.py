@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from collections import Counter
-
 from matplotlib.patches import Rectangle
 from matplotlib.figure import Figure
 
-from ephemeraldaddy.analysis.human_design import get_hd_gate_occurrence_color
 from ephemeraldaddy.core.human_design_system import CHANNELS
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
@@ -92,11 +89,6 @@ def draw_human_design_chart(
     ax.set_ylim(center_min_y - vertical_padding, center_max_y + vertical_padding)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
-    gate_occurrence_counts: Counter[int] = Counter(
-        activation.gate
-        for activation in (*hd_result.personality_activations, *hd_result.design_activations)
-    )
-
     unique_channels: list[tuple[int, int, str, str]] = []
     seen_channel_pairs: set[tuple[int, int]] = set()
     for gate_a, gate_b, center_a, center_b in CHANNELS:
@@ -169,7 +161,7 @@ def draw_human_design_chart(
                 start_x + ((elbow_x - start_x) * 0.55),
                 start_y + ((elbow_y - start_y) * 0.55),
                 f"{lower_gate}",
-                color=get_hd_gate_occurrence_color(gate_occurrence_counts.get(lower_gate, 0)),
+                color="#ffffff",
                 fontsize=6,
                 ha="center",
                 va="center",
@@ -178,7 +170,7 @@ def draw_human_design_chart(
                 elbow_x + ((end_x - elbow_x) * 0.45),
                 elbow_y + ((end_y - elbow_y) * 0.45),
                 f"{upper_gate}",
-                color=get_hd_gate_occurrence_color(gate_occurrence_counts.get(upper_gate, 0)),
+                color="#ffffff",
                 fontsize=6,
                 ha="center",
                 va="center",
@@ -250,7 +242,7 @@ def draw_human_design_chart(
             x1 + ((mid_x - x1) * 0.6),
             y1 + ((mid_y - y1) * 0.6),
             f"{gate_a}",
-            color=get_hd_gate_occurrence_color(gate_occurrence_counts.get(gate_a, 0)),
+            color="#ffffff",
             fontsize=6,
             ha="center",
             va="center",
@@ -259,7 +251,7 @@ def draw_human_design_chart(
             mid_x + ((x2 - mid_x) * 0.4),
             mid_y + ((y2 - mid_y) * 0.4),
             f"{gate_b}",
-            color=get_hd_gate_occurrence_color(gate_occurrence_counts.get(gate_b, 0)),
+            color="#ffffff",
             fontsize=6,
             ha="center",
             va="center",
