@@ -6238,7 +6238,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         gate_counts: dict[str, int] = {}
         for chart in charts:
-            hd_gates, _hd_lines, _hd_channels, _hd_defined_centers = self._extract_human_design_profile(chart)
+            hd_gates, _hd_lines, _hd_channels, _hd_defined_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
             for gate in sorted(set(hd_gates)):
                 label = f"Gate {gate}"
                 gate_counts[label] = gate_counts.get(label, 0) + 1
@@ -6261,7 +6261,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         channel_counts: dict[str, int] = {}
         for chart in charts:
-            _hd_gates, _hd_lines, hd_channels, _hd_defined_centers = self._extract_human_design_profile(chart)
+            _hd_gates, _hd_lines, hd_channels, _hd_defined_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
             normalized_channels: set[str] = set()
             for channel in hd_channels:
                 normalized = str(channel).strip()
@@ -7293,7 +7293,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # Human Design analytics intentionally exclude placeholder charts.
         if not snapshot["is_placeholder"]:
             # Human Design profile metrics (persisted on chart for fast lookup where possible).
-            hd_gates, hd_lines, hd_channels, hd_defined_centers = self._extract_human_design_profile(chart)
+            hd_gates, hd_lines, hd_channels, hd_defined_centers, hd_type, hd_authority = self._extract_human_design_profile(chart)
             for gate in hd_gates:
                 snapshot["human_design_gate_totals"][gate] += 1.0
                 snapshot["human_design_gate_total_count"] += 1.0
@@ -7326,15 +7326,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         snapshot["human_design_incarnation_cross_totals"].get(hd_cross, 0.0) + 1.0
                     )
                     snapshot["human_design_incarnation_cross_total_count"] += 1.0
-                hd_type = str(getattr(hd_result, "type", "")).strip()
-                if hd_type in snapshot["human_design_type_totals"]:
-                    snapshot["human_design_type_totals"][hd_type] += 1.0
-                    snapshot["human_design_type_total_count"] += 1.0
-                hd_authority = str(getattr(hd_result, "authority", "")).strip()
-                hd_authority = canonicalize_hd_authority_label(hd_authority)
-                if hd_authority in snapshot["human_design_authority_totals"]:
-                    snapshot["human_design_authority_totals"][hd_authority] += 1.0
-                    snapshot["human_design_authority_total_count"] += 1.0
+            if hd_type in snapshot["human_design_type_totals"]:
+                snapshot["human_design_type_totals"][hd_type] += 1.0
+                snapshot["human_design_type_total_count"] += 1.0
+            if hd_authority in snapshot["human_design_authority_totals"]:
+                snapshot["human_design_authority_totals"][hd_authority] += 1.0
+                snapshot["human_design_authority_total_count"] += 1.0
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:

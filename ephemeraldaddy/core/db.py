@@ -95,6 +95,8 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "human_design_gates": "",
     "human_design_lines": "",
     "human_design_channels": "",
+    "human_design_type": "",
+    "human_design_authority": "",
     "is_placeholder": 0,
     "is_deceased": 0,
     "birth_month": 0,
@@ -173,7 +175,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -243,6 +245,8 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             human_design_gates TEXT,
             human_design_lines TEXT,
             human_design_channels TEXT,
+            human_design_type TEXT,
+            human_design_authority TEXT,
             chart_type        TEXT NOT NULL DEFAULT 'personal',
             source            TEXT NOT NULL DEFAULT 'personal',
             is_placeholder    INTEGER NOT NULL DEFAULT 0,
@@ -527,6 +531,20 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN human_design_channels TEXT
             """
         )
+    if "human_design_type" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_type TEXT
+            """
+        )
+    if "human_design_authority" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_authority TEXT
+            """
+        )
 
     if "chart_type" not in columns:
         conn.execute(
@@ -790,6 +808,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 10:
         _migrate_charts_columns(conn)
         conn.execute("PRAGMA user_version = 10")
+        user_version = 10
+
+    if user_version < 11:
+        _migrate_charts_columns(conn)
+        conn.execute("PRAGMA user_version = 11")
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -937,6 +960,30 @@ def _parse_string_list(value: Optional[str]) -> list[str]:
         if text:
             values.append(text)
     return values
+
+
+def _resolve_human_design_metadata(chart: Any) -> tuple[Optional[str], Optional[str]]:
+    hd_type = str(getattr(chart, "human_design_type", "") or "").strip()
+    hd_authority = str(getattr(chart, "human_design_authority", "") or "").strip()
+    if hd_type and hd_authority:
+        return hd_type, hd_authority
+    if not getattr(chart, "positions", None):
+        return hd_type or None, hd_authority or None
+    try:
+        from ephemeraldaddy.analysis.human_design import build_human_design_result
+        from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
+
+        hd_result = build_human_design_result(chart)
+    except Exception:
+        return hd_type or None, hd_authority or None
+
+    resolved_type = str(getattr(hd_result, "hd_type", "") or "").strip() or hd_type
+    resolved_authority = canonicalize_hd_authority_label(
+        str(getattr(hd_result, "authority", "") or "").strip()
+    ) or hd_authority
+    chart.human_design_type = resolved_type
+    chart.human_design_authority = resolved_authority
+    return resolved_type or None, resolved_authority or None
 
 def _normalize_year_first_encountered(value: Optional[int]) -> Optional[int]:
     if value is None:
@@ -1664,9 +1711,10 @@ def append_database(source: Path) -> dict[str, Any]:
                          social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
+                         human_design_type, human_design_authority,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1705,6 +1753,8 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("human_design_gates"),
                         _row_value("human_design_lines"),
                         _row_value("human_design_channels"),
+                        _row_value("human_design_type"),
+                        _row_value("human_design_authority"),
                         resolved_chart_type,
                         resolved_chart_type,
                         int(_row_value("is_placeholder") or 0),
@@ -1781,6 +1831,7 @@ def save_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     conn = _get_conn()
     with conn:
         cur = conn.execute(
@@ -1796,6 +1847,7 @@ def save_chart(
                  retcon_time_used, retcon_hour, retcon_minute,
                  dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
+                 human_design_type, human_design_authority,
                  chart_type,
                  source,
                  is_placeholder,
@@ -1804,7 +1856,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1880,6 +1932,8 @@ def save_chart(
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
+                human_design_type,
+                human_design_authority,
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -1962,6 +2016,7 @@ def update_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     conn = _get_conn()
     with conn:
         conn.execute(
@@ -2002,6 +2057,8 @@ def update_chart(
                 human_design_gates = ?,
                 human_design_lines = ?,
                 human_design_channels = ?,
+                human_design_type = ?,
+                human_design_authority = ?,
                 chart_type = ?,
                 source = ?,
                 is_placeholder = ?,
@@ -2085,6 +2142,8 @@ def update_chart(
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
+                human_design_type,
+                human_design_authority,
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -2323,6 +2382,7 @@ def load_chart(chart_id: int):
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
+               human_design_type, human_design_authority,
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
         FROM charts
@@ -2371,6 +2431,8 @@ def load_chart(chart_id: int):
         human_design_gates,
         human_design_lines,
         human_design_channels,
+        human_design_type,
+        human_design_authority,
         chart_type,
         is_placeholder,
         is_deceased,
@@ -2424,6 +2486,8 @@ def load_chart(chart_id: int):
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
         placeholder.human_design_lines = _parse_int_list(human_design_lines)
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
+        placeholder.human_design_type = str(human_design_type).strip() if human_design_type else ""
+        placeholder.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
         normalized_chart_type = _normalize_chart_type(chart_type)
         placeholder.chart_type = normalized_chart_type
         placeholder.source = normalized_chart_type
@@ -2480,6 +2544,8 @@ def load_chart(chart_id: int):
     chart.human_design_gates = _parse_int_list(human_design_gates)
     chart.human_design_lines = _parse_int_list(human_design_lines)
     chart.human_design_channels = _parse_string_list(human_design_channels)
+    chart.human_design_type = str(human_design_type).strip() if human_design_type else ""
+    chart.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
     normalized_chart_type = _normalize_chart_type(chart_type)
     chart.chart_type = normalized_chart_type
     chart.source = normalized_chart_type

@@ -217,12 +217,22 @@ class DatabaseAnalyticsChartsMixin:
     def _extract_human_design_profile(
         self,
         chart: Any,
-    ) -> tuple[list[int], list[int], list[str], list[str]]:
+    ) -> tuple[list[int], list[int], list[str], list[str], str, str]:
         if getattr(chart, "positions", None):
-            hd_gates, hd_lines, hd_channels, hd_type = derive_human_design_profile(chart)
-            hd_result = build_human_design_result(chart)
+            try:
+                hd_gates, hd_lines, hd_channels, hd_type = derive_human_design_profile(chart)
+            except Exception:
+                hd_gates, hd_lines, hd_channels, hd_type = [], [], [], ""
+            try:
+                hd_result = build_human_design_result(chart)
+            except Exception:
+                hd_result = None
             hd_defined_centers = sorted(
-                {str(center).strip() for center in hd_result.defined_centers if str(center).strip()},
+                {
+                    str(center).strip()
+                    for center in getattr(hd_result, "defined_centers", [])
+                    if str(center).strip()
+                },
                 key=lambda center_name: (
                     self.HD_DEFINED_CENTER_ORDER.index(center_name)
                     if center_name in self.HD_DEFINED_CENTER_ORDER
@@ -236,7 +246,18 @@ class DatabaseAnalyticsChartsMixin:
             chart.human_design_defined_centers = list(hd_defined_centers)
             if hd_type:
                 chart.human_design_type = hd_type
-            return hd_gates, hd_lines, hd_channels, hd_defined_centers
+            hd_authority = canonicalize_hd_authority_label(
+                str(getattr(hd_result, "authority", "")).strip()
+            )
+            if not hd_type:
+                hd_type = str(getattr(chart, "human_design_type", "") or "").strip()
+            if not hd_authority:
+                hd_authority = canonicalize_hd_authority_label(
+                    str(getattr(chart, "human_design_authority", "") or "").strip()
+                )
+            if hd_authority:
+                chart.human_design_authority = hd_authority
+            return hd_gates, hd_lines, hd_channels, hd_defined_centers, hd_type, hd_authority
 
         hd_gates = [
             int(gate)
@@ -258,7 +279,11 @@ class DatabaseAnalyticsChartsMixin:
             for center in (getattr(chart, "human_design_defined_centers", []) or [])
             if str(center).strip()
         ]
-        return hd_gates, hd_lines, hd_channels, hd_defined_centers
+        hd_type = str(getattr(chart, "human_design_type", "") or "").strip()
+        hd_authority = canonicalize_hd_authority_label(
+            str(getattr(chart, "human_design_authority", "") or "").strip()
+        )
+        return hd_gates, hd_lines, hd_channels, hd_defined_centers, hd_type, hd_authority
 
 
     @staticmethod
