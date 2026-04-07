@@ -574,20 +574,6 @@ HD_AUTHORITIES = {
     ),
 }
 
-HD_AUTHORITY_COLORS = {
-    "emotional":  "",
-    "sacral":  "",
-    "splenic":  "",
-    "ego":  "",
-    "ego_manifested":  "",
-    "ego_projected":  "",
-    "self_projected":  "",
-    "mental":  "",
-    "environmental":  "",
-    "sounding_board":  "",
-    "lunar": "",
-}
-
 HD_CENTERS: Dict[str, dict[str, str]] = {
     "Head": {
         "center": "Head",
@@ -610,7 +596,7 @@ HD_CENTERS: Dict[str, dict[str, str]] = {
         "defined": "Your way of speaking or acting has a repeatable signature. People tend to recognize your delivery, timing, and style because it comes through in a consistent way.",
         "undefined": "Expression is inconsistent and highly affected by context. The trap is forcing speech, posting, or action just to be noticed, included, or taken seriously.",
     },
-    "Growth": {
+    "G": {
         "center": "G",
         "color": "#6F7B4D",  # moss green
         "description": "Your inner north star: identity, direction, style of love. Not what you think you should be, but the lane your whole self keeps drifting toward.",
@@ -654,6 +640,19 @@ HD_CENTERS: Dict[str, dict[str, str]] = {
     },
 }
 
+HD_AUTHORITY_COLORS = {
+    "emotional":  HD_CENTERS["Solar Plexus"]["color"],
+    "sacral":  HD_CENTERS["Sacral"]["color"],
+    "splenic":  HD_CENTERS["Spleen"]["color"],
+    "ego":  HD_CENTERS["Ego"]["color"],
+    "ego_manifested": HD_CENTERS["Ego"]["color"],
+    "ego_projected": HD_CENTERS["Ego"]["color"],
+    "self_projected": HD_CENTERS["G"]["color"],
+    "mental": HD_CENTERS["Head"]["color"],
+    "environmental":  HD_CENTERS["Ajna"]["color"],
+    "sounding_board":  HD_CENTERS["Throat"]["color"],
+    "lunar": "#00ffff", #'Moon' colored
+}
 
 HD_DEFINITIONS = {
     "single_definition": (
