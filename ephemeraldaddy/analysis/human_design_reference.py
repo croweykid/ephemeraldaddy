@@ -574,6 +574,20 @@ HD_AUTHORITIES = {
     ),
 }
 
+HD_AUTHORITY_COLORS = {
+    "emotional":  "",
+    "sacral":  "",
+    "splenic":  "",
+    "ego":  "",
+    "ego_manifested":  "",
+    "ego_projected":  "",
+    "self_projected":  "",
+    "mental":  "",
+    "environmental":  "",
+    "sounding_board":  "",
+    "lunar": "",
+}
+
 HD_CENTERS = [
     {
         "center": "Head",
