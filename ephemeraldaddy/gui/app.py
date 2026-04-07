@@ -21197,8 +21197,6 @@ class MainWindow(QMainWindow):
         block_number = block.blockNumber() + block_offset
         block_text = block.text()
         info_index = block_text.rfind("ⓘ")
-        if info_index == -1:
-            return False
 
         cursor_pos = cursor.positionInBlock()
         original_chart_info_output = self.chart_info_output
@@ -21259,6 +21257,19 @@ class MainWindow(QMainWindow):
                         if entry.get("kind") == "nakshatra":
                             self._show_nakshatra_info(str(entry.get("nakshatra", "")))
                             return True
+                        if entry.get("kind") == "hd_gate_line":
+                            self._show_human_design_gate_line_info(
+                                int(entry.get("gate", 0)),
+                                entry.get("line"),
+                            )
+                            return True
+                        if entry.get("kind") == "hd_channel":
+                            self._show_human_design_channel_info(
+                                int(entry.get("gate_a", 0)),
+                                int(entry.get("gate_b", 0)),
+                                str(entry.get("center", "")),
+                            )
+                            return True
                 selected_entry = None
                 icon_entries = [
                     entry
@@ -21298,7 +21309,7 @@ class MainWindow(QMainWindow):
                     )
                     return True
 
-            if cursor.positionInBlock() >= info_index:
+            if info_index != -1 and cursor.positionInBlock() >= info_index:
                 aspect_info = aspect_info_map.get(block_number)
                 if aspect_info:
                     self._show_aspect_info(
