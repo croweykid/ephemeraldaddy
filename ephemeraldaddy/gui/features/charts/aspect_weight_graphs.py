@@ -300,18 +300,57 @@ def build_popout_left_panel(
             entries = circuit_entries if selected_mode == "circuits" else awareness_stream_entries
             entries = entries or []
             if entries:
-                y_positions = list(range(len(entries)))
-                max_gate_count = max(1, max(len([gate for gate in entry.get("gates", []) if isinstance(gate, int)]) for entry in entries))
-                analytics_ax.set_xlim(0, max_gate_count)
-                analytics_ax.set_ylim(-0.5, len(entries) - 0.5)
-                analytics_ax.invert_yaxis()
-                for row_index, entry in enumerate(entries):
+                gates_per_row = 10 if selected_mode == "circuits" else None
+                max_gate_count = (
+                    gates_per_row
+                    if gates_per_row
+                    else max(
+                        1,
+                        max(
+                            len([gate for gate in entry.get("gates", []) if isinstance(gate, int)])
+                            for entry in entries
+                        ),
+                    )
+                )
+
+                row_layouts: list[tuple[float, dict[str, Any], list[int], set[int], int]] = []
+                y_tick_positions: list[float] = []
+                y_tick_labels: list[str] = []
+                divider_positions: list[float] = []
+                is_circuits_mode = selected_mode == "circuits"
+                gate_box_height = 0.31 if is_circuits_mode else 0.62
+                row_step = 0.42 if is_circuits_mode else 1.0
+                section_gap = 0.56 if is_circuits_mode else 0.0
+                current_row = 0.0
+                for entry_index, entry in enumerate(entries):
                     gates = [int(gate) for gate in entry.get("gates", []) if isinstance(gate, int)]
                     present_gates = set(int(gate) for gate in entry.get("present_gates", []))
                     completion_count = len([gate for gate in gates if gate in present_gates])
                     completion_level = int(round((completion_count / max(1, len(gates))) * 4)) if gates else 0
+
+                    gate_rows = [gates]
+                    if gates_per_row:
+                        gate_rows = [gates[index : index + gates_per_row] for index in range(0, len(gates), gates_per_row)] or [[]]
+
+                    row_start = current_row
+                    for gate_row in gate_rows:
+                        row_layouts.append((current_row, entry, gate_row, present_gates, completion_level))
+                        current_row += row_step
+
+                    row_count = max(1, len(gate_rows))
+                    y_tick_positions.append(row_start + ((row_count - 1) * row_step / 2))
+                    y_tick_labels.append(str(entry.get("name", "Unknown")))
+                    if entry_index < len(entries) - 1:
+                        divider_positions.append(current_row + (section_gap / 2))
+                    current_row += section_gap
+
+                analytics_ax.set_xlim(0, max_gate_count)
+                y_padding = 0.35 if is_circuits_mode else 0.5
+                analytics_ax.set_ylim(-y_padding, max(0.0, current_row - row_step + y_padding))
+                analytics_ax.invert_yaxis()
+                for row_index, _entry, gate_row, present_gates, completion_level in row_layouts:
                     segment_color = color_by_completion.get(completion_level, color_by_completion[0])
-                    for segment_index, gate in enumerate(gates):
+                    for segment_index, gate in enumerate(gate_row):
                         gate_present = gate in present_gates
                         face_color = segment_color if gate_present else "#4f4f4f"
                         label_color = "#ffffff" if gate_present else "#b8b8b8"
@@ -321,7 +360,7 @@ def build_popout_left_panel(
                             left=segment_index,
                             color=face_color,
                             edgecolor=chart_theme_colors["spine"],
-                            height=0.62,
+                            height=gate_box_height,
                             linewidth=0.8,
                         )
                         gate_gid = f"awareness_gate:{gate}"
@@ -340,8 +379,17 @@ def build_popout_left_panel(
                         )
                         gate_text_artist.set_gid(gate_gid)
                         gate_text_artist.set_picker(True)
-                y_tick_labels = [str(entry.get("name", "Unknown")) for entry in entries]
-                analytics_ax.set_yticks(y_positions)
+                for divider_y in divider_positions:
+                    analytics_ax.axhline(
+                        y=divider_y,
+                        xmin=0.0,
+                        xmax=1.0,
+                        color=chart_theme_colors["spine"],
+                        linewidth=0.9,
+                        alpha=0.9,
+                    )
+
+                analytics_ax.set_yticks(y_tick_positions)
                 analytics_ax.set_yticklabels(y_tick_labels, color=chart_theme_colors["text"], fontsize=7)
             else:
                 analytics_ax.text(
