@@ -20,6 +20,9 @@ from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWor
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
+    DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
+    DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE,
+    DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
@@ -27,8 +30,11 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
+    DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE,
     DATABASE_ANALYTICS_HEADER_SPACING,
+    DATABASE_ANALYTICS_SECTION_DEBUG_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
     configure_collapsible_header_toggle,
 )
 
@@ -67,6 +73,8 @@ class ChartAnalysisSectionsController:
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(DATABASE_ANALYTICS_HEADER_SPACING)
         header_row.setLayout(header_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            header_row.setStyleSheet(DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE)
 
         header_layout.addStretch(1)
 
@@ -138,6 +146,8 @@ class ChartAnalysisSectionsController:
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
         section.setLayout(section_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            section.setStyleSheet(DATABASE_ANALYTICS_SECTION_DEBUG_STYLE)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -152,7 +162,10 @@ class ChartAnalysisSectionsController:
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
-        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
+        content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
         def toggle_content(checked: bool) -> None:
@@ -205,7 +218,10 @@ class ChartAnalysisSectionsController:
         self._owner._chart_analysis_section_expanded[section_key] = expanded
 
         subtitle = QLabel(subtitle_text)
-        subtitle.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+        subtitle_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            subtitle_style = f"{subtitle_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
+        subtitle.setStyleSheet(subtitle_style)
         subtitle.setWordWrap(True)
         section_layout.addWidget(subtitle)
         self._owner._chart_analysis_subtitles[section_key] = subtitle
@@ -226,6 +242,8 @@ class ChartAnalysisSectionsController:
         chart_layout.setContentsMargins(*DATABASE_ANALYTICS_CHART_CONTENT_MARGINS)
         chart_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         chart_container.setLayout(chart_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            chart_container.setStyleSheet(DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE)
         section_layout.addWidget(chart_container)
         self._owner._chart_analysis_section_layouts[section_key] = chart_layout
         setattr(self._owner, chart_container_attr, chart_container)
