@@ -358,11 +358,11 @@ class RetconEngineDialog(QDialog):
             html.escape(location_text),
             html.escape(f"Criteria: {criteria_text}"),
             html.escape(f"Matches: {len(matches)}"),
-            "",
+            #"",
         ]
-        for idx, match in enumerate(matches, 1):
-            line = html.escape(self._format_match_line(idx, match))
-            lines.append(line if is_final else f"<i>{line}</i>")
+        # for idx, match in enumerate(matches, 1):
+        #     line = html.escape(self._format_match_line(idx, match))
+        #     lines.append(line if is_final else f"<i>{line}</i>")
 
         if is_final and not matches:
             lines.append(html.escape("No matches found in that range. Try wider dates or fewer constraints."))
