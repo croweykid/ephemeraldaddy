@@ -26,9 +26,13 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
+    SEASONAL_COLORS,
+    SEASONAL_COLOR_SPECTRUM,
     SENTIMENT_COLORS,
     SIGN_COLORS,
     ZODIAC_NAMES,
+    build_spectrum,
+    get_blended_color,
 )
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
@@ -1917,6 +1921,60 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    @staticmethod
+    def _birth_month_distribution_bar_colors() -> list[str]:
+        month_keys = (
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+        )
+        return [SEASONAL_COLOR_SPECTRUM.get(key, "#6fa8dc") for key in month_keys]
+
+    @staticmethod
+    def _time_known_distribution_bar_colors(total_steps: int) -> list[str]:
+        if total_steps <= 0:
+            return []
+        return build_spectrum(
+            SEASONAL_COLORS["spring"],
+            SEASONAL_COLORS["summer"],
+            SEASONAL_COLORS["fall"],
+            SEASONAL_COLORS["winter"],
+            total_steps,
+        )
+
+    @staticmethod
+    def _top_birth_dates_bar_colors(date_labels: list[str]) -> list[str]:
+        colors: list[str] = []
+        for label in date_labels:
+            month_text, _dash, day_text = label.partition("-")
+            try:
+                month_value = int(month_text)
+                day_value = int(day_text)
+                day_of_year = datetime.date(2001, month_value, day_value).timetuple().tm_yday
+            except (TypeError, ValueError):
+                day_of_year = 1
+            colors.append(
+                get_blended_color(
+                    SEASONAL_COLORS["spring"],
+                    SEASONAL_COLORS["summer"],
+                    SEASONAL_COLORS["fall"],
+                    SEASONAL_COLORS["winter"],
+                    365,
+                    day_of_year,
+                )
+            )
+        return colors
+
     @staticmethod
     def _database_analytics_figure_facecolor() -> str:
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
