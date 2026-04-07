@@ -3393,7 +3393,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "Transit View",
+            "🌍Transit View",
             expanded=True,
         )
 
@@ -3658,7 +3658,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         selected_utc = selected_local.astimezone(datetime.timezone.utc)
         chart = Chart(
-            "Transit View",
+            "🌍Transit View",
             selected_utc,
             self._transit_lat,
             self._transit_lon,
