@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 LINE_ARCHETYPES: dict[int, str] = {
     1: "Investigator/Foundation: learns by building solid fundamentals.",
     2: "Natural/Hermit: gifts emerge through natural talent and retreat.",
@@ -657,6 +659,26 @@ HD_AUTHORITY_COLORS = {
 HD_AUTHORITY_ALIASES: dict[str, str] = {
     "No Inner Authority": "Lunar",
 }
+
+def normalize_hd_authority_key(value: str) -> str:
+    """Return a normalized authority key suitable for dictionary lookup."""
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(value).strip().casefold()).strip("_")
+    alias_key_map = {
+        "no_inner_authority": "lunar",
+        "mental_environmental_sounding_board": "mental",
+    }
+    return alias_key_map.get(normalized, normalized)
+
+
+def authority_key_to_label(key: str) -> str:
+    normalized = normalize_hd_authority_key(key)
+    if normalized == "self_projected":
+        return "Self-Projected"
+    return normalized.replace("_", " ").title()
+
+
+def canonicalize_hd_authority_label(value: str) -> str:
+    return authority_key_to_label(normalize_hd_authority_key(value))
 
 HD_DEFINITIONS = {
     "single_definition": (

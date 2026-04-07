@@ -36,10 +36,12 @@ from ephemeraldaddy.analysis.human_design import (
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
-    HD_AUTHORITY_ALIASES,
     HD_AUTHORITY_COLORS,
     HD_CENTERS,
     HD_TYPES,
+    authority_key_to_label,
+    canonicalize_hd_authority_label,
+    normalize_hd_authority_key,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
@@ -93,7 +95,7 @@ class DatabaseAnalyticsChartsMixin:
         for key in HD_TYPES.keys()
     )
     HD_STANDARD_AUTHORITIES: tuple[str, ...] = tuple(
-        "Lunar" if key == "lunar" else key.replace("_", " ").title()
+        authority_key_to_label(key)
         for key in HD_AUTHORITIES.keys()
     )
 
@@ -1007,13 +1009,8 @@ class DatabaseAnalyticsChartsMixin:
             for label in labels
         ]
         def _resolve_distribution_color(label: str) -> str:
-            authority_label = HD_AUTHORITY_ALIASES.get(str(label).strip(), str(label).strip())
-            authority_key = (
-                authority_label
-                .strip()
-                .casefold()
-                .replace("-", "_")
-                .replace(" ", "_")
+            authority_key = normalize_hd_authority_key(
+                canonicalize_hd_authority_label(str(label).strip())
             )
             authority_color = HD_AUTHORITY_COLORS.get(authority_key)
             if authority_color:
