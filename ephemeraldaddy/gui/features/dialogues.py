@@ -4,6 +4,7 @@ import datetime
 import html
 
 from PySide6.QtCore import QDate, QThread, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,6 +31,7 @@ from ephemeraldaddy.core.interpretations import (
     EPHEMERIS_MAX_DATE,
     EPHEMERIS_MIN_DATE,
     FAMILIARITY_INDEX,
+    PLANET_COLORS,
     ZODIAC_NAMES,
     max_familiarity_score,
     normalized_familiarity_score,
@@ -79,17 +81,24 @@ class RetconEngineDialog(QDialog):
         root = QVBoxLayout()
         self.setLayout(root)
 
+        def _make_bold_label(text: str) -> QLabel:
+            label = QLabel(text)
+            bold_font = QFont(label.font())
+            bold_font.setBold(True)
+            label.setFont(bold_font)
+            return label
+
         form = QFormLayout()
         top_row = QHBoxLayout()
         top_row.setSpacing(12)
 
-        top_row.addWidget(QLabel("Location"))
+        top_row.addWidget(_make_bold_label("Location"))
         self.place_edit = QLineEdit()
         self.place_edit.setPlaceholderText("Chicago, IL, USA")
         self.place_edit.setMinimumWidth(460)
         top_row.addWidget(self.place_edit, 2)
 
-        top_row.addWidget(QLabel("Date range"))
+        top_row.addWidget(_make_bold_label("Date Range"))
         self.start_date_edit = QDateEdit()
         self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.start_date_edit.setCalendarPopup(True)
@@ -140,14 +149,15 @@ class RetconEngineDialog(QDialog):
         step_hint_label.setCursor(Qt.PointingHandCursor)
         options_row.addWidget(step_hint_label)
         options_row.addSpacing(12)
-        options_row.addWidget(QLabel("Max results"))
+        options_row.addWidget(_make_bold_label("Max Results"))
         options_row.addWidget(self.max_results_spin)
         options_row.addStretch(1)
-        form.addRow("Search options", options_row)
+        form.addRow(_make_bold_label("Search Options"), options_row)
 
         root.addLayout(form)
 
-        selectors_group = QGroupBox("Sign criteria")
+        selectors_group = QGroupBox("Sign Criteria")
+        selectors_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         selectors_layout = QGridLayout()
         selectors_layout.setHorizontalSpacing(10)
         self._body_sign_combos: dict[str, QComboBox] = {}
@@ -155,7 +165,12 @@ class RetconEngineDialog(QDialog):
         for idx, body in enumerate(RETCON_BODIES):
             label = QLabel(body)
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            label.setStyleSheet("QLabel { background: transparent; padding-right: 6px; }")
+            label_color = PLANET_COLORS.get(body, "#FFFFFF")
+            label.setStyleSheet(
+                "QLabel { "
+                f"background: transparent; color: {label_color}; padding-right: 6px;"
+                " }"
+            )
             combo = QComboBox()
             combo.addItems(sign_options)
             combo.setCurrentText("Any")
