@@ -574,71 +574,72 @@ HD_AUTHORITIES = {
     ),
 }
 
-HD_CENTERS = [
-    {
+HD_CENTERS: Dict[str, dict[str, str]] = {
+    "Head": {
         "center": "Head",
         "color": "#6E5A7E",  # dusty violet
         "description": "The pressure to ask, chase, and crack the big questions. This is where ideas, doubts, and mental pressures start buzzing.",
         "defined": "Your mind generates a steady stream of questions and inspiration. You tend to process mental pressure in a consistent way instead of getting hijacked by every random question in the room.",
-        "undefined": "You pick up other people's questions, doubts, and mental pressure fast. The trap is treating every open loop around you like your personal problem to solve."
+        "undefined": "You pick up other people's questions, doubts, and mental pressure fast. The trap is treating every open loop around you like your personal problem to solve.",
     },
-    {
+    "Ajna": {
         "center": "Ajna",
         "color": "#4F5D75",  # stormy indigo
         "description": "How you turn raw input into a framework. This is the part that categorizes, compares, concludes, and decides what makes sense.",
         "defined": "You have a stable way of thinking. Your opinions and mental process tend to be coherent, recognizable, and hard to bend just because the room changed.",
-        "undefined": "You can see many sides and hold multiple frameworks, but you may feel pressure to sound certain when you are not. The trap is performing certainty to avoid looking mentally unsettled."
+        "undefined": "You can see many sides and hold multiple frameworks, but you may feel pressure to sound certain when you are not. The trap is performing certainty to avoid looking mentally unsettled.",
     },
-    {
+    "Throat": {
         "center": "Throat",
         "color": "#4E6B6F",  # muted mineral blue
         "description": "Speech, action, declaration, naming, visibility: this is where inner energy gets expressed into the world.",
         "defined": "Your way of speaking or acting has a repeatable signature. People tend to recognize your delivery, timing, and style because it comes through in a consistent way.",
-        "undefined": "Expression is inconsistent and highly affected by context. The trap is forcing speech, posting, or action just to be noticed, included, or taken seriously."
+        "undefined": "Expression is inconsistent and highly affected by context. The trap is forcing speech, posting, or action just to be noticed, included, or taken seriously.",
     },
-    {
+    "Growth": {
         "center": "G",
         "color": "#6F7B4D",  # moss green
         "description": "Your inner north star: identity, direction, style of love. Not what you think you should be, but the lane your whole self keeps drifting toward.",
         "defined": "Your sense of self has continuity. Even when life changes, there is usually a durable inner thread of identity, direction, and what feels like your lane.",
-        "undefined": "Your identity is more porous and environment-sensitive. The trap is hunting for a fixed label or borrowed purpose, when in practice the right people and places shape everything here."
+        "undefined": "Your identity is more porous and environment-sensitive. The trap is hunting for a fixed label or borrowed purpose, when in practice the right people and places shape everything here.",
     },
-    {
+    "Ego": {
         "center": "Ego",
         "color": "#A28652",  # worn ochre
         "description": "Willpower, value, promises, ambition, and the material push to get or secure something.  This is what says, 'I can do it, I’ll prove it, I’ll get the deal, and I want the credit.''",
         "defined": "You have reliable access to willpower in the moments that matter. You can genuinely commit, compete, bargain, and follow through when your heart is in it.",
-        "undefined": "Willpower is inconsistent, and that is not a defect. The trap is overpromising, overworking, or trying to prove your worth to people who were not qualified to judge it in the first place."
+        "undefined": "Willpower is inconsistent, and that is not a defect. The trap is overpromising, overworking, or trying to prove your worth to people who were not qualified to judge it in the first place.",
     },
-    {
+    "Spleen": {
         "center": "Spleen",
         "color": "#7A8450",  # sage-lime
         "description": "Instinct, survival, health, and immediate body intelligence. Fast, quiet, and practical: what feels off, what feels safe, what to keep, what to drop, before your mind catches up.",
         "defined": "Your instincts tend to fire cleanly in the moment. You have a more reliable feel for timing, risk, and what your body is telling you right now.",
-        "undefined": "You amplify fear and survival pressure. The trap is hanging on to people, routines, jobs, or situations because letting go feels scarier than staying, even when staying is clearly not good for you."
+        "undefined": "You amplify fear and survival pressure. The trap is hanging on to people, routines, jobs, or situations because letting go feels scarier than staying, even when staying is clearly not good for you.",
     },
-    {
+    "Solar Plexus": {
         "center": "Solar Plexus",
         "color": "#B79A4A",  # muted amber
         "description": "Emotion, desire, reaction, sensitivity, and wave-based clarity. This is not a calm spreadsheet; it is the feeling field.",
         "defined": "You run on your own emotional wave. Feelings rise and fall over time, so clarity is something you wait for rather than force on the spot.",
-        "undefined": "You take in and amplify other people's emotions strongly. The trap is avoiding confrontation, smoothing over tension, or mistaking the room's emotional weather for your own settled truth."
+        "undefined": "You take in and amplify other people's emotions strongly. The trap is avoiding confrontation, smoothing over tension, or mistaking the room's emotional weather for your own settled truth.",
     },
-    {
+    "Sacral": {
         "center": "Sacral",
         "color": "#B56F3A",  # burnt orange
         "description": "Life-force for work, sex, stamina, repetition, and building. This is the deep bodily response that says yes, no, more, enough.",
         "defined": "You have sustainable access to generative energy when something gets a real bodily response from you. When used correctly, this center supports steady work, vitality, and satisfaction.",
-        "undefined": "Your stamina is inconsistent, but you can still amplify other people's work energy and keep going too long. The trap is quitting only after exhaustion instead of recognizing earlier that the fuel was borrowed."
+        "undefined": "Your stamina is inconsistent, but you can still amplify other people's work energy and keep going too long. The trap is quitting only after exhaustion instead of recognizing earlier that the fuel was borrowed.",
     },
-    {
+    "Root": {
         "center": "Root",
         "color": "#8A4B3C",  # clay red
         "description": "Stress, adrenaline, urgency, and the pressure to get moving. This is the engine room of deadlines, drive, and survival push.",
         "defined": "You handle pressure in a steadier, more predictable way. Stress still exists, but it is less likely to feel like a constant external emergency siren.",
-        "undefined": "You amplify outside pressure and often feel pushed to act fast just to get relief. The trap is rushing, clearing tasks for the sake of discharge, and confusing urgency with correctness."
+        "undefined": "You amplify outside pressure and often feel pushed to act fast just to get relief. The trap is rushing, clearing tasks for the sake of discharge, and confusing urgency with correctness.",
     },
-]
+}
+
 
 HD_DEFINITIONS = {
     "single_definition": (

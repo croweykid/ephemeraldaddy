@@ -65,7 +65,7 @@ class DatabaseAnalyticsChartsMixin:
     )
     HD_CENTER_COLORS: dict[str, str] = {
         str(center_data.get("center", "")).strip(): str(center_data.get("color", "#6fa8dc"))
-        for center_data in HD_CENTERS
+        for center_data in HD_CENTERS.values()
         if str(center_data.get("center", "")).strip()
     }
     HD_STANDARD_PROFILES: tuple[str, ...] = (

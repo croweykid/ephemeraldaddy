@@ -24450,7 +24450,7 @@ class MainWindow(QMainWindow):
 
         center_reference_by_name = {
             str(center_data.get("center", "")).strip(): center_data
-            for center_data in HD_CENTERS
+            for center_data in HD_CENTERS.values()
             if str(center_data.get("center", "")).strip()
         }
 
