@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import re
 import statistics
 import textwrap
 import warnings
@@ -260,6 +261,20 @@ class DatabaseAnalyticsChartsMixin:
         ]
         return hd_gates, hd_lines, hd_channels, hd_defined_centers
 
+
+    @staticmethod
+    def _format_human_design_incarnation_cross_label(label: str) -> str:
+        gate_values = [int(value) for value in re.findall(r"\d+", str(label))]
+        if len(gate_values) < 4:
+            return str(label)
+        return f"{gate_values[0]}-{gate_values[1]}•{gate_values[2]}-{gate_values[3]}"
+
+    @staticmethod
+    def _format_human_design_type_label(label: str) -> str:
+        if str(label).strip() == "Manifesting Generator":
+            return "MF Generator"
+        return str(label)
+
     @staticmethod
     def _human_design_mode_payload(
         mode: str,
@@ -284,18 +299,21 @@ class DatabaseAnalyticsChartsMixin:
                 float(database_cache["human_design_profile_total_count"]),
             )
         if mode == "hd_incarnation_crosses":
-            labels = sorted(
+            raw_labels = sorted(
                 set(selection_cache["human_design_incarnation_cross_totals"].keys())
                 | set(database_cache["human_design_incarnation_cross_totals"].keys())
             )
-            selection_counts = {
-                label: int(selection_cache["human_design_incarnation_cross_totals"].get(label, 0))
-                for label in labels
-            }
-            database_counts = {
-                label: int(database_cache["human_design_incarnation_cross_totals"].get(label, 0))
-                for label in labels
-            }
+            selection_counts: dict[str, int] = {}
+            database_counts: dict[str, int] = {}
+            for raw_label in raw_labels:
+                display_label = DatabaseAnalyticsChartsMixin._format_human_design_incarnation_cross_label(raw_label)
+                selection_counts[display_label] = selection_counts.get(display_label, 0) + int(
+                    selection_cache["human_design_incarnation_cross_totals"].get(raw_label, 0)
+                )
+                database_counts[display_label] = database_counts.get(display_label, 0) + int(
+                    database_cache["human_design_incarnation_cross_totals"].get(raw_label, 0)
+                )
+            labels = sorted(set(selection_counts.keys()) | set(database_counts.keys()))
             return (
                 labels,
                 selection_counts,
@@ -304,14 +322,22 @@ class DatabaseAnalyticsChartsMixin:
                 float(database_cache["human_design_incarnation_cross_total_count"]),
             )
         if mode == "hd_types":
-            labels = list(DatabaseAnalyticsChartsMixin.HD_STANDARD_TYPES)
+            raw_labels = list(DatabaseAnalyticsChartsMixin.HD_STANDARD_TYPES)
+            labels = [
+                DatabaseAnalyticsChartsMixin._format_human_design_type_label(label)
+                for label in raw_labels
+            ]
             selection_counts = {
-                label: int(selection_cache["human_design_type_totals"].get(label, 0))
-                for label in labels
+                DatabaseAnalyticsChartsMixin._format_human_design_type_label(label): int(
+                    selection_cache["human_design_type_totals"].get(label, 0)
+                )
+                for label in raw_labels
             }
             database_counts = {
-                label: int(database_cache["human_design_type_totals"].get(label, 0))
-                for label in labels
+                DatabaseAnalyticsChartsMixin._format_human_design_type_label(label): int(
+                    database_cache["human_design_type_totals"].get(label, 0)
+                )
+                for label in raw_labels
             }
             return (
                 labels,
