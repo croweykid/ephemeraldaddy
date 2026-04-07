@@ -114,13 +114,31 @@ class RetconEngineDialog(QDialog):
 
         options_row = QHBoxLayout()
         self.step_combo = QComboBox()
-        self.step_combo.addItems(["60", "30", "15", "5"])
-        self.step_combo.setCurrentText("60")
+        step_options = [
+            ("1 min", 1),
+            ("5 min", 5),
+            ("10 min", 10),
+            ("20 min", 20),
+            ("60 min", 60),
+            ("4 hrs", 240),
+            ("12 hrs", 720),
+            ("1 day", 1440),
+        ]
+        for label, minutes in step_options:
+            self.step_combo.addItem(label, minutes)
+        self.step_combo.setCurrentText("1 day")
         self.max_results_spin = QSpinBox()
         self.max_results_spin.setRange(1, 10000)
         self.max_results_spin.setValue(100)
         options_row.addWidget(QLabel("Step (minutes)"))
         options_row.addWidget(self.step_combo)
+        step_hint_label = QLabel("ⓘ")
+        step_hint_label.setToolTip(
+            '<i>Hint: Start with large steps and large spans of time; '
+            "then narrow search field with successive passes.</i>"
+        )
+        step_hint_label.setCursor(Qt.PointingHandCursor)
+        options_row.addWidget(step_hint_label)
         options_row.addSpacing(12)
         options_row.addWidget(QLabel("Max results"))
         options_row.addWidget(self.max_results_spin)
@@ -246,7 +264,7 @@ class RetconEngineDialog(QDialog):
             )
             return
 
-        step_minutes = int(self.step_combo.currentText())
+        step_minutes = int(self.step_combo.currentData() or 1440)
         max_results = self.max_results_spin.value()
 
         self._active_location_label = label
