@@ -450,6 +450,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_PROFILES,
     HD_STRATEGIES,
     HD_TYPES,
+    canonicalize_hd_authority_label,
     format_gate_line_info,
 )
 from ephemeraldaddy.gui.features.charts.human_design_plot import (
@@ -7328,6 +7329,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["human_design_type_totals"][hd_type] += 1.0
                 snapshot["human_design_type_total_count"] += 1.0
             hd_authority = str(getattr(hd_result, "authority", "")).strip()
+            hd_authority = canonicalize_hd_authority_label(hd_authority)
             if hd_authority in snapshot["human_design_authority_totals"]:
                 snapshot["human_design_authority_totals"][hd_authority] += 1.0
                 snapshot["human_design_authority_total_count"] += 1.0
