@@ -544,7 +544,7 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
         self._apply_tight_layout(relationship_figure)
         
-        relationship_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.96)
+        relationship_figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
         #relationship_figure.subplots_adjust(**CHART_AXES_STYLE["barh_adjust"])
 
         relationship_canvas = FigureCanvas(relationship_figure)
@@ -700,7 +700,7 @@ class DatabaseAnalyticsChartsMixin:
         self._apply_tight_layout(figure)
         # DB View's lefthand panel's graph margins.
         # Lower the top bound to reserve space for the title.
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.96)
+        figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -825,7 +825,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in sign_ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(sign_figure)
-        sign_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.96)
+        sign_figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         sign_canvas = FigureCanvas(sign_figure)
         self._configure_left_panel_canvas(sign_canvas, sign_figure)
@@ -950,7 +950,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in dominant_ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(dominant_figure)
-        dominant_figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.96)
+        dominant_figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         dominant_canvas = FigureCanvas(dominant_figure)
         self._configure_left_panel_canvas(dominant_canvas, dominant_figure)
@@ -1045,7 +1045,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=.97, top=0.96)
+        figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
@@ -1175,7 +1175,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=.97, top=0.96)
+        figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -1320,7 +1320,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.06, right=0.97, top=0.98)
+        figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
@@ -1487,7 +1487,7 @@ class DatabaseAnalyticsChartsMixin:
             tick_label.set_ha("right")
         # Manual margins are explicitly set for this chart; skip tight_layout to avoid
         # benign "cannot be made large enough" warnings with long axis labels.
-        figure.subplots_adjust(left=0.51, bottom=0.16, right=0.97, top=0.95)
+        figure.subplots_adjust(left=0.42, bottom=0.12, right=0.97, top=0.96)
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
