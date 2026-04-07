@@ -1538,7 +1538,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.setLayout(layout)
         configure_manage_dialog_chrome(self, layout)
 
-        self.todays_transits_panel_button = QPushButton("Transit View") #Transit View
+        self.todays_transits_panel_button = QPushButton("🌍") #Transit View
         self.todays_transits_panel_button.setObjectName("manage_toggle_transits_panel_button")
         self.todays_transits_panel_button.clicked.connect(
             self._toggle_todays_transits_panel
