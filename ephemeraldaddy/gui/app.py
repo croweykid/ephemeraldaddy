@@ -2998,11 +2998,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Lines", "hd_lines"),
                 ("Channels", "hd_channels"),
                 ("Defined Centers", "hd_defined_centers"),
+                ("Profiles", "hd_profiles"),
+                ("Incarnation Crosses", "hd_incarnation_crosses"),
+                ("Types", "hd_types"),
+                ("Authorities", "hd_authorities"),
             ],
             show_title=False,
         )
         human_design_subheader = add_database_subheader(
-            "Human Design profile distribution by gate, line, and channel."
+            "Human Design distributions for gates, lines, channels, centers, profiles, incarnation crosses, types, and authorities."
         )
         human_design_section_layout.addWidget(human_design_subheader)
         (
@@ -7194,10 +7198,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design_defined_center_totals": {
                 center: 0.0 for center in self.HD_DEFINED_CENTER_ORDER
             },
+            "human_design_profile_totals": {
+                profile: 0.0 for profile in self.HD_STANDARD_PROFILES
+            },
+            "human_design_incarnation_cross_totals": {},
+            "human_design_type_totals": {
+                hd_type: 0.0 for hd_type in self.HD_STANDARD_TYPES
+            },
+            "human_design_authority_totals": {
+                authority: 0.0 for authority in self.HD_STANDARD_AUTHORITIES
+            },
             "human_design_gate_total_count": 0.0,
             "human_design_line_total_count": 0.0,
             "human_design_channel_total_count": 0.0,
             "human_design_defined_center_total_count": 0.0,
+            "human_design_profile_total_count": 0.0,
+            "human_design_incarnation_cross_total_count": 0.0,
+            "human_design_type_total_count": 0.0,
+            "human_design_authority_total_count": 0.0,
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7332,6 +7350,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             snapshot["human_design_defined_center_totals"][center_name] += 1.0
             snapshot["human_design_defined_center_total_count"] += 1.0
+        try:
+            hd_result = build_human_design_result(chart)
+        except Exception:
+            hd_result = None
+        if hd_result is not None:
+            hd_profile = str(getattr(hd_result, "profile", "")).strip()
+            if hd_profile in snapshot["human_design_profile_totals"]:
+                snapshot["human_design_profile_totals"][hd_profile] += 1.0
+                snapshot["human_design_profile_total_count"] += 1.0
+            hd_cross = str(getattr(hd_result, "incarnation_cross", "")).strip()
+            if hd_cross:
+                snapshot["human_design_incarnation_cross_totals"][hd_cross] = (
+                    snapshot["human_design_incarnation_cross_totals"].get(hd_cross, 0.0) + 1.0
+                )
+                snapshot["human_design_incarnation_cross_total_count"] += 1.0
+            hd_type = str(getattr(hd_result, "type", "")).strip()
+            if hd_type in snapshot["human_design_type_totals"]:
+                snapshot["human_design_type_totals"][hd_type] += 1.0
+                snapshot["human_design_type_total_count"] += 1.0
+            hd_authority = str(getattr(hd_result, "authority", "")).strip()
+            if hd_authority in snapshot["human_design_authority_totals"]:
+                snapshot["human_design_authority_totals"][hd_authority] += 1.0
+                snapshot["human_design_authority_total_count"] += 1.0
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:
@@ -7424,6 +7465,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         totals["human_design_defined_center_total_count"] += direction * float(
             snapshot.get("human_design_defined_center_total_count", 0.0)
+        )
+        totals["human_design_profile_total_count"] += direction * float(
+            snapshot.get("human_design_profile_total_count", 0.0)
+        )
+        totals["human_design_incarnation_cross_total_count"] += direction * float(
+            snapshot.get("human_design_incarnation_cross_total_count", 0.0)
+        )
+        totals["human_design_type_total_count"] += direction * float(
+            snapshot.get("human_design_type_total_count", 0.0)
+        )
+        totals["human_design_authority_total_count"] += direction * float(
+            snapshot.get("human_design_authority_total_count", 0.0)
         )
         totals["social_score_total"] += direction * float(snapshot.get("social_score", 0.0))
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
@@ -7522,6 +7575,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for center in self.HD_DEFINED_CENTER_ORDER:
                 totals["human_design_defined_center_totals"][center] += direction * float(
                     center_snapshot.get(center, 0.0)
+                )
+        profile_snapshot = snapshot.get("human_design_profile_totals", {})
+        if isinstance(profile_snapshot, dict):
+            for profile in self.HD_STANDARD_PROFILES:
+                totals["human_design_profile_totals"][profile] += direction * float(
+                    profile_snapshot.get(profile, 0.0)
+                )
+        cross_snapshot = snapshot.get("human_design_incarnation_cross_totals", {})
+        if isinstance(cross_snapshot, dict):
+            for cross, value in cross_snapshot.items():
+                cross_label = str(cross).strip()
+                if not cross_label:
+                    continue
+                totals["human_design_incarnation_cross_totals"][cross_label] = (
+                    totals["human_design_incarnation_cross_totals"].get(cross_label, 0.0)
+                    + (direction * float(value))
+                )
+                if abs(totals["human_design_incarnation_cross_totals"][cross_label]) <= 1e-9:
+                    del totals["human_design_incarnation_cross_totals"][cross_label]
+        type_snapshot = snapshot.get("human_design_type_totals", {})
+        if isinstance(type_snapshot, dict):
+            for hd_type in self.HD_STANDARD_TYPES:
+                totals["human_design_type_totals"][hd_type] += direction * float(
+                    type_snapshot.get(hd_type, 0.0)
+                )
+        authority_snapshot = snapshot.get("human_design_authority_totals", {})
+        if isinstance(authority_snapshot, dict):
+            for authority in self.HD_STANDARD_AUTHORITIES:
+                totals["human_design_authority_totals"][authority] += direction * float(
+                    authority_snapshot.get(authority, 0.0)
                 )
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
@@ -9165,7 +9248,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_planet_counts=database_human_design_counts,
                     loaded_charts=loaded_charts,
                     labels=human_design_labels,
-                    height_scale=2 if human_design_mode in {"hd_gates"} else 1.0,
+                    height_scale=2 if human_design_mode in {"hd_gates", "hd_incarnation_crosses"} else 1.0,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(

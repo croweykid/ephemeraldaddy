@@ -64,6 +64,37 @@ class DatabaseAnalyticsChartsMixin:
         for center_data in HD_CENTERS
         if str(center_data.get("center", "")).strip()
     }
+    HD_STANDARD_PROFILES: tuple[str, ...] = (
+        "1/3",
+        "1/4",
+        "2/4",
+        "2/5",
+        "3/5",
+        "3/6",
+        "4/1",
+        "4/6",
+        "5/1",
+        "5/2",
+        "6/2",
+        "6/3",
+    )
+    HD_STANDARD_TYPES: tuple[str, ...] = (
+        "Manifestor",
+        "Generator",
+        "Manifesting Generator",
+        "Projector",
+        "Reflector",
+    )
+    HD_STANDARD_AUTHORITIES: tuple[str, ...] = (
+        "Emotional",
+        "Sacral",
+        "Splenic",
+        "Ego",
+        "Self-Projected",
+        "Mental",
+        "Lunar",
+        "No Inner Authority",
+    )
 
     @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
@@ -212,6 +243,77 @@ class DatabaseAnalyticsChartsMixin:
         selection_cache: dict[str, Any],
         database_cache: dict[str, Any],
     ) -> tuple[list[str], dict[str, int], dict[str, int], float, float]:
+        if mode == "hd_profiles":
+            labels = list(DatabaseAnalyticsChartsMixin.HD_STANDARD_PROFILES)
+            selection_counts = {
+                label: int(selection_cache["human_design_profile_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_profile_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_profile_total_count"]),
+                float(database_cache["human_design_profile_total_count"]),
+            )
+        if mode == "hd_incarnation_crosses":
+            labels = sorted(
+                set(selection_cache["human_design_incarnation_cross_totals"].keys())
+                | set(database_cache["human_design_incarnation_cross_totals"].keys())
+            )
+            selection_counts = {
+                label: int(selection_cache["human_design_incarnation_cross_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_incarnation_cross_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_incarnation_cross_total_count"]),
+                float(database_cache["human_design_incarnation_cross_total_count"]),
+            )
+        if mode == "hd_types":
+            labels = list(DatabaseAnalyticsChartsMixin.HD_STANDARD_TYPES)
+            selection_counts = {
+                label: int(selection_cache["human_design_type_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_type_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_type_total_count"]),
+                float(database_cache["human_design_type_total_count"]),
+            )
+        if mode == "hd_authorities":
+            labels = list(DatabaseAnalyticsChartsMixin.HD_STANDARD_AUTHORITIES)
+            selection_counts = {
+                label: int(selection_cache["human_design_authority_totals"].get(label, 0))
+                for label in labels
+            }
+            database_counts = {
+                label: int(database_cache["human_design_authority_totals"].get(label, 0))
+                for label in labels
+            }
+            return (
+                labels,
+                selection_counts,
+                database_counts,
+                float(selection_cache["human_design_authority_total_count"]),
+                float(database_cache["human_design_authority_total_count"]),
+            )
         if mode == "hd_lines":
             labels = [str(line) for line in range(1, 7)]
             selection_counts = {
