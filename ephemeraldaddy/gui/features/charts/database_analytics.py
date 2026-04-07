@@ -568,7 +568,7 @@ class DatabaseAnalyticsChartsMixin:
         negative_total_label: str,
     ) -> FigureCanvas:
         # DB View's lefthand panel top graph dimensions
-        figure = Figure(figsize=(3.15, 6.8))  # graph dimensions
+        figure = Figure(figsize=(1.5, 6.8))  # graph dimensions
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -967,7 +967,7 @@ class DatabaseAnalyticsChartsMixin:
         height_scale: float = 1.0,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
-        figure = Figure(figsize=(2.7, 5.8 * clamped_height_scale))
+        figure = Figure(figsize=(1.5, 4 * clamped_height_scale)) #width of graph, height of graph
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -1079,7 +1079,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
     ) -> FigureCanvas:
-        figure = Figure(figsize=(2.7, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
+        figure = Figure(figsize=(1.5, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -1212,7 +1212,7 @@ class DatabaseAnalyticsChartsMixin:
         # Keep D&D species and class distributions visually consistent and compact
         # so the full graph remains visible above the fold.
         chart_height = 4.9
-        figure = Figure(figsize=(2.7, chart_height))
+        figure = Figure(figsize=(1.5, chart_height))
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
@@ -1837,7 +1837,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_colors: list[str] | None = None,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
-        figure = Figure(figsize=(2.7, chart_height))
+        figure = Figure(figsize=(1.5, chart_height))
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
