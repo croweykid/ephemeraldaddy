@@ -214,7 +214,6 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
     _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
     _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
-    _bind_menu_action(charts_menu, "Get Personal Transit", dialog, "_on_menu_get_personal_transit")
     _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
 
     tools_menu = menu_bar.addMenu("Tools")
