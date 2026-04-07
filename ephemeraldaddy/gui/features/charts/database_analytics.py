@@ -419,7 +419,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
     ) -> FigureCanvas:
-        relationship_figure = Figure(figsize=(3.6, 5.8))
+        relationship_figure = Figure(figsize=(2.7, 5.8))
         relationship_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         relationship_ax = relationship_figure.add_subplot(111)
         relationship_ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -564,7 +564,7 @@ class DatabaseAnalyticsChartsMixin:
         negative_total_label: str,
     ) -> FigureCanvas:
         # DB View's lefthand panel top graph dimensions
-        figure = Figure(figsize=(4.2, 6.8))  # graph dimensions
+        figure = Figure(figsize=(3.15, 6.8))  # graph dimensions
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -712,7 +712,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
     ) -> FigureCanvas:
         # DB View's lefthand panel graph dimensions (for sign graph)?
-        sign_figure = Figure(figsize=(3.6, 5.8))
+        sign_figure = Figure(figsize=(2.7, 5.8))
         sign_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         sign_ax = sign_figure.add_subplot(111)
         sign_ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -837,7 +837,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
         sign_labels: list[str] | None = None,
     ) -> FigureCanvas:
-        dominant_figure = Figure(figsize=(3.6, 5.8))
+        dominant_figure = Figure(figsize=(2.7, 5.8))
         dominant_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         dominant_ax = dominant_figure.add_subplot(111)
         dominant_ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -963,7 +963,7 @@ class DatabaseAnalyticsChartsMixin:
         height_scale: float = 1.0,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
-        figure = Figure(figsize=(3.6, 5.8 * clamped_height_scale))
+        figure = Figure(figsize=(2.7, 5.8 * clamped_height_scale))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1075,7 +1075,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
     ) -> FigureCanvas:
-        figure = Figure(figsize=(3.6, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
+        figure = Figure(figsize=(2.7, max(2.8, min(8.0, (len(labels) * 0.42) + 0.8))))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1208,7 +1208,7 @@ class DatabaseAnalyticsChartsMixin:
         # Keep D&D species and class distributions visually consistent and compact
         # so the full graph remains visible above the fold.
         chart_height = 4.9
-        figure = Figure(figsize=(3.6, chart_height))
+        figure = Figure(figsize=(2.7, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
@@ -1833,7 +1833,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_colors: list[str] | None = None,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
-        figure = Figure(figsize=(3.6, chart_height))
+        figure = Figure(figsize=(2.7, chart_height))
         figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
         ax = figure.add_subplot(111)
         ax.set_facecolor(CHART_THEME_COLORS["background"])
