@@ -443,6 +443,7 @@ from ephemeraldaddy.analysis.human_design import (
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
+    HD_CENTERS,
     HD_CHANNELS,
     HD_DEFINITIONS,
     HD_PROFILES,
@@ -450,7 +451,12 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_TYPES,
     format_gate_line_info,
 )
-from ephemeraldaddy.gui.features.charts.human_design_plot import draw_human_design_chart
+from ephemeraldaddy.gui.features.charts.human_design_plot import (
+    CENTER_HALF_HEIGHT,
+    CENTER_HALF_WIDTH,
+    CENTER_POSITIONS,
+    draw_human_design_chart,
+)
 from ephemeraldaddy.gui.features.charts.right_panel_stack import (
     build_chart_right_panel_stack,
 )
@@ -24425,7 +24431,7 @@ class MainWindow(QMainWindow):
 
         chart_info_output = self._build_popout_left_panel(
             layout,
-            chart_info_placeholder="Click the ⓘ next to a position to see details/interpretation.",
+            chart_info_placeholder="Click a center on the bodygraph to see center info here.",
             aspect_entries=list(getattr(self._latest_chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(self._latest_chart.name)}-natal_aspect_distribution",
             weighted_score_for_entry=_weighted_natal_score,
@@ -24468,6 +24474,46 @@ class MainWindow(QMainWindow):
             hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
         )
+
+        center_reference_by_name = {
+            str(center_data.get("center", "")).strip(): center_data
+            for center_data in HD_CENTERS
+            if str(center_data.get("center", "")).strip()
+        }
+
+        def _show_center_info(center_name: str) -> None:
+            center_meta = center_reference_by_name.get(center_name, {})
+            description = str(center_meta.get("description", "No center description available.")).strip()
+            is_defined = center_name in hd_result.defined_centers
+            state_label = "Defined" if is_defined else "Undefined"
+            state_detail_key = "defined" if is_defined else "undefined"
+            state_detail = str(center_meta.get(state_detail_key, "No details available.")).strip()
+            chart_info_output.setPlainText(
+                "\n".join(
+                    [
+                        center_name,
+                        f"*{description}*",
+                        "",
+                        state_label,
+                        state_detail,
+                    ]
+                )
+            )
+
+        def _on_bodygraph_click(event: Any) -> None:
+            if event.inaxes is None or event.xdata is None or event.ydata is None:
+                return
+            click_x = float(event.xdata)
+            click_y = float(event.ydata)
+            for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
+                if (
+                    abs(click_x - center_x) <= CENTER_HALF_WIDTH
+                    and abs(click_y - center_y) <= CENTER_HALF_HEIGHT
+                ):
+                    _show_center_info(center_name)
+                    return
+
+        canvas.mpl_connect("button_press_event", _on_bodygraph_click)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()
 
