@@ -22014,13 +22014,7 @@ class MainWindow(QMainWindow):
         splitter_key = "main_window/splitter_sizes"
         customized_key = "main_window/layout_customized"
         geometry_key = "main_window/geometry"
-        maximized_key = "main_window/maximized"
         restored_customized = str(self._settings.value(customized_key, "0")).lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        restored_maximized = str(self._settings.value(maximized_key, "1")).lower() in {
             "1",
             "true",
             "yes",
@@ -22036,10 +22030,7 @@ class MainWindow(QMainWindow):
             self.setGeometry(default_geometry)
 
         base_state = (self.windowState() & ~Qt.WindowFullScreen) & ~Qt.WindowMinimized
-        if restored_maximized:
-            self.setWindowState(base_state | Qt.WindowMaximized)
-        else:
-            self.setWindowState(base_state & ~Qt.WindowMaximized)
+        self.setWindowState(base_state | Qt.WindowMaximized)
 
         sizes = self._settings.value(splitter_key)
         if restored_customized and sizes:
