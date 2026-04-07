@@ -58,7 +58,7 @@ CHART_HEADER_TEMPLATES = {
 CHART_AXES_STYLE = {
     "y_tick": {"labelsize": 7.5, "colors": CHART_THEME_COLORS["text"], "pad": 6},
     "x_tick": {"labelsize": 7, "colors": CHART_THEME_COLORS["muted_text"]},
-    "barh_adjust": {"left": 0.36, "bottom": 0.12, "right": 0.97, "top": 0.96},
+    "barh_adjust": {"left": 0.36, "bottom": 0.12, "right": 0.9225, "top": 0.96},
 }
 
 # Alignment-score visualization tuning.
