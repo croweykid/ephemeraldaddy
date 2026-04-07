@@ -40,7 +40,7 @@ AGE_BRACKETS: tuple[tuple[str, int | None, int | None], ...] = (
     (">110", 110, None),
 )
 
-SEASONAL_COLORS: {
+SEASONAL_COLORS = {
     "spring":"#ccffcc", #pale spring green
     "summer":"#ffff00", #bright sunshine yellow
     "fall":"#cc3300", #mahogany, or #993600 or #b34019
@@ -4186,6 +4186,12 @@ def build_spectrum(color1, color2, color3, color4, totalsteps):
 
 
 # example
-seasonal_palette = build_spectrum(SEASONAL_COLORS["spring"], SEASONAL_COLORS["summer"], SEASONAL_COLORS["fall"], SEASONAL_COLORS["winter"], 12)
+SEASONAL_PALETTE = build_spectrum(
+    SEASONAL_COLORS["spring"],
+    SEASONAL_COLORS["summer"],
+    SEASONAL_COLORS["fall"],
+    SEASONAL_COLORS["winter"],
+    12,
+)
 print(seasonal_palette)
 print(get_blended_color("#ccffcc", "#ffff00", "#cc3300", "#ccccff", 12, 7))
