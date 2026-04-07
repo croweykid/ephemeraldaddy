@@ -18702,17 +18702,18 @@ class MainWindow(QMainWindow):
         self._chart_analysis_sections_controller.create_sections(panel)
 
     def _create_similar_charts_section(self, panel: QWidget) -> None:
+        section_expanded = self._chart_analysis_section_expanded.get("similar_charts", False)
         section_layout = self._add_chart_analysis_collapsible_section(
             panel=panel,
             layout=self.metrics_layout,
             title="Similar Charts",
-            expanded=False,
+            expanded=section_expanded,
             on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
                 "similar_charts",
                 checked,
             ),
         )
-        self._chart_analysis_section_expanded["similar_charts"] = False
+        self._chart_analysis_section_expanded["similar_charts"] = section_expanded
 
         summary_label = QLabel(
             "Finds the top 3 closest matches from saved database charts."
@@ -18767,6 +18768,16 @@ class MainWindow(QMainWindow):
         list_label.linkActivated.connect(self._on_similar_chart_link_activated)
         section_layout.addWidget(list_label)
         self._similar_charts_list_label = list_label
+
+        if self._latest_chart is not None and section_expanded:
+            QTimer.singleShot(
+                0,
+                lambda chart=self._latest_chart: self._schedule_chart_render(
+                    chart,
+                    sections={"similar_charts"},
+                    queue_priority="interactive",
+                ),
+            )
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
         try:
