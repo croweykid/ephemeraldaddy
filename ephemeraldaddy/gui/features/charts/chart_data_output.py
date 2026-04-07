@@ -147,6 +147,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._section_format.setFontWeight(QFont.Bold)
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
+        self._copper_header_format = QTextCharFormat(self._plain_bold_format)
+        self._copper_header_format.setForeground(QColor("#c8914f"))
+        self._plain_italic_format = QTextCharFormat()
+        self._plain_italic_format.setFontItalic(True)
         self._class_header_format = QTextCharFormat(self._plain_bold_format)
         self._class_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._class_subheader_format = QTextCharFormat()
@@ -292,6 +296,31 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
                 break
+        if lowered_stripped in {"defined", "undefined"}:
+            self.setFormat(0, self._qt_len(text), self._copper_header_format)
+        if (
+            len(stripped_text) >= 2
+            and stripped_text.startswith("*")
+            and stripped_text.endswith("*")
+        ):
+            line_start = text.find("*")
+            line_end = text.rfind("*")
+            if line_start != -1 and line_end > line_start:
+                self.setFormat(
+                    self._qt_index(text, line_start),
+                    self._qt_len("*"),
+                    self._unknown_format,
+                )
+                self.setFormat(
+                    self._qt_index(text, line_start + 1),
+                    self._qt_len(text[line_start + 1:line_end]),
+                    self._plain_italic_format,
+                )
+                self.setFormat(
+                    self._qt_index(text, line_end),
+                    self._qt_len("*"),
+                    self._unknown_format,
+                )
         if self._emphasize_dnd_class_headers:
             if stripped_text in DND_CLASSES:
                 self.setFormat(0, self._qt_len(text), self._class_header_format)
