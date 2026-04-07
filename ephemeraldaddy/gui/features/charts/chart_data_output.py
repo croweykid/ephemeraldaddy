@@ -15,6 +15,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
+from ephemeraldaddy.analysis.human_design import HD_GATE_OCCURRENCE_COLORS
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
@@ -246,6 +247,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._awareness_completion_pattern = re.compile(r"^\s*[A-Za-z ]+:\s+.+-\s+(\d{1,3})%\.\s+.*$")
         self._defined_center_formats = self._build_defined_center_formats()
+        self._hd_gate_count_formats = {
+            bucket: self._make_format(color)
+            for bucket, color in HD_GATE_OCCURRENCE_COLORS.items()
+        }
+        self._hd_gate_count_cache_revision = -1
+        self._hd_gate_count_cache: Counter[int] = Counter()
 
     @staticmethod
     def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
@@ -583,6 +590,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 start_qt = self._qt_index(text, match.start())
                 length_qt = self._qt_len(match.group(0))
                 self.setFormat(start_qt, length_qt, text_format)
+
+        self._apply_hd_gate_heatmap(text, stripped_text)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
