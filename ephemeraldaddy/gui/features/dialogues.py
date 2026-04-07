@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QTextEdit,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -122,6 +123,21 @@ class RetconEngineDialog(QDialog):
         top_row.addStretch(1)
         form.addRow(top_row)
 
+        time_row = QHBoxLayout()
+        time_row.setSpacing(12)
+        time_row.addWidget(_make_bold_label("Time Range"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(datetime.time(0, 0))
+        time_row.addWidget(self.start_time_edit)
+        time_row.addWidget(QLabel("to"))
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(datetime.time(23, 59))
+        time_row.addWidget(self.end_time_edit)
+        time_row.addStretch(1)
+        form.addRow(time_row)
+
         options_row = QHBoxLayout()
         self.step_combo = QComboBox()
         step_options = [
@@ -136,7 +152,7 @@ class RetconEngineDialog(QDialog):
         ]
         for label, minutes in step_options:
             self.step_combo.addItem(label, minutes)
-        self.step_combo.setCurrentText("1 day")
+        self.step_combo.setCurrentText("12 hrs")
         self.max_results_spin = QSpinBox()
         self.max_results_spin.setRange(1, 10000)
         self.max_results_spin.setValue(100)
@@ -272,8 +288,22 @@ class RetconEngineDialog(QDialog):
 
         start_date = self.start_date_edit.date()
         end_date = self.end_date_edit.date()
-        start_naive = datetime.datetime(start_date.year(), start_date.month(), start_date.day(), 0, 0)
-        end_naive = datetime.datetime(end_date.year(), end_date.month(), end_date.day(), 23, 59)
+        start_time = self.start_time_edit.time()
+        end_time = self.end_time_edit.time()
+        start_naive = datetime.datetime(
+            start_date.year(),
+            start_date.month(),
+            start_date.day(),
+            start_time.hour(),
+            start_time.minute(),
+        )
+        end_naive = datetime.datetime(
+            end_date.year(),
+            end_date.month(),
+            end_date.day(),
+            end_time.hour(),
+            end_time.minute(),
+        )
 
         start_dt, _ = localize_naive_datetime(start_naive, lat, lon)
         end_dt, _ = localize_naive_datetime(end_naive, lat, lon)
@@ -281,11 +311,11 @@ class RetconEngineDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Retcon Engine",
-                "End date must be on or after start date.",
+                "End date/time must be on or after start date/time.",
             )
             return
 
-        step_minutes = int(self.step_combo.currentData() or 1440)
+        step_minutes = int(self.step_combo.currentData() or 720)
         max_results = self.max_results_spin.value()
 
         self._active_location_label = label
