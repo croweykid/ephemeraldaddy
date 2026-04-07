@@ -4917,15 +4917,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_context["aspect_info_map"] = aspect_info_map
             vertical_scrollbar.setValue(min(previous_vertical_position, vertical_scrollbar.maximum()))
             horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
+        def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
+            transit_workers.pop(key, None)
+            _finalize_transit_worker_shutdown()
+
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
-            worker_entry = transit_workers.pop(key, None)
+            worker_entry = transit_workers.get(key)
             if worker_entry is not None:
                 thread, _worker = worker_entry
                 try:
                     thread.requestInterruption()
                     thread.quit()
                 except RuntimeError:
-                    pass
+                    transit_workers.pop(key, None)
 
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
             _stop_window_worker(key)
@@ -4986,7 +4990,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if refresh:
                 _refresh_summary()
 
-            thread = QThread()
+            thread = QThread(dialog)
             worker = TransitAspectWindowWorker(
                 natal_chart,
                 transit_chart.dt,
@@ -5013,6 +5017,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             worker.failed.connect(thread.quit)
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
             transit_workers[key] = (thread, worker)
             thread.start()
 
