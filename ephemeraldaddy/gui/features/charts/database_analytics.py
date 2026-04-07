@@ -35,11 +35,11 @@ from ephemeraldaddy.analysis.human_design import (
     derive_human_design_profile,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
+    HD_AUTHORITIES,
     HD_AUTHORITY_ALIASES,
     HD_AUTHORITY_COLORS,
     HD_CENTERS,
-    HD_STANDARD_AUTHORITIES,
-    HD_STANDARD_TYPES,
+    HD_TYPES,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
@@ -88,8 +88,14 @@ class DatabaseAnalyticsChartsMixin:
         "6/2",
         "6/3",
     )
-    HD_STANDARD_TYPES: tuple[str, ...] = HD_STANDARD_TYPES
-    HD_STANDARD_AUTHORITIES: tuple[str, ...] = HD_STANDARD_AUTHORITIES
+    HD_STANDARD_TYPES: tuple[str, ...] = tuple(
+        "Manifesting Generator" if key == "manifesting_generator" else key.replace("_", " ").title()
+        for key in HD_TYPES.keys()
+    )
+    HD_STANDARD_AUTHORITIES: tuple[str, ...] = tuple(
+        "Lunar" if key == "lunar" else key.replace("_", " ").title()
+        for key in HD_AUTHORITIES.keys()
+    )
 
     @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
