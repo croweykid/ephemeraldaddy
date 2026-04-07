@@ -580,7 +580,10 @@ from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     CRASH_MESSAGE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
+    DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+    DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE,
+    DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
@@ -588,8 +591,11 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
+    DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE,
     DATABASE_ANALYTICS_HEADER_SPACING,
+    DATABASE_ANALYTICS_SECTION_DEBUG_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
     SETTINGS_SECTION_SUBHEADER_STYLE,
@@ -1828,6 +1834,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(DATABASE_ANALYTICS_HEADER_SPACING)
         header_row.setLayout(header_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            header_row.setStyleSheet(DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE)
 
         if show_title:
             title = QLabel(title_text)
@@ -1909,6 +1917,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
         section.setLayout(section_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            section.setStyleSheet(DATABASE_ANALYTICS_SECTION_DEBUG_STYLE)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -1923,7 +1933,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
         content.setLayout(content_layout)
-        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
+        content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
         def toggle_content(checked: bool) -> None:
@@ -1951,6 +1964,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_layout.setContentsMargins(*DATABASE_ANALYTICS_CHART_CONTENT_MARGINS)
         chart_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         chart_container.setLayout(chart_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            chart_container.setStyleSheet(DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE)
         return chart_container, chart_layout
 
     def _set_database_metrics_section_expanded(
@@ -2823,7 +2838,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def add_database_subheader(text: str = "") -> QLabel:
             subheader = QLabel(text)
-            subheader.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
+            subheader_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+            if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+                subheader_style = f"{subheader_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
+            subheader.setStyleSheet(subheader_style)
             subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
             return subheader
 
@@ -5726,6 +5744,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
         section.setLayout(section_layout)
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            section.setStyleSheet(DATABASE_ANALYTICS_SECTION_DEBUG_STYLE)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -5740,7 +5760,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
         content.setLayout(content_layout)
-        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
+        content.setStyleSheet(content_style)
         content.setVisible(False)
 
         section_list = QListWidget()
@@ -9962,7 +9985,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout = QVBoxLayout()
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
-            content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+            content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+            if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+                content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
+            content.setStyleSheet(content_style)
             content.setVisible(False)
 
             def toggle_content(checked: bool) -> None:
@@ -11228,7 +11254,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout = QVBoxLayout()
             content_layout.setContentsMargins(8, 6, 8, 6)
             content.setLayout(content_layout)
-            content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+            content_style = COLLAPSIBLE_SECTION_CONTENT_STYLE
+            if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+                content_style = f"{content_style} {DATABASE_ANALYTICS_CONTENT_DEBUG_STYLE}"
+            content.setStyleSheet(content_style)
             content.setVisible(False)
 
             def toggle_content(checked: bool) -> None:
