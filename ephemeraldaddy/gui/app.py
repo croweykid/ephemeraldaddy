@@ -306,6 +306,7 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MIN_YEAR,
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
+    SEASONAL_COLOR_SPECTRUM,
     GENERATIONAL_COHORTS,
     GENERATION_COLORS,
     ASPECT_COLORS,
@@ -9365,6 +9366,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "generation_distribution": "Generations",
             }.get(age_mode, "Age")
             generation_bar_colors: list[str] | None = None
+            age_bracket_bar_colors: list[str] | None = None
+            age_chart_bar_colors: list[str] | None = None
             if age_mode == "age_distribution":
                 ordered_bracket_labels = [label for label, _min_age, _max_age in AGE_BRACKETS]
                 age_selection_counts = {
@@ -9380,6 +9383,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for label in ordered_bracket_labels
                     if (age_selection_counts.get(label, 0) > 0 if loaded_charts else age_database_counts.get(label, 0) > 0)
                 ]
+                age_bracket_color_by_label = {
+                    "0-5": SEASONAL_COLOR_SPECTRUM["march"],
+                    "5-10": SEASONAL_COLOR_SPECTRUM["april"],
+                    "10-18": SEASONAL_COLOR_SPECTRUM["may"],
+                    "18-29": SEASONAL_COLOR_SPECTRUM["june"],
+                    "30-39": SEASONAL_COLOR_SPECTRUM["july"],
+                    "40-49": SEASONAL_COLOR_SPECTRUM["august"],
+                    "50-59": SEASONAL_COLOR_SPECTRUM["september"],
+                    "60-69": SEASONAL_COLOR_SPECTRUM["october"],
+                    "70-79": SEASONAL_COLOR_SPECTRUM["november"],
+                    "80-89": SEASONAL_COLOR_SPECTRUM["december"],
+                    "90-99": SEASONAL_COLOR_SPECTRUM["january"],
+                    "100-110": SEASONAL_COLOR_SPECTRUM["february"],
+                    ">110": "#e0e0eb",
+                }
+                age_bracket_bar_colors = [
+                    age_bracket_color_by_label.get(label, "#6fa8dc") for label in age_labels
+                ]
+                age_chart_bar_colors = age_bracket_bar_colors
             elif age_mode == "generation_distribution":
                 ordered_generation_labels = [
                     str(cohort.get("name"))
@@ -9400,6 +9422,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if (age_selection_counts.get(label, 0) > 0 if loaded_charts else age_database_counts.get(label, 0) > 0)
                 ]
                 generation_bar_colors = [GENERATION_COLORS.get(label, "#6fa8dc") for label in age_labels]
+                age_chart_bar_colors = generation_bar_colors
             else:
                 age_selection_counts = {
                     str(int(key)): int(value)
@@ -9424,8 +9447,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[age_database_counts.get(label, 0) for label in age_labels],
                         loaded_charts=loaded_charts,
                         auto_height=True,
-                        use_earthtone_cycle=(age_mode != "generation_distribution"),
-                        bar_colors=generation_bar_colors,
+                        use_earthtone_cycle=(age_mode == "time_known_distribution"),
+                        bar_colors=age_chart_bar_colors,
                     )
                     self.age_chart_layout.addWidget(age_canvas, 0)
                 else:
