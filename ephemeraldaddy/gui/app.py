@@ -4884,7 +4884,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         elif state["failed"]:
                             error_text = state.get("error", "")
                             suffix = f"📆 ⚠ {error_text}" if error_text else "📆 ⚠"
-                        elif state["expanded"] and state["resolved"]:
+                        elif state["resolved"]:
                             suffix = _format_transit_range(
                                 state["start"],
                                 state["end"],
@@ -5168,9 +5168,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if state is None:
                 return False
             if state["resolved"]:
-                if not bool(state["expanded"]):
-                    state["expanded"] = True
-                    _refresh_summary()
                 return True
             _ensure_window_async(key, state)
             return True
