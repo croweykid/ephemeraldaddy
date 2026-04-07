@@ -4193,5 +4193,5 @@ SEASONAL_PALETTE = build_spectrum(
     SEASONAL_COLORS["winter"],
     12,
 )
-print(seasonal_palette)
-print(get_blended_color("#ccffcc", "#ffff00", "#cc3300", "#ccccff", 12, 7))
+#print(SEASONAL_PALETTE)
+#print(get_blended_color("#ccffcc", "#ffff00", "#cc3300", "#ccccff", 12, 7))
