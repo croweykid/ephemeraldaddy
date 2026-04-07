@@ -654,6 +654,10 @@ HD_AUTHORITY_COLORS = {
     "lunar": "#00ffff", #'Moon' colored #n=No inner authority
 }
 
+HD_AUTHORITY_ALIASES: dict[str, str] = {
+    "No Inner Authority": "Lunar",
+}
+
 HD_DEFINITIONS = {
     "single_definition": (
         "Your defined centers are all connected as one system. "

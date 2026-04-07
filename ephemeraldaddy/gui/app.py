@@ -443,6 +443,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
+    HD_AUTHORITY_ALIASES,
     HD_AUTHORITIES,
     HD_CENTERS,
     HD_CHANNELS,
@@ -7328,6 +7329,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["human_design_type_totals"][hd_type] += 1.0
                 snapshot["human_design_type_total_count"] += 1.0
             hd_authority = str(getattr(hd_result, "authority", "")).strip()
+            hd_authority = HD_AUTHORITY_ALIASES.get(hd_authority, hd_authority)
             if hd_authority in snapshot["human_design_authority_totals"]:
                 snapshot["human_design_authority_totals"][hd_authority] += 1.0
                 snapshot["human_design_authority_total_count"] += 1.0
