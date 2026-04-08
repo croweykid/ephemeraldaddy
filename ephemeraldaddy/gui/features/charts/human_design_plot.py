@@ -70,6 +70,7 @@ BODY_TEXT_COLOR: dict[str, str] = {
 CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
+CHANNEL_EXTRA_SPACING_PIXELS = 4.0
 BODYGRAPH_VERTICAL_OFFSET = -0.07
 BODYGRAPH_CONTENT_SCALE = 0.74 #scales the bodygraph chart
 BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
@@ -99,6 +100,36 @@ def _canonicalize_channel(
 
 def _channel_key(gate_a: int, gate_b: int) -> tuple[int, int]:
     return tuple(sorted((gate_a, gate_b)))
+
+
+def _offset_segment_in_display_pixels(
+    ax: object,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    normal_x: float,
+    normal_y: float,
+    offset_pixels: float,
+) -> tuple[float, float, float, float]:
+    if abs(offset_pixels) < 1e-9:
+        return x1, y1, x2, y2
+    transform = ax.transData
+    p1_display = transform.transform((x1, y1))
+    p2_display = transform.transform((x2, y2))
+    p_mid_display = transform.transform(((x1 + x2) * 0.5, (y1 + y2) * 0.5))
+    p_normal_display = transform.transform((((x1 + x2) * 0.5) + normal_x, (((y1 + y2) * 0.5) + normal_y)))
+    normal_display_x = p_normal_display[0] - p_mid_display[0]
+    normal_display_y = p_normal_display[1] - p_mid_display[1]
+    normal_display_length = (normal_display_x ** 2 + normal_display_y ** 2) ** 0.5 or 1.0
+    unit_normal_display_x = normal_display_x / normal_display_length
+    unit_normal_display_y = normal_display_y / normal_display_length
+    display_offset_x = unit_normal_display_x * offset_pixels
+    display_offset_y = unit_normal_display_y * offset_pixels
+    inv_transform = transform.inverted()
+    p1_data = inv_transform.transform((p1_display[0] + display_offset_x, p1_display[1] + display_offset_y))
+    p2_data = inv_transform.transform((p2_display[0] + display_offset_x, p2_display[1] + display_offset_y))
+    return p1_data[0], p1_data[1], p2_data[0], p2_data[1]
 
 
 PAIR_CHANNEL_ORDER_LEFT_TO_RIGHT: dict[tuple[str, str], list[tuple[int, int]]] = {
@@ -252,6 +283,17 @@ def draw_human_design_chart(
             y1 += normal_y * offset_distance
             x2 += normal_x * offset_distance
             y2 += normal_y * offset_distance
+            pixel_offset_distance = CHANNEL_EXTRA_SPACING_PIXELS * left_to_right_scales[channel_index]
+            x1, y1, x2, y2 = _offset_segment_in_display_pixels(
+                ax,
+                x1,
+                y1,
+                x2,
+                y2,
+                normal_x,
+                normal_y,
+                pixel_offset_distance,
+            )
 
         dx = x2 - x1
         dy = y2 - y1
