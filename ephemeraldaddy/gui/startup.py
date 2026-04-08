@@ -73,6 +73,7 @@ class StartupLoadingWidget(QWidget):
         self.setFixedWidth(360)
         self.adjustSize()
         self._center_on_primary_screen()
+        self._start_animation_process()
 
     def _center_on_primary_screen(self) -> None:
         screen = QGuiApplication.primaryScreen()
