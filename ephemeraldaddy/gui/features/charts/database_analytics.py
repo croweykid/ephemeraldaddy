@@ -104,6 +104,39 @@ class DatabaseAnalyticsChartsMixin:
         authority_key_to_label(key)
         for key in HD_AUTHORITIES.keys()
     )
+    BAZI_STEM_TRANSLATIONS: dict[str, str] = {
+        "甲": "Jia (Yang Wood)",
+        "乙": "Yi (Yin Wood)",
+        "丙": "Bing (Yang Fire)",
+        "丁": "Ding (Yin Fire)",
+        "戊": "Wu (Yang Earth)",
+        "己": "Ji (Yin Earth)",
+        "庚": "Geng (Yang Metal)",
+        "辛": "Xin (Yin Metal)",
+        "壬": "Ren (Yang Water)",
+        "癸": "Gui (Yin Water)",
+    }
+    BAZI_BRANCH_TRANSLATIONS: dict[str, str] = {
+        "子": "Zi (Rat)",
+        "丑": "Chou (Ox)",
+        "寅": "Yin (Tiger)",
+        "卯": "Mao (Rabbit)",
+        "辰": "Chen (Dragon)",
+        "巳": "Si (Snake)",
+        "午": "Wu (Horse)",
+        "未": "Wei (Goat)",
+        "申": "Shen (Monkey)",
+        "酉": "You (Rooster)",
+        "戌": "Xu (Dog)",
+        "亥": "Hai (Pig)",
+    }
+    BAZI_ELEMENT_TRANSLATIONS: dict[str, str] = {
+        "木": "Wood",
+        "火": "Fire",
+        "土": "Earth",
+        "金": "Metal",
+        "水": "Water",
+    }
 
     @staticmethod
     def _value_length_color(
@@ -274,6 +307,30 @@ class DatabaseAnalyticsChartsMixin:
             snapshot["bazi_element_counts"][element_value] = (
                 int(snapshot["bazi_element_counts"].get(element_value, 0)) + 1
             )
+
+    def _bazi_label_with_english(self, raw_label: str, *, mode: str) -> str:
+        normalized = str(raw_label or "").strip()
+        if not normalized:
+            return ""
+        if mode == "elements":
+            translated = " ".join(
+                self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
+                for char in normalized
+                if self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
+            ).strip()
+            return f"{normalized} ({translated})" if translated else normalized
+        if len(normalized) == 2:
+            stem = self.BAZI_STEM_TRANSLATIONS.get(normalized[0], "")
+            branch = self.BAZI_BRANCH_TRANSLATIONS.get(normalized[1], "")
+            translated = " · ".join(part for part in (stem, branch) if part)
+            return f"{normalized} ({translated})" if translated else normalized
+        translated = (
+            self.BAZI_STEM_TRANSLATIONS.get(normalized)
+            or self.BAZI_BRANCH_TRANSLATIONS.get(normalized)
+            or self.BAZI_ELEMENT_TRANSLATIONS.get(normalized)
+            or ""
+        )
+        return f"{normalized} ({translated})" if translated else normalized
 
     def _apply_bazi_snapshot_delta(
         self,
@@ -2248,13 +2305,26 @@ class DatabaseAnalyticsChartsMixin:
                 key=lambda item: (-item[1], item[0]),
             )
         ]
+        display_label_by_raw = {
+            label: self._bazi_label_with_english(label, mode=bazi_mode)
+            for label in bazi_labels
+        }
+        display_labels = [display_label_by_raw.get(label, label) for label in bazi_labels]
+        selection_display_counts = {
+            display_label_by_raw.get(label, label): int(selection_bazi_counts.get(label, 0))
+            for label in bazi_labels
+        }
+        database_display_counts = {
+            display_label_by_raw.get(label, label): int(database_bazi_counts.get(label, 0))
+            for label in bazi_labels
+        }
         if should_refresh("bazi"):
             self._clear_layout(self.bazi_chart_layout)
-            if bazi_labels:
+            if display_labels:
                 bazi_canvas = self._build_count_distribution_chart(
-                    labels=bazi_labels,
-                    selection_counts=[selection_bazi_counts.get(label, 0) for label in bazi_labels],
-                    database_counts=[database_bazi_counts.get(label, 0) for label in bazi_labels],
+                    labels=display_labels,
+                    selection_counts=[selection_display_counts.get(label, 0) for label in display_labels],
+                    database_counts=[database_display_counts.get(label, 0) for label in display_labels],
                     loaded_charts=loaded_charts,
                     auto_height=True,
                 )
@@ -2266,11 +2336,11 @@ class DatabaseAnalyticsChartsMixin:
                     Qt.AlignTop,
                 )
         self._analysis_chart_export_rows["bazi"] = self._build_analysis_export_rows(
-            labels=bazi_labels,
-            selection_values=[float(selection_bazi_counts.get(label, 0)) for label in bazi_labels],
-            database_values=[float(database_bazi_counts.get(label, 0)) for label in bazi_labels],
-            selection_counts=[int(selection_bazi_counts.get(label, 0)) for label in bazi_labels],
-            database_counts=[int(database_bazi_counts.get(label, 0)) for label in bazi_labels],
+            labels=display_labels,
+            selection_values=[float(selection_display_counts.get(label, 0)) for label in display_labels],
+            database_values=[float(database_display_counts.get(label, 0)) for label in display_labels],
+            selection_counts=[int(selection_display_counts.get(label, 0)) for label in display_labels],
+            database_counts=[int(database_display_counts.get(label, 0)) for label in display_labels],
             loaded_charts=loaded_charts,
         )
 
