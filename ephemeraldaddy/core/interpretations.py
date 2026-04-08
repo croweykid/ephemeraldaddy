@@ -586,19 +586,55 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     },
 }
 
-BAZI_ZODIAC = {
-    "rat": "Tiny opportunist, huge survival instincts, already three moves ahead of the landlord.",
-    "ox": "Built for endurance, allergic to nonsense, and not speeding up for your convenience.",
-    "tiger": "Bold, dramatic, and spiritually incapable of entering a room quietly.",
-    "rabbit": "Polite on the surface, evasive underneath, gone before the bill arrives.",
-    "dragon": "Main-character voltage with a suspiciously high tolerance for spectacle.",
-    "snake": "Elegant, unreadable, and somehow always aware of more than it says.",
-    "horse": "Freedom addict with strong opinions and no interest in your leash.",
-    "goat": "Soft aesthetic, hard stubbornness, and a private empire of preferences.",
-    "monkey": "Clever, restless, and one bad idea away from making the afternoon interesting.",
-    "rooster": "Sharp eye, sharper mouth, and absolutely convinced standards still matter.",
-    "dog": "Loyal, skeptical, and already clocking who in the room is full of it.",
-    "pig": "Pleasure connoisseur with better instincts than people give it credit for.",
+CHINESE_ZODIAC_SIGNS = {
+    "rat": {
+        "color": "#5f6874",  # smoky blue-gray
+        "one_liner": "Keeper of openings; where others see scarcity, Rat notices the one usable passage."
+    },
+    "ox": {
+        "color": "#6b5a3a",  # weathered umber
+        "one_liner": "Patient force; built to carry the season without asking to be admired.",
+    },
+    "tiger": {
+        "color": "#a35f2d",  # burnt amber
+        "one_liner": "Sovereign appetite; it does not wait for permission to become itself.",
+    },
+    "rabbit": {
+        "color": "#9c9f8a",  # soft sage stone
+        "one_liner": "Guardian of peace; it survives by sensing disturbance before it takes shape.",
+    },
+    "dragon": {
+        "color": "#4f6f63",  # deep jade
+        "one_liner": "A sign of excess vitality; destiny tends to arrive noisily around it.",
+    },
+    "snake": {
+        "color": "#6f6a4b",  # olive bronze
+        "one_liner": "Still intelligence; it removes the unnecessary and keeps only what matters.",
+    },
+    "horse": {
+        "color": "#8a5a3b",  # chestnut clay
+        "one_liner": "Unharnessed motion; freedom is not a preference here but a governing law.",
+    },
+    "goat": {
+        "color": "#b19b8c",  # warm taupe
+        "one_liner":"Tender refinement; it makes beauty feel necessary rather than decorative.",
+    },
+    "monkey": {
+        "color": "#8b7650",  # antique brass
+        "one_liner": "Restless ingenuity; the pattern, the loophole, and the trick reveal themselves quickly.",
+    },
+    "rooster": {
+        "color": "#7d4a3f",  # muted garnet
+        "one_liner": "Ceremonial precision; it names the hour, the flaw, and the standard.",
+    },
+    "dog": {
+        "color": "#6a5448",  # ironwood brown
+        "one_liner": "Faithful conscience; it stands guard over what it believes is right.",
+    },
+    "pig": {
+        "color": "#b07d72",  # dusty rose clay
+        "one_liner": "Honest abundance; it understands that fullness, rightly held, is its own wisdom.",
+    },
 }
 
 SIGN_COLORS = {
