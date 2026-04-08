@@ -3,6 +3,7 @@ from __future__ import annotations
 from matplotlib.patches import Rectangle
 from matplotlib.figure import Figure
 
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.core.human_design_system import CHANNELS
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
@@ -39,6 +40,8 @@ BODY_TEXT_COLOR: dict[str, str] = {
     "Neptune": "#5d7ccf",
     "Pluto": "#b86b8f",
 }
+
+CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
 
@@ -261,7 +264,7 @@ def draw_human_design_chart(
     for center_name, (x, y) in CENTER_POSITIONS.items():
         defined = center_name in hd_result.defined_centers
         edge = "#c8914f" if defined else chart_theme_colors["spine"]
-        fill = "#2f3d45" if defined else "#2a2a2a"
+        fill = CENTER_FILL_COLORS.get(center_name, "#2f3d45") #"#2f3d45" if defined else "#2a2a2a"
         ax.add_patch(
             Rectangle(
                 (x - 0.08, y - 0.045),
@@ -270,6 +273,7 @@ def draw_human_design_chart(
                 linewidth=1.4,
                 edgecolor=edge,
                 facecolor=fill,
+                alpha=1.0 if defined else 0.35,
             )
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
