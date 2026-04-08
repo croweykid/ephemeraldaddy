@@ -17677,10 +17677,10 @@ class MainWindow(QMainWindow):
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_mode_dropdown: QComboBox | None = None
         self._similar_charts_list_label: QLabel | None = None
+        self._similar_charts_more_label: QLabel | None = None
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
-        self._similar_charts_section_widgets: set[QWidget] = set()
         self._similar_charts_popout_dialogs: list[QDialog] = []
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
@@ -18832,7 +18832,6 @@ class MainWindow(QMainWindow):
         summary_label.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
         section_layout.addWidget(summary_label)
         self._similar_charts_summary_label = summary_label
-        self._register_similar_charts_section_click_target(summary_label)
 
         header_row = QWidget()
         header_layout = QHBoxLayout(header_row)
@@ -18879,7 +18878,21 @@ class MainWindow(QMainWindow):
         list_label.linkActivated.connect(self._on_similar_chart_link_activated)
         section_layout.addWidget(list_label)
         self._similar_charts_list_label = list_label
-        self._register_similar_charts_section_click_target(list_label)
+
+        more_label = QLabel(
+            (
+                f'<br><a href="more" style="text-decoration: none;">'
+                f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">More...</span>'
+                "</a>"
+            )
+        )
+        more_label.setTextFormat(Qt.RichText)
+        more_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        more_label.setOpenExternalLinks(False)
+        more_label.linkActivated.connect(self._on_similar_charts_more_link_activated)
+        more_label.setCursor(Qt.PointingHandCursor)
+        section_layout.addWidget(more_label)
+        self._similar_charts_more_label = more_label
 
         if self._latest_chart is not None and section_expanded:
             QTimer.singleShot(
@@ -18891,11 +18904,6 @@ class MainWindow(QMainWindow):
                 ),
             )
 
-    def _register_similar_charts_section_click_target(self, widget: QWidget) -> None:
-        widget.installEventFilter(self)
-        widget.setCursor(Qt.PointingHandCursor)
-        self._similar_charts_section_widgets.add(widget)
-
     def _load_similar_chart_candidates(self) -> list[tuple[int, Chart]]:
         rows = list_charts()
         return load_similar_chart_candidates(
@@ -18903,6 +18911,9 @@ class MainWindow(QMainWindow):
             current_chart_id=self.current_chart_id,
             load_chart_by_id=load_chart,
         )
+
+    def _on_similar_charts_more_link_activated(self, _target: str) -> None:
+        self._show_similar_charts_popout()
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
         try:
@@ -21484,13 +21495,6 @@ class MainWindow(QMainWindow):
                 and event.button() == Qt.LeftButton
             ):
                 self._show_metric_canvas_popout(obj, self._metric_chart_titles[obj])
-                return True
-        if obj in self._similar_charts_section_widgets:
-            if (
-                event.type() == QEvent.MouseButtonRelease
-                and event.button() == Qt.LeftButton
-            ):
-                self._show_similar_charts_popout()
                 return True
         if chart_canvas is not None and obj is chart_canvas:
             if event.type() == QEvent.Enter:
