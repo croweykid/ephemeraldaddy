@@ -21354,6 +21354,17 @@ class MainWindow(QMainWindow):
                         house2=aspect_info.get("house2"),
                     )
                     return True
+            aspect_info = aspect_info_map.get(block_number)
+            span_start = aspect_info.get("span_start") if aspect_info else None
+            span_end = aspect_info.get("span_end") if aspect_info else None
+            if (
+                aspect_info
+                and isinstance(span_start, int)
+                and isinstance(span_end, int)
+                and span_start <= cursor_pos < span_end
+            ):
+                self._show_aspect_keyword_info(str(aspect_info.get("type", "")))
+                return True
             return False
         finally:
             self.chart_info_output = original_chart_info_output
@@ -21569,15 +21580,38 @@ class MainWindow(QMainWindow):
         if not (best_keywords or worst_keywords):
             self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
             return
-        lines = [sign_key, ""]
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+
+        cursor.insertText(f"{sign_key}\n\n")
         if best_keywords:
-            lines.append("best:")
-            lines.extend(f"• {keyword}" for keyword in best_keywords)
+            cursor.insertText("Best:", header_fmt)
+            cursor.insertText("\n")
+            for keyword in best_keywords:
+                cursor.insertText(f"• {keyword}\n")
         if worst_keywords:
             if best_keywords:
-                lines.append("")
-            lines.append("worst:")
-            lines.extend(f"• {keyword}" for keyword in worst_keywords)
+                cursor.insertText("\n")
+            cursor.insertText("Worst:", header_fmt)
+            cursor.insertText("\n")
+            for keyword in worst_keywords:
+                cursor.insertText(f"• {keyword}\n")
+        self.chart_info_output.setTextCursor(cursor)
+
+    def _show_aspect_keyword_info(self, atype: str) -> None:
+        aspect_label = str(atype or "").strip()
+        aspect_key = aspect_label.replace(" ", "_").lower()
+        aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
+        clean_keywords = [str(item).strip() for item in aspect_keywords if str(item).strip()]
+        header = f"{aspect_label or 'Aspect'} keywords"
+        if not clean_keywords:
+            self.chart_info_output.setPlainText(f"{header}\n\nNo keyword data available.")
+            return
+        lines = [header, "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_house_keyword_info(self, house_num: int) -> None:
@@ -21824,7 +21858,7 @@ class MainWindow(QMainWindow):
         house1: int | None = None,
         house2: int | None = None,
     ) -> None:
-        aspect_keywords = ASPECT_KEYWORDS.get(atype, [])
+        aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
         p2_nouns = PLANET_KEYWORDS.get(p2, {}).get("nouns", [])
         if not (aspect_keywords and p1_nouns and p2_nouns):
