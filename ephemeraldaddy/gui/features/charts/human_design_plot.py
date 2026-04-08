@@ -26,6 +26,7 @@ CENTER_HORIZONTAL_SPREAD = 1.14
 CENTER_VERTICAL_SPREAD = 1.04
 CENTER_DEPTH_RIGHT_DRIFT = 0.02
 
+CENTER_COLUMN_CENTERS = frozenset({"Head", "Ajna", "Throat", "G", "Sacral", "Root"})
 
 def _spread_center_positions(base_positions: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
     spread_positions: dict[str, tuple[float, float]] = {}
@@ -36,6 +37,8 @@ def _spread_center_positions(base_positions: dict[str, tuple[float, float]]) -> 
             + ((x_value - CENTER_LAYOUT_ANCHOR_X) * CENTER_HORIZONTAL_SPREAD)
             + (depth * CENTER_DEPTH_RIGHT_DRIFT)
         )
+        if center_name in CENTER_COLUMN_CENTERS:
+            spread_x = CENTER_LAYOUT_ANCHOR_X
         spread_y = CENTER_LAYOUT_ANCHOR_Y - (depth * CENTER_VERTICAL_SPREAD)
         spread_positions[center_name] = (spread_x, spread_y)
     return spread_positions
