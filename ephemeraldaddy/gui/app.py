@@ -2045,10 +2045,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _sync_database_metrics_section_visibility(self) -> None:
         is_gen_pop = self._database_metrics_baseline_mode == "gen_pop"
         for section_key, section_widget in self._database_metrics_section_widgets.items():
-            if is_gen_pop:
-                section_widget.setVisible(section_key not in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS)
-            else:
-                section_widget.setVisible(self._is_database_metrics_section_visible(section_key))
+            section_visible = self._is_database_metrics_section_visible(section_key)
+            if is_gen_pop and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS:
+                section_visible = False
+            section_widget.setVisible(section_visible)
 
     def _sync_gen_pop_panel_visibility(self) -> None:
         sign_dropdown = self._analysis_chart_dropdowns.get("planetary_sign_prevalence")
