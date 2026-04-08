@@ -19100,6 +19100,7 @@ class MainWindow(QMainWindow):
             exclude_chart_id=self.current_chart_id,
             least_similar=True,
         )
+        least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         dialog = build_similar_charts_popout_dialog(
             parent=self,
