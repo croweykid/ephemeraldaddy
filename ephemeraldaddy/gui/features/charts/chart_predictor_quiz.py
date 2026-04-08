@@ -531,7 +531,7 @@ class ChartPredictorQuizDialog(QDialog):
         lines.append("Narrative mode:")
         lines.append(f"  • {madlib}")
         lines.append("")
-        lines.append("Note: This is a playful predictor and not an ephemeris-derived natal calculation.")
+        lines.append("Note: The quiz is very much under development, but I think it does OK at the moment.")
 
         self._results.setPlainText("\n".join(lines))
 

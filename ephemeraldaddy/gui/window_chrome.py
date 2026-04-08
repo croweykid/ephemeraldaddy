@@ -162,8 +162,8 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(chart_menu, "Export Chart", window, "on_export_chart")
     chart_menu.addSeparator()
     _bind_menu_action(chart_menu, "BaZi Chart", window, "on_open_bazi_window")
-    _bind_menu_action(chart_menu, "Get Personal Transit", window, "on_get_current_transits")
-    _bind_menu_action(chart_menu, "Get Synastry Chart", window, "on_get_synastry_chart")
+    _bind_menu_action(chart_menu, "Personal Transit", window, "on_get_current_transits")
+    _bind_menu_action(chart_menu, "Synastry Chart", window, "on_get_synastry_chart")
     if _is_human_design_menu_enabled(window):
         _bind_menu_action(
             chart_menu,
@@ -175,8 +175,8 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
-    _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
-    _bind_menu_action(tools_menu, "Chart Predictor Quiz", window, "on_open_chart_predictor_quiz")
+    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
+    _bind_menu_action(tools_menu, "Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
     
 
     # view_menu = menu_bar.addMenu("View")
@@ -210,11 +210,12 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(file_menu, "Backup Database", dialog, "_on_export_database")
     _bind_menu_action(file_menu, "Restore Database", dialog, "_on_import_database")
     _bind_menu_action(file_menu, "Refresh Database", dialog, "_on_force_refresh_database_analysis")
-    _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
+    # _bind_menu_action(file_menu, "Batch Edit Entries", dialog, "_toggle_edit_panel")
     charts_menu = menu_bar.addMenu("Charts")
     _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
     _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
+    _bind_menu_action(charts_menu, "Current Transits", dialog, "_show_current_transits_panel")
     _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
     _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
     charts_menu.addSeparator()
@@ -225,20 +226,20 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
-    _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
+    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
+    #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
     _bind_menu_action(
         tools_menu,
-        "Chart Predictor Quiz",
+        "Chart Predictor Quiz (alpha)",
         dialog,
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
 
     view_menu = menu_bar.addMenu("View")
-    _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
-    _bind_menu_action(view_menu, "Current Transits", dialog, "_show_current_transits_panel")
+    _bind_menu_action(view_menu, "Similarities Analysis", dialog, "_show_similarities_panel")
     _bind_menu_action(view_menu, "General Population Comparison", dialog, "_show_gen_pop_comparison_panel")
     _bind_menu_action(view_menu, "Manage Collections", dialog, "_show_manage_collections_panel")
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
