@@ -15,9 +15,11 @@ class StartupAnimationWindow(QWidget):
     """Animated companion window rendered in a separate process."""
 
     def __init__(self, *, x: int, y: int, width: int, height: int) -> None:
-        super().__init__(None, Qt.SplashScreen | Qt.FramelessWindowHint)
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setWindowFlag(Qt.WindowStaysOnBottomHint, True)
+        self.setWindowFlag(Qt.WindowDoesNotAcceptFocus, True)
         self.setGeometry(x, y, width, height)
 
         self._wave_phase = 0.0

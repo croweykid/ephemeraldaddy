@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, Qt
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
@@ -123,12 +123,3 @@ class StartupLoadingWidget(QWidget):
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._stop_animation_process()
         super().closeEvent(event)
-
-    def paintEvent(self, event) -> None:  # type: ignore[override]
-        del event
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        rect = self.rect().adjusted(3, 3, -3, -3)
-        painter.setPen(QPen(QColor("#8c62cc"), 1.4))
-        painter.setBrush(QColor(20, 18, 28, 96))
-        painter.drawRoundedRect(rect, 12, 12)
