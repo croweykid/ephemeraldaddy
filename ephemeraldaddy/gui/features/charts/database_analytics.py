@@ -152,7 +152,7 @@ class DatabaseAnalyticsChartsMixin:
         "戌": "Xu (Dog)",
         "亥": "Hai (Pig)",
     }
-    BAZI_STEM_TRANSLATIONS: dict[str, str] = {
+    BAZI_STEM_EMOJIS: dict[str, str] = {
         "甲": "♂🌵", #Yang Wood
         "乙": "♀🪵", #Yin Wood
         "丙": "♂🔥", #Yang Fire
@@ -164,7 +164,7 @@ class DatabaseAnalyticsChartsMixin:
         "壬": "♂🌊", #Yang Water
         "癸": "♀💧", #Yin Water
     }
-    BAZI_BRANCH_TRANSLATIONS: dict[str, str] = {
+    BAZI_BRANCH_EMOJIS: dict[str, str] = {
         "子": "🐀", #Rat
         "丑": "🐂", #Ox
         "寅": "🐅", #Tiger
@@ -177,6 +177,32 @@ class DatabaseAnalyticsChartsMixin:
         "酉": "🐓", #Rooster
         "戌": "🐕", #Dog
         "亥": "🐖", #Pig
+    }
+    BAZI_STEM_TRANSLATIONS: dict[str, str] = {
+        "甲": "♂ Wood", #Yang Wood
+        "乙": "♀ Wood", #Yin Wood
+        "丙": "♂ Fire", #Yang Fire
+        "丁": "♀ Fire", #Yin Fire
+        "戊": "♂ Earth", #Yang Earth
+        "己": "♀ Earth", #Yin Earth
+        "庚": "♂ Metal", #Yang Metal
+        "辛": "♀ Metal", #🎙️ #Yin Metal
+        "壬": "♂ Water", #Yang Water
+        "癸": "♀ Water", #Yin Water
+    }
+    BAZI_BRANCH_TRANSLATIONS: dict[str, str] = {
+        "子": "Rat", #Rat
+        "丑": "Ox", #Ox
+        "寅": "Tiger", #Tiger
+        "卯": "Rabbit", #Rabbit
+        "辰": "Dragon", #Dragon
+        "巳": "Snake", #Snake
+        "午": "Horse", #Horse
+        "未": "Goat", #Goat
+        "申": "Monkey", #Monkey
+        "酉": "Rooster", #Rooster
+        "戌": "Dog", #Dog
+        "亥": "Pig", #Pig
     }
     BAZI_ELEMENT_TRANSLATIONS: dict[str, str] = {
         "木": "Wood", #🌵🪵
