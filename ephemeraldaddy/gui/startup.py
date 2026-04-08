@@ -137,6 +137,9 @@ class _StartupAnimationBackground(QWidget):
 class StartupLoadingWidget(QWidget):
     """Small splash-like loading surface shown while the app initializes."""
 
+    _BACKGROUND_SCALE = 1.25
+    _FOREGROUND_WIDTH = 360
+
     def __init__(self) -> None:
         # Use splash-screen window semantics to avoid OS-level "tool window"
         # taskbar/alt-tab flashing during startup (especially noticeable on Windows).
@@ -146,10 +149,18 @@ class StartupLoadingWidget(QWidget):
         self._background_animation = _StartupAnimationBackground(self)
         self._background_animation.lower()
 
+        root_layout = QVBoxLayout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setAlignment(Qt.AlignCenter)
+        self.setLayout(root_layout)
+
+        foreground = QWidget(self)
         layout = QVBoxLayout()
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(6)
-        self.setLayout(layout)
+        foreground.setLayout(layout)
+        foreground.setFixedWidth(self._FOREGROUND_WIDTH)
+        root_layout.addWidget(foreground, alignment=Qt.AlignCenter)
 
         title = QLabel("Ephemeral Daddy will be with you shortly…")
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -179,8 +190,10 @@ class StartupLoadingWidget(QWidget):
         )
         layout.addWidget(self._progress)
 
-        self.setFixedWidth(360)
-        self.adjustSize()
+        foreground.adjustSize()
+        background_width = math.ceil(foreground.width() * self._BACKGROUND_SCALE)
+        background_height = math.ceil(foreground.height() * self._BACKGROUND_SCALE)
+        self.setFixedSize(background_width, background_height)
         self._center_on_primary_screen()
         self._background_animation.setGeometry(self.rect())
 
