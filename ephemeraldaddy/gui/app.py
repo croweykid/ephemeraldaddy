@@ -11310,8 +11310,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_tag_completers()
         layout.addWidget(tagging_section)
 
-        sentiment_metrics_section, sentiment_metrics_section_layout = add_collapsible_section("💭Sentiments") #user sentiments
-
         sentiment_metrics_widget = QWidget()
         sentiment_metrics_layout = QGridLayout()
         sentiment_metrics_layout.setContentsMargins(0, 0, 0, 0)
@@ -11446,8 +11444,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         sentiment_metrics_widget.setLayout(sentiment_metrics_layout)
-        sentiment_metrics_section_layout.addWidget(sentiment_metrics_widget)
-        layout.addWidget(sentiment_metrics_section)
+        sentiment_metrics_divider = QFrame()
+        sentiment_metrics_divider.setFrameShape(QFrame.HLine)
+        sentiment_metrics_divider.setFrameShadow(QFrame.Sunken)
+        sentiment_section_layout.addWidget(sentiment_metrics_divider)
+        sentiment_metrics_subheader = QLabel("Sentiments")
+        sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
+        sentiment_section_layout.addWidget(sentiment_metrics_subheader)
+        sentiment_section_layout.addWidget(sentiment_metrics_widget)
 
         chart_type_section, chart_type_section_layout = add_collapsible_section("Chart Type")
 
