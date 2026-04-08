@@ -1253,6 +1253,15 @@ DND_CLASSES: Dict[str, ClassDefinition] = {
     ),
 }
 
+CLASS_DISTRIBUTION_CALIBRATION: Dict[str, float] = {
+    "Wizard": 0.90,
+    "Bard": 0.91,
+    "Barbarian": 0.92,
+    "Cleric": 1.10,
+    "Fighter": 1.10,
+    "Warlock": 1.08,
+}
+
 
 CLASS_ORDER: Tuple[str, ...] = tuple(DND_CLASSES.keys())
 
@@ -1287,6 +1296,7 @@ class DnDClassScorer:
                 synergy_score=synergy_score,
                 penalty_score=penalty_score,
             )
+            final_score = self._apply_distribution_calibration(class_key, final_score)
             out[class_key] = ScoredClass(
                 key=class_key,
                 score=final_score,
@@ -1362,6 +1372,11 @@ class DnDClassScorer:
             - 0.12 * penalty_score
         )
         return _clamp01(raw)
+
+    @staticmethod
+    def _apply_distribution_calibration(class_key: str, score: float) -> float:
+        multiplier = float(CLASS_DISTRIBUTION_CALIBRATION.get(class_key, 1.0))
+        return _clamp01(float(score) * multiplier)
 
 
 DND_5E_CLASSES: Dict[str, Tuple[str, ...]] = {'Artificer': ('Alchemist', 'Armorer', 'Artillerist', 'Battle Smith', 'Cartographer'),

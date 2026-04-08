@@ -36,6 +36,20 @@ HARD_ASPECTS = set(ASPECT_TYPES["stress/friction"]["aspects"]) | {"conjunction"}
 SOFT_ASPECTS = set(ASPECT_TYPES["chill vibes"]["aspects"])
 ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 
+SPECIES_DISTRIBUTION_CALIBRATION: Dict[str, float] = {
+    # Frequently over-selected broad buckets.
+    "Human": 0.84,
+    "Halfling": 0.92,
+    "Dwarf": 0.94,
+    "Orcs": 0.94,
+    "Half-orcs": 0.95,
+    # Under-selected families reported in production data.
+    "Shapeshifter": 1.38,
+    "Triton": 1.30,
+    "Rodentfolk": 1.30,
+    "Elf": 1.24,
+}
+
 
 @dataclass(frozen=True)
 class SpeciesPick:
@@ -100,6 +114,7 @@ class SpeciesAssigner:
         scores = self._score_families(positions, aspects, feats)
 
         ranked = self._rank_families(scores)
+        ranked = self._apply_human_fallback_policy(ranked)
         top = ranked[:3]
         (fam1, card1) = top[0]
         subtype1, subtype_ev1 = self._pick_subtype(fam1, positions, aspects, feats)
@@ -146,6 +161,54 @@ class SpeciesAssigner:
             ranked.append((family, ScoreCard(score=numeric_score, reasons=list(card.reasons or []))))
         ranked.sort(key=lambda kv: kv[1].score, reverse=True)
         return ranked
+
+    @staticmethod
+    def _apply_human_fallback_policy(
+        ranked: List[Tuple[str, ScoreCard]],
+        *,
+        minimum_non_human_score: float = 1.05,
+        minimum_margin_over_human: float = -0.20,
+    ) -> List[Tuple[str, ScoreCard]]:
+        """
+        Keep Human as a true fallback.
+
+        Policy:
+        - if Human is already not first, keep ranking unchanged;
+        - if Human is first but a non-Human score is still plausible, promote the
+          strongest non-Human to the top;
+        - only keep Human first when everything else is weak/noisy.
+        """
+        if not ranked:
+            return ranked
+
+        top_family, top_card = ranked[0]
+        if top_family != "Human":
+            return ranked
+
+        human_score = float(top_card.score)
+        best_non_human_idx: Optional[int] = None
+        best_non_human_score = float("-inf")
+        for idx, (family, card) in enumerate(ranked):
+            if family == "Human":
+                continue
+            score = float(card.score)
+            if score > best_non_human_score:
+                best_non_human_score = score
+                best_non_human_idx = idx
+
+        if best_non_human_idx is None:
+            return ranked
+
+        non_human_is_plausible = (
+            best_non_human_score >= minimum_non_human_score
+            and (best_non_human_score - human_score) >= minimum_margin_over_human
+        )
+        if not non_human_is_plausible:
+            return ranked
+
+        adjusted = list(ranked)
+        adjusted[0], adjusted[best_non_human_idx] = adjusted[best_non_human_idx], adjusted[0]
+        return adjusted
 
     # ----------------------------
     # Data ingestion
@@ -569,6 +632,7 @@ class SpeciesAssigner:
         cards["Elf"].add(0.42 * p("Mercury"), "Mercury helps finesse and speed.")
         cards["Elf"].add(0.62 * elf_sign_signature, "Libra/Aquarius/Gemini/Pisces is the main Elven sign lane.")
         cards["Elf"].add(0.25 * ratio_houses(3, 5, 9, 11), "Social and cultivated houses help.")
+        cards["Elf"].add(0.26 * max(link("Venus", "Mercury", ALL_MAJOR_ASPECTS), link("Venus", "Jupiter", ALL_MAJOR_ASPECTS)), "Refined social/intellectual contacts reinforce Elf.")
 
         # Fey
         cards["Fey"].add(0.78 * p("Venus"), "Venus is the main Fey driver.")
@@ -692,6 +756,7 @@ class SpeciesAssigner:
         cards["Rodentfolk"].add(0.22 * er["Air"], "A little Air helps the twitchy end.")
         cards["Rodentfolk"].add(0.32 * ratio_houses(2, 6, 8, 12), "Storage, work, understructure, and hiding places reinforce it.")
         cards["Rodentfolk"].add(0.16 * link("Mercury", "Moon", ALL_MAJOR_ASPECTS), "Mercury-Moon contact helps reactive intelligence.")
+        cards["Rodentfolk"].add(0.24 * p("Mercury") * self._clamp01((er["Air"] + er["Earth"] - 0.38) / 0.32), "Mercury + practical elemental blend boosts Rodentfolk even outside heavy Earth charts.")
 
         # Shapeshifter
         cards["Shapeshifter"].add(0.80 * mr["mutable"], "Mutable emphasis is central.")
@@ -699,6 +764,8 @@ class SpeciesAssigner:
         cards["Shapeshifter"].add(0.42 * max(p("Mercury"), p("Neptune"), p("Uranus"), p("Pluto")), "Labile or uncanny planets help.")
         cards["Shapeshifter"].add(0.34 * ratio_houses(1, 8, 12), "Identity and liminal houses reinforce it.")
         cards["Shapeshifter"].add(0.24 * max(link("Mercury", "Neptune", ALL_MAJOR_ASPECTS), link("Mercury", "Pluto", ALL_MAJOR_ASPECTS), link("Moon", "Uranus", ALL_MAJOR_ASPECTS)), "Identity-fluid contacts help.")
+        cards["Shapeshifter"].add(0.30 * self._clamp01((mr["mutable"] - 0.30) / 0.32), "Very high mutable concentration strongly favors Shapeshifter.")
+        cards["Shapeshifter"].add(0.20 * self._clamp01((ratio_signs("Gemini", "Pisces") - 0.22) / 0.22), "Gemini/Pisces dominance materially increases Shapeshifter fit.")
 
         # Skeleton
         cards["Skeleton"].add(0.90 * p("Saturn"), "Saturn is primary.")
@@ -736,6 +803,8 @@ class SpeciesAssigner:
         cards["Triton"].add(0.46 * p("Mars"), "Mars adds martial authority.")
         cards["Triton"].add(0.32 * p("Jupiter"), "Jupiter adds nobility and breadth.")
         cards["Triton"].add(0.24 * ratio_houses(9, 10, 11), "High public houses fit the sentinel role.")
+        cards["Triton"].add(0.22 * self._clamp01((er["Water"] - 0.30) / 0.30), "Strong Water saturation pushes from generic aquatic into Triton.")
+        cards["Triton"].add(0.16 * self._clamp01((max(p("Neptune"), p("Jupiter")) - 0.28) / 0.30), "Neptune/Jupiter authority supports Triton even when Mars is quieter.")
 
         # Vampire
         cards["Vampire"].add(0.86 * p("Venus"), "Venus is primary.")
@@ -756,6 +825,7 @@ class SpeciesAssigner:
         # Mild floor so empty scorecards do not go negative or vanish completely.
         for family, card in cards.items():
             card.score = max(0.0, card.score)
+            card.score *= float(SPECIES_DISTRIBUTION_CALIBRATION.get(family, 1.0))
 
         return cards
 
