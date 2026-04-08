@@ -273,6 +273,33 @@ def _bilingual(value: Any) -> str:
     return f"{normalized} ({gloss})"
 
 
+def _format_colored_wuxing_value(value: Any) -> str:
+    normalized = _normalize_bazi_value(value)
+    if not normalized or normalized == UNKNOWN_BAZI_VALUE:
+        return _safe_html(normalized or UNKNOWN_BAZI_VALUE)
+
+    element_chars = [char for char in normalized if char in _ELEMENT_CHAR_TO_NAME]
+    if not element_chars:
+        return _safe_html(_bilingual(normalized))
+
+    char_fragments: list[str] = []
+    english_fragments: list[str] = []
+    for char in element_chars:
+        element_key = _ELEMENT_CHAR_TO_NAME.get(char, "")
+        element_color = _color_from_bazi_element(element_key, CHART_THEME_COLORS["text"])
+        english_name = _ELEMENT_TRANSLATIONS.get(char, char)
+        char_fragments.append(f"<span style='color:{element_color};'>{_safe_html(char)}</span>")
+        english_fragments.append(f"<span style='color:{element_color};'>{_safe_html(english_name)}</span>")
+
+    english_joiner = f"<span style='color:{CHART_THEME_COLORS['text']};'>, </span>"
+    return (
+        f"{''.join(char_fragments)}"
+        f"<span style='color:{CHART_THEME_COLORS['text']};'> (</span>"
+        f"{english_joiner.join(english_fragments)}"
+        f"<span style='color:{CHART_THEME_COLORS['text']};'>)</span>"
+    )
+
+
 def validate_chart_for_bazi(chart: Chart | None) -> str | None:
     if chart is None:
         return "Please select a chart first."
@@ -485,10 +512,10 @@ def build_bazi_details_html(bazi_data: BaziChartData) -> str:
         _pillar_display_row("hour", bazi_data),
     ]
     five_elements = [
-        f"<b>Year</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['year'])))}",
-        f"<b>Month</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['month'])))}",
-        f"<b>Day</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['day'])))}",
-        f"<b>Hour</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['hour'])))}",
+        f"<b>Year</b>: {_format_colored_wuxing_value(bazi_data.five_elements_summary['year'])}",
+        f"<b>Month</b>: {_format_colored_wuxing_value(bazi_data.five_elements_summary['month'])}",
+        f"<b>Day</b>: {_format_colored_wuxing_value(bazi_data.five_elements_summary['day'])}",
+        f"<b>Hour</b>: {_format_colored_wuxing_value(bazi_data.five_elements_summary['hour'])}",
     ]
     ten_gods = [
         f"<b>Year stem</b>: {_safe_html(_bilingual(bazi_data.ten_gods_summary['year']))}",
