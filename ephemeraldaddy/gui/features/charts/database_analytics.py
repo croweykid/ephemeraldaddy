@@ -163,6 +163,7 @@ class DatabaseAnalyticsChartsMixin:
         values: list[float],
         *,
         show_x_axis_labels: bool = True,
+        percent_decimals: int = 2,
     ) -> tuple[float, float]:
         """Apply a dynamic 0..max percent axis for compact left-panel bar charts."""
         max_value = max((float(value) for value in values), default=0.0)
@@ -181,7 +182,7 @@ class DatabaseAnalyticsChartsMixin:
                 for index in range(tick_count)
             ]
             ax.set_xticks(ticks)
-            ax.set_xticklabels([_format_percent(value) for value in ticks])
+            ax.set_xticklabels([_format_percent(value, decimals=percent_decimals) for value in ticks])
         return 0.0, axis_max
 
     @staticmethod
@@ -1094,7 +1095,7 @@ class DatabaseAnalyticsChartsMixin:
             for bar, database_value in zip(bars, database_values):
                 label_offset = max(axis_max * 0.015, 0.0015)
                 label_x = min(database_value + label_offset, axis_max * 0.985)
-                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(database_value), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
+                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(database_value, decimals=2), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
         else:
             differences = [selection - database for selection, database in zip(selection_values, database_values)]
             widths = [abs(value) for value in differences]
@@ -1343,7 +1344,7 @@ class DatabaseAnalyticsChartsMixin:
                 ax.text(
                     label_x,
                     bar_center,
-                    _format_percent(database_value),
+                    _format_percent(database_value, decimals=2),
                     va="center",
                     ha="left",
                     color=CHART_THEME_COLORS["text"],
