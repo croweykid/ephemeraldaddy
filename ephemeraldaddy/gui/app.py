@@ -665,7 +665,6 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
-from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
@@ -1523,6 +1522,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birthplace_mode = "towns"
         self._gender_mode = "actual_gender"
         self._human_design_mode = "hd_gates"
+        self._bazi_mode = "all"
         self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
@@ -1886,6 +1886,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birthplace": self._birthplace_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
+            "bazi": self._bazi_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2402,6 +2403,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "bazi":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._bazi_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/bazi_mode",
+                        self._bazi_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "planetary_sign_prevalence":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2601,6 +2619,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_human_design_mode, str):
             self._human_design_mode = stored_human_design_mode
+
+        stored_bazi_mode = self._settings.value(
+            "manage_charts/bazi_mode",
+            self._bazi_mode,
+        )
+        if isinstance(stored_bazi_mode, str):
+            self._bazi_mode = stored_bazi_mode
 
         stored_baseline_mode = self._settings.value(
             "manage_charts/database_metrics_baseline_mode",
@@ -2983,6 +3008,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["human_design"] = self.human_design_chart_layout
         human_design_section_layout.addWidget(self.human_design_chart_container)
+
+        self._create_bazi_database_analytics_section(panel, layout)
 
         #SENTIMENT PREVALENCE SECTION
         sentiment_section_layout = self._add_left_panel_collapsible_section(
@@ -7422,6 +7449,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design_incarnation_cross_total_count": 0.0,
             "human_design_type_total_count": 0.0,
             "human_design_authority_total_count": 0.0,
+            **self._empty_bazi_metrics_cache(),
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
         }
@@ -7579,6 +7607,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if hd_authority in snapshot["human_design_authority_totals"]:
                 snapshot["human_design_authority_totals"][hd_authority] += 1.0
                 snapshot["human_design_authority_total_count"] += 1.0
+
+        self._populate_bazi_snapshot(snapshot, chart)
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:
@@ -7812,6 +7842,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["human_design_authority_totals"][authority] += direction * float(
                     authority_snapshot.get(authority, 0.0)
                 )
+        self._apply_bazi_snapshot_delta(totals, snapshot, direction)
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -9466,6 +9497,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 selection_counts=[selection_human_design_counts[label] for label in human_design_labels],
                 database_counts=[database_human_design_counts[label] for label in human_design_labels],
                 loaded_charts=loaded_charts,
+            )
+
+            self._render_bazi_database_analytics(
+                selection_cache=selection_cache,
+                database_cache=database_cache,
+                loaded_charts=loaded_charts,
+                should_refresh=_should_refresh_database_metric_section,
             )
 
             gender_mode = self._gender_mode
