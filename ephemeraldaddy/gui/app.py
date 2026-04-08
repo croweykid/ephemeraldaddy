@@ -1594,7 +1594,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._toggle_manage_collections_panel
         )
 
-        self.edit_charts_button = QPushButton("📝Database Manager") #Batch Edit #✎𓂃
+        self.edit_charts_button = QPushButton("📝📚") #Batch Edit #✎𓂃#Database Manager Panel button
         self.edit_charts_button.setObjectName("manage_toggle_batch_edit_panel_button")
         self.edit_charts_button.clicked.connect(self._toggle_edit_panel)
 
@@ -13170,7 +13170,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel_layout.setSpacing(8)
         panel.setLayout(panel_layout)
 
-        header_label = QLabel("Manage Collections")
+        header_label = QLabel("📝Collections")
         header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         panel_layout.addWidget(header_label)
 
