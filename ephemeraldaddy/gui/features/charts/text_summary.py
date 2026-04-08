@@ -773,12 +773,21 @@ def format_chart_text(
                 f"{format_degree_minutes(angle, include_sign=False):>8}  (orb {format_degree_minutes(delta)})"
             )
             line = f"{line} ⓘ"
+            aspect_span_start = line.find(f" {atype:<12} ")
+            if aspect_span_start != -1:
+                aspect_span_start += 1
+                aspect_span_end = aspect_span_start + len(str(atype))
+            else:
+                aspect_span_start = None
+                aspect_span_end = None
             aspect_info_map[len(lines)] = {
                 "p1": p1,
                 "p2": p2,
                 "type": atype,
                 "angle": angle,
                 "delta": delta,
+                "span_start": aspect_span_start,
+                "span_end": aspect_span_end,
                 "sign1": sign_for_longitude(positions[p1]) if p1 in positions else None,
                 "sign2": sign_for_longitude(positions[p2]) if p2 in positions else None,
                 "house1": house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
