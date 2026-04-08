@@ -31,6 +31,14 @@ class Chart:
         self.human_design_gates = []
         self.human_design_lines = []
         self.human_design_channels = []
+        self.bazi_year_pillar = ""
+        self.bazi_month_pillar = ""
+        self.bazi_day_pillar = ""
+        self.bazi_hour_pillar = ""
+        self.bazi_year_element = ""
+        self.bazi_month_element = ""
+        self.bazi_day_element = ""
+        self.bazi_hour_element = ""
         self.age_when_first_met = 0
         self.year_first_encountered = None
         self.data_rating = "blank"
@@ -109,6 +117,14 @@ class Chart:
             "human_design_gates": self.human_design_gates,
             "human_design_lines": self.human_design_lines,
             "human_design_channels": self.human_design_channels,
+            "bazi_year_pillar": self.bazi_year_pillar,
+            "bazi_month_pillar": self.bazi_month_pillar,
+            "bazi_day_pillar": self.bazi_day_pillar,
+            "bazi_hour_pillar": self.bazi_hour_pillar,
+            "bazi_year_element": self.bazi_year_element,
+            "bazi_month_element": self.bazi_month_element,
+            "bazi_day_element": self.bazi_day_element,
+            "bazi_hour_element": self.bazi_hour_element,
             "dominant_sign_weights": self.dominant_sign_weights,
             "dominant_planet_weights": self.dominant_planet_weights,
             "dominant_element_weights": self.dominant_element_weights,
