@@ -398,10 +398,6 @@ from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
 
-from ephemeraldaddy.gui.features.charts.aspect_interpretation import (
-    build_aspect_interpretation_lines as _build_aspect_interpretation_lines,
-)
-
 from ephemeraldaddy.gui.features.charts.presentation import (
     apply_nakshatra_tick_info_markers as _apply_nakshatra_tick_info_markers,
     format_degree_minutes as _format_degree_minutes,
@@ -21836,7 +21832,10 @@ class MainWindow(QMainWindow):
             )
             return
 
-        unique_lines = _build_aspect_interpretation_lines(
+        line_segments = self._build_aspect_line_segments(
+            p1=p1,
+            p2=p2,
+            atype=atype,
             p1_nouns=p1_nouns,
             p2_nouns=p2_nouns,
             aspect_keywords=aspect_keywords,
@@ -21847,8 +21846,101 @@ class MainWindow(QMainWindow):
         )
 
         header = f"{p1} {atype} {p2} • {angle:.2f}° (orb {delta:+.2f}°)"
-        bullet_lines = [f"• {line}" for line in unique_lines]
-        self.chart_info_output.setPlainText("\n".join([header, ""] + bullet_lines))
+        self._set_chart_info_lines_with_segments(header, line_segments)
+
+    def _build_aspect_line_segments(
+        self,
+        *,
+        p1: str,
+        p2: str,
+        atype: str,
+        p1_nouns: list[str],
+        p2_nouns: list[str],
+        aspect_keywords: list[str],
+        sign1: str | None,
+        sign2: str | None,
+        house1: int | None,
+        house2: int | None,
+        line_count: int = 6,
+        max_attempts: int = 300,
+    ) -> list[list[tuple[str, str | None]]]:
+        sign1_key = str(sign1 or "").strip().title()
+        sign2_key = str(sign2 or "").strip().title()
+        sign1_keywords = SIGN_KEYWORDS.get(sign1_key, {})
+        sign2_keywords = SIGN_KEYWORDS.get(sign2_key, {})
+        sign1_adjectives = [
+            str(token).strip()
+            for token in [*sign1_keywords.get("best", []), *sign1_keywords.get("worst", [])]
+            if str(token).strip()
+        ]
+        sign2_adjectives = [
+            str(token).strip()
+            for token in [*sign2_keywords.get("best", []), *sign2_keywords.get("worst", [])]
+            if str(token).strip()
+        ]
+        house1_keywords = HOUSE_DEFINITIONS.get(house1, {}).get("core_domains", []) if house1 else []
+        house2_keywords = HOUSE_DEFINITIONS.get(house2, {}).get("core_domains", []) if house2 else []
+
+        p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        sign1_color = SIGN_COLORS.get(sign1_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+
+        line_segments: list[list[tuple[str, str | None]]] = []
+        seen: set[tuple[str, str, str, str, str, str, str]] = set()
+        attempts = 0
+
+        while len(line_segments) < line_count and attempts < max_attempts:
+            noun1 = str(random.choice(p1_nouns)).strip()
+            noun2 = str(random.choice(p2_nouns)).strip()
+            keyword = str(random.choice(aspect_keywords)).strip()
+            sign1_adj = str(random.choice(sign1_adjectives)).strip() if sign1_adjectives else ""
+            sign2_adj = str(random.choice(sign2_adjectives)).strip() if sign2_adjectives else ""
+            house_noun1 = str(random.choice(house1_keywords)).strip() if house1_keywords else ""
+            house_noun2 = str(random.choice(house2_keywords)).strip() if house2_keywords else ""
+
+            combo = (sign1_adj, noun1, keyword, sign2_adj, noun2, house_noun1, house_noun2)
+            if combo in seen:
+                attempts += 1
+                continue
+            seen.add(combo)
+
+            segments: list[tuple[str, str | None]] = [("• ", None)]
+            if house_noun1 and house_noun2:
+                segments.extend(
+                    [
+                        ("(", None),
+                        (house_noun1, house1_color),
+                        (" & ", None),
+                        (house_noun2, house2_color),
+                        ("): ", None),
+                    ]
+                )
+
+            sentence_tokens: list[tuple[str, str | None]] = []
+            if sign1_adj:
+                sentence_tokens.append((sign1_adj, sign1_color))
+            if noun1:
+                sentence_tokens.append((noun1, p1_color))
+            if keyword:
+                sentence_tokens.append((keyword, aspect_color))
+            if sign2_adj:
+                sentence_tokens.append((sign2_adj, sign2_color))
+            if noun2:
+                sentence_tokens.append((noun2, p2_color))
+
+            for index, (text, color) in enumerate(sentence_tokens):
+                if index > 0:
+                    segments.append((" ", None))
+                segments.append((text, color))
+
+            line_segments.append(segments)
+            attempts += 1
+
+        return line_segments
 
     def _confirm_discard_or_save(self) -> bool:
         if not self._lucygoosey:
