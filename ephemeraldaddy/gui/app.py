@@ -491,6 +491,10 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     build_chart_lookup,
     resolve_similarity_pair_targets,
 )
+from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_similar_charts_popout_dialog,
+    load_similar_chart_candidates,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -17673,9 +17677,11 @@ class MainWindow(QMainWindow):
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_mode_dropdown: QComboBox | None = None
         self._similar_charts_list_label: QLabel | None = None
+        self._similar_charts_more_label: QLabel | None = None
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
+        self._similar_charts_popout_dialogs: list[QDialog] = []
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
         self._anagrams_export_button: QToolButton | None = None
@@ -18873,6 +18879,23 @@ class MainWindow(QMainWindow):
         section_layout.addWidget(list_label)
         self._similar_charts_list_label = list_label
 
+        more_label = QLabel()
+        more_label.setWordWrap(False)
+        more_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        more_label.setOpenExternalLinks(False)
+        more_label.setStyleSheet(
+            f"font-weight: 700; color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        )
+        more_label.setText(
+            f'<span style="color: {CHART_DATA_HIGHLIGHT_COLOR}; font-weight: 700;">'
+            '<a href="open_similar_popout" style="color: inherit; text-decoration: none;">More...</a>'
+            "</span>"
+        )
+        more_label.linkActivated.connect(self._on_similar_charts_more_activated)
+        section_layout.addSpacing(6)
+        section_layout.addWidget(more_label, 0, Qt.AlignLeft)
+        self._similar_charts_more_label = more_label
+
         if self._latest_chart is not None and section_expanded:
             QTimer.singleShot(
                 0,
@@ -18882,6 +18905,14 @@ class MainWindow(QMainWindow):
                     queue_priority="interactive",
                 ),
             )
+
+    def _load_similar_chart_candidates(self) -> list[tuple[int, Chart]]:
+        rows = list_charts()
+        return load_similar_chart_candidates(
+            rows=rows,
+            current_chart_id=self.current_chart_id,
+            load_chart_by_id=load_chart,
+        )
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
         try:
@@ -18904,6 +18935,11 @@ class MainWindow(QMainWindow):
         if not loaded:
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
+
+    def _on_similar_charts_more_activated(self, target: str) -> None:
+        if target != "open_similar_popout":
+            return
+        self._show_similar_charts_popout()
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18945,7 +18981,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            rows = list_charts()
+            candidates = self._load_similar_chart_candidates()
         except Exception as exc:
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
@@ -18955,20 +18991,6 @@ class MainWindow(QMainWindow):
                 f"Could not read saved charts for twin matching:\n{exc}"
             )
             return
-
-        candidates: list[tuple[int, Chart]] = []
-        for row in rows:
-            chart_id = int(row[0])
-            is_placeholder = bool(row[15]) if len(row) > 15 else False
-            if self.current_chart_id is not None and chart_id == self.current_chart_id:
-                continue
-            if is_placeholder:
-                continue
-            try:
-                candidate = load_chart(chart_id)
-            except Exception:
-                continue
-            candidates.append((chart_id, candidate))
 
         if not candidates:
             self._similar_charts_export_rows = []
@@ -19033,6 +19055,68 @@ class MainWindow(QMainWindow):
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
+
+    def _show_similar_charts_popout(self) -> None:
+        chart = self._latest_chart
+        if chart is None:
+            QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
+            return
+        if getattr(chart, "is_placeholder", False):
+            QMessageBox.information(
+                self,
+                "Similar Charts",
+                "Similar chart matching is disabled for placeholder charts.",
+            )
+            return
+
+        try:
+            candidates = self._load_similar_chart_candidates()
+        except Exception as exc:
+            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+            return
+        if not candidates:
+            QMessageBox.information(
+                self,
+                "Similar Charts",
+                "Need at least one additional non-placeholder saved chart in the database.",
+            )
+            return
+
+        most_similar_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=self.current_chart_id,
+            least_similar=False,
+        )
+        least_similar_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=self.current_chart_id,
+            least_similar=True,
+        )
+        subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+        dialog = build_similar_charts_popout_dialog(
+            parent=self,
+            subject_name=subject_name,
+            most_similar_matches=most_similar_matches,
+            least_similar_matches=least_similar_matches,
+            on_link_activated=self._on_similar_chart_link_activated,
+            header_style=DATABASE_ANALYTICS_HEADER_STYLE,
+            output_style=CHART_DATA_OUTPUT_STYLE,
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            resolve_similarity_band=self._similarity_band_for_percent,
+            configure_splitter=configure_splitter_handle_resize_cursor,
+        )
+        self._register_popout_shortcuts(dialog)
+        self._similar_charts_popout_dialogs.append(dialog)
+        dialog.destroyed.connect(
+            lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
+            if popout in self._similar_charts_popout_dialogs
+            else None
+        )
+        dialog.show()
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
