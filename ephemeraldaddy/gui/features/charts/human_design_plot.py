@@ -70,7 +70,7 @@ BODY_TEXT_COLOR: dict[str, str] = {
 CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
-CHANNEL_EXTRA_SPACING_PIXELS = 4.0
+CHANNEL_EXTRA_SPACING_PIXELS = 6.0
 BODYGRAPH_VERTICAL_OFFSET = -0.07
 BODYGRAPH_CONTENT_SCALE = 0.74 #scales the bodygraph chart
 BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
