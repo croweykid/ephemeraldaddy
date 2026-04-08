@@ -151,6 +151,7 @@ class DatabaseAnalyticsChartsMixin:
         subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
         return subheader
 
+    @staticmethod
     def _value_length_color(
         value: float,
         minimum: float,
