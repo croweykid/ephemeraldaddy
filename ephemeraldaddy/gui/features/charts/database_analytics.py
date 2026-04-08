@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import csv
+import functools
 import math
 import re
 import statistics
@@ -14,6 +15,8 @@ from typing import Any, Callable
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib import font_manager as mpl_font_manager
+from matplotlib.font_manager import FontProperties
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFileDialog, QLabel, QLayout, QMessageBox, QSizePolicy
 
@@ -68,6 +71,21 @@ from ephemeraldaddy.gui.style import (
 
 
 class DatabaseAnalyticsChartsMixin:
+    BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
+        "Noto Color Emoji",
+        "Segoe UI Emoji",
+        "Apple Color Emoji",
+        "Twitter Color Emoji",
+        "EmojiOne Color",
+        "Noto Emoji",
+        "Symbola",
+    )
+    BAZI_EMOJI_FONT_CANDIDATE_HINTS: tuple[str, ...] = (
+        "emoji",
+        "color emoji",
+        "symbola",
+        "symbols",
+    )
     DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
     HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
         "Head",
@@ -370,6 +388,81 @@ class DatabaseAnalyticsChartsMixin:
             or ""
         )
         return f"{normalized} ({translated})" if translated else normalized
+
+    @staticmethod
+    def _label_contains_emoji(label: str) -> bool:
+        return bool(
+            re.search(
+                (
+                    "["
+                    "\U0001F300-\U0001F5FF"
+                    "\U0001F600-\U0001F64F"
+                    "\U0001F680-\U0001F6FF"
+                    "\U0001F700-\U0001F77F"
+                    "\U0001F780-\U0001F7FF"
+                    "\U0001F800-\U0001F8FF"
+                    "\U0001F900-\U0001F9FF"
+                    "\U0001FA00-\U0001FA6F"
+                    "\U0001FA70-\U0001FAFF"
+                    "\u2600-\u26FF"
+                    "\u2700-\u27BF"
+                    "]"
+                ),
+                str(label or ""),
+            )
+        )
+
+    @staticmethod
+    def _emoji_codepoints(label: str) -> set[int]:
+        ignored = {0x200D, 0xFE0E, 0xFE0F}
+        return {ord(char) for char in str(label or "") if ord(char) not in ignored}
+
+    @staticmethod
+    @functools.lru_cache(maxsize=512)
+    def _font_supports_codepoint(font_path: str, codepoint: int) -> bool:
+        try:
+            from matplotlib.ft2font import FT2Font
+
+            return codepoint in FT2Font(font_path).get_charmap()
+        except Exception:
+            return False
+
+    @classmethod
+    def _resolve_bazi_emoji_fontproperties(
+        cls,
+        labels: list[str],
+    ) -> FontProperties | None:
+        required_codepoints = {
+            codepoint
+            for label in labels
+            for codepoint in cls._emoji_codepoints(label)
+            if codepoint >= 0x2600
+        }
+        if not required_codepoints:
+            return None
+        try:
+            entries = list(mpl_font_manager.fontManager.ttflist)
+        except Exception:
+            return None
+
+        prioritized_paths: list[str] = []
+        for family in cls.BAZI_EMOJI_FONT_FAMILIES:
+            prioritized_paths.extend(
+                entry.fname
+                for entry in entries
+                if str(entry.name).strip().lower() == family.lower()
+            )
+
+        if not prioritized_paths:
+            for entry in entries:
+                name = str(entry.name or "").lower()
+                if any(hint in name for hint in cls.BAZI_EMOJI_FONT_CANDIDATE_HINTS):
+                    prioritized_paths.append(entry.fname)
+
+        for font_path in prioritized_paths:
+            if all(cls._font_supports_codepoint(font_path, cp) for cp in required_codepoints):
+                return FontProperties(fname=font_path)
+        return None
 
     def _apply_bazi_snapshot_delta(
         self,
@@ -2366,6 +2459,11 @@ class DatabaseAnalyticsChartsMixin:
                     database_counts=[database_display_counts.get(label, 0) for label in display_labels],
                     loaded_charts=loaded_charts,
                     auto_height=True,
+                    emoji_label_font_family=(
+                        list(self.BAZI_EMOJI_FONT_FAMILIES)
+                        if any(self._label_contains_emoji(label) for label in display_labels)
+                        else None
+                    ),
                 )
                 self.bazi_chart_layout.addWidget(bazi_canvas, 0)
             else:
@@ -2449,6 +2547,7 @@ class DatabaseAnalyticsChartsMixin:
         auto_height: bool = False,
         use_earthtone_cycle: bool = False,
         bar_colors: list[str] | None = None,
+        emoji_label_font_family: list[str] | None = None,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
         figure = Figure(figsize=(1.5, chart_height))
@@ -2489,8 +2588,15 @@ class DatabaseAnalyticsChartsMixin:
             )
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
+        emoji_font_props = (
+            self._resolve_bazi_emoji_fontproperties(display_labels)
+            if emoji_label_font_family
+            else None
+        )
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
+            if emoji_font_props is not None and self._label_contains_emoji(tick_label.get_text()):
+                tick_label.set_fontproperties(emoji_font_props)
 
         self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.10, right=0.97, top=0.97)
