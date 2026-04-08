@@ -9489,6 +9489,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             month_labels = [calendar.month_name[month] for month in range(1, 13)]
             month_selection_counts = [int(birth_selection_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
             month_database_counts = [int(birth_database_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
+            month_bar_colors = [
+                SEASONAL_COLOR_SPECTRUM.get(calendar.month_name[month].lower(), "#6fa8dc")
+                for month in range(1, 13)
+            ]
             if birth_month_mode == "month_distribution":
                 if _should_refresh_database_metric_section("birth_month"):
                     month_canvas = self._build_count_distribution_chart(
@@ -9496,6 +9500,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=month_selection_counts,
                         database_counts=month_database_counts,
                         loaded_charts=loaded_charts,
+                        bar_colors=month_bar_colors,
                     )
                     self._clear_layout(self.birth_month_chart_layout)
                     self.birth_month_chart_layout.addWidget(month_canvas, 0)
