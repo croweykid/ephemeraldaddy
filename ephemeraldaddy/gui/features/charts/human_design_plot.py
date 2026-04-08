@@ -45,12 +45,16 @@ CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for cent
 
 CHANNEL_SPACING = 0.014
 BODYGRAPH_VERTICAL_OFFSET = -0.07
-BODYGRAPH_CANVAS_SCALE = 0.65
+BODYGRAPH_CONTENT_SCALE = 0.65
+
+
+def _offset_center_y(y_value: float) -> float:
+    return y_value + BODYGRAPH_VERTICAL_OFFSET
 
 
 def _center_sort_key(center_name: str) -> tuple[float, float]:
     x, y = CENTER_POSITIONS[center_name]
-    y += BODYGRAPH_VERTICAL_OFFSET
+    y = _offset_center_y(y)
     return (-y, x)
 
 
@@ -89,22 +93,25 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    bodygraph_margin = (1.0 - BODYGRAPH_CANVAS_SCALE) / 2.0
-    ax = figure.add_axes(
-        (
-            bodygraph_margin,
-            bodygraph_margin,
-            BODYGRAPH_CANVAS_SCALE,
-            BODYGRAPH_CANVAS_SCALE,
-        )
-    )
+    ax = figure.add_axes((0.0, 0.0, 1.0, 1.0))
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
-    ax.set_xlim(0, 1)
-    center_min_y = min(y - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    center_max_y = max(y + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    vertical_padding = 0.02
-    ax.set_ylim(center_min_y - vertical_padding, center_max_y + vertical_padding)
+    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items())
+    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items())
+    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
+    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
+    base_min_x = min(center_min_x, 0.70)
+    base_max_x = max(center_max_x, 0.995)
+    base_min_y = min(center_min_y, 0.03)
+    base_max_y = max(center_max_y, 0.99)
+    base_width = max(base_max_x - base_min_x, 1e-6)
+    base_height = max(base_max_y - base_min_y, 1e-6)
+    content_center_x = (base_min_x + base_max_x) / 2.0
+    content_center_y = (base_min_y + base_max_y) / 2.0
+    scaled_half_width = (base_width / BODYGRAPH_CONTENT_SCALE) / 2.0
+    scaled_half_height = (base_height / BODYGRAPH_CONTENT_SCALE) / 2.0
+    ax.set_xlim(content_center_x - scaled_half_width, content_center_x + scaled_half_width)
+    ax.set_ylim(content_center_y - scaled_half_height, content_center_y + scaled_half_height)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
     unique_channels: list[tuple[int, int, str, str]] = []
@@ -146,14 +153,14 @@ def draw_human_design_chart(
         channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
-        y1 += BODYGRAPH_VERTICAL_OFFSET
-        y2 += BODYGRAPH_VERTICAL_OFFSET
+        y1 = _offset_center_y(y1)
+        y2 = _offset_center_y(y2)
 
         if channel_key == (20, 34):
             sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
             throat_x, throat_y = CENTER_POSITIONS["Throat"]
-            sacral_y += BODYGRAPH_VERTICAL_OFFSET
-            throat_y += BODYGRAPH_VERTICAL_OFFSET
+            sacral_y = _offset_center_y(sacral_y)
+            throat_y = _offset_center_y(throat_y)
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
@@ -277,7 +284,7 @@ def draw_human_design_chart(
         )
 
     for center_name, (x, y) in CENTER_POSITIONS.items():
-        y += BODYGRAPH_VERTICAL_OFFSET
+        y = _offset_center_y(y)
         defined = center_name in hd_result.defined_centers
         edge = "#c8914f" if defined else chart_theme_colors["spine"]
         fill = CENTER_FILL_COLORS.get(center_name, "#2f3d45") #"#2f3d45" if defined else "#2a2a2a"
