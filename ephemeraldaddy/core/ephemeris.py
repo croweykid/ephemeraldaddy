@@ -351,7 +351,7 @@ def _lilith_swe_id_name_candidates(mode: str | None = None) -> tuple[str, ...]:
     instead of dropping Lilith from output entirely.
     """
     global _LILITH_FALLBACK_WARNED
-    preferred_mode = _normalize_lilith_calculation_mode(mode)
+    preferred_mode = _normalize_lilith_calculation_mode(mode or _LILITH_CALCULATION_MODE)
     preferred = _lilith_swe_id_names(preferred_mode)
     mean_aliases = _lilith_swe_id_names(LILITH_CALCULATION_MEAN)
     if preferred == mean_aliases:

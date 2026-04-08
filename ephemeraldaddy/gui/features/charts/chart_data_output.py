@@ -196,6 +196,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._planet_aliases = {
             "Black Moon Lilith": "Lilith",
+            "Black☽ Lilith": "Lilith",
             "Part of Fortune": "Fortune",
             "Ascendant": "AS",
             "Descendant": "DS",

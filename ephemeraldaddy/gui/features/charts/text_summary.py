@@ -194,9 +194,12 @@ def _display_body_with_glyph(body: str) -> str:
 
 def _display_body_name(body: str) -> str:
     if body == "Lilith (mean)":
-        return "Black Moon Lilith"
+        return "Black☽ Lilith"
     if body == "Lilith":
-        return get_lilith_display_name()
+        display_name = get_lilith_display_name()
+        if display_name == "Black Moon Lilith":
+            return "Black☽ Lilith"
+        return display_name
     if body == "Part of Fortune":
         return "Fortune"
     return body
