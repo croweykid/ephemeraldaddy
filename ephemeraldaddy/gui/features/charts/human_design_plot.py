@@ -45,6 +45,7 @@ CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for cent
 
 CHANNEL_SPACING = 0.014
 BODYGRAPH_VERTICAL_OFFSET = -0.07
+BODYGRAPH_CANVAS_SCALE = 0.65
 
 
 def _center_sort_key(center_name: str) -> tuple[float, float]:
@@ -88,9 +89,15 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    # Use (almost) the full canvas so the bodygraph can occupy available space
-    # instead of rendering inside an implicit "footer" margin.
-    ax = figure.add_axes((0.01, 0.01, 0.98, 0.98))
+    bodygraph_margin = (1.0 - BODYGRAPH_CANVAS_SCALE) / 2.0
+    ax = figure.add_axes(
+        (
+            bodygraph_margin,
+            bodygraph_margin,
+            BODYGRAPH_CANVAS_SCALE,
+            BODYGRAPH_CANVAS_SCALE,
+        )
+    )
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
