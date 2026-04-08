@@ -22,6 +22,7 @@ from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
+    BAZI_ZODIAC,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
@@ -68,6 +69,7 @@ from ephemeraldaddy.gui.style import (
 
 
 class DatabaseAnalyticsChartsMixin:
+    CHINESE_FONT_UNAVAILABLE: bool = True
     BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
         "Noto Color Emoji",
         "Segoe UI Emoji",
@@ -386,25 +388,35 @@ class DatabaseAnalyticsChartsMixin:
         normalized = str(raw_label or "").strip()
         if not normalized:
             return ""
+
+        def _display_label(*, original: str, translated: str) -> str:
+            english_only = bool(getattr(self, "CHINESE_FONT_UNAVAILABLE", True))
+            if english_only:
+                return translated or original
+            return f"{original} ({translated})" if translated else original
+
         if mode == "elements":
             translated = " ".join(
                 self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
                 for char in normalized
                 if self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
             ).strip()
-            return f"{normalized} ({translated})" if translated else normalized
+            return _display_label(original=normalized, translated=translated)
+        if mode == "animals":
+            translated = self.BAZI_BRANCH_TRANSLATIONS.get(normalized, "").strip()
+            return _display_label(original=normalized, translated=translated)
         if len(normalized) == 2:
             stem = self.BAZI_STEM_TRANSLATIONS.get(normalized[0], "")
             branch = self.BAZI_BRANCH_TRANSLATIONS.get(normalized[1], "")
-            translated = " · ".join(part for part in (stem, branch) if part)
-            return f"{normalized} ({translated})" if translated else normalized
+            translated = " ".join(part for part in (stem, branch) if part)
+            return _display_label(original=normalized, translated=translated)
         translated = (
             self.BAZI_STEM_TRANSLATIONS.get(normalized)
             or self.BAZI_BRANCH_TRANSLATIONS.get(normalized)
             or self.BAZI_ELEMENT_TRANSLATIONS.get(normalized)
             or ""
         )
-        return f"{normalized} ({translated})" if translated else normalized
+        return _display_label(original=normalized, translated=translated)
 
     @staticmethod
     def _label_contains_emoji(label: str) -> bool:
@@ -2350,11 +2362,12 @@ class DatabaseAnalyticsChartsMixin:
                 ("Day Pillar", "day"),
                 ("Hour Pillar", "hour"),
                 ("BaZi Elements", "elements"),
+                ("BaZi Animal Signs", "animals"),
             ],
             show_title=False,
         )
         bazi_subheader = self._build_database_subheader_label(
-            "BaZi pillar and five-element distributions across selection/database."
+            "BaZi pillar, animal-sign, and five-element distributions across selection/database."
         )
         bazi_section_layout.addWidget(bazi_subheader)
         (
@@ -2384,6 +2397,23 @@ class DatabaseAnalyticsChartsMixin:
                 for key, value in database_cache.get("bazi_element_counts", {}).items()
                 if int(value) > 0
             }
+        elif bazi_mode == "animals":
+            selection_bazi_counts: dict[str, int] = {}
+            for pillar_label, value in selection_cache.get("bazi_sign_counts", {}).get("all", {}).items():
+                normalized_pillar = str(pillar_label or "").strip()
+                if len(normalized_pillar) != 2:
+                    continue
+                animal_label = normalized_pillar[1]
+                selection_bazi_counts[animal_label] = int(selection_bazi_counts.get(animal_label, 0)) + int(value)
+            database_bazi_counts: dict[str, int] = {}
+            for pillar_label, value in database_cache.get("bazi_sign_counts", {}).get("all", {}).items():
+                normalized_pillar = str(pillar_label or "").strip()
+                if len(normalized_pillar) != 2:
+                    continue
+                animal_label = normalized_pillar[1]
+                database_bazi_counts[animal_label] = int(database_bazi_counts.get(animal_label, 0)) + int(value)
+            selection_bazi_counts = {key: value for key, value in selection_bazi_counts.items() if int(value) > 0}
+            database_bazi_counts = {key: value for key, value in database_bazi_counts.items() if int(value) > 0}
         else:
             selection_bazi_counts = {
                 key: int(value)
@@ -2395,10 +2425,18 @@ class DatabaseAnalyticsChartsMixin:
                 for key, value in database_cache.get("bazi_sign_counts", {}).get(bazi_mode, {}).items()
                 if int(value) > 0
             }
+        label_counts_source = (
+            {
+                label: int(selection_bazi_counts.get(label, 0)) + int(database_bazi_counts.get(label, 0))
+                for label in (set(selection_bazi_counts.keys()) | set(database_bazi_counts.keys()))
+            }
+            if loaded_charts
+            else database_bazi_counts
+        )
         bazi_labels = [
             item[0]
             for item in sorted(
-                (selection_bazi_counts.items() if loaded_charts else database_bazi_counts.items()),
+                label_counts_source.items(),
                 key=lambda item: (-item[1], item[0]),
             )
         ]
@@ -2415,6 +2453,15 @@ class DatabaseAnalyticsChartsMixin:
             display_label_by_raw.get(label, label): int(database_bazi_counts.get(label, 0))
             for label in bazi_labels
         }
+        bazi_bar_colors = None
+        if bazi_mode == "animals":
+            bazi_bar_colors = []
+            for raw_label in bazi_labels:
+                english_animal = str(self.BAZI_BRANCH_TRANSLATIONS.get(str(raw_label), "")).strip().casefold()
+                color = str(
+                    (BAZI_ZODIAC.get(english_animal, {}) or {}).get("color", "")
+                ).strip()
+                bazi_bar_colors.append(color or "#6fa8dc")
         if should_refresh("bazi"):
             self._clear_layout(self.bazi_chart_layout)
             if display_labels:
@@ -2424,6 +2471,7 @@ class DatabaseAnalyticsChartsMixin:
                     database_counts=[database_display_counts.get(label, 0) for label in display_labels],
                     loaded_charts=loaded_charts,
                     auto_height=True,
+                    bar_colors=bazi_bar_colors,
                     emoji_label_font_family=(
                         list(self.BAZI_EMOJI_FONT_FAMILIES)
                         if any(self._label_contains_emoji(label) for label in display_labels)
@@ -2520,37 +2568,89 @@ class DatabaseAnalyticsChartsMixin:
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
 
-        values = selection_counts if loaded_charts else database_counts
-        display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
+        display_labels = [
+            self._format_selection_database_count_label(
+                label,
+                int(database_count),
+                int(selection_count),
+                loaded_charts > 0,
+            )
+            for label, selection_count, database_count in zip(labels, selection_counts, database_counts)
+        ]
         positions = list(range(len(labels)))
         if bar_colors is not None:
             colors = list(bar_colors)
         else:
-            value_min = float(min(values, default=0))
-            value_max = float(max(values, default=1))
+            values_for_color_scale = selection_counts if loaded_charts else database_counts
+            value_min = float(min(values_for_color_scale, default=0))
+            value_max = float(max(values_for_color_scale, default=1))
             colors = [
                 self._value_length_color(float(value), value_min, value_max)
-                for value in values
+                for value in values_for_color_scale
             ]
-        bars = ax.barh(positions, values, color=colors, height=0.55, zorder=2)
-        max_value = max(values, default=0)
-        self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
+        if loaded_charts == 0:
+            bars = ax.barh(positions, database_counts, color=colors, height=0.55, zorder=2)
+            max_value = max(database_counts, default=0)
+            self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
+            for bar, value in zip(bars, database_counts):
+                ax.text(
+                    bar.get_width() + 0.06,
+                    bar.get_y() + (bar.get_height() / 2),
+                    str(value),
+                    va="center",
+                    ha="left",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
+        else:
+            total_selection = float(sum(max(0, int(value)) for value in selection_counts))
+            total_database = float(sum(max(0, int(value)) for value in database_counts))
+            selection_values = [
+                (float(value) / total_selection) if total_selection > 0 else 0.0
+                for value in selection_counts
+            ]
+            database_values = [
+                (float(value) / total_database) if total_database > 0 else 0.0
+                for value in database_counts
+            ]
+            differences = [
+                selection - database
+                for selection, database in zip(selection_values, database_values)
+            ]
+            widths = [abs(value) for value in differences]
+            bars = ax.barh(
+                positions,
+                widths,
+                left=[0 if value >= 0 else -abs(value) for value in differences],
+                color=colors,
+                height=0.55,
+                zorder=2,
+            )
+            ax.set_xlim(-1, 1)
+            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
+            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
+            ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            for bar, diff_value in zip(bars, differences):
+                width = bar.get_width()
+                if width <= 0:
+                    continue
+                label_x = width if diff_value >= 0 else -width
+                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                ax.text(
+                    label_x,
+                    bar.get_y() + (bar.get_height() / 2),
+                    _format_percent(abs(diff_value)),
+                    va="center",
+                    ha="left" if diff_value >= 0 else "right",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=7.5,
+                )
         ax.set_yticks(positions, labels=display_labels)
         ax.invert_yaxis()
         self._set_compact_barh_y_limits(ax, len(labels), 0.55)
         ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
         ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
         ax.set_xlabel("")
-        for bar, value in zip(bars, values):
-            ax.text(
-                bar.get_width() + 0.06,
-                bar.get_y() + (bar.get_height() / 2),
-                str(value),
-                va="center",
-                ha="left",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=7.5,
-            )
         for spine in ax.spines.values():
             spine.set_color(CHART_THEME_COLORS["spine"])
         for tick_label in ax.get_yticklabels():
