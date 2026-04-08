@@ -6,9 +6,12 @@ from typing import Any
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QTextBrowser,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -24,9 +27,11 @@ from ephemeraldaddy.analysis.bazi_getter import (
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS, BAZI_ZODIAC
 from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
     CHART_THEME_COLORS,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
     STANDARD_NCV_PIE_CHART,
+    configure_share_export_icon_button,
 )
 
 BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE = (
@@ -313,6 +318,81 @@ def _safe_html(text: str) -> str:
     )
 
 
+def _build_bazi_export_payload(
+    *,
+    chart_name: str,
+    birth_place: str,
+    dt_local: datetime,
+    hour_note: str,
+    bazi_data: BaziChartData,
+) -> tuple[str, str]:
+    year_element = _bilingual(bazi_data.five_elements_summary.get("year"))
+    year_zodiac = _bilingual(bazi_data.zodiac_animal)
+    year_summary = " • ".join(part for part in (year_element, year_zodiac) if part)
+    details_lines = [
+        f"Chart of {chart_name}",
+        f"Place: {birth_place}",
+        f"Date & Time: {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Hour Pillar: {hour_note.split(':', 1)[-1].strip()}",
+        f"Lunar Date: {_bilingual(bazi_data.lunar_date_str)}",
+        f"Year: {year_summary or UNKNOWN_BAZI_VALUE}",
+        "",
+        "BAZI CHART DETAILS",
+    ]
+    for pillar in ("year", "month", "day", "hour"):
+        details_lines.append(
+            f"- {pillar.capitalize()}: "
+            f"Stem={_bilingual(bazi_data.heavenly_stems.get(pillar, UNKNOWN_BAZI_VALUE))}; "
+            f"Branch={_bilingual(bazi_data.earthly_branches.get(pillar, UNKNOWN_BAZI_VALUE))}"
+        )
+    details_lines.extend(
+        [
+            "",
+            "Five Elements / Na Yin",
+            f"- Year: {_bilingual(bazi_data.five_elements_summary.get('year', UNKNOWN_BAZI_VALUE))}",
+            f"- Month: {_bilingual(bazi_data.five_elements_summary.get('month', UNKNOWN_BAZI_VALUE))}",
+            f"- Day: {_bilingual(bazi_data.five_elements_summary.get('day', UNKNOWN_BAZI_VALUE))}",
+            f"- Hour: {_bilingual(bazi_data.five_elements_summary.get('hour', UNKNOWN_BAZI_VALUE))}",
+            "",
+            "Ten Gods (relative to Day Master)",
+            f"- Year stem: {_bilingual(bazi_data.ten_gods_summary.get('year', UNKNOWN_BAZI_VALUE))}",
+            f"- Month stem: {_bilingual(bazi_data.ten_gods_summary.get('month', UNKNOWN_BAZI_VALUE))}",
+            f"- Hour stem: {_bilingual(bazi_data.ten_gods_summary.get('hour', UNKNOWN_BAZI_VALUE))}",
+            f"- Day branch main: {_bilingual(bazi_data.ten_gods_summary.get('day_branch_main', UNKNOWN_BAZI_VALUE))}",
+            "",
+        ]
+    )
+    txt_payload = "\n".join(details_lines)
+    md_payload = (
+        f"# Chart of {chart_name}\n\n"
+        f"- **Place:** {birth_place}\n"
+        f"- **Date & Time:** {dt_local.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"- **Hour Pillar:** {hour_note.split(':', 1)[-1].strip()}\n"
+        f"- **Lunar Date:** {_bilingual(bazi_data.lunar_date_str)}\n"
+        f"- **Year:** {year_summary or UNKNOWN_BAZI_VALUE}\n\n"
+        "## BAZI CHART DETAILS\n\n"
+        f"- **Year:** Stem={_bilingual(bazi_data.heavenly_stems.get('year', UNKNOWN_BAZI_VALUE))}; "
+        f"Branch={_bilingual(bazi_data.earthly_branches.get('year', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Month:** Stem={_bilingual(bazi_data.heavenly_stems.get('month', UNKNOWN_BAZI_VALUE))}; "
+        f"Branch={_bilingual(bazi_data.earthly_branches.get('month', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Day:** Stem={_bilingual(bazi_data.heavenly_stems.get('day', UNKNOWN_BAZI_VALUE))}; "
+        f"Branch={_bilingual(bazi_data.earthly_branches.get('day', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Hour:** Stem={_bilingual(bazi_data.heavenly_stems.get('hour', UNKNOWN_BAZI_VALUE))}; "
+        f"Branch={_bilingual(bazi_data.earthly_branches.get('hour', UNKNOWN_BAZI_VALUE))}\n\n"
+        "## Five Elements / Na Yin\n\n"
+        f"- **Year:** {_bilingual(bazi_data.five_elements_summary.get('year', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Month:** {_bilingual(bazi_data.five_elements_summary.get('month', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Day:** {_bilingual(bazi_data.five_elements_summary.get('day', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Hour:** {_bilingual(bazi_data.five_elements_summary.get('hour', UNKNOWN_BAZI_VALUE))}\n\n"
+        "## Ten Gods (relative to Day Master)\n\n"
+        f"- **Year stem:** {_bilingual(bazi_data.ten_gods_summary.get('year', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Month stem:** {_bilingual(bazi_data.ten_gods_summary.get('month', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Hour stem:** {_bilingual(bazi_data.ten_gods_summary.get('hour', UNKNOWN_BAZI_VALUE))}\n"
+        f"- **Day branch main:** {_bilingual(bazi_data.ten_gods_summary.get('day_branch_main', UNKNOWN_BAZI_VALUE))}\n"
+    )
+    return txt_payload, md_payload
+
+
 def _stem_english_name(stem_char: str) -> str:
     mapping = {
         "甲": "Yang Wood",
@@ -365,8 +445,14 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
     branch_color = _color_from_bazi_element(branch_element_key)
     stem_link = (
         f"<a href='bazi-element:{stem_element_key}' "
-        f"style='color:{stem_color}; text-decoration: underline;'>"
+        f"style='color:{stem_color}; text-decoration: none;'>"
         f"{_safe_html(stem_english)}</a>"
+    )
+    zodiac_key = str(branch_english or "").strip().lower()
+    branch_link = (
+        f"<a href='bazi-zodiac:{zodiac_key}' "
+        f"style='color:{branch_color}; text-decoration: none;'>"
+        f"{_safe_html(branch_english)}</a>"
     )
 
     stem_cell = (
@@ -375,7 +461,7 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
         f"{_safe_html(stem_yin_yang)} {_safe_html(stem_roman)}</span>)"
     )
     branch_cell = (
-        f"{_safe_html(branch_english)} "
+        f"{branch_link} "
         f"(<span style='color:{CHART_THEME_COLORS['muted_text']};'>{_safe_html(branch_char)}; "
         f"{_safe_html(branch_yin_yang)} {_safe_html(branch_roman)}</span>)"
     )
@@ -390,7 +476,7 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
 
 
 def build_bazi_details_html(bazi_data: BaziChartData) -> str:
-    header_color = CHART_THEME_COLORS["text"]
+    header_color = CHART_DATA_HIGHLIGHT_COLOR
     text_color = CHART_THEME_COLORS["text"]
     rows = [
         _pillar_display_row("year", bazi_data),
@@ -633,6 +719,7 @@ def create_bazi_window_dialog(
     chart: Chart,
     *,
     header_style: str,
+    share_icon_path: str | None = None,
 ) -> QDialog:
     dt_local = resolve_bazi_birth_datetime(chart)
     has_known_birth_hour = (
@@ -672,25 +759,72 @@ def create_bazi_window_dialog(
     left_layout.setContentsMargins(0, 0, 0, 0)
     left_layout.setSpacing(8)
 
+    year_element = _bilingual(bazi_data.five_elements_summary.get("year"))
+    year_zodiac = _bilingual(bazi_data.zodiac_animal)
+    year_summary = " • ".join(part for part in (year_element, year_zodiac) if part)
+
     summary_label = QLabel(
-        "\n".join(
+        "<br>".join(
             [
-                f"Chart: {chart_name}",
-                f"Birth place: {birth_place}",
-                f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
-                hour_note,
-                f"Lunar date: {_bilingual(bazi_data.lunar_date_str)}",
-                f"Year zodiac: {_bilingual(bazi_data.zodiac_animal)}",
-                # (
-                #     "Four Pillars: "
-                #     f"{_bilingual(bazi_data.year_pillar)} / {_bilingual(bazi_data.month_pillar)} / "
-                #     f"{_bilingual(bazi_data.day_pillar)} / {_bilingual(bazi_data.hour_pillar)}"
-                # ),
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Chart of </span>"
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(chart_name)}</span>",
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Place:</span> "
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(birth_place)}</span>",
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Date & Time:</span> "
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{dt_local.strftime('%Y-%m-%d %H:%M:%S')}</span>",
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Hour Pillar:</span> "
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(hour_note.split(':', 1)[-1].strip())}</span>",
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Lunar Date:</span> "
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(_bilingual(bazi_data.lunar_date_str))}</span>",
+                f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Year:</span> "
+                f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(year_summary or UNKNOWN_BAZI_VALUE)}</span>",
             ]
         )
     )
     summary_label.setStyleSheet(header_style)
+    summary_label.setTextFormat(Qt.RichText)
+    summary_label.setWordWrap(True)
     left_layout.addWidget(summary_label, 0)
+
+    txt_payload, md_payload = _build_bazi_export_payload(
+        chart_name=chart_name,
+        birth_place=birth_place,
+        dt_local=dt_local,
+        hour_note=hour_note,
+        bazi_data=bazi_data,
+    )
+
+    def _on_export_bazi() -> None:
+        default_stem = "".join(ch.lower() if ch.isalnum() else "_" for ch in chart_name).strip("_") or "chart"
+        default_name = f"{default_stem}-bazi.md"
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            dialog,
+            "Export BaZi chart",
+            default_name,
+            "Markdown (*.md);;Text (*.txt)",
+        )
+        if not file_path:
+            return
+        chosen_filter = (selected_filter or "").lower()
+        wants_txt = "text" in chosen_filter
+        path_lower = file_path.lower()
+        if path_lower.endswith(".md"):
+            output_text = md_payload
+        elif path_lower.endswith(".txt"):
+            output_text = txt_payload
+        elif wants_txt:
+            file_path = f"{file_path}.txt"
+            output_text = txt_payload
+        else:
+            file_path = f"{file_path}.md"
+            output_text = md_payload
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                handle.write(output_text)
+        except Exception as exc:
+            QMessageBox.critical(dialog, "Export failed", f"Could not export BaZi chart:\n{exc}")
+            return
+        QMessageBox.information(dialog, "Export complete", f"Saved BaZi chart to:\n{file_path}")
 
     details_output = QTextBrowser()
     details_output.setReadOnly(True)
@@ -728,19 +862,26 @@ def create_bazi_window_dialog(
         chart_info_panel.setText(f"{title}\n{body}")
 
     def _on_details_link_clicked(url: QUrl) -> None:
-        element_key = str(url.toString() or "").split(":", 1)[-1].strip().lower()
-        element_data = BAZI_ELEMENTS.get(element_key, {})
-        if not isinstance(element_data, dict):
+        raw_target = str(url.toString() or "").strip()
+        target_type, _, target_key = raw_target.partition(":")
+        normalized_type = target_type.strip().lower()
+        normalized_key = target_key.strip().lower()
+        summary = ""
+        info_title = ""
+        if normalized_type == "bazi-element":
+            element_data = BAZI_ELEMENTS.get(normalized_key, {})
+            if isinstance(element_data, dict):
+                summary = str(element_data.get("one_liner", "") or "").strip()
+                info_title = f"Element: {normalized_key.capitalize()}"
+        elif normalized_type == "bazi-zodiac":
+            zodiac_data = BAZI_ZODIAC.get(normalized_key, {})
+            if isinstance(zodiac_data, dict):
+                summary = str(zodiac_data.get("one_liner", "") or "").strip()
+                info_title = f"Zodiac: {normalized_key.capitalize()}"
+        if not summary or not info_title:
             chart_info_panel.setText(default_chart_info_text)
             return
-        summary = str(element_data.get("one_liner", "") or "").strip()
-        if not summary:
-            chart_info_panel.setText(default_chart_info_text)
-            return
-        _set_chart_info_panel_content(
-            f"Element: {element_key.capitalize()}",
-            summary,
-        )
+        _set_chart_info_panel_content(info_title, summary)
 
     details_output.anchorClicked.connect(_on_details_link_clicked)
 
@@ -749,9 +890,24 @@ def create_bazi_window_dialog(
     right_layout.setContentsMargins(0, 0, 0, 0)
     right_layout.setSpacing(6)
 
+    right_header_row = QHBoxLayout()
+    right_header_row.setContentsMargins(0, 0, 0, 0)
+    right_header_row.setSpacing(4)
+
     charts_header = QLabel("BaZi Analytics")
     charts_header.setStyleSheet(header_style)
-    right_layout.addWidget(charts_header, 0)
+    right_header_row.addWidget(charts_header, 0, Qt.AlignLeft | Qt.AlignTop)
+    right_header_row.addStretch(1)
+
+    export_button = QToolButton(dialog)
+    configure_share_export_icon_button(
+        export_button,
+        share_icon_path=share_icon_path,
+        tooltip="Export BaZi chart as Markdown or text",
+    )
+    export_button.clicked.connect(_on_export_bazi)
+    right_header_row.addWidget(export_button, 0, Qt.AlignRight | Qt.AlignTop)
+    right_layout.addLayout(right_header_row, 0)
 
     elements_title = QLabel("Five Elements")
     elements_title.setStyleSheet(header_style)
