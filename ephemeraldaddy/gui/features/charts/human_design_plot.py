@@ -44,7 +44,7 @@ BODY_TEXT_COLOR: dict[str, str] = {
 CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
-BODYGRAPH_VERTICAL_OFFSET = -0.035
+BODYGRAPH_VERTICAL_OFFSET = -0.07
 
 
 def _center_sort_key(center_name: str) -> tuple[float, float]:
