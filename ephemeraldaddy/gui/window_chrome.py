@@ -212,17 +212,18 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "New chart", dialog, "_on_new_chart", "on_new_chart")
     _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
-    _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
     _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
     _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
+    charts_menu.addSeparator()
+    _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
+    _bind_menu_action(charts_menu, "BaZi Chart", dialog, "_on_menu_open_bazi_window")
+    if _is_human_design_menu_enabled(dialog):
+        _bind_menu_action(charts_menu, "Human Design Chart", dialog, "_on_menu_get_human_design_info")
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
-    _bind_menu_action(tools_menu, "Open BaZi Window", dialog, "_on_menu_open_bazi_window")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
-    if _is_human_design_menu_enabled(dialog):
-        _bind_menu_action(tools_menu, "Get Human Design Chart (alpha prototype)", dialog, "_on_menu_get_human_design_info")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
