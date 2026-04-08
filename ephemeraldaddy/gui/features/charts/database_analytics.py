@@ -234,6 +234,17 @@ class DatabaseAnalyticsChartsMixin:
             count_text = f"{int(round(count)):,.0f}"
         return f"({count_text}) {label}"
 
+    @staticmethod
+    def _graph_label_decimal_places(
+        max_display_value: float,
+        preferred_decimals: int = 2,
+    ) -> int:
+        """Use decimals only when the rendered graph values stay in single digits."""
+        preferred = max(0, int(preferred_decimals))
+        if preferred == 0:
+            return 0
+        return preferred if abs(float(max_display_value)) <= 9.99 else 0
+
     def _format_selection_database_count_label(
         self,
         label: str,
@@ -1127,6 +1138,10 @@ class DatabaseAnalyticsChartsMixin:
         if loaded_charts == 0:
             bars = ax.barh(positions, database_values, color=colors, height=bar_height, zorder=2)
             _, axis_max = self._configure_positive_percent_axis(ax, database_values)
+            label_decimals = self._graph_label_decimal_places(
+                max((value * 100.0 for value in database_values), default=0.0),
+                preferred_decimals=2,
+            )
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
@@ -1135,7 +1150,7 @@ class DatabaseAnalyticsChartsMixin:
             for bar, database_value in zip(bars, database_values):
                 label_offset = max(axis_max * 0.015, 0.0015)
                 label_x = min(database_value + label_offset, axis_max * 0.985)
-                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(database_value, decimals=2), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
+                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(database_value, decimals=label_decimals), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
         else:
             differences = [selection - database for selection, database in zip(selection_values, database_values)]
             widths = [abs(value) for value in differences]
@@ -1363,6 +1378,10 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
+            label_decimals = self._graph_label_decimal_places(
+                max((value * 100.0 for value in database_values), default=0.0),
+                preferred_decimals=2,
+            )
             _, axis_max = self._configure_positive_percent_axis(
                 ax,
                 database_values,
@@ -1384,7 +1403,7 @@ class DatabaseAnalyticsChartsMixin:
                 ax.text(
                     label_x,
                     bar_center,
-                    _format_percent(database_value, decimals=2),
+                    _format_percent(database_value, decimals=label_decimals),
                     va="center",
                     ha="left",
                     color=CHART_THEME_COLORS["text"],
@@ -1482,10 +1501,19 @@ class DatabaseAnalyticsChartsMixin:
         def _is_percent_metric(metric_label: str) -> bool:
             return "(%)" in metric_label
 
+        if loaded_charts > 0:
+            max_visible_value = max(
+                (abs(selection - database) for selection, database in zip(selection_values, database_values)),
+                default=0.0,
+            )
+        else:
+            max_visible_value = max((abs(database) for database in database_values), default=0.0)
+        decimals = self._graph_label_decimal_places(max_visible_value, value_precision)
+
         def _format_metric_value(metric_label: str, value: float, *, signed: bool = False) -> str:
             if _is_percent_metric(metric_label):
-                return f"{value:+.{value_precision}f}%" if signed else f"{value:.{value_precision}f}%"
-            return f"{value:+.{value_precision}f}" if signed else f"{value:.{value_precision}f}"
+                return f"{value:+.{decimals}f}%" if signed else f"{value:.{decimals}f}%"
+            return f"{value:+.{decimals}f}" if signed else f"{value:.{decimals}f}"
 
         display_labels = []
         for label, selection_value in zip(labels, selection_values):
