@@ -118,11 +118,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Gate",
         "Type",
         "Authority",
+        "Defined Centers",
         "Profile",
         "Definition",
         "Incarnation Cross",
         "Strategy",
-        "Defined Centers",
     )
 
     def __init__(

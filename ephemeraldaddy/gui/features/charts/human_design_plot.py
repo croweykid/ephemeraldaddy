@@ -365,7 +365,7 @@ def draw_human_design_chart(
                 linewidth=1.4,
                 edgecolor=edge,
                 facecolor=fill,
-                alpha=1.0 if defined else 0.35,
+                alpha=1.0 if defined else 0.15,
             )
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
