@@ -564,11 +564,26 @@ ELEMENT_COLORS = {
 }
 
 BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
-    "wood": "#cccc00",
-    "water": "#3333ff",
-    "earth": "#009900",
-    "fire": "#ff3300",
-    "metal": "#669999",
+    "wood": {
+        "color": "#cccc00",
+        "one_liner": "Growth with an agenda; the vine that joins committees and keeps climbing anyway.",
+    },
+    "water": {
+        "color": "#3333ff",
+        "one_liner": "Finds the gap, ignores the memo, arrives everywhere eventually.",
+    },
+    "earth": {
+        "color": "#009900",
+        "one_liner": "The load-bearing adult in the room, quietly judging your poor planning.",
+    },
+    "fire": {
+        "color": "#ff3300",
+        "one_liner": "Charisma, heat, spectacle; excellent at getting attention and setting off alarms.",
+    },
+    "metal": {
+        "color": "#669999",
+        "one_liner": "Precision with attitude; polished, sharp, and not here for your sloppy nonsense.",
+    },
 }
 
 SIGN_COLORS = {

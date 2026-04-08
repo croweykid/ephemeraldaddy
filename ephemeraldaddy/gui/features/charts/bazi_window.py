@@ -3,8 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QLabel, QTextEdit, QVBoxLayout, QWidget, QHBoxLayout
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -328,10 +336,20 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
     stem_roman = _STEM_ROMANIZATION.get(stem_char, UNKNOWN_BAZI_VALUE)
     branch_roman = _BRANCH_ROMANIZATION.get(branch_char, UNKNOWN_BAZI_VALUE)
     element_key = _STEM_ELEMENT.get(stem_char, "earth")
-    row_color = BAZI_ELEMENTS.get(element_key, CHART_THEME_COLORS["text"])
+    element_data = BAZI_ELEMENTS.get(element_key, {})
+    row_color = (
+        str(element_data.get("color"))
+        if isinstance(element_data, dict) and element_data.get("color")
+        else CHART_THEME_COLORS["text"]
+    )
+    stem_link = (
+        f"<a href='bazi-element:{element_key}' "
+        f"style='color:{row_color}; text-decoration: underline;'>"
+        f"{_safe_html(stem_english)}</a>"
+    )
 
     stem_cell = (
-        f"{_safe_html(stem_english)} "
+        f"{stem_link} "
         f"(<span style='color:{CHART_THEME_COLORS['muted_text']};'>{_safe_html(stem_char)}; "
         f"{_safe_html(stem_yin_yang)} {_safe_html(stem_roman)}</span>)"
     )
@@ -436,7 +454,10 @@ def _build_elements_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
     counts = _build_five_element_counts(bazi_data)
     labels = ["wood", "water", "earth", "fire", "metal"]
     values = [counts[label] for label in labels]
-    colors = [BAZI_ELEMENTS[label] for label in labels]
+    colors = [
+        str(BAZI_ELEMENTS.get(label, {}).get("color", CHART_THEME_COLORS["accent"]))
+        for label in labels
+    ]
 
     figure = Figure(figsize=(3.4, 2.4))
     figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
@@ -643,14 +664,55 @@ def create_bazi_window_dialog(
     summary_label.setFont(summary_font)
     left_layout.addWidget(summary_label, 0)
 
-    details_output = QTextEdit()
+    details_output = QTextBrowser()
     details_output.setReadOnly(True)
     details_font = details_output.font()
     details_font.setFamily(monospace_font_family)
     details_output.setFont(details_font)
     details_output.setPlaceholderText("BaZi chart details unavailable.")
+    details_output.setOpenExternalLinks(False)
+    details_output.setOpenLinks(False)
     details_output.setHtml(build_bazi_details_html(bazi_data))
+    def _on_details_link_clicked(url: QUrl) -> None:
+        element_key = str(url.toString() or "").split(":", 1)[-1].strip().lower()
+        element_data = BAZI_ELEMENTS.get(element_key, {})
+        if not isinstance(element_data, dict):
+            return
+        summary = str(element_data.get("one_liner", "") or "").strip()
+        if not summary:
+            return
+        QMessageBox.information(
+            dialog,
+            f"{element_key.capitalize()} Element",
+            summary,
+        )
+    details_output.anchorClicked.connect(_on_details_link_clicked)
     left_layout.addWidget(details_output, 1)
+
+    chart_info_header = QLabel("Chart Info")
+    chart_info_header.setStyleSheet(copper_header_style)
+    left_layout.addWidget(chart_info_header, 0)
+
+    chart_info_panel = QLabel(
+        "\n".join(
+            [
+                f"Birthtime unknown: {bool(getattr(chart, 'birthtime_unknown', False))}",
+                f"Rectified time used: {bool(getattr(chart, 'retcon_time_used', False))}",
+                f"Hour included in BaZi: {has_known_birth_hour}",
+                f"Timezone fallback used: {bool(getattr(chart, 'used_utc_fallback', False))}",
+            ]
+        )
+    )
+    chart_info_panel.setStyleSheet(
+        f"color: {CHART_THEME_COLORS['text']}; "
+        f"border: 1px solid {CHART_THEME_COLORS['spine']}; "
+        "padding: 8px;"
+    )
+    info_font = chart_info_panel.font()
+    info_font.setFamily(monospace_font_family)
+    chart_info_panel.setFont(info_font)
+    chart_info_panel.setWordWrap(True)
+    left_layout.addWidget(chart_info_panel, 0)
 
     right_panel = QWidget(dialog)
     right_layout = QVBoxLayout(right_panel)
