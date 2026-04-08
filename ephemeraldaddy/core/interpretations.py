@@ -637,8 +637,6 @@ BAZI_ZODIAC = {
     },
 }
 
-BAZI_ZODIAC = CHINESE_ZODIAC_SIGNS
-
 SIGN_COLORS = {
     "Aries": ELEMENT_COLORS["Fire"],
     "Leo": ELEMENT_COLORS["Fire"],
