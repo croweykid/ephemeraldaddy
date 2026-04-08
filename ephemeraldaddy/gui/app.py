@@ -9201,7 +9201,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     height_scale=(
                         4.5 #human design graph height for incarnation crosses
                         if human_design_mode == "hd_incarnation_crosses"
-                        else 2 #human design graph height for gates
+                        else 3 #human design graph height for gates
                         if human_design_mode == "hd_gates"
                         else 1.0
                     ),
