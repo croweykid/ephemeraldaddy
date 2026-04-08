@@ -763,10 +763,6 @@ def create_bazi_window_dialog(
     year_zodiac = _bilingual(bazi_data.zodiac_animal)
     year_summary = " • ".join(part for part in (year_element, year_zodiac) if part)
 
-    summary_header_row = QHBoxLayout()
-    summary_header_row.setContentsMargins(0, 0, 0, 0)
-    summary_header_row.setSpacing(4)
-
     summary_label = QLabel(
         "<br>".join(
             [
@@ -788,16 +784,7 @@ def create_bazi_window_dialog(
     summary_label.setStyleSheet(header_style)
     summary_label.setTextFormat(Qt.RichText)
     summary_label.setWordWrap(True)
-    summary_header_row.addWidget(summary_label, 1)
-
-    export_button = QToolButton(dialog)
-    configure_share_export_icon_button(
-        export_button,
-        share_icon_path=share_icon_path,
-        tooltip="Export BaZi chart as Markdown or text",
-    )
-    summary_header_row.addWidget(export_button, 0, Qt.AlignTop | Qt.AlignRight)
-    left_layout.addLayout(summary_header_row)
+    left_layout.addWidget(summary_label, 0)
 
     txt_payload, md_payload = _build_bazi_export_payload(
         chart_name=chart_name,
@@ -838,8 +825,6 @@ def create_bazi_window_dialog(
             QMessageBox.critical(dialog, "Export failed", f"Could not export BaZi chart:\n{exc}")
             return
         QMessageBox.information(dialog, "Export complete", f"Saved BaZi chart to:\n{file_path}")
-
-    export_button.clicked.connect(_on_export_bazi)
 
     details_output = QTextBrowser()
     details_output.setReadOnly(True)
@@ -905,9 +890,24 @@ def create_bazi_window_dialog(
     right_layout.setContentsMargins(0, 0, 0, 0)
     right_layout.setSpacing(6)
 
+    right_header_row = QHBoxLayout()
+    right_header_row.setContentsMargins(0, 0, 0, 0)
+    right_header_row.setSpacing(4)
+
     charts_header = QLabel("BaZi Analytics")
     charts_header.setStyleSheet(header_style)
-    right_layout.addWidget(charts_header, 0)
+    right_header_row.addWidget(charts_header, 0, Qt.AlignLeft | Qt.AlignTop)
+    right_header_row.addStretch(1)
+
+    export_button = QToolButton(dialog)
+    configure_share_export_icon_button(
+        export_button,
+        share_icon_path=share_icon_path,
+        tooltip="Export BaZi chart as Markdown or text",
+    )
+    export_button.clicked.connect(_on_export_bazi)
+    right_header_row.addWidget(export_button, 0, Qt.AlignRight | Qt.AlignTop)
+    right_layout.addLayout(right_header_row, 0)
 
     elements_title = QLabel("Five Elements")
     elements_title.setStyleSheet(header_style)
