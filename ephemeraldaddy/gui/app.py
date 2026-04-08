@@ -21315,6 +21315,7 @@ class MainWindow(QMainWindow):
                 self,
                 chart,
                 header_style=CHART_DATA_POPOUT_HEADER_STYLE,
+                share_icon_path=_get_share_icon_path(),
             )
         except Exception as exc:
             QMessageBox.critical(
