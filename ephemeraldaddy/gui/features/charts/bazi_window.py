@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import (
@@ -613,7 +613,11 @@ def _build_elements_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
     return FigureCanvas(figure)
 
 
-def _build_zodiac_bar_canvas(bazi_data: BaziChartData) -> FigureCanvas:
+def _build_zodiac_bar_canvas(
+    bazi_data: BaziChartData,
+    *,
+    on_zodiac_selected: Callable[[str], None] | None = None,
+) -> FigureCanvas:
     counts = _build_zodiac_counts(bazi_data)
     labels = list(_ZODIAC_ORDER)
     values = [counts[label] for label in labels]
@@ -655,7 +659,18 @@ def _build_zodiac_bar_canvas(bazi_data: BaziChartData) -> FigureCanvas:
         top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
         right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
     )
-    return FigureCanvas(figure)
+    canvas = FigureCanvas(figure)
+    if callable(on_zodiac_selected):
+        def _on_click(event: Any) -> None:
+            if event is None or event.inaxes is not ax:
+                return
+            for index, bar in enumerate(bars):
+                contains, _ = bar.contains(event)
+                if contains:
+                    on_zodiac_selected(labels[index].lower())
+                    return
+        canvas.mpl_connect("button_press_event", _on_click)
+    return canvas
 
 
 def _build_yin_yang_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
@@ -859,7 +874,24 @@ def create_bazi_window_dialog(
     default_chart_info_text = chart_info_panel.text()
 
     def _set_chart_info_panel_content(title: str, body: str) -> None:
-        chart_info_panel.setText(f"{title}\n{body}")
+        chart_info_panel.setText(
+            "<div>"
+            f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>{_safe_html(title)}</span><br>"
+            f"<span style='font-weight:400;color:{CHART_THEME_COLORS['text']};'>{_safe_html(body)}</span>"
+            "</div>"
+        )
+
+    def _show_zodiac_info(zodiac_key: str) -> None:
+        normalized_key = str(zodiac_key or "").strip().lower()
+        zodiac_data = BAZI_ZODIAC.get(normalized_key, {})
+        if not isinstance(zodiac_data, dict):
+            chart_info_panel.setText(default_chart_info_text)
+            return
+        summary = str(zodiac_data.get("one_liner", "") or "").strip()
+        if not summary:
+            chart_info_panel.setText(default_chart_info_text)
+            return
+        _set_chart_info_panel_content(f"Zodiac: {normalized_key.capitalize()}", summary)
 
     def _on_details_link_clicked(url: QUrl) -> None:
         raw_target = str(url.toString() or "").strip()
@@ -874,10 +906,8 @@ def create_bazi_window_dialog(
                 summary = str(element_data.get("one_liner", "") or "").strip()
                 info_title = f"Element: {normalized_key.capitalize()}"
         elif normalized_type == "bazi-zodiac":
-            zodiac_data = BAZI_ZODIAC.get(normalized_key, {})
-            if isinstance(zodiac_data, dict):
-                summary = str(zodiac_data.get("one_liner", "") or "").strip()
-                info_title = f"Zodiac: {normalized_key.capitalize()}"
+            _show_zodiac_info(normalized_key)
+            return
         if not summary or not info_title:
             chart_info_panel.setText(default_chart_info_text)
             return
@@ -917,7 +947,13 @@ def create_bazi_window_dialog(
     zodiac_title = QLabel("12 Zodiac Animals")
     zodiac_title.setStyleSheet(header_style)
     right_layout.addWidget(zodiac_title, 0)
-    right_layout.addWidget(_build_zodiac_bar_canvas(bazi_data), 1)
+    right_layout.addWidget(
+        _build_zodiac_bar_canvas(
+            bazi_data,
+            on_zodiac_selected=_show_zodiac_info,
+        ),
+        1,
+    )
 
     yin_yang_title = QLabel("Yin / Yang Balance")
     yin_yang_title.setStyleSheet(header_style)
