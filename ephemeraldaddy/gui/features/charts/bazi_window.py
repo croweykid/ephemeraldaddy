@@ -4,22 +4,27 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QLabel, QPlainTextEdit, QVBoxLayout, QWidget, QHBoxLayout
+from PySide6.QtWidgets import QDialog, QLabel, QTextEdit, QVBoxLayout, QWidget, QHBoxLayout
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
-from ephemeraldaddy.analysis.bazi_getter import BaziChartData, build_bazi_chart_data
+from ephemeraldaddy.analysis.bazi_getter import (
+    BaziChartData,
+    UNKNOWN_BAZI_VALUE,
+    build_bazi_chart_data,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS
 from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
+    DARK_THEME,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
     STANDARD_NCV_PIE_CHART,
 )
 
 BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE = (
-    "BaZi calculation is not possible without complete birth info (date, time, and place)."
+    "BaZi calculation is not possible without birth date and place."
 )
 
 _HEAVENLY_STEM_TRANSLATIONS: dict[str, str] = {
@@ -138,6 +143,47 @@ _YIN_STEMS: set[str] = {"乙", "丁", "己", "辛", "癸"}
 _YANG_BRANCHES: set[str] = {"子", "寅", "辰", "午", "申", "戌"}
 _YIN_BRANCHES: set[str] = {"丑", "卯", "巳", "未", "酉", "亥"}
 
+_STEM_ROMANIZATION: dict[str, str] = {
+    "甲": "Jia",
+    "乙": "Yi",
+    "丙": "Bing",
+    "丁": "Ding",
+    "戊": "Wu",
+    "己": "Ji",
+    "庚": "Geng",
+    "辛": "Xin",
+    "壬": "Ren",
+    "癸": "Gui",
+}
+
+_BRANCH_ROMANIZATION: dict[str, str] = {
+    "子": "Zi",
+    "丑": "Chou",
+    "寅": "Yin",
+    "卯": "Mao",
+    "辰": "Chen",
+    "巳": "Si",
+    "午": "Wu",
+    "未": "Wei",
+    "申": "Shen",
+    "酉": "You",
+    "戌": "Xu",
+    "亥": "Hai",
+}
+
+_STEM_ELEMENT: dict[str, str] = {
+    "甲": "wood",
+    "乙": "wood",
+    "丙": "fire",
+    "丁": "fire",
+    "戊": "earth",
+    "己": "earth",
+    "庚": "metal",
+    "辛": "metal",
+    "壬": "water",
+    "癸": "water",
+}
+
 
 def _normalize_bazi_value(value: Any) -> str:
     if value is None:
@@ -195,8 +241,6 @@ def validate_chart_for_bazi(chart: Chart | None) -> str | None:
         return "Please select a chart first."
     if bool(getattr(chart, "is_placeholder", False)):
         return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
-    if bool(getattr(chart, "birthtime_unknown", False)):
-        return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
     birth_place = str(getattr(chart, "birth_place", "") or "").strip()
     if not birth_place:
         return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
@@ -207,6 +251,19 @@ def validate_chart_for_bazi(chart: Chart | None) -> str | None:
 
 def resolve_bazi_birth_datetime(chart: Chart) -> datetime:
     dt_local = getattr(chart, "dt_local", None)
+    use_retcon_time = (
+        bool(getattr(chart, "birthtime_unknown", False))
+        and bool(getattr(chart, "retcon_time_used", False))
+        and getattr(chart, "retcon_hour", None) is not None
+        and getattr(chart, "retcon_minute", None) is not None
+    )
+    if dt_local is not None and use_retcon_time:
+        return dt_local.replace(
+            hour=int(getattr(chart, "retcon_hour")),
+            minute=int(getattr(chart, "retcon_minute")),
+            second=0,
+            microsecond=0,
+        )
     if dt_local is not None:
         return dt_local
     chart_dt = getattr(chart, "dt")
@@ -215,44 +272,128 @@ def resolve_bazi_birth_datetime(chart: Chart) -> datetime:
     return chart_dt
 
 
-def build_bazi_details_lines(bazi_data: BaziChartData) -> list[str]:
-    return [
-        "BAZI CHART DETAILS",
-        "",
-        "Heavenly Stems:",
-        f"  Year : {_bilingual(bazi_data.heavenly_stems['year'])}",
-        f"  Month: {_bilingual(bazi_data.heavenly_stems['month'])}",
-        f"  Day  : {_bilingual(bazi_data.heavenly_stems['day'])}",
-        f"  Hour : {_bilingual(bazi_data.heavenly_stems['hour'])}",
-        "",
-        "Earthly Branches:",
-        f"  Year : {_bilingual(bazi_data.earthly_branches['year'])}",
-        f"  Month: {_bilingual(bazi_data.earthly_branches['month'])}",
-        f"  Day  : {_bilingual(bazi_data.earthly_branches['day'])}",
-        f"  Hour : {_bilingual(bazi_data.earthly_branches['hour'])}",
-        "",
-        "Five Elements / Na Yin:",
-        f"  Year : {_bilingual(str(bazi_data.five_elements_summary['year']))}",
-        f"  Month: {_bilingual(str(bazi_data.five_elements_summary['month']))}",
-        f"  Day  : {_bilingual(str(bazi_data.five_elements_summary['day']))}",
-        f"  Hour : {_bilingual(str(bazi_data.five_elements_summary['hour']))}",
-        f"  Na Yin (Year): {_bilingual(str(bazi_data.five_elements_summary['na_yin']['year']))}",
-        f"  Na Yin (Month): {_bilingual(str(bazi_data.five_elements_summary['na_yin']['month']))}",
-        f"  Na Yin (Day): {_bilingual(str(bazi_data.five_elements_summary['na_yin']['day']))}",
-        f"  Na Yin (Hour): {_bilingual(str(bazi_data.five_elements_summary['na_yin']['hour']))}",
-        "",
-        "Ten Gods (relative to Day Master):",
-        f"  Year stem : {_bilingual(bazi_data.ten_gods_summary['year'])}",
-        f"  Month stem: {_bilingual(bazi_data.ten_gods_summary['month'])}",
-        f"  Hour stem : {_bilingual(bazi_data.ten_gods_summary['hour'])}",
-        f"  Day branch main: {_bilingual(bazi_data.ten_gods_summary['day_branch_main'])}",
+def _safe_html(text: str) -> str:
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _stem_english_name(stem_char: str) -> str:
+    mapping = {
+        "甲": "Yang Wood",
+        "乙": "Yin Wood",
+        "丙": "Yang Fire",
+        "丁": "Yin Fire",
+        "戊": "Yang Earth",
+        "己": "Yin Earth",
+        "庚": "Yang Metal",
+        "辛": "Yin Metal",
+        "壬": "Yang Water",
+        "癸": "Yin Water",
+    }
+    return mapping.get(stem_char, UNKNOWN_BAZI_VALUE)
+
+
+def _branch_english_name(branch_char: str) -> str:
+    return _BRANCH_TO_ZODIAC.get(branch_char, UNKNOWN_BAZI_VALUE)
+
+
+def _yin_yang_label(char: str) -> str:
+    if char in _YANG_STEMS or char in _YANG_BRANCHES:
+        return "Yang"
+    if char in _YIN_STEMS or char in _YIN_BRANCHES:
+        return "Yin"
+    return UNKNOWN_BAZI_VALUE
+
+
+def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
+    stem_char = str(bazi_data.heavenly_stems.get(pillar, "") or "").strip()
+    branch_char = str(bazi_data.earthly_branches.get(pillar, "") or "").strip()
+    label = pillar.capitalize()
+    if stem_char == UNKNOWN_BAZI_VALUE or branch_char == UNKNOWN_BAZI_VALUE:
+        muted = CHART_THEME_COLORS["muted_text"]
+        return (
+            f"<tr><td style='padding:3px 8px;color:{muted};'><b>{label}</b>:</td>"
+            f"<td style='padding:3px 8px;color:{muted};'>Unknown</td>"
+            f"<td style='padding:3px 8px;color:{muted};'>Unknown</td></tr>"
+        )
+
+    stem_english = _stem_english_name(stem_char)
+    branch_english = _branch_english_name(branch_char)
+    stem_yin_yang = _yin_yang_label(stem_char)
+    branch_yin_yang = _yin_yang_label(branch_char)
+    stem_roman = _STEM_ROMANIZATION.get(stem_char, UNKNOWN_BAZI_VALUE)
+    branch_roman = _BRANCH_ROMANIZATION.get(branch_char, UNKNOWN_BAZI_VALUE)
+    element_key = _STEM_ELEMENT.get(stem_char, "earth")
+    row_color = BAZI_ELEMENTS.get(element_key, CHART_THEME_COLORS["text"])
+
+    stem_cell = (
+        f"{_safe_html(stem_english)} "
+        f"(<span style='color:{CHART_THEME_COLORS['muted_text']};'>{_safe_html(stem_char)}; "
+        f"{_safe_html(stem_yin_yang)} {_safe_html(stem_roman)}</span>)"
+    )
+    branch_cell = (
+        f"{_safe_html(branch_english)} "
+        f"(<span style='color:{CHART_THEME_COLORS['muted_text']};'>{_safe_html(branch_char)}; "
+        f"{_safe_html(branch_yin_yang)} {_safe_html(branch_roman)}</span>)"
+    )
+
+    return (
+        f"<tr>"
+        f"<td style='padding:3px 8px;color:{row_color};'><b>{label}</b>:</td>"
+        f"<td style='padding:3px 8px;color:{row_color};'>{stem_cell}</td>"
+        f"<td style='padding:3px 8px;color:{row_color};'>{branch_cell}</td>"
+        f"</tr>"
+    )
+
+
+def build_bazi_details_html(bazi_data: BaziChartData) -> str:
+    header_color = DARK_THEME["planet"]
+    text_color = CHART_THEME_COLORS["text"]
+    rows = [
+        _pillar_display_row("year", bazi_data),
+        _pillar_display_row("month", bazi_data),
+        _pillar_display_row("day", bazi_data),
+        _pillar_display_row("hour", bazi_data),
     ]
+    five_elements = [
+        f"<b>Year</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['year'])))}",
+        f"<b>Month</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['month'])))}",
+        f"<b>Day</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['day'])))}",
+        f"<b>Hour</b>: {_safe_html(_bilingual(str(bazi_data.five_elements_summary['hour'])))}",
+    ]
+    ten_gods = [
+        f"<b>Year stem</b>: {_safe_html(_bilingual(bazi_data.ten_gods_summary['year']))}",
+        f"<b>Month stem</b>: {_safe_html(_bilingual(bazi_data.ten_gods_summary['month']))}",
+        f"<b>Hour stem</b>: {_safe_html(_bilingual(bazi_data.ten_gods_summary['hour']))}",
+        f"<b>Day branch main</b>: {_safe_html(_bilingual(bazi_data.ten_gods_summary['day_branch_main']))}",
+    ]
+    return (
+        f"<div style='color:{text_color};'>"
+        f"<div style='font-weight:700;color:{header_color};margin-bottom:6px;'>BAZI CHART DETAILS</div>"
+        "<table style='border-collapse:collapse;width:100%;'>"
+        f"<tr><th align='left' style='padding:4px 8px;color:{header_color};font-weight:700;'>Pillar</th>"
+        f"<th align='left' style='padding:4px 8px;color:{header_color};font-weight:700;'>Heavenly Stem</th>"
+        f"<th align='left' style='padding:4px 8px;color:{header_color};font-weight:700;'>Earthly Branch</th></tr>"
+        f"{''.join(rows)}"
+        "</table>"
+        f"<div style='margin-top:10px;font-weight:700;color:{header_color};'>Five Elements / Na Yin</div>"
+        f"<div>{'<br>'.join(five_elements)}</div>"
+        f"<div style='margin-top:10px;font-weight:700;color:{header_color};'>Ten Gods (relative to Day Master)</div>"
+        f"<div>{'<br>'.join(ten_gods)}</div>"
+        "</div>"
+    )
 
 
 def _build_five_element_counts(bazi_data: BaziChartData) -> dict[str, int]:
     counts = {element: 0 for element in _ELEMENT_CHAR_TO_NAME.values()}
     for pillar in ("year", "month", "day", "hour"):
         wuxing_value = str(bazi_data.five_elements_summary.get(pillar, "") or "")
+        if wuxing_value == UNKNOWN_BAZI_VALUE:
+            continue
         for char in wuxing_value:
             element = _ELEMENT_CHAR_TO_NAME.get(char)
             if element:
@@ -439,10 +580,31 @@ def create_bazi_window_dialog(
     header_style: str,
     monospace_font_family: str,
 ) -> QDialog:
+    header_color = DARK_THEME["planet"]
+    copper_header_style = f"font-weight: 700; color: {header_color};"
     dt_local = resolve_bazi_birth_datetime(chart)
-    bazi_data = build_bazi_chart_data(dt_local)
+    has_known_birth_hour = (
+        not bool(getattr(chart, "birthtime_unknown", False))
+        or (
+            bool(getattr(chart, "retcon_time_used", False))
+            and getattr(chart, "retcon_hour", None) is not None
+            and getattr(chart, "retcon_minute", None) is not None
+        )
+    )
+    bazi_data = build_bazi_chart_data(dt_local, include_hour=has_known_birth_hour)
     chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
     birth_place = str(getattr(chart, "birth_place", "") or "").strip()
+    hour_note = (
+        "Hour pillar source: Rectified time"
+        if bool(getattr(chart, "birthtime_unknown", False))
+        and bool(getattr(chart, "retcon_time_used", False))
+        and has_known_birth_hour
+        else (
+            "Hour pillar source: Unknown birth time (hour-dependent values shown as Unknown)"
+            if not has_known_birth_hour
+            else "Hour pillar source: Birth time"
+        )
+    )
 
     dialog = QDialog(parent)
     dialog.setAttribute(Qt.WA_DeleteOnClose)
@@ -464,6 +626,7 @@ def create_bazi_window_dialog(
                 f"Chart: {chart_name}",
                 f"Birth place: {birth_place}",
                 f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
+                hour_note,
                 f"Lunar date: {_bilingual(bazi_data.lunar_date_str)}",
                 f"Year zodiac: {_bilingual(bazi_data.zodiac_animal)}",
                 # (
@@ -474,19 +637,19 @@ def create_bazi_window_dialog(
             ]
         )
     )
-    summary_label.setStyleSheet(header_style)
+    summary_label.setStyleSheet(copper_header_style)
     summary_font = summary_label.font()
     summary_font.setFamily(monospace_font_family)
     summary_label.setFont(summary_font)
     left_layout.addWidget(summary_label, 0)
 
-    details_output = QPlainTextEdit()
+    details_output = QTextEdit()
     details_output.setReadOnly(True)
     details_font = details_output.font()
     details_font.setFamily(monospace_font_family)
     details_output.setFont(details_font)
     details_output.setPlaceholderText("BaZi chart details unavailable.")
-    details_output.setPlainText("\n".join(build_bazi_details_lines(bazi_data)))
+    details_output.setHtml(build_bazi_details_html(bazi_data))
     left_layout.addWidget(details_output, 1)
 
     right_panel = QWidget(dialog)
@@ -495,25 +658,25 @@ def create_bazi_window_dialog(
     right_layout.setSpacing(6)
 
     charts_header = QLabel("BaZi Analytics")
-    charts_header.setStyleSheet(header_style)
+    charts_header.setStyleSheet(copper_header_style)
     right_layout.addWidget(charts_header, 0)
 
     elements_title = QLabel("Five Elements")
-    elements_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    elements_title.setStyleSheet(copper_header_style)
     right_layout.addWidget(elements_title, 0)
     right_layout.addWidget(_build_elements_pie_canvas(bazi_data), 1)
 
     zodiac_title = QLabel("12 Zodiac Animals")
-    zodiac_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    zodiac_title.setStyleSheet(copper_header_style)
     right_layout.addWidget(zodiac_title, 0)
     right_layout.addWidget(_build_zodiac_bar_canvas(bazi_data), 1)
 
     yin_yang_title = QLabel("Yin / Yang Balance")
-    yin_yang_title.setStyleSheet("font-weight: 600; color: #f5f5f5;")
+    yin_yang_title.setStyleSheet(copper_header_style)
     right_layout.addWidget(yin_yang_title, 0)
     right_layout.addWidget(_build_yin_yang_pie_canvas(bazi_data), 1)
 
     layout.addWidget(left_panel, 3)
-    layout.addWidget(right_panel, 2)
+    layout.addWidget(right_panel, 4)
 
     return dialog
