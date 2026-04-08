@@ -100,6 +100,24 @@ class DatabaseAnalyticsChartsMixin:
     )
 
     @staticmethod
+    def _value_length_color(
+        value: float,
+        minimum: float,
+        maximum: float,
+    ) -> tuple[float, float, float]:
+        """Map shorter bars to darker reds and longer bars to brighter greens."""
+        if maximum > minimum:
+            ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
+        else:
+            ratio = 0.5
+        clamped_ratio = max(0.0, min(1.0, ratio))
+        # dark red -> bright green
+        red = 0.62 - (0.44 * clamped_ratio)
+        green = 0.16 + (0.78 * clamped_ratio)
+        blue = 0.16 + (0.10 * clamped_ratio)
+        return (red, green, blue)
+
+    @staticmethod
     def _apply_tight_layout(figure: Figure) -> None:
         """Apply tight layout while silencing benign layout-fit warnings."""
         with warnings.catch_warnings():
@@ -1045,6 +1063,7 @@ class DatabaseAnalyticsChartsMixin:
         bar_height: float = 0.6,
         labels: list[str] | None = None,
         height_scale: float = 1.0,
+        force_value_fallback_colors: bool = False,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
         figure = Figure(figsize=(1.5, 4 * clamped_height_scale)) #width of graph, height of graph
@@ -1080,10 +1099,29 @@ class DatabaseAnalyticsChartsMixin:
                     ),
                 ),
             )
-        colors = [_resolve_distribution_color(label) for label in labels]
         positions = list(range(len(labels)))
         selection_values = [selection_planets[label] for label in labels]
         database_values = [database_planets[label] for label in labels]
+        displayed_value_by_label = {
+            label: (
+                abs(selection_values[index] - database_values[index])
+                if loaded_charts > 0
+                else database_values[index]
+            )
+            for index, label in enumerate(labels)
+        }
+        value_min = min(displayed_value_by_label.values(), default=0.0)
+        value_max = max(displayed_value_by_label.values(), default=1.0)
+        colors = []
+        for label in labels:
+            resolved_color = _resolve_distribution_color(label)
+            use_value_fallback = force_value_fallback_colors or resolved_color == "#6fa8dc"
+            if use_value_fallback:
+                colors.append(
+                    self._value_length_color(displayed_value_by_label.get(label, 0.0), value_min, value_max)
+                )
+            else:
+                colors.append(resolved_color)
         if loaded_charts == 0:
             bars = ax.barh(positions, database_values, color=colors, height=bar_height, zorder=2)
             _, axis_max = self._configure_positive_percent_axis(ax, database_values)
@@ -1936,15 +1974,15 @@ class DatabaseAnalyticsChartsMixin:
         values = selection_counts if loaded_charts else database_counts
         display_labels = [f"({value}) {label}" for label, value in zip(labels, values)]
         positions = list(range(len(labels)))
-        colors = (
-            list(bar_colors)
-            if bar_colors is not None
-            else (
-                get_cycled_earthtone_colors(len(labels))
-                if use_earthtone_cycle
-                else ["#6fa8dc" for _ in labels]
-            )
-        )
+        if bar_colors is not None:
+            colors = list(bar_colors)
+        else:
+            value_min = float(min(values, default=0))
+            value_max = float(max(values, default=1))
+            colors = [
+                self._value_length_color(float(value), value_min, value_max)
+                for value in values
+            ]
         bars = ax.barh(positions, values, color=colors, height=0.55, zorder=2)
         max_value = max(values, default=0)
         self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
