@@ -1066,6 +1066,8 @@ class DatabaseAnalyticsChartsMixin:
         force_value_fallback_colors: bool = False,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
+        # Keep bottom margin visually consistent in pixels when chart height is scaled up.
+        scaled_bottom_margin = min(0.12, max(0.02, 0.12 / clamped_height_scale))
         figure = Figure(figsize=(1.5, 4 * clamped_height_scale)) #width of graph, height of graph
         figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
         ax = figure.add_subplot(111)
@@ -1167,7 +1169,7 @@ class DatabaseAnalyticsChartsMixin:
         for tick_label in ax.get_yticklabels():
             tick_label.set_ha("right")
         self._apply_tight_layout(figure)
-        figure.subplots_adjust(left=0.51, bottom=0.12, right=0.97, top=0.98)
+        figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()

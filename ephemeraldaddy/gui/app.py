@@ -9201,8 +9201,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     height_scale=(
                         4.5 #human design graph height for incarnation crosses
                         if human_design_mode == "hd_incarnation_crosses"
-                        else 3 #human design graph height for gates
-                        if human_design_mode == "hd_gates"
+                        else 3 #human design graph height for gates/channels
+                        if human_design_mode in {"hd_gates", "hd_channels"}
                         else 1.0
                     ),
                     force_value_fallback_colors=(human_design_mode == "hd_gates"),
