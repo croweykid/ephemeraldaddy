@@ -19,6 +19,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
     "database_metrics_visibility.species_distribution": False,
+    "database_metrics_visibility.bazi": False,
 }
 
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
@@ -37,6 +38,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.birthplace": False,
     "database_metrics.gender": False,
     "database_metrics.human_design": False,
+    "database_metrics.bazi": False,
 }
 
 DEFAULT_VISIBILITY: dict[str, bool] = {
