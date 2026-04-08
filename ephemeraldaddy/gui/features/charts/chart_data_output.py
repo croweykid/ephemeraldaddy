@@ -114,6 +114,14 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "T",
         "B",
     )
+    _COPPER_HEADER_PREFIXES = (
+        "Gate",
+        "Type",
+        "Authority",
+        "Profile",
+        "Definition",
+        "Incarnation Cross",
+    )
 
     def __init__(
         self,
@@ -151,7 +159,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._plain_bold_format = QTextCharFormat()
         self._plain_bold_format.setFontWeight(QFont.Bold)
         self._copper_header_format = QTextCharFormat(self._plain_bold_format)
-        self._copper_header_format.setForeground(QColor("#c8914f"))
+        self._copper_header_format.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         self._plain_italic_format = QTextCharFormat()
         self._plain_italic_format.setFontItalic(True)
         self._class_header_format = QTextCharFormat(self._plain_bold_format)
@@ -248,6 +256,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._awareness_completion_pattern = re.compile(r"^\s*[A-Za-z ]+:\s+.+-\s+(\d{1,3})%\.\s+.*$")
         self._defined_center_formats = self._build_defined_center_formats()
+        self._hd_center_header_names = set(self._defined_center_formats)
+        self._hd_center_header_names.update(
+            {f"{center_name} Center" for center_name in self._defined_center_formats}
+        )
         self._hd_gate_count_formats = {
             bucket: self._make_format(color)
             for bucket, color in HD_GATE_OCCURRENCE_COLORS.items()
@@ -352,8 +364,19 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 or stripped_text.startswith(f"{prefix}:")
                 or stripped_text.startswith(f"{prefix} ")
             ):
-                self.setFormat(0, self._qt_len(prefix), self._plain_bold_format)
+                header_format = (
+                    self._copper_header_format
+                    if prefix in self._COPPER_HEADER_PREFIXES
+                    else self._plain_bold_format
+                )
+                self.setFormat(0, self._qt_len(prefix), header_format)
                 break
+        for prefix in self._COPPER_HEADER_PREFIXES:
+            if stripped_text.startswith(f"{prefix} "):
+                self.setFormat(0, self._qt_len(prefix), self._copper_header_format)
+                break
+        if stripped_text in self._hd_center_header_names:
+            self.setFormat(0, self._qt_len(stripped_text), self._copper_header_format)
         if stripped_text.startswith("Defined Centers:"):
             label = "Defined Centers:"
             self.setFormat(0, self._qt_len(label), self._plain_bold_format)
