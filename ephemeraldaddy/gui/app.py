@@ -1226,6 +1226,13 @@ def _get_share_icon_path() -> str | None:
         return str(icon_path)
     return None
 
+def _get_popout_window_icon_path() -> str | None:
+    module_root = Path(__file__).resolve().parents[1]
+    icon_path = module_root / "graphics" / "popout_window_icon.png"
+    if icon_path.exists():
+        return str(icon_path)
+    return None
+
 
 STARTUP_DEPENDENCY_CHECK_STAMP = "2026-03-23"
 
@@ -1525,6 +1532,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_dirty_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
+        self._transit_popout_chart_by_dialog: dict[QDialog, Chart] = {}
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
@@ -3617,12 +3625,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._transit_lon,
             tz=datetime.timezone.utc,
         )
+        chart.birth_place = self._transit_location_label
         chart.birthtime_unknown = not include_time
         chart.retcon_time_used = False
 
         figure = Figure(figsize=(3.8, 3.8))
         canvas = FigureCanvas(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas.setCursor(Qt.PointingHandCursor)
         draw_chart_wheel(
             figure,
             chart,
@@ -3634,9 +3644,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         canvas.draw_idle()
         canvas.setMinimumSize(230, 230)
+        chart_click_container = QWidget()
+        chart_click_layout = QGridLayout()
+        chart_click_layout.setContentsMargins(0, 0, 0, 0)
+        chart_click_layout.setSpacing(0)
+        chart_click_container.setLayout(chart_click_layout)
+        chart_click_container.setCursor(Qt.PointingHandCursor)
+        chart_click_layout.addWidget(canvas, 0, 0)
+
+        popout_hint = QLabel(chart_click_container)
+        popout_hint.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        popout_hint.setStyleSheet("background: transparent;")
+        popout_icon_path = _get_popout_window_icon_path()
+        if popout_icon_path:
+            popout_pixmap = QPixmap(popout_icon_path)
+            if not popout_pixmap.isNull():
+                popout_hint.setPixmap(
+                    popout_pixmap.scaled(
+                        22,
+                        22,
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
+                )
+        popout_hint.setToolTip("Open transit chart popout")
+        chart_click_layout.addWidget(popout_hint, 0, 0, Qt.AlignTop | Qt.AlignRight)
+
         canvas.installEventFilter(self)
+        chart_click_container.installEventFilter(self)
         self._transit_chart_canvases[canvas] = chart
-        self.todays_transits_chart_layout.addWidget(canvas)
+        self._transit_chart_canvases[chart_click_container] = chart
+        self.todays_transits_chart_layout.addWidget(chart_click_container)
 
         summary = format_transit_chart_text(chart, self._transit_location_label)
         self.todays_transits_output.setPlainText(summary)
@@ -3782,6 +3820,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._transit_lon,
                 tz=datetime.timezone.utc,
             )
+            transit_chart.birth_place = place_label
             transit_chart.birthtime_unknown = not include_time
             transit_chart.retcon_time_used = False
 
@@ -5161,7 +5200,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _show_transit_chart_popout(self, chart: Chart) -> None:
         dialog = QDialog(self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setWindowTitle("Get Transit")
         dialog.setMinimumSize(780, 780)
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)
@@ -5188,12 +5226,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addLayout(right_layout, 3)
 
         date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
+        date_label_long = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown date"
+        weekday_label = chart.dt.strftime("%A") if chart.dt else "Unknown day"
         time_label = (
             "unknown"
             if getattr(chart, "birthtime_unknown", False)
             else chart.dt.strftime("%H:%M")
         )
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
+        dialog.setWindowTitle(
+            f"Transit Chart for {time_label} on {weekday_label}, {date_label_long} in {location_label}"
+        )
 
         popout_header_layout = QHBoxLayout()
         popout_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -5257,16 +5300,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart,
             chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
         )
-        summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
 
-        def _build_human_design_export_text(chart_data_text: str) -> str:
+        def _build_transit_export_text(chart_data_text: str) -> str:
             return "\n".join(
                 [
-                    "🪐Human Design",
-                    f"Name:       {self._latest_chart.name}",
-                    f"🐣date: {date_label}",
-                    f"🐣time: {time_label}",
-                    f"🐣place: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    "🌍Transit Chart",
+                    f"Name:       {chart.name}",
+                    f"Date:       {date_label}",
+                    f"Time:       {time_label}",
+                    f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
                     "",
                     chart_data_text,
                 ]
@@ -5274,8 +5316,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         summary_share_button = self._attach_popout_share_button(
             summary_output,
-            hd_file_stem,
-            export_text_provider=lambda: _build_human_design_export_text(summary_output.toPlainText()),
+            transit_file_stem,
+            export_text_provider=lambda: _build_transit_export_text(summary_output.toPlainText()),
         )
 
         popout_context_key = summary_output.viewport()
@@ -5331,10 +5373,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         dialog.show()
         self._transit_popout_dialogs.append(dialog)
+        self._transit_popout_chart_by_dialog[dialog] = chart
         dialog.destroyed.connect(
             lambda _=None, dialog=dialog: self._transit_popout_dialogs.remove(dialog)
             if dialog in self._transit_popout_dialogs
             else None
+        )
+        dialog.destroyed.connect(
+            lambda _=None, dialog=dialog: self._transit_popout_chart_by_dialog.pop(dialog, None)
         )
 
     def _build_similarities_analysis_panel(self) -> QWidget:
@@ -13261,6 +13307,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         parent._run_chart_action_from_active_context(action_name, requester=self)
 
+    def _get_transit_popout_action_chart(self) -> Chart | None:
+        if not self._transit_popout_chart_by_dialog:
+            return None
+        active_window = QApplication.activeWindow()
+        if isinstance(active_window, QDialog):
+            active_chart = self._transit_popout_chart_by_dialog.get(active_window)
+            if active_chart is not None:
+                return active_chart
+
+        for dialog in reversed(self._transit_popout_dialogs):
+            if dialog in self._transit_popout_chart_by_dialog and dialog.isVisible():
+                return self._transit_popout_chart_by_dialog[dialog]
+        return None
+
     def _on_menu_interpret_astro_age(self) -> None:
         self._run_main_window_chart_action("interpret_astro_age")
 
@@ -20937,6 +20997,10 @@ class MainWindow(QMainWindow):
             return self._latest_chart, self.current_chart_id
 
         if database_view_active:
+            if manage_dialog is not None and hasattr(manage_dialog, "_get_transit_popout_action_chart"):
+                transit_action_chart = manage_dialog._get_transit_popout_action_chart()
+                if transit_action_chart is not None:
+                    return transit_action_chart, None
             chart_id = self._selected_chart_id_from_manage_view()
             if chart_id is None:
                 return None, None
@@ -25073,6 +25137,7 @@ class MainWindow(QMainWindow):
                 transit_lon,
                 tz=datetime.timezone.utc,
             )
+            transit_chart.birth_place = location_label
             transit_chart.birthtime_unknown = False
             transit_chart.retcon_time_used = False
 
