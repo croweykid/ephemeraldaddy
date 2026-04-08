@@ -212,15 +212,14 @@ class ChartPredictorQuizDialog(QDialog):
     def _run_quiz(self) -> None:
         selections: list[QuizOption] = []
         for group_index, button_group in enumerate(self._button_groups):
-            checked_id = button_group.checkedId()
-            if checked_id < 0:
+            checked_button = button_group.checkedButton()
+            if checked_button is None:
                 QMessageBox.information(
                     self,
                     "Incomplete quiz",
                     f"Please answer question {group_index + 1} before running the prediction.",
                 )
                 return
-            checked_button = button_group.checkedButton()
             option_index = self._question_buttons[group_index].index(checked_button)
             selections.append(QUIZ_QUESTIONS[group_index].options[option_index])
 
