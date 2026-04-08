@@ -31,7 +31,7 @@ from ephemeraldaddy.gui.style import (
 )
 
 BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE = (
-    "BaZi calculation is not possible without birth date and place."
+    "BaZi calculation is not possible without date/time and place."
 )
 
 _HEAVENLY_STEM_TRANSLATIONS: dict[str, str] = {

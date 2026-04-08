@@ -3623,6 +3623,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._transit_lon,
             tz=datetime.timezone.utc,
         )
+        chart.birth_place = self._transit_location_label
         chart.birthtime_unknown = not include_time
         chart.retcon_time_used = False
 
@@ -3817,6 +3818,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._transit_lon,
                 tz=datetime.timezone.utc,
             )
+            transit_chart.birth_place = place_label
             transit_chart.birthtime_unknown = not include_time
             transit_chart.retcon_time_used = False
 
@@ -25133,6 +25135,7 @@ class MainWindow(QMainWindow):
                 transit_lon,
                 tz=datetime.timezone.utc,
             )
+            transit_chart.birth_place = location_label
             transit_chart.birthtime_unknown = False
             transit_chart.retcon_time_used = False
 
