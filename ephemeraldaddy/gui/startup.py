@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-import math
-import random
+import subprocess
+import sys
 
-from PySide6.QtCore import QCoreApplication, QEventLoop, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QCoreApplication, QEventLoop, Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
@@ -35,16 +35,7 @@ class StartupLoadingWidget(QWidget):
         self.setWindowTitle("Starting EphemeralDaddy")
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        self._wave_phase = 0.0
-        self._wave_amplitude = 4.0
-        self._wave_length = 28.0
-        self._edge_padding = 10.0
-        self._star_particles = self._create_star_particles(count=24)
-
-        self._wave_timer = QTimer(self)
-        self._wave_timer.setInterval(33)
-        self._wave_timer.timeout.connect(self._advance_wave_animation)
-        self._wave_timer.start()
+        self._animation_process: subprocess.Popen | None = None
 
         layout = QVBoxLayout()
         layout.setContentsMargins(18, 16, 18, 16)
@@ -82,6 +73,7 @@ class StartupLoadingWidget(QWidget):
         self.setFixedWidth(360)
         self.adjustSize()
         self._center_on_primary_screen()
+        self._start_animation_process()
 
     def _center_on_primary_screen(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -97,102 +89,37 @@ class StartupLoadingWidget(QWidget):
         self._progress.setValue(min(max(progress, 0), 100))
         QCoreApplication.processEvents(QEventLoop.AllEvents, 50)
 
-    def _advance_wave_animation(self) -> None:
-        self._wave_phase = (self._wave_phase + 0.35) % (2.0 * math.pi)
-        self.update()
+    def _start_animation_process(self) -> None:
+        if self._animation_process is not None:
+            return
+        geometry = self.frameGeometry()
+        args = [
+            sys.executable,
+            "-m",
+            "ephemeraldaddy.gui.startup_animation_process",
+            str(geometry.x()),
+            str(geometry.y()),
+            str(geometry.width()),
+            str(geometry.height()),
+        ]
+        try:
+            self._animation_process = subprocess.Popen(args)
+        except Exception:
+            self._animation_process = None
 
-    def _create_star_particles(self, *, count: int) -> list[tuple[float, float, float, float]]:
-        rng = random.Random(7331)
-        particles: list[tuple[float, float, float, float]] = []
-        for _ in range(count):
-            particles.append(
-                (
-                    rng.uniform(0.08, 0.92),  # normalized X
-                    rng.uniform(0.12, 0.88),  # normalized Y
-                    rng.uniform(0.0, 2.0 * math.pi),  # phase offset
-                    rng.uniform(0.7, 1.35),  # size multiplier
-                )
-            )
-        return particles
+    def _stop_animation_process(self) -> None:
+        if self._animation_process is None:
+            return
+        process = self._animation_process
+        self._animation_process = None
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=0.3)
+        except subprocess.TimeoutExpired:
+            process.kill()
 
-    def _draw_starburst_particles(self, painter: QPainter, rect: QRectF) -> None:
-        for x_norm, y_norm, phase_offset, size_mult in self._star_particles:
-            sparkle_wave = (self._wave_phase * 1.8) + phase_offset
-            sparkle_strength = (math.sin(sparkle_wave) + 1.0) / 2.0
-            if sparkle_strength < 0.38:
-                continue
-
-            alpha = int(85 + (sparkle_strength * 160))
-            radius = (0.9 + sparkle_strength * 1.8) * size_mult
-            center = QPointF(
-                rect.left() + (rect.width() * x_norm),
-                rect.top() + (rect.height() * y_norm),
-            )
-
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(243, 230, 255, alpha))
-            painter.drawEllipse(center, radius, radius)
-
-            painter.setPen(QPen(QColor(206, 169, 255, min(alpha + 20, 255)), 1.0))
-            painter.drawLine(
-                QPointF(center.x() - (radius * 2.0), center.y()),
-                QPointF(center.x() + (radius * 2.0), center.y()),
-            )
-            painter.drawLine(
-                QPointF(center.x(), center.y() - (radius * 2.0)),
-                QPointF(center.x(), center.y() + (radius * 2.0)),
-            )
-
-    def _build_wavy_rect_path(self, rect: QRectF) -> QPainterPath:
-        step = 4.0
-        path = QPainterPath()
-        path.moveTo(rect.left(), rect.top())
-
-        x = rect.left()
-        while x <= rect.right():
-            y = rect.top() + math.sin((x / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
-            x += step
-
-        y = rect.top()
-        while y <= rect.bottom():
-            x = rect.right() + math.sin((y / self._wave_length) + self._wave_phase) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
-            y += step
-
-        x = rect.right()
-        while x >= rect.left():
-            y = rect.bottom() + math.sin((x / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
-            x -= step
-
-        y = rect.bottom()
-        while y >= rect.top():
-            x = rect.left() + math.sin((y / self._wave_length) + self._wave_phase + math.pi) * self._wave_amplitude
-            path.lineTo(QPointF(x, y))
-            y -= step
-
-        path.closeSubpath()
-        return path
-
-    def paintEvent(self, event) -> None:  # type: ignore[override]
-        del event
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-
-        outer_rect = self.rect().adjusted(3, 3, -3, -3)
-        content_rect = QRectF(
-            outer_rect.left() + self._edge_padding,
-            outer_rect.top() + self._edge_padding,
-            outer_rect.width() - (self._edge_padding * 2.0),
-            outer_rect.height() - (self._edge_padding * 2.0),
-        )
-
-        wave_path = self._build_wavy_rect_path(content_rect)
-        painter.fillPath(wave_path, QColor("#141218"))
-        painter.save()
-        painter.setClipPath(wave_path)
-        self._draw_starburst_particles(painter, content_rect)
-        painter.restore()
-        painter.setPen(QPen(QColor("#aa77ff"), 1.5))
-        painter.drawPath(wave_path)
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._stop_animation_process()
+        super().closeEvent(event)

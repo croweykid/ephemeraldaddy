@@ -574,7 +574,7 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     },
     "earth": {
         "color": "#009900",
-        "one_liner": "The load-bearing adult in the room, quietly judging your poor planning.",
+        "one_liner": "The load-bearing adult in the room, quietly judging others' poor planning.",
     },
     "fire": {
         "color": "#ff3300",
@@ -582,7 +582,7 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     },
     "metal": {
         "color": "#669999",
-        "one_liner": "Precision with attitude; polished, sharp, and not here for your sloppy nonsense.",
+        "one_liner": "Precision with attitude; polished, sharp, and not here for sloppy nonsense.",
     },
 }
 

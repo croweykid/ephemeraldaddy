@@ -679,6 +679,9 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
     create_bazi_window_dialog,
     validate_chart_for_bazi,
 )
+from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
+    create_chart_predictor_quiz_dialog,
+)
 
 
 class SegmentedTimeEdit(QLineEdit):
@@ -1219,6 +1222,13 @@ def _get_app_icon_path() -> str | None:
 def _get_share_icon_path() -> str | None:
     module_root = Path(__file__).resolve().parents[1]
     icon_path = module_root / "graphics" / "share_icon2.png"
+    if icon_path.exists():
+        return str(icon_path)
+    return None
+
+def _get_popout_window_icon_path() -> str | None:
+    module_root = Path(__file__).resolve().parents[1]
+    icon_path = module_root / "graphics" / "popout_window_icon.png"
     if icon_path.exists():
         return str(icon_path)
     return None
@@ -3620,6 +3630,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         figure = Figure(figsize=(3.8, 3.8))
         canvas = FigureCanvas(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas.setCursor(Qt.PointingHandCursor)
         draw_chart_wheel(
             figure,
             chart,
@@ -3631,9 +3642,37 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         canvas.draw_idle()
         canvas.setMinimumSize(230, 230)
+        chart_click_container = QWidget()
+        chart_click_layout = QGridLayout()
+        chart_click_layout.setContentsMargins(0, 0, 0, 0)
+        chart_click_layout.setSpacing(0)
+        chart_click_container.setLayout(chart_click_layout)
+        chart_click_container.setCursor(Qt.PointingHandCursor)
+        chart_click_layout.addWidget(canvas, 0, 0)
+
+        popout_hint = QLabel(chart_click_container)
+        popout_hint.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        popout_hint.setStyleSheet("background: transparent;")
+        popout_icon_path = _get_popout_window_icon_path()
+        if popout_icon_path:
+            popout_pixmap = QPixmap(popout_icon_path)
+            if not popout_pixmap.isNull():
+                popout_hint.setPixmap(
+                    popout_pixmap.scaled(
+                        22,
+                        22,
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
+                )
+        popout_hint.setToolTip("Open transit chart popout")
+        chart_click_layout.addWidget(popout_hint, 0, 0, Qt.AlignTop | Qt.AlignRight)
+
         canvas.installEventFilter(self)
+        chart_click_container.installEventFilter(self)
         self._transit_chart_canvases[canvas] = chart
-        self.todays_transits_chart_layout.addWidget(canvas)
+        self._transit_chart_canvases[chart_click_container] = chart
+        self.todays_transits_chart_layout.addWidget(chart_click_container)
 
         summary = format_transit_chart_text(chart, self._transit_location_label)
         self.todays_transits_output.setPlainText(summary)
@@ -4788,6 +4827,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
                     thread.quit()
+                    if thread.isRunning():
+                        thread.wait(3000)
                     if not thread.isRunning():
                         transit_workers.pop(key, None)
                 except RuntimeError:
@@ -4889,9 +4930,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
             transit_workers.pop(key, None)
             _finalize_transit_worker_shutdown()
-            # Drain in the next event-loop tick so worker/thread teardown fully settles
-            # before potentially spawning another preload worker.
-            QTimer.singleShot(0, _drain_preload_queue) #this is causing crashes.
+            _drain_preload_queue()
 
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
@@ -4962,7 +5001,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if refresh:
                 _refresh_summary()
 
-            thread = QThread(dialog)
+            # Keep worker threads independent from dialog ownership so dialog teardown
+            # cannot delete a still-running QThread wrapper.
+            thread = QThread()
             scan_config = _scan_config_for_hit(hit)
             state["include_time"] = scan_config.include_time
             worker = TransitAspectWindowWorker(
@@ -5252,16 +5293,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart,
             chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
         )
-        summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
 
-        def _build_human_design_export_text(chart_data_text: str) -> str:
+        def _build_transit_export_text(chart_data_text: str) -> str:
             return "\n".join(
                 [
-                    "🪐Human Design",
-                    f"Name:       {self._latest_chart.name}",
-                    f"🐣date: {date_label}",
-                    f"🐣time: {time_label}",
-                    f"🐣place: {birth_place}, {self._latest_chart.lat:.4f}, {self._latest_chart.lon:.4f}",
+                    "🌍Transit Chart",
+                    f"Name:       {chart.name}",
+                    f"Date:       {date_label}",
+                    f"Time:       {time_label}",
+                    f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
                     "",
                     chart_data_text,
                 ]
@@ -5269,8 +5309,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         summary_share_button = self._attach_popout_share_button(
             summary_output,
-            hd_file_stem,
-            export_text_provider=lambda: _build_human_design_export_text(summary_output.toPlainText()),
+            transit_file_stem,
+            export_text_provider=lambda: _build_transit_export_text(summary_output.toPlainText()),
         )
 
         popout_context_key = summary_output.viewport()
@@ -13274,6 +13314,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
+    def _on_menu_open_chart_predictor_quiz(self) -> None:
+        dialog = create_chart_predictor_quiz_dialog(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -21162,6 +21209,13 @@ class MainWindow(QMainWindow):
 
     def on_open_bazi_window(self) -> None:
         self._open_bazi_window(self._latest_chart)
+
+    def on_open_chart_predictor_quiz(self) -> None:
+        dialog = create_chart_predictor_quiz_dialog(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def on_show_chart_analytics_panel(self) -> None:
         if not self.chart_analytics_panel_button.isEnabled():
