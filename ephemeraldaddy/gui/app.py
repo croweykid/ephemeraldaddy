@@ -4791,6 +4791,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
                     thread.quit()
+                    if thread.isRunning():
+                        thread.wait(3000)
                     if not thread.isRunning():
                         transit_workers.pop(key, None)
                 except RuntimeError:
@@ -4892,9 +4894,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
             transit_workers.pop(key, None)
             _finalize_transit_worker_shutdown()
-            # Drain in the next event-loop tick so worker/thread teardown fully settles
-            # before potentially spawning another preload worker.
-            QTimer.singleShot(0, _drain_preload_queue) #this is causing crashes.
+            _drain_preload_queue()
 
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
@@ -4965,7 +4965,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if refresh:
                 _refresh_summary()
 
-            thread = QThread(dialog)
+            # Keep worker threads independent from dialog ownership so dialog teardown
+            # cannot delete a still-running QThread wrapper.
+            thread = QThread()
             scan_config = _scan_config_for_hit(hit)
             state["include_time"] = scan_config.include_time
             worker = TransitAspectWindowWorker(
