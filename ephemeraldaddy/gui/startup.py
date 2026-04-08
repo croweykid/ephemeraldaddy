@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 import math
+import random
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
@@ -38,6 +39,7 @@ class StartupLoadingWidget(QWidget):
         self._wave_amplitude = 4.0
         self._wave_length = 28.0
         self._edge_padding = 10.0
+        self._star_particles = self._create_star_particles(count=24)
 
         self._wave_timer = QTimer(self)
         self._wave_timer.setInterval(33)
@@ -99,6 +101,48 @@ class StartupLoadingWidget(QWidget):
         self._wave_phase = (self._wave_phase + 0.35) % (2.0 * math.pi)
         self.update()
 
+    def _create_star_particles(self, *, count: int) -> list[tuple[float, float, float, float]]:
+        rng = random.Random(7331)
+        particles: list[tuple[float, float, float, float]] = []
+        for _ in range(count):
+            particles.append(
+                (
+                    rng.uniform(0.08, 0.92),  # normalized X
+                    rng.uniform(0.12, 0.88),  # normalized Y
+                    rng.uniform(0.0, 2.0 * math.pi),  # phase offset
+                    rng.uniform(0.7, 1.35),  # size multiplier
+                )
+            )
+        return particles
+
+    def _draw_starburst_particles(self, painter: QPainter, rect: QRectF) -> None:
+        for x_norm, y_norm, phase_offset, size_mult in self._star_particles:
+            sparkle_wave = (self._wave_phase * 1.8) + phase_offset
+            sparkle_strength = (math.sin(sparkle_wave) + 1.0) / 2.0
+            if sparkle_strength < 0.38:
+                continue
+
+            alpha = int(85 + (sparkle_strength * 160))
+            radius = (0.9 + sparkle_strength * 1.8) * size_mult
+            center = QPointF(
+                rect.left() + (rect.width() * x_norm),
+                rect.top() + (rect.height() * y_norm),
+            )
+
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(243, 230, 255, alpha))
+            painter.drawEllipse(center, radius, radius)
+
+            painter.setPen(QPen(QColor(206, 169, 255, min(alpha + 20, 255)), 1.0))
+            painter.drawLine(
+                QPointF(center.x() - (radius * 2.0), center.y()),
+                QPointF(center.x() + (radius * 2.0), center.y()),
+            )
+            painter.drawLine(
+                QPointF(center.x(), center.y() - (radius * 2.0)),
+                QPointF(center.x(), center.y() + (radius * 2.0)),
+            )
+
     def _build_wavy_rect_path(self, rect: QRectF) -> QPainterPath:
         step = 4.0
         path = QPainterPath()
@@ -146,5 +190,9 @@ class StartupLoadingWidget(QWidget):
 
         wave_path = self._build_wavy_rect_path(content_rect)
         painter.fillPath(wave_path, QColor("#141218"))
+        painter.save()
+        painter.setClipPath(wave_path)
+        self._draw_starburst_particles(painter, content_rect)
+        painter.restore()
         painter.setPen(QPen(QColor("#aa77ff"), 1.5))
         painter.drawPath(wave_path)
