@@ -5293,7 +5293,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart,
             chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
         )
-        summary_share_button = self._attach_popout_share_button(summary_output, transit_file_stem)
+
+        def _build_transit_export_text(chart_data_text: str) -> str:
+            return "\n".join(
+                [
+                    "🌍Transit Chart",
+                    f"Name:       {chart.name}",
+                    f"Date:       {date_label}",
+                    f"Time:       {time_label}",
+                    f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
+                    "",
+                    chart_data_text,
+                ]
+            )
+
+        summary_share_button = self._attach_popout_share_button(
+            summary_output,
+            transit_file_stem,
+            export_text_provider=lambda: _build_transit_export_text(summary_output.toPlainText()),
+        )
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
