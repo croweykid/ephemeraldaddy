@@ -158,6 +158,34 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_ylim(lower, upper)
 
     @staticmethod
+    def _configure_positive_percent_axis(
+        ax,
+        values: list[float],
+        *,
+        show_x_axis_labels: bool = True,
+        percent_decimals: int = 2,
+    ) -> tuple[float, float]:
+        """Apply a dynamic 0..max percent axis for compact left-panel bar charts."""
+        max_value = max((float(value) for value in values), default=0.0)
+        if max_value <= 0:
+            axis_max = 1.0
+        else:
+            # Keep a small right gutter for value labels while still zooming
+            # enough to make small percent differences easier to read.
+            axis_max = min(1.0, max_value * 1.12)
+            axis_max = max(axis_max, 0.04)
+        ax.set_xlim(0, axis_max)
+        if show_x_axis_labels:
+            tick_count = 5
+            ticks = [
+                (axis_max * index) / (tick_count - 1)
+                for index in range(tick_count)
+            ]
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([_format_percent(value, decimals=percent_decimals) for value in ticks])
+        return 0.0, axis_max
+
+    @staticmethod
     def _clear_layout(layout: QLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
@@ -1058,16 +1086,16 @@ class DatabaseAnalyticsChartsMixin:
         database_values = [database_planets[label] for label in labels]
         if loaded_charts == 0:
             bars = ax.barh(positions, database_values, color=colors, height=bar_height, zorder=2)
-            ax.set_xlim(0, 1)
+            _, axis_max = self._configure_positive_percent_axis(ax, database_values)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
-            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
-            ax.set_xticklabels([_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]])
             for bar, database_value in zip(bars, database_values):
-                ax.text(min(database_value + 0.02, 0.95), bar.get_y() + (bar.get_height() / 2), _format_percent(database_value), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
+                label_offset = max(axis_max * 0.015, 0.0015)
+                label_x = min(database_value + label_offset, axis_max * 0.985)
+                ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(database_value, decimals=2), va="center", ha="left", color=CHART_THEME_COLORS["text"], fontsize=7.5)
         else:
             differences = [selection - database for selection, database in zip(selection_values, database_values)]
             widths = [abs(value) for value in differences]
@@ -1295,7 +1323,11 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            ax.set_xlim(0, 1)
+            _, axis_max = self._configure_positive_percent_axis(
+                ax,
+                database_values,
+                show_x_axis_labels=show_x_axis_labels,
+            )
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
@@ -1305,18 +1337,14 @@ class DatabaseAnalyticsChartsMixin:
             else:
                 ax.tick_params(axis="x", length=0, labelbottom=False)
             ax.set_xlabel("")
-            if show_x_axis_labels:
-                ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
-                ax.set_xticklabels(
-                    [_format_percent(value) for value in [0, 0.25, 0.5, 0.75, 1.0]]
-                )
             for bar, database_value in zip(species_bars, database_values):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
-                label_x = min(database_value + 0.02, 0.95)
+                label_offset = max(axis_max * 0.015, 0.0015)
+                label_x = min(database_value + label_offset, axis_max * 0.985)
                 ax.text(
                     label_x,
                     bar_center,
-                    _format_percent(database_value),
+                    _format_percent(database_value, decimals=2),
                     va="center",
                     ha="left",
                     color=CHART_THEME_COLORS["text"],
