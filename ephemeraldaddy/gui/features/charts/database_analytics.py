@@ -100,40 +100,6 @@ class DatabaseAnalyticsChartsMixin:
         for key in HD_AUTHORITIES.keys()
     )
 
-    BAZI_STEM_TRANSLATIONS: dict[str, str] = {
-        "甲": "Jia (Yang Wood)",
-        "乙": "Yi (Yin Wood)",
-        "丙": "Bing (Yang Fire)",
-        "丁": "Ding (Yin Fire)",
-        "戊": "Wu (Yang Earth)",
-        "己": "Ji (Yin Earth)",
-        "庚": "Geng (Yang Metal)",
-        "辛": "Xin (Yin Metal)",
-        "壬": "Ren (Yang Water)",
-        "癸": "Gui (Yin Water)",
-    }
-    BAZI_BRANCH_TRANSLATIONS: dict[str, str] = {
-        "子": "Zi (Rat)",
-        "丑": "Chou (Ox)",
-        "寅": "Yin (Tiger)",
-        "卯": "Mao (Rabbit)",
-        "辰": "Chen (Dragon)",
-        "巳": "Si (Snake)",
-        "午": "Wu (Horse)",
-        "未": "Wei (Goat)",
-        "申": "Shen (Monkey)",
-        "酉": "You (Rooster)",
-        "戌": "Xu (Dog)",
-        "亥": "Hai (Pig)",
-    }
-    BAZI_ELEMENT_TRANSLATIONS: dict[str, str] = {
-        "木": "Wood",
-        "火": "Fire",
-        "土": "Earth",
-        "金": "Metal",
-        "水": "Water",
-    }
-
     @staticmethod
     def _value_length_color(
         value: float,
