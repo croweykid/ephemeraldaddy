@@ -87,6 +87,13 @@ class StartupLoadingWidget(QWidget):
     def update_status(self, message: str, progress: int) -> None:
         self._status_label.setText(message)
         self._progress.setValue(min(max(progress, 0), 100))
+        self.raise_()
+        QCoreApplication.processEvents(QEventLoop.AllEvents, 50)
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        self._start_animation_process()
+        self.raise_()
         QCoreApplication.processEvents(QEventLoop.AllEvents, 50)
 
     def _start_animation_process(self) -> None:
