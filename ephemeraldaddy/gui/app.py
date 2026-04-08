@@ -23822,7 +23822,10 @@ class MainWindow(QMainWindow):
         )
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
-    def on_manage_charts(self):
+    def on_manage_charts(
+        self,
+        startup_progress: Callable[[str, int], None] | None = None,
+    ):
         logger.debug(
             "Switching to Database View (main_visible=%s chart_id=%s).",
             self.isVisible(),
@@ -23832,11 +23835,17 @@ class MainWindow(QMainWindow):
         self._chart_view_history_index = -1
         self._flush_pending_sentiment_metrics_save()
         self._settings.setValue("app/last_view", "database")
+        if startup_progress:
+            startup_progress("Preparing Database View…", 90)
         manage_dialog = self._get_or_create_manage_charts_dialog()
         manage_dialog.adopt_window_placement(self)
-        opened = self._charts_controller.open_manage_charts()
+        opened = self._charts_controller.open_manage_charts(
+            progress_callback=startup_progress,
+        )
         if not opened:
             return
+        if startup_progress:
+            startup_progress("Opening Database View…", 98)
         QTimer.singleShot(0, self._raise_manage_charts_dialog)
         self._retarget_size_checker_to_database_view()
         self.hide()
@@ -25431,7 +25440,9 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
         window=window,
         startup_loading=startup_loading,
         get_icon_path=_get_app_icon_path,
-        show_default_view=window.on_manage_charts,
+        show_default_view=lambda: window.on_manage_charts(
+            startup_progress=startup_loading.update_status
+        ),
     )
     logger.info("GUI startup complete; entering Qt event loop.")
 
