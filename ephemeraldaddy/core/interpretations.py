@@ -569,15 +569,15 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
         "one_liner": "Growth with an agenda; the vine that joins committees and keeps climbing anyway.",
     },
     "water": {
-        "color": "#3333ff",
+        "color": ELEMENT_COLORS["Water"],
         "one_liner": "Finds the gap, ignores the memo, arrives everywhere eventually.",
     },
     "earth": {
-        "color": "#049534",
+        "color": ELEMENT_COLORS["Earth"],
         "one_liner": "The load-bearing adult in the room, quietly judging others' poor planning.",
     },
     "fire": {
-        "color": "#cc3300",
+        "color": ELEMENT_COLORS["Fire"],
         "one_liner": "Charisma, heat, spectacle; excellent at getting attention and setting off alarms.",
     },
     "metal": {
