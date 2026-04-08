@@ -236,6 +236,7 @@ def draw_human_design_chart(
                 color=CHANNEL_ACTIVE_COLOR if lower_gate_active else CHANNEL_INACTIVE_COLOR,
                 linewidth=3.0,
                 alpha=0.95,
+                gid=f"gate-segment:{lower_gate}",
             )
             ax.plot(
                 [elbow_x, end_x],
@@ -243,6 +244,7 @@ def draw_human_design_chart(
                 color=CHANNEL_ACTIVE_COLOR if upper_gate_active else CHANNEL_INACTIVE_COLOR,
                 linewidth=3.0,
                 alpha=0.95,
+                gid=f"gate-segment:{upper_gate}",
             )
             ax.text(
                 start_x + ((elbow_x - start_x) * 0.55),
@@ -325,6 +327,7 @@ def draw_human_design_chart(
             color=CHANNEL_ACTIVE_COLOR if gate_a_active else CHANNEL_INACTIVE_COLOR,
             linewidth=3.0,
             alpha=0.95,
+            gid=f"gate-segment:{gate_a}",
         )
         ax.plot(
             [mid_x, x2],
@@ -332,6 +335,7 @@ def draw_human_design_chart(
             color=CHANNEL_ACTIVE_COLOR if gate_b_active else CHANNEL_INACTIVE_COLOR,
             linewidth=3.0,
             alpha=0.95,
+            gid=f"gate-segment:{gate_b}",
         )
         ax.text(
             x1 + ((mid_x - x1) * 0.6),

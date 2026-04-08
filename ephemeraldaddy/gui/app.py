@@ -114,6 +114,7 @@ from PySide6.QtWidgets import (
     QStyleOptionSlider,
     QAbstractButton,
     QSlider,
+    QToolTip,
 )
 from PySide6.QtCore import (
     Qt,
@@ -25201,6 +25202,53 @@ class MainWindow(QMainWindow):
                     return
 
         canvas.mpl_connect("button_press_event", _on_bodygraph_click)
+
+        hovered_gate_text: str | None = None
+
+        def _on_bodygraph_hover(event: Any) -> None:
+            nonlocal hovered_gate_text
+            if event.inaxes is None or event.x is None or event.y is None:
+                if hovered_gate_text is not None:
+                    QToolTip.hideText()
+                    hovered_gate_text = None
+                return
+            if not figure.axes or event.inaxes is not figure.axes[0]:
+                if hovered_gate_text is not None:
+                    QToolTip.hideText()
+                    hovered_gate_text = None
+                return
+            for line in event.inaxes.lines:
+                gate_segment_id = str(getattr(line, "get_gid", lambda: "")() or "")
+                if not gate_segment_id.startswith("gate-segment:"):
+                    continue
+                contains, _info = line.contains(event)
+                if not contains:
+                    continue
+                gate_text = gate_segment_id.split(":", 1)[1]
+                if not gate_text:
+                    continue
+                if hovered_gate_text == gate_text:
+                    return
+                tooltip_text = (
+                    "<div style='"
+                    "background-color:#000000;"
+                    "color:#ffffff;"
+                    "font-size:18px;"
+                    "font-weight:700;"
+                    "padding:6px 10px;"
+                    "border:1px solid #ffffff;"
+                    "border-radius:4px;'>"
+                    f"Gate {gate_text}"
+                    "</div>"
+                )
+                QToolTip.showText(canvas.mapToGlobal(QPoint(int(event.x), int(event.y))), tooltip_text, canvas)
+                hovered_gate_text = gate_text
+                return
+            if hovered_gate_text is not None:
+                QToolTip.hideText()
+                hovered_gate_text = None
+
+        canvas.mpl_connect("motion_notify_event", _on_bodygraph_hover)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         canvas.draw_idle()
 
