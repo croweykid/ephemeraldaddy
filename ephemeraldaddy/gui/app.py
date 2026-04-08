@@ -678,6 +678,7 @@ from ephemeraldaddy.gui.features.charts.chart_data_output import (
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE,
     create_bazi_window_dialog,
+    resolve_bazi_birth_datetime,
     validate_chart_for_bazi,
 )
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
@@ -1524,6 +1525,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._birthplace_mode = "towns"
         self._gender_mode = "actual_gender"
         self._human_design_mode = "hd_gates"
+        self._bazi_mode = "all"
         self._database_metrics_baseline_mode = "database"
         # Single source of truth for all Database Analytics panel charts.
         # Future charts should derive from snapshot/cache helpers below so
@@ -1887,6 +1889,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birthplace": self._birthplace_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
+            "bazi": self._bazi_mode,
         }
         preferred_mode = preferred_mode_by_chart.get(chart_key)
         if preferred_mode is not None:
@@ -2403,6 +2406,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "bazi":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._bazi_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/bazi_mode",
+                        self._bazi_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "planetary_sign_prevalence":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2602,6 +2622,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_human_design_mode, str):
             self._human_design_mode = stored_human_design_mode
+
+        stored_bazi_mode = self._settings.value(
+            "manage_charts/bazi_mode",
+            self._bazi_mode,
+        )
+        if isinstance(stored_bazi_mode, str):
+            self._bazi_mode = stored_bazi_mode
 
         stored_baseline_mode = self._settings.value(
             "manage_charts/database_metrics_baseline_mode",
@@ -2984,6 +3011,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["human_design"] = self.human_design_chart_layout
         human_design_section_layout.addWidget(self.human_design_chart_container)
+
+        # BAZI SECTION
+        bazi_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🪷BaZi",
+            section_key="bazi",
+            expanded=self._is_database_metrics_section_expanded("bazi"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "bazi",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["bazi"] = self._is_database_metrics_section_expanded("bazi")
+        self._create_analysis_chart_header(
+            bazi_section_layout,
+            "🪷BaZi",
+            "bazi",
+            "bazi",
+            dropdown_options=[
+                ("All Pillars", "all"),
+                ("Year Pillar", "year"),
+                ("Month Pillar", "month"),
+                ("Day Pillar", "day"),
+                ("Hour Pillar", "hour"),
+                ("BaZi Elements", "elements"),
+            ],
+            show_title=False,
+        )
+        bazi_subheader = add_database_subheader(
+            "BaZi pillar and five-element distributions across selection/database."
+        )
+        bazi_section_layout.addWidget(bazi_subheader)
+        (
+            self.bazi_chart_container,
+            self.bazi_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["bazi"] = self.bazi_chart_layout
+        bazi_section_layout.addWidget(self.bazi_chart_container)
 
         #SENTIMENT PREVALENCE SECTION
         sentiment_section_layout = self._add_left_panel_collapsible_section(
@@ -7423,8 +7489,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "human_design_incarnation_cross_total_count": 0.0,
             "human_design_type_total_count": 0.0,
             "human_design_authority_total_count": 0.0,
+            "bazi_sign_counts": {
+                "year": {},
+                "month": {},
+                "day": {},
+                "hour": {},
+                "all": {},
+            },
+            "bazi_element_counts": {},
             "social_score_total": 0.0,
             "alignment_score_total": 0.0,
+        }
+
+    def _extract_bazi_metadata(self, chart: Any) -> dict[str, Any] | None:
+        if chart is None or bool(getattr(chart, "is_placeholder", False)):
+            return None
+        if validate_chart_for_bazi(chart) is not None:
+            return None
+        try:
+            dt_local = resolve_bazi_birth_datetime(chart)
+            include_hour = not bool(getattr(chart, "birthtime_unknown", False)) or bool(
+                getattr(chart, "retcon_time_used", False)
+            )
+            bazi_data = build_bazi_chart_data(dt_local, include_hour=include_hour)
+        except Exception:
+            return None
+        return {
+            "year": str(getattr(bazi_data, "year_pillar", "") or "").strip(),
+            "month": str(getattr(bazi_data, "month_pillar", "") or "").strip(),
+            "day": str(getattr(bazi_data, "day_pillar", "") or "").strip(),
+            "hour": str(getattr(bazi_data, "hour_pillar", "") or "").strip(),
+            "year_element": str((bazi_data.five_elements_summary or {}).get("year", "") or "").strip(),
+            "month_element": str((bazi_data.five_elements_summary or {}).get("month", "") or "").strip(),
+            "day_element": str((bazi_data.five_elements_summary or {}).get("day", "") or "").strip(),
+            "hour_element": str((bazi_data.five_elements_summary or {}).get("hour", "") or "").strip(),
         }
 
     def _build_chart_metric_snapshot(self, chart_id: int) -> dict[str, Any]:
@@ -7580,6 +7678,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if hd_authority in snapshot["human_design_authority_totals"]:
                 snapshot["human_design_authority_totals"][hd_authority] += 1.0
                 snapshot["human_design_authority_total_count"] += 1.0
+
+        bazi_metadata = self._extract_bazi_metadata(chart)
+        if bazi_metadata is not None:
+            for pillar_key in ("year", "month", "day", "hour"):
+                pillar_value = str(bazi_metadata.get(pillar_key, "") or "").strip()
+                if not pillar_value or pillar_value == "Unknown":
+                    continue
+                key_counts = snapshot["bazi_sign_counts"][pillar_key]
+                key_counts[pillar_value] = int(key_counts.get(pillar_value, 0)) + 1
+                all_counts = snapshot["bazi_sign_counts"]["all"]
+                all_counts[pillar_value] = int(all_counts.get(pillar_value, 0)) + 1
+            for element_key in ("year_element", "month_element", "day_element", "hour_element"):
+                element_value = str(bazi_metadata.get(element_key, "") or "").strip()
+                if not element_value or element_value == "Unknown":
+                    continue
+                snapshot["bazi_element_counts"][element_value] = (
+                    int(snapshot["bazi_element_counts"].get(element_value, 0)) + 1
+                )
 
         for relationship in getattr(chart, "relationship_types", []) or []:
             if relationship in snapshot["relationship_totals"]:
@@ -7813,6 +7929,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 totals["human_design_authority_totals"][authority] += direction * float(
                     authority_snapshot.get(authority, 0.0)
                 )
+        bazi_sign_snapshot = snapshot.get("bazi_sign_counts", {})
+        if isinstance(bazi_sign_snapshot, dict):
+            for pillar_key in ("year", "month", "day", "hour", "all"):
+                pillar_counts = bazi_sign_snapshot.get(pillar_key, {})
+                if not isinstance(pillar_counts, dict):
+                    continue
+                target_counts = totals["bazi_sign_counts"][pillar_key]
+                for label, value in pillar_counts.items():
+                    normalized_label = str(label).strip()
+                    if not normalized_label:
+                        continue
+                    target_counts[normalized_label] = int(target_counts.get(normalized_label, 0)) + (
+                        direction * int(value)
+                    )
+                    if target_counts[normalized_label] <= 0:
+                        del target_counts[normalized_label]
+        bazi_elements_snapshot = snapshot.get("bazi_element_counts", {})
+        if isinstance(bazi_elements_snapshot, dict):
+            for label, value in bazi_elements_snapshot.items():
+                normalized_label = str(label).strip()
+                if not normalized_label:
+                    continue
+                totals["bazi_element_counts"][normalized_label] = int(
+                    totals["bazi_element_counts"].get(normalized_label, 0)
+                ) + (direction * int(value))
+                if totals["bazi_element_counts"][normalized_label] <= 0:
+                    del totals["bazi_element_counts"][normalized_label]
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
         if self._database_metrics_cache is None or force_full_refresh:
@@ -8314,6 +8457,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for section_key in ("birth_time", "birth_month", "birthplace")
             )
             age_section_expanded = _should_refresh_database_metric_section("age")
+            bazi_section_expanded = _should_refresh_database_metric_section("bazi")
             birth_selection_analytics = (
                 self._collect_birth_analytics(chart_ids)
                 if birth_sections_expanded
@@ -9466,6 +9610,62 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 database_values=[database_human_design[label] for label in human_design_labels],
                 selection_counts=[selection_human_design_counts[label] for label in human_design_labels],
                 database_counts=[database_human_design_counts[label] for label in human_design_labels],
+                loaded_charts=loaded_charts,
+            )
+
+            bazi_mode = self._bazi_mode
+            if bazi_mode == "elements":
+                selection_bazi_counts = {
+                    key: int(value)
+                    for key, value in selection_cache.get("bazi_element_counts", {}).items()
+                    if int(value) > 0
+                }
+                database_bazi_counts = {
+                    key: int(value)
+                    for key, value in database_cache.get("bazi_element_counts", {}).items()
+                    if int(value) > 0
+                }
+            else:
+                selection_bazi_counts = {
+                    key: int(value)
+                    for key, value in selection_cache.get("bazi_sign_counts", {}).get(bazi_mode, {}).items()
+                    if int(value) > 0
+                }
+                database_bazi_counts = {
+                    key: int(value)
+                    for key, value in database_cache.get("bazi_sign_counts", {}).get(bazi_mode, {}).items()
+                    if int(value) > 0
+                }
+            bazi_labels = [
+                item[0]
+                for item in sorted(
+                    (selection_bazi_counts.items() if loaded_charts else database_bazi_counts.items()),
+                    key=lambda item: (-item[1], item[0]),
+                )
+            ]
+            if _should_refresh_database_metric_section("bazi"):
+                self._clear_layout(self.bazi_chart_layout)
+                if bazi_labels:
+                    bazi_canvas = self._build_count_distribution_chart(
+                        labels=bazi_labels,
+                        selection_counts=[selection_bazi_counts.get(label, 0) for label in bazi_labels],
+                        database_counts=[database_bazi_counts.get(label, 0) for label in bazi_labels],
+                        loaded_charts=loaded_charts,
+                        auto_height=True,
+                    )
+                    self.bazi_chart_layout.addWidget(bazi_canvas, 0)
+                else:
+                    self.bazi_chart_layout.addWidget(
+                        self._build_text_analysis_widget(["None available"]),
+                        0,
+                        Qt.AlignTop,
+                    )
+            self._analysis_chart_export_rows["bazi"] = self._build_analysis_export_rows(
+                labels=bazi_labels,
+                selection_values=[float(selection_bazi_counts.get(label, 0)) for label in bazi_labels],
+                database_values=[float(database_bazi_counts.get(label, 0)) for label in bazi_labels],
+                selection_counts=[int(selection_bazi_counts.get(label, 0)) for label in bazi_labels],
+                database_counts=[int(database_bazi_counts.get(label, 0)) for label in bazi_labels],
                 loaded_charts=loaded_charts,
             )
 
@@ -21316,6 +21516,7 @@ class MainWindow(QMainWindow):
                 self,
                 chart,
                 header_style=CHART_DATA_POPOUT_HEADER_STYLE,
+                share_icon_path=_get_share_icon_path(),
             )
         except Exception as exc:
             QMessageBox.critical(
