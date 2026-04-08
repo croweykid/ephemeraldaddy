@@ -814,6 +814,33 @@ HD_PROFILES = {
 }
 
 
+# Note: COLORS here use the standard Motivation naming convention.
+HD_COLORS = [
+    {"value": 1, "name": "Fear"},
+    {"value": 2, "name": "Hope"},
+    {"value": 3, "name": "Desire"},
+    {"value": 4, "name": "Need"},
+    {"value": 5, "name": "Guilt"},
+    {"value": 6, "name": "Innocence"},
+]
+
+HD_TONES = [
+    {"value": 1, "name": "Security",    "orientation": "Left"},
+    {"value": 2, "name": "Uncertainty", "orientation": "Left"},
+    {"value": 3, "name": "Action",      "orientation": "Left"},
+    {"value": 4, "name": "Meditation",  "orientation": "Right"},
+    {"value": 5, "name": "Judgment",    "orientation": "Right"},
+    {"value": 6, "name": "Acceptance",  "orientation": "Right"},
+]
+
+HD_BASES = [
+    {"value": 1, "name": "Reactive"},
+    {"value": 2, "name": "Integrative"},
+    {"value": 3, "name": "Objective"},
+    {"value": 4, "name": "Progressive"},
+    {"value": 5, "name": "Subjective"},
+]
+
 def format_gate_line_info(gate: int, line: int | None = None) -> str:
     gate_num = int(gate)
     gate_info = GATE_REFERENCE.get(gate_num, {"name": "Unknown Gate", "meaning": "No gate reference available."})

@@ -19108,7 +19108,7 @@ class MainWindow(QMainWindow):
             least_similar_matches=least_similar_matches,
             on_link_activated=self._on_similar_chart_link_activated,
             header_style=CHART_DATA_POPOUT_HEADER_STYLE,
-            output_style=CHART_DATA_OUTPUT_STYLE,
+            output_style=CHART_DATA_INFO_LABEL_STYLE,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
             configure_splitter=configure_splitter_handle_resize_cursor,
