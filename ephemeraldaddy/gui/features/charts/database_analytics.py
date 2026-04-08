@@ -15,8 +15,7 @@ from typing import Any
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCursor
-from PySide6.QtWidgets import QFileDialog, QLayout, QMessageBox, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QFileDialog, QLayout, QMessageBox, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
@@ -41,16 +40,10 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITY_COLORS,
     HD_CENTERS,
     HD_TYPES,
-    HD_PROFILES,
     authority_key_to_label,
     canonicalize_hd_authority_label,
     normalize_hd_authority_key,
 )
-from ephemeraldaddy.analysis.dnd.dnd_definitions import (
-    DND_CLASS_SUBCLASS_EXPLAINERS,
-    SPECIES_DESCRIPTIONS,
-)
-from ephemeraldaddy.core import interpretations as core_interpretations
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
 from ephemeraldaddy.gui.style import (
     ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH,
@@ -376,117 +369,9 @@ class DatabaseAnalyticsChartsMixin:
         canvas.setMinimumWidth(0)
         canvas.setMinimumHeight(height)
         canvas.setMaximumHeight(height)
-        # Keep the canvas interactive so bars/labels can show contextual tooltips.
+        #adds trackpad scrolling & hoverstate arrow scroll:
         canvas.setFocusPolicy(Qt.NoFocus)
-        canvas.setMouseTracking(True)
-        canvas.setAttribute(Qt.WA_TransparentForMouseEvents, False)
-
-    def _definition_tooltip_for_label(self, label: str) -> str:
-        clean_label = str(label or "").strip()
-        if not clean_label:
-            return ""
-
-        sign_key = clean_label.casefold()
-        sign_info = getattr(core_interpretations, "SIGN_KEYWORDS_CANONICAL", {}).get(sign_key)
-        if isinstance(sign_info, dict):
-            summary_parts: list[str] = []
-            for field in ("function",):
-                value = sign_info.get(field)
-                if isinstance(value, str) and value.strip():
-                    summary_parts.append(value.strip())
-            for field in ("talents", "motivations", "challenges"):
-                values = sign_info.get(field)
-                if isinstance(values, list) and values:
-                    summary_parts.append(f"{field.title()}: {values[0]}")
-            return " • ".join(summary_parts[:3])
-
-        nakshatra_text = getattr(core_interpretations, "NAKSHATRA_DESCRIPTIONS", {}).get(clean_label)
-        if isinstance(nakshatra_text, str) and nakshatra_text.strip():
-            return nakshatra_text.strip()
-
-        authority_lookup = {
-            authority_key_to_label(key): text
-            for key, text in HD_AUTHORITIES.items()
-        }
-        authority_text = authority_lookup.get(clean_label)
-        if isinstance(authority_text, str) and authority_text.strip():
-            return authority_text.strip()
-
-        center_info = HD_CENTERS.get(clean_label)
-        if isinstance(center_info, dict):
-            description = str(center_info.get("description", "")).strip()
-            if description:
-                return description
-
-        hd_type_lookup = {
-            ("Manifesting Generator" if key == "manifesting_generator" else key.replace("_", " ").title()): text
-            for key, text in HD_TYPES.items()
-        }
-        hd_type_text = hd_type_lookup.get(clean_label)
-        if isinstance(hd_type_text, str) and hd_type_text.strip():
-            return hd_type_text.strip()
-
-        hd_profile_text = HD_PROFILES.get(clean_label)
-        if isinstance(hd_profile_text, str) and hd_profile_text.strip():
-            return hd_profile_text.strip()
-
-        species_text = SPECIES_DESCRIPTIONS.get(clean_label)
-        if isinstance(species_text, str) and species_text.strip():
-            return species_text.strip()
-
-        dnd_class_text = DND_CLASS_SUBCLASS_EXPLAINERS.get(clean_label)
-        if isinstance(dnd_class_text, str) and dnd_class_text.strip():
-            return dnd_class_text.strip()
-
-        relation_types = getattr(core_interpretations, "RELATION_TYPE", [])
-        if isinstance(relation_types, (list, tuple)) and clean_label in relation_types:
-            return f"Relationship type: {clean_label}."
-        return f"No definition found for “{clean_label}”."
-
-    def _enable_bar_and_label_tooltips(
-        self,
-        canvas: FigureCanvas,
-        ax: Any,
-        bars: list[Any],
-        labels: list[str],
-    ) -> None:
-        if not bars or not labels:
-            return
-        bar_label_pairs = list(zip(bars, labels))
-        last_tooltip: dict[str, str] = {"value": ""}
-
-        def _label_for_event(event: Any) -> str:
-            for bar, bar_label in bar_label_pairs:
-                contains, _ = bar.contains(event)
-                if contains:
-                    return str(bar_label)
-            for tick in ax.get_yticklabels():
-                contains, _ = tick.contains(event)
-                if contains:
-                    return str(tick.get_text()).split(") ", 1)[-1].strip()
-            return ""
-
-        def _handle_event(event: Any) -> None:
-            if event is None or getattr(event, "inaxes", None) is not ax:
-                if last_tooltip["value"]:
-                    QToolTip.hideText()
-                    last_tooltip["value"] = ""
-                return
-            target_label = _label_for_event(event)
-            if not target_label:
-                if last_tooltip["value"]:
-                    QToolTip.hideText()
-                    last_tooltip["value"] = ""
-                return
-            tooltip_text = self._definition_tooltip_for_label(target_label)
-            if not tooltip_text:
-                return
-            if tooltip_text != last_tooltip["value"]:
-                QToolTip.showText(QCursor.pos(), tooltip_text, canvas)
-                last_tooltip["value"] = tooltip_text
-
-        canvas.mpl_connect("motion_notify_event", _handle_event)
-        canvas.mpl_connect("button_press_event", _handle_event)
+        canvas.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
     @staticmethod
     def _format_database_count_label(label: str, count: float | int) -> str:
@@ -921,12 +806,6 @@ class DatabaseAnalyticsChartsMixin:
             relationship_canvas,
             relationship_figure,
         )
-        self._enable_bar_and_label_tooltips(
-            relationship_canvas,
-            relationship_ax,
-            list(relationship_bars),
-            list(display_labels),
-        )
         relationship_canvas.draw_idle()
         return relationship_canvas
 
@@ -1079,12 +958,6 @@ class DatabaseAnalyticsChartsMixin:
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(
-            canvas,
-            ax,
-            list(selection_bars),
-            list(display_labels),
-        )
         canvas.draw_idle()
         return canvas
                 
@@ -1210,12 +1083,6 @@ class DatabaseAnalyticsChartsMixin:
 
         sign_canvas = FigureCanvas(sign_figure)
         self._configure_left_panel_canvas(sign_canvas, sign_figure)
-        self._enable_bar_and_label_tooltips(
-            sign_canvas,
-            sign_ax,
-            list(sign_bars),
-            list(sign_labels),
-        )
         sign_canvas.draw_idle()
         return sign_canvas
 
@@ -1341,12 +1208,6 @@ class DatabaseAnalyticsChartsMixin:
 
         dominant_canvas = FigureCanvas(dominant_figure)
         self._configure_left_panel_canvas(dominant_canvas, dominant_figure)
-        self._enable_bar_and_label_tooltips(
-            dominant_canvas,
-            dominant_ax,
-            list(sign_bars),
-            list(sign_labels),
-        )
         dominant_canvas.draw_idle()
         return dominant_canvas
 
@@ -1473,7 +1334,6 @@ class DatabaseAnalyticsChartsMixin:
         figure.subplots_adjust(left=0.51, bottom=scaled_bottom_margin, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(bars), list(labels))
         canvas.draw_idle()
         return canvas
 
@@ -1605,7 +1465,6 @@ class DatabaseAnalyticsChartsMixin:
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(bars), list(labels))
         canvas.draw_idle()
         return canvas
 
@@ -1755,7 +1614,6 @@ class DatabaseAnalyticsChartsMixin:
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(species_bars), list(labels))
         canvas.draw_idle()
         return canvas
 
@@ -1932,7 +1790,6 @@ class DatabaseAnalyticsChartsMixin:
 
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(bars), list(labels))
         canvas.draw_idle()
         return canvas
 
@@ -2067,7 +1924,6 @@ class DatabaseAnalyticsChartsMixin:
         figure.subplots_adjust(left=0.08, right=0.98, top=0.94, bottom=0.34)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(bars), [label])
         canvas.draw_idle()
         return canvas
 
@@ -2273,7 +2129,6 @@ class DatabaseAnalyticsChartsMixin:
         figure.subplots_adjust(left=0.51, bottom=0.24, right=0.97, top=0.98)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
-        self._enable_bar_and_label_tooltips(canvas, ax, list(bars), list(labels))
         canvas.draw_idle()
         return canvas
 
