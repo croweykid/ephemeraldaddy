@@ -10425,7 +10425,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
         layout.addWidget(year_first_encountered_section)
 
-        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiments")
+        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Relevance")
 
 #Search: Sentiments section
         sentiment_mode_layout = QHBoxLayout()
@@ -17681,7 +17681,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_summary_label: QLabel | None = None
         self._similar_charts_mode_dropdown: QComboBox | None = None
         self._similar_charts_list_label: QLabel | None = None
-        self._similar_charts_more_label: QLabel | None = None
+        self._similar_charts_more_button: QToolButton | None = None
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
@@ -18883,20 +18883,27 @@ class MainWindow(QMainWindow):
         section_layout.addWidget(list_label)
         self._similar_charts_list_label = list_label
 
-        more_label = QLabel(
+        
+        section_layout.addSpacing(6)
+        more_button = QToolButton()
+        more_button.setText("More...")
+        more_button.setAutoRaise(True)
+        more_button.setCursor(Qt.PointingHandCursor)
+        more_button.setStyleSheet(
             (
-                f'<br><a href="more" style="text-decoration: none;">'
-                f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">More...</span>'
-                "</a>"
+                "QToolButton {"
+                f"color: {CHART_DATA_HIGHLIGHT_COLOR};"
+                "font-weight: 700;"
+                "font-size: 12px;"
+                "padding: 0;"
+                "}"
+                "QToolButton:hover { text-decoration: underline; }"
             )
         )
-        more_label.setTextFormat(Qt.RichText)
-        more_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        more_label.setOpenExternalLinks(False)
-        more_label.linkActivated.connect(self._on_similar_charts_more_link_activated)
-        more_label.setCursor(Qt.PointingHandCursor)
-        section_layout.addWidget(more_label)
-        self._similar_charts_more_label = more_label
+        
+        more_button.clicked.connect(self._show_similar_charts_popout)
+        section_layout.addWidget(more_button, 0, Qt.AlignLeft)
+        self._similar_charts_more_button = more_button
 
         if self._latest_chart is not None and section_expanded:
             QTimer.singleShot(
@@ -18915,9 +18922,6 @@ class MainWindow(QMainWindow):
             current_chart_id=self.current_chart_id,
             load_chart_by_id=load_chart,
         )
-
-    def _on_similar_charts_more_link_activated(self, _target: str) -> None:
-        self._show_similar_charts_popout()
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
         try:
@@ -19103,7 +19107,7 @@ class MainWindow(QMainWindow):
             most_similar_matches=most_similar_matches,
             least_similar_matches=least_similar_matches,
             on_link_activated=self._on_similar_chart_link_activated,
-            header_style=DATABASE_ANALYTICS_HEADER_STYLE,
+            header_style=CHART_DATA_POPOUT_HEADER_STYLE,
             output_style=CHART_DATA_OUTPUT_STYLE,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
