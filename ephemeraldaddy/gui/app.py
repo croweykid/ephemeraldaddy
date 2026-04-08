@@ -21625,18 +21625,7 @@ class MainWindow(QMainWindow):
 
     def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
         line_number = int(line) if isinstance(line, int) else None
-        formatted_text = format_gate_line_info(gate, line_number)
-        lines = formatted_text.splitlines()
-        if len(lines) >= 3:
-            header = html.escape(lines[0])
-            gate_body = html.escape(lines[2])
-            html_lines = [f"<div>{header}</div>", "<br>", f"<div><b>Gate {int(gate)}:</b> {gate_body.split(': ', 1)[-1]}</div>"]
-            if line_number is not None and len(lines) >= 4:
-                line_suffix = html.escape(lines[3].split(": ", 1)[-1])
-                html_lines.append(f"<div><b>Line {line_number} Archetype:</b> {line_suffix}</div>")
-            self.chart_info_output.setHtml("".join(html_lines))
-            return
-        self.chart_info_output.setPlainText(formatted_text)
+        self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
 
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
         key = str(property_key or "").strip().lower()
@@ -21775,20 +21764,15 @@ class MainWindow(QMainWindow):
         lines = [
             header,
             "",
-            f"• <b>Circuit:</b> {html.escape(circuit)}",
-            f"• <b>Centers:</b> {html.escape(channel_centers_text)}",
-            f"• <b>Endpoint Gates:</b> {sorted_gates[0]} and {sorted_gates[1]}",
+            f"• Circuit: {circuit}",
+            f"• Centers: {channel_centers_text}",
+            f"• Endpoint gates: {sorted_gates[0]} and {sorted_gates[1]}",
+            "• A channel is defined when both endpoint gates are active.",
+            "• Defined channels establish fixed connections between centers.",
         ]
         if explanation:
-            lines.append(f"• {html.escape(explanation)}")
-        lines.extend(
-            [
-                "",
-                "",
-                '<small><i>* A channel is defined when both endpoint gates are active.</i></small>',
-            ]
-        )
-        self.chart_info_output.setHtml("<br>".join([html.escape(header), "", *lines[2:]]))
+            lines.append(f"• {explanation}")
+        self.chart_info_output.setPlainText("\n".join(lines))
 
     def _show_species_info(
         self,
