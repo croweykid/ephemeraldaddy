@@ -1530,6 +1530,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # lazy changed-id refresh applies panel-wide by default.
         self._database_metric_snapshots: dict[int, dict[str, Any]] = {}
         self._database_metrics_cache: dict[str, Any] | None = None
+        self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
         self._database_metrics_dirty_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
@@ -2019,6 +2020,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _set_database_metrics_section_visible(self, section_key: str, visible: bool) -> None:
         self._database_metrics_section_visible[section_key] = visible
         self._visibility.set(f"database_metrics_visibility.{section_key}", visible)
+        if not visible:
+            self._set_database_metrics_section_expanded(section_key, False)
         self._sync_database_metrics_section_visibility()
 
     def _available_sign_distribution_dropdown_options(self) -> list[tuple[str, str]]:
@@ -2113,11 +2116,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "birthplace",
             "gender",
             "human_design",
+            "bazi",
         ]
         return [
             section_key
             for section_key in section_order
             if self._is_database_metrics_section_expanded(section_key)
+            and self._is_database_metrics_section_visible(section_key)
             and not (
                 self._database_metrics_baseline_mode == "gen_pop"
                 and section_key in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
@@ -2713,6 +2718,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._database_metrics_section_visible["species_distribution"] = self._visibility.get(
             "database_metrics_visibility.species_distribution"
+        )
+        self._database_metrics_section_visible["bazi"] = self._visibility.get(
+            "database_metrics_visibility.bazi"
         )
 
     def _update_sort_button_label(self) -> None:
@@ -7457,119 +7465,140 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "alignment_score_total": 0.0,
         }
 
-    def _build_chart_metric_snapshot(self, chart_id: int) -> dict[str, Any]:
+    def _build_chart_metric_snapshot(
+        self,
+        chart_id: int,
+        computed_sections: set[str] | frozenset[str] | None = None,
+    ) -> dict[str, Any]:
         """Build one chart's analytics payload for the whole DB analytics panel."""
         snapshot = self._empty_database_metrics_cache()
+        sections = set(computed_sections or set())
+        sign_sections = {
+            "planetary_sign_prevalence",
+            "sign_prevalence",
+            "dominant_signs",
+            "cumulativedom_factors",
+        }
+        compute_sign_metrics = bool(sign_sections & sections)
+        compute_sentiment_metrics = "sentiment_prevalence" in sections
+        compute_relationship_metrics = "relationship_prevalence" in sections
+        compute_alignment_metrics = "alignment_summary" in sections
+        compute_species_metrics = "species_distribution" in sections
+        compute_human_design_metrics = "human_design" in sections
+        compute_bazi_metrics = "bazi" in sections
         snapshot["loaded"] = 0
         chart = self._get_chart_for_filter(chart_id)
         if chart is None:
             return snapshot
         snapshot["loaded"] = 1
         snapshot["is_placeholder"] = bool(getattr(chart, "is_placeholder", False))
-        snapshot["social_score"] = float(getattr(chart, "social_score", 0) or 0)
-        snapshot["alignment_score"] = float(getattr(chart, "alignment_score", 0) or 0)
-        sentiments = set(getattr(chart, "sentiments", []) or [])
-        for sentiment in sentiments:
-            if sentiment in snapshot["sentiment_totals"]:
-                snapshot["sentiment_totals"][sentiment] += 1
-        labels = list(SENTIMENT_OPTIONS)
-        negative_start = SENTIMENT_OPTIONS.index("can't trust") if "can't trust" in SENTIMENT_OPTIONS else len(labels)
-        positive_labels = set(labels[:negative_start])
-        negative_labels = set(labels[negative_start:])
-        snapshot["positive"] = int(bool(sentiments & positive_labels))
-        snapshot["negative"] = int(bool(sentiments & negative_labels))
+        if compute_alignment_metrics:
+            snapshot["social_score"] = float(getattr(chart, "social_score", 0) or 0)
+            snapshot["alignment_score"] = float(getattr(chart, "alignment_score", 0) or 0)
+        if compute_sentiment_metrics:
+            sentiments = set(getattr(chart, "sentiments", []) or [])
+            for sentiment in sentiments:
+                if sentiment in snapshot["sentiment_totals"]:
+                    snapshot["sentiment_totals"][sentiment] += 1
+            labels = list(SENTIMENT_OPTIONS)
+            negative_start = SENTIMENT_OPTIONS.index("can't trust") if "can't trust" in SENTIMENT_OPTIONS else len(labels)
+            positive_labels = set(labels[:negative_start])
+            negative_labels = set(labels[negative_start:])
+            snapshot["positive"] = int(bool(sentiments & positive_labels))
+            snapshot["negative"] = int(bool(sentiments & negative_labels))
 
-        use_houses = _chart_uses_houses(chart)
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            if body not in chart.positions:
-                continue
-            sign = _sign_for_longitude(chart.positions[body])
-            snapshot["sign_totals"][sign] += 1
-            snapshot["sign_total_count"] += 1
+        if compute_sign_metrics:
+            use_houses = _chart_uses_houses(chart)
+            for body in PLANET_ORDER:
+                if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                    continue
+                if body not in chart.positions:
+                    continue
+                sign = _sign_for_longitude(chart.positions[body])
+                snapshot["sign_totals"][sign] += 1
+                snapshot["sign_total_count"] += 1
 
-        house_prevalence_counts = _calculate_house_prevalence_counts(chart)
-        for house_num in range(1, 13):
-            count = float(house_prevalence_counts.get(house_num, 0.0))
-            snapshot["house_prevalence_totals"][house_num] += count
-            snapshot["house_prevalence_total_count"] += count
+            house_prevalence_counts = _calculate_house_prevalence_counts(chart)
+            for house_num in range(1, 13):
+                count = float(house_prevalence_counts.get(house_num, 0.0))
+                snapshot["house_prevalence_totals"][house_num] += count
+                snapshot["house_prevalence_total_count"] += count
 
-        element_prevalence_counts = _calculate_element_prevalence_counts(chart)
-        for element in ("Fire", "Earth", "Air", "Water"):
-            count = float(element_prevalence_counts.get(element, 0.0))
-            snapshot["element_prevalence_totals"][element] += count
-            snapshot["element_prevalence_total_count"] += count
+            element_prevalence_counts = _calculate_element_prevalence_counts(chart)
+            for element in ("Fire", "Earth", "Air", "Water"):
+                count = float(element_prevalence_counts.get(element, 0.0))
+                snapshot["element_prevalence_totals"][element] += count
+                snapshot["element_prevalence_total_count"] += count
 
-        nakshatra_prevalence_counts = _calculate_nakshatra_prevalence_counts(chart)
-        for nakshatra_name, *_ in NAKSHATRA_RANGES:
-            count = float(nakshatra_prevalence_counts.get(nakshatra_name, 0.0))
-            snapshot["nakshatra_prevalence_totals"][nakshatra_name] += count
-            snapshot["nakshatra_prevalence_total_count"] += count
+            nakshatra_prevalence_counts = _calculate_nakshatra_prevalence_counts(chart)
+            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+                count = float(nakshatra_prevalence_counts.get(nakshatra_name, 0.0))
+                snapshot["nakshatra_prevalence_totals"][nakshatra_name] += count
+                snapshot["nakshatra_prevalence_total_count"] += count
 
-        for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            sign = _sign_for_longitude(lon)
-            snapshot["position_sign_totals_by_body"][body][sign] += 1
-            snapshot["position_sign_count_by_body"][body] += 1
+            for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS:
+                if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                    continue
+                lon = chart.positions.get(body)
+                if lon is None:
+                    continue
+                sign = _sign_for_longitude(lon)
+                snapshot["position_sign_totals_by_body"][body][sign] += 1
+                snapshot["position_sign_count_by_body"][body] += 1
 
-        dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
-        if not getattr(chart, "dominant_sign_weights", None):
-            chart.dominant_sign_weights = dominant_weights
-        for sign in ZODIAC_NAMES:
-            sign_weight = float(dominant_weights.get(sign, 0.0))
-            if sign_weight <= 0:
-                continue
-            snapshot["dominant_sign_totals"][sign] += sign_weight
-            snapshot["dominant_sign_total_weight"] += sign_weight
-        for sign in self._dominant_sign_top_three_labels(dominant_weights):
-            snapshot["dominant_sign_frequency_totals"][sign] += 1.0
+            dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
+            if not getattr(chart, "dominant_sign_weights", None):
+                chart.dominant_sign_weights = dominant_weights
+            for sign in ZODIAC_NAMES:
+                sign_weight = float(dominant_weights.get(sign, 0.0))
+                if sign_weight <= 0:
+                    continue
+                snapshot["dominant_sign_totals"][sign] += sign_weight
+                snapshot["dominant_sign_total_weight"] += sign_weight
+            for sign in self._dominant_sign_top_three_labels(dominant_weights):
+                snapshot["dominant_sign_frequency_totals"][sign] += 1.0
 
-        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
-        if not dominant_planet_weights:
-            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
-            chart.dominant_planet_weights = dominant_planet_weights
-        for body in snapshot["dominant_planet_weight_totals"].keys():
-            body_weight = float(dominant_planet_weights.get(body, 0.0)) if dominant_planet_weights else 0.0
-            if body_weight <= 0:
-                continue
-            snapshot["dominant_planet_weight_totals"][body] += body_weight
-            snapshot["dominant_planet_weight_total_weight"] += body_weight
-        for body in self._dominant_planet_top_three_labels(dominant_planet_weights):
-            snapshot["dominant_planet_totals"][body] += 1.0
-            snapshot["dominant_planet_total_weight"] += 1.0
+            dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+            if not dominant_planet_weights:
+                dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_planet_weights = dominant_planet_weights
+            for body in snapshot["dominant_planet_weight_totals"].keys():
+                body_weight = float(dominant_planet_weights.get(body, 0.0)) if dominant_planet_weights else 0.0
+                if body_weight <= 0:
+                    continue
+                snapshot["dominant_planet_weight_totals"][body] += body_weight
+                snapshot["dominant_planet_weight_total_weight"] += body_weight
+            for body in self._dominant_planet_top_three_labels(dominant_planet_weights):
+                snapshot["dominant_planet_totals"][body] += 1.0
+                snapshot["dominant_planet_total_weight"] += 1.0
 
-        dominant_house_weights = _calculate_dominant_house_weights(chart)
-        for house_num in range(1, 13):
-            house_weight = float(dominant_house_weights.get(house_num, 0.0))
-            if house_weight <= 0:
-                continue
-            snapshot["dominant_house_weight_totals"][house_num] += house_weight
-            snapshot["dominant_house_weight_total_weight"] += house_weight
-        for house_num in self._dominant_house_top_three_labels(dominant_house_weights):
-            snapshot["dominant_house_totals"][house_num] += 1.0
-            snapshot["dominant_house_total_weight"] += 1.0
+            dominant_house_weights = _calculate_dominant_house_weights(chart)
+            for house_num in range(1, 13):
+                house_weight = float(dominant_house_weights.get(house_num, 0.0))
+                if house_weight <= 0:
+                    continue
+                snapshot["dominant_house_weight_totals"][house_num] += house_weight
+                snapshot["dominant_house_weight_total_weight"] += house_weight
+            for house_num in self._dominant_house_top_three_labels(dominant_house_weights):
+                snapshot["dominant_house_totals"][house_num] += 1.0
+                snapshot["dominant_house_total_weight"] += 1.0
 
-        dominant_element_weights = (
-            getattr(chart, "dominant_element_weights", None)
-            or _calculate_dominant_element_weights(chart)
-        )
-        chart.dominant_element_weights = dominant_element_weights
-        element_order = ["Fire", "Earth", "Air", "Water"]
-        ranked_elements = sorted(
-            element_order,
-            key=lambda element: (-float(dominant_element_weights.get(element, 0.0)), element_order.index(element)),
-        )
-        if ranked_elements and float(dominant_element_weights.get(ranked_elements[0], 0.0)) > 0:
-            snapshot["dominant_element_totals"][ranked_elements[0]] += 1.0
-            snapshot["dominant_element_total_weight"] += 1.0
+            dominant_element_weights = (
+                getattr(chart, "dominant_element_weights", None)
+                or _calculate_dominant_element_weights(chart)
+            )
+            chart.dominant_element_weights = dominant_element_weights
+            element_order = ["Fire", "Earth", "Air", "Water"]
+            ranked_elements = sorted(
+                element_order,
+                key=lambda element: (-float(dominant_element_weights.get(element, 0.0)), element_order.index(element)),
+            )
+            if ranked_elements and float(dominant_element_weights.get(ranked_elements[0], 0.0)) > 0:
+                snapshot["dominant_element_totals"][ranked_elements[0]] += 1.0
+                snapshot["dominant_element_total_weight"] += 1.0
 
         # Human Design analytics intentionally exclude placeholder charts.
-        if not snapshot["is_placeholder"]:
+        if compute_human_design_metrics and not snapshot["is_placeholder"]:
             # Human Design profile metrics (persisted on chart for fast lookup where possible).
             hd_gates, hd_lines, hd_channels, hd_defined_centers, hd_type, hd_authority = self._extract_human_design_profile(chart)
             for gate in hd_gates:
@@ -7611,14 +7640,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["human_design_authority_totals"][hd_authority] += 1.0
                 snapshot["human_design_authority_total_count"] += 1.0
 
-        self._populate_bazi_snapshot(snapshot, chart)
+        if compute_bazi_metrics:
+            self._populate_bazi_snapshot(snapshot, chart)
 
-        for relationship in getattr(chart, "relationship_types", []) or []:
-            if relationship in snapshot["relationship_totals"]:
-                snapshot["relationship_totals"][relationship] += 1
-                snapshot["relationship_total_count"] += 1
+        if compute_relationship_metrics:
+            for relationship in getattr(chart, "relationship_types", []) or []:
+                if relationship in snapshot["relationship_totals"]:
+                    snapshot["relationship_totals"][relationship] += 1
+                    snapshot["relationship_total_count"] += 1
 
-        if not snapshot["is_placeholder"]:
+        if compute_species_metrics and not snapshot["is_placeholder"]:
             try:
                 species_top_three = assign_top_three_species(chart)
             except Exception:
@@ -7849,16 +7880,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._apply_bazi_snapshot_delta(totals, snapshot, direction)
 
     def _refresh_database_metrics_cache(self, force_full_refresh: bool = False) -> None:
+        computed_sections = frozenset(self._expanded_database_metric_sections())
+        if computed_sections != self._database_metrics_snapshot_sections:
+            force_full_refresh = True
         if self._database_metrics_cache is None or force_full_refresh:
             cache = self._empty_database_metrics_cache()
             self._database_metric_snapshots = {}
             active_ids = {row[0] for row in self._chart_rows}
             cache["chart_ids"] = set(active_ids)
             for chart_id in active_ids:
-                snapshot = self._build_chart_metric_snapshot(chart_id)
+                snapshot = self._build_chart_metric_snapshot(
+                    chart_id,
+                    computed_sections=computed_sections,
+                )
                 self._database_metric_snapshots[chart_id] = snapshot
                 self._apply_snapshot_delta(cache, snapshot, 1)
             self._database_metrics_cache = cache
+            self._database_metrics_snapshot_sections = computed_sections
             self._database_metrics_dirty_ids.clear()
             return
         cache = self._database_metrics_cache
@@ -7874,10 +7912,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if previous:
                 self._apply_snapshot_delta(cache, previous, -1)
             self._chart_cache.pop(chart_id, None)
-            current = self._build_chart_metric_snapshot(chart_id)
+            current = self._build_chart_metric_snapshot(
+                chart_id,
+                computed_sections=computed_sections,
+            )
             self._database_metric_snapshots[chart_id] = current
             self._apply_snapshot_delta(cache, current, 1)
         cache["chart_ids"] = set(active_ids)
+        self._database_metrics_snapshot_sections = computed_sections
         self._database_metrics_dirty_ids.clear()
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
@@ -16885,6 +16927,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
         visibility_section.addWidget(species_distribution_checkbox)
+
+        bazi_checkbox = QCheckBox("Show BaZi graphs")
+        bazi_checkbox.setChecked(
+            self._is_database_metrics_section_visible("bazi")
+        )
+        bazi_checkbox.toggled.connect(
+            lambda checked: self._set_database_metric_section_visibility_from_settings(
+                "bazi",
+                checked,
+            )
+        )
+        visibility_section.addWidget(bazi_checkbox)
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
