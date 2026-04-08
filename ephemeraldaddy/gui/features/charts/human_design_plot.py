@@ -88,7 +88,9 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_axes((0.10, 0.10, 0.80, 0.80))
+    # Use (almost) the full canvas so the bodygraph can occupy available space
+    # instead of rendering inside an implicit "footer" margin.
+    ax = figure.add_axes((0.01, 0.01, 0.98, 0.98))
     ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax.set_xlim(0, 1)
