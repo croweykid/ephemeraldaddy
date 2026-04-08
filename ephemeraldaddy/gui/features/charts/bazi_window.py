@@ -154,6 +154,11 @@ _YIN_STEMS: set[str] = {"乙", "丁", "己", "辛", "癸"}
 _YANG_BRANCHES: set[str] = {"子", "寅", "辰", "午", "申", "戌"}
 _YIN_BRANCHES: set[str] = {"丑", "卯", "巳", "未", "酉", "亥"}
 
+YINYANG_COLORS = {
+    "Yin": "#002b2f",
+    "Yang": "#fffddb",
+}
+
 _STEM_ROMANIZATION: dict[str, str] = {
     "甲": "Jia",
     "乙": "Yi",
@@ -704,7 +709,7 @@ def _build_yin_yang_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
     counts = _build_yin_yang_counts(bazi_data)
     labels = ["yang", "yin"]
     values = [counts["yang"], counts["yin"]]
-    colors = ["#ff0000", "#00aa00"]
+    colors = ["#fffddb","#002b2f"] #[YINYANG_COLORS["YANG"],YINYANG_COLORS["YIN"]] #yin & yang colors
 
     figure = Figure(figsize=(3.4, 2.3))
     figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
