@@ -5203,71 +5203,62 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        transit_planet_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
-
-        def _weighted_transit_score(entry: Any) -> float:
-            if isinstance(entry, dict):
-                return max(0.0, float(_aspect_score(entry, planet_weights=transit_planet_weights)))
-            if hasattr(entry, "exactness") and hasattr(entry, "weight"):
-                return max(0.0, float(entry.exactness) * float(entry.weight))
-            return 0.0
-
         chart_info_output = self._build_popout_left_panel(
             layout,
             chart_info_placeholder="Click the ⓘ in chart summary text to see details/interpretation.",
             aspect_entries=list(getattr(chart, "aspects", []) or []),
             export_file_stem=f"{_sanitize_export_token(chart.name)}-transit_aspect_distribution",
-            weighted_score_for_entry=_weighted_transit_score,
+            weighted_score_for_entry=lambda entry: max(
+                0.0,
+                float(
+                    _aspect_score(
+                        entry,
+                        planet_weights=(
+                            getattr(chart, "dominant_planet_weights", None)
+                            or _calculate_dominant_planet_weights(chart)
+                        ),
+                    )
+                ),
+            )
+            if isinstance(entry, dict)
+            else max(0.0, float(getattr(entry, "exactness", 0.0)) * float(getattr(entry, "weight", 0.0))),
         )
 
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
-        date_label_long = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown date"
-        weekday_label = chart.dt.strftime("%A") if chart.dt else "Unknown day"
-        time_label = (
-            "unknown"
-            if getattr(chart, "birthtime_unknown", False)
-            else chart.dt.strftime("%H:%M")
-        )
-        location_label = getattr(self, "_transit_location_label", None) or "Unknown"
-        dialog.setWindowTitle(
-            f"Transit Chart for {time_label} on {weekday_label}, {date_label_long} in {location_label}"
-        )
+        controls_layout = QGridLayout()
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setHorizontalSpacing(8)
+        controls_layout.setVerticalSpacing(6)
 
-        popout_header_layout = QHBoxLayout()
-        popout_header_layout.setContentsMargins(0, 0, 0, 0)
-        popout_header_layout.setSpacing(12)
-
-        popout_header_left = QLabel(
-            "\n".join(
-                [
-                    f"When/Where:     {date_label} @ {time_label} | {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
-                ]
-            )
+        controls_layout.addWidget(QLabel("Date"), 0, 0)
+        popout_date_input = QDateEdit()
+        popout_date_input.setDisplayFormat("yyyy-MM-dd")
+        popout_date_input.setCalendarPopup(True)
+        popout_date_input.setDateRange(
+            QDate(1900, 1, 1),
+            QDate(2100, 12, 31),
         )
-        popout_header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
-        popout_header_left_font = popout_header_left.font()
-        popout_header_left_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
-        popout_header_left.setFont(popout_header_left_font)
-        popout_header_layout.addWidget(popout_header_left, 0, Qt.AlignLeft | Qt.AlignTop)
-        popout_header_layout.addStretch(1)
+        controls_layout.addWidget(popout_date_input, 0, 1)
 
-        right_layout.addLayout(popout_header_layout)
+        controls_layout.addWidget(QLabel("Time"), 0, 2)
+        popout_time_input = QTimeEdit()
+        popout_time_input.setDisplayFormat("HH:mm")
+        controls_layout.addWidget(popout_time_input, 0, 3)
+
+        controls_layout.addWidget(QLabel("Place"), 1, 0)
+        popout_location_input = QLineEdit()
+        popout_location_input.setPlaceholderText("City, Country or lat, lon")
+        controls_layout.addWidget(popout_location_input, 1, 1, 1, 3)
+
+        update_button = QPushButton("Update Chart")
+        controls_layout.addWidget(update_button, 0, 4, 2, 1)
+        right_layout.addLayout(controls_layout)
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
-        draw_chart_wheel(
-            figure,
-            chart,
-            canvas=canvas,
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
-        )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
         summary_controls = QHBoxLayout()
@@ -5294,19 +5285,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
+        state: dict[str, object] = {
+            "chart": chart,
+            "location_label": getattr(self, "_transit_location_label", None) or "Unknown",
+            "raw_location": getattr(self, "_transit_location_label", None) or "",
+            "time_label": "unknown" if getattr(chart, "birthtime_unknown", False) else chart.dt.strftime("%H:%M"),
+            "date_label": chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????",
+        }
+
+        if chart.dt:
+            local_dt = chart.dt.astimezone(datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc)
+            popout_date_input.setDate(QDate(local_dt.year, local_dt.month, local_dt.day))
+            popout_time_input.setTime(QTime(local_dt.hour, local_dt.minute))
+        popout_location_input.setText(str(state["raw_location"]))
+
         transit_file_stem = self._build_transit_export_file_stem(
             chart,
             chart_name_for_personal_transit=chart.name if chart.name.startswith("Personal Transit Chart for ") else None,
         )
 
         def _build_transit_export_text(chart_data_text: str) -> str:
+            active_chart = state["chart"]
+            assert isinstance(active_chart, Chart)
             return "\n".join(
                 [
                     "🌍Transit Chart",
-                    f"Name:       {chart.name}",
-                    f"Date:       {date_label}",
-                    f"Time:       {time_label}",
-                    f"Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}",
+                    f"Name:       {active_chart.name}",
+                    f"Date:       {state['date_label']}",
+                    f"Time:       {state['time_label']}",
+                    f"Location:   {state['location_label']}, {active_chart.lat:.4f}, {active_chart.lon:.4f}",
                     "",
                     chart_data_text,
                 ]
@@ -5334,9 +5341,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         def _refresh_summary() -> None:
+            active_chart = state["chart"]
+            assert isinstance(active_chart, Chart)
             sort_mode = summary_sort_combo.currentText()
             chart_summary_text, position_info_map, aspect_info_map, species_info_map = format_chart_text(
-                chart,
+                active_chart,
                 aspect_sort=sort_mode,
                 **self._chart_data_visibility_options(),
             )
@@ -5354,7 +5363,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 elif stripped.startswith("🐣time:"):
                     transit_visible_lines.append(line.replace("🐣time:", "Time:", 1))
                 elif stripped.startswith("🐣place:"):
-                    transit_visible_lines.append(f"🐣Location:   {location_label}, {chart.lat:.4f}, {chart.lon:.4f}")
+                    transit_visible_lines.append(
+                        f"🐣Location:   {state['location_label']}, {active_chart.lat:.4f}, {active_chart.lon:.4f}"
+                    )
                 else:
                     transit_visible_lines.append(line)
             summary_output.setPlainText("\n".join(transit_visible_lines))
@@ -5363,8 +5374,93 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_context["species_info_map"] = species_info_map
             popout_context["summary_block_offset"] = positions_start_index
 
+        def _redraw() -> None:
+            active_chart = state["chart"]
+            assert isinstance(active_chart, Chart)
+            dialog.setWindowTitle(
+                f"Transit Chart for {state['time_label']} on {active_chart.dt.strftime('%A') if active_chart.dt else 'Unknown day'}, {active_chart.dt.strftime('%Y-%m-%d') if active_chart.dt else 'Unknown date'} in {state['location_label']}"
+            )
+            figure.clear()
+            draw_chart_wheel(
+                figure,
+                active_chart,
+                canvas=canvas,
+                wheel_padding=0.03,
+                show_title=False,
+                symbol_scale=0.7,
+            )
+            canvas.draw_idle()
+            self._transit_popout_chart_by_dialog[dialog] = active_chart
+            _refresh_summary()
+
+        def _resolve_popout_location(raw_value: str) -> tuple[float, float, str] | None:
+            value = raw_value.strip()
+            if not value:
+                active_chart = state["chart"]
+                assert isinstance(active_chart, Chart)
+                return float(active_chart.lat), float(active_chart.lon), str(state["location_label"])
+
+            if "," in value:
+                maybe_lat, maybe_lon = value.split(",", 1)
+                try:
+                    parsed_lat = float(maybe_lat.strip())
+                    parsed_lon = float(maybe_lon.strip())
+                    if -90.0 <= parsed_lat <= 90.0 and -180.0 <= parsed_lon <= 180.0:
+                        return parsed_lat, parsed_lon, f"{parsed_lat:.4f}, {parsed_lon:.4f}"
+                except ValueError:
+                    pass
+
+            try:
+                lat, lon, resolved_label = geocode_location(value)
+            except LocationLookupError as error:
+                QMessageBox.warning(
+                    dialog,
+                    "Location lookup failed",
+                    f"Could not resolve location '{value}'.\n{error}",
+                )
+                return None
+            return float(lat), float(lon), resolved_label
+
+        def _on_update_chart() -> None:
+            resolved_location = _resolve_popout_location(popout_location_input.text())
+            if resolved_location is None:
+                return
+            lat, lon, location_label = resolved_location
+
+            local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
+            selected_date = popout_date_input.date()
+            selected_time = popout_time_input.time()
+            selected_local = datetime.datetime(
+                selected_date.year(),
+                selected_date.month(),
+                selected_date.day(),
+                selected_time.hour(),
+                selected_time.minute(),
+                tzinfo=local_tz,
+            )
+            selected_utc = selected_local.astimezone(datetime.timezone.utc)
+
+            updated_chart = Chart(
+                "🌍Transit View",
+                selected_utc,
+                lat,
+                lon,
+                tz=datetime.timezone.utc,
+            )
+            updated_chart.birthtime_unknown = False
+            updated_chart.retcon_time_used = False
+
+            state["chart"] = updated_chart
+            state["location_label"] = location_label
+            state["raw_location"] = popout_location_input.text().strip() or location_label
+            state["time_label"] = updated_chart.dt.strftime("%H:%M") if updated_chart.dt else "unknown"
+            state["date_label"] = updated_chart.dt.strftime("%m.%d.%Y") if updated_chart.dt else "??.??.????"
+
+            _redraw()
+
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
-        _refresh_summary()
+        update_button.clicked.connect(_on_update_chart)
+        _redraw()
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
