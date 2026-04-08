@@ -8,7 +8,7 @@ from ephemeraldaddy.core.human_design_system import CHANNELS
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
-CENTER_POSITIONS: dict[str, tuple[float, float]] = {
+BASE_CENTER_POSITIONS: dict[str, tuple[float, float]] = {
     "Head": (0.5, 0.94),
     "Ajna": (0.5, 0.772),
     "Throat": (0.5, 0.604),
@@ -19,6 +19,29 @@ CENTER_POSITIONS: dict[str, tuple[float, float]] = {
     "Sacral": (0.5, 0.268),
     "Root": (0.5, 0.10),
 }
+
+CENTER_LAYOUT_ANCHOR_X = 0.5
+CENTER_LAYOUT_ANCHOR_Y = 0.94
+CENTER_LAYOUT_HORIZONTAL_SCALE = 1.12
+CENTER_LAYOUT_VERTICAL_SCALE = 1.16
+CENTER_LAYOUT_DEPTH_RIGHT_DRIFT = 0.022
+
+
+def _expand_center_layout(base_positions: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+    expanded: dict[str, tuple[float, float]] = {}
+    for center_name, (x_value, y_value) in base_positions.items():
+        depth = CENTER_LAYOUT_ANCHOR_Y - y_value
+        expanded_x = (
+            CENTER_LAYOUT_ANCHOR_X
+            + ((x_value - CENTER_LAYOUT_ANCHOR_X) * CENTER_LAYOUT_HORIZONTAL_SCALE)
+            + (depth * CENTER_LAYOUT_DEPTH_RIGHT_DRIFT)
+        )
+        expanded_y = CENTER_LAYOUT_ANCHOR_Y - (depth * CENTER_LAYOUT_VERTICAL_SCALE)
+        expanded[center_name] = (expanded_x, expanded_y)
+    return expanded
+
+
+CENTER_POSITIONS = _expand_center_layout(BASE_CENTER_POSITIONS)
 
 CENTER_HALF_WIDTH = 0.08
 CENTER_HALF_HEIGHT = 0.045
