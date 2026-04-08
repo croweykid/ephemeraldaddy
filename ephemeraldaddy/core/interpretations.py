@@ -586,7 +586,7 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     },
 }
 
-CHINESE_ZODIAC_SIGNS = {
+BAZI_ZODIAC = {
     "rat": {
         "color": "#5f6874",  # smoky blue-gray
         "one_liner": "Keeper of openings; where others see scarcity, Rat notices the one usable passage."
@@ -2075,9 +2075,9 @@ SIGN_KEYWORDS = {
         ],
         "best_adverbs": [
             "energetically", "imaginatively", "magnetically", "disruptively", "electrically",
-            "in an emotionally rich way", "alively", "creatively", "in a free-spirited way",
+            "in an emotionally rich way", "vivaciously", "creatively", "in a free-spirited way",
             "intensely", "originally", "surprisingly", "expressively", "rebelliously",
-            "generatively", "charismatically", "in a self-redefining way",
+            "generatively", "charismatically", "in a self-redefining way","aggressively",
         ],
         "worst_adverbs": [
             "in a disordered way", "unstably", "in a self-destructive way", "impulsively",
@@ -2388,13 +2388,13 @@ PLANET_KEYWORDS = {
             "eccentricity", "independence", "deviation", "liberation", "upheaval","glitches", "shocking behavior", 
         ],
         "verbs": [
-            "disrupting", "breaking patterns with", "experimenting", "improvising", "innovating",
-            "challenging rules", "surprising", "deviating from", "liberating", "destabilizing",
-            "electrifying", "refusing",
+            "disrupting", "experimenting", "improvising", "innovating","disrupting the status quo of",
+            "challenging rules of", "surprising", "deviating from", "liberating", "destabilizing",
+            "electrifying", "refusing","defying norms of",
         ],
         "verbsonly": [
             "disrupting", "breaking patterns", "experimenting", "improvising", "innovating",
-            "challenging rules", "surprising", "deviating", "liberating", "destabilizing",
+            "defying", "surprising", "deviating", "liberating", "destabilizing",
             "electrifying", "refusing",
         ],
         "definition1":"",
