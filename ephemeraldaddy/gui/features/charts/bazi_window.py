@@ -445,8 +445,14 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
     branch_color = _color_from_bazi_element(branch_element_key)
     stem_link = (
         f"<a href='bazi-element:{stem_element_key}' "
-        f"style='color:{stem_color}; text-decoration: underline;'>"
+        f"style='color:{stem_color}; text-decoration: none;'>"
         f"{_safe_html(stem_english)}</a>"
+    )
+    zodiac_key = str(branch_english or "").strip().lower()
+    branch_link = (
+        f"<a href='bazi-zodiac:{zodiac_key}' "
+        f"style='color:{branch_color}; text-decoration: none;'>"
+        f"{_safe_html(branch_english)}</a>"
     )
 
     stem_cell = (
@@ -455,7 +461,7 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
         f"{_safe_html(stem_yin_yang)} {_safe_html(stem_roman)}</span>)"
     )
     branch_cell = (
-        f"{_safe_html(branch_english)} "
+        f"{branch_link} "
         f"(<span style='color:{CHART_THEME_COLORS['muted_text']};'>{_safe_html(branch_char)}; "
         f"{_safe_html(branch_yin_yang)} {_safe_html(branch_roman)}</span>)"
     )
@@ -871,19 +877,26 @@ def create_bazi_window_dialog(
         chart_info_panel.setText(f"{title}\n{body}")
 
     def _on_details_link_clicked(url: QUrl) -> None:
-        element_key = str(url.toString() or "").split(":", 1)[-1].strip().lower()
-        element_data = BAZI_ELEMENTS.get(element_key, {})
-        if not isinstance(element_data, dict):
+        raw_target = str(url.toString() or "").strip()
+        target_type, _, target_key = raw_target.partition(":")
+        normalized_type = target_type.strip().lower()
+        normalized_key = target_key.strip().lower()
+        summary = ""
+        info_title = ""
+        if normalized_type == "bazi-element":
+            element_data = BAZI_ELEMENTS.get(normalized_key, {})
+            if isinstance(element_data, dict):
+                summary = str(element_data.get("one_liner", "") or "").strip()
+                info_title = f"Element: {normalized_key.capitalize()}"
+        elif normalized_type == "bazi-zodiac":
+            zodiac_data = BAZI_ZODIAC.get(normalized_key, {})
+            if isinstance(zodiac_data, dict):
+                summary = str(zodiac_data.get("one_liner", "") or "").strip()
+                info_title = f"Zodiac: {normalized_key.capitalize()}"
+        if not summary or not info_title:
             chart_info_panel.setText(default_chart_info_text)
             return
-        summary = str(element_data.get("one_liner", "") or "").strip()
-        if not summary:
-            chart_info_panel.setText(default_chart_info_text)
-            return
-        _set_chart_info_panel_content(
-            f"Element: {element_key.capitalize()}",
-            summary,
-        )
+        _set_chart_info_panel_content(info_title, summary)
 
     details_output.anchorClicked.connect(_on_details_link_clicked)
 
