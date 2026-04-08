@@ -45,11 +45,18 @@ CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for cent
 
 CHANNEL_SPACING = 0.014
 BODYGRAPH_VERTICAL_OFFSET = -0.07
+BODYGRAPH_CONTENT_SCALE = 0.65
+BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
+ACTIVATION_AXES_BOUNDS = (0.70, 0.02, 0.28, 0.96)
+
+
+def _offset_center_y(y_value: float) -> float:
+    return y_value + BODYGRAPH_VERTICAL_OFFSET
 
 
 def _center_sort_key(center_name: str) -> tuple[float, float]:
     x, y = CENTER_POSITIONS[center_name]
-    y += BODYGRAPH_VERTICAL_OFFSET
+    y = _offset_center_y(y)
     return (-y, x)
 
 
@@ -88,16 +95,26 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_axes((0.10, 0.10, 0.80, 0.80))
-    ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
-    ax.set_xlim(0, 1)
-    center_min_y = min(y - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    center_max_y = max(y + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    vertical_padding = 0.02
-    ax.set_ylim(center_min_y - vertical_padding, center_max_y + vertical_padding)
+    ax = figure.add_axes(BODYGRAPH_AXES_BOUNDS)
+    ax.set_facecolor(chart_theme_colors["background"])
+    text_ax = figure.add_axes(ACTIVATION_AXES_BOUNDS)
+    text_ax.set_facecolor(chart_theme_colors["background"])
+    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) - 0.03
+    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) + 0.03
+    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) - 0.03
+    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) + 0.03
+    content_center_x = (center_min_x + center_max_x) / 2.0
+    content_center_y = (center_min_y + center_max_y) / 2.0
+    scaled_half_width = ((center_max_x - center_min_x) / BODYGRAPH_CONTENT_SCALE) / 2.0
+    scaled_half_height = ((center_max_y - center_min_y) / BODYGRAPH_CONTENT_SCALE) / 2.0
+    ax.set_xlim(content_center_x - scaled_half_width, content_center_x + scaled_half_width)
+    ax.set_ylim(content_center_y - scaled_half_height, content_center_y + scaled_half_height)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
+    text_ax.set_xlim(0.0, 1.0)
+    text_ax.set_ylim(0.0, 1.0)
+    text_ax.axis("off")
     unique_channels: list[tuple[int, int, str, str]] = []
     seen_channel_pairs: set[tuple[int, int]] = set()
     for gate_a, gate_b, center_a, center_b in CHANNELS:
@@ -137,14 +154,14 @@ def draw_human_design_chart(
         channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
-        y1 += BODYGRAPH_VERTICAL_OFFSET
-        y2 += BODYGRAPH_VERTICAL_OFFSET
+        y1 = _offset_center_y(y1)
+        y2 = _offset_center_y(y2)
 
         if channel_key == (20, 34):
             sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
             throat_x, throat_y = CENTER_POSITIONS["Throat"]
-            sacral_y += BODYGRAPH_VERTICAL_OFFSET
-            throat_y += BODYGRAPH_VERTICAL_OFFSET
+            sacral_y = _offset_center_y(sacral_y)
+            throat_y = _offset_center_y(throat_y)
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
@@ -268,7 +285,7 @@ def draw_human_design_chart(
         )
 
     for center_name, (x, y) in CENTER_POSITIONS.items():
-        y += BODYGRAPH_VERTICAL_OFFSET
+        y = _offset_center_y(y)
         defined = center_name in hd_result.defined_centers
         edge = "#c8914f" if defined else chart_theme_colors["spine"]
         fill = CENTER_FILL_COLORS.get(center_name, "#2f3d45") #"#2f3d45" if defined else "#2a2a2a"
@@ -286,11 +303,11 @@ def draw_human_design_chart(
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
 
     
-    ax.text(0.86, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    text_ax.text(0.52, 0.98, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.personality_activations):
-        ax.text(
-            0.86,
-            0.94 - (idx * 0.028),
+        text_ax.text(
+            0.52,
+            0.95 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,
@@ -298,11 +315,11 @@ def draw_human_design_chart(
             va="top",
         )
 
-    ax.text(0.72, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    text_ax.text(0.02, 0.98, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.design_activations):
-        ax.text(
-            0.72,
-            0.94 - (idx * 0.028),
+        text_ax.text(
+            0.02,
+            0.95 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,
