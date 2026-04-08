@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import csv
 import math
+import numpy as np
 import re
 import statistics
 import textwrap
@@ -13,6 +14,7 @@ from collections import Counter
 from typing import Any, Callable
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFileDialog, QLabel, QLayout, QMessageBox, QSizePolicy
@@ -22,6 +24,7 @@ from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
+    BAZI_ELEMENTS,
     BAZI_ZODIAC,
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -203,6 +206,18 @@ class DatabaseAnalyticsChartsMixin:
         "土": "Earth", #🗿⛰️
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
+    }
+    BAZI_STEM_TO_ELEMENT_KEY: dict[str, str] = {
+        "甲": "wood",
+        "乙": "wood",
+        "丙": "fire",
+        "丁": "fire",
+        "戊": "earth",
+        "己": "earth",
+        "庚": "metal",
+        "辛": "metal",
+        "壬": "water",
+        "癸": "water",
     }
 
     def _build_database_subheader_label(self, text: str = "") -> QLabel:
@@ -2453,15 +2468,10 @@ class DatabaseAnalyticsChartsMixin:
             display_label_by_raw.get(label, label): int(database_bazi_counts.get(label, 0))
             for label in bazi_labels
         }
-        bazi_bar_colors = None
-        if bazi_mode == "animals":
-            bazi_bar_colors = []
-            for raw_label in bazi_labels:
-                english_animal = str(self.BAZI_BRANCH_TRANSLATIONS.get(str(raw_label), "")).strip().casefold()
-                color = str(
-                    (BAZI_ZODIAC.get(english_animal, {}) or {}).get("color", "")
-                ).strip()
-                bazi_bar_colors.append(color or "#6fa8dc")
+        bazi_bar_colors = [
+            self._resolve_bazi_bar_color(mode=bazi_mode, raw_label=raw_label)
+            for raw_label in bazi_labels
+        ]
         if should_refresh("bazi"):
             self._clear_layout(self.bazi_chart_layout)
             if display_labels:
@@ -2559,7 +2569,7 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         auto_height: bool = False,
         use_earthtone_cycle: bool = False,
-        bar_colors: list[str] | None = None,
+        bar_colors: list[str | tuple[str, str]] | None = None,
         emoji_label_font_family: list[str] | None = None,
     ) -> FigureCanvas:
         chart_height = max(2.8, min(12.0, (len(labels) * 0.32) + 0.8)) if auto_height else 2.8
@@ -2590,6 +2600,8 @@ class DatabaseAnalyticsChartsMixin:
             ]
         if loaded_charts == 0:
             bars = ax.barh(positions, database_counts, color=colors, height=0.55, zorder=2)
+            if bar_colors is not None:
+                self._apply_bar_fill_styles(ax, bars, colors)
             max_value = max(database_counts, default=0)
             self._set_x_limits_with_padding(ax, 0.0, float(max(1, max_value)))
             for bar, value in zip(bars, database_counts):
@@ -2626,6 +2638,8 @@ class DatabaseAnalyticsChartsMixin:
                 height=0.55,
                 zorder=2,
             )
+            if bar_colors is not None:
+                self._apply_bar_fill_styles(ax, bars, colors)
             ax.set_xlim(-1, 1)
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
@@ -2667,6 +2681,78 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    def _resolve_bazi_bar_color(
+        self,
+        *,
+        mode: str,
+        raw_label: str,
+    ) -> str | tuple[str, str]:
+        normalized_label = str(raw_label or "").strip()
+        fallback_color = "#6fa8dc"
+        if mode == "elements":
+            element_color = self._bazi_element_color_for_value(normalized_label)
+            return element_color or fallback_color
+        if mode == "animals":
+            animal_color = self._bazi_animal_color_for_value(normalized_label)
+            return animal_color or fallback_color
+        if len(normalized_label) == 2:
+            stem_element_key = self.BAZI_STEM_TO_ELEMENT_KEY.get(normalized_label[0], "")
+            element_color = str((BAZI_ELEMENTS.get(stem_element_key, {}) or {}).get("color", "")).strip()
+            animal_color = self._bazi_animal_color_for_value(normalized_label[1])
+            if animal_color and element_color:
+                return (animal_color, element_color)
+            return animal_color or element_color or fallback_color
+        return fallback_color
+
+    def _bazi_element_color_for_value(self, value: str) -> str:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return ""
+        if normalized in self.BAZI_STEM_TO_ELEMENT_KEY:
+            element_key = self.BAZI_STEM_TO_ELEMENT_KEY.get(normalized, "")
+            return str((BAZI_ELEMENTS.get(element_key, {}) or {}).get("color", "")).strip()
+        english_element = str(self.BAZI_ELEMENT_TRANSLATIONS.get(normalized, normalized)).strip().casefold()
+        return str((BAZI_ELEMENTS.get(english_element, {}) or {}).get("color", "")).strip()
+
+    def _bazi_animal_color_for_value(self, value: str) -> str:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return ""
+        english_animal = str(self.BAZI_BRANCH_TRANSLATIONS.get(normalized, normalized)).strip().casefold()
+        return str((BAZI_ZODIAC.get(english_animal, {}) or {}).get("color", "")).strip()
+
+    def _apply_bar_fill_styles(
+        self,
+        ax,
+        bars,
+        colors: list[str | tuple[str, str]],
+    ) -> None:
+        for bar, color in zip(bars, colors):
+            if isinstance(color, tuple) and len(color) == 2:
+                start_rgba = np.array(to_rgba(color[0]), dtype=float)
+                end_rgba = np.array(to_rgba(color[1]), dtype=float)
+                gradient_steps = np.linspace(0.0, 1.0, 256)
+                gradient = start_rgba + ((end_rgba - start_rgba) * gradient_steps[:, None])
+                gradient_image = gradient[None, :, :]
+                x_start = float(bar.get_x())
+                x_end = x_start + float(bar.get_width())
+                x_min, x_max = (x_start, x_end) if x_start <= x_end else (x_end, x_start)
+                y_min = float(bar.get_y())
+                y_max = y_min + float(bar.get_height())
+                image = ax.imshow(
+                    gradient_image,
+                    aspect="auto",
+                    extent=[x_min, x_max, y_min, y_max],
+                    origin="lower",
+                    interpolation="bicubic",
+                    zorder=bar.get_zorder(),
+                )
+                image.set_clip_path(bar)
+                bar.set_facecolor((0, 0, 0, 0))
+            else:
+                bar.set_facecolor(color)
+
     @staticmethod
     def _database_analytics_figure_facecolor() -> str:
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
