@@ -25022,6 +25022,8 @@ class MainWindow(QMainWindow):
         )
 
         right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
         layout.addLayout(right_layout, 3)
 
         date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
