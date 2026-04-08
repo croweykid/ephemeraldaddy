@@ -3347,16 +3347,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         panel.setMinimumWidth(260)
         panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout()
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
         panel.setLayout(layout)
 
-        section_layout = self._add_left_panel_collapsible_section(
-            panel,
-            layout,
-            "🌍Transit View",
-            expanded=True,
-        )
+        title = QLabel("🌍Transit View")
+        title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        layout.addWidget(title)
 
         controls_layout = QHBoxLayout()
         controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -3383,7 +3381,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         controls_layout.addWidget(self.transit_time_input)
 
-        section_layout.addLayout(controls_layout)
+        layout.addLayout(controls_layout)
 
         location_layout = QHBoxLayout()
         location_layout.setContentsMargins(0, 0, 0, 0)
@@ -3402,13 +3400,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         location_layout.addWidget(self.transit_location_button)
 
-        section_layout.addLayout(location_layout)
+        layout.addLayout(location_layout)
 
         self.transit_location_label = QLabel("Location: 0.0, 0.0 (UTC)")
         self.transit_location_label.setStyleSheet(
             "font-size: 11px; color: #a5a5a5; padding: 0 2px 4px 2px;"
         )
-        section_layout.addWidget(self.transit_location_label)
+        layout.addWidget(self.transit_location_label)
 
         personal_transit_controls_layout = QHBoxLayout()
         personal_transit_controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -3440,14 +3438,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         personal_transit_controls_layout.addWidget(self.generate_personal_transit_button)
 
-        section_layout.addLayout(personal_transit_controls_layout)
+        layout.addLayout(personal_transit_controls_layout)
 
         self.transit_use_time_checkbox = QCheckBox("Use exact time")
         self.transit_use_time_checkbox.setChecked(True)
         self.transit_use_time_checkbox.toggled.connect(
             self._on_transit_use_time_toggled
         )
-        section_layout.addWidget(self.transit_use_time_checkbox)
+        layout.addWidget(self.transit_use_time_checkbox)
 
         self._refresh_personal_transit_chart_options()
 
@@ -3456,14 +3454,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_updated_label.setStyleSheet(
             "font-size: 11px; color: #a5a5a5; padding: 0 2px 4px 2px;"
         )
-        section_layout.addWidget(self.todays_transits_updated_label)
+        layout.addWidget(self.todays_transits_updated_label)
 
         self.todays_transits_chart_container = QWidget()
         self.todays_transits_chart_layout = QVBoxLayout()
         self.todays_transits_chart_layout.setContentsMargins(0, 0, 0, 0)
         self.todays_transits_chart_layout.setAlignment(Qt.AlignTop)
         self.todays_transits_chart_container.setLayout(self.todays_transits_chart_layout)
-        section_layout.addWidget(self.todays_transits_chart_container)
+        layout.addWidget(self.todays_transits_chart_container)
 
         self.todays_transits_output = QPlainTextEdit()
         self.todays_transits_output.setReadOnly(True)
@@ -3477,11 +3475,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.todays_transits_output.setMinimumHeight(140)
         self.todays_transits_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        section_layout.addWidget(self.todays_transits_output, 1)
+        layout.addWidget(self.todays_transits_output, 1)
 
         refresh_button = QPushButton("Refresh Transit View")
         refresh_button.clicked.connect(self._refresh_todays_transits_panel)
-        section_layout.addWidget(refresh_button)
+        layout.addWidget(refresh_button)
 
         return panel
 
