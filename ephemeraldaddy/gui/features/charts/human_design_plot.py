@@ -22,26 +22,26 @@ BASE_CENTER_POSITIONS: dict[str, tuple[float, float]] = {
 
 CENTER_LAYOUT_ANCHOR_X = 0.5
 CENTER_LAYOUT_ANCHOR_Y = 0.94
-CENTER_LAYOUT_HORIZONTAL_SCALE = 1.12
-CENTER_LAYOUT_VERTICAL_SCALE = 1.16
-CENTER_LAYOUT_DEPTH_RIGHT_DRIFT = 0.022
+CENTER_HORIZONTAL_SPREAD = 1.14
+CENTER_VERTICAL_SPREAD = 1.04
+CENTER_DEPTH_RIGHT_DRIFT = 0.02
 
 
-def _expand_center_layout(base_positions: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
-    expanded: dict[str, tuple[float, float]] = {}
+def _spread_center_positions(base_positions: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+    spread_positions: dict[str, tuple[float, float]] = {}
     for center_name, (x_value, y_value) in base_positions.items():
         depth = CENTER_LAYOUT_ANCHOR_Y - y_value
-        expanded_x = (
+        spread_x = (
             CENTER_LAYOUT_ANCHOR_X
-            + ((x_value - CENTER_LAYOUT_ANCHOR_X) * CENTER_LAYOUT_HORIZONTAL_SCALE)
-            + (depth * CENTER_LAYOUT_DEPTH_RIGHT_DRIFT)
+            + ((x_value - CENTER_LAYOUT_ANCHOR_X) * CENTER_HORIZONTAL_SPREAD)
+            + (depth * CENTER_DEPTH_RIGHT_DRIFT)
         )
-        expanded_y = CENTER_LAYOUT_ANCHOR_Y - (depth * CENTER_LAYOUT_VERTICAL_SCALE)
-        expanded[center_name] = (expanded_x, expanded_y)
-    return expanded
+        spread_y = CENTER_LAYOUT_ANCHOR_Y - (depth * CENTER_VERTICAL_SPREAD)
+        spread_positions[center_name] = (spread_x, spread_y)
+    return spread_positions
 
 
-CENTER_POSITIONS = _expand_center_layout(BASE_CENTER_POSITIONS)
+CENTER_POSITIONS = _spread_center_positions(BASE_CENTER_POSITIONS)
 
 CENTER_HALF_WIDTH = 0.08
 CENTER_HALF_HEIGHT = 0.045
@@ -123,10 +123,10 @@ def draw_human_design_chart(
     ax.set_facecolor(chart_theme_colors["background"])
     text_ax = figure.add_axes(ACTIVATION_AXES_BOUNDS)
     text_ax.set_facecolor(chart_theme_colors["background"])
-    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) - 0.03
-    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) + 0.03
-    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) - 0.03
-    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) + 0.03
+    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in BASE_CENTER_POSITIONS.items()) - 0.03
+    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in BASE_CENTER_POSITIONS.items()) + 0.03
+    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in BASE_CENTER_POSITIONS.items()) - 0.03
+    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in BASE_CENTER_POSITIONS.items()) + 0.03
     content_center_x = (center_min_x + center_max_x) / 2.0
     content_center_y = (center_min_y + center_max_y) / 2.0
     scaled_half_width = ((center_max_x - center_min_x) / BODYGRAPH_CONTENT_SCALE) / 2.0
