@@ -166,7 +166,7 @@ class ChartPredictorQuizDialog(QDialog):
 
         intro = QLabel(
             "Answer the prompts and this quiz will estimate your dominant bodies and houses\n"
-            "using Ephemeral Daddy's natal weighting constants plus your selected vibes."
+            "using Ephemeral Daddy's natal weighting constants and your answers."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -177,10 +177,10 @@ class ChartPredictorQuizDialog(QDialog):
 
         self._results = QPlainTextEdit()
         self._results.setReadOnly(True)
-        self._results.setPlaceholderText("Select one answer per question, then click Predict My Chart Flavor.")
+        self._results.setPlaceholderText("Select one answer per question, then click Predict Chart.")
         layout.addWidget(self._results, 1)
 
-        run_button = QPushButton("Predict My Chart Flavor")
+        run_button = QPushButton("Predict Chart")
         run_button.clicked.connect(self._run_quiz)
         layout.addWidget(run_button, 0, Qt.AlignRight)
 
@@ -202,6 +202,9 @@ class ChartPredictorQuizDialog(QDialog):
             group.addButton(button)
             option_buttons.append(button)
 
+        if option_buttons:
+            option_buttons[0].setChecked(True)
+
         self._button_groups.append(group)
         self._question_buttons.append(option_buttons)
         return container
@@ -209,15 +212,14 @@ class ChartPredictorQuizDialog(QDialog):
     def _run_quiz(self) -> None:
         selections: list[QuizOption] = []
         for group_index, button_group in enumerate(self._button_groups):
-            checked_id = button_group.checkedId()
-            if checked_id < 0:
+            checked_button = button_group.checkedButton()
+            if checked_button is None:
                 QMessageBox.information(
                     self,
                     "Incomplete quiz",
                     f"Please answer question {group_index + 1} before running the prediction.",
                 )
                 return
-            checked_button = button_group.checkedButton()
             option_index = self._question_buttons[group_index].index(checked_button)
             selections.append(QUIZ_QUESTIONS[group_index].options[option_index])
 
