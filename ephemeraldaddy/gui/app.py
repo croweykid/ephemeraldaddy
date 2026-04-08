@@ -22501,6 +22501,11 @@ class MainWindow(QMainWindow):
         )
         self.raise_()
         self.activateWindow()
+        if self._latest_chart is not None and not getattr(self._latest_chart, "is_placeholder", False):
+            # If chart rendering was queued while Chart View was hidden, analytics
+            # sections that require visible widgets (like Similar Charts) may have
+            # been skipped. Re-schedule now that the window is visible.
+            self._schedule_chart_render(self._latest_chart)
 
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
