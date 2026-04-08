@@ -679,6 +679,9 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
     create_bazi_window_dialog,
     validate_chart_for_bazi,
 )
+from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
+    create_chart_predictor_quiz_dialog,
+)
 
 
 class SegmentedTimeEdit(QLineEdit):
@@ -21162,6 +21165,13 @@ class MainWindow(QMainWindow):
 
     def on_open_bazi_window(self) -> None:
         self._open_bazi_window(self._latest_chart)
+
+    def on_open_chart_predictor_quiz(self) -> None:
+        dialog = create_chart_predictor_quiz_dialog(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def on_show_chart_analytics_panel(self) -> None:
         if not self.chart_analytics_panel_button.isEnabled():
