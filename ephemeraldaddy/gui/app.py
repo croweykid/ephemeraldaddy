@@ -1470,8 +1470,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._search_location_state_input = None
         self.living_checkbox = None
         self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
-        self._dominant_element_primary_combo = None
-        self._dominant_element_secondary_combo = None
+        self._dominant_element_filters = []
         self._suppress_filter_refresh = False
         self._filter_refresh_running = False
         self._filter_refresh_pending = False
@@ -8106,16 +8105,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
             if filters["mode"].currentData() != "Any"
         ]
-        dominant_element_primary = (
-            self._dominant_element_primary_combo.currentData()
-            if self._dominant_element_primary_combo is not None
-            else "Any"
-        )
-        dominant_element_secondary = (
-            self._dominant_element_secondary_combo.currentData()
-            if self._dominant_element_secondary_combo is not None
-            else "Any"
-        )
+        active_dominant_element_filters = [
+            filters
+            for filters in self._dominant_element_filters
+            if str(filters["element"].currentData()) != "Any"
+        ]
         year_first_encountered_earliest = (
             self._year_first_encountered_earliest_input.text().strip()
             if self._year_first_encountered_earliest_input is not None
@@ -8252,11 +8246,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
             and not active_dominant_mode_filters
-            and dominant_element_primary == "Any"
+            and not active_dominant_element_filters
             and not year_first_encountered_earliest
             and not year_first_encountered_latest
             and year_first_encountered_blank_state == QuadStateSlider.MODE_EMPTY
-            and dominant_element_secondary == "Any"
             and not selected_chart_types
             and not excluded_chart_types
             and not selected_data_ratings
@@ -10634,27 +10627,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dominant_element_layout.setLabelAlignment(Qt.AlignLeft)
         dominant_element_group_layout.addLayout(dominant_element_layout)
 
-        primary_row = QHBoxLayout()
-        primary_row.addWidget(QLabel("1st"))
-        self._dominant_element_primary_combo = QComboBox()
-        apply_default_dropdown_style(self._dominant_element_primary_combo)
-        self._dominant_element_primary_combo.addItem("Any", "Any")
-        for element in ("Fire", "Earth", "Air", "Water"):
-            self._dominant_element_primary_combo.addItem(element, element)
-        self._dominant_element_primary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-        primary_row.addWidget(self._dominant_element_primary_combo, 1)
-        dominant_element_layout.addRow(primary_row)
+        for _ in range(3):
+            dominant_element_row = QWidget()
+            dominant_element_row_layout = QHBoxLayout()
+            dominant_element_row_layout.setContentsMargins(0, 0, 0, 0)
+            dominant_element_row.setLayout(dominant_element_row_layout)
 
-        secondary_row = QHBoxLayout()
-        secondary_row.addWidget(QLabel("2nd"))
-        self._dominant_element_secondary_combo = QComboBox()
-        apply_default_dropdown_style(self._dominant_element_secondary_combo)
-        self._dominant_element_secondary_combo.addItem("Any", "Any")
-        for element in ("Fire", "Earth", "Air", "Water"):
-            self._dominant_element_secondary_combo.addItem(element, element)
-        self._dominant_element_secondary_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
-        secondary_row.addWidget(self._dominant_element_secondary_combo, 1)
-        dominant_element_layout.addRow(secondary_row)
+            element_combo = QComboBox()
+            apply_default_dropdown_style(element_combo)
+            element_combo.addItem("Any", "Any")
+            for element in ("Fire", "Earth", "Air", "Water"):
+                element_combo.addItem(element, element)
+            element_combo.currentIndexChanged.connect(self._on_astrological_filter_changed)
+
+            filter_and = QRadioButton("AND")
+            filter_or = QRadioButton("OR")
+            filter_group = QButtonGroup(dominant_element_row)
+            filter_group.setExclusive(True)
+            filter_group.addButton(filter_and)
+            filter_group.addButton(filter_or)
+            filter_and.setChecked(True)
+            filter_group.buttonClicked.connect(self._on_filter_changed)
+
+            dominant_element_row_layout.addWidget(QLabel("🧪"))
+            dominant_element_row_layout.addWidget(element_combo, 1)
+            dominant_element_row_layout.addWidget(filter_and)
+            dominant_element_row_layout.addWidget(filter_or)
+
+            self._dominant_element_filters.append({
+                "element": element_combo,
+                "and": filter_and,
+                "or": filter_or,
+            })
+            dominant_element_layout.addRow(dominant_element_row)
 
         layout.addWidget(dominant_element_section)
 
@@ -14208,14 +14213,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
         ):
             return True
-        if (
-            self._dominant_element_primary_combo is not None
-            and self._dominant_element_primary_combo.currentData() != "Any"
-        ):
-            return True
-        if (
-            self._dominant_element_secondary_combo is not None
-            and self._dominant_element_secondary_combo.currentData() != "Any"
+        if any(
+            str(filters["element"].currentData()) != "Any"
+            for filters in self._dominant_element_filters
         ):
             return True
         return False
@@ -14353,10 +14353,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._year_first_encountered_latest_input.setText("")
             if self._year_first_encountered_blank_checkbox is not None:
                 self._year_first_encountered_blank_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
-            if self._dominant_element_primary_combo is not None:
-                self._dominant_element_primary_combo.setCurrentIndex(0)
-            if self._dominant_element_secondary_combo is not None:
-                self._dominant_element_secondary_combo.setCurrentIndex(0)
+            for filters in self._dominant_element_filters:
+                filters["element"].setCurrentIndex(0)
+                filters["or"].setChecked(False)
+                filters["and"].setChecked(True)
         finally:
             self._suppress_filter_refresh = False
         if refresh:
@@ -15809,16 +15809,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
             if filters["mode"].currentData() != "Any"
         ]
-        dominant_element_primary = (
-            str(self._dominant_element_primary_combo.currentData())
-            if self._dominant_element_primary_combo is not None
-            else "Any"
-        )
-        dominant_element_secondary = (
-            str(self._dominant_element_secondary_combo.currentData())
-            if self._dominant_element_secondary_combo is not None
-            else "Any"
-        )
+        active_dominant_element_filters = [
+            filters
+            for filters in self._dominant_element_filters
+            if str(filters["element"].currentData()) != "Any"
+        ]
         year_first_encountered_earliest = self._parse_year_first_encountered_text(
             self._year_first_encountered_earliest_input.text()
             if self._year_first_encountered_earliest_input is not None
@@ -16456,13 +16451,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._chart_human_design_type(chart) != selected_human_design_type:
                 return False
 
-        if dominant_element_primary != "Any" or dominant_element_secondary != "Any":
-            dominant_elements = self._chart_ranked_dominant_elements(chart)
-            if dominant_element_primary != "Any":
-                if not dominant_elements or dominant_elements[0] != dominant_element_primary:
+        if active_dominant_element_filters:
+            dominant_element_and_filters = [
+                filters
+                for filters in active_dominant_element_filters
+                if filters["and"].isChecked()
+            ]
+            dominant_element_or_filters = [
+                filters
+                for filters in active_dominant_element_filters
+                if filters["or"].isChecked()
+            ]
+            for filters in dominant_element_and_filters:
+                if not self._chart_dominant_element_matches(
+                    chart,
+                    str(filters["element"].currentData()),
+                ):
                     return False
-            if dominant_element_secondary != "Any":
-                if len(dominant_elements) < 2 or dominant_elements[1] != dominant_element_secondary:
+            if dominant_element_or_filters:
+                if not any(
+                    self._chart_dominant_element_matches(
+                        chart,
+                        str(filters["element"].currentData()),
+                    )
+                    for filters in dominant_element_or_filters
+                ):
                     return False
 
         return True
@@ -16651,21 +16664,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> bool:
         if sign == "Any":
             return True
-        dominant_weights = getattr(chart, "dominant_sign_weights", None)
-        if not dominant_weights:
-            dominant_weights = _calculate_dominant_sign_weights(chart)
-            chart.dominant_sign_weights = dominant_weights
-        if not dominant_weights:
-            return False
-        max_weight = max(dominant_weights.values(), default=None)
-        if max_weight is None:
-            return False
-        dominant_signs = {
-            weight_sign
-            for weight_sign, weight in dominant_weights.items()
-            if weight == max_weight
-        }
-        return sign in dominant_signs
+        return sign in self._chart_top_three_dominant_signs(chart)
 
     def _chart_dominant_mode_matches(
         self,
@@ -16674,18 +16673,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> bool:
         if mode == "Any":
             return True
+        return mode in self._chart_top_three_dominant_modes(chart)
+
+    def _chart_top_three_dominant_signs(self, chart: Chart) -> set[str]:
+        dominant_weights = getattr(chart, "dominant_sign_weights", None)
+        if not dominant_weights:
+            dominant_weights = _calculate_dominant_sign_weights(chart)
+            chart.dominant_sign_weights = dominant_weights
+        if not dominant_weights:
+            return set()
+        top_three = self._dominant_sign_top_three_labels(dominant_weights)
+        return {str(sign) for sign in top_three if str(sign)}
+
+    def _chart_top_three_dominant_modes(self, chart: Chart) -> set[str]:
         mode_weights = _calculate_mode_weights(chart)
         if not mode_weights:
-            return False
-        max_weight = max(mode_weights.values(), default=None)
-        if max_weight is None:
-            return False
-        dominant_modes = {
-            weighted_mode
-            for weighted_mode, weight in mode_weights.items()
-            if weight == max_weight
+            return set()
+        ordered_modes = ["cardinal", "fixed", "mutable"]
+        ranked_modes = sorted(
+            ordered_modes,
+            key=lambda mode_name: (
+                -float(mode_weights.get(mode_name, 0.0)),
+                ordered_modes.index(mode_name),
+            ),
+        )
+        return {
+            str(mode_name)
+            for mode_name in ranked_modes[:3]
+            if float(mode_weights.get(mode_name, 0.0)) > 0
         }
-        return mode in dominant_modes
 
     def _chart_dominant_planet_matches(
         self,
@@ -16721,6 +16737,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for weighted_planet, weight in dominant_planet_weights.items()
             if isinstance(weight, (int, float)) and float(weight) >= dominant_threshold
         }
+
+    def _chart_dominant_element_matches(
+        self,
+        chart: Chart,
+        element: str,
+    ) -> bool:
+        if element == "Any":
+            return True
+        return element in set(self._chart_ranked_dominant_elements(chart)[:3])
 
     def _chart_ranked_dominant_elements(self, chart: Chart) -> list[str]:
         dominant_element_weights = _calculate_dominant_element_weights(chart)
