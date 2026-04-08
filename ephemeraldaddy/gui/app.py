@@ -54,6 +54,8 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
 
 from PySide6.QtGui import (
     QBrush,
+    QTextCharFormat,
+    QTextCursor,
     QColor,
     QFont,
     QFontMetrics,
@@ -9489,6 +9491,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             month_labels = [calendar.month_name[month] for month in range(1, 13)]
             month_selection_counts = [int(birth_selection_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
             month_database_counts = [int(birth_database_analytics["birth_month_counts"].get(month, 0)) for month in range(1, 13)]
+            month_bar_colors = [
+                SEASONAL_COLOR_SPECTRUM.get(calendar.month_name[month].lower(), "#6fa8dc")
+                for month in range(1, 13)
+            ]
             if birth_month_mode == "month_distribution":
                 if _should_refresh_database_metric_section("birth_month"):
                     month_canvas = self._build_count_distribution_chart(
@@ -9496,6 +9502,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=month_selection_counts,
                         database_counts=month_database_counts,
                         loaded_charts=loaded_charts,
+                        bar_colors=month_bar_colors,
                     )
                     self._clear_layout(self.birth_month_chart_layout)
                     self.birth_month_chart_layout.addWidget(month_canvas, 0)
@@ -21417,7 +21424,7 @@ class MainWindow(QMainWindow):
                 )
                 return
         
-        unique_lines: list[str] = []
+        unique_lines: list[list[tuple[str, str | None]]] = []
         seen: set[tuple[str, str, str]] = set()
         
         def add_unique_lines(
@@ -21425,6 +21432,9 @@ class MainWindow(QMainWindow):
             verb_options: list[str],
             noun_options: list[str],
             adverb_options: list[str],
+            verb_color: str | None = None,
+            noun_color: str | None = None,
+            adverb_color: str | None = None,
             max_attempts: int = 200,
         ) -> None:
             attempts = 0
@@ -21437,19 +21447,75 @@ class MainWindow(QMainWindow):
                     attempts += 1
                     continue
                 seen.add(combo)
-                unique_lines.append(f"• {verb} {noun} {adverb}")
+                line_segments: list[tuple[str, str | None]] = [("• ", None)]
+                if str(verb).strip():
+                    line_segments.append((str(verb).strip(), verb_color))
+                if str(noun).strip():
+                    if len(line_segments) > 1:
+                        line_segments.append((" ", None))
+                    line_segments.append((str(noun).strip(), noun_color))
+                if str(adverb).strip():
+                    if len(line_segments) > 1:
+                        line_segments.append((" ", None))
+                    line_segments.append((str(adverb).strip(), adverb_color))
+                unique_lines.append(line_segments)
                 attempts += 1
         if house_num is None:
             verb_choices = verbs_only or verbs
-            add_unique_lines(6, verb_choices, [""], adverbs)
-            unique_lines = [line.replace("  ", " ").rstrip() for line in unique_lines]
+            add_unique_lines(
+                6,
+                verb_choices,
+                [""],
+                adverbs,
+                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+            )
             header = f"{body} in {sign}"
         else:
             house_of_keywords = [f"of {house}" for house in house_keywords]
-            add_unique_lines(3, verbs, house_keywords, adverbs)
-            add_unique_lines(6, sign_verbs, planet_nouns, house_of_keywords)
+            add_unique_lines(
+                3,
+                verbs,
+                house_keywords,
+                adverbs,
+                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                noun_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+            )
+            add_unique_lines(
+                6,
+                sign_verbs,
+                planet_nouns,
+                house_of_keywords,
+                verb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                noun_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                adverb_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
+            )
             header = f"{body} in {sign} • House {house_num}"
-        self.chart_info_output.setPlainText("\n".join([header, ""] + unique_lines))
+        self._set_chart_info_lines_with_segments(header, unique_lines)
+
+    def _set_chart_info_lines_with_segments(
+        self,
+        header: str,
+        lines: list[list[tuple[str, str | None]]],
+    ) -> None:
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        cursor.insertText(f"{header}\n\n")
+
+        for line in lines:
+            for text, color in line:
+                if not text:
+                    continue
+                if color:
+                    fmt = QTextCharFormat()
+                    fmt.setForeground(QColor(color))
+                    cursor.insertText(text, fmt)
+                else:
+                    cursor.insertText(text)
+            cursor.insertText("\n")
+        self.chart_info_output.setTextCursor(cursor)
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
         formatted_text = _format_nakshatra_description_text(nakshatra)
