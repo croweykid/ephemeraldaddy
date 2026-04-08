@@ -9209,6 +9209,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         if human_design_mode == "hd_gates"
                         else 1.0
                     ),
+                    force_value_fallback_colors=(human_design_mode == "hd_gates"),
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
