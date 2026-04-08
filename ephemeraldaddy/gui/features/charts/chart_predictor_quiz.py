@@ -280,6 +280,137 @@ QUIZ_QUESTIONS: tuple[QuizQuestion, ...] = (
             _option("healing and integration", house_scores={4: 2, 12: 2}, madlib_fragment="mends roots and rests the nervous system"),
         ),
     ),
+    # Mixed synthesis questions (+5; total questions = 20)
+    QuizQuestion(
+        prompt="[Blend] In conflict, your strongest move is:",
+        options=(
+            _option(
+                "direct confrontation and fast decisions",
+                body_scores={"Mars": 3, "Sun": 1},
+                sign_scores={"Aries": 2, "Scorpio": 1},
+                house_scores={1: 2, 8: 1},
+                madlib_fragment="meets friction with heat and momentum",
+            ),
+            _option(
+                "diplomacy and shared terms",
+                body_scores={"Venus": 3, "Moon": 1},
+                sign_scores={"Libra": 2, "Cancer": 1},
+                house_scores={7: 2, 4: 1},
+                madlib_fragment="negotiates peace without losing center",
+            ),
+            _option(
+                "distance, analysis, and strategy",
+                body_scores={"Mercury": 3, "Saturn": 1},
+                sign_scores={"Virgo": 2, "Capricorn": 1},
+                house_scores={6: 2, 10: 1},
+                madlib_fragment="turns chaos into systems and leverage",
+            ),
+        ),
+    ),
+    QuizQuestion(
+        prompt="[Blend] Your social role in a group tends to be:",
+        options=(
+            _option(
+                "sparkplug and initiator",
+                body_scores={"Sun": 2, "Mars": 2, "AS": 1},
+                sign_scores={"Leo": 2, "Aries": 1},
+                house_scores={1: 2, 11: 1},
+                madlib_fragment="lights the room and points to the next move",
+            ),
+            _option(
+                "connector and harmonizer",
+                body_scores={"Venus": 2, "Moon": 2, "Mercury": 1},
+                sign_scores={"Libra": 2, "Gemini": 1},
+                house_scores={3: 2, 7: 1},
+                madlib_fragment="threads people into a working constellation",
+            ),
+            _option(
+                "visionary outsider",
+                body_scores={"Uranus": 3, "Neptune": 1, "Rahu": 1},
+                sign_scores={"Aquarius": 2, "Pisces": 1},
+                house_scores={11: 2, 12: 1},
+                madlib_fragment="keeps one foot beyond the current paradigm",
+            ),
+        ),
+    ),
+    QuizQuestion(
+        prompt="[Blend] Which achievement feels most meaningful?",
+        options=(
+            _option(
+                "building a visible legacy",
+                body_scores={"Saturn": 2, "Sun": 2, "MC": 1},
+                sign_scores={"Capricorn": 2, "Leo": 1},
+                house_scores={10: 3},
+                madlib_fragment="measures success in milestones and monuments",
+            ),
+            _option(
+                "deep emotional security and belonging",
+                body_scores={"Moon": 3, "Venus": 1, "DS": 1},
+                sign_scores={"Cancer": 2, "Taurus": 1},
+                house_scores={4: 2, 7: 1},
+                madlib_fragment="builds a sanctuary where loyalty can breathe",
+            ),
+            _option(
+                "freedom to explore and reinvent",
+                body_scores={"Jupiter": 2, "Uranus": 2, "Rahu": 1},
+                sign_scores={"Sagittarius": 2, "Aquarius": 1},
+                house_scores={9: 2, 11: 1},
+                madlib_fragment="chases horizons faster than certainty",
+            ),
+        ),
+    ),
+    QuizQuestion(
+        prompt="[Blend] Your intuitive style is closest to:",
+        options=(
+            _option(
+                "gut instinct in the moment",
+                body_scores={"Mars": 2, "Moon": 2, "AS": 1},
+                sign_scores={"Aries": 1, "Cancer": 1, "Scorpio": 1},
+                house_scores={1: 2, 8: 1},
+                madlib_fragment="trusts the first signal from body and blood",
+            ),
+            _option(
+                "pattern recognition over time",
+                body_scores={"Mercury": 2, "Saturn": 2, "Jupiter": 1},
+                sign_scores={"Virgo": 2, "Capricorn": 1},
+                house_scores={6: 2, 9: 1},
+                madlib_fragment="finds truth where patterns repeat long enough",
+            ),
+            _option(
+                "dreams, symbols, and synchronicity",
+                body_scores={"Neptune": 3, "Moon": 1, "Ketu": 1},
+                sign_scores={"Pisces": 2, "Scorpio": 1},
+                house_scores={12: 2, 4: 1},
+                madlib_fragment="listens for messages in the invisible current",
+            ),
+        ),
+    ),
+    QuizQuestion(
+        prompt="[Blend] If life were a game, your win condition is:",
+        options=(
+            _option(
+                "mastery and sovereignty",
+                body_scores={"Sun": 2, "Saturn": 2, "Pluto": 1},
+                sign_scores={"Leo": 1, "Capricorn": 1, "Scorpio": 1},
+                house_scores={10: 2, 8: 1},
+                madlib_fragment="plays to command the board through earned power",
+            ),
+            _option(
+                "love, beauty, and meaningful bonds",
+                body_scores={"Venus": 3, "Moon": 1, "DS": 1},
+                sign_scores={"Libra": 2, "Taurus": 1},
+                house_scores={5: 2, 7: 1},
+                madlib_fragment="wins by making life more tender and artful",
+            ),
+            _option(
+                "liberation and awakening",
+                body_scores={"Uranus": 2, "Rahu": 2, "Neptune": 1},
+                sign_scores={"Aquarius": 2, "Sagittarius": 1},
+                house_scores={11: 2, 9: 1},
+                madlib_fragment="calls evolution the only real trophy",
+            ),
+        ),
+    ),
 )
 
 
@@ -346,9 +477,6 @@ class ChartPredictorQuizDialog(QDialog):
             question_layout.addWidget(button)
             group.addButton(button)
             option_buttons.append(button)
-
-        if option_buttons:
-            option_buttons[0].setChecked(True)
 
         self._button_groups.append(group)
         self._question_buttons.append(option_buttons)
