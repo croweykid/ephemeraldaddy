@@ -14,6 +14,7 @@ from typing import Any, List, Tuple, Optional
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
+from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 
 
 DB_DIR = Path.home() / ".ephemeraldaddy"
@@ -97,6 +98,14 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "human_design_channels": "",
     "human_design_type": "",
     "human_design_authority": "",
+    "bazi_year_pillar": "",
+    "bazi_month_pillar": "",
+    "bazi_day_pillar": "",
+    "bazi_hour_pillar": "",
+    "bazi_year_element": "",
+    "bazi_month_element": "",
+    "bazi_day_element": "",
+    "bazi_hour_element": "",
     "is_placeholder": 0,
     "is_deceased": 0,
     "birth_month": 0,
@@ -247,6 +256,14 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             human_design_channels TEXT,
             human_design_type TEXT,
             human_design_authority TEXT,
+            bazi_year_pillar TEXT,
+            bazi_month_pillar TEXT,
+            bazi_day_pillar TEXT,
+            bazi_hour_pillar TEXT,
+            bazi_year_element TEXT,
+            bazi_month_element TEXT,
+            bazi_day_element TEXT,
+            bazi_hour_element TEXT,
             chart_type        TEXT NOT NULL DEFAULT 'personal',
             source            TEXT NOT NULL DEFAULT 'personal',
             is_placeholder    INTEGER NOT NULL DEFAULT 0,
@@ -545,6 +562,23 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN human_design_authority TEXT
             """
         )
+    for bazi_column in (
+        "bazi_year_pillar",
+        "bazi_month_pillar",
+        "bazi_day_pillar",
+        "bazi_hour_pillar",
+        "bazi_year_element",
+        "bazi_month_element",
+        "bazi_day_element",
+        "bazi_hour_element",
+    ):
+        if bazi_column not in columns:
+            conn.execute(
+                f"""
+                ALTER TABLE charts
+                ADD COLUMN {bazi_column} TEXT
+                """
+            )
 
     if "chart_type" not in columns:
         conn.execute(
@@ -984,6 +1018,63 @@ def _resolve_human_design_metadata(chart: Any) -> tuple[Optional[str], Optional[
     chart.human_design_type = resolved_type
     chart.human_design_authority = resolved_authority
     return resolved_type or None, resolved_authority or None
+
+
+def _resolve_bazi_metadata(chart: Any) -> dict[str, Optional[str]]:
+    metadata = {
+        "bazi_year_pillar": str(getattr(chart, "bazi_year_pillar", "") or "").strip() or None,
+        "bazi_month_pillar": str(getattr(chart, "bazi_month_pillar", "") or "").strip() or None,
+        "bazi_day_pillar": str(getattr(chart, "bazi_day_pillar", "") or "").strip() or None,
+        "bazi_hour_pillar": str(getattr(chart, "bazi_hour_pillar", "") or "").strip() or None,
+        "bazi_year_element": str(getattr(chart, "bazi_year_element", "") or "").strip() or None,
+        "bazi_month_element": str(getattr(chart, "bazi_month_element", "") or "").strip() or None,
+        "bazi_day_element": str(getattr(chart, "bazi_day_element", "") or "").strip() or None,
+        "bazi_hour_element": str(getattr(chart, "bazi_hour_element", "") or "").strip() or None,
+    }
+    if any(value for value in metadata.values()):
+        return metadata
+    if bool(getattr(chart, "is_placeholder", False)):
+        return metadata
+    dt_local = getattr(chart, "dt_local", None)
+    if dt_local is None:
+        chart_dt = getattr(chart, "dt", None)
+        if isinstance(chart_dt, datetime):
+            if chart_dt.tzinfo is not None:
+                dt_local = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
+            else:
+                dt_local = chart_dt
+    if not isinstance(dt_local, datetime):
+        return metadata
+    include_hour = not bool(getattr(chart, "birthtime_unknown", False)) or bool(
+        getattr(chart, "retcon_time_used", False)
+    )
+    if include_hour and bool(getattr(chart, "retcon_time_used", False)):
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_hour is not None and retcon_minute is not None:
+            dt_local = dt_local.replace(
+                hour=int(retcon_hour),
+                minute=int(retcon_minute),
+                second=0,
+                microsecond=0,
+            )
+    try:
+        bazi_data = build_bazi_chart_data(dt_local, include_hour=include_hour)
+    except Exception:
+        return metadata
+    metadata = {
+        "bazi_year_pillar": str(getattr(bazi_data, "year_pillar", "") or "").strip() or None,
+        "bazi_month_pillar": str(getattr(bazi_data, "month_pillar", "") or "").strip() or None,
+        "bazi_day_pillar": str(getattr(bazi_data, "day_pillar", "") or "").strip() or None,
+        "bazi_hour_pillar": str(getattr(bazi_data, "hour_pillar", "") or "").strip() or None,
+        "bazi_year_element": str((bazi_data.five_elements_summary or {}).get("year", "") or "").strip() or None,
+        "bazi_month_element": str((bazi_data.five_elements_summary or {}).get("month", "") or "").strip() or None,
+        "bazi_day_element": str((bazi_data.five_elements_summary or {}).get("day", "") or "").strip() or None,
+        "bazi_hour_element": str((bazi_data.five_elements_summary or {}).get("hour", "") or "").strip() or None,
+    }
+    for key, value in metadata.items():
+        setattr(chart, key, None if value == UNKNOWN_BAZI_VALUE else value)
+    return metadata
 
 def _normalize_year_first_encountered(value: Optional[int]) -> Optional[int]:
     if value is None:
@@ -1712,9 +1803,11 @@ def append_database(source: Path) -> dict[str, Any]:
                          dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
                          human_design_type, human_design_authority,
+                         bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
+                         bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1755,6 +1848,14 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("human_design_channels"),
                         _row_value("human_design_type"),
                         _row_value("human_design_authority"),
+                        _row_value("bazi_year_pillar"),
+                        _row_value("bazi_month_pillar"),
+                        _row_value("bazi_day_pillar"),
+                        _row_value("bazi_hour_pillar"),
+                        _row_value("bazi_year_element"),
+                        _row_value("bazi_month_element"),
+                        _row_value("bazi_day_element"),
+                        _row_value("bazi_hour_element"),
                         resolved_chart_type,
                         resolved_chart_type,
                         int(_row_value("is_placeholder") or 0),
@@ -1832,6 +1933,7 @@ def save_chart(
         or getattr(chart, "source", None)
     )
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
+    bazi_metadata = _resolve_bazi_metadata(chart)
     conn = _get_conn()
     with conn:
         cur = conn.execute(
@@ -1848,6 +1950,8 @@ def save_chart(
                  dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
                  human_design_type, human_design_authority,
+                 bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
+                 bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                  chart_type,
                  source,
                  is_placeholder,
@@ -1856,7 +1960,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -1934,6 +2038,14 @@ def save_chart(
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 human_design_type,
                 human_design_authority,
+                bazi_metadata.get("bazi_year_pillar"),
+                bazi_metadata.get("bazi_month_pillar"),
+                bazi_metadata.get("bazi_day_pillar"),
+                bazi_metadata.get("bazi_hour_pillar"),
+                bazi_metadata.get("bazi_year_element"),
+                bazi_metadata.get("bazi_month_element"),
+                bazi_metadata.get("bazi_day_element"),
+                bazi_metadata.get("bazi_hour_element"),
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -2017,6 +2129,7 @@ def update_chart(
         or getattr(chart, "source", None)
     )
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
+    bazi_metadata = _resolve_bazi_metadata(chart)
     conn = _get_conn()
     with conn:
         conn.execute(
@@ -2059,6 +2172,14 @@ def update_chart(
                 human_design_channels = ?,
                 human_design_type = ?,
                 human_design_authority = ?,
+                bazi_year_pillar = ?,
+                bazi_month_pillar = ?,
+                bazi_day_pillar = ?,
+                bazi_hour_pillar = ?,
+                bazi_year_element = ?,
+                bazi_month_element = ?,
+                bazi_day_element = ?,
+                bazi_hour_element = ?,
                 chart_type = ?,
                 source = ?,
                 is_placeholder = ?,
@@ -2144,6 +2265,14 @@ def update_chart(
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
                 human_design_type,
                 human_design_authority,
+                bazi_metadata.get("bazi_year_pillar"),
+                bazi_metadata.get("bazi_month_pillar"),
+                bazi_metadata.get("bazi_day_pillar"),
+                bazi_metadata.get("bazi_hour_pillar"),
+                bazi_metadata.get("bazi_year_element"),
+                bazi_metadata.get("bazi_month_element"),
+                bazi_metadata.get("bazi_day_element"),
+                bazi_metadata.get("bazi_hour_element"),
                 resolved_chart_type,
                 resolved_chart_type,
                 int(
@@ -2383,6 +2512,8 @@ def load_chart(chart_id: int):
                dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
+               bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
+               bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                COALESCE(chart_type, source),
                is_placeholder, is_deceased, birth_month, birth_day, birth_year
         FROM charts
@@ -2433,6 +2564,14 @@ def load_chart(chart_id: int):
         human_design_channels,
         human_design_type,
         human_design_authority,
+        bazi_year_pillar,
+        bazi_month_pillar,
+        bazi_day_pillar,
+        bazi_hour_pillar,
+        bazi_year_element,
+        bazi_month_element,
+        bazi_day_element,
+        bazi_hour_element,
         chart_type,
         is_placeholder,
         is_deceased,
@@ -2488,6 +2627,14 @@ def load_chart(chart_id: int):
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
         placeholder.human_design_type = str(human_design_type).strip() if human_design_type else ""
         placeholder.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
+        placeholder.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""
+        placeholder.bazi_month_pillar = str(bazi_month_pillar).strip() if bazi_month_pillar else ""
+        placeholder.bazi_day_pillar = str(bazi_day_pillar).strip() if bazi_day_pillar else ""
+        placeholder.bazi_hour_pillar = str(bazi_hour_pillar).strip() if bazi_hour_pillar else ""
+        placeholder.bazi_year_element = str(bazi_year_element).strip() if bazi_year_element else ""
+        placeholder.bazi_month_element = str(bazi_month_element).strip() if bazi_month_element else ""
+        placeholder.bazi_day_element = str(bazi_day_element).strip() if bazi_day_element else ""
+        placeholder.bazi_hour_element = str(bazi_hour_element).strip() if bazi_hour_element else ""
         normalized_chart_type = _normalize_chart_type(chart_type)
         placeholder.chart_type = normalized_chart_type
         placeholder.source = normalized_chart_type
@@ -2546,6 +2693,14 @@ def load_chart(chart_id: int):
     chart.human_design_channels = _parse_string_list(human_design_channels)
     chart.human_design_type = str(human_design_type).strip() if human_design_type else ""
     chart.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
+    chart.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""
+    chart.bazi_month_pillar = str(bazi_month_pillar).strip() if bazi_month_pillar else ""
+    chart.bazi_day_pillar = str(bazi_day_pillar).strip() if bazi_day_pillar else ""
+    chart.bazi_hour_pillar = str(bazi_hour_pillar).strip() if bazi_hour_pillar else ""
+    chart.bazi_year_element = str(bazi_year_element).strip() if bazi_year_element else ""
+    chart.bazi_month_element = str(bazi_month_element).strip() if bazi_month_element else ""
+    chart.bazi_day_element = str(bazi_day_element).strip() if bazi_day_element else ""
+    chart.bazi_hour_element = str(bazi_hour_element).strip() if bazi_hour_element else ""
     normalized_chart_type = _normalize_chart_type(chart_type)
     chart.chart_type = normalized_chart_type
     chart.source = normalized_chart_type
