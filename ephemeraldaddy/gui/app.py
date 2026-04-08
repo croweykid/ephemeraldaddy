@@ -13277,6 +13277,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
+    def _on_menu_open_chart_predictor_quiz(self) -> None:
+        dialog = create_chart_predictor_quiz_dialog(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll

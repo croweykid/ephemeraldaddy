@@ -227,7 +227,13 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
-    _bind_menu_action(tools_menu, "Chart Predictor Quiz (beta)", dialog, "on_open_chart_predictor_quiz")
+    _bind_menu_action(
+        tools_menu,
+        "Chart Predictor Quiz",
+        dialog,
+        "_on_menu_open_chart_predictor_quiz",
+        "on_open_chart_predictor_quiz",
+    )
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Chart Similarities", dialog, "_show_similarities_panel")
