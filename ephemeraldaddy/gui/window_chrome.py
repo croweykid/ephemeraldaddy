@@ -167,6 +167,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "Calculate BaZi", window, "on_open_bazi_window")
+    _bind_menu_action(tools_menu, "Chart Predictor Quiz", window, "on_open_chart_predictor_quiz")
     if _is_human_design_menu_enabled(window):
         _bind_menu_action(
             tools_menu,
