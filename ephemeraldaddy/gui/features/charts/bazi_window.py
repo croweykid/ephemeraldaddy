@@ -9,7 +9,11 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
-from ephemeraldaddy.analysis.bazi_getter import BaziChartData, build_bazi_chart_data
+from ephemeraldaddy.analysis.bazi_getter import (
+    BaziChartData,
+    UNKNOWN_BAZI_VALUE,
+    build_bazi_chart_data,
+)
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS
 from ephemeraldaddy.gui.style import (
@@ -19,7 +23,7 @@ from ephemeraldaddy.gui.style import (
 )
 
 BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE = (
-    "BaZi calculation is not possible without complete birth info (date, time, and place)."
+    "BaZi calculation is not possible without birth date and place."
 )
 
 _HEAVENLY_STEM_TRANSLATIONS: dict[str, str] = {
@@ -195,8 +199,6 @@ def validate_chart_for_bazi(chart: Chart | None) -> str | None:
         return "Please select a chart first."
     if bool(getattr(chart, "is_placeholder", False)):
         return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
-    if bool(getattr(chart, "birthtime_unknown", False)):
-        return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
     birth_place = str(getattr(chart, "birth_place", "") or "").strip()
     if not birth_place:
         return BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
@@ -207,6 +209,19 @@ def validate_chart_for_bazi(chart: Chart | None) -> str | None:
 
 def resolve_bazi_birth_datetime(chart: Chart) -> datetime:
     dt_local = getattr(chart, "dt_local", None)
+    use_retcon_time = (
+        bool(getattr(chart, "birthtime_unknown", False))
+        and bool(getattr(chart, "retcon_time_used", False))
+        and getattr(chart, "retcon_hour", None) is not None
+        and getattr(chart, "retcon_minute", None) is not None
+    )
+    if dt_local is not None and use_retcon_time:
+        return dt_local.replace(
+            hour=int(getattr(chart, "retcon_hour")),
+            minute=int(getattr(chart, "retcon_minute")),
+            second=0,
+            microsecond=0,
+        )
     if dt_local is not None:
         return dt_local
     chart_dt = getattr(chart, "dt")
@@ -253,6 +268,8 @@ def _build_five_element_counts(bazi_data: BaziChartData) -> dict[str, int]:
     counts = {element: 0 for element in _ELEMENT_CHAR_TO_NAME.values()}
     for pillar in ("year", "month", "day", "hour"):
         wuxing_value = str(bazi_data.five_elements_summary.get(pillar, "") or "")
+        if wuxing_value == UNKNOWN_BAZI_VALUE:
+            continue
         for char in wuxing_value:
             element = _ELEMENT_CHAR_TO_NAME.get(char)
             if element:
@@ -440,9 +457,28 @@ def create_bazi_window_dialog(
     monospace_font_family: str,
 ) -> QDialog:
     dt_local = resolve_bazi_birth_datetime(chart)
-    bazi_data = build_bazi_chart_data(dt_local)
+    has_known_birth_hour = (
+        not bool(getattr(chart, "birthtime_unknown", False))
+        or (
+            bool(getattr(chart, "retcon_time_used", False))
+            and getattr(chart, "retcon_hour", None) is not None
+            and getattr(chart, "retcon_minute", None) is not None
+        )
+    )
+    bazi_data = build_bazi_chart_data(dt_local, include_hour=has_known_birth_hour)
     chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
     birth_place = str(getattr(chart, "birth_place", "") or "").strip()
+    hour_note = (
+        "Hour pillar source: Rectified time"
+        if bool(getattr(chart, "birthtime_unknown", False))
+        and bool(getattr(chart, "retcon_time_used", False))
+        and has_known_birth_hour
+        else (
+            "Hour pillar source: Unknown birth time (hour-dependent values shown as Unknown)"
+            if not has_known_birth_hour
+            else "Hour pillar source: Birth time"
+        )
+    )
 
     dialog = QDialog(parent)
     dialog.setAttribute(Qt.WA_DeleteOnClose)
@@ -464,6 +500,7 @@ def create_bazi_window_dialog(
                 f"Chart: {chart_name}",
                 f"Birth place: {birth_place}",
                 f"Birth datetime (local civil): {dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
+                hour_note,
                 f"Lunar date: {_bilingual(bazi_data.lunar_date_str)}",
                 f"Year zodiac: {_bilingual(bazi_data.zodiac_animal)}",
                 # (

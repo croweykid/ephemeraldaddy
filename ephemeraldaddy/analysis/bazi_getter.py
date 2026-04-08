@@ -6,6 +6,8 @@ from typing import Any
 
 from lunar_python import Solar
 
+UNKNOWN_BAZI_VALUE = "Unknown"
+
 
 @dataclass(frozen=True)
 class BaziChartData:
@@ -21,7 +23,7 @@ class BaziChartData:
     ten_gods_summary: dict[str, str]
 
 
-def build_bazi_chart_data(dt_local: datetime) -> BaziChartData:
+def build_bazi_chart_data(dt_local: datetime, *, include_hour: bool = True) -> BaziChartData:
     """Generate BaZi data using local civil birth date/time."""
     solar = Solar.fromYmdHms(
         dt_local.year,
@@ -34,7 +36,7 @@ def build_bazi_chart_data(dt_local: datetime) -> BaziChartData:
     lunar = solar.getLunar()
     ec = lunar.getEightChar()
 
-    return BaziChartData(
+    bazi_data = BaziChartData(
         lunar_date_str=lunar.toString(),
         zodiac_animal=lunar.getYearShengXiao(),
         year_pillar=ec.getYear(),
@@ -71,4 +73,35 @@ def build_bazi_chart_data(dt_local: datetime) -> BaziChartData:
             "hour": ec.getTimeShiShenGan(),
             "day_branch_main": ec.getDayShiShenZhi(),
         },
+    )
+    if include_hour:
+        return bazi_data
+
+    heavenly_stems = dict(bazi_data.heavenly_stems)
+    heavenly_stems["hour"] = UNKNOWN_BAZI_VALUE
+
+    earthly_branches = dict(bazi_data.earthly_branches)
+    earthly_branches["hour"] = UNKNOWN_BAZI_VALUE
+
+    na_yin = dict(bazi_data.five_elements_summary.get("na_yin", {}))
+    na_yin["hour"] = UNKNOWN_BAZI_VALUE
+
+    five_elements_summary = dict(bazi_data.five_elements_summary)
+    five_elements_summary["hour"] = UNKNOWN_BAZI_VALUE
+    five_elements_summary["na_yin"] = na_yin
+
+    ten_gods_summary = dict(bazi_data.ten_gods_summary)
+    ten_gods_summary["hour"] = UNKNOWN_BAZI_VALUE
+
+    return BaziChartData(
+        lunar_date_str=bazi_data.lunar_date_str,
+        zodiac_animal=bazi_data.zodiac_animal,
+        year_pillar=bazi_data.year_pillar,
+        month_pillar=bazi_data.month_pillar,
+        day_pillar=bazi_data.day_pillar,
+        hour_pillar=UNKNOWN_BAZI_VALUE,
+        heavenly_stems=heavenly_stems,
+        earthly_branches=earthly_branches,
+        five_elements_summary=five_elements_summary,
+        ten_gods_summary=ten_gods_summary,
     )
