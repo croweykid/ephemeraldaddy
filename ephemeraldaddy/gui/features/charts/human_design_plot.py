@@ -44,10 +44,12 @@ BODY_TEXT_COLOR: dict[str, str] = {
 CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
+BODYGRAPH_VERTICAL_OFFSET = -0.035
 
 
 def _center_sort_key(center_name: str) -> tuple[float, float]:
     x, y = CENTER_POSITIONS[center_name]
+    y += BODYGRAPH_VERTICAL_OFFSET
     return (-y, x)
 
 
@@ -135,10 +137,14 @@ def draw_human_design_chart(
         channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
         x2, y2 = CENTER_POSITIONS[center_b]
+        y1 += BODYGRAPH_VERTICAL_OFFSET
+        y2 += BODYGRAPH_VERTICAL_OFFSET
 
         if channel_key == (20, 34):
             sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
             throat_x, throat_y = CENTER_POSITIONS["Throat"]
+            sacral_y += BODYGRAPH_VERTICAL_OFFSET
+            throat_y += BODYGRAPH_VERTICAL_OFFSET
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
@@ -262,6 +268,7 @@ def draw_human_design_chart(
         )
 
     for center_name, (x, y) in CENTER_POSITIONS.items():
+        y += BODYGRAPH_VERTICAL_OFFSET
         defined = center_name in hd_result.defined_centers
         edge = "#c8914f" if defined else chart_theme_colors["spine"]
         fill = CENTER_FILL_COLORS.get(center_name, "#2f3d45") #"#2f3d45" if defined else "#2a2a2a"
