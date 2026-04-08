@@ -1489,7 +1489,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[
-            tuple[str, list[tuple[str, int, int, int, int]]]
+            tuple[str, list[tuple[str, int, int, int, int, str]]]
         ] = []
         self._similarities_pair_button: QPushButton | None = None
         self._similarities_pair_result_label: QLabel | None = None
@@ -2755,81 +2755,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.showNormal()
         self.raise_()
         self.activateWindow()
-
-    def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
-        rows = self._analysis_chart_export_rows.get(chart_key) or []
-        if not rows:
-            QMessageBox.information(
-                self,
-                "incomplete birthdate",
-                "There is incomplete birthdate available to export yet.",
-            )
-            return
-
-        export_date = datetime.date.today().isoformat()
-        default_stem = self._analysis_chart_filenames.get(chart_key, chart_key)
-        default_filename = f"{default_stem}-{export_date}.csv"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            f"Export {chart_title} as CSV",
-            default_filename,
-            "CSV Files (*.csv)",
-        )
-        # Native save dialogs can briefly reactivate the main Natal Chart View when
-        # they close; force Database View back to the foreground.
-        QTimer.singleShot(0, self._reactivate_database_view)
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".csv"):
-            file_path = f"{file_path}.csv"
-
-        try:
-            with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow(
-                    [
-                        "label",
-                        "selection",
-                        "database",
-                        "difference",
-                        "selection_qty",
-                        "database_qty",
-                        "% of DB",
-                    ]
-                )
-                for (
-                    label,
-                    selection_value,
-                    database_value,
-                    difference,
-                    selection_count,
-                    database_count,
-                    percent_of_database,
-                ) in rows:
-                    writer.writerow(
-                        [
-                            label,
-                            round(selection_value, 8),
-                            round(database_value, 8),
-                            round(difference, 8),
-                            selection_count,
-                            database_count,
-                            round(percent_of_database, 8),
-                        ]
-                    )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export {chart_title} as CSV:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart CSV to:\n{file_path}",
-        )
 
     #Now the actual graphs:
     def _build_selection_sentiment_panel(self) -> QWidget:
@@ -6302,6 +6227,120 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+    def _similarity_matching_chart_names(
+        self,
+        section_title: str,
+        label: str,
+        chart_ids: list[int],
+    ) -> str:
+        matching_names: list[str] = []
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None:
+                continue
+            include = False
+            use_houses = _chart_uses_houses(chart)
+            if section_title == "Signs in positions in common":
+                if " in " in label:
+                    body_label, sign = label.split(" in ", 1)
+                    for body in PLANET_ORDER:
+                        if self._similarities_body_label(body) != body_label:
+                            continue
+                        if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                            break
+                        lon = chart.positions.get(body)
+                        include = lon is not None and _sign_for_longitude(lon) == sign
+                        break
+            elif section_title == "Houses in positions in common":
+                if ": House " in label:
+                    body_label, house_text = label.split(": House ", 1)
+                    try:
+                        house_num = int(house_text)
+                    except ValueError:
+                        house_num = -1
+                    for body in PLANET_ORDER:
+                        if self._similarities_body_label(body) != body_label:
+                            continue
+                        if not use_houses:
+                            break
+                        lon = chart.positions.get(body)
+                        if lon is None:
+                            break
+                        include = _house_for_longitude(getattr(chart, "houses", None), lon) == house_num
+                        break
+            elif section_title == "Signs in houses in common":
+                if label.startswith("House ") and ": " in label and use_houses:
+                    house_text, sign = label.split(": ", 1)
+                    try:
+                        house_index = int(house_text.replace("House ", "").strip()) - 1
+                    except ValueError:
+                        house_index = -1
+                    houses = getattr(chart, "houses", None)
+                    if houses and 0 <= house_index < len(houses):
+                        include = _sign_for_longitude(houses[house_index]) == sign
+            elif section_title == "Top 3 Dominant Signs in common":
+                weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
+                include = label in self._dominant_sign_top_three_labels(weights)
+            elif section_title == "Top 3 Dominant Bodies in common":
+                weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
+                include = label in {
+                    self._similarities_body_label(body)
+                    for body in self._dominant_planet_top_three_labels(weights)
+                }
+            elif section_title == "Top 3 Dominant Houses in common":
+                weights = _calculate_dominant_house_weights(chart)
+                include = label in {f"House {house_num}" for house_num in self._dominant_house_top_three_labels(weights)}
+            elif section_title == "Dominant nakshatras in common":
+                weighted_counts: dict[str, int] = {}
+                for body in PLANET_ORDER:
+                    if not use_houses and body in {"AS", "MC", "DS", "IC"}:
+                        continue
+                    lon = chart.positions.get(body)
+                    if lon is None:
+                        continue
+                    nak = _get_nakshatra(lon)
+                    weighted_counts[nak] = weighted_counts.get(nak, 0) + NATAL_WEIGHT.get(body, 1)
+                top_three = {
+                    name
+                    for name, _weight in sorted(weighted_counts.items(), key=lambda item: item[1], reverse=True)[:3]
+                }
+                include = label in top_three
+            elif section_title == "Aspects in common":
+                for aspect in getattr(chart, "aspects", []) or []:
+                    if _is_structural_tautology(aspect):
+                        continue
+                    raw_p1 = aspect.get("p1", "")
+                    raw_p2 = aspect.get("p2", "")
+                    if not use_houses and (raw_p1 in {"AS", "MC", "DS", "IC"} or raw_p2 in {"AS", "MC", "DS", "IC"}):
+                        continue
+                    p1 = self._similarities_body_label(raw_p1)
+                    p2 = self._similarities_body_label(raw_p2)
+                    aspect_type = aspect.get("type", "")
+                    if not p1 or not p2 or not aspect_type:
+                        continue
+                    body_a, body_b = sorted([p1, p2])
+                    if f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}" == label:
+                        include = True
+                        break
+            elif section_title == "Gates in common":
+                hd_gates, _hd_lines, _hd_channels, _hd_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
+                include = label.startswith("Gate ") and label.replace("Gate ", "").isdigit() and int(label.replace("Gate ", "")) in set(hd_gates)
+            elif section_title == "Channels in common":
+                _hd_gates, _hd_lines, hd_channels, _hd_centers, _hd_type, _hd_authority = self._extract_human_design_profile(chart)
+                normalized_channels: set[str] = set()
+                for channel in hd_channels:
+                    raw = str(channel).strip()
+                    parts = raw.split("-")
+                    if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                        a, b = int(parts[0].strip()), int(parts[1].strip())
+                        raw = f"{min(a, b)}-{max(a, b)}"
+                    normalized_channels.add(raw)
+                include = label in normalized_channels
+
+            if include:
+                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
+        return ", ".join(matching_names)
+
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
         db_chart_ids = [
@@ -6471,6 +6510,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_positions.get(label, 0)),
                         int(db_common_positions_totals.get(label, db_total_count)),
+                        self._similarity_matching_chart_names(
+                            "Signs in positions in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_positions
                 ],
@@ -6484,6 +6528,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_houses_in_positions.get(label, 0)),
                         int(db_common_houses_in_positions_totals.get(label, db_total_count)),
+                        self._similarity_matching_chart_names(
+                            "Houses in positions in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_houses_in_positions
                 ],
@@ -6497,6 +6546,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_signs_in_houses.get(label, 0)),
                         int(db_common_signs_in_houses_totals.get(label, db_total_count)),
+                        self._similarity_matching_chart_names(
+                            "Signs in houses in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_signs_in_houses
                 ],
@@ -6510,6 +6564,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_dominant_signs.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Top 3 Dominant Signs in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_dominant_signs
                 ],
@@ -6523,6 +6582,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_dominant_bodies.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Top 3 Dominant Bodies in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_dominant_bodies
                 ],
@@ -6536,6 +6600,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_dominant_houses.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Top 3 Dominant Houses in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_dominant_houses
                 ],
@@ -6549,6 +6618,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_dominant_nakshatras.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Dominant nakshatras in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_dominant_nakshatras
                 ],
@@ -6562,6 +6636,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_aspects.get(label, 0)),
                         int(db_common_aspects_totals.get(label, db_total_count)),
+                        self._similarity_matching_chart_names(
+                            "Aspects in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_aspects
                 ],
@@ -6575,6 +6654,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_hd_gates.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Gates in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_hd_gates
                 ],
@@ -6588,6 +6672,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         total_count,
                         int(db_common_hd_channels.get(label, 0)),
                         db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Channels in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
                     )
                     for label, match_count, total_count in common_hd_channels
                 ],
@@ -6742,7 +6831,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for section_title, matches in self._similarities_export_sections:
             if not matches:
                 continue
-            for label, match_count, total_count, database_match_count, database_total_count in matches:
+            for (
+                label,
+                match_count,
+                total_count,
+                database_match_count,
+                database_total_count,
+                matching_chart_names,
+            ) in matches:
                 selection_percent = round((match_count / total_count) * 100, 2) if total_count else 0
                 database_percent = (
                     round((database_match_count / database_total_count) * 100, 2)
@@ -6760,6 +6856,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_total_count,
                     database_percent,
                     percent_difference,
+                    matching_chart_names,
                 ])
 
         if not rows:
@@ -6783,6 +6880,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     "database chart count",
                     "database match percent",
                     f"{header_name} minus database match percent",
+                    f"{header_name} matching chart names",
                 ])
                 writer.writerows(rows)
         except Exception as e:

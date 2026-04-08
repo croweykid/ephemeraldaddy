@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import csv
 import math
 import re
 import statistics
@@ -13,8 +14,8 @@ from typing import Any
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLayout, QSizePolicy
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QFileDialog, QLayout, QMessageBox, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
@@ -211,6 +212,152 @@ class DatabaseAnalyticsChartsMixin:
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
+
+    @staticmethod
+    def _sign_from_longitude(longitude: float) -> str:
+        normalized = float(longitude) % 360.0
+        return ZODIAC_NAMES[int(normalized // 30) % 12]
+
+    def _display_name_for_chart_id(self, chart_id: int) -> str:
+        row = self._active_chart_rows_by_id.get(int(chart_id))
+        if row is not None and len(row) > 1:
+            name = str(row[1] or "").strip()
+            if name:
+                return name
+        chart = self._get_chart_for_filter(int(chart_id))
+        chart_name = str(getattr(chart, "name", "") or "").strip() if chart is not None else ""
+        return chart_name or f"Chart {int(chart_id)}"
+
+    def _analysis_matching_chart_names(self, chart_key: str, label: str) -> str:
+        selected_ids = self._exclude_placeholder_chart_ids(self._selected_chart_ids())
+        if not selected_ids:
+            return ""
+        matching_names: list[str] = []
+        label_text = str(label).strip()
+        for chart_id in selected_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None:
+                continue
+            include = False
+            if chart_key == "planetary_sign_prevalence":
+                body = str(self._sign_distribution_mode or "").strip()
+                lon = chart.positions.get(body) if getattr(chart, "positions", None) else None
+                include = lon is not None and self._sign_from_longitude(float(lon)) == label_text
+            elif chart_key == "human_design":
+                hd_gates, hd_lines, hd_channels, hd_centers, hd_type, hd_authority = self._extract_human_design_profile(chart)
+                mode = str(getattr(self, "_human_design_mode", "hd_gates") or "hd_gates").strip()
+                if mode == "hd_gates":
+                    include = label_text.isdigit() and int(label_text) in set(hd_gates)
+                elif mode == "hd_channels":
+                    normalized = set()
+                    for channel in hd_channels:
+                        channel_text = str(channel).strip()
+                        if not channel_text:
+                            continue
+                        parts = channel_text.split("-")
+                        if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                            a, b = int(parts[0].strip()), int(parts[1].strip())
+                            channel_text = f"{min(a, b)}-{max(a, b)}"
+                        normalized.add(channel_text)
+                    include = label_text in normalized
+                elif mode == "hd_lines":
+                    include = label_text.isdigit() and int(label_text) in set(hd_lines)
+                elif mode == "hd_defined_centers":
+                    include = label_text in set(str(center).strip() for center in hd_centers)
+                elif mode == "hd_types":
+                    include = self._format_human_design_type_label(hd_type) == label_text
+                elif mode == "hd_profiles":
+                    hd_profile = str(getattr(chart, "human_design_profile", "") or "").strip()
+                    include = hd_profile == label_text
+                elif mode == "hd_authorities":
+                    include = canonicalize_hd_authority_label(hd_authority) == label_text
+                elif mode == "hd_incarnation_crosses":
+                    try:
+                        hd_result = build_human_design_result(chart)
+                    except Exception:
+                        hd_result = None
+                    cross_label = self._format_human_design_incarnation_cross_label(
+                        str(getattr(hd_result, "incarnation_cross", "")).strip()
+                    )
+                    include = cross_label == label_text
+            if include:
+                matching_names.append(self._display_name_for_chart_id(int(chart_id)))
+        return ", ".join(matching_names)
+
+    def _export_database_analysis_chart_csv(self, chart_key: str, chart_title: str) -> None:
+        rows = self._analysis_chart_export_rows.get(chart_key) or []
+        if not rows:
+            QMessageBox.information(
+                self,
+                "incomplete birthdate",
+                "There is incomplete birthdate available to export yet.",
+            )
+            return
+
+        export_date = datetime.date.today().isoformat()
+        default_stem = self._analysis_chart_filenames.get(chart_key, chart_key)
+        default_filename = f"{default_stem}-{export_date}.csv"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {chart_title} as CSV",
+            default_filename,
+            "CSV Files (*.csv)",
+        )
+        QTimer.singleShot(0, self._reactivate_database_view)
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".csv"):
+            file_path = f"{file_path}.csv"
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(
+                    [
+                        "label",
+                        "selection",
+                        "database",
+                        "difference",
+                        "selection_qty",
+                        "database_qty",
+                        "% of DB",
+                        "matching chart names",
+                    ]
+                )
+                for (
+                    label,
+                    selection_value,
+                    database_value,
+                    difference,
+                    selection_count,
+                    database_count,
+                    percent_of_database,
+                ) in rows:
+                    writer.writerow(
+                        [
+                            label,
+                            round(selection_value, 8),
+                            round(database_value, 8),
+                            round(difference, 8),
+                            selection_count,
+                            database_count,
+                            round(percent_of_database, 8),
+                            self._analysis_matching_chart_names(chart_key, label),
+                        ]
+                    )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                f"Could not export {chart_title} as CSV:\n{e}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Export complete",
+            f"Saved chart CSV to:\n{file_path}",
+        )
 
     @staticmethod
     def _configure_left_panel_canvas(
