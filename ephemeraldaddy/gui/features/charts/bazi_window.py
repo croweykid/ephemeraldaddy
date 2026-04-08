@@ -22,10 +22,9 @@ from ephemeraldaddy.analysis.bazi_getter import (
     build_bazi_chart_data,
 )
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS
+from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS, BAZI_ZODIAC
 from ephemeraldaddy.gui.style import (
     CHART_THEME_COLORS,
-    DARK_THEME,
     STANDARD_NCV_HORIZONTAL_BAR_CHART,
     STANDARD_NCV_PIE_CHART,
 )
@@ -191,6 +190,32 @@ _STEM_ELEMENT: dict[str, str] = {
     "癸": "water",
 }
 
+_BRANCH_ELEMENT: dict[str, str] = {
+    "子": "water",
+    "丑": "earth",
+    "寅": "wood",
+    "卯": "wood",
+    "辰": "earth",
+    "巳": "fire",
+    "午": "fire",
+    "未": "earth",
+    "申": "metal",
+    "酉": "metal",
+    "戌": "earth",
+    "亥": "water",
+}
+
+_BAZI_ELEMENT_PIE_ORDER: list[str] = ["wood", "fire", "earth", "metal", "water"]
+
+
+def _color_from_bazi_element(element_key: str, fallback: str | None = None) -> str:
+    element_data = BAZI_ELEMENTS.get(element_key, {})
+    if isinstance(element_data, dict):
+        color = str(element_data.get("color", "") or "").strip()
+        if color:
+            return color
+    return fallback or CHART_THEME_COLORS["text"]
+
 
 def _normalize_bazi_value(value: Any) -> str:
     if value is None:
@@ -334,16 +359,13 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
     branch_yin_yang = _yin_yang_label(branch_char)
     stem_roman = _STEM_ROMANIZATION.get(stem_char, UNKNOWN_BAZI_VALUE)
     branch_roman = _BRANCH_ROMANIZATION.get(branch_char, UNKNOWN_BAZI_VALUE)
-    element_key = _STEM_ELEMENT.get(stem_char, "earth")
-    element_data = BAZI_ELEMENTS.get(element_key, {})
-    row_color = (
-        str(element_data.get("color"))
-        if isinstance(element_data, dict) and element_data.get("color")
-        else CHART_THEME_COLORS["text"]
-    )
+    stem_element_key = _STEM_ELEMENT.get(stem_char, "earth")
+    branch_element_key = _BRANCH_ELEMENT.get(branch_char, "earth")
+    stem_color = _color_from_bazi_element(stem_element_key)
+    branch_color = _color_from_bazi_element(branch_element_key)
     stem_link = (
-        f"<a href='bazi-element:{element_key}' "
-        f"style='color:{row_color}; text-decoration: underline;'>"
+        f"<a href='bazi-element:{stem_element_key}' "
+        f"style='color:{stem_color}; text-decoration: underline;'>"
         f"{_safe_html(stem_english)}</a>"
     )
 
@@ -360,15 +382,15 @@ def _pillar_display_row(pillar: str, bazi_data: BaziChartData) -> str:
 
     return (
         f"<tr>"
-        f"<td style='padding:3px 8px;color:{row_color};'><b>{label}</b>:</td>"
-        f"<td style='padding:3px 8px;color:{row_color};'>{stem_cell}</td>"
-        f"<td style='padding:3px 8px;color:{row_color};'>{branch_cell}</td>"
+        f"<td style='padding:3px 8px;color:{CHART_THEME_COLORS['text']};'><b>{label}</b>:</td>"
+        f"<td style='padding:3px 8px;color:{stem_color};'>{stem_cell}</td>"
+        f"<td style='padding:3px 8px;color:{branch_color};'>{branch_cell}</td>"
         f"</tr>"
     )
 
 
 def build_bazi_details_html(bazi_data: BaziChartData) -> str:
-    header_color = DARK_THEME["planet"]
+    header_color = CHART_THEME_COLORS["text"]
     text_color = CHART_THEME_COLORS["text"]
     rows = [
         _pillar_display_row("year", bazi_data),
@@ -451,12 +473,9 @@ def _style_chart_axes(ax: Any) -> None:
 
 def _build_elements_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
     counts = _build_five_element_counts(bazi_data)
-    labels = ["wood", "water", "earth", "fire", "metal"]
+    labels = list(_BAZI_ELEMENT_PIE_ORDER)
     values = [counts[label] for label in labels]
-    colors = [
-        str(BAZI_ELEMENTS.get(label, {}).get("color", CHART_THEME_COLORS["accent"]))
-        for label in labels
-    ]
+    colors = [_color_from_bazi_element(label, CHART_THEME_COLORS["accent"]) for label in labels]
 
     figure = Figure(figsize=(3.4, 2.4))
     figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
@@ -518,7 +537,11 @@ def _build_zodiac_bar_canvas(bazi_data: BaziChartData) -> FigureCanvas:
     ax = figure.add_subplot(111)
     _style_chart_axes(ax)
 
-    bars = ax.bar(labels, values, color="#6fa8dc")
+    zodiac_colors = [
+        str(BAZI_ZODIAC.get(label.lower(), {}).get("color", CHART_THEME_COLORS["accent"]))
+        for label in labels
+    ]
+    bars = ax.bar(labels, values, color=zodiac_colors)
     ax.set_ylim(0, max(1, (max(values) if values else 0) + 1))
     ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"])
     ax.tick_params(
@@ -610,10 +633,7 @@ def create_bazi_window_dialog(
     chart: Chart,
     *,
     header_style: str,
-    monospace_font_family: str,
 ) -> QDialog:
-    header_color = DARK_THEME["planet"]
-    copper_header_style = f"font-weight: 700; color: {header_color};"
     dt_local = resolve_bazi_birth_datetime(chart)
     has_known_birth_hour = (
         not bool(getattr(chart, "birthtime_unknown", False))
@@ -669,17 +689,11 @@ def create_bazi_window_dialog(
             ]
         )
     )
-    summary_label.setStyleSheet(copper_header_style)
-    summary_font = summary_label.font()
-    summary_font.setFamily(monospace_font_family)
-    summary_label.setFont(summary_font)
+    summary_label.setStyleSheet(header_style)
     left_layout.addWidget(summary_label, 0)
 
     details_output = QTextBrowser()
     details_output.setReadOnly(True)
-    details_font = details_output.font()
-    details_font.setFamily(monospace_font_family)
-    details_output.setFont(details_font)
     details_output.setPlaceholderText("BaZi chart details unavailable.")
     details_output.setOpenExternalLinks(False)
     details_output.setOpenLinks(False)
@@ -687,7 +701,7 @@ def create_bazi_window_dialog(
     left_layout.addWidget(details_output, 1)
 
     chart_info_header = QLabel("Chart Info")
-    chart_info_header.setStyleSheet(copper_header_style)
+    chart_info_header.setStyleSheet(header_style)
     left_layout.addWidget(chart_info_header, 0)
 
     chart_info_panel = QLabel(
@@ -705,9 +719,6 @@ def create_bazi_window_dialog(
         f"border: 1px solid {CHART_THEME_COLORS['spine']}; "
         "padding: 8px;"
     )
-    info_font = chart_info_panel.font()
-    info_font.setFamily(monospace_font_family)
-    chart_info_panel.setFont(info_font)
     chart_info_panel.setWordWrap(True)
     left_layout.addWidget(chart_info_panel, 0)
 
@@ -739,21 +750,21 @@ def create_bazi_window_dialog(
     right_layout.setSpacing(6)
 
     charts_header = QLabel("BaZi Analytics")
-    charts_header.setStyleSheet(copper_header_style)
+    charts_header.setStyleSheet(header_style)
     right_layout.addWidget(charts_header, 0)
 
     elements_title = QLabel("Five Elements")
-    elements_title.setStyleSheet(copper_header_style)
+    elements_title.setStyleSheet(header_style)
     right_layout.addWidget(elements_title, 0)
     right_layout.addWidget(_build_elements_pie_canvas(bazi_data), 1)
 
     zodiac_title = QLabel("12 Zodiac Animals")
-    zodiac_title.setStyleSheet(copper_header_style)
+    zodiac_title.setStyleSheet(header_style)
     right_layout.addWidget(zodiac_title, 0)
     right_layout.addWidget(_build_zodiac_bar_canvas(bazi_data), 1)
 
     yin_yang_title = QLabel("Yin / Yang Balance")
-    yin_yang_title.setStyleSheet(copper_header_style)
+    yin_yang_title.setStyleSheet(header_style)
     right_layout.addWidget(yin_yang_title, 0)
     right_layout.addWidget(_build_yin_yang_pie_canvas(bazi_data), 1)
 
