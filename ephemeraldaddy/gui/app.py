@@ -454,6 +454,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     format_gate_line_info,
 )
 from ephemeraldaddy.gui.features.charts.human_design_plot import (
+    BODYGRAPH_VERTICAL_OFFSET,
     CENTER_HALF_HEIGHT,
     CENTER_HALF_WIDTH,
     CENTER_POSITIONS,
@@ -25021,6 +25022,8 @@ class MainWindow(QMainWindow):
         )
 
         right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
         layout.addLayout(right_layout, 3)
 
         date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
@@ -25045,6 +25048,8 @@ class MainWindow(QMainWindow):
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
         header_font.setBold(True)
+        if header_font.pointSizeF() > 0:
+            header_font.setPointSizeF(max(1.0, header_font.pointSizeF() * 0.65))
         header_label.setFont(header_font)
 
         figure = Figure(figsize=(10.9, 10.9))
@@ -25086,6 +25091,7 @@ class MainWindow(QMainWindow):
             click_x = float(event.xdata)
             click_y = float(event.ydata)
             for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
+                center_y += BODYGRAPH_VERTICAL_OFFSET
                 if (
                     abs(click_x - center_x) <= CENTER_HALF_WIDTH
                     and abs(click_y - center_y) <= CENTER_HALF_HEIGHT
