@@ -100,6 +100,7 @@ class SpeciesAssigner:
         scores = self._score_families(positions, aspects, feats)
 
         ranked = self._rank_families(scores)
+        ranked = self._apply_human_fallback_policy(ranked)
         top = ranked[:3]
         (fam1, card1) = top[0]
         subtype1, subtype_ev1 = self._pick_subtype(fam1, positions, aspects, feats)
@@ -146,6 +147,54 @@ class SpeciesAssigner:
             ranked.append((family, ScoreCard(score=numeric_score, reasons=list(card.reasons or []))))
         ranked.sort(key=lambda kv: kv[1].score, reverse=True)
         return ranked
+
+    @staticmethod
+    def _apply_human_fallback_policy(
+        ranked: List[Tuple[str, ScoreCard]],
+        *,
+        minimum_non_human_score: float = 1.05,
+        minimum_margin_over_human: float = -0.20,
+    ) -> List[Tuple[str, ScoreCard]]:
+        """
+        Keep Human as a true fallback.
+
+        Policy:
+        - if Human is already not first, keep ranking unchanged;
+        - if Human is first but a non-Human score is still plausible, promote the
+          strongest non-Human to the top;
+        - only keep Human first when everything else is weak/noisy.
+        """
+        if not ranked:
+            return ranked
+
+        top_family, top_card = ranked[0]
+        if top_family != "Human":
+            return ranked
+
+        human_score = float(top_card.score)
+        best_non_human_idx: Optional[int] = None
+        best_non_human_score = float("-inf")
+        for idx, (family, card) in enumerate(ranked):
+            if family == "Human":
+                continue
+            score = float(card.score)
+            if score > best_non_human_score:
+                best_non_human_score = score
+                best_non_human_idx = idx
+
+        if best_non_human_idx is None:
+            return ranked
+
+        non_human_is_plausible = (
+            best_non_human_score >= minimum_non_human_score
+            and (best_non_human_score - human_score) >= minimum_margin_over_human
+        )
+        if not non_human_is_plausible:
+            return ranked
+
+        adjusted = list(ranked)
+        adjusted[0], adjusted[best_non_human_idx] = adjusted[best_non_human_idx], adjusted[0]
+        return adjusted
 
     # ----------------------------
     # Data ingestion
