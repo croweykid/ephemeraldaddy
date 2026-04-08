@@ -46,6 +46,8 @@ CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for cent
 CHANNEL_SPACING = 0.014
 BODYGRAPH_VERTICAL_OFFSET = -0.07
 BODYGRAPH_CONTENT_SCALE = 0.65
+BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
+ACTIVATION_AXES_BOUNDS = (0.70, 0.02, 0.28, 0.96)
 
 
 def _offset_center_y(y_value: float) -> float:
@@ -93,27 +95,26 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
 ) -> None:
     figure.clear()
-    ax = figure.add_axes((0.0, 0.0, 1.0, 1.0))
-    ax.set_facecolor(chart_theme_colors["background"])
     figure.patch.set_facecolor(chart_theme_colors["background"])
-    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items())
-    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items())
-    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items())
-    base_min_x = min(center_min_x, 0.70)
-    base_max_x = max(center_max_x, 0.995)
-    base_min_y = min(center_min_y, 0.03)
-    base_max_y = max(center_max_y, 0.99)
-    base_width = max(base_max_x - base_min_x, 1e-6)
-    base_height = max(base_max_y - base_min_y, 1e-6)
-    content_center_x = (base_min_x + base_max_x) / 2.0
-    content_center_y = (base_min_y + base_max_y) / 2.0
-    scaled_half_width = (base_width / BODYGRAPH_CONTENT_SCALE) / 2.0
-    scaled_half_height = (base_height / BODYGRAPH_CONTENT_SCALE) / 2.0
+    ax = figure.add_axes(BODYGRAPH_AXES_BOUNDS)
+    ax.set_facecolor(chart_theme_colors["background"])
+    text_ax = figure.add_axes(ACTIVATION_AXES_BOUNDS)
+    text_ax.set_facecolor(chart_theme_colors["background"])
+    center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) - 0.03
+    center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in CENTER_POSITIONS.items()) + 0.03
+    center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) - 0.03
+    center_max_y = max(_offset_center_y(y) + CENTER_HALF_HEIGHT for _center, (_x, y) in CENTER_POSITIONS.items()) + 0.03
+    content_center_x = (center_min_x + center_max_x) / 2.0
+    content_center_y = (center_min_y + center_max_y) / 2.0
+    scaled_half_width = ((center_max_x - center_min_x) / BODYGRAPH_CONTENT_SCALE) / 2.0
+    scaled_half_height = ((center_max_y - center_min_y) / BODYGRAPH_CONTENT_SCALE) / 2.0
     ax.set_xlim(content_center_x - scaled_half_width, content_center_x + scaled_half_width)
     ax.set_ylim(content_center_y - scaled_half_height, content_center_y + scaled_half_height)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
+    text_ax.set_xlim(0.0, 1.0)
+    text_ax.set_ylim(0.0, 1.0)
+    text_ax.axis("off")
     unique_channels: list[tuple[int, int, str, str]] = []
     seen_channel_pairs: set[tuple[int, int]] = set()
     for gate_a, gate_b, center_a, center_b in CHANNELS:
@@ -302,11 +303,11 @@ def draw_human_design_chart(
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
 
     
-    ax.text(0.86, 0.97, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    text_ax.text(0.52, 0.98, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.personality_activations):
-        ax.text(
-            0.86,
-            0.94 - (idx * 0.028),
+        text_ax.text(
+            0.52,
+            0.95 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,
@@ -314,11 +315,11 @@ def draw_human_design_chart(
             va="top",
         )
 
-    ax.text(0.72, 0.97, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
+    text_ax.text(0.02, 0.98, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
     for idx, activation in enumerate(hd_result.design_activations):
-        ax.text(
-            0.72,
-            0.94 - (idx * 0.028),
+        text_ax.text(
+            0.02,
+            0.95 - (idx * 0.028),
             f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
             color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
             fontsize=6,

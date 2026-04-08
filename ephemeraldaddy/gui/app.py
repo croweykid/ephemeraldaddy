@@ -25130,6 +25130,8 @@ class MainWindow(QMainWindow):
         def _on_bodygraph_click(event: Any) -> None:
             if event.inaxes is None or event.xdata is None or event.ydata is None:
                 return
+            if not figure.axes or event.inaxes is not figure.axes[0]:
+                return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
             for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
