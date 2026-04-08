@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -673,20 +672,6 @@ def create_bazi_window_dialog(
     details_output.setOpenExternalLinks(False)
     details_output.setOpenLinks(False)
     details_output.setHtml(build_bazi_details_html(bazi_data))
-    def _on_details_link_clicked(url: QUrl) -> None:
-        element_key = str(url.toString() or "").split(":", 1)[-1].strip().lower()
-        element_data = BAZI_ELEMENTS.get(element_key, {})
-        if not isinstance(element_data, dict):
-            return
-        summary = str(element_data.get("one_liner", "") or "").strip()
-        if not summary:
-            return
-        QMessageBox.information(
-            dialog,
-            f"{element_key.capitalize()} Element",
-            summary,
-        )
-    details_output.anchorClicked.connect(_on_details_link_clicked)
     left_layout.addWidget(details_output, 1)
 
     chart_info_header = QLabel("Chart Info")
@@ -713,6 +698,28 @@ def create_bazi_window_dialog(
     chart_info_panel.setFont(info_font)
     chart_info_panel.setWordWrap(True)
     left_layout.addWidget(chart_info_panel, 0)
+
+    default_chart_info_text = chart_info_panel.text()
+
+    def _set_chart_info_panel_content(title: str, body: str) -> None:
+        chart_info_panel.setText(f"{title}\n{body}")
+
+    def _on_details_link_clicked(url: QUrl) -> None:
+        element_key = str(url.toString() or "").split(":", 1)[-1].strip().lower()
+        element_data = BAZI_ELEMENTS.get(element_key, {})
+        if not isinstance(element_data, dict):
+            chart_info_panel.setText(default_chart_info_text)
+            return
+        summary = str(element_data.get("one_liner", "") or "").strip()
+        if not summary:
+            chart_info_panel.setText(default_chart_info_text)
+            return
+        _set_chart_info_panel_content(
+            f"Element: {element_key.capitalize()}",
+            summary,
+        )
+
+    details_output.anchorClicked.connect(_on_details_link_clicked)
 
     right_panel = QWidget(dialog)
     right_layout = QVBoxLayout(right_panel)
