@@ -564,11 +564,23 @@ def _build_yin_yang_pie_canvas(bazi_data: BaziChartData) -> FigureCanvas:
         ax.text(0.5, 0.5, "No yin/yang data", ha="center", va="center", color=CHART_THEME_COLORS["text"])
         ax.set_axis_off()
     else:
+        non_zero_pairs = [
+            (label, color, value)
+            for label, color, value in zip(labels, colors, values, strict=True)
+            if value > 0
+        ]
+        pie_values = [value for _, _, value in non_zero_pairs]
+        pie_colors = [color for _, color, _ in non_zero_pairs]
+        pie_wedge_edge_color = (
+            "none"
+            if len(non_zero_pairs) == 1
+            else STANDARD_NCV_PIE_CHART["wedge_edge_color"]
+        )
         ax.pie(
-            values,
-            colors=colors,
+            pie_values,
+            colors=pie_colors,
             startangle=STANDARD_NCV_PIE_CHART["start_angle"],
-            wedgeprops={"edgecolor": STANDARD_NCV_PIE_CHART["wedge_edge_color"]},
+            wedgeprops={"edgecolor": pie_wedge_edge_color},
         )
         legend_handles = [
             Patch(
