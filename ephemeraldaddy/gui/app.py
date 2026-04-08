@@ -7305,22 +7305,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _generation_for_birth_year(birth_year: int | None) -> str | None:
-        if not isinstance(birth_year, int):
+        normalized_birth_year: int | None = None
+        if isinstance(birth_year, int):
+            normalized_birth_year = int(birth_year)
+        elif isinstance(birth_year, str):
+            candidate = birth_year.strip()
+            if candidate.isdigit():
+                normalized_birth_year = int(candidate)
+        if normalized_birth_year is None:
             return None
         for cohort in GENERATIONAL_COHORTS:
             start_year = cohort.get("start_year")
             end_year = cohort.get("end_year")
             if not isinstance(start_year, int) or not isinstance(end_year, int):
                 continue
-            if start_year <= birth_year <= end_year:
+            if start_year <= normalized_birth_year <= end_year:
                 cohort_name = cohort.get("name")
                 return str(cohort_name) if cohort_name else None
         return None
 
     @staticmethod
     def _chart_birth_year_for_filters(chart_row: tuple[Any, ...] | None, chart: Chart | None) -> int | None:
-        if chart_row and len(chart_row) > 19 and isinstance(chart_row[19], int):
-            return int(chart_row[19])
+        if chart_row and len(chart_row) > 19:
+            row_birth_year = chart_row[19]
+            if isinstance(row_birth_year, int):
+                return int(row_birth_year)
+            if isinstance(row_birth_year, str):
+                parsed_row_birth_year = row_birth_year.strip()
+                if parsed_row_birth_year.isdigit():
+                    return int(parsed_row_birth_year)
 
         # Placeholders with unspecified birth year should remain generation-unknown.
         if chart_row and len(chart_row) > 19 and bool(chart_row[15]) and chart_row[19] is None:
@@ -7335,6 +7348,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         birth_year = getattr(chart, "birth_year", None)
         if isinstance(birth_year, int):
             return int(birth_year)
+        if isinstance(birth_year, str):
+            parsed_birth_year = birth_year.strip()
+            if parsed_birth_year.isdigit():
+                return int(parsed_birth_year)
 
         if bool(getattr(chart, "is_placeholder", False)) and birth_year is None:
             return None
