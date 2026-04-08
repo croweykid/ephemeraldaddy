@@ -25021,6 +25021,8 @@ class MainWindow(QMainWindow):
         )
 
         right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
         layout.addLayout(right_layout, 3)
 
         date_label = self._latest_chart.dt.strftime("%m.%d.%Y") if self._latest_chart.dt else "??.??.????"
@@ -25045,6 +25047,8 @@ class MainWindow(QMainWindow):
         header_font = header_label.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
         header_font.setBold(True)
+        if header_font.pointSizeF() > 0:
+            header_font.setPointSizeF(max(1.0, header_font.pointSizeF() * 0.65))
         header_label.setFont(header_font)
 
         figure = Figure(figsize=(10.9, 10.9))
