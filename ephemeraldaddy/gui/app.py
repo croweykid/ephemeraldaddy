@@ -1532,6 +1532,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_dirty_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
+        self._transit_popout_chart_by_dialog: dict[QDialog, Chart] = {}
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
@@ -5197,7 +5198,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _show_transit_chart_popout(self, chart: Chart) -> None:
         dialog = QDialog(self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
-        dialog.setWindowTitle("Get Transit")
         dialog.setMinimumSize(780, 780)
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 12, 12, 12)
@@ -5224,12 +5224,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addLayout(right_layout, 3)
 
         date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
+        date_label_long = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown date"
+        weekday_label = chart.dt.strftime("%A") if chart.dt else "Unknown day"
         time_label = (
             "unknown"
             if getattr(chart, "birthtime_unknown", False)
             else chart.dt.strftime("%H:%M")
         )
         location_label = getattr(self, "_transit_location_label", None) or "Unknown"
+        dialog.setWindowTitle(
+            f"Transit Chart for {time_label} on {weekday_label}, {date_label_long} in {location_label}"
+        )
 
         popout_header_layout = QHBoxLayout()
         popout_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -5366,10 +5371,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         dialog.show()
         self._transit_popout_dialogs.append(dialog)
+        self._transit_popout_chart_by_dialog[dialog] = chart
         dialog.destroyed.connect(
             lambda _=None, dialog=dialog: self._transit_popout_dialogs.remove(dialog)
             if dialog in self._transit_popout_dialogs
             else None
+        )
+        dialog.destroyed.connect(
+            lambda _=None, dialog=dialog: self._transit_popout_chart_by_dialog.pop(dialog, None)
         )
 
     def _build_similarities_analysis_panel(self) -> QWidget:
@@ -13296,6 +13305,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         parent._run_chart_action_from_active_context(action_name, requester=self)
 
+    def _get_transit_popout_action_chart(self) -> Chart | None:
+        if not self._transit_popout_chart_by_dialog:
+            return None
+        active_window = QApplication.activeWindow()
+        if isinstance(active_window, QDialog):
+            active_chart = self._transit_popout_chart_by_dialog.get(active_window)
+            if active_chart is not None:
+                return active_chart
+
+        for dialog in reversed(self._transit_popout_dialogs):
+            if dialog in self._transit_popout_chart_by_dialog and dialog.isVisible():
+                return self._transit_popout_chart_by_dialog[dialog]
+        return None
+
     def _on_menu_interpret_astro_age(self) -> None:
         self._run_main_window_chart_action("interpret_astro_age")
 
@@ -20972,6 +20995,10 @@ class MainWindow(QMainWindow):
             return self._latest_chart, self.current_chart_id
 
         if database_view_active:
+            if manage_dialog is not None and hasattr(manage_dialog, "_get_transit_popout_action_chart"):
+                transit_action_chart = manage_dialog._get_transit_popout_action_chart()
+                if transit_action_chart is not None:
+                    return transit_action_chart, None
             chart_id = self._selected_chart_id_from_manage_view()
             if chart_id is None:
                 return None, None
