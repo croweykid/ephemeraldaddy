@@ -15,7 +15,7 @@ from typing import Any, Callable
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFileDialog, QLayout, QMessageBox, QSizePolicy
+from PySide6.QtWidgets import QFileDialog, QLabel, QLayout, QMessageBox, QSizePolicy
 
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
@@ -57,7 +57,10 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS,
     DATABASE_ANALYTICS_GRAPH_AREA_DEBUG_COLOR,
     DATABASE_ANALYTICS_GRAPH_LABEL_REGION_DEBUG_COLOR,
+    DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
     DND_STAT_EARTHTONE_COLORS,
+    DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     GENDER_GUESSER_COLORS,
     get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
@@ -139,7 +142,15 @@ class DatabaseAnalyticsChartsMixin:
         "水": "Water",
     }
 
-    @staticmethod
+    def _build_database_subheader_label(self, text: str = "") -> QLabel:
+        subheader = QLabel(text)
+        subheader_style = DATABASE_ANALYTICS_SUBHEADER_STYLE
+        if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
+            subheader_style = f"{subheader_style} {DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE}"
+        subheader.setStyleSheet(subheader_style)
+        subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
+        return subheader
+
     def _value_length_color(
         value: float,
         minimum: float,
