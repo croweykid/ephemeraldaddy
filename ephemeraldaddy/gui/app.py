@@ -309,6 +309,8 @@ from ephemeraldaddy.core.interpretations import (
     NATAL_CHART_MAX_YEAR,
     AGE_BRACKETS,
     SEASONAL_COLOR_SPECTRUM,
+    SEASONAL_COLORS,
+    get_blended_color,
     GENERATIONAL_COHORTS,
     GENERATION_COLORS,
     ASPECT_COLORS,
@@ -9535,11 +9537,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if _should_refresh_database_metric_section("birth_month"):
                     self._clear_layout(self.birth_month_chart_layout)
                     if top_date_labels:
+                        top_date_bar_colors: list[str] = []
+                        for date_label in top_date_labels:
+                            try:
+                                month_text, day_text = str(date_label).split("-", 1)
+                                month_value = int(month_text)
+                                day_value = int(day_text)
+                                day_of_year = datetime.date(2001, month_value, day_value).timetuple().tm_yday
+                                date_color = get_blended_color(
+                                    SEASONAL_COLORS["spring"],
+                                    SEASONAL_COLORS["summer"],
+                                    SEASONAL_COLORS["fall"],
+                                    SEASONAL_COLORS["winter"],
+                                    365,
+                                    day_of_year - 1,
+                                )
+                            except (ValueError, TypeError):
+                                date_color = "#6fa8dc"
+                            top_date_bar_colors.append(date_color)
                         date_canvas = self._build_count_distribution_chart(
                             labels=top_date_labels,
                             selection_counts=[selection_date_counts.get(label, 0) for label in top_date_labels],
                             database_counts=[database_date_counts.get(label, 0) for label in top_date_labels],
                             loaded_charts=loaded_charts,
+                            bar_colors=top_date_bar_colors,
                         )
                         self.birth_month_chart_layout.addWidget(date_canvas, 0)
                     else:
