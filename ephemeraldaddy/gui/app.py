@@ -21315,7 +21315,6 @@ class MainWindow(QMainWindow):
                 self,
                 chart,
                 header_style=CHART_DATA_POPOUT_HEADER_STYLE,
-                monospace_font_family=CHART_DATA_MONOSPACE_FONT_FAMILY,
             )
         except Exception as exc:
             QMessageBox.critical(
