@@ -9,21 +9,21 @@ from ephemeraldaddy.core.human_design_system import HumanDesignResult
 
 
 BASE_CENTER_POSITIONS: dict[str, tuple[float, float]] = {
-    "Head": (0.5, 0.94),
-    "Ajna": (0.512, 0.742),
-    "Throat": (0.528, 0.536),
-    "G": (0.548, 0.338),
-    "Ego": (0.812, 0.372),
-    "Spleen": (0.312, 0.182),
-    "Solar Plexus": (0.846, 0.198),
-    "Sacral": (0.57, 0.108),
-    "Root": (0.592, -0.094),
+    "Head": (0.5, 1.0),
+    "Ajna": (0.5, 0.8),
+    "Throat": (0.5, 0.6),
+    "G": (0.5, 0.4),
+    "Ego": (0.74, 0.4),
+    "Spleen": (0.26, 0.26),
+    "Solar Plexus": (0.74, 0.2),
+    "Sacral": (0.5, 0.2),
+    "Root": (0.5, 0.00),
 }
 
 CENTER_LAYOUT_ANCHOR_X = 0.5
 CENTER_LAYOUT_ANCHOR_Y = 0.94
-CENTER_HORIZONTAL_SPREAD = 1.14
-CENTER_VERTICAL_SPREAD = 1.04
+CENTER_HORIZONTAL_SPREAD = 1.5
+CENTER_VERTICAL_SPREAD = 1.2
 CENTER_DEPTH_RIGHT_DRIFT = 0.02
 
 CENTER_COLUMN_CENTERS = frozenset({"Head", "Ajna", "Throat", "G", "Sacral", "Root"})
@@ -71,7 +71,7 @@ CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for cent
 
 CHANNEL_SPACING = 0.014
 BODYGRAPH_VERTICAL_OFFSET = -0.07
-BODYGRAPH_CONTENT_SCALE = 0.65
+BODYGRAPH_CONTENT_SCALE = 0.74 #scales the bodygraph chart
 BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
 ACTIVATION_AXES_BOUNDS = (0.70, 0.02, 0.28, 0.96)
 
