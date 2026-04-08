@@ -565,7 +565,7 @@ ELEMENT_COLORS = {
 
 BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
     "wood": {
-        "color": "#cccc00",
+        "color": "#999900",
         "one_liner": "Growth with an agenda; the vine that joins committees and keeps climbing anyway.",
     },
     "water": {
@@ -573,17 +573,32 @@ BAZI_ELEMENTS = { #BAZI_ELEMENT_COLORS <-rename this, appwide
         "one_liner": "Finds the gap, ignores the memo, arrives everywhere eventually.",
     },
     "earth": {
-        "color": "#009900",
+        "color": "#049534",
         "one_liner": "The load-bearing adult in the room, quietly judging others' poor planning.",
     },
     "fire": {
-        "color": "#ff3300",
+        "color": "#cc3300",
         "one_liner": "Charisma, heat, spectacle; excellent at getting attention and setting off alarms.",
     },
     "metal": {
         "color": "#669999",
         "one_liner": "Precision with attitude; polished, sharp, and not here for sloppy nonsense.",
     },
+}
+
+BAZI_ZODIAC = {
+    "rat": "Tiny opportunist, huge survival instincts, already three moves ahead of the landlord.",
+    "ox": "Built for endurance, allergic to nonsense, and not speeding up for your convenience.",
+    "tiger": "Bold, dramatic, and spiritually incapable of entering a room quietly.",
+    "rabbit": "Polite on the surface, evasive underneath, gone before the bill arrives.",
+    "dragon": "Main-character voltage with a suspiciously high tolerance for spectacle.",
+    "snake": "Elegant, unreadable, and somehow always aware of more than it says.",
+    "horse": "Freedom addict with strong opinions and no interest in your leash.",
+    "goat": "Soft aesthetic, hard stubbornness, and a private empire of preferences.",
+    "monkey": "Clever, restless, and one bad idea away from making the afternoon interesting.",
+    "rooster": "Sharp eye, sharper mouth, and absolutely convinced standards still matter.",
+    "dog": "Loyal, skeptical, and already clocking who in the room is full of it.",
+    "pig": "Pleasure connoisseur with better instincts than people give it credit for.",
 }
 
 SIGN_COLORS = {
