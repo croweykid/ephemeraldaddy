@@ -68,6 +68,7 @@ from ephemeraldaddy.gui.style import (
 
 
 class DatabaseAnalyticsChartsMixin:
+    CHINESE_FONT_UNAVAILABLE: bool = True
     BAZI_EMOJI_FONT_FAMILIES: tuple[str, ...] = (
         "Noto Color Emoji",
         "Segoe UI Emoji",
@@ -386,25 +387,35 @@ class DatabaseAnalyticsChartsMixin:
         normalized = str(raw_label or "").strip()
         if not normalized:
             return ""
+
+        def _display_label(*, original: str, translated: str) -> str:
+            english_only = bool(getattr(self, "CHINESE_FONT_UNAVAILABLE", True))
+            if english_only:
+                return translated or original
+            return f"{original} ({translated})" if translated else original
+
         if mode == "elements":
             translated = " ".join(
                 self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
                 for char in normalized
                 if self.BAZI_ELEMENT_TRANSLATIONS.get(char, "")
             ).strip()
-            return f"{normalized} ({translated})" if translated else normalized
+            return _display_label(original=normalized, translated=translated)
+        if mode == "animals":
+            translated = self.BAZI_BRANCH_TRANSLATIONS.get(normalized, "").strip()
+            return _display_label(original=normalized, translated=translated)
         if len(normalized) == 2:
             stem = self.BAZI_STEM_TRANSLATIONS.get(normalized[0], "")
             branch = self.BAZI_BRANCH_TRANSLATIONS.get(normalized[1], "")
-            translated = " · ".join(part for part in (stem, branch) if part)
-            return f"{normalized} ({translated})" if translated else normalized
+            translated = " ".join(part for part in (stem, branch) if part)
+            return _display_label(original=normalized, translated=translated)
         translated = (
             self.BAZI_STEM_TRANSLATIONS.get(normalized)
             or self.BAZI_BRANCH_TRANSLATIONS.get(normalized)
             or self.BAZI_ELEMENT_TRANSLATIONS.get(normalized)
             or ""
         )
-        return f"{normalized} ({translated})" if translated else normalized
+        return _display_label(original=normalized, translated=translated)
 
     @staticmethod
     def _label_contains_emoji(label: str) -> bool:
@@ -2350,11 +2361,12 @@ class DatabaseAnalyticsChartsMixin:
                 ("Day Pillar", "day"),
                 ("Hour Pillar", "hour"),
                 ("BaZi Elements", "elements"),
+                ("BaZi Animal Signs", "animals"),
             ],
             show_title=False,
         )
         bazi_subheader = self._build_database_subheader_label(
-            "BaZi pillar and five-element distributions across selection/database."
+            "BaZi pillar, animal-sign, and five-element distributions across selection/database."
         )
         bazi_section_layout.addWidget(bazi_subheader)
         (
@@ -2384,6 +2396,23 @@ class DatabaseAnalyticsChartsMixin:
                 for key, value in database_cache.get("bazi_element_counts", {}).items()
                 if int(value) > 0
             }
+        elif bazi_mode == "animals":
+            selection_bazi_counts: dict[str, int] = {}
+            for pillar_label, value in selection_cache.get("bazi_sign_counts", {}).get("all", {}).items():
+                normalized_pillar = str(pillar_label or "").strip()
+                if len(normalized_pillar) != 2:
+                    continue
+                animal_label = normalized_pillar[1]
+                selection_bazi_counts[animal_label] = int(selection_bazi_counts.get(animal_label, 0)) + int(value)
+            database_bazi_counts: dict[str, int] = {}
+            for pillar_label, value in database_cache.get("bazi_sign_counts", {}).get("all", {}).items():
+                normalized_pillar = str(pillar_label or "").strip()
+                if len(normalized_pillar) != 2:
+                    continue
+                animal_label = normalized_pillar[1]
+                database_bazi_counts[animal_label] = int(database_bazi_counts.get(animal_label, 0)) + int(value)
+            selection_bazi_counts = {key: value for key, value in selection_bazi_counts.items() if int(value) > 0}
+            database_bazi_counts = {key: value for key, value in database_bazi_counts.items() if int(value) > 0}
         else:
             selection_bazi_counts = {
                 key: int(value)
