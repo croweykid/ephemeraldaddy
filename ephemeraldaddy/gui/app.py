@@ -10523,7 +10523,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         year_first_encountered_group_layout.addLayout(year_first_encountered_blank_row)
         layout.addWidget(year_first_encountered_section)
 
-        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Relevance")
+        sentiment_section, sentiment_group_layout = add_collapsible_section("💭Sentiment")
 
 #Search: Sentiments section
         sentiment_mode_layout = QHBoxLayout()
@@ -11546,7 +11546,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_divider.setFrameShape(QFrame.HLine)
         sentiment_metrics_divider.setFrameShadow(QFrame.Sunken)
         sentiment_section_layout.addWidget(sentiment_metrics_divider)
-        sentiment_metrics_subheader = QLabel("Sentiments")
+        sentiment_metrics_subheader = QLabel("Relevance")
         sentiment_metrics_subheader.setStyleSheet("font-weight: 600;")
         sentiment_section_layout.addWidget(sentiment_metrics_subheader)
         sentiment_section_layout.addWidget(sentiment_metrics_widget)
