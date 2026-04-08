@@ -114,13 +114,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "T",
         "B",
     )
-    _COPPER_HEADER_PREFIXES = (
+    HD_HEADERS = (
         "Gate",
         "Type",
         "Authority",
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Strategy",
+        "Defined Centers",
     )
 
     def __init__(
@@ -366,12 +368,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             ):
                 header_format = (
                     self._copper_header_format
-                    if prefix in self._COPPER_HEADER_PREFIXES
+                    if prefix in self.HD_HEADERS
                     else self._plain_bold_format
                 )
                 self.setFormat(0, self._qt_len(prefix), header_format)
                 break
-        for prefix in self._COPPER_HEADER_PREFIXES:
+        for prefix in self.HD_HEADERS:
             if stripped_text.startswith(f"{prefix} "):
                 self.setFormat(0, self._qt_len(prefix), self._copper_header_format)
                 break
