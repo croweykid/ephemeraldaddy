@@ -14302,7 +14302,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if refresh:
             self._on_filter_changed()
 
-    def _on_selection_changed(self) -> None:
+    def _on_selection_changed(self, *, refresh_metrics: bool = True) -> None:
         self._cancel_inline_chart_rename()
         active_left_scrollbar = None
         active_left_scroll_value = None
@@ -14316,6 +14316,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
         self._update_batch_edit_action_buttons()
         self._update_collection_membership_buttons()
+        if not refresh_metrics:
+            self._update_selection_header()
+            return
         try:
             self._update_sentiment_tally(
                 update_database_metrics=(
@@ -15176,7 +15179,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
         self._populate_list(selected_ids=selected_ids or None)
-        self._on_selection_changed()
+        self._on_selection_changed(refresh_metrics=False)
 
     @staticmethod
     def _age_sort_key(datetime_iso: str | None) -> datetime.datetime:
