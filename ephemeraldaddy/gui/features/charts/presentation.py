@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import html
 from functools import lru_cache
 from typing import Any
 
@@ -10,10 +11,12 @@ from matplotlib import font_manager as mpl_font_manager
 
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.interpretations import (
+    NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
     NAKSHATRA_RANGES,
     ZODIAC_NAMES,
 )
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 
 def format_longitude(lon: float) -> str:
@@ -134,8 +137,62 @@ def format_nakshatra_description_text(nakshatra: str) -> str:
     return "\n".join(lines)
 
 
+def format_nakshatra_description_html(nakshatra: str) -> str:
+    details = NAKSHATRA_DESCRIPTIONS.get(nakshatra)
+    if not details:
+        return (
+            f"<div><strong>{html.escape(nakshatra)}</strong></div>"
+            "<div style='margin-top: 8px;'>No nakshatra description is available.</div>"
+        )
+
+    raw_title = str(details.get("name") or nakshatra)
+    title = html.escape(raw_title)
+    title_color = NAKSHATRA_PLANET_COLOR.get(raw_title, (None, "#6fa8dc"))[1]
+
+    def _header(label: str) -> str:
+        return f"<span style='font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};'>{label}</span>"
+
+    def _value(key: str) -> str:
+        raw = details.get(key)
+        if isinstance(raw, str):
+            return html.escape(raw.strip())
+        return ""
+
+    quality = _value("quality")
+    quality_html = ""
+    if quality:
+        quality_name, sep, quality_desc = quality.partition(":")
+        if sep:
+            quality_html = f"<strong>{quality_name.strip()}:</strong> {quality_desc.strip()}"
+        else:
+            quality_html = quality
+
+    body_assoc_value = _value("planetary_associations")
+    sections: list[tuple[str, str]] = [
+        ("Symbol:", _value("symbol")),
+        ("Shakti:", _value("shakti")),
+        ("Essence:", _value("essence")),
+        ("Quality:", quality_html),
+        ("Favorable Activities:", _value("favorable_activities")),
+        ("Sidereal Sign:", _value("sidereal_sign")),
+        ("Deity:", _value("deity")),
+        ("Ruler:", _value("ruler")),
+        ("Body Associations:", body_assoc_value),
+    ]
+    lines = [
+        f"<div style='font-size: 14px; font-weight: bold; color: {title_color};'>{title}</div>",
+        "<div style='margin-top: 8px;'>",
+    ]
+    for label, value in sections:
+        if not value:
+            continue
+        lines.append(f"<div>{_header(label)} {value}</div>")
+    lines.append("</div>")
+    return "".join(lines)
+
+
 def apply_nakshatra_tick_info_markers(ax: Any, nakshatras: list[str]) -> None:
-    ax.set_xticks(range(len(nakshatras)), [f"{name} ⓘ" for name in nakshatras])
+    ax.set_xticks(range(len(nakshatras)), nakshatras)
     info_font_name = _nakshatra_info_marker_font_name()
     for label, nakshatra_name in zip(ax.get_xticklabels(), nakshatras, strict=True):
         if info_font_name:

@@ -409,6 +409,7 @@ from ephemeraldaddy.gui.features.charts.presentation import (
     format_degree_minutes as _format_degree_minutes,
     format_hd_annotation as _format_hd_annotation,
     format_longitude as _format_longitude,
+    format_nakshatra_description_html as _format_nakshatra_description_html,
     format_nakshatra_description_text as _format_nakshatra_description_text,
     format_percent as _format_percent,
     format_transit_range as _format_transit_range,
@@ -19836,21 +19837,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(info_panel, STANDARD_NCV_POPOUT_LAYOUT["info_stretch"])
 
         if title == "Nakshatra Prevalence":
-            # info_panel = QPlainTextEdit()
-            # info_panel.setReadOnly(True)
             info_panel.setPlaceholderText(
-                "Click a nakshatra ⓘ label to view its description."
+                "Click a nakshatra label or bar to view its description."
             )
-            # info_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            # layout.addWidget(popout_canvas, 2)
-            # layout.addWidget(info_panel, 1)
 
             def _on_pick(event) -> None:
                 artist = getattr(event, "artist", None)
                 nakshatra_name = artist.get_gid() if artist is not None else None
                 if not isinstance(nakshatra_name, str) or not nakshatra_name:
                     return
-                info_panel.setPlainText(_format_nakshatra_description_text(nakshatra_name))
+                info_panel.setHtml(_format_nakshatra_description_html(nakshatra_name))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
         elif title == "Gender Guesser":
@@ -20670,7 +20666,10 @@ class MainWindow(QMainWindow):
             NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1]
             for name in nakshatras
         ]
-        ax.bar(nakshatras, values, color=bar_colors)
+        bars = ax.bar(nakshatras, values, color=bar_colors)
+        for bar, nakshatra_name in zip(bars, nakshatras, strict=True):
+            bar.set_picker(True)
+            bar.set_gid(nakshatra_name)
         _apply_nakshatra_tick_info_markers(ax, nakshatras)
 
         ax.set_ylim(0, max(1, max_value + 1))
@@ -24777,7 +24776,11 @@ class MainWindow(QMainWindow):
         if not rulers:
             chart_ruler_label.setText("Chart Ruler: Unknown")
             return
-        chart_ruler_label.setText(f"Chart Ruler: {' & '.join(rulers)}")
+        ruler_html = " &amp; ".join(
+            f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>'
+            for ruler in rulers
+        )
+        chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}")
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
