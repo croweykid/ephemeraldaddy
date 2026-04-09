@@ -439,6 +439,12 @@ MODES = {
     "fixed": {"Taurus","Leo","Scorpio","Aquarius"},
 }
 
+MODE_KEYWORDS = {
+    "cardinal": {"go-getter","dynamic","action-oriented","pushy","catalyzing"},
+    "mutable": {"adaptable","responsive","takes people & things as they come","flexible","ever-evolving"},
+    "fixed": {"static","unyielding","firm","unmoveable","set in one's ways","resolved"},
+}
+
 # PLANET_RULERSHIP_CLASSICAL = {
 #     "Sun": {"Leo"},
 #     "Moon": {"Cancer"},
@@ -856,7 +862,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "quality": "Mridu: soft, gentle, yielding.",
         "favorable_activities": "Learning music, dance, arts and marriages. They are also ideal for the enjoyment of pleasures, making new friends, and wearing new clothes.",
         "sidereal_sign": "Taurus/Gemini",
-        "archetypes": "Artemis, serial killer (asc). Few millionaires/billionaires (moon).",
+        "archetypes": "Artemis, serial killer (asc). Few millionaires/billionaires (moon). Amnesia plots & memory issues seem to be a theme.",
         "deity": "Mangal",
         "ruler": "Mars",
         "planetary_associations": "Mercury",
@@ -1216,6 +1222,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "comments_B": ""
     }
 }
+
 
 PLANET_GLYPHS = {
     "Sun": "☉",
