@@ -862,7 +862,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "quality": "Mridu: soft, gentle, yielding.",
         "favorable_activities": "Learning music, dance, arts and marriages. They are also ideal for the enjoyment of pleasures, making new friends, and wearing new clothes.",
         "sidereal_sign": "Taurus/Gemini",
-        "archetypes": "Artemis, serial killer (asc). Few millionaires/billionaires (moon).",
+        "archetypes": "Artemis, serial killer (asc). Few millionaires/billionaires (moon). Amnesia plots & memory issues seem to be a theme.",
         "deity": "Mangal",
         "ruler": "Mars",
         "planetary_associations": "Mercury",
