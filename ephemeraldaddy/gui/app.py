@@ -11348,6 +11348,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         data_rating_index = parent.data_rating_combo.findData(parent_data_rating)
         parent.data_rating_combo.setCurrentIndex(max(0, data_rating_index))
         parent.source_edit.setPlainText(profile_data["profile_url"])
+        parent.biography_edit.setPlainText(str(profile_data.get("biography", "") or ""))
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
 
@@ -11365,6 +11366,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.relationship_types = ["public figure"]
         chart.chart_data_source = profile_data["profile_url"]
         chart.data_rating = str(profile_data.get("data_rating", "blank") or "blank")
+        chart.biography = str(profile_data.get("biography", "") or "")
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.is_placeholder = False
@@ -19908,6 +19910,8 @@ class MainWindow(QMainWindow):
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Modes": (8.0, 5.4),
+            "Dominant Modes": (8.0, 5.4),
+            "Modal Prevalence": (8.0, 5.4),
             "Gender Guesser": (8.0, 4.2),
             "Body Dynamics": (8.5, 5.0),
         }
@@ -19926,7 +19930,7 @@ class MainWindow(QMainWindow):
             self._draw_element_tally(ax, chart)
         elif title == "Nakshatra Prevalence":
             self._draw_nakshatra_wordcloud(ax, chart)
-        elif title == "Modes":
+        elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
             self._draw_modal_distribution(ax, chart)
         elif title == "Gender Guesser":
             self._draw_gender_guesser(ax, chart)

@@ -403,6 +403,15 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
             data_rating = candidate
             break
 
+    biography = ""
+    biography_match = re.search(
+        r"<[^>]*id=[\"']biographie[\"'][^>]*>(.*?)</(?:article|div|section)>",
+        html_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if biography_match is not None:
+        biography = _strip_html_text(biography_match.group(1))
+
     return {
         "name": name,
         "birth_year": year_number,
@@ -413,5 +422,6 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
         "time_unknown": time_unknown,
         "birth_place": cleaned_place,
         "data_rating": data_rating,
+        "biography": biography,
         "profile_url": profile_url,
     }
