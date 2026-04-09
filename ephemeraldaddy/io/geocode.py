@@ -2,6 +2,8 @@
 #from ephemeraldaddy.core.deps import ensure_package #commented out to localize search to offline.
 
 import os
+import logging
+import uuid
 
 from typing import List, Tuple
 #from geopy.geocoders import Nominatim
@@ -20,11 +22,16 @@ from ephemeraldaddy.io.local_gazetteer import (
 )
 
 _geolocator = None
+logger = logging.getLogger(__name__)
 
 
 class LocationLookupError(Exception):
     """Raised when a birth location string cannot be resolved to coordinates."""
     pass
+
+
+def _new_lookup_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
 def _get_geolocator():
@@ -36,13 +43,21 @@ def _get_geolocator():
 
 
 def _online_geocode(query: str):
+    lookup_id = _new_lookup_id("geocode_online")
     geolocator = _get_geolocator()
     try:
         loc = geolocator.geocode(query)
     except Exception as exc:
+        logger.exception(
+            "Online geocode lookup failed (id=%s query=%r): %s",
+            lookup_id,
+            query,
+            exc,
+        )
         raise LocationLookupError(f"Birth location lookup failed for {query!r}") from exc
 
     if loc is None:
+        logger.info("Online geocode returned no result (id=%s query=%r).", lookup_id, query)
         raise LocationLookupError(f"Birth location not found for {query!r}")
 
     return loc.latitude, loc.longitude, loc.address
@@ -81,6 +96,8 @@ def search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float
     q = (query or "").strip()
     if not q:
         return []
+    lookup_id = _new_lookup_id("search_locations")
+    logger.debug("Location search started (id=%s query=%r limit=%s).", lookup_id, q, limit)
 
     sources = resolve_search_sources()
     results: List[Tuple[str, float, float]] = []
@@ -88,14 +105,31 @@ def search_locations(query: str, limit: int = 5) -> List[Tuple[str, float, float
     if "local" in sources:
         results = local_search_locations(q, limit=limit)
         if results or not _online_search_enabled():
+            logger.debug(
+                "Location search resolved via local source (id=%s result_count=%s).",
+                lookup_id,
+                len(results),
+            )
             return results
 
     if "online" not in sources or not _online_search_enabled():
+        logger.debug("Location search had no online fallback (id=%s).", lookup_id)
         return []
 
     geocoder = _get_geolocator()
-    matches = geocoder.geocode(q, exactly_one=False, addressdetails=True, limit=limit)
+    try:
+        matches = geocoder.geocode(q, exactly_one=False, addressdetails=True, limit=limit)
+    except Exception as exc:
+        logger.exception(
+            "Location search online query failed (id=%s query=%r): %s",
+            lookup_id,
+            q,
+            exc,
+        )
+        return []
     if not matches:
+        logger.info("Location search returned no matches (id=%s query=%r).", lookup_id, q)
         return []
 
+    logger.debug("Location search resolved via online source (id=%s result_count=%s).", lookup_id, len(matches))
     return [(r.address, r.latitude, r.longitude) for r in matches]
