@@ -439,6 +439,12 @@ MODES = {
     "fixed": {"Taurus","Leo","Scorpio","Aquarius"},
 }
 
+MODE_KEYWORDS = {
+    "cardinal": {"go-getter","dynamic","action-oriented","pushy","catalyzing"},
+    "mutable": {"adaptable","responsive","takes people & things as they come","flexible","ever-evolving"},
+    "fixed": {"static","unyielding","firm","unmoveable","set in one's ways","resolved"},
+}
+
 # PLANET_RULERSHIP_CLASSICAL = {
 #     "Sun": {"Leo"},
 #     "Moon": {"Cancer"},
@@ -1216,6 +1222,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "comments_B": ""
     }
 }
+
 
 PLANET_GLYPHS = {
     "Sun": "☉",
