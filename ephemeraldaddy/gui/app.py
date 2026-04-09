@@ -15,6 +15,7 @@ import statistics
 import subprocess
 import sys
 import traceback
+import uuid
 import urllib.parse
 import platform
 from difflib import SequenceMatcher
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
 SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
+
+
+def _new_debug_action_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
 def _normalize_lilith_calculation_method(value: object) -> str:
@@ -4859,6 +4864,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if _transit_shutdown_in_progress:
                 return
             _transit_shutdown_in_progress = True
+            debug_id = _new_debug_action_id("transit_shutdown")
+            logger.debug(
+                "Transit worker shutdown started (id=%s active_workers=%s).",
+                debug_id,
+                len(transit_workers),
+            )
 
             for key, (thread, _worker) in list(transit_workers.items()):
                 try:
@@ -4870,9 +4881,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if not thread.isRunning():
                         transit_workers.pop(key, None)
                 except RuntimeError:
+                    logger.exception(
+                        "Transit worker shutdown runtime error (id=%s worker_key=%s).",
+                        debug_id,
+                        key,
+                    )
                     transit_workers.pop(key, None)
                     continue
             _finalize_transit_worker_shutdown()
+            logger.debug("Transit worker shutdown finished (id=%s).", debug_id)
 
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
@@ -4981,9 +4998,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     transit_workers.pop(key, None)
 
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
+            debug_id = _new_debug_action_id("transit_window_ready")
             _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
+                logger.debug(
+                    "Transit window ready ignored because state was missing (id=%s key=%s).",
+                    debug_id,
+                    key,
+                )
                 return
             cache_key = state.get("cache_key")
             state["resolved"] = True
@@ -5001,13 +5024,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             if isinstance(cache_key, tuple):
                 _window_cache_put(cache_key, {"resolved": True, "failed": False, "start": start_dt, "end": end_dt, "start_truncated_to_scope": bool(state["start_truncated_to_scope"]), "end_truncated_to_scope": bool(state["end_truncated_to_scope"]), "error": ""})
+            logger.debug(
+                "Transit window resolved (id=%s key=%s start=%r end=%r).",
+                debug_id,
+                key,
+                start_dt,
+                end_dt,
+            )
             _refresh_summary()
             _drain_preload_queue()
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
+            debug_id = _new_debug_action_id("transit_window_failed")
             _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
+                logger.debug(
+                    "Transit window failure ignored because state was missing (id=%s key=%s error=%r).",
+                    debug_id,
+                    key,
+                    error_text,
+                )
                 return
             cache_key = state.get("cache_key")
             state["resolved"] = False
@@ -5019,6 +5056,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             if error_text != "Cancelled" and isinstance(cache_key, tuple):
                 _window_cache_put(cache_key, {"resolved": False, "failed": True, "start": None, "end": None, "start_truncated_to_scope": False, "end_truncated_to_scope": False, "error": error_text})
+            if error_text == "Cancelled":
+                logger.info("Transit window cancelled (id=%s key=%s).", debug_id, key)
+            else:
+                logger.warning(
+                    "Transit window failed (id=%s key=%s error=%r).",
+                    debug_id,
+                    key,
+                    error_text,
+                )
             _refresh_summary()
             _drain_preload_queue()
 
@@ -11249,9 +11295,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_import_astrotheme_from_search_panel(self) -> None:
         raw_query = self.astrotheme_search_input.text().strip()
+        debug_id = _new_debug_action_id("astrotheme_import")
         if not raw_query:
             QMessageBox.information(self, "Astrotheme import", "Enter a name or Astrotheme profile URL.")
             return
+        logger.info("Astrotheme import started (id=%s query=%r).", debug_id, raw_query)
 
         parent = self.parent()
         if parent is None or not hasattr(parent, "_confirm_discard_or_save"):
@@ -11273,6 +11321,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             profile_data = parse_astrotheme_profile(query)
         except Exception as exc:
+            logger.exception(
+                "Astrotheme import failed during lookup/parse (id=%s query=%r): %s",
+                debug_id,
+                raw_query,
+                exc,
+            )
             QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
             return
 
@@ -11327,6 +11381,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart_type=SOURCE_PUBLIC_DB,
             )
         except Exception as exc:
+            logger.exception(
+                "Astrotheme import failed while saving chart (id=%s profile_url=%r): %s",
+                debug_id,
+                profile_data.get("profile_url"),
+                exc,
+            )
             parent._reset_new_chart_form()
             QMessageBox.warning(
                 self,
@@ -11364,6 +11424,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Astrotheme import",
             f"Imported and saved chart #{chart_id} from Astrotheme.",
         )
+        logger.info("Astrotheme import completed (id=%s chart_id=%s).", debug_id, chart_id)
 
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
         dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
@@ -14162,6 +14223,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._filter_refresh_pending = False
         self._filter_refresh_running = True
+        debug_id = _new_debug_action_id("filter_refresh")
+        logger.debug("Starting filter refresh (id=%s).", debug_id)
         try:
             if self.list_widget.selectedItems():
                 blocker = QSignalBlocker(self.list_widget)
@@ -14169,6 +14232,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 blocker.unblock()
             self._populate_list()
         except Exception as exc:
+            logger.exception("Filter refresh failed (id=%s): %s", debug_id, exc)
             traceback.print_exc()
             QMessageBox.critical(
                 self,
@@ -14176,6 +14240,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"Could not apply filters:\n{exc}",
             )
         finally:
+            logger.debug("Filter refresh finished (id=%s).", debug_id)
             self._filter_refresh_running = False
         if self._filter_refresh_pending:
             self._filter_refresh_timer.start()
@@ -16567,7 +16632,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return self._chart_cache[chart_id]
         try:
             chart = load_chart(chart_id)
-        except Exception:
+        except Exception as exc:
+            debug_id = _new_debug_action_id("chart_cache_load")
+            logger.exception(
+                "Chart load failed for filter cache (id=%s chart_id=%s): %s",
+                debug_id,
+                chart_id,
+                exc,
+            )
             chart = None
         self._chart_cache[chart_id] = chart
         return chart
@@ -22921,6 +22993,7 @@ class MainWindow(QMainWindow):
     def on_search_place(self):
         """Search for location candidates and let the user pick one."""
         query = self.place_edit.text().strip()
+        debug_id = _new_debug_action_id("location_search")
         if not query:
             QMessageBox.information(
                 self,
@@ -22929,9 +23002,16 @@ class MainWindow(QMainWindow):
             )
             return
 
+        logger.info("Location search started (id=%s query=%r).", debug_id, query)
         try:
             candidates = search_locations(query, limit=7)
         except Exception as e:
+            logger.exception(
+                "Location search failed (id=%s query=%r): %s",
+                debug_id,
+                query,
+                e,
+            )
             QMessageBox.critical(
                 self,
                 "Search error",
@@ -22940,6 +23020,7 @@ class MainWindow(QMainWindow):
             return
 
         if not candidates:
+            logger.info("Location search had no matches (id=%s query=%r).", debug_id, query)
             QMessageBox.information(
                 self,
                 "No matches",
@@ -22970,6 +23051,12 @@ class MainWindow(QMainWindow):
                 self._searched_birth_place = choice
                 self._searched_lat = selected_lat
                 self._searched_lon = selected_lon
+            logger.info(
+                "Location search completed (id=%s selected=%r has_coordinates=%s).",
+                debug_id,
+                choice,
+                selected_lat is not None and selected_lon is not None,
+            )
 
     def _quit_app(self):
         app = QApplication.instance()

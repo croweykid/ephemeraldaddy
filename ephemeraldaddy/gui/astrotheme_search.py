@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import html
+import logging
 import re
 import unicodedata
 from pathlib import Path
@@ -13,11 +14,14 @@ from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 
 ASTROTHEME_SEARCH_URL = "https://www.astrotheme.com/celebrities/recherche.php"
 ASTROTHEME_USER_AGENT = "Mozilla/5.0 (compatible; EphemeralDaddy Astrotheme helper)"
+ASTROTHEME_HTTP_TIMEOUT_SECONDS = 10
+
+logger = logging.getLogger(__name__)
 
 
 def _astrotheme_http_get(url: str) -> str:
     request = Request(url, headers={"User-Agent": ASTROTHEME_USER_AGENT})
-    with urlopen(request, timeout=20) as response:
+    with urlopen(request, timeout=ASTROTHEME_HTTP_TIMEOUT_SECONDS) as response:
         payload = response.read()
     return payload.decode("utf-8", errors="replace")
 
