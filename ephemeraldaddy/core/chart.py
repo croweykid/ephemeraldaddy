@@ -18,6 +18,7 @@ class Chart:
         self.relationship_types = []
         self.tags = []
         self.comments = ""
+        self.biography = ""
         self.chart_data_source = ""
         self.positive_sentiment_intensity = 1
         self.negative_sentiment_intensity = 1
@@ -106,6 +107,7 @@ class Chart:
             "relationship_types": self.relationship_types,
             "tags": self.tags,
             "comments": self.comments,
+            "biography": self.biography,
             "chart_data_source": self.chart_data_source,
             "chart_type": self.chart_type,
             "source": self.chart_type,

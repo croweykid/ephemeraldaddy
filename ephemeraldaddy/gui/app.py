@@ -18360,6 +18360,13 @@ class MainWindow(QMainWindow):
         self.chart_comments_toggle_button.clicked.connect(
             lambda: self._set_chart_info_panel_mode("comments")
         )
+        self.chart_bio_toggle_button = QPushButton("Bio")
+        self.chart_bio_toggle_button.setCheckable(True)
+        self.chart_bio_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.chart_bio_toggle_button.setMinimumHeight(24)
+        self.chart_bio_toggle_button.clicked.connect(
+            lambda: self._set_chart_info_panel_mode("biography")
+        )
         self.chart_source_toggle_button = QPushButton("Source")
         self.chart_source_toggle_button.setCheckable(True)
         self.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
@@ -18369,6 +18376,7 @@ class MainWindow(QMainWindow):
         )
         chart_info_header_layout.addWidget(self.chart_info_toggle_button, 0)
         chart_info_header_layout.addWidget(self.chart_comments_toggle_button, 0)
+        chart_info_header_layout.addWidget(self.chart_bio_toggle_button, 0)
         chart_info_header_layout.addWidget(self.chart_source_toggle_button, 0)
         chart_info_header_layout.addStretch(1)
         chart_panel_layout.addWidget(chart_info_header, 0)
@@ -18777,6 +18785,11 @@ class MainWindow(QMainWindow):
         self.comments_edit.textChanged.connect(self._mark_lucygoosey)
         self.comments_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.comments_edit)
+        self.biography_edit = QTextEdit()
+        self.biography_edit.setPlaceholderText("Biography")
+        self.biography_edit.textChanged.connect(self._mark_lucygoosey)
+        self.biography_edit.setMinimumHeight(140)
+        self.chart_info_content_stack.addWidget(self.biography_edit)
         self.source_edit = QTextEdit()
         self.source_edit.setPlaceholderText("Source")
         self.source_edit.textChanged.connect(self._mark_lucygoosey)
@@ -21709,11 +21722,11 @@ class MainWindow(QMainWindow):
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
-        if mode not in {"chart_info", "comments", "source"}:
+        if mode not in {"chart_info", "comments", "biography", "source"}:
             return
         self._chart_info_panel_mode = mode
         if hasattr(self, "chart_info_content_stack"):
-            mode_to_index = {"chart_info": 0, "comments": 1, "source": 2}
+            mode_to_index = {"chart_info": 0, "comments": 1, "biography": 2, "source": 3}
             self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()
 
@@ -21721,6 +21734,7 @@ class MainWindow(QMainWindow):
         active_mode = getattr(self, "_chart_info_panel_mode", "comments")
         chart_info_active = active_mode == "chart_info"
         comments_active = active_mode == "comments"
+        biography_active = active_mode == "biography"
         source_active = active_mode == "source"
         active_style = (
             "QPushButton { font-weight: 700; padding: 2px 8px; }"
@@ -21740,6 +21754,13 @@ class MainWindow(QMainWindow):
             self.chart_comments_toggle_button.blockSignals(False)
             self.chart_comments_toggle_button.setStyleSheet(
                 active_style if comments_active else inactive_style
+            )
+        if hasattr(self, "chart_bio_toggle_button"):
+            self.chart_bio_toggle_button.blockSignals(True)
+            self.chart_bio_toggle_button.setChecked(biography_active)
+            self.chart_bio_toggle_button.blockSignals(False)
+            self.chart_bio_toggle_button.setStyleSheet(
+                active_style if biography_active else inactive_style
             )
         if hasattr(self, "chart_source_toggle_button"):
             self.chart_source_toggle_button.blockSignals(True)
@@ -23254,6 +23275,7 @@ class MainWindow(QMainWindow):
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
         placeholder.tags = parse_tag_text(self.chart_tags_input.text())
         placeholder.comments = self.comments_edit.toPlainText().strip()
+        placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
         placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
         placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
@@ -23387,6 +23409,8 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = []
         if hasattr(chart, "comments"):
             chart.comments = self.comments_edit.toPlainText().strip()
+        if hasattr(chart, "biography"):
+            chart.biography = self.biography_edit.toPlainText().strip()
         if hasattr(chart, "chart_data_source"):
             chart.chart_data_source = self.source_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
@@ -23634,6 +23658,7 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
                 chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
                 chart.comments = self.comments_edit.toPlainText().strip()
+                chart.biography = self.biography_edit.toPlainText().strip()
                 chart.chart_data_source = self.source_edit.toPlainText().strip()
                 chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
                 chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
@@ -23835,6 +23860,7 @@ class MainWindow(QMainWindow):
         self._set_relationship_type_selection([])
         self.chart_tags_input.clear()
         self.comments_edit.clear()
+        self.biography_edit.clear()
         self.source_edit.clear()
         self._set_birth_date_fields_from_qdate(QDate(1990, 1, 1))
         self.time_edit.setTime(QTime(12, 0))
@@ -24105,6 +24131,7 @@ class MainWindow(QMainWindow):
             ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
         )
         self.comments_edit.setPlainText(getattr(chart, "comments", "") or "")
+        self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
         self.positive_sentiment_intensity_spin.setValue(
             getattr(chart, "positive_sentiment_intensity", 1) or 1
