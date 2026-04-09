@@ -24,6 +24,7 @@ def _ensure_dbv_search_panel_symbols() -> None:
         "GEN_POP_UNSUPPORTED_SIGN_DISTRIBUTION_MODES",
         "GENDER_DROPDOWN_OPTIONS",
         "LILITH_CALCULATION_TRUE",
+        "MainWindow",
         "QApplication",
         "QButtonGroup",
         "QCheckBox",
@@ -38,6 +39,7 @@ def _ensure_dbv_search_panel_symbols() -> None:
         "QLineEdit",
         "QListWidget",
         "QListWidgetItem",
+        "QCompleter",
         "QMessageBox",
         "QPushButton",
         "QRadioButton",
@@ -46,6 +48,7 @@ def _ensure_dbv_search_panel_symbols() -> None:
         "QTime",
         "QVBoxLayout",
         "QWidget",
+        "Qt",
         "QuadStateSlider",
         "RIGHT_PANEL_SCROLLBAR_STYLE",
         "RODDEN_RATING",
@@ -67,6 +70,7 @@ def _ensure_dbv_search_panel_symbols() -> None:
         "render_tag_chip_preview",
         "save_chart",
         "search_astrotheme_profile_url",
+        "set_current_chart",
         "set_lilith_calculation_mode",
     ]
 
