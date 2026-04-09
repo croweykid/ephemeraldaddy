@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
-from ephemeraldaddy.gui.features.charts.right_panel_stack import build_chart_right_panel_stack
+from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 
 
 def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:
