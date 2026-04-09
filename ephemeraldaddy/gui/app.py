@@ -466,13 +466,8 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     CENTER_POSITIONS,
     draw_human_design_chart,
 )
-from ephemeraldaddy.gui.features.charts.right_panel_stack import (
-    build_chart_right_panel_stack,
-)
-from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
-    build_anagrams_section,
     collect_anagram_words,
     fetch_word_definition,
     render_anagrams_html,
@@ -514,6 +509,11 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
     ChartsController,
     EphemerisPrefetchController,
     RetconDialogController,
+)
+from ephemeraldaddy.gui.features.controllers.chart_view_window import (
+    apply_chart_view_middle_panel_typography,
+    build_chart_view_left_panel,
+    build_chart_view_right_panel,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -18297,106 +18297,11 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._main_splitter)
 
         # Chart Entry/Edit Window: LEFT panel (chart preview interface).
-        chart_panel = QWidget()
-        chart_panel_layout = QVBoxLayout()
-        #chart_panel_layout.setContentsMargins(0, 0, 0, 0)
-        chart_panel.setLayout(chart_panel_layout)
-        chart_panel.setMinimumWidth(280) #was 420
-
-        # Chart preview container within left panel.
-        self.chart_container = QWidget()
-        self.chart_container_layout = QVBoxLayout()
-        #self.chart_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_container_layout.setSpacing(0)
-        self.chart_canvas_container = QWidget()
-        self.chart_canvas_container_layout = QVBoxLayout()
-        self.chart_canvas_container_layout.setSpacing(0)
-        self.chart_canvas_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_canvas_container.setLayout(self.chart_canvas_container_layout)
-
-        self.chart_canvas_overlay_container = QWidget()
-        self.chart_canvas_overlay_layout = QGridLayout()
-        self.chart_canvas_overlay_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_canvas_overlay_layout.setSpacing(0)
-        self.chart_canvas_overlay_container.setLayout(self.chart_canvas_overlay_layout)
-        self.chart_loading_overlay = ChartLoadingOverlay(self)
-        self.chart_canvas_overlay_layout.addWidget(self.chart_canvas_container, 0, 0)
-        chart_canvas_nav_buttons = QWidget()
-        chart_canvas_nav_buttons_layout = QHBoxLayout()
-        chart_canvas_nav_buttons_layout.setContentsMargins(0, 0, 0, 0)
-        chart_canvas_nav_buttons_layout.setSpacing(6)
-        chart_canvas_nav_buttons.setLayout(chart_canvas_nav_buttons_layout)
-        chart_canvas_nav_buttons_layout.addWidget(self.manage_button, 0, Qt.AlignLeft)
-        chart_canvas_nav_buttons_layout.addWidget(self.database_view_button, 0, Qt.AlignLeft)
-        self.chart_canvas_overlay_layout.addWidget(
-            chart_canvas_nav_buttons,
-            0,
-            0,
-            alignment=Qt.AlignTop | Qt.AlignLeft,
+        build_chart_view_left_panel(
+            self,
+            main_splitter=self._main_splitter,
+            apply_chart_data_highlighter=apply_chart_data_highlighter,
         )
-        self.chart_canvas_overlay_layout.setContentsMargins(6, 6, 0, 0)
-        self.manage_button.raise_()
-        self.database_view_button.raise_()
-        self.chart_container_layout.addWidget(self.chart_canvas_overlay_container, 1)
-        self.chart_container.setLayout(self.chart_container_layout)
-        chart_panel_layout.addWidget(self.chart_container, 1)
-
-        chart_info_header = QWidget()
-        chart_info_header_layout = QHBoxLayout()
-        chart_info_header_layout.setContentsMargins(0, 0, 0, 0)
-        chart_info_header_layout.setSpacing(6)
-        chart_info_header.setLayout(chart_info_header_layout)
-        self.chart_info_toggle_button = QPushButton("Chart Info")
-        self.chart_info_toggle_button.setCheckable(True)
-        self.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
-        self.chart_info_toggle_button.setMinimumHeight(24)
-        self.chart_info_toggle_button.clicked.connect(
-            lambda: self._set_chart_info_panel_mode("chart_info")
-        )
-        self.chart_comments_toggle_button = QPushButton("Comments")
-        self.chart_comments_toggle_button.setCheckable(True)
-        self.chart_comments_toggle_button.setCursor(Qt.PointingHandCursor)
-        self.chart_comments_toggle_button.setMinimumHeight(24)
-        self.chart_comments_toggle_button.clicked.connect(
-            lambda: self._set_chart_info_panel_mode("comments")
-        )
-        self.chart_bio_toggle_button = QPushButton("Bio")
-        self.chart_bio_toggle_button.setCheckable(True)
-        self.chart_bio_toggle_button.setCursor(Qt.PointingHandCursor)
-        self.chart_bio_toggle_button.setMinimumHeight(24)
-        self.chart_bio_toggle_button.clicked.connect(
-            lambda: self._set_chart_info_panel_mode("biography")
-        )
-        self.chart_source_toggle_button = QPushButton("Source")
-        self.chart_source_toggle_button.setCheckable(True)
-        self.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
-        self.chart_source_toggle_button.setMinimumHeight(24)
-        self.chart_source_toggle_button.clicked.connect(
-            lambda: self._set_chart_info_panel_mode("source")
-        )
-        chart_info_header_layout.addWidget(self.chart_info_toggle_button, 0)
-        chart_info_header_layout.addWidget(self.chart_comments_toggle_button, 0)
-        chart_info_header_layout.addWidget(self.chart_bio_toggle_button, 0)
-        chart_info_header_layout.addWidget(self.chart_source_toggle_button, 0)
-        chart_info_header_layout.addStretch(1)
-        chart_panel_layout.addWidget(chart_info_header, 0)
-
-        # Chart info output area beneath the preview.
-        self.chart_info_output = QPlainTextEdit()
-        self.chart_info_output.setReadOnly(True)
-        self.chart_info_output.setPlaceholderText(
-            "Click the ⓘ next to a position or aspect to see details/interpretation."
-        )
-        self.chart_info_output.setMinimumHeight(140)
-        self._chart_info_highlighter = apply_chart_data_highlighter(
-            self.chart_info_output,
-            emphasize_dnd_class_headers=True,
-            emphasize_species_info_headers=True,
-        )
-        self.chart_info_content_stack = QStackedWidget()
-        self.chart_info_content_stack.addWidget(self.chart_info_output)
-        chart_panel_layout.addWidget(self.chart_info_content_stack, 0)
-        self._main_splitter.addWidget(chart_panel)
 
         # Chart Entry/Edit Window: MIDDLE panel (inputs + output).
         middle_panel = QWidget()
@@ -19062,62 +18967,13 @@ class MainWindow(QMainWindow):
         output_panel_layout.addWidget(self.output_text, 1)
         middle_layout.addWidget(output_panel, 1)
 
-        def _style_middle_panel_font(widget: QWidget) -> None:
-            widget_font = QFont(widget.font())
-            if widget_font.pointSize() > 1:
-                widget_font.setPointSize(widget_font.pointSize() - 1)
-            widget_font.setCapitalization(QFont.Capitalization.SmallCaps)
-            widget.setFont(widget_font)
-
-        for label in middle_panel.findChildren(QLabel):
-            _style_middle_panel_font(label)
-        for button in middle_panel.findChildren(QAbstractButton):
-            _style_middle_panel_font(button)
-        for line_edit in middle_panel.findChildren(QLineEdit):
-            _style_middle_panel_font(line_edit)
-
-        middle_panel.setStyleSheet(
-            f"QLabel, QAbstractButton {{ color: {MIDDLE_PANEL_ACCENT_COLOR}; }}"
-            f"QLineEdit::placeholder, QAbstractSpinBox::placeholder {{ color: {MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA}; }}"
+        apply_chart_view_middle_panel_typography(
+            middle_panel=middle_panel,
+            accent_color=MIDDLE_PANEL_ACCENT_COLOR,
+            placeholder_color_rgba=MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA,
         )
 
         self._main_splitter.addWidget(middle_panel)
-
-        # Chart Analytics scroll content panel.
-        metrics_content = QWidget()
-        metrics_content.setFocusPolicy(Qt.StrongFocus)
-        self.metrics_layout = QVBoxLayout()
-        self.metrics_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
-        self.metrics_layout.setContentsMargins(6, 6, 6, 6)
-        self.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        metrics_content.setLayout(self.metrics_layout)
-
-        subjective_notes_panel = QWidget()
-        subjective_notes_layout = QVBoxLayout()
-        subjective_notes_layout.setContentsMargins(6, 6, 6, 6)
-        subjective_notes_layout.setSpacing(6)
-        subjective_notes_panel.setLayout(subjective_notes_layout)
-        subjective_notes_layout.addWidget(self.sentiment_metrics_widget)
-        subjective_notes_layout.addWidget(self.sentiment_relation_row_widget)
-        subjective_notes_layout.addStretch(1)
-        chart_right_panel = build_chart_right_panel_stack(
-            analytics_content_widget=metrics_content,
-            subjective_notes_content_widget=subjective_notes_panel,
-            on_show_analytics=lambda: self._set_chart_right_panel("analytics"),
-            on_show_subjective_notes=lambda: self._set_chart_right_panel("subjective_notes"),
-            scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
-        )
-        self.metrics_panel = chart_right_panel.container
-        self.chart_analytics_panel_button = chart_right_panel.analytics_button
-        self.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
-        self.chart_right_panel_stack = chart_right_panel.stack
-        self.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
-        self.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
-
-        self._main_splitter.addWidget(self.metrics_panel)
-        self.metrics_scroll = self.chart_analytics_panel_scroll
-        self._register_metric_scroll_widget(self.chart_analytics_panel_scroll)
-        self._register_metric_scroll_widget(metrics_content)
 
         self._chart_analysis_sections_controller = ChartAnalysisSectionsController(
             owner=self,
@@ -19133,31 +18989,11 @@ class MainWindow(QMainWindow):
         self._chart_analysis_section_visible["anagrams"] = self._visibility.get(
             "chart_analytics.anagrams"
         )
-
-        self._create_chart_analysis_sections(metrics_content)
-        self._create_similar_charts_section(metrics_content)
-        anagrams_section = build_anagrams_section(
-            panel=metrics_content,
-            layout=self.metrics_layout,
-            add_collapsible_section=self._add_chart_analysis_collapsible_section,
-            on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
-                "anagrams",
-                checked,
-            ),
-            on_export_clicked=self._export_anagrams_share,
-            on_word_clicked=self._on_anagram_link_activated,
-            on_source_changed=self._on_anagram_source_changed,
+        build_chart_view_right_panel(
+            self,
+            scrollbar_style=RIGHT_PANEL_SCROLLBAR_STYLE,
             get_share_icon_path=_get_share_icon_path,
         )
-        self._chart_analysis_section_expanded["anagrams"] = False
-        self._anagrams_summary_label = anagrams_section.summary_label
-        self._anagrams_list_label = anagrams_section.list_label
-        self._anagrams_export_button = anagrams_section.export_button
-        self._anagrams_source_dropdown = anagrams_section.source_dropdown
-        self._sync_chart_analysis_section_visibility()
-        self.metrics_layout.addStretch(1)
-        self._active_chart_right_panel = "subjective_notes"
-        self._set_chart_right_panel("subjective_notes")
 
         # Shortcuts
         self._shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -20064,6 +19900,8 @@ class MainWindow(QMainWindow):
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Modes": (8.0, 5.4),
+            "Dominant Modes": (8.0, 5.4),
+            "Modal Prevalence": (8.0, 5.4),
             "Gender Guesser": (8.0, 4.2),
             "Body Dynamics": (8.5, 5.0),
         }
@@ -20082,7 +19920,7 @@ class MainWindow(QMainWindow):
             self._draw_element_tally(ax, chart)
         elif title == "Nakshatra Prevalence":
             self._draw_nakshatra_wordcloud(ax, chart)
-        elif title == "Modes":
+        elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
             self._draw_modal_distribution(ax, chart)
         elif title == "Gender Guesser":
             self._draw_gender_guesser(ax, chart)
