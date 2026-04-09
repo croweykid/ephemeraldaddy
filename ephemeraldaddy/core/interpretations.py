@@ -440,7 +440,7 @@ MODES = {
 }
 
 MODE_KEYWORDS = {
-    "cardinal": {"go-getter","dynamic","action-oriented","pushy","catalyzing"},
+    "cardinal": {"go-getter","dynamic","action-oriented","pushy","catalyzing","aggro"},
     "mutable": {"adaptable","responsive","takes people & things as they come","flexible","ever-evolving"},
     "fixed": {"static","unyielding","firm","unmoveable","set in one's ways","resolved"},
 }
