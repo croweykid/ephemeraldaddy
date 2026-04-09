@@ -50,6 +50,7 @@ class ChartDataTableOutput(QPlainTextEdit):
         *,
         emphasize_dnd_class_headers: bool = False,
         emphasize_species_info_headers: bool = False,
+        emphasize_common_info_labels: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setReadOnly(True)
@@ -69,6 +70,7 @@ class ChartDataTableOutput(QPlainTextEdit):
             self,
             emphasize_dnd_class_headers=emphasize_dnd_class_headers,
             emphasize_species_info_headers=emphasize_species_info_headers,
+            emphasize_common_info_labels=emphasize_common_info_labels,
         )
 
 
@@ -131,10 +133,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         *,
         emphasize_dnd_class_headers: bool = False,
         emphasize_species_info_headers: bool = False,
+        emphasize_common_info_labels: bool = True,
     ) -> None:
         super().__init__(document)
         self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
         self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
+        self._emphasize_common_info_labels = bool(emphasize_common_info_labels)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -349,17 +353,18 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 start = index + len(needle)
         stripped_text = text.strip()
         lowered_stripped = stripped_text.lower()
-        for header in CHART_DATA_SECTION_HEADERS:
-            if stripped_text.upper() == header:
+        if self._emphasize_common_info_labels:
+            for header in CHART_DATA_SECTION_HEADERS:
+                if stripped_text.upper() == header:
+                    self.setFormat(0, self._qt_len(text), self._section_format)
+                    break
+            if (
+                stripped_text
+                and stripped_text == stripped_text.upper()
+                and any(char.isalpha() for char in stripped_text)
+                and all(char.isupper() or not char.isalpha() for char in stripped_text)
+            ):
                 self.setFormat(0, self._qt_len(text), self._section_format)
-                break
-        if (
-            stripped_text
-            and stripped_text == stripped_text.upper()
-            and any(char.isalpha() for char in stripped_text)
-            and all(char.isupper() or not char.isalpha() for char in stripped_text)
-        ):
-            self.setFormat(0, self._qt_len(text), self._section_format)
         for prefix in self._HD_SUBHEADER_PREFIXES:
             if (
                 stripped_text == prefix
@@ -513,14 +518,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self.setFormat(0, self._qt_len(text), self._section_format)
         if lowered_stripped.endswith(":") and " aspects to " in lowered_stripped:
             self.setFormat(0, self._qt_len(text), self._section_format)
-        for label in (
-            *CHART_DATA_COMMON_LABELS,
-            *CHART_DATA_COLON_LABELS,
-            *CHART_DATA_SECTION_HEADERS,
-            *self._NAKSHATRA_INFO_FIELD_LABELS,
-            "|",
-        ):
-            self._highlight_phrase(text, label, self._label_format)
+        if self._emphasize_common_info_labels:
+            for label in (
+                *CHART_DATA_COMMON_LABELS,
+                *CHART_DATA_COLON_LABELS,
+                *CHART_DATA_SECTION_HEADERS,
+                *self._NAKSHATRA_INFO_FIELD_LABELS,
+                "|",
+            ):
+                self._highlight_phrase(text, label, self._label_format)
         for nakshatra, header_format in self._nakshatra_header_formats.items():
             if stripped_text == nakshatra:
                 self.setFormat(0, self._qt_len(text), header_format)
@@ -644,12 +650,14 @@ def apply_chart_data_highlighter(
     *,
     emphasize_dnd_class_headers: bool = False,
     emphasize_species_info_headers: bool = False,
+    emphasize_common_info_labels: bool = True,
 ) -> ChartSummaryHighlighter:
     """Attach the shared chart-data highlighter to an output widget."""
     highlighter = ChartSummaryHighlighter(
         output_widget.document(),
         emphasize_dnd_class_headers=emphasize_dnd_class_headers,
         emphasize_species_info_headers=emphasize_species_info_headers,
+        emphasize_common_info_labels=emphasize_common_info_labels,
     )
     output_widget._summary_highlighter = highlighter
     return highlighter

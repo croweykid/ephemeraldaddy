@@ -148,6 +148,7 @@ def build_chart_view_left_panel(
         owner.chart_info_output,
         emphasize_dnd_class_headers=True,
         emphasize_species_info_headers=True,
+        emphasize_common_info_labels=False,
     )
     owner.chart_info_content_stack = QStackedWidget()
     owner.chart_info_content_stack.addWidget(owner.chart_info_output)

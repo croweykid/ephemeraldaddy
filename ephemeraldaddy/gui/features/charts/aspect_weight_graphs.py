@@ -442,6 +442,7 @@ def build_popout_left_panel(
         chart_info_output.document(),
         emphasize_dnd_class_headers=True,
         emphasize_species_info_headers=True,
+        emphasize_common_info_labels=False,
     )
     left_panel_layout.addWidget(chart_info_label)
     left_panel_layout.addWidget(chart_info_output, 1)
