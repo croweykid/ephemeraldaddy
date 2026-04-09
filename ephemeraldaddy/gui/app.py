@@ -16373,27 +16373,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ):
                 return False
 
-        for filters in active_body_filters:
-            body = filters["body"].currentData()
-            sign_value = filters["sign"].currentText()
-            house_value = filters["house"].currentText()
-            sign_active = sign_value != "Any"
-            house_active = house_value != "Any"
-            if sign_active and house_active:
-                if filters["and"].isChecked():
-                    if not self._chart_body_matches(chart, body, sign_value, house_value):
-                        return False
-                else:
-                    sign_match = self._chart_body_matches(chart, body, sign_value, "Any")
-                    house_match = self._chart_body_matches(chart, body, "Any", house_value)
-                    if not (sign_match or house_match):
-                        return False
-            elif sign_active:
-                if not self._chart_body_matches(chart, body, sign_value, "Any"):
+        if active_body_filters:
+            body_and_filters = [
+                filters for filters in active_body_filters if filters["and"].isChecked()
+            ]
+            body_or_filters = [
+                filters for filters in active_body_filters if filters["or"].isChecked()
+            ]
+
+            def _body_filter_matches(filters: dict[str, Any]) -> bool:
+                body = str(filters["body"].currentData())
+                sign_value = filters["sign"].currentText()
+                house_value = filters["house"].currentText()
+                sign_active = sign_value != "Any"
+                house_active = house_value != "Any"
+                if sign_active and house_active:
+                    return self._chart_body_matches(chart, body, sign_value, house_value)
+                if sign_active:
+                    return self._chart_body_matches(chart, body, sign_value, "Any")
+                if house_active:
+                    return self._chart_body_matches(chart, body, "Any", house_value)
+                return True
+
+            for filters in body_and_filters:
+                if not _body_filter_matches(filters):
                     return False
-            elif house_active:
-                if not self._chart_body_matches(chart, body, "Any", house_value):
-                    return False
+            if body_or_filters and not any(
+                _body_filter_matches(filters) for filters in body_or_filters
+            ):
+                return False
 
         if active_aspect_filters:
             aspect_and_filters = [
