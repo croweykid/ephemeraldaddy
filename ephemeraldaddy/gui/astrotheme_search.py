@@ -208,6 +208,51 @@ def _strip_html_text(fragment: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _extract_section_text_by_id(html_text: str, section_id: str) -> str:
+    marker = re.search(
+        rf"<[^>]+\b(?:id|name)=[\"']{re.escape(section_id)}[\"'][^>]*>",
+        html_text,
+        flags=re.IGNORECASE,
+    )
+    if marker is None:
+        return ""
+
+    opening_tag = marker.group(0)
+    section_start = marker.end()
+
+    opening_name_match = re.match(r"<\s*([a-z0-9]+)", opening_tag, flags=re.IGNORECASE)
+    opening_name = opening_name_match.group(1).lower() if opening_name_match else ""
+    if re.fullmatch(r"h[1-6]", opening_name):
+        heading_close_match = re.search(
+            rf"</{opening_name}\s*>",
+            html_text[section_start:],
+            flags=re.IGNORECASE,
+        )
+        if heading_close_match is not None:
+            section_start += heading_close_match.end()
+
+    if opening_name in {"article", "section", "div"}:
+        closing_match = re.search(
+            rf"</{opening_name}\s*>",
+            html_text[section_start:],
+            flags=re.IGNORECASE,
+        )
+        if closing_match is not None:
+            fragment = html_text[section_start : section_start + closing_match.start()]
+            cleaned = _strip_html_text(fragment)
+            if cleaned:
+                return cleaned
+
+    next_heading = re.search(
+        r"<h[1-6][^>]*\bid=[\"'][^\"']+[\"'][^>]*>",
+        html_text[section_start:],
+        flags=re.IGNORECASE,
+    )
+    section_end = section_start + next_heading.start() if next_heading is not None else len(html_text)
+    fragment = html_text[section_start:section_end]
+    return _strip_html_text(fragment)
+
+
 def _extract_profile_candidates_from_html(html_text: str) -> list[tuple[str, str]]:
     candidates: list[tuple[str, str]] = []
     seen_urls: set[str] = set()
@@ -403,14 +448,7 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
             data_rating = candidate
             break
 
-    biography = ""
-    biography_match = re.search(
-        r"<[^>]*id=[\"']biographie[\"'][^>]*>(.*?)</(?:article|div|section)>",
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if biography_match is not None:
-        biography = _strip_html_text(biography_match.group(1))
+    biography = _extract_section_text_by_id(html_text, "biographie")
 
     return {
         "name": name,

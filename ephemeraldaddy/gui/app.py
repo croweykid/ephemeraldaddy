@@ -11353,7 +11353,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent._set_relationship_type_selection(["public figure"])
         parent._set_chart_type_selection(SOURCE_PUBLIC_DB)
 
-        chart_result = parent._build_chart_from_inputs(show_feedback=False)
+        chart_result = parent._build_chart_from_inputs(show_feedback=True)
         if chart_result is None:
             parent._reset_new_chart_form()
             QMessageBox.warning(
