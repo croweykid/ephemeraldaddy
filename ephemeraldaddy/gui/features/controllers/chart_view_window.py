@@ -111,8 +111,8 @@ def build_chart_view_left_panel(
     )
 
     chart_info_header_layout.addWidget(owner.chart_info_toggle_button, 0)
-    chart_info_header_layout.addWidget(owner.chart_comments_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_bio_toggle_button, 0)
+    chart_info_header_layout.addWidget(owner.chart_comments_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_source_toggle_button, 0)
     chart_info_header_layout.addStretch(1)
     chart_panel_layout.addWidget(chart_info_header, 0)
