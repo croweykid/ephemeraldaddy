@@ -23,6 +23,17 @@ from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverl
 from ephemeraldaddy.gui.features.charts.right_panel_stack import build_chart_right_panel_stack
 
 
+def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:
+    """Fail fast with a clear error when Chart View helper preconditions are not met."""
+    missing = [name for name in attrs if not hasattr(owner, name)]
+    if not missing:
+        return
+    missing_rendered = ", ".join(sorted(missing))
+    raise RuntimeError(
+        f"{context} requires owner to define: {missing_rendered}"
+    )
+
+
 def build_chart_view_left_panel(
     owner: QWidget,
     *,
@@ -30,6 +41,16 @@ def build_chart_view_left_panel(
     apply_chart_data_highlighter: Callable[..., object],
 ) -> None:
     """Build Chart View's left chart-preview/info panel and attach it to splitter."""
+    _require_owner_attrs(
+        owner,
+        (
+            "manage_button",
+            "database_view_button",
+            "_set_chart_info_panel_mode",
+        ),
+        context="build_chart_view_left_panel",
+    )
+
     chart_panel = QWidget()
     chart_panel_layout = QVBoxLayout()
     chart_panel.setLayout(chart_panel_layout)
@@ -169,6 +190,27 @@ def build_chart_view_right_panel(
     get_share_icon_path: Callable[[], str | None],
 ) -> None:
     """Build Chart View's right-side analytics/subjective notes stack."""
+    _require_owner_attrs(
+        owner,
+        (
+            "_main_splitter",
+            "sentiment_metrics_widget",
+            "sentiment_relation_row_widget",
+            "_register_metric_scroll_widget",
+            "_create_chart_analysis_sections",
+            "_create_similar_charts_section",
+            "_add_chart_analysis_collapsible_section",
+            "_set_chart_analysis_section_expanded",
+            "_export_anagrams_share",
+            "_on_anagram_link_activated",
+            "_on_anagram_source_changed",
+            "_sync_chart_analysis_section_visibility",
+            "_set_chart_right_panel",
+            "_chart_analysis_section_expanded",
+        ),
+        context="build_chart_view_right_panel",
+    )
+
     metrics_content = QWidget()
     metrics_content.setFocusPolicy(Qt.StrongFocus)
     owner.metrics_layout = QVBoxLayout()
