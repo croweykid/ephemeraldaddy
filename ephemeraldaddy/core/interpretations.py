@@ -754,8 +754,11 @@ ASPECT_COLORS = {
     "square":      "#f44336",
     "trine":       "#2196f3",
     "opposition":  "#ff9800",
-    "quincunx":    "white",
-    "semisquare":  "azure",
+    "quincunx":    "#9c27b0",
+    "semisextile": "#26a69a",
+    "semisquare":  "#00bcd4",
+    "quintile":    "#8bc34a",
+    "biquintile":  "#cddc39",
     "sesquiquadrate": "grey",
 }
 
