@@ -21113,7 +21113,12 @@ class MainWindow(QMainWindow):
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
         aspect_label = str(atype or "").strip()
-        aspect_key = aspect_label.replace(" ", "_").lower()
+        aspect_key = (
+            aspect_label.replace("-", "")
+            .replace("_", "")
+            .replace(" ", "")
+            .lower()
+        )
         aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
         clean_keywords = [str(item).strip() for item in aspect_keywords if str(item).strip()]
         header = f"{aspect_label or 'Aspect'} keywords"
@@ -21367,7 +21372,14 @@ class MainWindow(QMainWindow):
         house1: int | None = None,
         house2: int | None = None,
     ) -> None:
-        aspect_keywords = ASPECT_KEYWORDS.get(str(atype).replace(" ", "_").lower(), [])
+        aspect_key = (
+            str(atype or "")
+            .replace("-", "")
+            .replace("_", "")
+            .replace(" ", "")
+            .lower()
+        )
+        aspect_keywords = ASPECT_KEYWORDS.get(aspect_key, [])
         p1_nouns = PLANET_KEYWORDS.get(p1, {}).get("nouns", [])
         p2_nouns = PLANET_KEYWORDS.get(p2, {}).get("nouns", [])
         if not (aspect_keywords and p1_nouns and p2_nouns):
@@ -21431,7 +21443,14 @@ class MainWindow(QMainWindow):
         sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
         house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5"))
         house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        aspect_key = (
+            str(atype or "")
+            .replace("-", "")
+            .replace("_", "")
+            .replace(" ", "")
+            .lower()
+        )
+        aspect_color = ASPECT_COLORS.get(aspect_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
 
         line_segments: list[list[tuple[str, str | None]]] = []
         seen: set[tuple[str, str, str, str, str, str, str]] = set()
