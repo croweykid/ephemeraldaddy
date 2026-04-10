@@ -713,7 +713,30 @@ def format_chart_text(
 
         for i, v in enumerate(cusps):
             if isinstance(v, (int, float)):
-                lines.append(f"{i + 1:<2}: {sign_for_longitude(float(v)):<11} {_degree_in_sign_text(float(v))}")
+                house_num = i + 1
+                sign_label = sign_for_longitude(float(v))
+                house_label = f"{house_num:<2}"
+                line = f"{house_label}: {sign_label:<11} {_degree_in_sign_text(float(v))}"
+                sign_start = line.find(sign_label)
+                entry_list: list[dict[str, object]] = [
+                    {
+                        "kind": "house_keyword",
+                        "house": house_num,
+                        "span_start": 0,
+                        "span_end": len(house_label.strip()),
+                    }
+                ]
+                if sign_start != -1:
+                    entry_list.append(
+                        {
+                            "kind": "sign_keyword",
+                            "sign": sign_label,
+                            "span_start": sign_start,
+                            "span_end": sign_start + len(sign_label),
+                        }
+                    )
+                position_info_map[len(lines)] = entry_list
+                lines.append(line)
             elif v is None:
                 lines.append(f"{i + 1:<2}: -")
             else:
@@ -773,6 +796,80 @@ def format_chart_text(
                 f"{format_degree_minutes(angle, include_sign=False):>8}  (orb {format_degree_minutes(delta)})"
             )
             line = f"{line} ⓘ"
+            line_entries: list[dict[str, object]] = []
+            p1_body_label = _display_body_name(p1)
+            p2_body_label = _display_body_name(p2)
+            p1_body_start = line.find(p1_body_label)
+            if p1_body_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "planet_keyword",
+                        "body": p1,
+                        "span_start": p1_body_start,
+                        "span_end": p1_body_start + len(p1_body_label),
+                    }
+                )
+            p2_body_start = line.find(p2_body_label)
+            if p2_body_start != -1:
+                line_entries.append(
+                    {
+                        "kind": "planet_keyword",
+                        "body": p2,
+                        "span_start": p2_body_start,
+                        "span_end": p2_body_start + len(p2_body_label),
+                    }
+                )
+            sign1 = sign_for_longitude(positions[p1]) if p1 in positions else None
+            sign2 = sign_for_longitude(positions[p2]) if p2 in positions else None
+            if sign1:
+                sign1_start = line.find(sign1)
+                if sign1_start != -1:
+                    line_entries.append(
+                        {
+                            "kind": "sign_keyword",
+                            "sign": sign1,
+                            "span_start": sign1_start,
+                            "span_end": sign1_start + len(sign1),
+                        }
+                    )
+            if sign2:
+                sign2_start = line.find(sign2, (p2_body_start + len(p2_body_label)) if p2_body_start != -1 else 0)
+                if sign2_start != -1:
+                    line_entries.append(
+                        {
+                            "kind": "sign_keyword",
+                            "sign": sign2,
+                            "span_start": sign2_start,
+                            "span_end": sign2_start + len(sign2),
+                        }
+                    )
+            house1 = house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None
+            house2 = house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None
+            if house1 is not None:
+                house1_label = f"H{house1}"
+                house1_start = line.find(house1_label)
+                if house1_start != -1:
+                    line_entries.append(
+                        {
+                            "kind": "house_keyword",
+                            "house": house1,
+                            "span_start": house1_start,
+                            "span_end": house1_start + len(house1_label),
+                        }
+                    )
+            if house2 is not None:
+                house2_label = f"H{house2}"
+                search_from = (p2_body_start + len(p2_body_label)) if p2_body_start != -1 else 0
+                house2_start = line.find(house2_label, search_from)
+                if house2_start != -1:
+                    line_entries.append(
+                        {
+                            "kind": "house_keyword",
+                            "house": house2,
+                            "span_start": house2_start,
+                            "span_end": house2_start + len(house2_label),
+                        }
+                    )
             aspect_span_start = line.find(f" {atype:<12} ")
             if aspect_span_start != -1:
                 aspect_span_start += 1
@@ -788,11 +885,14 @@ def format_chart_text(
                 "delta": delta,
                 "span_start": aspect_span_start,
                 "span_end": aspect_span_end,
-                "sign1": sign_for_longitude(positions[p1]) if p1 in positions else None,
-                "sign2": sign_for_longitude(positions[p2]) if p2 in positions else None,
-                "house1": house_for_longitude(houses, positions[p1]) if use_houses and houses and p1 in positions else None,
-                "house2": house_for_longitude(houses, positions[p2]) if use_houses and houses and p2 in positions else None,
+                "sign1": sign1,
+                "sign2": sign2,
+                "house1": house1,
+                "house2": house2,
             }
+            if line_entries:
+                existing_entries = position_info_map.get(len(lines), [])
+                position_info_map[len(lines)] = [*existing_entries, *line_entries]
             lines.append(line)
 
     if cursedness_line:

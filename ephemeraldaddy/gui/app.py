@@ -21027,6 +21027,9 @@ class MainWindow(QMainWindow):
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
         cursor.insertText(f"{header}\n\n")
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
 
         for line in lines:
             for text, color in line:
@@ -21037,8 +21040,8 @@ class MainWindow(QMainWindow):
                     fmt.setForeground(QColor(color))
                     cursor.insertText(text, fmt)
                 else:
-                    cursor.insertText(text)
-            cursor.insertText("\n")
+                    cursor.insertText(text, plain_fmt)
+            cursor.insertText("\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
 
     def _show_nakshatra_info(self, nakshatra: str) -> None:
@@ -21081,20 +21084,23 @@ class MainWindow(QMainWindow):
         header_fmt = QTextCharFormat()
         header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         header_fmt.setFontWeight(QFont.Bold)
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
 
         cursor.insertText(f"{sign_key}\n\n")
         if best_keywords:
             cursor.insertText("Best:", header_fmt)
-            cursor.insertText("\n")
+            cursor.insertText("\n", plain_fmt)
             for keyword in best_keywords:
-                cursor.insertText(f"• {keyword}\n")
+                cursor.insertText(f"• {keyword}\n", plain_fmt)
         if worst_keywords:
             if best_keywords:
-                cursor.insertText("\n")
+                cursor.insertText("\n", plain_fmt)
             cursor.insertText("Worst:", header_fmt)
-            cursor.insertText("\n")
+            cursor.insertText("\n", plain_fmt)
             for keyword in worst_keywords:
-                cursor.insertText(f"• {keyword}\n")
+                cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
