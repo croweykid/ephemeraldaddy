@@ -185,6 +185,10 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
 )
+from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
+    apply_mode_pick_metadata,
+    format_mode_popout_info_html,
+)
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
     apply_window_placement,
@@ -18880,6 +18884,22 @@ class MainWindow(QMainWindow):
                     info_panel.setHtml(self._build_house_popout_info(popout_chart, house_num))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
+        elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
+            info_panel.setPlaceholderText(
+                "Click a mode label or pie segment to view interpretation details."
+            )
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or ":" not in artist_gid:
+                    return
+                chart_key, raw_value = artist_gid.split(":", 1)
+                if chart_key != "mode":
+                    return
+                info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -19034,6 +19054,33 @@ class MainWindow(QMainWindow):
                 lines.append(f"<ul>{''.join(behavior_lines)}</ul>")
         lines.append(self._build_sign_dominance_section(chart, sign_name))
         return "".join(lines)
+
+    def _build_mode_popout_info(self, chart: Chart, mode: str) -> str:
+        mode_key = str(mode or "").strip().lower()
+        if mode_key not in {"cardinal", "mutable", "fixed"}:
+            return "No interpretation data available for this mode."
+        selected_mode = self._chart_analysis_selected_mode(
+            "modal_distribution",
+            "dominant_modes",
+        )
+        ranked_weights = (
+            {
+                key: float(value)
+                for key, value in _calculate_modal_prevalence_counts(chart).items()
+            }
+            if selected_mode == "modal_prevalence"
+            else {
+                key: float(value)
+                for key, value in _calculate_mode_weights(chart).items()
+            }
+        )
+        return format_mode_popout_info_html(
+            mode_key=mode_key,
+            selected_mode=selected_mode,
+            ranked_weights=ranked_weights,
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
 
     def _dominance_section_header_html(self, chart: Chart) -> str:
         chart_name = str(getattr(chart, "name", "") or "").strip() or "this chart"
@@ -19754,7 +19801,7 @@ class MainWindow(QMainWindow):
             return
 
         colors = [mode_colors.get(mode, "#6fa8dc") for mode in modal_order]
-        ax.pie(
+        wedges, _ = ax.pie(
             values,
             colors=colors,
             startangle=STANDARD_NCV_PIE_CHART["start_angle"], #startangle=90,
@@ -19769,7 +19816,7 @@ class MainWindow(QMainWindow):
             Patch(facecolor=color, label=label)
             for label, color in zip(legend_labels, colors, strict=True)
         ]
-        ax.legend(
+        legend = ax.legend(
             handles=legend_handles,
             # loc="upper center",
             # bbox_to_anchor=(0.5, -0.08),
@@ -19782,6 +19829,11 @@ class MainWindow(QMainWindow):
             labelcolor=STANDARD_NCV_PIE_CHART["legend_label_color"],
             fontsize=STANDARD_NCV_PIE_CHART["legend_font_size"],
             ncol=STANDARD_NCV_PIE_CHART["legend_ncol"],
+        )
+        apply_mode_pick_metadata(
+            wedges=list(wedges),
+            legend_texts=list(legend.get_texts()) if legend is not None else [],
+            modal_order=modal_order,
         )
         # Use explicit subplot bounds so repeated redraws do not keep shrinking
         # the pie plot area when controls (like retcon) trigger chart refreshes.
