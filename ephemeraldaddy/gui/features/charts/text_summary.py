@@ -32,6 +32,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_GLYPHS,
     PLANET_ORDER,
 )
+from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_planet_weights,
@@ -203,6 +204,10 @@ def _display_body_name(body: str) -> str:
     if body == "Part of Fortune":
         return "Fortune"
     return body
+
+
+def _house_display_name(house_num: int) -> str:
+    return HOUSE_DEFINITIONS.get(house_num, {}).get("name", f"House {house_num}")
 
 
 
@@ -548,12 +553,33 @@ def format_chart_text(
             lines.append(f"{display_body:<9} Unknown")
             continue
         if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-            lines.append(f"{display_body:<9} Unknown (birth time unknown)")
+            line = f"{display_body:<9} Unknown (birth time unknown)"
+            position_info_map[len(lines)] = [
+                {
+                    "kind": "planet_keyword",
+                    "body": body,
+                    "span_start": 0,
+                    "span_end": len(display_body),
+                }
+            ]
+            lines.append(line)
             continue
         if body in time_variant_lines:
             time_variant = time_variant_lines[body]
-            position_info_map[len(lines)] = time_variant["info"]
-            lines.append(time_variant["text"])
+            line = str(time_variant["text"])
+            entry_list = list(time_variant["info"])
+            body_start = line.find(display_body)
+            if body_start != -1:
+                entry_list.append(
+                    {
+                        "kind": "planet_keyword",
+                        "body": body,
+                        "span_start": body_start,
+                        "span_end": body_start + len(display_body),
+                    }
+                )
+            position_info_map[len(lines)] = entry_list
+            lines.append(line)
             continue
         pretty = format_longitude(lon)
         sign_label = sign_for_longitude(lon)
@@ -715,15 +741,16 @@ def format_chart_text(
             if isinstance(v, (int, float)):
                 house_num = i + 1
                 sign_label = sign_for_longitude(float(v))
-                house_label = f"{house_num:<2}"
-                line = f"{house_label}: {sign_label:<11} {_degree_in_sign_text(float(v))}"
+                house_name = _house_display_name(house_num)
+                house_label = f"{house_num:>2} {house_name}"
+                line = f"{house_label:<18}: {sign_label:<11} {_degree_in_sign_text(float(v))}"
                 sign_start = line.find(sign_label)
                 entry_list: list[dict[str, object]] = [
                     {
                         "kind": "house_keyword",
                         "house": house_num,
                         "span_start": 0,
-                        "span_end": len(house_label.strip()),
+                        "span_end": len(house_label),
                     }
                 ]
                 if sign_start != -1:
