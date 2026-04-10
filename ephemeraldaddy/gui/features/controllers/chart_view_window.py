@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QApplication,
+    QComboBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -21,6 +24,91 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
+
+
+class ChartViewUndoController:
+    """Adds Chart View-wide Ctrl/Cmd+Z support for text fields and dropdowns."""
+
+    _COMBO_UNDO_STACK_PROP = "_chart_view_combo_undo_stack"
+    _COMBO_LAST_INDEX_PROP = "_chart_view_combo_last_index"
+
+    def __init__(self, *, owner: QWidget, scope_widget: QWidget) -> None:
+        self._owner = owner
+        self._scope_widget = scope_widget
+        self._combo_undoing = False
+        self._shortcuts: list[QShortcut] = []
+
+    def install(self) -> None:
+        self._install_combo_tracking()
+        self._install_shortcuts()
+
+    def _install_combo_tracking(self) -> None:
+        for combo in self._scope_widget.findChildren(QComboBox):
+            combo.setProperty(self._COMBO_UNDO_STACK_PROP, [])
+            combo.setProperty(self._COMBO_LAST_INDEX_PROP, combo.currentIndex())
+            combo.currentIndexChanged.connect(
+                lambda _index, target_combo=combo: self._record_combo_change(target_combo)
+            )
+
+    def _install_shortcuts(self) -> None:
+        for sequence in ("Ctrl+Z", "Meta+Z"):
+            shortcut = QShortcut(QKeySequence(sequence), self._owner)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(self.undo_last_change)
+            self._shortcuts.append(shortcut)
+
+    def _record_combo_change(self, combo: QComboBox) -> None:
+        if self._combo_undoing:
+            return
+        previous_index = combo.property(self._COMBO_LAST_INDEX_PROP)
+        current_index = combo.currentIndex()
+        if previous_index is None or previous_index == current_index:
+            combo.setProperty(self._COMBO_LAST_INDEX_PROP, current_index)
+            return
+        undo_stack = list(combo.property(self._COMBO_UNDO_STACK_PROP) or [])
+        undo_stack.append(int(previous_index))
+        combo.setProperty(self._COMBO_UNDO_STACK_PROP, undo_stack[-100:])
+        combo.setProperty(self._COMBO_LAST_INDEX_PROP, current_index)
+
+    def undo_last_change(self) -> None:
+        focused_widget = QApplication.focusWidget()
+        if isinstance(focused_widget, QLineEdit):
+            focused_widget.undo()
+            return
+        if isinstance(focused_widget, (QPlainTextEdit, QTextEdit)):
+            focused_widget.undo()
+            return
+        combo = self._resolve_combo_widget(focused_widget)
+        if combo is not None:
+            self._undo_combo_change(combo)
+
+    def _resolve_combo_widget(self, widget: QWidget | None) -> QComboBox | None:
+        if widget is None:
+            return None
+        if isinstance(widget, QComboBox):
+            return widget
+        combo = widget.parent()
+        return combo if isinstance(combo, QComboBox) else None
+
+    def _undo_combo_change(self, combo: QComboBox) -> None:
+        undo_stack = list(combo.property(self._COMBO_UNDO_STACK_PROP) or [])
+        if not undo_stack:
+            return
+        previous_index = undo_stack.pop()
+        self._combo_undoing = True
+        try:
+            combo.setCurrentIndex(previous_index)
+        finally:
+            self._combo_undoing = False
+        combo.setProperty(self._COMBO_UNDO_STACK_PROP, undo_stack)
+        combo.setProperty(self._COMBO_LAST_INDEX_PROP, combo.currentIndex())
+
+
+def install_chart_view_undo_shortcuts(*, owner: QWidget, scope_widget: QWidget) -> ChartViewUndoController:
+    """Install Chart View undo shortcuts for text fields and dropdown controls."""
+    controller = ChartViewUndoController(owner=owner, scope_widget=scope_widget)
+    controller.install()
+    return controller
 
 
 def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:

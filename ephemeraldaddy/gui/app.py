@@ -520,6 +520,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
     build_chart_view_right_panel,
+    install_chart_view_undo_shortcuts,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -17986,6 +17987,10 @@ class MainWindow(QMainWindow):
         )
 
         self._main_splitter.addWidget(middle_panel)
+        self._chart_view_undo_controller = install_chart_view_undo_shortcuts(
+            owner=self,
+            scope_widget=middle_panel,
+        )
 
         self._chart_analysis_sections_controller = ChartAnalysisSectionsController(
             owner=self,
