@@ -86,6 +86,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.astrotheme_search_input.returnPressed.connect(
         window._on_import_astrotheme_from_search_panel
     )
+    window.astrotheme_search_input.installEventFilter(window)
     astrotheme_row.addWidget(window.astrotheme_search_input, 1)
     astrotheme_import_button = QPushButton("Import")
     astrotheme_import_button.clicked.connect(
