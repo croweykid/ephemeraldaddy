@@ -13421,8 +13421,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters["and"].setChecked(True)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
-                filters["or"].setChecked(False)
-                filters["and"].setChecked(True)
+                if "or" in filters and filters["or"] is not None:
+                    filters["or"].setChecked(False)
+                if "and" in filters and filters["and"] is not None:
+                    filters["and"].setChecked(True)
             if self._year_first_encountered_earliest_input is not None:
                 self._year_first_encountered_earliest_input.setText("")
             if self._year_first_encountered_latest_input is not None:
@@ -15466,27 +15468,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ):
                     return False
         if active_dominant_mode_filters:
-            dominant_mode_and_filters = [
-                filters for filters in active_dominant_mode_filters
-                if filters["and"].isChecked()
-            ]
-            dominant_mode_or_filters = [
-                filters for filters in active_dominant_mode_filters
-                if filters["or"].isChecked()
-            ]
-            for filters in dominant_mode_and_filters:
+            for filters in active_dominant_mode_filters:
                 if not self._chart_dominant_mode_matches(
                     chart,
                     str(filters["mode"].currentData()),
-                ):
-                    return False
-            if dominant_mode_or_filters:
-                if not any(
-                    self._chart_dominant_mode_matches(
-                        chart,
-                        str(filters["mode"].currentData()),
-                    )
-                    for filters in dominant_mode_or_filters
                 ):
                     return False
 

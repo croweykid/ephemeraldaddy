@@ -478,49 +478,35 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(dominant_planet_section)
 
-    #Search: Dominant Modes section
+    #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
-        "🪐Dominant Modes" #dominant astrological modes
+        "🪐Dominant Mode" #dominant astrological mode
     )
 
     dominant_mode_layout = QFormLayout()
     dominant_mode_layout.setLabelAlignment(Qt.AlignLeft)
     dominant_mode_group_layout.addLayout(dominant_mode_layout)
 
-    for _ in range(3):
-        dominant_mode_row = QWidget()
-        dominant_mode_row_layout = QHBoxLayout()
-        dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
-        dominant_mode_row.setLayout(dominant_mode_row_layout)
+    dominant_mode_row = QWidget()
+    dominant_mode_row_layout = QHBoxLayout()
+    dominant_mode_row_layout.setContentsMargins(0, 0, 0, 0)
+    dominant_mode_row.setLayout(dominant_mode_row_layout)
 
-        mode_combo = QComboBox()
-        apply_default_dropdown_style(mode_combo)
-        mode_combo.addItem("Any", "Any")
-        mode_combo.addItem("Cardinal", "cardinal")
-        mode_combo.addItem("Mutable", "mutable")
-        mode_combo.addItem("Fixed", "fixed")
-        mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+    mode_combo = QComboBox()
+    apply_default_dropdown_style(mode_combo)
+    mode_combo.addItem("Any", "Any")
+    mode_combo.addItem("Cardinal", "cardinal")
+    mode_combo.addItem("Mutable", "mutable")
+    mode_combo.addItem("Fixed", "fixed")
+    mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("AND")
-        filter_or = QRadioButton("OR")
-        filter_group = QButtonGroup(dominant_mode_row)
-        filter_group.setExclusive(True)
-        filter_group.addButton(filter_and)
-        filter_group.addButton(filter_or)
-        filter_and.setChecked(True)
-        filter_group.buttonClicked.connect(window._on_filter_changed)
+    dominant_mode_row_layout.addWidget(QLabel("⚙️"))
+    dominant_mode_row_layout.addWidget(mode_combo, 1)
 
-        dominant_mode_row_layout.addWidget(QLabel("⚙️"))
-        dominant_mode_row_layout.addWidget(mode_combo, 1)
-        dominant_mode_row_layout.addWidget(filter_and)
-        dominant_mode_row_layout.addWidget(filter_or)
-
-        window._dominant_mode_filters.append({
-            "mode": mode_combo,
-            "and": filter_and,
-            "or": filter_or,
-        })
-        dominant_mode_layout.addRow(dominant_mode_row)
+    window._dominant_mode_filters.append({
+        "mode": mode_combo,
+    })
+    dominant_mode_layout.addRow(dominant_mode_row)
 
     layout.addWidget(dominant_mode_section)
 
