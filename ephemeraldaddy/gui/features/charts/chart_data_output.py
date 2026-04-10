@@ -138,6 +138,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
+        self._default_body_format = QTextCharFormat()
+        # Keep body text non-bold/non-italic by default, but do not force foreground color.
+        # This preserves intentional per-token coloring (including cursor-inserted formats)
+        # while preventing header-style bold inheritance.
+        self._default_body_format.setFontWeight(QFont.Normal)
+        self._default_body_format.setFontItalic(False)
         self._unknown_needles = (
             "unknown (birth time unknown)",
             "unknown (🐣time unknown)",
@@ -333,6 +339,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 )
 
     def highlightBlock(self, text: str) -> None:
+        self.setFormat(0, self._qt_len(text), self._default_body_format)
         if self.previousBlockState() == 1:
             self.setFormat(0, self._qt_len(text), self._species_subheader_format)
             self.setCurrentBlockState(0)
