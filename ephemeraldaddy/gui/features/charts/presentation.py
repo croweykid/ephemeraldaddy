@@ -175,6 +175,7 @@ def format_nakshatra_description_html(nakshatra: str) -> str:
         ("Quality:", quality_html),
         ("Favorable Activities:", _value("favorable_activities")),
         ("Sidereal Sign:", _value("sidereal_sign")),
+        ("Archetypes:", _value("archetypes")),
         ("Deity:", _value("deity")),
         ("Ruler:", _value("ruler")),
         ("Body Associations:", body_assoc_value),
