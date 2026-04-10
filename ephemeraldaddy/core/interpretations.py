@@ -1118,7 +1118,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "quality": "Sthira: fixed, stable.",
         "favorable_activities": "Build homes, plant trees, purchase property, lay a foundation, and buying agricultural property.",
         "sidereal_sign": "Sagittarius/Capricorn",
-        "archetypes": "Least combative mars placement.",
+        "archetypes": "Least combative mars placement. Enabling status quo apologists.",
         "deity": "Surya",
         "ruler": "Sun",
         "planetary_associations": "Saturn/Uranus",
