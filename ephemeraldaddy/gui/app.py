@@ -10286,6 +10286,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             self._on_filter_changed()
             return True
+        if (
+            hasattr(self, "astrotheme_search_input")
+            and obj is self.astrotheme_search_input
+            and event.type() == QEvent.KeyPress
+            and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+        ):
+            self._on_import_astrotheme_from_search_panel()
+            return True
         if obj in self._transit_chart_canvases:
             if event.type() == QEvent.Enter:
                 obj.setCursor(Qt.PointingHandCursor)
