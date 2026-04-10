@@ -942,7 +942,7 @@ NAKSHATRA_DESCRIPTIONS = {
         "quality": "Ugra: fierce, intense, forceful",
         "favorable_activities": "Performing destructive deeds such as demolishing, poisoning, setting fire, and confronting enemies.",
         "sidereal_sign": "Leo",
-        "archetypes": "MMA (mars), occultist, lesser scream queens (all Ketu, but Mula is #1 by far)",
+        "archetypes": "MMA (mars), occultist, lesser scream queens (all Ketu, but Mula is #1 by far).",
         "deity": "Ketu",
         "ruler": "Ketu",
         "planetary_associations": "Sun",
