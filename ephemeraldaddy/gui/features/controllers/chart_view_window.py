@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from typing import Callable
+import weakref
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QApplication,
+    QComboBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -14,6 +17,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -21,6 +25,165 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
+
+
+class ChartViewUndoController(QObject):
+    """Adds Chart View-wide Ctrl/Cmd+Z support for text fields and dropdowns."""
+
+    _COMBO_LAST_INDEX_PROP = "_chart_view_combo_last_index"
+    _LINE_EDIT_BASELINE_PROP = "_chart_view_line_edit_baseline"
+    _TEXT_EDIT_BASELINE_PROP = "_chart_view_text_edit_baseline"
+
+    def __init__(self, *, owner: QWidget, scope_widget: QWidget) -> None:
+        super().__init__(owner)
+        self._owner = owner
+        self._scope_widget = scope_widget
+        self._combo_undoing = False
+        self._recording_paused = False
+        self._shortcuts: list[QShortcut] = []
+        self._undo_history: list[Callable[[], None]] = []
+
+    def install(self) -> None:
+        self._install_line_edit_tracking()
+        self._install_text_edit_tracking()
+        self._install_combo_tracking()
+        self._install_shortcuts()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if self._recording_paused:
+            return False
+        if event.type() == QEvent.FocusIn and isinstance(watched, (QPlainTextEdit, QTextEdit)):
+            watched.setProperty(self._TEXT_EDIT_BASELINE_PROP, watched.toPlainText())
+        elif event.type() == QEvent.FocusOut and isinstance(watched, (QPlainTextEdit, QTextEdit)):
+            self._record_text_edit_change(watched)
+        return False
+
+    def _install_line_edit_tracking(self) -> None:
+        for line_edit in self._scope_widget.findChildren(QLineEdit):
+            line_edit.setProperty(self._LINE_EDIT_BASELINE_PROP, line_edit.text())
+            line_edit.editingFinished.connect(
+                lambda target_line_edit=line_edit: self._record_line_edit_change(target_line_edit)
+            )
+
+    def _install_text_edit_tracking(self) -> None:
+        for text_edit in self._scope_widget.findChildren((QPlainTextEdit, QTextEdit)):
+            text_edit.setProperty(self._TEXT_EDIT_BASELINE_PROP, text_edit.toPlainText())
+            text_edit.installEventFilter(self)
+
+    def _install_combo_tracking(self) -> None:
+        for combo in self._scope_widget.findChildren(QComboBox):
+            combo.setProperty(self._COMBO_LAST_INDEX_PROP, combo.currentIndex())
+            combo.currentIndexChanged.connect(
+                lambda _index, target_combo=combo: self._record_combo_change(target_combo)
+            )
+
+    def _install_shortcuts(self) -> None:
+        for sequence in ("Ctrl+Z", "Meta+Z"):
+            shortcut = QShortcut(QKeySequence(sequence), self._owner)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(self.undo_last_change)
+            self._shortcuts.append(shortcut)
+
+    def _record_combo_change(self, combo: QComboBox) -> None:
+        if self._combo_undoing or self._recording_paused:
+            return
+        previous_index = combo.property(self._COMBO_LAST_INDEX_PROP)
+        current_index = combo.currentIndex()
+        if previous_index is None or previous_index == current_index:
+            combo.setProperty(self._COMBO_LAST_INDEX_PROP, current_index)
+            return
+        if combo.hasFocus():
+            previous_index_int = int(previous_index)
+            combo_ref = weakref.ref(combo)
+            self._push_undo_action(
+                lambda target_combo_ref=combo_ref, prior_index=previous_index_int: (
+                    target_combo_ref() is not None and self._restore_combo_index(target_combo_ref(), prior_index)
+                )
+            )
+        combo.setProperty(self._COMBO_LAST_INDEX_PROP, current_index)
+
+    def undo_last_change(self) -> None:
+        focused_widget = QApplication.focusWidget()
+        if isinstance(focused_widget, QLineEdit):
+            if focused_widget.isUndoAvailable():
+                focused_widget.undo()
+                return
+        if isinstance(focused_widget, (QPlainTextEdit, QTextEdit)):
+            if focused_widget.document().isUndoAvailable():
+                focused_widget.undo()
+                return
+        if not self._undo_history:
+            return
+        undo_action = self._undo_history.pop()
+        undo_action()
+
+    def _record_line_edit_change(self, line_edit: QLineEdit) -> None:
+        if self._recording_paused:
+            return
+        previous_text = str(line_edit.property(self._LINE_EDIT_BASELINE_PROP) or "")
+        current_text = line_edit.text()
+        line_edit.setProperty(self._LINE_EDIT_BASELINE_PROP, current_text)
+        if previous_text == current_text:
+            return
+        line_edit_ref = weakref.ref(line_edit)
+        self._push_undo_action(
+            lambda target_line_edit_ref=line_edit_ref, prior_text=previous_text: (
+                target_line_edit_ref() is not None and self._restore_line_edit_text(target_line_edit_ref(), prior_text)
+            )
+        )
+
+    def _record_text_edit_change(self, text_edit: QPlainTextEdit | QTextEdit) -> None:
+        previous_text = str(text_edit.property(self._TEXT_EDIT_BASELINE_PROP) or "")
+        current_text = text_edit.toPlainText()
+        text_edit.setProperty(self._TEXT_EDIT_BASELINE_PROP, current_text)
+        if previous_text == current_text:
+            return
+        text_edit_ref = weakref.ref(text_edit)
+        self._push_undo_action(
+            lambda target_text_edit_ref=text_edit_ref, prior_text=previous_text: (
+                target_text_edit_ref() is not None and self._restore_text_edit_text(target_text_edit_ref(), prior_text)
+            )
+        )
+
+    def _push_undo_action(self, action: Callable[[], None]) -> None:
+        self._undo_history.append(action)
+        if len(self._undo_history) > 200:
+            self._undo_history = self._undo_history[-200:]
+
+    def _restore_line_edit_text(self, line_edit: QLineEdit, text: str) -> None:
+        self._recording_paused = True
+        self._combo_undoing = True
+        try:
+            line_edit.setText(text)
+            line_edit.setProperty(self._LINE_EDIT_BASELINE_PROP, text)
+        finally:
+            self._combo_undoing = False
+            self._recording_paused = False
+
+    def _restore_text_edit_text(self, text_edit: QPlainTextEdit | QTextEdit, text: str) -> None:
+        self._recording_paused = True
+        try:
+            text_edit.setPlainText(text)
+            text_edit.setProperty(self._TEXT_EDIT_BASELINE_PROP, text)
+        finally:
+            self._recording_paused = False
+
+    def _restore_combo_index(self, combo: QComboBox, index: int) -> None:
+        self._recording_paused = True
+        self._combo_undoing = True
+        try:
+            combo.setCurrentIndex(index)
+            combo.setProperty(self._COMBO_LAST_INDEX_PROP, combo.currentIndex())
+        finally:
+            self._combo_undoing = False
+            self._recording_paused = False
+
+
+def install_chart_view_undo_shortcuts(*, owner: QWidget, scope_widget: QWidget) -> ChartViewUndoController:
+    """Install Chart View undo shortcuts for text fields and dropdown controls."""
+    controller = ChartViewUndoController(owner=owner, scope_widget=scope_widget)
+    controller.install()
+    return controller
 
 
 def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:
