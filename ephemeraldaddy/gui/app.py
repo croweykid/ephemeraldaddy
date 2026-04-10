@@ -22516,7 +22516,8 @@ class MainWindow(QMainWindow):
     def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
         month = getattr(chart, "birth_month", None)
         day = getattr(chart, "birth_day", None)
-        if month is None or day is None:
+        is_placeholder = bool(getattr(chart, "is_placeholder", False))
+        if (month is None or day is None) and not is_placeholder:
             dt = getattr(chart, "dt", None)
             month = getattr(dt, "month", None)
             day = getattr(dt, "day", None)
