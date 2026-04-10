@@ -18042,7 +18042,7 @@ class MainWindow(QMainWindow):
         self._configure_main_splitter()
         self._restore_window_settings()
         self._decrease_chart_view_label_font_sizes()
-        self._set_chart_right_panel_container_visible(False)
+        self._set_chart_right_panel_container_visible(True)
         apply_default_text_tooltips(self)
         self._suppress_lucygoosey = False
         self._set_lucygoosey(False)
@@ -21107,6 +21107,9 @@ class MainWindow(QMainWindow):
             for keyword in worst_keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
         aspect_label = str(atype or "").strip()
@@ -21742,8 +21745,11 @@ class MainWindow(QMainWindow):
         if analytics_button is None:
             return
         is_placeholder = bool(chart is not None and getattr(chart, "is_placeholder", False))
-        analytics_button.setEnabled(not is_placeholder)
-        if is_placeholder:
+        is_saved_chart = bool(chart is not None and self.current_chart_id is not None)
+        analytics_available = bool(is_saved_chart and not is_placeholder)
+        analytics_button.setVisible(analytics_available)
+        analytics_button.setEnabled(analytics_available)
+        if not analytics_available:
             self._set_chart_right_panel("subjective_notes")
 
     def _restore_window_settings(self) -> None:
@@ -22792,7 +22798,8 @@ class MainWindow(QMainWindow):
         self.update_button.setText("Save Chart")
         self.output_text.clear()
         self._clear_chart_displays()
-        self._set_chart_right_panel_container_visible(False)
+        self._sync_chart_right_panel_placeholder_state(None)
+        self._set_chart_right_panel_container_visible(True)
 
     def _on_delete_this_chart(self) -> None:
         chart_id = self.current_chart_id
@@ -23746,10 +23753,20 @@ class MainWindow(QMainWindow):
         self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
+        self.output_text.clear()
         self.chart_info_output.clear()
         self._position_info_map = {}
         self._aspect_info_map = {}
         self._species_info_map = {}
+        for button in (
+            self.export_chart_button,
+            self.current_transits_button,
+            self.gemstone_chartwheel_button,
+            self.interpret_astro_age_button,
+            self.open_bazi_window_button,
+        ):
+            if button is not None:
+                button.setEnabled(False)
         self.chart_canvas = None
         self.sign_chart_canvas = None
         self.planet_chart_canvas = None
