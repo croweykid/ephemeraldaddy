@@ -22513,7 +22513,8 @@ class MainWindow(QMainWindow):
     def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
         month = getattr(chart, "birth_month", None)
         day = getattr(chart, "birth_day", None)
-        if month is None or day is None:
+        is_placeholder = bool(getattr(chart, "is_placeholder", False))
+        if (month is None or day is None) and not is_placeholder:
             dt = getattr(chart, "dt", None)
             month = getattr(dt, "month", None)
             day = getattr(dt, "day", None)
@@ -23750,10 +23751,20 @@ class MainWindow(QMainWindow):
         self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
+        self.output_text.clear()
         self.chart_info_output.clear()
         self._position_info_map = {}
         self._aspect_info_map = {}
         self._species_info_map = {}
+        for button in (
+            self.export_chart_button,
+            self.current_transits_button,
+            self.gemstone_chartwheel_button,
+            self.interpret_astro_age_button,
+            self.open_bazi_window_button,
+        ):
+            if button is not None:
+                button.setEnabled(False)
         self.chart_canvas = None
         self.sign_chart_canvas = None
         self.planet_chart_canvas = None
