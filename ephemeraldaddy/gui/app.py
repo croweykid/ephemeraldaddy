@@ -21107,6 +21107,9 @@ class MainWindow(QMainWindow):
             for keyword in worst_keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_aspect_keyword_info(self, atype: str) -> None:
         aspect_label = str(atype or "").strip()
