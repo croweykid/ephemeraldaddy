@@ -17217,6 +17217,16 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_LILITH_CALCULATION_METHOD,
             self._lilith_calculation_method,
         )
+        self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+            self._similar_charts_algorithm_mode,
+        )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -18466,13 +18476,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
         matches = find_astro_twins(
             chart,
             candidates,
             top_k=3,
             exclude_chart_id=self.current_chart_id,
             least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         if not matches:
             self._similar_charts_export_rows = []
@@ -18560,13 +18574,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
         most_similar_matches = find_astro_twins(
             chart,
             candidates,
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=False,
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         least_similar_matches = find_astro_twins(
             chart,
@@ -18574,7 +18592,7 @@ class MainWindow(QMainWindow):
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=True,
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
