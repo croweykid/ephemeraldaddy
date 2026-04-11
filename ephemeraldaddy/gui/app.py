@@ -17159,6 +17159,16 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_LILITH_CALCULATION_METHOD,
             self._lilith_calculation_method,
         )
+        self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                "default",
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+            self._similar_charts_algorithm_mode,
+        )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
