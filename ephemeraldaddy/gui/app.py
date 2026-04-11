@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
 SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
+SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE = "similar_charts/algorithm_mode"
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -56,6 +57,13 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
     if normalized == LILITH_CALCULATION_TRUE and not lilith_mode_available(LILITH_CALCULATION_TRUE):
         return LILITH_CALCULATION_MEAN
     return normalized
+
+
+def _normalize_similar_charts_algorithm_mode(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"default", "comprehensive"}:
+        return normalized
+    return "default"
 
 from PySide6.QtGui import (
     QBrush,
@@ -1431,6 +1439,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_LILITH_CALCULATION_METHOD,
             self._lilith_calculation_method,
+        )
+        self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                "default",
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+            self._similar_charts_algorithm_mode,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -16138,6 +16156,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
+        similar_charts_algo_label = QLabel("Similar Charts Finder Algorithm")
+        similar_charts_algo_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        dev_tools_section.addWidget(similar_charts_algo_label)
+        dev_tools_section.addWidget(
+            QLabel(
+                "Choose which matching algorithm powers Similar Charts results."
+            )
+        )
+
+        self._similar_charts_algo_default_radio = QRadioButton("use default")
+        self._similar_charts_algo_comprehensive_radio = QRadioButton("use comprehensive")
+        similar_charts_algo_group = QButtonGroup(dialog)
+        similar_charts_algo_group.setExclusive(True)
+        similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
+        similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
+        self._similar_charts_algo_default_radio.toggled.connect(
+            lambda checked: checked and self._set_similar_charts_algorithm_mode("default")
+        )
+        self._similar_charts_algo_comprehensive_radio.toggled.connect(
+            lambda checked: checked and self._set_similar_charts_algorithm_mode("comprehensive")
+        )
+        self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
+        dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
+        dev_tools_section.addWidget(self._similar_charts_algo_comprehensive_radio)
+
         calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
         calibrate_similarity_button.setToolTip(
             "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
@@ -16275,6 +16318,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         if combo.itemData(index) == "Lilith":
                             combo.setItemText(index, lilith_label)
                             break
+
+    def _set_similar_charts_algorithm_mode(self, mode: str) -> None:
+        normalized = _normalize_similar_charts_algorithm_mode(mode)
+        self._similar_charts_algorithm_mode = normalized
+        self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
+        default_radio = getattr(self, "_similar_charts_algo_default_radio", None)
+        comprehensive_radio = getattr(self, "_similar_charts_algo_comprehensive_radio", None)
+        if default_radio is None or comprehensive_radio is None:
+            return
+        blocker_default = QSignalBlocker(default_radio)
+        blocker_comprehensive = QSignalBlocker(comprehensive_radio)
+        default_radio.setChecked(normalized == "default")
+        comprehensive_radio.setChecked(normalized == "comprehensive")
+        del blocker_default
+        del blocker_comprehensive
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -18356,6 +18414,7 @@ class MainWindow(QMainWindow):
             top_k=3,
             exclude_chart_id=self.current_chart_id,
             least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
+            algorithm_mode=self._similar_charts_algorithm_mode,
         )
         if not matches:
             self._similar_charts_export_rows = []
@@ -18387,7 +18446,9 @@ class MainWindow(QMainWindow):
                     f"</span>"
                     f" (placements {match.placement_score * 100.0:.0f}%,"
                     f" aspects {match.aspect_score * 100.0:.0f}%,"
-                    f" distribution {match.distribution_score * 100.0:.0f}%)"
+                    f" distribution {match.distribution_score * 100.0:.0f}%"
+                    f"{', nakshatra ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
+                    f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
                 )
             )
             self._similar_charts_export_rows.append(
@@ -18400,6 +18461,17 @@ class MainWindow(QMainWindow):
                     "placement_percent": round(match.placement_score * 100.0, 1),
                     "aspect_percent": round(match.aspect_score * 100.0, 1),
                     "distribution_percent": round(match.distribution_score * 100.0, 1),
+                    "nakshatra_percent": (
+                        round(match.nakshatra_score * 100.0, 1)
+                        if match.nakshatra_score is not None
+                        else None
+                    ),
+                    "defined_centers_percent": (
+                        round(match.hd_centers_score * 100.0, 1)
+                        if match.hd_centers_score is not None
+                        else None
+                    ),
+                    "algorithm_mode": match.algorithm_mode,
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
@@ -18436,6 +18508,7 @@ class MainWindow(QMainWindow):
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=False,
+            algorithm_mode=self._similar_charts_algorithm_mode,
         )
         least_similar_matches = find_astro_twins(
             chart,
@@ -18443,6 +18516,7 @@ class MainWindow(QMainWindow):
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=True,
+            algorithm_mode=self._similar_charts_algorithm_mode,
         )
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()

@@ -52,6 +52,12 @@ def render_similar_match_blocks(
         safe_name = html.escape(str(match.chart_name))
         similarity_percent = float(match.score) * 100.0
         band_label, band_color = resolve_similarity_band(similarity_percent)
+        extra_bits: list[str] = []
+        if getattr(match, "nakshatra_score", None) is not None:
+            extra_bits.append(f"nakshatra {float(match.nakshatra_score) * 100.0:.0f}%")
+        if getattr(match, "hd_centers_score", None) is not None:
+            extra_bits.append(f"defined centers {float(match.hd_centers_score) * 100.0:.0f}%")
+        extra_suffix = f", {', '.join(extra_bits)}" if extra_bits else ""
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
@@ -60,7 +66,7 @@ def render_similar_match_blocks(
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f"(placements {match.placement_score * 100.0:.0f}%, "
                 f"aspects {match.aspect_score * 100.0:.0f}%, "
-                f"distribution {match.distribution_score * 100.0:.0f}%)"
+                f"distribution {match.distribution_score * 100.0:.0f}%{extra_suffix})"
             )
         )
     return "<br><br>".join(blocks)
