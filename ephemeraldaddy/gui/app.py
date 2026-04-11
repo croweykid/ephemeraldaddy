@@ -8129,6 +8129,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for name, checkbox in self.generation_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        selected_search_tags = {
+            name
+            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_search_tags = {
+            name
+            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
+        search_untagged_mode = (
+            self.search_untagged_checkbox.mode()
+            if hasattr(self, "search_untagged_checkbox")
+            and self.search_untagged_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
+        )
 
         active_body_filters = [
             filters
@@ -8349,8 +8365,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             and (
                 not hasattr(self, "search_untagged_checkbox")
-                or not self.search_untagged_checkbox.isChecked()
+                or search_untagged_mode == QuadStateSlider.MODE_EMPTY
             )
+            and not selected_search_tags
+            and not excluded_search_tags
         )
 
     def _update_sentiment_tally(
@@ -11291,16 +11309,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
             )
         }
+        existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
+        existing_modes = {
+            tag_name: checkbox.mode()
+            for tag_name, checkbox in existing_checkboxes.items()
+        }
+        self.search_tag_filter_checkboxes = {}
         self.search_tags_list_widget.clear()
         for tag in known_tags:
-            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
-            self.search_tags_list_widget.addItem(label)
+            row_item = QListWidgetItem()
+            row_checkbox = QuadStateSlider(tag)
+            row_checkbox.setMode(
+                existing_modes.get(
+                    tag,
+                    QuadStateSlider.MODE_TRUE
+                    if tag.casefold() in selected_tags
+                    else QuadStateSlider.MODE_EMPTY,
+                )
+            )
+            row_checkbox.modeChanged.connect(
+                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
+            )
+            row_item.setSizeHint(row_checkbox.sizeHint())
+            self.search_tags_list_widget.addItem(row_item)
+            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
+            self.search_tag_filter_checkboxes[tag] = row_checkbox
 
-    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
-        tag_value = item.text().lstrip("✓").strip()
-        if not tag_value:
-            return
-        self.search_tags_input.setText(tag_value)
+    def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
+        self._on_filter_changed()
 
     def _on_batch_tags_changed(self, *_: object) -> None:
         self._refresh_batch_tags_list(getattr(self, "_known_chart_tags", []))
@@ -13350,7 +13386,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 hasattr(self, "search_untagged_checkbox")
                 and self.search_untagged_checkbox is not None
             ):
-                self.search_untagged_checkbox.setChecked(False)
+                self.search_untagged_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values():
+                checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.sentiment_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if self._positive_sentiment_intensity_min_input is not None:
@@ -14744,6 +14782,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
+        selected_search_tags = {
+            name
+            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_TRUE
+        }
+        excluded_search_tags = {
+            name
+            for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
+            if checkbox.mode() == QuadStateSlider.MODE_FALSE
+        }
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -15202,14 +15250,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if notes_source_mode == QuadStateSlider.MODE_FALSE and source_match:
                 return False
 
-        include_untagged = bool(
-            hasattr(self, "search_untagged_checkbox")
-            and self.search_untagged_checkbox.isChecked()
+        search_untagged_mode = (
+            self.search_untagged_checkbox.mode()
+            if hasattr(self, "search_untagged_checkbox")
+            and self.search_untagged_checkbox is not None
+            else QuadStateSlider.MODE_EMPTY
         )
-        if (search_tags or include_untagged) and not chart_matches_tag_filters(
+        included_search_tags = list({*search_tags, *selected_search_tags})
+        if (
+            included_search_tags
+            or excluded_search_tags
+            or search_untagged_mode != QuadStateSlider.MODE_EMPTY
+        ) and not chart_matches_tag_filters(
             getattr(chart, "tags", []),
-            required_tags=search_tags,
-            include_untagged=include_untagged,
+            included_tags=included_search_tags,
+            excluded_tags=list(excluded_search_tags),
+            untagged_mode=search_untagged_mode,
         ):
             return False
 
@@ -22483,16 +22539,34 @@ class MainWindow(QMainWindow):
                 self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
             )
         }
+        existing_checkboxes = getattr(self, "search_tag_filter_checkboxes", {})
+        existing_modes = {
+            tag_name: checkbox.mode()
+            for tag_name, checkbox in existing_checkboxes.items()
+        }
+        self.search_tag_filter_checkboxes = {}
         self.search_tags_list_widget.clear()
         for tag in known_tags:
-            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
-            self.search_tags_list_widget.addItem(label)
+            row_item = QListWidgetItem()
+            row_checkbox = QuadStateSlider(tag)
+            row_checkbox.setMode(
+                existing_modes.get(
+                    tag,
+                    QuadStateSlider.MODE_TRUE
+                    if tag.casefold() in selected_tags
+                    else QuadStateSlider.MODE_EMPTY,
+                )
+            )
+            row_checkbox.modeChanged.connect(
+                lambda _mode, tag_name=tag: self._on_search_tag_mode_changed(tag_name)
+            )
+            row_item.setSizeHint(row_checkbox.sizeHint())
+            self.search_tags_list_widget.addItem(row_item)
+            self.search_tags_list_widget.setItemWidget(row_item, row_checkbox)
+            self.search_tag_filter_checkboxes[tag] = row_checkbox
 
-    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
-        tag_value = item.text().lstrip("✓").strip()
-        if not tag_value:
-            return
-        self.search_tags_input.setText(tag_value)
+    def _on_search_tag_mode_changed(self, _tag_name: str) -> None:
+        self._on_filter_changed()
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
