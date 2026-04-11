@@ -22,6 +22,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QHBoxLayout = app_module.QHBoxLayout
     QPushButton = app_module.QPushButton
     QListWidget = app_module.QListWidget
+    QCheckBox = app_module.QCheckBox
     QToolButton = app_module.QToolButton
     Qt = app_module.Qt
     QFrame = app_module.QFrame
