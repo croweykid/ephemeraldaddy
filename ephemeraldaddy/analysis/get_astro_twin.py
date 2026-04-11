@@ -72,6 +72,9 @@ class AstroTwinMatch:
     placement_score: float
     aspect_score: float
     distribution_score: float
+    nakshatra_score: float | None = None
+    hd_centers_score: float | None = None
+    algorithm_mode: str = "default"
 
 
 def _safe_divide(num: float, den: float) -> float:
@@ -84,6 +87,13 @@ def _sign_index(lon: float | None) -> int | None:
     if lon is None:
         return None
     return int(float(lon) % 360.0 // 30)
+
+
+def _nakshatra_index(lon: float | None) -> int | None:
+    if lon is None:
+        return None
+    segment_size = 360.0 / 27.0
+    return int((float(lon) % 360.0) // segment_size)
 
 
 def _house_for_body(chart: Chart, body: str) -> int | None:
@@ -257,6 +267,54 @@ def _sign_dominance_similarity(query: Chart, candidate: Chart) -> float:
     return max(0.0, min(1.0, (overlap_similarity * 0.7) + (top2_overlap * 0.3)))
 
 
+def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
+    positions = getattr(chart, "positions", None) or {}
+    weighted_counts = {index: 0.0 for index in range(27)}
+    for body in CORE_BODIES:
+        if body in {"AS", "MC"}:
+            continue
+        nakshatra_idx = _nakshatra_index(positions.get(body))
+        if nakshatra_idx is None:
+            continue
+        weighted_counts[nakshatra_idx] += BODY_WEIGHTS.get(body, 0.8)
+    total = sum(weighted_counts.values())
+    if total <= 0:
+        return weighted_counts
+    return {index: (value / total) for index, value in weighted_counts.items()}
+
+
+def _nakshatra_similarity(query: Chart, candidate: Chart) -> float:
+    q_profile = _nakshatra_weight_profile(query)
+    c_profile = _nakshatra_weight_profile(candidate)
+    overlap = sum(min(q_profile[index], c_profile[index]) for index in range(27))
+    cosine = _cosine_similarity(
+        {str(index): value for index, value in q_profile.items()},
+        {str(index): value for index, value in c_profile.items()},
+    )
+    return max(0.0, min(1.0, (overlap * 0.65) + (cosine * 0.35)))
+
+
+def _defined_centers(chart: Chart) -> set[str]:
+    centers = getattr(chart, "human_design_defined_centers", None) or []
+    return {
+        str(center).strip().lower()
+        for center in centers
+        if str(center).strip()
+    }
+
+
+def _defined_centers_similarity(query: Chart, candidate: Chart) -> float:
+    q_centers = _defined_centers(query)
+    c_centers = _defined_centers(candidate)
+    if not q_centers and not c_centers:
+        return 0.5
+    union = q_centers | c_centers
+    if not union:
+        return 0.0
+    intersection = q_centers & c_centers
+    return len(intersection) / len(union)
+
+
 def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float]:
     placement_score = _placement_similarity(query, candidate)
     aspect_score = _aspect_similarity(query, candidate)
@@ -267,6 +325,23 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
         + (distribution_score * 0.15)
     )
     return final_score, placement_score, aspect_score, distribution_score
+
+
+def chart_similarity_score_comprehensive(
+    query: Chart,
+    candidate: Chart,
+) -> tuple[float, float, float, float, float, float]:
+    final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(query, candidate)
+    nakshatra_score = _nakshatra_similarity(query, candidate)
+    hd_centers_score = _defined_centers_similarity(query, candidate)
+    comprehensive_score = (
+        (placement_score * 0.39)
+        + (aspect_score * 0.31)
+        + (distribution_score * 0.12)
+        + (nakshatra_score * 0.10)
+        + (hd_centers_score * 0.08)
+    )
+    return comprehensive_score, placement_score, aspect_score, distribution_score, nakshatra_score, hd_centers_score
 
 
 def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, float, float, float, float]:
@@ -285,6 +360,39 @@ def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, fl
     return dissimilarity_score, similarity_score, placement_score, aspect_score, distribution_score
 
 
+def chart_dissimilarity_score_comprehensive(
+    query: Chart,
+    candidate: Chart,
+) -> tuple[float, float, float, float, float, float, float]:
+    (
+        similarity_score,
+        placement_score,
+        aspect_score,
+        distribution_score,
+        nakshatra_score,
+        hd_centers_score,
+    ) = chart_similarity_score_comprehensive(query, candidate)
+    inverse_weighted = (
+        ((1.0 - placement_score) * 0.52)
+        + ((1.0 - aspect_score) * 0.20)
+        + ((1.0 - distribution_score) * 0.12)
+        + ((1.0 - nakshatra_score) * 0.09)
+        + ((1.0 - hd_centers_score) * 0.07)
+    )
+    dominance_similarity = _sign_dominance_similarity(query, candidate)
+    dominance_penalty = 0.70 * dominance_similarity
+    dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
+    return (
+        dissimilarity_score,
+        similarity_score,
+        placement_score,
+        aspect_score,
+        distribution_score,
+        nakshatra_score,
+        hd_centers_score,
+    )
+
+
 def find_astro_twins(
     query_chart: Chart,
     candidates: Iterable[tuple[int, Chart]],
@@ -292,12 +400,15 @@ def find_astro_twins(
     top_k: int = 3,
     exclude_chart_id: int | None = None,
     least_similar: bool = False,
+    algorithm_mode: str = "default",
 ) -> list[AstroTwinMatch]:
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     relaxed_scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
+    normalized_mode = str(algorithm_mode or "default").strip().lower()
+    use_comprehensive = normalized_mode == "comprehensive"
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
@@ -307,15 +418,40 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
-                query_chart,
-                candidate,
-            )
+            if use_comprehensive:
+                (
+                    rank_score,
+                    final_score,
+                    placement_score,
+                    aspect_score,
+                    distribution_score,
+                    nakshatra_score,
+                    hd_centers_score,
+                ) = chart_dissimilarity_score_comprehensive(query_chart, candidate)
+            else:
+                rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
+                    query_chart,
+                    candidate,
+                )
+                nakshatra_score = None
+                hd_centers_score = None
         else:
-            final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
-                query_chart,
-                candidate,
-            )
+            if use_comprehensive:
+                (
+                    final_score,
+                    placement_score,
+                    aspect_score,
+                    distribution_score,
+                    nakshatra_score,
+                    hd_centers_score,
+                ) = chart_similarity_score_comprehensive(query_chart, candidate)
+            else:
+                final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+                    query_chart,
+                    candidate,
+                )
+                nakshatra_score = None
+                hd_centers_score = None
             rank_score = final_score
 
         match = AstroTwinMatch(
@@ -325,6 +461,9 @@ def find_astro_twins(
             placement_score=placement_score,
             aspect_score=aspect_score,
             distribution_score=distribution_score,
+            nakshatra_score=nakshatra_score,
+            hd_centers_score=hd_centers_score,
+            algorithm_mode="comprehensive" if use_comprehensive else "default",
         )
         destination_heap = scored_matches
         if least_similar and query_top3_signs:
