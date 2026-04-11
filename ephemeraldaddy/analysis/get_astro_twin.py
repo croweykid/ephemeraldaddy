@@ -7,6 +7,9 @@ from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
 
+SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
+SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
+
 CORE_BODIES: tuple[str, ...] = (
     "Sun",
     "Moon",
@@ -74,7 +77,17 @@ class AstroTwinMatch:
     distribution_score: float
     nakshatra_score: float | None = None
     hd_centers_score: float | None = None
-    algorithm_mode: str = "default"
+    algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
+
+
+def normalize_similar_charts_algorithm_mode(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {
+        SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    }:
+        return normalized
+    return SIMILAR_CHARTS_ALGORITHM_DEFAULT
 
 
 def _safe_divide(num: float, den: float) -> float:
@@ -400,15 +413,15 @@ def find_astro_twins(
     top_k: int = 3,
     exclude_chart_id: int | None = None,
     least_similar: bool = False,
-    algorithm_mode: str = "default",
+    algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
 ) -> list[AstroTwinMatch]:
     target_k = max(1, int(top_k))
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     relaxed_scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
-    normalized_mode = str(algorithm_mode or "default").strip().lower()
-    use_comprehensive = normalized_mode == "comprehensive"
+    normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
             continue
@@ -463,7 +476,11 @@ def find_astro_twins(
             distribution_score=distribution_score,
             nakshatra_score=nakshatra_score,
             hd_centers_score=hd_centers_score,
-            algorithm_mode="comprehensive" if use_comprehensive else "default",
+            algorithm_mode=(
+                SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+                if use_comprehensive
+                else SIMILAR_CHARTS_ALGORITHM_DEFAULT
+            ),
         )
         destination_heap = scored_matches
         if least_similar and query_top3_signs:

@@ -59,12 +59,6 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
     return normalized
 
 
-def _normalize_similar_charts_algorithm_mode(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in {"default", "comprehensive"}:
-        return normalized
-    return "default"
-
 from PySide6.QtGui import (
     QBrush,
     QTextCharFormat,
@@ -205,7 +199,13 @@ from ephemeraldaddy.gui.window_placement import (
     clear_fullscreen_and_minimized,
 )
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    chart_similarity_score,
+    find_astro_twins,
+    normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
@@ -1443,7 +1443,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
             self._settings.value(
                 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
-                "default",
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
             )
         )
         self._settings.setValue(
@@ -16228,10 +16228,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
         similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
         self._similar_charts_algo_default_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("default")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algo_comprehensive_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("comprehensive")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         )
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
@@ -16385,8 +16387,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         blocker_default = QSignalBlocker(default_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
-        default_radio.setChecked(normalized == "default")
-        comprehensive_radio.setChecked(normalized == "comprehensive")
+        default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         del blocker_default
         del blocker_comprehensive
 
