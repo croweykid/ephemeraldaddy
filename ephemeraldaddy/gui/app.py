@@ -59,12 +59,6 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
     return normalized
 
 
-def _normalize_similar_charts_algorithm_mode(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in {"default", "comprehensive"}:
-        return normalized
-    return "default"
-
 from PySide6.QtGui import (
     QBrush,
     QTextCharFormat,
@@ -205,7 +199,13 @@ from ephemeraldaddy.gui.window_placement import (
     clear_fullscreen_and_minimized,
 )
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    chart_similarity_score,
+    find_astro_twins,
+    normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
@@ -1443,7 +1443,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
             self._settings.value(
                 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
-                "default",
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
             )
         )
         self._settings.setValue(
@@ -16228,10 +16228,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
         similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
         self._similar_charts_algo_default_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("default")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algo_comprehensive_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("comprehensive")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         )
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
@@ -16385,8 +16387,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         blocker_default = QSignalBlocker(default_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
-        default_radio.setChecked(normalized == "default")
-        comprehensive_radio.setChecked(normalized == "comprehensive")
+        default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         del blocker_default
         del blocker_comprehensive
 
@@ -17214,6 +17216,16 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_LILITH_CALCULATION_METHOD,
             self._lilith_calculation_method,
+        )
+        self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+            self._similar_charts_algorithm_mode,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
@@ -18464,13 +18476,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
         matches = find_astro_twins(
             chart,
             candidates,
             top_k=3,
             exclude_chart_id=self.current_chart_id,
             least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         if not matches:
             self._similar_charts_export_rows = []
@@ -18558,13 +18574,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
         most_similar_matches = find_astro_twins(
             chart,
             candidates,
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=False,
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         least_similar_matches = find_astro_twins(
             chart,
@@ -18572,7 +18592,7 @@ class MainWindow(QMainWindow):
             top_k=25,
             exclude_chart_id=self.current_chart_id,
             least_similar=True,
-            algorithm_mode=self._similar_charts_algorithm_mode,
+            algorithm_mode=algorithm_mode,
         )
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
