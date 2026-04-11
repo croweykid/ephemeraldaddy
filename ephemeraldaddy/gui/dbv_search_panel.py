@@ -22,7 +22,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     QHBoxLayout = app_module.QHBoxLayout
     QPushButton = app_module.QPushButton
     QListWidget = app_module.QListWidget
-    QCheckBox = app_module.QCheckBox
     QToolButton = app_module.QToolButton
     Qt = app_module.Qt
     QFrame = app_module.QFrame
@@ -109,8 +108,8 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_preview_label.setWordWrap(True)
     window.search_tags_preview_label.setTextFormat(Qt.RichText)
     tags_search_row.addWidget(window.search_tags_preview_label)
-    window.search_untagged_checkbox = QCheckBox("untagged")
-    window.search_untagged_checkbox.stateChanged.connect(window._on_filter_changed)
+    window.search_untagged_checkbox = QuadStateSlider("untagged")
+    window.search_untagged_checkbox.modeChanged.connect(window._on_filter_changed)
     tags_search_row.addWidget(window.search_untagged_checkbox)
 
     window.search_tags_toggle = QToolButton()
@@ -125,7 +124,6 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_list_widget = QListWidget()
     window.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
     window.search_tags_list_widget.setMaximumHeight(180)
-    window.search_tags_list_widget.itemClicked.connect(window._on_search_tag_item_clicked)
     window.search_tags_list_widget.setVisible(False)
     window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
     tags_search_row.addWidget(window.search_tags_list_widget)
