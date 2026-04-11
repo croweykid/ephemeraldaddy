@@ -97,6 +97,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QListWidget,
     QListWidgetItem,
+    QTableWidget,
+    QTableWidgetItem,
     QAbstractItemView,
     QMenu,
     QFileDialog,
@@ -8347,6 +8349,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 not hasattr(self, "search_tags_input")
                 or not self.search_tags_input.text().strip()
             )
+            and not getattr(self, "_search_excluded_tags", set())
             and (
                 not hasattr(self, "search_untagged_checkbox")
                 or not self.search_untagged_checkbox.isChecked()
@@ -11277,30 +11280,71 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._refresh_batch_tags_list(known_tags)
 
     def _on_search_tags_changed(self, *_: object) -> None:
-        tags = parse_tag_text(self.search_tags_input.text())
-        render_tag_chip_preview(self.search_tags_preview_label, tags)
+        include_tags = parse_tag_text(self.search_tags_input.text())
+        excluded_tags = sorted(getattr(self, "_search_excluded_tags", set()))
+        include_tag_keys = {tag.casefold() for tag in include_tags}
+        excluded_tags = [tag for tag in excluded_tags if tag.casefold() not in include_tag_keys]
+        self._search_excluded_tags = set(excluded_tags)
+        preview_tags = include_tags + [f"✗ {tag}" for tag in excluded_tags]
+        render_tag_chip_preview(self.search_tags_preview_label, preview_tags)
         self._refresh_search_tags_list(getattr(self, "_known_chart_tags", []))
         self._on_filter_changed()
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
             return
-        selected_tags = {
+        included_tags = {
             tag.casefold()
             for tag in parse_tag_text(
                 self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
             )
         }
-        self.search_tags_list_widget.clear()
-        for tag in known_tags:
-            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
-            self.search_tags_list_widget.addItem(label)
+        excluded_tags = {tag.casefold() for tag in getattr(self, "_search_excluded_tags", set())}
+        widget = self.search_tags_list_widget
+        widget.setRowCount(len(known_tags))
+        for row, tag in enumerate(known_tags):
+            include_item = QTableWidgetItem(f"✅ {tag}" if tag.casefold() in included_tags else tag)
+            exclude_item = QTableWidgetItem(f"❌ {tag}" if tag.casefold() in excluded_tags else tag)
+            widget.setItem(row, 0, include_item)
+            widget.setItem(row, 1, exclude_item)
 
-    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
-        tag_value = item.text().lstrip("✓").strip()
-        if not tag_value:
+    def _on_search_tag_cell_clicked(self, row: int, column: int) -> None:
+        known_tags = list(getattr(self, "_known_chart_tags", []))
+        if row < 0 or row >= len(known_tags):
             return
-        self.search_tags_input.setText(tag_value)
+        tag_value = known_tags[row]
+        include_tags = parse_tag_text(self.search_tags_input.text() if hasattr(self, "search_tags_input") else "")
+        include_by_key = {tag.casefold(): tag for tag in include_tags}
+        excluded_tags = set(getattr(self, "_search_excluded_tags", set()))
+        excluded_by_key = {tag.casefold(): tag for tag in excluded_tags}
+        tag_key = tag_value.casefold()
+
+        if column == 0:
+            if tag_key in include_by_key:
+                include_by_key.pop(tag_key, None)
+            else:
+                include_by_key[tag_key] = tag_value
+            excluded_by_key.pop(tag_key, None)
+        elif column == 1:
+            if tag_key in excluded_by_key:
+                excluded_by_key.pop(tag_key, None)
+            else:
+                excluded_by_key[tag_key] = tag_value
+            include_by_key.pop(tag_key, None)
+        else:
+            return
+
+        ordered_include_tags = [
+            tag for tag in known_tags if tag.casefold() in include_by_key
+        ]
+        extra_include_tags = sorted(
+            tag
+            for key, tag in include_by_key.items()
+            if key not in {known_tag.casefold() for known_tag in known_tags}
+        )
+        ordered_include_tags.extend(extra_include_tags)
+        self._search_excluded_tags = set(excluded_by_key.values())
+        self.search_tags_input.setText(", ".join(ordered_include_tags))
 
     def _on_batch_tags_changed(self, *_: object) -> None:
         self._refresh_batch_tags_list(getattr(self, "_known_chart_tags", []))
@@ -13346,6 +13390,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._search_location_state_input.setText("")
             if hasattr(self, "search_tags_input") and self.search_tags_input is not None:
                 self.search_tags_input.setText("")
+            self._search_excluded_tags = set()
             if (
                 hasattr(self, "search_untagged_checkbox")
                 and self.search_untagged_checkbox is not None
@@ -14744,6 +14789,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         search_tags = parse_tag_text(
             self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
         )
+        excluded_search_tags = sorted(getattr(self, "_search_excluded_tags", set()))
         selected_chart_types = {
             source
             for source, checkbox in self.chart_type_filter_checkboxes.items()
@@ -15206,9 +15252,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             hasattr(self, "search_untagged_checkbox")
             and self.search_untagged_checkbox.isChecked()
         )
-        if (search_tags or include_untagged) and not chart_matches_tag_filters(
+        if (search_tags or excluded_search_tags or include_untagged) and not chart_matches_tag_filters(
             getattr(chart, "tags", []),
             required_tags=search_tags,
+            excluded_tags=excluded_search_tags,
             include_untagged=include_untagged,
         ):
             return False
@@ -22477,22 +22524,59 @@ class MainWindow(QMainWindow):
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
             return
-        selected_tags = {
+        included_tags = {
             tag.casefold()
             for tag in parse_tag_text(
                 self.search_tags_input.text() if hasattr(self, "search_tags_input") else ""
             )
         }
-        self.search_tags_list_widget.clear()
-        for tag in known_tags:
-            label = f"✓ {tag}" if tag.casefold() in selected_tags else tag
-            self.search_tags_list_widget.addItem(label)
+        excluded_tags = {tag.casefold() for tag in getattr(self, "_search_excluded_tags", set())}
+        widget = self.search_tags_list_widget
+        widget.setRowCount(len(known_tags))
+        for row, tag in enumerate(known_tags):
+            include_item = QTableWidgetItem(f"✅ {tag}" if tag.casefold() in included_tags else tag)
+            exclude_item = QTableWidgetItem(f"❌ {tag}" if tag.casefold() in excluded_tags else tag)
+            widget.setItem(row, 0, include_item)
+            widget.setItem(row, 1, exclude_item)
 
-    def _on_search_tag_item_clicked(self, item: QListWidgetItem) -> None:
-        tag_value = item.text().lstrip("✓").strip()
-        if not tag_value:
+    def _on_search_tag_cell_clicked(self, row: int, column: int) -> None:
+        known_tags = list(getattr(self, "_known_chart_tags", []))
+        if row < 0 or row >= len(known_tags):
             return
-        self.search_tags_input.setText(tag_value)
+        tag_value = known_tags[row]
+        include_tags = parse_tag_text(self.search_tags_input.text() if hasattr(self, "search_tags_input") else "")
+        include_by_key = {tag.casefold(): tag for tag in include_tags}
+        excluded_tags = set(getattr(self, "_search_excluded_tags", set()))
+        excluded_by_key = {tag.casefold(): tag for tag in excluded_tags}
+        tag_key = tag_value.casefold()
+
+        if column == 0:
+            if tag_key in include_by_key:
+                include_by_key.pop(tag_key, None)
+            else:
+                include_by_key[tag_key] = tag_value
+            excluded_by_key.pop(tag_key, None)
+        elif column == 1:
+            if tag_key in excluded_by_key:
+                excluded_by_key.pop(tag_key, None)
+            else:
+                excluded_by_key[tag_key] = tag_value
+            include_by_key.pop(tag_key, None)
+        else:
+            return
+
+        known_tag_keys = {tag.casefold() for tag in known_tags}
+        ordered_include_tags = [
+            tag for tag in known_tags if tag.casefold() in include_by_key
+        ]
+        extra_include_tags = sorted(
+            tag
+            for key, tag in include_by_key.items()
+            if key not in known_tag_keys
+        )
+        ordered_include_tags.extend(extra_include_tags)
+        self._search_excluded_tags = set(excluded_by_key.values())
+        self.search_tags_input.setText(", ".join(ordered_include_tags))
 
     def _update_tag_completers(self) -> None:
         sorted_tags = list_recognized_tags()
