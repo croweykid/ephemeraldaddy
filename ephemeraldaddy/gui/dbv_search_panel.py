@@ -21,9 +21,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QLineEdit = app_module.QLineEdit
     QHBoxLayout = app_module.QHBoxLayout
     QPushButton = app_module.QPushButton
-    QTableWidget = app_module.QTableWidget
-    QTableWidgetItem = app_module.QTableWidgetItem
-    QHeaderView = app_module.QHeaderView
+    QListWidget = app_module.QListWidget
     QCheckBox = app_module.QCheckBox
     QToolButton = app_module.QToolButton
     Qt = app_module.Qt
@@ -124,15 +122,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
     tags_search_row.addWidget(window.search_tags_toggle)
 
-    window.search_tags_list_widget = QTableWidget()
-    window.search_tags_list_widget.setColumnCount(2)
-    window.search_tags_list_widget.setHorizontalHeaderLabels(["✅ Include", "❌ Exclude"])
-    window.search_tags_list_widget.verticalHeader().setVisible(False)
-    window.search_tags_list_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-    window.search_tags_list_widget.setEditTriggers(QTableWidget.NoEditTriggers)
-    window.search_tags_list_widget.setSelectionMode(QTableWidget.NoSelection)
-    window.search_tags_list_widget.setMaximumHeight(220)
-    window.search_tags_list_widget.cellClicked.connect(window._on_search_tag_cell_clicked)
+    window.search_tags_list_widget = QListWidget()
+    window.search_tags_list_widget.setSelectionMode(QListWidget.NoSelection)
+    window.search_tags_list_widget.setMaximumHeight(180)
+    window.search_tags_list_widget.itemClicked.connect(window._on_search_tag_item_clicked)
     window.search_tags_list_widget.setVisible(False)
     window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
     tags_search_row.addWidget(window.search_tags_list_widget)
