@@ -115,6 +115,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLayout,
     QFrame,
+    QHeaderView,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QStyle,
