@@ -59,12 +59,6 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
     return normalized
 
 
-def _normalize_similar_charts_algorithm_mode(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in {"default", "comprehensive"}:
-        return normalized
-    return "default"
-
 from PySide6.QtGui import (
     QBrush,
     QTextCharFormat,
@@ -205,7 +199,13 @@ from ephemeraldaddy.gui.window_placement import (
     clear_fullscreen_and_minimized,
 )
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score, find_astro_twins
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    chart_similarity_score,
+    find_astro_twins,
+    normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.core.ephemeris import (
     LILITH_CALCULATION_MEAN,
     LILITH_CALCULATION_TRUE,
@@ -1443,7 +1443,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
             self._settings.value(
                 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
-                "default",
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
             )
         )
         self._settings.setValue(
@@ -16228,10 +16228,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
         similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
         self._similar_charts_algo_default_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("default")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algo_comprehensive_radio.toggled.connect(
-            lambda checked: checked and self._set_similar_charts_algorithm_mode("comprehensive")
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         )
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
@@ -16385,10 +16387,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         blocker_default = QSignalBlocker(default_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
-        default_radio.setChecked(normalized == "default")
-        comprehensive_radio.setChecked(normalized == "comprehensive")
+        default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         del blocker_default
         del blocker_comprehensive
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._handle_similar_charts_algorithm_mode_changed(normalized)
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -17214,6 +17219,16 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_LILITH_CALCULATION_METHOD,
             self._lilith_calculation_method,
+        )
+        self._similar_charts_algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            self._settings.value(
+                SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
+            self._similar_charts_algorithm_mode,
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
@@ -18273,17 +18288,32 @@ class MainWindow(QMainWindow):
     def _create_chart_analysis_sections(self, panel: QWidget) -> None:
         self._chart_analysis_sections_controller.create_sections(panel)
 
+    def _similar_charts_section_title(self) -> str:
+        if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+            return "Similar Charts (comprehensive)"
+        return "Similar Charts"
+
+    def _refresh_similar_charts_section_title(self) -> None:
+        section_widget = self._chart_analysis_section_widgets.get("similar_charts")
+        if section_widget is None:
+            return
+        toggle = section_widget.findChild(QToolButton)
+        if toggle is None:
+            return
+        toggle.setText(self._similar_charts_section_title())
+
     def _create_similar_charts_section(self, panel: QWidget) -> None:
         section_expanded = self._chart_analysis_section_expanded.get("similar_charts", False)
         section_layout = self._add_chart_analysis_collapsible_section(
             panel=panel,
             layout=self.metrics_layout,
-            title="Similar Charts",
+            title=self._similar_charts_section_title(),
             expanded=section_expanded,
             on_toggled=lambda checked: self._set_chart_analysis_section_expanded(
                 "similar_charts",
                 checked,
             ),
+            section_key="similar_charts",
         )
         self._chart_analysis_section_expanded["similar_charts"] = section_expanded
 
@@ -18429,6 +18459,22 @@ class MainWindow(QMainWindow):
         if render_key is not None:
             self._mark_chart_analytics_sections_clean({render_key}, self._latest_chart)
 
+    def _report_similar_charts_comprehensive_failure(
+        self,
+        *,
+        context: str,
+        detail: str,
+        error: Exception | None = None,
+    ) -> None:
+        message = f"[Similar Charts][Comprehensive][ERROR] {context}: {detail}"
+        if error is None:
+            logger.error(message)
+        else:
+            logger.exception(message, exc_info=error)
+        print(message, file=sys.stderr)
+        if error is not None:
+            traceback.print_exception(type(error), error, error.__traceback__)
+
     def _render_similar_charts(self, chart: Chart) -> None:
         if self._similar_charts_list_label is None:
             return
@@ -18464,14 +18510,40 @@ class MainWindow(QMainWindow):
             )
             return
 
-        matches = find_astro_twins(
-            chart,
-            candidates,
-            top_k=3,
-            exclude_chart_id=self.current_chart_id,
-            least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
-            algorithm_mode=self._similar_charts_algorithm_mode,
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        try:
+            matches = find_astro_twins(
+                chart,
+                candidates,
+                top_k=3,
+                exclude_chart_id=self.current_chart_id,
+                least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
+                algorithm_mode=algorithm_mode,
+            )
+        except Exception as exc:
+            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                self._report_similar_charts_comprehensive_failure(
+                    context="_render_similar_charts",
+                    detail="comprehensive algorithm execution failed",
+                    error=exc,
+                )
+            raise
+        if (
+            algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+            and any(match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE for match in matches)
+        ):
+            self._report_similar_charts_comprehensive_failure(
+                context="_render_similar_charts",
+                detail="detected fallback/non-comprehensive match results",
+            )
+            self._similar_charts_list_label.setText(
+                "Comprehensive Similar Charts mode reported invalid fallback results. "
+                "See terminal for details."
+            )
+            return
         if not matches:
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
@@ -18558,22 +18630,51 @@ class MainWindow(QMainWindow):
             )
             return
 
-        most_similar_matches = find_astro_twins(
-            chart,
-            candidates,
-            top_k=25,
-            exclude_chart_id=self.current_chart_id,
-            least_similar=False,
-            algorithm_mode=self._similar_charts_algorithm_mode,
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
-        least_similar_matches = find_astro_twins(
-            chart,
-            candidates,
-            top_k=25,
-            exclude_chart_id=self.current_chart_id,
-            least_similar=True,
-            algorithm_mode=self._similar_charts_algorithm_mode,
-        )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        try:
+            most_similar_matches = find_astro_twins(
+                chart,
+                candidates,
+                top_k=25,
+                exclude_chart_id=self.current_chart_id,
+                least_similar=False,
+                algorithm_mode=algorithm_mode,
+            )
+            least_similar_matches = find_astro_twins(
+                chart,
+                candidates,
+                top_k=25,
+                exclude_chart_id=self.current_chart_id,
+                least_similar=True,
+                algorithm_mode=algorithm_mode,
+            )
+        except Exception as exc:
+            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                self._report_similar_charts_comprehensive_failure(
+                    context="_show_similar_charts_popout",
+                    detail="comprehensive algorithm execution failed",
+                    error=exc,
+                )
+            raise
+        if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+            invalid_mode = any(
+                match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+                for match in (*most_similar_matches, *least_similar_matches)
+            )
+            if invalid_mode:
+                self._report_similar_charts_comprehensive_failure(
+                    context="_show_similar_charts_popout",
+                    detail="detected fallback/non-comprehensive match results",
+                )
+                QMessageBox.warning(
+                    self,
+                    "Similar Charts (comprehensive)",
+                    "Comprehensive mode returned fallback results. See terminal for details.",
+                )
+                return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         dialog = build_similar_charts_popout_dialog(
@@ -23530,6 +23631,14 @@ class MainWindow(QMainWindow):
             self.load_chart_by_id(self.current_chart_id)
             return
         self._refresh_chart_preview()
+
+    def _handle_similar_charts_algorithm_mode_changed(self, mode: str) -> None:
+        normalized = _normalize_similar_charts_algorithm_mode(mode)
+        self._similar_charts_algorithm_mode = normalized
+        self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
+        self._refresh_similar_charts_section_title()
+        if self._latest_chart is not None and self._is_chart_analysis_section_visible("similar_charts"):
+            self._render_similar_charts(self._latest_chart)
 
     def _clear_layout_widgets(self, layout: QLayout) -> None:
         while layout.count():
