@@ -192,6 +192,7 @@ class _RenameLabelDialog(QDialog):
 class ManageMetadataLabelsDialog(QDialog):
     FIELD_SENTIMENTS = "sentiments"
     FIELD_RELATIONSHIPS = "relationship_types"
+    FIELD_TAGS = "tags"
 
     def __init__(
         self,
@@ -219,6 +220,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._field_selector = QComboBox(self)
         self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
         self._field_selector.addItem("Relationship types", self.FIELD_RELATIONSHIPS)
+        self._field_selector.addItem("Tags", self.FIELD_TAGS)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
         self._field_selector.setVisible(not lock_field)
         layout.addWidget(self._field_selector)
@@ -226,7 +228,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._list_widget = QListWidget(self)
         layout.addWidget(self._list_widget)
 
-        if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS}:
+        if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS, self.FIELD_TAGS}:
             index = self._field_selector.findData(initial_field)
             if index >= 0:
                 self._field_selector.setCurrentIndex(index)
@@ -260,7 +262,11 @@ class ManageMetadataLabelsDialog(QDialog):
             self._usage_data = self._load_usage()
         except Exception as exc:
             QMessageBox.critical(self, "Manage metadata", f"Could not load labels:\n{exc}")
-            self._usage_data = {self.FIELD_SENTIMENTS: [], self.FIELD_RELATIONSHIPS: []}
+            self._usage_data = {
+                self.FIELD_SENTIMENTS: [],
+                self.FIELD_RELATIONSHIPS: [],
+                self.FIELD_TAGS: [],
+            }
         self._refresh_list()
 
     def _refresh_list(self) -> None:
