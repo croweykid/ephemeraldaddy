@@ -310,6 +310,8 @@ class ManageMetadataLabelsDialog(QDialog):
         return self._usage_data.get(self._active_field(), [])
 
     def _sync_action_buttons(self) -> None:
+        if not hasattr(self, "_merge_button"):
+            return
         is_tags = self._active_field() == self.FIELD_TAGS
         self._merge_button.setVisible(is_tags)
         self._merge_button.setEnabled(is_tags and len(self._active_rows()) >= 2)
