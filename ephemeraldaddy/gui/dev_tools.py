@@ -261,7 +261,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._load_usage = load_usage
         self._apply_change = apply_change
         self._label_limit = max(1, label_limit)
-        self._usage_data: dict[str, list[dict[str, int | str]]] = {}
+        self._usage_data: dict[str, list[dict[str, int | str | list[str]]]] = {}
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(intro_text))
@@ -274,10 +274,24 @@ class ManageMetadataLabelsDialog(QDialog):
         self._field_selector.setVisible(not lock_field)
         layout.addWidget(self._field_selector)
 
+        content_row = QHBoxLayout()
+
         self._list_widget = QListWidget(self)
         self._list_widget.setSelectionMode(QListWidget.ExtendedSelection)
         self._list_widget.itemSelectionChanged.connect(self._sync_action_buttons)
-        layout.addWidget(self._list_widget)
+        self._list_widget.currentItemChanged.connect(
+            lambda _current, _previous: self._refresh_assigned_charts_panel()
+        )
+        content_row.addWidget(self._list_widget, 1)
+
+        right_panel = QVBoxLayout()
+        self._assigned_header_label = QLabel("Charts with selected property")
+        right_panel.addWidget(self._assigned_header_label)
+        self._assigned_charts_list = QListWidget(self)
+        self._assigned_charts_list.setSelectionMode(QListWidget.NoSelection)
+        right_panel.addWidget(self._assigned_charts_list, 1)
+        content_row.addLayout(right_panel, 1)
+        layout.addLayout(content_row)
 
         if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS, self.FIELD_TAGS}:
             index = self._field_selector.findData(initial_field)
@@ -308,7 +322,7 @@ class ManageMetadataLabelsDialog(QDialog):
         value = self._field_selector.currentData()
         return str(value or self.FIELD_SENTIMENTS)
 
-    def _active_rows(self) -> list[dict[str, int | str]]:
+    def _active_rows(self) -> list[dict[str, int | str | list[str]]]:
         return self._usage_data.get(self._active_field(), [])
 
     def _sync_action_buttons(self) -> None:
@@ -343,26 +357,23 @@ class ManageMetadataLabelsDialog(QDialog):
     def _refresh_list(self) -> None:
         rows = self._active_rows()
         self._list_widget.clear()
-        minimum_count = 0
-        maximum_count = 0
-        if self._active_field() == self.FIELD_TAGS and rows:
-            counts = [int(row.get("count", 0) or 0) for row in rows]
-            minimum_count = min(counts)
-            maximum_count = max(counts)
+        minimum_count = min((int(row.get("count", 0) or 0) for row in rows), default=0)
+        maximum_count = max((int(row.get("count", 0) or 0) for row in rows), default=0)
         for row in rows:
             label = str(row.get("label", "")).strip()
             count = int(row.get("count", 0) or 0)
             item = QListWidgetItem(f"{label}  ({count} charts)")
             item.setData(Qt.UserRole, label)
-            if self._active_field() == self.FIELD_TAGS:
-                red, green, blue = similarity_gradient_rgb_for_range(
-                    count,
-                    minimum_count,
-                    maximum_count,
-                )
-                item.setForeground(QColor(red, green, blue))
+            item.setData(Qt.UserRole + 1, list(row.get("chart_names", []) or []))
+            red, green, blue = similarity_gradient_rgb_for_range(
+                count,
+                minimum_count,
+                maximum_count,
+            )
+            item.setForeground(QColor(red, green, blue))
             self._list_widget.addItem(item)
         self._sync_action_buttons()
+        self._refresh_assigned_charts_panel()
 
     def _selected_label(self) -> str:
         labels = self._selected_labels()
@@ -375,6 +386,27 @@ class ManageMetadataLabelsDialog(QDialog):
             if label:
                 labels.append(label)
         return labels
+
+    def _refresh_assigned_charts_panel(self) -> None:
+        if not hasattr(self, "_assigned_charts_list"):
+            return
+        self._assigned_charts_list.clear()
+
+        item = self._list_widget.currentItem()
+        if item is None:
+            selected_items = self._list_widget.selectedItems()
+            item = selected_items[0] if selected_items else None
+        if item is None:
+            self._assigned_header_label.setText("Charts with selected property")
+            return
+
+        label = str(item.data(Qt.UserRole) or "").strip()
+        chart_names = list(item.data(Qt.UserRole + 1) or [])
+        self._assigned_header_label.setText(
+            f"Charts with '{label}' ({len(chart_names)})"
+        )
+        for chart_name in chart_names:
+            self._assigned_charts_list.addItem(str(chart_name))
 
     def _delete_selected(self) -> None:
         old_labels = self._selected_labels()

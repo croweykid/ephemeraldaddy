@@ -1205,7 +1205,7 @@ def list_recognized_tags() -> list[str]:
     return sorted(deduped.values(), key=lambda value: value.casefold())
 
 
-def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
+def get_metadata_label_usage() -> dict[str, list[dict[str, int | str | list[str]]]]:
     """Return sentiment, relationship, and tag labels with usage counts.
 
     Includes both current canonical options and any legacy labels currently stored
@@ -1214,17 +1214,23 @@ def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     sentiment_counts: dict[str, int] = {label: 0 for label in SENTIMENT_OPTIONS}
     relationship_counts: dict[str, int] = {label: 0 for label in RELATION_TYPE}
     tag_counts: dict[str, tuple[str, int]] = {}
+    sentiment_chart_names: dict[str, set[str]] = {label: set() for label in SENTIMENT_OPTIONS}
+    relationship_chart_names: dict[str, set[str]] = {label: set() for label in RELATION_TYPE}
+    tag_chart_names: dict[str, set[str]] = {}
 
     with _get_conn() as conn:
         rows = conn.execute(
-            "SELECT sentiments, relationship_types, tags FROM charts"
+            "SELECT name, sentiments, relationship_types, tags FROM charts"
         ).fetchall()
 
-    for raw_sentiments, raw_relationship_types, raw_tags in rows:
+    for chart_name, raw_sentiments, raw_relationship_types, raw_tags in rows:
+        normalized_name = str(chart_name or "").strip() or "(Unnamed chart)"
         for sentiment in parse_sentiments(raw_sentiments):
             sentiment_counts[sentiment] = sentiment_counts.get(sentiment, 0) + 1
+            sentiment_chart_names.setdefault(sentiment, set()).add(normalized_name)
         for relationship in parse_relationship_types(raw_relationship_types):
             relationship_counts[relationship] = relationship_counts.get(relationship, 0) + 1
+            relationship_chart_names.setdefault(relationship, set()).add(normalized_name)
         for tag in parse_tags(raw_tags):
             tag_key = tag.casefold()
             if tag_key in tag_counts:
@@ -1232,18 +1238,30 @@ def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
                 tag_counts[tag_key] = (existing_label, count + 1)
             else:
                 tag_counts[tag_key] = (tag, 1)
+            tag_chart_names.setdefault(tag_key, set()).add(normalized_name)
 
-    def _format_rows(counts: dict[str, int]) -> list[dict[str, int | str]]:
+    def _format_rows(
+        counts: dict[str, int],
+        chart_names_by_label: dict[str, set[str]],
+    ) -> list[dict[str, int | str | list[str]]]:
         return [
-            {"label": label, "count": counts[label]}
+            {
+                "label": label,
+                "count": counts[label],
+                "chart_names": sorted(chart_names_by_label.get(label, set()), key=lambda value: value.casefold()),
+            }
             for label in sorted(counts, key=lambda value: (value.lower(), value))
         ]
 
     return {
-        "sentiments": _format_rows(sentiment_counts),
-        "relationship_types": _format_rows(relationship_counts),
+        "sentiments": _format_rows(sentiment_counts, sentiment_chart_names),
+        "relationship_types": _format_rows(relationship_counts, relationship_chart_names),
         "tags": [
-            {"label": label, "count": count}
+            {
+                "label": label,
+                "count": count,
+                "chart_names": sorted(tag_chart_names.get(_key, set()), key=lambda value: value.casefold()),
+            }
             for _key, (label, count) in sorted(
                 tag_counts.items(),
                 key=lambda item: (item[1][0].casefold(), item[1][0]),
