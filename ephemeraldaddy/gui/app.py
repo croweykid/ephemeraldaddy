@@ -17317,6 +17317,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
+        self._similar_charts_reasoning_by_target: dict[str, Any] = {}
         self._similar_charts_popout_dialogs: list[QDialog] = []
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
@@ -18424,8 +18425,12 @@ class MainWindow(QMainWindow):
         )
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
+        normalized_target = str(target or "").strip()
+        if normalized_target.startswith("sim-info:"):
+            self._show_similar_chart_reasoning(normalized_target)
+            return
         try:
-            chart_id = int(target)
+            chart_id = int(normalized_target)
         except (TypeError, ValueError):
             return
         current_chart_id = self.current_chart_id
@@ -18444,6 +18449,57 @@ class MainWindow(QMainWindow):
         if not loaded:
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
+
+    def _show_similar_chart_reasoning(self, target: str) -> None:
+        match = self._similar_charts_reasoning_by_target.get(target)
+        if match is None:
+            self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
+            return
+        subject_name = self._similar_charts_subject_name or "Current chart"
+        similarity_percent = float(getattr(match, "score", 0.0)) * 100.0
+        placement_percent = float(getattr(match, "placement_score", 0.0)) * 100.0
+        aspect_percent = float(getattr(match, "aspect_score", 0.0)) * 100.0
+        distribution_percent = float(getattr(match, "distribution_score", 0.0)) * 100.0
+        score_rows: list[tuple[str, float]] = [
+            ("Placements", placement_percent),
+            ("Aspects", aspect_percent),
+            ("Distribution", distribution_percent),
+        ]
+        nakshatra_score = getattr(match, "nakshatra_score", None)
+        if nakshatra_score is not None:
+            score_rows.append(("Nakshatra", float(nakshatra_score) * 100.0))
+        hd_centers_score = getattr(match, "hd_centers_score", None)
+        if hd_centers_score is not None:
+            score_rows.append(("Defined Centers", float(hd_centers_score) * 100.0))
+        top_factor, top_value = max(score_rows, key=lambda item: item[1])
+        bottom_factor, bottom_value = min(score_rows, key=lambda item: item[1])
+        band_label, _band_color = self._similarity_band_for_percent(similarity_percent)
+        reasoning_body = (
+            f"Compared: {subject_name} ↔ {getattr(match, 'chart_name', f'Chart #{getattr(match, 'chart_id', '?')}')}\n"
+            f"Overall similarity is {similarity_percent:.1f}% ({band_label}). "
+            f"Strongest alignment comes from {top_factor.lower()} at {top_value:.1f}%. "
+            f"Weakest alignment comes from {bottom_factor.lower()} at {bottom_value:.1f}%.\n"
+            f"Component breakdown: placements {placement_percent:.1f}%, "
+            f"aspects {aspect_percent:.1f}%, distribution {distribution_percent:.1f}%."
+        )
+        if nakshatra_score is not None:
+            reasoning_body = f"{reasoning_body} Nakshatra similarity is {float(nakshatra_score) * 100.0:.1f}%."
+        if hd_centers_score is not None:
+            reasoning_body = (
+                f"{reasoning_body} Defined centers similarity is {float(hd_centers_score) * 100.0:.1f}%."
+            )
+        self._set_chart_info_panel_mode("chart_info")
+        self.chart_info_output.setPlainText(
+            "\n".join(
+                [
+                    "CHART INFO",
+                    "",
+                    "Name: Similarity Analysis",
+                    "Reasoning:",
+                    reasoning_body,
+                ]
+            )
+        )
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18490,6 +18546,7 @@ class MainWindow(QMainWindow):
     def _render_similar_charts(self, chart: Chart) -> None:
         if self._similar_charts_list_label is None:
             return
+        self._similar_charts_reasoning_by_target = {}
         if getattr(chart, "is_placeholder", False):
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
@@ -18580,7 +18637,8 @@ class MainWindow(QMainWindow):
             )
             match_blocks.append(
                 (
-                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
+                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
+                    f'<a href="sim-info:panel:{match.chart_id}">ⓘ</a><br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
@@ -18591,6 +18649,7 @@ class MainWindow(QMainWindow):
                     f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
                 )
             )
+            self._similar_charts_reasoning_by_target[f"sim-info:panel:{match.chart_id}"] = match
             self._similar_charts_export_rows.append(
                 {
                     "rank": rank,
@@ -18699,8 +18758,13 @@ class MainWindow(QMainWindow):
             output_style=CHART_DATA_INFO_LABEL_STYLE,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
+            info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
         )
+        for match in most_similar_matches:
+            self._similar_charts_reasoning_by_target[f"sim-info:popout:most:{match.chart_id}"] = match
+        for match in least_similar_matches:
+            self._similar_charts_reasoning_by_target[f"sim-info:popout:least:{match.chart_id}"] = match
         self._register_popout_shortcuts(dialog)
         self._similar_charts_popout_dialogs.append(dialog)
         dialog.destroyed.connect(
