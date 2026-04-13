@@ -508,6 +508,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
+    build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
     is_similar_info_target,
     load_similar_chart_candidates,
@@ -18451,15 +18452,26 @@ class MainWindow(QMainWindow):
         except Exception:
             compared_chart = None
         self._set_chart_info_panel_mode("chart_info")
-        self.chart_info_output.setHtml(
-            build_similarity_reasoning_panel_html(
-                match=match,
-                subject_name=self._similar_charts_subject_name or "Current chart",
-                subject_chart=self._latest_chart,
-                compared_chart=compared_chart,
-                resolve_similarity_band=self._similarity_band_for_percent,
+        if hasattr(self.chart_info_output, "setHtml"):
+            self.chart_info_output.setHtml(
+                build_similarity_reasoning_panel_html(
+                    match=match,
+                    subject_name=self._similar_charts_subject_name or "Current chart",
+                    subject_chart=self._latest_chart,
+                    compared_chart=compared_chart,
+                    resolve_similarity_band=self._similarity_band_for_percent,
+                )
             )
-        )
+        else:
+            self.chart_info_output.setPlainText(
+                build_similarity_reasoning_panel_text(
+                    match=match,
+                    subject_name=self._similar_charts_subject_name or "Current chart",
+                    subject_chart=self._latest_chart,
+                    compared_chart=compared_chart,
+                    resolve_similarity_band=self._similarity_band_for_percent,
+                )
+            )
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
