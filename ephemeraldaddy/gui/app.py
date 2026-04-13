@@ -18441,37 +18441,53 @@ class MainWindow(QMainWindow):
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
 
-    def _show_similar_chart_reasoning(self, target: str) -> None:
+    def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
+        normalized_target = str(target or "").strip()
+        if is_similar_info_target(normalized_target):
+            self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
+            return
+        self._on_similar_chart_link_activated(normalized_target)
+
+    def _show_similar_chart_reasoning(self, target: str, *, target_dialog: QDialog | None = None) -> None:
         match = self._similar_charts_reasoning_by_target.get(target)
+        popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
         if match is None:
-            self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
+            if popout_info_output is not None and hasattr(popout_info_output, "setText"):
+                popout_info_output.setText("Could not locate similarity details for this chart.")
+            else:
+                self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
             return
         compared_chart = None
         try:
             compared_chart = load_chart(int(getattr(match, "chart_id", 0)))
         except Exception:
             compared_chart = None
-        self._set_chart_info_panel_mode("chart_info")
+        if popout_info_output is None:
+            self._set_chart_info_panel_mode("chart_info")
+        html_text = build_similarity_reasoning_panel_html(
+            match=match,
+            subject_name=self._similar_charts_subject_name or "Current chart",
+            subject_chart=self._latest_chart,
+            compared_chart=compared_chart,
+            resolve_similarity_band=self._similarity_band_for_percent,
+        )
+        plain_text = build_similarity_reasoning_panel_text(
+            match=match,
+            subject_name=self._similar_charts_subject_name or "Current chart",
+            subject_chart=self._latest_chart,
+            compared_chart=compared_chart,
+            resolve_similarity_band=self._similarity_band_for_percent,
+        )
+        if popout_info_output is not None:
+            if hasattr(popout_info_output, "setHtml"):
+                popout_info_output.setHtml(html_text)
+            else:
+                popout_info_output.setText(html_text if hasattr(popout_info_output, "textFormat") else plain_text)
+            return
         if hasattr(self.chart_info_output, "setHtml"):
-            self.chart_info_output.setHtml(
-                build_similarity_reasoning_panel_html(
-                    match=match,
-                    subject_name=self._similar_charts_subject_name or "Current chart",
-                    subject_chart=self._latest_chart,
-                    compared_chart=compared_chart,
-                    resolve_similarity_band=self._similarity_band_for_percent,
-                )
-            )
+            self.chart_info_output.setHtml(html_text)
         else:
-            self.chart_info_output.setPlainText(
-                build_similarity_reasoning_panel_text(
-                    match=match,
-                    subject_name=self._similar_charts_subject_name or "Current chart",
-                    subject_chart=self._latest_chart,
-                    compared_chart=compared_chart,
-                    resolve_similarity_band=self._similarity_band_for_percent,
-                )
-            )
+            self.chart_info_output.setPlainText(plain_text)
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18736,7 +18752,7 @@ class MainWindow(QMainWindow):
             subject_name=subject_name,
             most_similar_matches=most_similar_matches,
             least_similar_matches=least_similar_matches,
-            on_link_activated=self._on_similar_chart_link_activated,
+            on_link_activated=self._on_similar_chart_popout_link_activated,
             header_style=CHART_DATA_POPOUT_HEADER_STYLE,
             output_style=CHART_DATA_INFO_LABEL_STYLE,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
