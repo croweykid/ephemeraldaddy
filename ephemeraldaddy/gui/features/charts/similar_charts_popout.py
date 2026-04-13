@@ -44,6 +44,7 @@ def render_similar_match_blocks(
     matches: list[Any],
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    info_link_prefix: str = "sim-info",
 ) -> str:
     if not matches:
         return "No charts found."
@@ -61,7 +62,8 @@ def render_similar_match_blocks(
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
-                f'#{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
+                f'#{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
+                f'<a href="{info_link_prefix}:{match.chart_id}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f"(placements {match.placement_score * 100.0:.0f}%, "
@@ -83,6 +85,7 @@ def build_similar_charts_popout_dialog(
     output_style: str,
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    info_link_prefix: str = "sim-info",
     configure_splitter: Callable[[QSplitter], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
@@ -102,7 +105,7 @@ def build_similar_charts_popout_dialog(
         configure_splitter(splitter)
     layout.addWidget(splitter, 1)
 
-    def _panel(title: str, matches: list[Any]) -> QWidget:
+    def _panel(title: str, matches: list[Any], panel_key: str) -> QWidget:
         panel_widget = QWidget()
         panel_layout = QVBoxLayout(panel_widget)
         panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -122,6 +125,7 @@ def build_similar_charts_popout_dialog(
                 matches=matches,
                 highlight_color=highlight_color,
                 resolve_similarity_band=resolve_similarity_band,
+                info_link_prefix=f"{info_link_prefix}:{panel_key}",
             )
         )
 
@@ -137,7 +141,7 @@ def build_similar_charts_popout_dialog(
         panel_layout.addWidget(scroll, 1)
         return panel_widget
 
-    splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches))
-    splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches))
+    splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches, "most"))
+    splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
     splitter.setSizes([430, 430])
     return dialog
