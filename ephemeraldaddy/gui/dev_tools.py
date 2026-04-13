@@ -247,6 +247,9 @@ class ManageMetadataLabelsDialog(QDialog):
     FIELD_RELATIONSHIPS = "relationship_types"
     FIELD_SENTIMENTS = "sentiments"
 
+    SORT_FREQUENCY = "frequency"
+    SORT_ALPHABETICAL = "alphabetical"
+
     def __init__(
         self,
         *,
@@ -309,6 +312,17 @@ QComboBox QAbstractItemView {
         intro_label.setStyleSheet("font-style: italic;")
         layout.addWidget(intro_label)
 
+        sort_row = QHBoxLayout()
+        sort_row.addStretch(1)
+        sort_row.addWidget(QLabel("Sort:"))
+        self._sort_selector = QComboBox(self)
+        self._sort_selector.addItem("Frequency", self.SORT_FREQUENCY)
+        self._sort_selector.addItem("Alphabetical", self.SORT_ALPHABETICAL)
+        self._sort_selector.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+        self._sort_selector.currentIndexChanged.connect(self._refresh_list)
+        sort_row.addWidget(self._sort_selector)
+        layout.addLayout(sort_row)
+
         split_layout = QHBoxLayout()
         self._list_widget = QListWidget(self)
         self._list_widget.setSelectionMode(QListWidget.ExtendedSelection)
@@ -370,7 +384,20 @@ QComboBox QAbstractItemView {
         return str(value or self.FIELD_SENTIMENTS)
 
     def _active_rows(self) -> list[dict[str, int | str]]:
-        return self._usage_data.get(self._active_field(), [])
+        rows = list(self._usage_data.get(self._active_field(), []))
+        sort_mode = self.SORT_FREQUENCY
+        if hasattr(self, "_sort_selector"):
+            sort_mode = str(self._sort_selector.currentData() or self.SORT_FREQUENCY)
+        if sort_mode == self.SORT_ALPHABETICAL:
+            rows.sort(key=lambda row: str(row.get("label", "")).casefold())
+            return rows
+        rows.sort(
+            key=lambda row: (
+                -int(row.get("count", 0) or 0),
+                str(row.get("label", "")).casefold(),
+            )
+        )
+        return rows
 
     def _sync_action_buttons(self) -> None:
         if not hasattr(self, "_rename_button") or not hasattr(self, "_delete_button"):
