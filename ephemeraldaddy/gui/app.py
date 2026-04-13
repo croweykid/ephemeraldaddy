@@ -507,7 +507,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
-    build_similarity_reasoning_panel_text,
+    build_similarity_reasoning_panel_html,
     build_similar_charts_popout_dialog,
     is_similar_info_target,
     load_similar_chart_candidates,
@@ -18445,11 +18445,18 @@ class MainWindow(QMainWindow):
         if match is None:
             self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
             return
+        compared_chart = None
+        try:
+            compared_chart = load_chart(int(getattr(match, "chart_id", 0)))
+        except Exception:
+            compared_chart = None
         self._set_chart_info_panel_mode("chart_info")
-        self.chart_info_output.setPlainText(
-            build_similarity_reasoning_panel_text(
+        self.chart_info_output.setHtml(
+            build_similarity_reasoning_panel_html(
                 match=match,
                 subject_name=self._similar_charts_subject_name or "Current chart",
+                subject_chart=self._latest_chart,
+                compared_chart=compared_chart,
                 resolve_similarity_band=self._similarity_band_for_percent,
             )
         )
@@ -18598,6 +18605,7 @@ class MainWindow(QMainWindow):
                     f" (placements {match.placement_score * 100.0:.0f}%,"
                     f" aspects {match.aspect_score * 100.0:.0f}%,"
                     f" distribution {match.distribution_score * 100.0:.0f}%"
+                    f"{', dominance ' + str(round((match.dominance_score or 0.0) * 100.0)) + '%' if match.dominance_score is not None else ''}"
                     f"{', nakshatra ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
                     f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
                 )
@@ -18612,6 +18620,11 @@ class MainWindow(QMainWindow):
                     "placement_percent": round(match.placement_score * 100.0, 1),
                     "aspect_percent": round(match.aspect_score * 100.0, 1),
                     "distribution_percent": round(match.distribution_score * 100.0, 1),
+                    "dominance_percent": (
+                        round(match.dominance_score * 100.0, 1)
+                        if match.dominance_score is not None
+                        else None
+                    ),
                     "nakshatra_percent": (
                         round(match.nakshatra_score * 100.0, 1)
                         if match.nakshatra_score is not None
@@ -18772,14 +18785,14 @@ class MainWindow(QMainWindow):
             lines.append(f"# Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
             lines.append("")
             lines.append(
-                "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution |"
+                "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution | Dominance |"
             )
-            lines.append("|---:|---:|---|---:|---|---:|---:|---:|")
+            lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|")
             for row in self._similar_charts_export_rows:
                 lines.append(
                     f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
                     f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | {row['placement_percent']:.1f}% | "
-                    f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% |"
+                    f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
                 )
         else:
             lines.append(f"Similar Charts for {self._similar_charts_subject_name or 'Current chart'}")
@@ -18791,7 +18804,8 @@ class MainWindow(QMainWindow):
                     f"[{row.get('similarity_band', 'unclassified')}] "
                     f"(placements {row['placement_percent']:.1f}%, "
                     f"aspects {row['aspect_percent']:.1f}%, "
-                    f"distribution {row['distribution_percent']:.1f}%)"
+                    f"distribution {row['distribution_percent']:.1f}%, "
+                    f"dominance {float(row.get('dominance_percent') or 0.0):.1f}%)"
                 )
         try:
             with open(file_path, "w", encoding="utf-8") as handle:
