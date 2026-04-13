@@ -1206,24 +1206,32 @@ def list_recognized_tags() -> list[str]:
 
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
-    """Return sentiment + relationship labels with usage counts.
+    """Return sentiment, relationship, and tag labels with usage counts.
 
     Includes both current canonical options and any legacy labels currently stored
     in the database.
     """
     sentiment_counts: dict[str, int] = {label: 0 for label in SENTIMENT_OPTIONS}
     relationship_counts: dict[str, int] = {label: 0 for label in RELATION_TYPE}
+    tag_counts: dict[str, tuple[str, int]] = {}
 
     with _get_conn() as conn:
         rows = conn.execute(
-            "SELECT sentiments, relationship_types FROM charts"
+            "SELECT sentiments, relationship_types, tags FROM charts"
         ).fetchall()
 
-    for raw_sentiments, raw_relationship_types in rows:
+    for raw_sentiments, raw_relationship_types, raw_tags in rows:
         for sentiment in parse_sentiments(raw_sentiments):
             sentiment_counts[sentiment] = sentiment_counts.get(sentiment, 0) + 1
         for relationship in parse_relationship_types(raw_relationship_types):
             relationship_counts[relationship] = relationship_counts.get(relationship, 0) + 1
+        for tag in parse_tags(raw_tags):
+            tag_key = tag.casefold()
+            if tag_key in tag_counts:
+                existing_label, count = tag_counts[tag_key]
+                tag_counts[tag_key] = (existing_label, count + 1)
+            else:
+                tag_counts[tag_key] = (tag, 1)
 
     def _format_rows(counts: dict[str, int]) -> list[dict[str, int | str]]:
         return [
@@ -1234,6 +1242,13 @@ def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     return {
         "sentiments": _format_rows(sentiment_counts),
         "relationship_types": _format_rows(relationship_counts),
+        "tags": [
+            {"label": label, "count": count}
+            for _key, (label, count) in sorted(
+                tag_counts.items(),
+                key=lambda item: (item[1][0].casefold(), item[1][0]),
+            )
+        ],
     }
 
 
@@ -1250,14 +1265,23 @@ def apply_metadata_label_change(
     if not normalized_old:
         return {"rows_scanned": 0, "rows_updated": 0, "occurrences_updated": 0}
 
+    old_key = normalized_old.casefold()
+
     if field == "sentiments":
         parser = parse_sentiments
         serializer = _serialize_sentiments
         column = "sentiments"
+        match_casefold = False
     elif field == "relationship_types":
         parser = parse_relationship_types
         serializer = _serialize_relationship_types
         column = "relationship_types"
+        match_casefold = False
+    elif field == "tags":
+        parser = parse_tags
+        serializer = _serialize_tags
+        column = "tags"
+        match_casefold = True
     else:
         raise ValueError(f"Unsupported metadata field: {field}")
 
@@ -1280,15 +1304,17 @@ def apply_metadata_label_change(
             row_changed = False
             for value in parsed:
                 replacement = value
-                if value == normalized_old:
+                matched = value.casefold() == old_key if match_casefold else value == normalized_old
+                if matched:
                     occurrences_updated += 1
                     row_changed = True
                     replacement = normalized_new
 
-                if not replacement or replacement in seen:
+                dedupe_key = replacement.casefold() if match_casefold else replacement
+                if not replacement or dedupe_key in seen:
                     continue
                 rebuilt.append(replacement)
-                seen.add(replacement)
+                seen.add(dedupe_key)
 
             if not row_changed:
                 continue
