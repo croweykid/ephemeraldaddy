@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
-    DARK_THEME,
+    DATABASE_VIEW_HEADER_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
     similarity_gradient_rgb_for_range,
 )
@@ -274,10 +274,6 @@ class ManageMetadataLabelsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self._field_selector = QComboBox(self)
-        self._field_selector.setEditable(True)
-        self._field_selector.lineEdit().setReadOnly(True)
-        self._field_selector.lineEdit().setAlignment(Qt.AlignCenter)
-        self._field_selector.lineEdit().setStyleSheet("background: transparent;")
         self._field_selector.addItem("TAGS", self.FIELD_TAGS)
         self._field_selector.addItem("COLLECTIONS", self.FIELD_COLLECTIONS)
         self._field_selector.addItem("RELATIONSHIPS", self.FIELD_RELATIONSHIPS)
@@ -292,14 +288,15 @@ class ManageMetadataLabelsDialog(QDialog):
 QComboBox {
     min-height: 36px;
     padding: 6px 8px;
+    text-align: center;
     color: """
-            + DARK_THEME["planet"]
+            + DATABASE_VIEW_HEADER_COLOR
             + """;
     font-weight: 700;
 }
 QComboBox QAbstractItemView {
     color: """
-            + DARK_THEME["planet"]
+            + DATABASE_VIEW_HEADER_COLOR
             + """;
     font-weight: 700;
 }
