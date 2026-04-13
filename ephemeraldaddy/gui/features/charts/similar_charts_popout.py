@@ -17,6 +17,79 @@ from PySide6.QtWidgets import (
 )
 
 
+SIMILAR_INFO_TARGET_PREFIX = "sim-info"
+
+
+def is_similar_info_target(target: str) -> bool:
+    return str(target or "").strip().startswith(f"{SIMILAR_INFO_TARGET_PREFIX}:")
+
+
+def make_similar_info_target(*, info_link_prefix: str, chart_id: int) -> str:
+    return f"{info_link_prefix}:{int(chart_id)}"
+
+
+def map_similar_info_targets(
+    *,
+    matches: list[Any],
+    info_link_prefix: str,
+) -> dict[str, Any]:
+    return {
+        make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id)): match
+        for match in matches
+    }
+
+
+def build_similarity_reasoning_panel_text(
+    *,
+    match: Any,
+    subject_name: str,
+    resolve_similarity_band: Callable[[float], tuple[str, str]],
+) -> str:
+    similarity_percent = float(getattr(match, "score", 0.0)) * 100.0
+    placement_percent = float(getattr(match, "placement_score", 0.0)) * 100.0
+    aspect_percent = float(getattr(match, "aspect_score", 0.0)) * 100.0
+    distribution_percent = float(getattr(match, "distribution_score", 0.0)) * 100.0
+    score_rows: list[tuple[str, float]] = [
+        ("Placements", placement_percent),
+        ("Aspects", aspect_percent),
+        ("Distribution", distribution_percent),
+    ]
+    nakshatra_score = getattr(match, "nakshatra_score", None)
+    if nakshatra_score is not None:
+        score_rows.append(("Nakshatra", float(nakshatra_score) * 100.0))
+    hd_centers_score = getattr(match, "hd_centers_score", None)
+    if hd_centers_score is not None:
+        score_rows.append(("Defined Centers", float(hd_centers_score) * 100.0))
+    top_factor, top_value = max(score_rows, key=lambda item: item[1])
+    bottom_factor, bottom_value = min(score_rows, key=lambda item: item[1])
+    band_label, _band_color = resolve_similarity_band(similarity_percent)
+    compared_name = str(
+        getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}"
+    ).strip()
+    reasoning_body = (
+        f"Compared: {subject_name} ↔ {compared_name}\n"
+        f"Overall similarity is {similarity_percent:.1f}% ({band_label}). "
+        f"Strongest alignment comes from {top_factor.lower()} at {top_value:.1f}%. "
+        f"Weakest alignment comes from {bottom_factor.lower()} at {bottom_value:.1f}%.\n"
+        f"Component breakdown: placements {placement_percent:.1f}%, "
+        f"aspects {aspect_percent:.1f}%, distribution {distribution_percent:.1f}%."
+    )
+    if nakshatra_score is not None:
+        reasoning_body = f"{reasoning_body} Nakshatra similarity is {float(nakshatra_score) * 100.0:.1f}%."
+    if hd_centers_score is not None:
+        reasoning_body = (
+            f"{reasoning_body} Defined centers similarity is {float(hd_centers_score) * 100.0:.1f}%."
+        )
+    return "\n".join(
+        [
+            "CHART INFO",
+            "",
+            "Name: Similarity Analysis",
+            "Reasoning:",
+            reasoning_body,
+        ]
+    )
+
 def load_similar_chart_candidates(
     *,
     rows: list[tuple[Any, ...]],
@@ -63,7 +136,7 @@ def render_similar_match_blocks(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
                 f'#{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
-                f'<a href="{info_link_prefix}:{match.chart_id}">ⓘ</a><br>'
+                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f"(placements {match.placement_score * 100.0:.0f}%, "
