@@ -5,6 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QComboBox,
     QDialog,
@@ -239,9 +240,10 @@ class _MergeLabelsDialog(QDialog):
 
 
 class ManageMetadataLabelsDialog(QDialog):
-    FIELD_SENTIMENTS = "sentiments"
-    FIELD_RELATIONSHIPS = "relationship_types"
     FIELD_TAGS = "tags"
+    FIELD_COLLECTIONS = "collections"
+    FIELD_RELATIONSHIPS = "relationship_types"
+    FIELD_SENTIMENTS = "sentiments"
 
     def __init__(
         self,
@@ -250,9 +252,11 @@ class ManageMetadataLabelsDialog(QDialog):
         load_usage,
         apply_change,
         label_limit: int,
+        load_chart_names=None,
+        collection_actions: dict[str, object] | None = None,
         initial_field: str | None = None,
         lock_field: bool = False,
-        window_title: str = "Manage sentiments & relationship types",
+        window_title: str = "Property Manager",
         intro_text: str = "Current + legacy labels found in database (including unused/orphaned).",
     ) -> None:
         super().__init__(parent)
@@ -260,25 +264,45 @@ class ManageMetadataLabelsDialog(QDialog):
         self.resize(580, 520)
         self._load_usage = load_usage
         self._apply_change = apply_change
+        self._load_chart_names = load_chart_names
+        self._collection_actions = collection_actions or {}
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(intro_text))
+        intro_label = QLabel(intro_text)
+        intro_label.setStyleSheet("font-style: italic;")
+        layout.addWidget(intro_label)
 
         self._field_selector = QComboBox(self)
-        self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
-        self._field_selector.addItem("Relationship types", self.FIELD_RELATIONSHIPS)
         self._field_selector.addItem("Tags", self.FIELD_TAGS)
+        self._field_selector.addItem("Collections", self.FIELD_COLLECTIONS)
+        self._field_selector.addItem("Relationships", self.FIELD_RELATIONSHIPS)
+        self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
         self._field_selector.currentIndexChanged.connect(self._refresh_list)
         self._field_selector.setVisible(not lock_field)
         layout.addWidget(self._field_selector)
 
+        split_layout = QHBoxLayout()
+        self._list_widget = QListWidget(self)
         self._list_widget.setSelectionMode(QListWidget.ExtendedSelection)
-        self._list_widget.itemSelectionChanged.connect(self._sync_action_buttons)
-        layout.addWidget(self._list_widget)
+        self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
+        split_layout.addWidget(self._list_widget, 2)
 
-        if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS, self.FIELD_TAGS}:
+        right_panel = QVBoxLayout()
+        right_panel.addWidget(QLabel("Charts with selected property"))
+        self._chart_names_list = QListWidget(self)
+        self._chart_names_list.setSelectionMode(QAbstractItemView.NoSelection)
+        right_panel.addWidget(self._chart_names_list, 1)
+        split_layout.addLayout(right_panel, 1)
+        layout.addLayout(split_layout)
+
+        if initial_field in {
+            self.FIELD_SENTIMENTS,
+            self.FIELD_RELATIONSHIPS,
+            self.FIELD_TAGS,
+            self.FIELD_COLLECTIONS,
+        }:
             index = self._field_selector.findData(initial_field)
             if index >= 0:
                 self._field_selector.setCurrentIndex(index)
@@ -290,6 +314,12 @@ class ManageMetadataLabelsDialog(QDialog):
         self._delete_button.clicked.connect(self._delete_selected)
         self._merge_button = QPushButton("Merge tags")
         self._merge_button.clicked.connect(self._merge_selected_tags)
+        self._new_button = QPushButton("New")
+        self._new_button.clicked.connect(self._create_collection)
+        self._add_selected_button = QPushButton("Add Selected Charts")
+        self._add_selected_button.clicked.connect(self._add_selected_to_collection)
+        self._remove_selected_button = QPushButton("Remove Selected Charts")
+        self._remove_selected_button.clicked.connect(self._remove_selected_from_collection)
         # refresh_button = QPushButton("Refresh")
         # refresh_button.clicked.connect(self._reload_usage)
         close_button = QPushButton("Close")
@@ -298,6 +328,9 @@ class ManageMetadataLabelsDialog(QDialog):
         button_row.addWidget(self._rename_button)
         button_row.addWidget(self._delete_button)
         button_row.addWidget(self._merge_button)
+        button_row.addWidget(self._new_button)
+        button_row.addWidget(self._add_selected_button)
+        button_row.addWidget(self._remove_selected_button)
         button_row.addStretch(1)
         #button_row.addWidget(refresh_button)
         button_row.addWidget(close_button)
@@ -317,18 +350,34 @@ class ManageMetadataLabelsDialog(QDialog):
         if not hasattr(self, "_rename_button") or not hasattr(self, "_delete_button"):
             return
         selected_count = len(self._selected_labels())
-        rename_enabled = selected_count == 1
+        is_collections = self._active_field() == self.FIELD_COLLECTIONS
+        selected_key = self._selected_key()
+        selected_row = self._row_for_key(selected_key)
+        can_edit_selected = selected_row is not None and bool(selected_row.get("editable", True))
+        rename_enabled = selected_count == 1 and can_edit_selected
         delete_enabled = selected_count >= 1
+        if selected_count == 1 and not can_edit_selected:
+            delete_enabled = False
+        if is_collections:
+            delete_enabled = selected_count == 1 and can_edit_selected
         self._rename_button.setEnabled(rename_enabled)
         self._delete_button.setEnabled(delete_enabled)
         self._rename_button.setStyleSheet("" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE)
         self._delete_button.setStyleSheet("" if delete_enabled else INACTIVE_ACTION_BUTTON_STYLE)
-        
+
         if not hasattr(self, "_merge_button"):
             return
         is_tags = self._active_field() == self.FIELD_TAGS
         self._merge_button.setVisible(is_tags)
         self._merge_button.setEnabled(is_tags and len(self._active_rows()) >= 2)
+        self._new_button.setVisible(is_collections)
+        self._add_selected_button.setVisible(is_collections)
+        self._remove_selected_button.setVisible(is_collections)
+        can_modify_collection = is_collections and selected_count == 1 and can_edit_selected
+        self._add_selected_button.setEnabled(can_modify_collection)
+        self._remove_selected_button.setEnabled(can_modify_collection)
+        self._add_selected_button.setStyleSheet("" if can_modify_collection else INACTIVE_ACTION_BUTTON_STYLE)
+        self._remove_selected_button.setStyleSheet("" if can_modify_collection else INACTIVE_ACTION_BUTTON_STYLE)
 
     def _reload_usage(self) -> None:
         try:
@@ -339,6 +388,7 @@ class ManageMetadataLabelsDialog(QDialog):
                 self.FIELD_SENTIMENTS: [],
                 self.FIELD_RELATIONSHIPS: [],
                 self.FIELD_TAGS: [],
+                self.FIELD_COLLECTIONS: [],
             }
         self._refresh_list()
 
@@ -347,7 +397,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._list_widget.clear()
         minimum_count = 0
         maximum_count = 0
-        if self._active_field() == self.FIELD_TAGS and rows:
+        if rows:
             counts = [int(row.get("count", 0) or 0) for row in rows]
             minimum_count = min(counts)
             maximum_count = max(counts)
@@ -356,15 +406,15 @@ class ManageMetadataLabelsDialog(QDialog):
             count = int(row.get("count", 0) or 0)
             item = QListWidgetItem(f"{label}  ({count} charts)")
             item.setData(Qt.UserRole, label)
-            if self._active_field() == self.FIELD_TAGS:
-                red, green, blue = similarity_gradient_rgb_for_range(
-                    count,
-                    minimum_count,
-                    maximum_count,
-                )
-                item.setForeground(QColor(red, green, blue))
+            item.setData(Qt.UserRole + 1, str(row.get("key", label)))
+            red, green, blue = similarity_gradient_rgb_for_range(
+                count,
+                minimum_count,
+                maximum_count,
+            )
+            item.setForeground(QColor(red, green, blue))
             self._list_widget.addItem(item)
-        self._sync_action_buttons()
+        self._on_selection_changed()
 
     def _selected_label(self) -> str:
         labels = self._selected_labels()
@@ -378,7 +428,44 @@ class ManageMetadataLabelsDialog(QDialog):
                 labels.append(label)
         return labels
 
+    def _selected_key(self) -> str:
+        item = self._list_widget.currentItem()
+        if item is None:
+            return ""
+        return str(item.data(Qt.UserRole + 1) or "").strip()
+
+    def _row_for_key(self, key: str) -> dict[str, int | str] | None:
+        for row in self._active_rows():
+            row_key = str(row.get("key", row.get("label", ""))).strip()
+            if row_key == key:
+                return row
+        return None
+
+    def _on_selection_changed(self) -> None:
+        self._sync_action_buttons()
+        self._refresh_chart_names()
+
+    def _refresh_chart_names(self) -> None:
+        self._chart_names_list.clear()
+        if not callable(self._load_chart_names):
+            return
+        selected_label = self._selected_label()
+        selected_key = self._selected_key()
+        if not selected_label:
+            return
+        try:
+            chart_names = self._load_chart_names(self._active_field(), selected_label, selected_key)
+        except Exception:
+            chart_names = []
+        for chart_name in chart_names:
+            clean_name = str(chart_name).strip()
+            if clean_name:
+                self._chart_names_list.addItem(clean_name)
+
     def _delete_selected(self) -> None:
+        if self._active_field() == self.FIELD_COLLECTIONS:
+            self._delete_selected_collection()
+            return
         old_labels = self._selected_labels()
         if not old_labels:
             QMessageBox.information(self, "Manage metadata", "Select one or more labels to delete.")
@@ -429,6 +516,9 @@ class ManageMetadataLabelsDialog(QDialog):
         self._reload_usage()
 
     def _rename_selected(self) -> None:
+        if self._active_field() == self.FIELD_COLLECTIONS:
+            self._rename_selected_collection()
+            return
         item = self._list_widget.currentItem()
         old_label = str(item.data(Qt.UserRole) or "").strip() if item is not None else self._selected_label()
         if not old_label:
@@ -462,6 +552,45 @@ class ManageMetadataLabelsDialog(QDialog):
             f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
+        self._reload_usage()
+
+    def _create_collection(self) -> None:
+        action = self._collection_actions.get("create")
+        if not callable(action):
+            return
+        action()
+        self._reload_usage()
+
+    def _rename_selected_collection(self) -> None:
+        key = self._selected_key()
+        action = self._collection_actions.get("rename")
+        if not key or not callable(action):
+            return
+        action(key)
+        self._reload_usage()
+
+    def _delete_selected_collection(self) -> None:
+        key = self._selected_key()
+        action = self._collection_actions.get("delete")
+        if not key or not callable(action):
+            return
+        action(key)
+        self._reload_usage()
+
+    def _add_selected_to_collection(self) -> None:
+        key = self._selected_key()
+        action = self._collection_actions.get("add_selected")
+        if not key or not callable(action):
+            return
+        action(key)
+        self._reload_usage()
+
+    def _remove_selected_from_collection(self) -> None:
+        key = self._selected_key()
+        action = self._collection_actions.get("remove_selected")
+        if not key or not callable(action):
+            return
+        action(key)
         self._reload_usage()
 
     # def _delete_selected(self) -> None:

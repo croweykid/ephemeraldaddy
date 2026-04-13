@@ -176,6 +176,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
+from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
@@ -239,7 +240,6 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
-    apply_metadata_label_change,
     save_chart,
     find_chart_name_matches_by_birth_day,
     list_charts,
@@ -252,7 +252,6 @@ from ephemeraldaddy.core.db import (
     set_current_chart,
     parse_relationship_types,
     list_recognized_tags,
-    get_metadata_label_usage,
     backup_database,
     restore_database,
     append_database,
@@ -12633,7 +12632,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._show_left_panel("gen_pop_norms")
 
     def _show_manage_collections_panel(self) -> None:
-        self._show_right_panel("manage_collections")
+        self._launch_property_manager_dialog(
+            initial_field=ManageMetadataLabelsDialog.FIELD_COLLECTIONS,
+        )
 
     def _show_search_database_panel(self) -> None:
         self._show_right_panel("search")
@@ -12961,7 +12962,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_rename_custom_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
-        if collection_id is None:
+        self._on_rename_custom_collection_by_id(collection_id)
+
+    def _on_rename_custom_collection_by_id(self, collection_id: str | None) -> None:
+        if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Rename Collection", "Select a custom collection first.")
             return
         collection = self._custom_collections[collection_id]
@@ -12984,7 +12988,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_delete_custom_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
-        if collection_id is None:
+        self._on_delete_custom_collection_by_id(collection_id)
+
+    def _on_delete_custom_collection_by_id(self, collection_id: str | None) -> None:
+        if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Delete Collection", "Select a custom collection first.")
             return
         collection = self._custom_collections[collection_id]
@@ -13007,7 +13014,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_add_selection_to_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
-        if collection_id is None:
+        self._on_add_selection_to_collection_by_id(collection_id)
+
+    def _on_add_selection_to_collection_by_id(self, collection_id: str | None) -> None:
+        if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
         chart_ids = set(self._selected_chart_ids())
@@ -13028,7 +13038,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_remove_selection_from_collection(self) -> None:
         collection_id = self._selected_custom_collection_id()
-        if collection_id is None:
+        self._on_remove_selection_from_collection_by_id(collection_id)
+
+    def _on_remove_selection_from_collection_by_id(self, collection_id: str | None) -> None:
+        if collection_id is None or collection_id not in self._custom_collections:
             QMessageBox.information(self, "Collections", "Select a custom collection first.")
             return
         chart_ids = set(self._selected_chart_ids())
@@ -16181,21 +16194,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
         property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
 
-        manage_sentiments_button = QPushButton("Manage Sentiments")
-        manage_sentiments_button.clicked.connect(self._launch_manage_sentiments_dialog)
-        property_managers_section.addWidget(manage_sentiments_button)
-
-        manage_relationship_types_button = QPushButton("Manage Relationship Types")
-        manage_relationship_types_button.clicked.connect(self._launch_manage_relationship_types_dialog)
-        property_managers_section.addWidget(manage_relationship_types_button)
-
-        manage_collections_button = QPushButton("Manage Collections")
-        manage_collections_button.clicked.connect(self._show_manage_collections_panel)
-        property_managers_section.addWidget(manage_collections_button)
-
-        manage_tags_button = QPushButton("Manage Tags")
-        manage_tags_button.clicked.connect(self._launch_manage_tags_dialog)
-        property_managers_section.addWidget(manage_tags_button)
+        manage_property_manager_button = QPushButton("Open Property Manager")
+        manage_property_manager_button.clicked.connect(self._launch_property_manager_dialog)
+        property_managers_section.addWidget(manage_property_manager_button)
 
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
@@ -16652,45 +16653,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             main_window._size_checker_popup = popup
 
     def _launch_manage_sentiments_dialog(self) -> None:
-        self._launch_manage_metadata_dialog(
-            field=ManageMetadataLabelsDialog.FIELD_SENTIMENTS,
-            title="Manage Sentiments",
+        self._launch_property_manager_dialog(
+            initial_field=ManageMetadataLabelsDialog.FIELD_SENTIMENTS,
         )
 
     def _launch_manage_relationship_types_dialog(self) -> None:
-        self._launch_manage_metadata_dialog(
-            field=ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS,
-            title="Manage Relationship Types",
+        self._launch_property_manager_dialog(
+            initial_field=ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS,
         )
 
     def _launch_manage_tags_dialog(self) -> None:
-        self._launch_manage_metadata_dialog(
-            field=ManageMetadataLabelsDialog.FIELD_TAGS,
-            title="Tag Manager",
+        self._launch_property_manager_dialog(
+            initial_field=ManageMetadataLabelsDialog.FIELD_TAGS,
         )
 
-    def _launch_manage_metadata_dialog(self, *, field: str, title: str) -> None:
-        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
-            # Tags are free-form and not constrained to sentiment/relationship
-            # option lengths. Use Qt's default practical max to avoid truncating
-            # long tags during rename.
-            max_len = 32767
-        else:
-            all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
-            max_len = max((len(value) for value in all_labels), default=32)
-        dialog = ManageMetadataLabelsDialog(
-            parent=self,
-            load_usage=get_metadata_label_usage,
-            apply_change=apply_metadata_label_change,
-            label_limit=max_len,
-            initial_field=field,
-            lock_field=True,
-            window_title=title,
-        )
-        dialog.exec()
-        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
-            self._update_tag_completers()
-        self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
+    def _launch_property_manager_dialog(self, initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS) -> None:
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        coordinator.launch(initial_field=initial_field)
 
     def _calibrate_similarity_norms(self) -> None:
         try:
