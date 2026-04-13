@@ -18445,11 +18445,18 @@ class MainWindow(QMainWindow):
         if match is None:
             self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
             return
+        compared_chart = None
+        try:
+            compared_chart = load_chart(int(getattr(match, "chart_id", 0)))
+        except Exception:
+            compared_chart = None
         self._set_chart_info_panel_mode("chart_info")
         self.chart_info_output.setPlainText(
             build_similarity_reasoning_panel_text(
                 match=match,
                 subject_name=self._similar_charts_subject_name or "Current chart",
+                subject_chart=self._latest_chart,
+                compared_chart=compared_chart,
                 resolve_similarity_band=self._similarity_band_for_percent,
             )
         )
