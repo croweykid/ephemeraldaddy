@@ -2098,7 +2098,7 @@ SIGN_KEYWORDS = {
         "core":"Drives toward freedom. Reinvents self to stay uncaged.",
         "strategy":"Identity through transformation. Expresses tension by breaking molds.",
         "function":"Must stay free. Tension magnet, not by intention—but because their aliveness offends the script. Can burn bridges to escape commitment. Emotionally catalytic.",
-        "behavior": ["Can’t be held still.","Shifts shape with emotion and time.","Often lionized for what breaks them.",],
+        "behavior": ["Can’t be held still.","Shifts shape with emotion and time.",],
         "season": "autumnal",
         "fertility": None,
         "bicorporeal": True,
