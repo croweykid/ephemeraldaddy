@@ -16191,6 +16191,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         manage_collections_button.clicked.connect(self._show_manage_collections_panel)
         property_managers_section.addWidget(manage_collections_button)
 
+        manage_tags_button = QPushButton("Tag Manager")
+        manage_tags_button.clicked.connect(self._launch_manage_tags_dialog)
+        property_managers_section.addWidget(manage_tags_button)
+
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
@@ -16657,6 +16661,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             title="Manage Relationship Types",
         )
 
+    def _launch_manage_tags_dialog(self) -> None:
+        self._launch_manage_metadata_dialog(
+            field=ManageMetadataLabelsDialog.FIELD_TAGS,
+            title="Tag Manager",
+        )
+
     def _launch_manage_metadata_dialog(self, *, field: str, title: str) -> None:
         all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
         max_len = max((len(value) for value in all_labels), default=32)
@@ -16670,6 +16680,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             window_title=title,
         )
         dialog.exec()
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            self._update_tag_completers()
         self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
 
     def _calibrate_similarity_norms(self) -> None:
