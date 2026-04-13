@@ -19,7 +19,14 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
-from ephemeraldaddy.core.interpretations import HOUSE_COLORS, NAKSHATRA_PLANET_COLOR, PLANET_COLORS, SIGN_COLORS
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
+    MODE_COLORS,
+)
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 
@@ -56,10 +63,13 @@ _NAKSHATRA_COLOR_MAP: dict[str, str] = {
     if color
 }
 _HOUSE_COLOR_MAP: dict[str, str] = {str(key): str(color) for key, color in HOUSE_COLORS.items() if color}
+_ELEMENT_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in ELEMENT_COLORS.items() if color}
 _SIMILARITY_TOKEN_COLORS: dict[str, str] = {}
 _SIMILARITY_TOKEN_COLORS.update(_PLANET_COLOR_MAP)
 _SIMILARITY_TOKEN_COLORS.update(_SIGN_COLOR_MAP)
 _SIMILARITY_TOKEN_COLORS.update(_NAKSHATRA_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(_ELEMENT_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(MODE_COLORS)
 _SIMILARITY_TOKEN_COLORS.update(_ASPECT_COLORS)
 _SIMILARITY_TOKEN_COLORS.update(
     {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
@@ -459,6 +469,7 @@ def build_similar_charts_popout_dialog(
     on_link_activated: Callable[[QDialog, str], None],
     header_style: str,
     output_style: str,
+    info_output_style: str | None = None,
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     info_link_prefix: str = "sim-info",
@@ -492,7 +503,7 @@ def build_similar_charts_popout_dialog(
     info_output.setWordWrap(True)
     info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
     info_output.setOpenExternalLinks(False)
-    info_output.setStyleSheet(output_style)
+    info_output.setStyleSheet(info_output_style or output_style)
     info_layout.addWidget(info_output, 1)
     dialog._similar_chart_popout_info_output = info_output
     splitter.addWidget(info_panel)

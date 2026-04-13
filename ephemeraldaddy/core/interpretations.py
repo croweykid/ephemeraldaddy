@@ -445,6 +445,12 @@ MODE_KEYWORDS = {
     "fixed": {"static","unyielding","firm","unmoveable","set in one's ways","resolved"},
 }
 
+MODE_COLORS = {
+    "cardinal": "#993333", #burnt orange
+    "mutable": "#6699ff", #blue
+    "fixed": "#336600", #olive
+}
+
 # PLANET_RULERSHIP_CLASSICAL = {
 #     "Sun": {"Leo"},
 #     "Moon": {"Cancer"},
