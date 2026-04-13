@@ -67,6 +67,8 @@ ALIGNMENT_SCORE_RANGE = (-10.0, 10.0)
 ALIGNMENT_NEGATIVE_RGB = (100, 0, 0)
 ALIGNMENT_POSITIVE_RGB = (0, 0, 100)
 ALIGNMENT_CUMULATIVE_SUBTITLE_WRAP_WIDTH = 44
+SIMILARITY_GRADIENT_MIN_RED = 140
+SIMILARITY_GRADIENT_MAX_GREEN = 255
 
 
 def _interpolate_rgb_channel(start: int, end: int, ratio: float) -> int:
@@ -115,6 +117,33 @@ def value_to_red_blue_rgb(
         clamped_ratio,
     )
     return (red / 100.0, green / 100.0, blue / 100.0)
+
+
+def similarity_gradient_rgb_from_ratio(ratio: float) -> tuple[int, int, int]:
+    """
+    Shared dark-red -> bright-green scale used by Similarities UI elements.
+
+    Ratio is clamped into [0.0, 1.0]:
+    - 0.0 => medium-dark red floor
+    - 1.0 => bright green
+    """
+    clamped = max(0.0, min(1.0, float(ratio)))
+    red = int(round(SIMILARITY_GRADIENT_MIN_RED * (1.0 - clamped)))
+    green = int(round(SIMILARITY_GRADIENT_MAX_GREEN * clamped))
+    return (red, green, 0)
+
+
+def similarity_gradient_rgb_for_range(
+    value: float,
+    minimum: float,
+    maximum: float,
+) -> tuple[int, int, int]:
+    """Map a value in [minimum, maximum] onto the shared similarity red->green scale."""
+    if maximum > minimum:
+        ratio = (float(value) - float(minimum)) / (float(maximum) - float(minimum))
+    else:
+        ratio = 0.0
+    return similarity_gradient_rgb_from_ratio(ratio)
 
 
 def format_chart_header(template_key: str, **kwargs: object) -> str:
