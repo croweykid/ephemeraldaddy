@@ -16,8 +16,196 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.analysis.human_design import build_human_design_result
+from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
+
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
+_PLACEMENT_BODIES: tuple[str, ...] = (
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+    "AS",
+    "MC",
+)
+
+
+def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
+    if not houses or longitude is None or len(houses) < 12:
+        return None
+    normalized = float(longitude) % 360.0
+    bounds = [float(cusp) % 360.0 for cusp in houses[:12]]
+    for index in range(12):
+        start = bounds[index]
+        end = bounds[(index + 1) % 12]
+        in_span = start <= normalized < end if start < end else normalized >= start or normalized < end
+        if in_span:
+            return index + 1
+    return None
+
+
+def _safe_chart_name(chart: Any, fallback: str) -> str:
+    return str(getattr(chart, "name", "") or fallback).strip() or fallback
+
+
+def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    matches: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_sign = sign_for_longitude(subject_lon)
+        compared_sign = sign_for_longitude(compared_lon)
+        if subject_sign != compared_sign:
+            continue
+        label = f"{body} in {subject_sign}"
+        if use_houses:
+            subject_house = _house_for_longitude(getattr(subject_chart, "houses", None), subject_lon)
+            compared_house = _house_for_longitude(getattr(compared_chart, "houses", None), compared_lon)
+            if subject_house is not None and compared_house is not None and subject_house == compared_house:
+                label = f"{label} (House {subject_house})"
+        matches.append(label)
+    return matches
+
+
+def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
+        p1 = str(aspect.get("p1") or "").strip()
+        p2 = str(aspect.get("p2") or "").strip()
+        aspect_type = str(aspect.get("type") or "").strip().lower()
+        if not p1 or not p2 or not aspect_type:
+            return None
+        left, right = sorted((p1, p2))
+        return (left, right), aspect_type
+
+    subject_keys = {
+        key
+        for aspect in (getattr(subject_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None
+    }
+    common_keys = {
+        key
+        for aspect in (getattr(compared_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None and key in subject_keys
+    }
+    labels: list[str] = []
+    for (left, right), aspect_type in sorted(common_keys):
+        labels.append(f"{left} {_aspect_label(aspect_type).lower()} {right}")
+    return labels
+
+
+def _distribution_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    elements_by_sign = {
+        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
+        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
+        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
+        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
+    }
+    modes_by_sign = {
+        "Aries": "Cardinal", "Cancer": "Cardinal", "Libra": "Cardinal", "Capricorn": "Cardinal",
+        "Taurus": "Fixed", "Leo": "Fixed", "Scorpio": "Fixed", "Aquarius": "Fixed",
+        "Gemini": "Mutable", "Virgo": "Mutable", "Sagittarius": "Mutable", "Pisces": "Mutable",
+    }
+    body_subset = ("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+    subject_element_counts: dict[str, int] = {}
+    compared_element_counts: dict[str, int] = {}
+    subject_mode_counts: dict[str, int] = {}
+    compared_mode_counts: dict[str, int] = {}
+    for body in body_subset:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is not None:
+            sign = sign_for_longitude(subject_lon)
+            if sign in elements_by_sign:
+                subject_element_counts[elements_by_sign[sign]] = subject_element_counts.get(elements_by_sign[sign], 0) + 1
+                subject_mode_counts[modes_by_sign[sign]] = subject_mode_counts.get(modes_by_sign[sign], 0) + 1
+        if compared_lon is not None:
+            sign = sign_for_longitude(compared_lon)
+            if sign in elements_by_sign:
+                compared_element_counts[elements_by_sign[sign]] = compared_element_counts.get(elements_by_sign[sign], 0) + 1
+                compared_mode_counts[modes_by_sign[sign]] = compared_mode_counts.get(modes_by_sign[sign], 0) + 1
+
+    shared_elements = sorted(
+        element
+        for element in {"Fire", "Earth", "Air", "Water"}
+        if subject_element_counts.get(element, 0) > 0 and compared_element_counts.get(element, 0) > 0
+    )
+    shared_modes = sorted(
+        mode
+        for mode in {"Cardinal", "Fixed", "Mutable"}
+        if subject_mode_counts.get(mode, 0) > 0 and compared_mode_counts.get(mode, 0) > 0
+    )
+    lines: list[str] = []
+    if shared_elements:
+        lines.append(
+            "Shared elemental emphasis: "
+            + ", ".join(
+                f"{element} ({subject_element_counts.get(element, 0)} vs {compared_element_counts.get(element, 0)})"
+                for element in shared_elements
+            )
+        )
+    if shared_modes:
+        lines.append(
+            "Shared modality emphasis: "
+            + ", ".join(
+                f"{mode} ({subject_mode_counts.get(mode, 0)} vs {compared_mode_counts.get(mode, 0)})"
+                for mode in shared_modes
+            )
+        )
+    return lines
+
+
+def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    same_body_matches: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_nak = get_nakshatra(subject_lon)
+        compared_nak = get_nakshatra(compared_lon)
+        if subject_nak and subject_nak == compared_nak:
+            same_body_matches.append(f"{body} in {subject_nak}")
+    return sorted(same_body_matches)
+
+
+def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _centers(chart: Any) -> set[str]:
+        existing = {
+            str(center).strip()
+            for center in (getattr(chart, "human_design_defined_centers", None) or [])
+            if str(center).strip()
+        }
+        if existing:
+            return existing
+        try:
+            result = build_human_design_result(chart)
+            return {
+                str(center).strip()
+                for center in getattr(result, "defined_centers", [])
+                if str(center).strip()
+            }
+        except Exception:
+            return set()
+
+    overlap = sorted(_centers(subject_chart) & _centers(compared_chart))
+    return overlap
 
 
 def is_similar_info_target(target: str) -> bool:
@@ -43,50 +231,50 @@ def build_similarity_reasoning_panel_text(
     *,
     match: Any,
     subject_name: str,
+    subject_chart: Any | None = None,
+    compared_chart: Any | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
 ) -> str:
-    similarity_percent = float(getattr(match, "score", 0.0)) * 100.0
-    placement_percent = float(getattr(match, "placement_score", 0.0)) * 100.0
-    aspect_percent = float(getattr(match, "aspect_score", 0.0)) * 100.0
-    distribution_percent = float(getattr(match, "distribution_score", 0.0)) * 100.0
-    score_rows: list[tuple[str, float]] = [
-        ("Placements", placement_percent),
-        ("Aspects", aspect_percent),
-        ("Distribution", distribution_percent),
-    ]
-    nakshatra_score = getattr(match, "nakshatra_score", None)
-    if nakshatra_score is not None:
-        score_rows.append(("Nakshatra", float(nakshatra_score) * 100.0))
-    hd_centers_score = getattr(match, "hd_centers_score", None)
-    if hd_centers_score is not None:
-        score_rows.append(("Defined Centers", float(hd_centers_score) * 100.0))
-    top_factor, top_value = max(score_rows, key=lambda item: item[1])
-    bottom_factor, bottom_value = min(score_rows, key=lambda item: item[1])
-    band_label, _band_color = resolve_similarity_band(similarity_percent)
-    compared_name = str(
-        getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}"
-    ).strip()
-    reasoning_body = (
-        f"Compared: {subject_name} ↔ {compared_name}\n"
-        f"Overall similarity is {similarity_percent:.1f}% ({band_label}). "
-        f"Strongest alignment comes from {top_factor.lower()} at {top_value:.1f}%. "
-        f"Weakest alignment comes from {bottom_factor.lower()} at {bottom_value:.1f}%.\n"
-        f"Component breakdown: placements {placement_percent:.1f}%, "
-        f"aspects {aspect_percent:.1f}%, distribution {distribution_percent:.1f}%."
+    _band_label, _band_color = resolve_similarity_band(float(getattr(match, "score", 0.0)) * 100.0)
+    compared_name = _safe_chart_name(
+        compared_chart,
+        str(getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}"),
     )
-    if nakshatra_score is not None:
-        reasoning_body = f"{reasoning_body} Nakshatra similarity is {float(nakshatra_score) * 100.0:.1f}%."
-    if hd_centers_score is not None:
-        reasoning_body = (
-            f"{reasoning_body} Defined centers similarity is {float(hd_centers_score) * 100.0:.1f}%."
-        )
+    subject_title = _safe_chart_name(subject_chart, subject_name or "Current chart")
+    lines: list[str] = []
+    if subject_chart is not None and compared_chart is not None:
+        placement_labels = _common_placement_labels(subject_chart, compared_chart)
+        lines.append("Placements in common:")
+        lines.append("; ".join(placement_labels) if placement_labels else "No exact same-sign placements found in tracked bodies.")
+
+        aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Aspects in common:")
+        lines.append("; ".join(aspect_labels) if aspect_labels else "No shared aspect signatures were found.")
+
+        distribution_lines = _distribution_summary(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Distribution similarities:")
+        lines.append(" | ".join(distribution_lines) if distribution_lines else "No clear elemental/modality overlap was detected.")
+
+        nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Nakshatras in common:")
+        lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
+
+        centers = _defined_center_overlap_lines(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Defined centers in common:")
+        lines.append(", ".join(centers) if centers else "No overlapping defined centers were found.")
+    else:
+        lines.append("Detailed similarity details are unavailable because one or both charts could not be loaded.")
     return "\n".join(
         [
-            "CHART INFO",
+            "SIMILARITY ANALYSIS",
             "",
-            "Name: Similarity Analysis",
+            f"Charts: {subject_title} ↔ {compared_name}",
             "Reasoning:",
-            reasoning_body,
+            "\n".join(lines),
         ]
     )
 

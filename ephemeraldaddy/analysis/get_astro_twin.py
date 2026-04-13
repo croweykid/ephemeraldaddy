@@ -256,6 +256,52 @@ def _sign_weight_profile(chart: Chart) -> dict[int, float]:
     return weights
 
 
+def _body_dominance_profile(chart: Chart) -> dict[str, float]:
+    positions = getattr(chart, "positions", None) or {}
+    profile: dict[str, float] = {}
+    for body in CORE_BODIES:
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        weight = BODY_WEIGHTS.get(body, 0.8)
+        house = _house_for_body(chart, body)
+        if house in {1, 4, 7, 10}:
+            weight *= 1.30
+        elif house in {2, 5, 8, 11}:
+            weight *= 1.12
+        profile[body] = weight
+    return profile
+
+
+def _house_weight_profile(chart: Chart) -> dict[int, float]:
+    positions = getattr(chart, "positions", None) or {}
+    profile = {house: 0.0 for house in range(1, 13)}
+    for body in CORE_BODIES:
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        house = _house_for_body(chart, body)
+        if house is None:
+            continue
+        profile[house] += BODY_WEIGHTS.get(body, 0.8)
+    return profile
+
+
+def _weighted_overlap_similarity(values_a: dict[object, float], values_b: dict[object, float]) -> float:
+    total_a = sum(max(0.0, float(value)) for value in values_a.values())
+    total_b = sum(max(0.0, float(value)) for value in values_b.values())
+    if total_a <= 0.0 or total_b <= 0.0:
+        return 0.0
+    keys = set(values_a) | set(values_b)
+    overlap = sum(min(max(0.0, float(values_a.get(key, 0.0))), max(0.0, float(values_b.get(key, 0.0)))) for key in keys)
+    return max(0.0, min(1.0, overlap / min(total_a, total_b)))
+
+
+def _top_keys(weights: dict[object, float], count: int = 3) -> set[object]:
+    ranked = sorted(weights.items(), key=lambda item: item[1], reverse=True)
+    return {key for key, value in ranked[:count] if value > 0.0}
+
+
 def _top_sign_indices(weights: dict[int, float], count: int = 2) -> set[int]:
     ranked = sorted(weights.items(), key=lambda item: item[1], reverse=True)
     return {idx for idx, weight in ranked[:count] if weight > 0.0}
@@ -264,20 +310,41 @@ def _top_sign_indices(weights: dict[int, float], count: int = 2) -> set[int]:
 def _sign_dominance_similarity(query: Chart, candidate: Chart) -> float:
     q_weights = _sign_weight_profile(query)
     c_weights = _sign_weight_profile(candidate)
-    q_total = sum(q_weights.values())
-    c_total = sum(c_weights.values())
-    if q_total <= 0 or c_total <= 0:
-        return 0.0
-
-    overlap = 0.0
-    for index in range(12):
-        overlap += min(q_weights[index], c_weights[index])
-    overlap_similarity = overlap / min(q_total, c_total)
-
     q_top2 = _top_sign_indices(q_weights, count=2)
     c_top2 = _top_sign_indices(c_weights, count=2)
     top2_overlap = len(q_top2 & c_top2) / 2.0
-    return max(0.0, min(1.0, (overlap_similarity * 0.7) + (top2_overlap * 0.3)))
+    overlap_similarity = _weighted_overlap_similarity(q_weights, c_weights)
+    return max(0.0, min(1.0, (overlap_similarity * 0.72) + (top2_overlap * 0.28)))
+
+
+def _dominance_similarity(query: Chart, candidate: Chart) -> float:
+    q_sign = _sign_weight_profile(query)
+    c_sign = _sign_weight_profile(candidate)
+    q_house = _house_weight_profile(query)
+    c_house = _house_weight_profile(candidate)
+    q_body = _body_dominance_profile(query)
+    c_body = _body_dominance_profile(candidate)
+
+    sign_overlap = _weighted_overlap_similarity(q_sign, c_sign)
+    house_overlap = _weighted_overlap_similarity(q_house, c_house)
+    body_overlap = _weighted_overlap_similarity(q_body, c_body)
+
+    sign_top3_overlap = len(_top_keys(q_sign, count=3) & _top_keys(c_sign, count=3)) / 3.0
+    house_top3_overlap = len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+    body_top3_overlap = len(_top_keys(q_body, count=3) & _top_keys(c_body, count=3)) / 3.0
+
+    sign_component = (sign_overlap * 0.72) + (sign_top3_overlap * 0.28)
+    house_component = (house_overlap * 0.68) + (house_top3_overlap * 0.32)
+    body_component = (body_overlap * 0.66) + (body_top3_overlap * 0.34)
+    return max(
+        0.0,
+        min(
+            1.0,
+            (sign_component * 0.40)
+            + (house_component * 0.30)
+            + (body_component * 0.30),
+        ),
+    )
 
 
 def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
@@ -332,10 +399,12 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
     placement_score = _placement_similarity(query, candidate)
     aspect_score = _aspect_similarity(query, candidate)
     distribution_score = _distribution_similarity(query, candidate)
+    dominance_score = _dominance_similarity(query, candidate)
     final_score = (
-        (placement_score * 0.46)
-        + (aspect_score * 0.39)
-        + (distribution_score * 0.15)
+        (placement_score * 0.33)
+        + (aspect_score * 0.22)
+        + (distribution_score * 0.10)
+        + (dominance_score * 0.35)
     )
     return final_score, placement_score, aspect_score, distribution_score
 
@@ -345,13 +414,15 @@ def chart_similarity_score_comprehensive(
     candidate: Chart,
 ) -> tuple[float, float, float, float, float, float]:
     final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(query, candidate)
+    dominance_score = _dominance_similarity(query, candidate)
     nakshatra_score = _nakshatra_similarity(query, candidate)
     hd_centers_score = _defined_centers_similarity(query, candidate)
     comprehensive_score = (
-        (placement_score * 0.39)
-        + (aspect_score * 0.31)
-        + (distribution_score * 0.12)
-        + (nakshatra_score * 0.10)
+        (placement_score * 0.27)
+        + (aspect_score * 0.18)
+        + (distribution_score * 0.08)
+        + (dominance_score * 0.27)
+        + (nakshatra_score * 0.12)
         + (hd_centers_score * 0.08)
     )
     return comprehensive_score, placement_score, aspect_score, distribution_score, nakshatra_score, hd_centers_score
@@ -363,12 +434,13 @@ def chart_dissimilarity_score(query: Chart, candidate: Chart) -> tuple[float, fl
     # charts with the same dominant sign signatures should not surface as most dissimilar
     # even if they diverge on aspects.
     inverse_weighted = (
-        ((1.0 - placement_score) * 0.62)
-        + ((1.0 - aspect_score) * 0.23)
-        + ((1.0 - distribution_score) * 0.15)
+        ((1.0 - placement_score) * 0.33)
+        + ((1.0 - aspect_score) * 0.20)
+        + ((1.0 - distribution_score) * 0.10)
+        + ((1.0 - _dominance_similarity(query, candidate)) * 0.37)
     )
     dominance_similarity = _sign_dominance_similarity(query, candidate)
-    dominance_penalty = 0.75 * dominance_similarity
+    dominance_penalty = 0.40 * dominance_similarity
     dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
     return dissimilarity_score, similarity_score, placement_score, aspect_score, distribution_score
 
@@ -386,14 +458,15 @@ def chart_dissimilarity_score_comprehensive(
         hd_centers_score,
     ) = chart_similarity_score_comprehensive(query, candidate)
     inverse_weighted = (
-        ((1.0 - placement_score) * 0.52)
-        + ((1.0 - aspect_score) * 0.20)
-        + ((1.0 - distribution_score) * 0.12)
-        + ((1.0 - nakshatra_score) * 0.09)
-        + ((1.0 - hd_centers_score) * 0.07)
+        ((1.0 - placement_score) * 0.26)
+        + ((1.0 - aspect_score) * 0.17)
+        + ((1.0 - distribution_score) * 0.08)
+        + ((1.0 - _dominance_similarity(query, candidate)) * 0.28)
+        + ((1.0 - nakshatra_score) * 0.13)
+        + ((1.0 - hd_centers_score) * 0.08)
     )
     dominance_similarity = _sign_dominance_similarity(query, candidate)
-    dominance_penalty = 0.70 * dominance_similarity
+    dominance_penalty = 0.35 * dominance_similarity
     dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
     return (
         dissimilarity_score,
