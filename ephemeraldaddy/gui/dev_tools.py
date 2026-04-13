@@ -189,6 +189,51 @@ class _RenameLabelDialog(QDialog):
         return self._line_edit.text().strip()
 
 
+class _MergeLabelsDialog(QDialog):
+    def __init__(
+        self,
+        *,
+        parent: QWidget,
+        title: str,
+        choices: list[tuple[str, int]],
+        default_consolidate: str = "",
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(420, 180)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Consolidate tag:"))
+        self._consolidate_combo = QComboBox(self)
+        for label, count in choices:
+            self._consolidate_combo.addItem(f"{label} ({count})", label)
+        layout.addWidget(self._consolidate_combo)
+
+        layout.addWidget(QLabel("Into tag:"))
+        self._into_combo = QComboBox(self)
+        for label, count in choices:
+            self._into_combo.addItem(f"{label} ({count})", label)
+        layout.addWidget(self._into_combo)
+
+        if default_consolidate:
+            consolidate_index = self._consolidate_combo.findData(default_consolidate)
+            if consolidate_index >= 0:
+                self._consolidate_combo.setCurrentIndex(consolidate_index)
+                into_index = 0 if consolidate_index != 0 else 1
+                if 0 <= into_index < self._into_combo.count():
+                    self._into_combo.setCurrentIndex(into_index)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def values(self) -> tuple[str, str]:
+        consolidate = str(self._consolidate_combo.currentData() or "").strip()
+        into = str(self._into_combo.currentData() or "").strip()
+        return consolidate, into
+
+
 class ManageMetadataLabelsDialog(QDialog):
     FIELD_SENTIMENTS = "sentiments"
     FIELD_RELATIONSHIPS = "relationship_types"
@@ -238,6 +283,8 @@ class ManageMetadataLabelsDialog(QDialog):
         self._rename_button.clicked.connect(self._rename_selected)
         self._delete_button = QPushButton("Delete selected")
         self._delete_button.clicked.connect(self._delete_selected)
+        self._merge_button = QPushButton("Merge tags")
+        self._merge_button.clicked.connect(self._merge_selected_tags)
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self._reload_usage)
         close_button = QPushButton("Close")
@@ -245,6 +292,7 @@ class ManageMetadataLabelsDialog(QDialog):
 
         button_row.addWidget(self._rename_button)
         button_row.addWidget(self._delete_button)
+        button_row.addWidget(self._merge_button)
         button_row.addStretch(1)
         button_row.addWidget(refresh_button)
         button_row.addWidget(close_button)
@@ -256,6 +304,14 @@ class ManageMetadataLabelsDialog(QDialog):
     def _active_field(self) -> str:
         value = self._field_selector.currentData()
         return str(value or self.FIELD_SENTIMENTS)
+
+    def _active_rows(self) -> list[dict[str, int | str]]:
+        return self._usage_data.get(self._active_field(), [])
+
+    def _sync_action_buttons(self) -> None:
+        is_tags = self._active_field() == self.FIELD_TAGS
+        self._merge_button.setVisible(is_tags)
+        self._merge_button.setEnabled(is_tags and len(self._active_rows()) >= 2)
 
     def _reload_usage(self) -> None:
         try:
@@ -270,8 +326,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._refresh_list()
 
     def _refresh_list(self) -> None:
-        field = self._active_field()
-        rows = self._usage_data.get(field, [])
+        rows = self._active_rows()
         self._list_widget.clear()
         for row in rows:
             label = str(row.get("label", "")).strip()
@@ -279,6 +334,7 @@ class ManageMetadataLabelsDialog(QDialog):
             item = QListWidgetItem(f"{label}  ({count} charts)")
             item.setData(Qt.UserRole, label)
             self._list_widget.addItem(item)
+        self._sync_action_buttons()
 
     def _selected_label(self) -> str:
         item = self._list_widget.currentItem()
@@ -345,6 +401,57 @@ class ManageMetadataLabelsDialog(QDialog):
             self,
             "Delete complete",
             f"Removed {summary.get('occurrences_updated', 0)} occurrences across "
+            f"{summary.get('rows_updated', 0)} chart(s).",
+        )
+        self._reload_usage()
+
+    def _merge_selected_tags(self) -> None:
+        if self._active_field() != self.FIELD_TAGS:
+            return
+
+        rows = self._active_rows()
+        choices: list[tuple[str, int]] = []
+        for row in rows:
+            label = str(row.get("label", "")).strip()
+            if not label:
+                continue
+            count = int(row.get("count", 0) or 0)
+            choices.append((label, count))
+        if len(choices) < 2:
+            QMessageBox.information(
+                self,
+                "Merge tags",
+                "Need at least two tags to merge.",
+            )
+            return
+
+        picker = _MergeLabelsDialog(
+            parent=self,
+            title="Merge tags",
+            choices=choices,
+            default_consolidate=self._selected_label(),
+        )
+        if picker.exec() != QDialog.Accepted:
+            return
+
+        consolidate_label, into_label = picker.values()
+        if not consolidate_label or not into_label:
+            QMessageBox.warning(self, "Merge tags", "Select both tags before merging.")
+            return
+        if consolidate_label == into_label:
+            QMessageBox.warning(self, "Merge tags", "Consolidate and Into tags must be different.")
+            return
+
+        summary = self._apply_change(
+            field=self.FIELD_TAGS,
+            old_label=consolidate_label,
+            new_label=into_label,
+        )
+        QMessageBox.information(
+            self,
+            "Merge complete",
+            f"Merged '{consolidate_label}' into '{into_label}'.\n\n"
+            f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
         self._reload_usage()
