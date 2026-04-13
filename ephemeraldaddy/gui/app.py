@@ -16668,8 +16668,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _launch_manage_metadata_dialog(self, *, field: str, title: str) -> None:
-        all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
-        max_len = max((len(value) for value in all_labels), default=32)
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            # Tags are free-form and not constrained to sentiment/relationship
+            # option lengths. Use Qt's default practical max to avoid truncating
+            # long tags during rename.
+            max_len = 32767
+        else:
+            all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
+            max_len = max((len(value) for value in all_labels), default=32)
         dialog = ManageMetadataLabelsDialog(
             parent=self,
             load_usage=get_metadata_label_usage,
