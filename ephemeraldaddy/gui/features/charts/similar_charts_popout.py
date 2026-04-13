@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -18,6 +19,13 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
+    SIGN_COLORS,
+)
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 
@@ -37,6 +45,38 @@ _PLACEMENT_BODIES: tuple[str, ...] = (
     "Pluto",
     "AS",
     "MC",
+)
+_ASPECT_COLORS: dict[str, str] = {
+    "conjunction": "#c7a56a",
+    "sextile": "#6b8ba4",
+    "square": "#8d6e63",
+    "trine": "#6b705c",
+    "opposition": "#c26d3a",
+}
+_MODE_COLORS: dict[str, str] = {
+    "Cardinal": "#993333",
+    "Mutable": "#6699ff",
+    "Fixed": "#336600",
+}
+_SIMILARITY_BODY_TEXT_COLOR = "#B87333"
+_PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
+_SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
+_NAKSHATRA_COLOR_MAP: dict[str, str] = {
+    str(nakshatra): str(color)
+    for nakshatra, (_planet, color) in NAKSHATRA_PLANET_COLOR.items()
+    if color
+}
+_HOUSE_COLOR_MAP: dict[str, str] = {str(key): str(color) for key, color in HOUSE_COLORS.items() if color}
+_ELEMENT_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in ELEMENT_COLORS.items() if color}
+_SIMILARITY_TOKEN_COLORS: dict[str, str] = {}
+_SIMILARITY_TOKEN_COLORS.update(_PLANET_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(_SIGN_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(_NAKSHATRA_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(_ELEMENT_COLOR_MAP)
+_SIMILARITY_TOKEN_COLORS.update(_MODE_COLORS)
+_SIMILARITY_TOKEN_COLORS.update(_ASPECT_COLORS)
+_SIMILARITY_TOKEN_COLORS.update(
+    {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
 )
 
 
@@ -288,6 +328,41 @@ def build_similarity_reasoning_panel_html(
     compared_chart: Any | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
 ) -> str:
+    def _apply_word_colors(text_value: str, lookup: dict[str, str], *, weight: str = "400") -> str:
+        if not text_value or not lookup:
+            return html.escape(text_value)
+        parts = sorted(lookup.keys(), key=len, reverse=True)
+        pattern = r"\b(" + "|".join(re.escape(token) for token in parts) + r")\b"
+        chunks: list[str] = []
+        cursor = 0
+        for match in re.finditer(pattern, text_value):
+            if match.start() > cursor:
+                chunks.append(html.escape(text_value[cursor:match.start()]))
+            token = match.group(0)
+            color = lookup.get(token)
+            if color:
+                chunks.append(
+                    f"<span style='color:{html.escape(color)};font-weight:{weight}'>{html.escape(token)}</span>"
+                )
+            else:
+                chunks.append(html.escape(token))
+            cursor = match.end()
+        if cursor < len(text_value):
+            chunks.append(html.escape(text_value[cursor:]))
+        return "".join(chunks)
+
+    def _colorize_body_line(raw_line: str) -> str:
+        colored = _apply_word_colors(raw_line, _SIMILARITY_TOKEN_COLORS)
+        colored = re.sub(
+            r"\bHouse\s+(1[0-2]|[1-9])\b",
+            lambda m: (
+                f"House <span style='color:{html.escape(_HOUSE_COLOR_MAP.get(m.group(1), '#cccccc'))};font-weight:400'>"
+                f"{html.escape(m.group(1))}</span>"
+            ),
+            colored,
+        )
+        return colored
+
     text = build_similarity_reasoning_panel_text(
         match=match,
         subject_name=subject_name,
@@ -322,7 +397,10 @@ def build_similarity_reasoning_panel_html(
                 colored.append(f"<span style='color:{html.escape(color)};font-weight:600'>{html.escape(center_name)}</span>")
             html_lines.append("<div>" + ", ".join(colored) + "</div>")
             continue
-        html_lines.append(f"<div>{line if line else '&nbsp;'}</div>")
+        html_lines.append(
+            f"<div style='color:{_SIMILARITY_BODY_TEXT_COLOR};font-weight:400'>"
+            f"{_colorize_body_line(raw_line) if raw_line else '&nbsp;'}</div>"
+        )
     return "".join(html_lines)
 
 def load_similar_chart_candidates(
@@ -376,9 +454,11 @@ def render_similar_match_blocks(
                 f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
+                f'<span style="font-weight: 400; color: {_SIMILARITY_BODY_TEXT_COLOR};">'
                 f"(placements {match.placement_score * 100.0:.0f}%, "
                 f"aspects {match.aspect_score * 100.0:.0f}%, "
                 f"distribution {match.distribution_score * 100.0:.0f}%{extra_suffix})"
+                "</span>"
             )
         )
     return "<br><br>".join(blocks)
@@ -393,6 +473,7 @@ def build_similar_charts_popout_dialog(
     on_link_activated: Callable[[QDialog, str], None],
     header_style: str,
     output_style: str,
+    info_output_style: str | None = None,
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     info_link_prefix: str = "sim-info",
@@ -426,7 +507,7 @@ def build_similar_charts_popout_dialog(
     info_output.setWordWrap(True)
     info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
     info_output.setOpenExternalLinks(False)
-    info_output.setStyleSheet(output_style)
+    info_output.setStyleSheet(info_output_style or output_style)
     info_layout.addWidget(info_output, 1)
     dialog._similar_chart_popout_info_output = info_output
     splitter.addWidget(info_panel)
