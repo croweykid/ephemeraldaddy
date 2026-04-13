@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from ephemeraldaddy.gui.style import similarity_gradient_rgb_for_range
 
 
 class SizeCheckerPopup(QDialog):
@@ -328,11 +329,24 @@ class ManageMetadataLabelsDialog(QDialog):
     def _refresh_list(self) -> None:
         rows = self._active_rows()
         self._list_widget.clear()
+        minimum_count = 0
+        maximum_count = 0
+        if self._active_field() == self.FIELD_TAGS and rows:
+            counts = [int(row.get("count", 0) or 0) for row in rows]
+            minimum_count = min(counts)
+            maximum_count = max(counts)
         for row in rows:
             label = str(row.get("label", "")).strip()
             count = int(row.get("count", 0) or 0)
             item = QListWidgetItem(f"{label}  ({count} charts)")
             item.setData(Qt.UserRole, label)
+            if self._active_field() == self.FIELD_TAGS:
+                red, green, blue = similarity_gradient_rgb_for_range(
+                    count,
+                    minimum_count,
+                    maximum_count,
+                )
+                item.setForeground(QColor(red, green, blue))
             self._list_widget.addItem(item)
         self._sync_action_buttons()
 

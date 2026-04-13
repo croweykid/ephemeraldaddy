@@ -662,6 +662,7 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
+    similarity_gradient_rgb_from_ratio,
     configure_collapsible_header_toggle,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
@@ -6013,12 +6014,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 percent_difference = abs(percent_value - db_percent_value)
                 difference_ratio = min(percent_difference, 10) / 10.0
-                # Keep zero-difference labels readable (dark red floor), then brighten
-                # progressively toward vivid green as the deviation approaches/exceeds 10%.
-                minimum_readable_red = 140
-                maximum_bright_green = 255
-                similarity_red = int(round(minimum_readable_red * (1.0 - difference_ratio)))
-                similarity_green = int(round(maximum_bright_green * difference_ratio))
+                similarity_red, similarity_green, similarity_blue = similarity_gradient_rgb_from_ratio(
+                    difference_ratio
+                )
                 item = QListWidgetItem()
 
                 row_widget = QWidget(section_list)
@@ -6037,7 +6035,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 label_font.setPointSize(max(1, label_font.pointSize() - 1))
                 label_widget.setFont(label_font)
                 label_widget.setStyleSheet(
-                    f"color: rgb({similarity_red}, {similarity_green}, 0);"
+                    f"color: rgb({similarity_red}, {similarity_green}, {similarity_blue});"
                 )
                 top_layout.addWidget(label_widget, stretch=1)
 
