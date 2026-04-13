@@ -21,7 +21,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from ephemeraldaddy.gui.style import similarity_gradient_rgb_for_range
+from ephemeraldaddy.gui.style import (
+    INACTIVE_ACTION_BUTTON_STYLE,
+    similarity_gradient_rgb_for_range,
+)
 
 
 class SizeCheckerPopup(QDialog):
@@ -271,7 +274,8 @@ class ManageMetadataLabelsDialog(QDialog):
         self._field_selector.setVisible(not lock_field)
         layout.addWidget(self._field_selector)
 
-        self._list_widget = QListWidget(self)
+        self._list_widget.setSelectionMode(QListWidget.ExtendedSelection)
+        self._list_widget.itemSelectionChanged.connect(self._sync_action_buttons)
         layout.addWidget(self._list_widget)
 
         if initial_field in {self.FIELD_SENTIMENTS, self.FIELD_RELATIONSHIPS, self.FIELD_TAGS}:
@@ -280,14 +284,14 @@ class ManageMetadataLabelsDialog(QDialog):
                 self._field_selector.setCurrentIndex(index)
 
         button_row = QHBoxLayout()
-        self._rename_button = QPushButton("Rename selected")
+        self._rename_button = QPushButton("Rename")
         self._rename_button.clicked.connect(self._rename_selected)
-        self._delete_button = QPushButton("Delete selected")
+        self._delete_button = QPushButton("❌Delete")
         self._delete_button.clicked.connect(self._delete_selected)
         self._merge_button = QPushButton("Merge tags")
         self._merge_button.clicked.connect(self._merge_selected_tags)
-        refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self._reload_usage)
+        # refresh_button = QPushButton("Refresh")
+        # refresh_button.clicked.connect(self._reload_usage)
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
 
@@ -295,7 +299,7 @@ class ManageMetadataLabelsDialog(QDialog):
         button_row.addWidget(self._delete_button)
         button_row.addWidget(self._merge_button)
         button_row.addStretch(1)
-        button_row.addWidget(refresh_button)
+        #button_row.addWidget(refresh_button)
         button_row.addWidget(close_button)
         layout.addLayout(button_row)
 
@@ -310,6 +314,16 @@ class ManageMetadataLabelsDialog(QDialog):
         return self._usage_data.get(self._active_field(), [])
 
     def _sync_action_buttons(self) -> None:
+        if not hasattr(self, "_rename_button") or not hasattr(self, "_delete_button"):
+            return
+        selected_count = len(self._selected_labels())
+        rename_enabled = selected_count == 1
+        delete_enabled = selected_count >= 1
+        self._rename_button.setEnabled(rename_enabled)
+        self._delete_button.setEnabled(delete_enabled)
+        self._rename_button.setStyleSheet("" if rename_enabled else INACTIVE_ACTION_BUTTON_STYLE)
+        self._delete_button.setStyleSheet("" if delete_enabled else INACTIVE_ACTION_BUTTON_STYLE)
+        
         if not hasattr(self, "_merge_button"):
             return
         is_tags = self._active_field() == self.FIELD_TAGS
@@ -353,13 +367,70 @@ class ManageMetadataLabelsDialog(QDialog):
         self._sync_action_buttons()
 
     def _selected_label(self) -> str:
-        item = self._list_widget.currentItem()
-        if item is None:
-            return ""
-        return str(item.data(Qt.UserRole) or "").strip()
+        labels = self._selected_labels()
+        return labels[0] if labels else ""
+
+    def _selected_labels(self) -> list[str]:
+        labels: list[str] = []
+        for item in self._list_widget.selectedItems():
+            label = str(item.data(Qt.UserRole) or "").strip()
+            if label:
+                labels.append(label)
+        return labels
+
+    def _delete_selected(self) -> None:
+        old_labels = self._selected_labels()
+        if not old_labels:
+            QMessageBox.information(self, "Manage metadata", "Select one or more labels to delete.")
+            return
+        if len(old_labels) == 1:
+            confirm_message = (
+                f"Delete '{old_labels[0]}' from all charts?\n\n"
+                "This cannot be undone except by restoring a backup."
+            )
+            confirm_title = "Delete label"
+        else:
+            preview = ", ".join(old_labels[:6])
+            if len(old_labels) > 6:
+                preview += f", +{len(old_labels) - 6} more"
+            confirm_message = (
+                f"Delete {len(old_labels)} labels from all charts?\n\n"
+                f"{preview}\n\n"
+                "This cannot be undone except by restoring a backup."
+            )
+            confirm_title = "Delete labels"
+        confirm = QMessageBox.question(
+            self,
+            confirm_title,
+            confirm_message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        total_occurrences = 0
+        total_rows = 0
+        for index, old_label in enumerate(old_labels):
+            summary = self._apply_change(
+                field=self._active_field(),
+                old_label=old_label,
+                new_label="",
+                create_backup=index == 0,
+            )
+            total_occurrences += int(summary.get("occurrences_updated", 0) or 0)
+            total_rows += int(summary.get("rows_updated", 0) or 0)
+
+        QMessageBox.information(
+            self,
+            "Delete complete",
+            f"Removed {total_occurrences} occurrences across {total_rows} chart updates.",
+        )
+        self._reload_usage()
 
     def _rename_selected(self) -> None:
-        old_label = self._selected_label()
+        item = self._list_widget.currentItem()
+        old_label = str(item.data(Qt.UserRole) or "").strip() if item is not None else self._selected_label()
         if not old_label:
             QMessageBox.information(self, "Manage metadata", "Select a label to rename.")
             return
@@ -393,33 +464,33 @@ class ManageMetadataLabelsDialog(QDialog):
         )
         self._reload_usage()
 
-    def _delete_selected(self) -> None:
-        old_label = self._selected_label()
-        if not old_label:
-            QMessageBox.information(self, "Manage metadata", "Select a label to delete.")
-            return
-        confirm = QMessageBox.question(
-            self,
-            "Delete label",
-            f"Delete '{old_label}' from all charts?\n\nThis cannot be undone except by restoring a backup.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirm != QMessageBox.Yes:
-            return
+    # def _delete_selected(self) -> None:
+    #     old_label = self._selected_label()
+    #     if not old_label:
+    #         QMessageBox.information(self, "Manage metadata", "Select a label to delete.")
+    #         return
+    #     confirm = QMessageBox.question(
+    #         self,
+    #         "Delete label",
+    #         f"Delete '{old_label}' from all charts?\n\nThis cannot be undone except by restoring a backup.",
+    #         QMessageBox.Yes | QMessageBox.No,
+    #         QMessageBox.No,
+    #     )
+    #     if confirm != QMessageBox.Yes:
+    #         return
 
-        summary = self._apply_change(
-            field=self._active_field(),
-            old_label=old_label,
-            new_label="",
-        )
-        QMessageBox.information(
-            self,
-            "Delete complete",
-            f"Removed {summary.get('occurrences_updated', 0)} occurrences across "
-            f"{summary.get('rows_updated', 0)} chart(s).",
-        )
-        self._reload_usage()
+    #     summary = self._apply_change(
+    #         field=self._active_field(),
+    #         old_label=old_label,
+    #         new_label="",
+    #     )
+    #     QMessageBox.information(
+    #         self,
+    #         "Delete complete",
+    #         f"Removed {summary.get('occurrences_updated', 0)} occurrences across "
+    #         f"{summary.get('rows_updated', 0)} chart(s).",
+    #     )
+    #     self._reload_usage()
 
     def _merge_selected_tags(self) -> None:
         if self._active_field() != self.FIELD_TAGS:

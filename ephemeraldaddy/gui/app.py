@@ -16189,7 +16189,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         manage_collections_button.clicked.connect(self._show_manage_collections_panel)
         property_managers_section.addWidget(manage_collections_button)
 
-        manage_tags_button = QPushButton("Tag Manager")
+        manage_tags_button = QPushButton("Manage Tags")
         manage_tags_button.clicked.connect(self._launch_manage_tags_dialog)
         property_managers_section.addWidget(manage_tags_button)
 
