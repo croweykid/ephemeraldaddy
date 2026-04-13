@@ -23,6 +23,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
+SIMILARITY_SECTION_HEADER_COLOR = "#B87333"
 _PLACEMENT_BODIES: tuple[str, ...] = (
     "Sun",
     "Moon",
@@ -260,7 +261,7 @@ def build_similarity_reasoning_panel_text(
 
         nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
         lines.append("")
-        lines.append("Nakshatras in common:")
+        lines.append("Nakshatras:")
         lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
 
         centers = _defined_center_overlap_lines(subject_chart, compared_chart)
@@ -274,7 +275,6 @@ def build_similarity_reasoning_panel_text(
             "SIMILARITY ANALYSIS",
             "",
             f"Charts: {subject_title} ↔ {compared_name}",
-            "Reasoning:",
             "\n".join(lines),
         ]
     )
@@ -300,16 +300,20 @@ def build_similarity_reasoning_panel_html(
     for raw_line in lines:
         line = html.escape(raw_line)
         if raw_line.startswith("SIMILARITY ANALYSIS"):
-            html_lines.append(f"<div style='font-weight:700'>{line}</div>")
+            html_lines.append(
+                f"<div style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{line}</div>"
+            )
             continue
-        if raw_line in {"Reasoning:", "Placements in common:", "Aspects in common:", "Distribution similarities:", "Nakshatras in common:", "Defined centers in common:"}:
-            html_lines.append(f"<div style='margin-top:6px;font-weight:600'>{line}</div>")
+        if raw_line in {"Placements in common:", "Aspects in common:", "Distribution similarities:", "Nakshatras:", "Defined centers in common:"}:
+            html_lines.append(
+                f"<div style='margin-top:6px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{line}</div>"
+            )
             continue
         if raw_line.startswith("Charts: "):
-            html_lines.append(f"<div><span style='font-weight:600'>Charts:</span> {html.escape(raw_line.replace('Charts: ', '', 1))}</div>")
-            continue
-        if raw_line.startswith("Defined centers in common:"):
-            html_lines.append(f"<div style='margin-top:6px;font-weight:600'>{line}</div>")
+            html_lines.append(
+                f"<div><span style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>Charts:</span> "
+                f"{html.escape(raw_line.replace('Charts: ', '', 1))}</div>"
+            )
             continue
         if raw_line and "," in raw_line and all(token.strip() in HD_CENTERS for token in raw_line.split(",")):
             colored = []
@@ -386,7 +390,7 @@ def build_similar_charts_popout_dialog(
     subject_name: str,
     most_similar_matches: list[Any],
     least_similar_matches: list[Any],
-    on_link_activated: Callable[[str], None],
+    on_link_activated: Callable[[QDialog, str], None],
     header_style: str,
     output_style: str,
     highlight_color: str,
@@ -411,6 +415,29 @@ def build_similar_charts_popout_dialog(
         configure_splitter(splitter)
     layout.addWidget(splitter, 1)
 
+    info_panel = QWidget()
+    info_layout = QVBoxLayout(info_panel)
+    info_layout.setContentsMargins(0, 0, 0, 0)
+    info_layout.setSpacing(6)
+    info_header = QLabel("Chart Info")
+    info_header.setStyleSheet(header_style)
+    info_layout.addWidget(info_header)
+    info_output = QLabel("Click ⓘ next to a chart to view similarity analysis.")
+    info_output.setWordWrap(True)
+    info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    info_output.setOpenExternalLinks(False)
+    info_output.setStyleSheet(output_style)
+    info_layout.addWidget(info_output, 1)
+    dialog._similar_chart_popout_info_output = info_output
+    splitter.addWidget(info_panel)
+
+    list_splitter = QSplitter(Qt.Horizontal)
+    list_splitter.setChildrenCollapsible(False)
+    list_splitter.setHandleWidth(6)
+    if configure_splitter is not None:
+        configure_splitter(list_splitter)
+    splitter.addWidget(list_splitter)
+
     def _panel(title: str, matches: list[Any], panel_key: str) -> QWidget:
         panel_widget = QWidget()
         panel_layout = QVBoxLayout(panel_widget)
@@ -424,7 +451,7 @@ def build_similar_charts_popout_dialog(
         result_label.setWordWrap(True)
         result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         result_label.setOpenExternalLinks(False)
-        result_label.linkActivated.connect(on_link_activated)
+        result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
         result_label.setStyleSheet(output_style)
         result_label.setText(
             render_similar_match_blocks(
@@ -447,7 +474,8 @@ def build_similar_charts_popout_dialog(
         panel_layout.addWidget(scroll, 1)
         return panel_widget
 
-    splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches, "most"))
-    splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
-    splitter.setSizes([430, 430])
+    list_splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches, "most"))
+    list_splitter.addWidget(_panel("Top 25 Least Similar Charts", least_similar_matches, "least"))
+    splitter.setSizes([320, 860])
+    list_splitter.setSizes([430, 430])
     return dialog
