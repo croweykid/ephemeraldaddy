@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.style import (
+    DEFAULT_DROPDOWN_STYLE,
+    DATABASE_VIEW_HEADER_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
     similarity_gradient_rgb_for_range,
 )
@@ -245,6 +247,9 @@ class ManageMetadataLabelsDialog(QDialog):
     FIELD_RELATIONSHIPS = "relationship_types"
     FIELD_SENTIMENTS = "sentiments"
 
+    SORT_FREQUENCY = "frequency"
+    SORT_ALPHABETICAL = "alphabetical"
+
     def __init__(
         self,
         *,
@@ -270,18 +275,53 @@ class ManageMetadataLabelsDialog(QDialog):
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
 
         layout = QVBoxLayout(self)
+
+        self._field_selector = QComboBox(self)
+        self._field_selector.addItem("TAGS", self.FIELD_TAGS)
+        self._field_selector.addItem("COLLECTIONS", self.FIELD_COLLECTIONS)
+        self._field_selector.addItem("RELATIONSHIPS", self.FIELD_RELATIONSHIPS)
+        self._field_selector.addItem("SENTIMENTS", self.FIELD_SENTIMENTS)
+        for index in range(self._field_selector.count()):
+            self._field_selector.setItemData(index, Qt.AlignCenter, Qt.TextAlignmentRole)
+        self._field_selector.currentIndexChanged.connect(self._refresh_list)
+        self._field_selector.setVisible(not lock_field)
+        self._field_selector.setStyleSheet(
+            DEFAULT_DROPDOWN_STYLE
+            + """
+QComboBox {
+    min-height: 36px;
+    padding: 6px 8px;
+    text-align: center;
+    color: """
+            + DATABASE_VIEW_HEADER_COLOR
+            + """;
+    font-weight: 700;
+}
+QComboBox QAbstractItemView {
+    color: """
+            + DATABASE_VIEW_HEADER_COLOR
+            + """;
+    font-weight: 700;
+}
+"""
+        )
+        layout.addWidget(self._field_selector)
+
+        layout.addSpacing(8)
         intro_label = QLabel(intro_text)
         intro_label.setStyleSheet("font-style: italic;")
         layout.addWidget(intro_label)
 
-        self._field_selector = QComboBox(self)
-        self._field_selector.addItem("Tags", self.FIELD_TAGS)
-        self._field_selector.addItem("Collections", self.FIELD_COLLECTIONS)
-        self._field_selector.addItem("Relationships", self.FIELD_RELATIONSHIPS)
-        self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
-        self._field_selector.currentIndexChanged.connect(self._refresh_list)
-        self._field_selector.setVisible(not lock_field)
-        layout.addWidget(self._field_selector)
+        sort_row = QHBoxLayout()
+        sort_row.addStretch(1)
+        sort_row.addWidget(QLabel("Sort:"))
+        self._sort_selector = QComboBox(self)
+        self._sort_selector.addItem("Frequency", self.SORT_FREQUENCY)
+        self._sort_selector.addItem("Alphabetical", self.SORT_ALPHABETICAL)
+        self._sort_selector.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+        self._sort_selector.currentIndexChanged.connect(self._refresh_list)
+        sort_row.addWidget(self._sort_selector)
+        layout.addLayout(sort_row)
 
         split_layout = QHBoxLayout()
         self._list_widget = QListWidget(self)
@@ -344,7 +384,20 @@ class ManageMetadataLabelsDialog(QDialog):
         return str(value or self.FIELD_SENTIMENTS)
 
     def _active_rows(self) -> list[dict[str, int | str]]:
-        return self._usage_data.get(self._active_field(), [])
+        rows = list(self._usage_data.get(self._active_field(), []))
+        sort_mode = self.SORT_FREQUENCY
+        if hasattr(self, "_sort_selector"):
+            sort_mode = str(self._sort_selector.currentData() or self.SORT_FREQUENCY)
+        if sort_mode == self.SORT_ALPHABETICAL:
+            rows.sort(key=lambda row: str(row.get("label", "")).casefold())
+            return rows
+        rows.sort(
+            key=lambda row: (
+                -int(row.get("count", 0) or 0),
+                str(row.get("label", "")).casefold(),
+            )
+        )
+        return rows
 
     def _sync_action_buttons(self) -> None:
         if not hasattr(self, "_rename_button") or not hasattr(self, "_delete_button"):
