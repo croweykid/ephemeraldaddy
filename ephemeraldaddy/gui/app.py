@@ -508,8 +508,12 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    is_similar_info_target,
     load_similar_chart_candidates,
+    make_similar_info_target,
+    map_similar_info_targets,
 )
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
@@ -17317,6 +17321,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_export_button: QToolButton | None = None
         self._similar_charts_export_rows: list[dict[str, Any]] = []
         self._similar_charts_subject_name: str = ""
+        self._similar_charts_reasoning_by_target: dict[str, Any] = {}
         self._similar_charts_popout_dialogs: list[QDialog] = []
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
@@ -18424,8 +18429,12 @@ class MainWindow(QMainWindow):
         )
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
+        normalized_target = str(target or "").strip()
+        if is_similar_info_target(normalized_target):
+            self._show_similar_chart_reasoning(normalized_target)
+            return
         try:
-            chart_id = int(target)
+            chart_id = int(normalized_target)
         except (TypeError, ValueError):
             return
         current_chart_id = self.current_chart_id
@@ -18444,6 +18453,20 @@ class MainWindow(QMainWindow):
         if not loaded:
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
+
+    def _show_similar_chart_reasoning(self, target: str) -> None:
+        match = self._similar_charts_reasoning_by_target.get(target)
+        if match is None:
+            self.chart_info_output.setPlainText("Could not locate similarity details for this chart.")
+            return
+        self._set_chart_info_panel_mode("chart_info")
+        self.chart_info_output.setPlainText(
+            build_similarity_reasoning_panel_text(
+                match=match,
+                subject_name=self._similar_charts_subject_name or "Current chart",
+                resolve_similarity_band=self._similarity_band_for_percent,
+            )
+        )
 
     def _on_chart_analysis_dropdown_changed(self, chart_key: str) -> None:
         self._update_chart_analysis_subtitle(chart_key)
@@ -18490,6 +18513,7 @@ class MainWindow(QMainWindow):
     def _render_similar_charts(self, chart: Chart) -> None:
         if self._similar_charts_list_label is None:
             return
+        self._similar_charts_reasoning_by_target = {}
         if getattr(chart, "is_placeholder", False):
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
@@ -18580,7 +18604,8 @@ class MainWindow(QMainWindow):
             )
             match_blocks.append(
                 (
-                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a><br>'
+                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
+                    f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a><br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
@@ -18615,6 +18640,12 @@ class MainWindow(QMainWindow):
                 }
             )
         self._similar_charts_list_label.setText("<br><br>".join(match_blocks))
+        self._similar_charts_reasoning_by_target.update(
+            map_similar_info_targets(
+                matches=matches,
+                info_link_prefix="sim-info:panel",
+            )
+        )
 
     def _show_similar_charts_popout(self) -> None:
         chart = self._latest_chart
@@ -18699,7 +18730,20 @@ class MainWindow(QMainWindow):
             output_style=CHART_DATA_INFO_LABEL_STYLE,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
+            info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
+        )
+        self._similar_charts_reasoning_by_target.update(
+            map_similar_info_targets(
+                matches=most_similar_matches,
+                info_link_prefix="sim-info:popout:most",
+            )
+        )
+        self._similar_charts_reasoning_by_target.update(
+            map_similar_info_targets(
+                matches=least_similar_matches,
+                info_link_prefix="sim-info:popout:least",
+            )
         )
         self._register_popout_shortcuts(dialog)
         self._similar_charts_popout_dialogs.append(dialog)
