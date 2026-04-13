@@ -176,6 +176,7 @@ from ephemeraldaddy.gui.astrotheme_search import (
     search_astrotheme_profile_url,
 )
 from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
+from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
     APP_DISPLAY_NAME,
@@ -239,7 +240,6 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
-    apply_metadata_label_change,
     save_chart,
     find_chart_name_matches_by_birth_day,
     list_charts,
@@ -251,10 +251,7 @@ from ephemeraldaddy.core.db import (
     update_chart_dominant_sign_weights,
     set_current_chart,
     parse_relationship_types,
-    parse_sentiments,
-    parse_tags,
     list_recognized_tags,
-    get_metadata_label_usage,
     backup_database,
     restore_database,
     append_database,
@@ -16671,123 +16668,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _launch_property_manager_dialog(self, initial_field: str = ManageMetadataLabelsDialog.FIELD_TAGS) -> None:
-        dialog = ManageMetadataLabelsDialog(
-            parent=self,
-            load_usage=self._load_property_manager_usage,
-            apply_change=apply_metadata_label_change,
-            label_limit=32767,
-            load_chart_names=self._property_manager_chart_names,
-            collection_actions={
-                "create": self._on_create_custom_collection,
-                "rename": self._on_rename_custom_collection_by_id,
-                "delete": self._on_delete_custom_collection_by_id,
-                "add_selected": self._on_add_selection_to_collection_by_id,
-                "remove_selected": self._on_remove_selection_from_collection_by_id,
-            },
-            initial_field=initial_field,
-            lock_field=False,
-            window_title="Property Manager",
-        )
-        dialog.exec()
-        self._update_tag_completers()
-        self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
-
-    def _load_property_manager_usage(self) -> dict[str, list[dict[str, int | str]]]:
-        usage = get_metadata_label_usage()
-        usage[ManageMetadataLabelsDialog.FIELD_COLLECTIONS] = self._collection_usage_rows()
-        return usage
-
-    def _collection_usage_rows(self) -> list[dict[str, int | str]]:
-        rows = [
-            normalized
-            for row in self._chart_rows
-            if (normalized := self._normalize_chart_row(row)) is not None
-        ]
-        collection_rows: list[dict[str, int | str]] = []
-        for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
-            count = 0
-            for row in rows:
-                chart = self._get_chart_for_filter(row[0])
-                if chart_belongs_to_collection(
-                    collection_id,
-                    chart=chart,
-                    source=row[14],
-                    custom_collections=self._custom_collections,
-                    chart_id=row[0],
-                ):
-                    count += 1
-            collection_rows.append(
-                {"label": collection_label, "key": collection_id, "count": count, "editable": False}
-            )
-        for custom_collection in sorted(
-            self._custom_collections.values(),
-            key=lambda collection: collection.name.casefold(),
-        ):
-            collection_rows.append(
-                {
-                    "label": custom_collection.name,
-                    "key": custom_collection.collection_id,
-                    "count": len(custom_collection.chart_ids),
-                    "editable": True,
-                }
-            )
-        return collection_rows
-
-    def _property_manager_chart_names(self, field: str, label: str, key: str) -> list[str]:
-        def _values_to_csv(values: object) -> str:
-            if isinstance(values, str):
-                return values
-            if values is None:
-                return ""
-            try:
-                return ",".join(str(value) for value in values if isinstance(value, str))
-            except TypeError:
-                return ""
-
-        matches: list[str] = []
-        rows = [
-            normalized
-            for row in self._chart_rows
-            if (normalized := self._normalize_chart_row(row)) is not None
-        ]
-        for row in rows:
-            chart_id = row[0]
-            chart_name = str(row[1] or row[2] or f"Chart {chart_id}")
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is None:
-                continue
-            if field == ManageMetadataLabelsDialog.FIELD_TAGS:
-                tags = {
-                    tag.casefold()
-                    for tag in parse_tags(_values_to_csv(getattr(chart, "tags", [])))
-                }
-                if label.casefold() in tags:
-                    matches.append(chart_name)
-            elif field == ManageMetadataLabelsDialog.FIELD_SENTIMENTS:
-                sentiments = set(
-                    parse_sentiments(_values_to_csv(getattr(chart, "sentiments", [])))
-                )
-                if label in sentiments:
-                    matches.append(chart_name)
-            elif field == ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS:
-                relationships = set(
-                    parse_relationship_types(
-                        _values_to_csv(getattr(chart, "relationship_types", []))
-                    )
-                )
-                if label in relationships:
-                    matches.append(chart_name)
-            elif field == ManageMetadataLabelsDialog.FIELD_COLLECTIONS:
-                collection_id = normalize_collection_id(key)
-                if collection_id and chart_belongs_to_collection(
-                    collection_id,
-                    chart=chart,
-                    source=row[14],
-                    custom_collections=self._custom_collections,
-                    chart_id=chart_id,
-                ):
-                    matches.append(chart_name)
-        return sorted(matches, key=str.casefold)
+        coordinator = getattr(self, "_property_manager_coordinator", None)
+        if coordinator is None:
+            coordinator = PropertyManagerCoordinator(self)
+            self._property_manager_coordinator = coordinator
+        coordinator.launch(initial_field=initial_field)
 
     def _calibrate_similarity_norms(self) -> None:
         try:
