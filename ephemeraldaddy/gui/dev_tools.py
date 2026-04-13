@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.style import (
+    DEFAULT_DROPDOWN_STYLE,
+    DATABASE_VIEW_HEADER_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
     similarity_gradient_rgb_for_range,
 )
@@ -270,18 +272,42 @@ class ManageMetadataLabelsDialog(QDialog):
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
 
         layout = QVBoxLayout(self)
+
+        self._field_selector = QComboBox(self)
+        self._field_selector.addItem("TAGS", self.FIELD_TAGS)
+        self._field_selector.addItem("COLLECTIONS", self.FIELD_COLLECTIONS)
+        self._field_selector.addItem("RELATIONSHIPS", self.FIELD_RELATIONSHIPS)
+        self._field_selector.addItem("SENTIMENTS", self.FIELD_SENTIMENTS)
+        for index in range(self._field_selector.count()):
+            self._field_selector.setItemData(index, Qt.AlignCenter, Qt.TextAlignmentRole)
+        self._field_selector.currentIndexChanged.connect(self._refresh_list)
+        self._field_selector.setVisible(not lock_field)
+        self._field_selector.setStyleSheet(
+            DEFAULT_DROPDOWN_STYLE
+            + """
+QComboBox {
+    min-height: 36px;
+    padding: 6px 8px;
+    text-align: center;
+    color: """
+            + DATABASE_VIEW_HEADER_COLOR
+            + """;
+    font-weight: 700;
+}
+QComboBox QAbstractItemView {
+    color: """
+            + DATABASE_VIEW_HEADER_COLOR
+            + """;
+    font-weight: 700;
+}
+"""
+        )
+        layout.addWidget(self._field_selector)
+
+        layout.addSpacing(8)
         intro_label = QLabel(intro_text)
         intro_label.setStyleSheet("font-style: italic;")
         layout.addWidget(intro_label)
-
-        self._field_selector = QComboBox(self)
-        self._field_selector.addItem("Tags", self.FIELD_TAGS)
-        self._field_selector.addItem("Collections", self.FIELD_COLLECTIONS)
-        self._field_selector.addItem("Relationships", self.FIELD_RELATIONSHIPS)
-        self._field_selector.addItem("Sentiments", self.FIELD_SENTIMENTS)
-        self._field_selector.currentIndexChanged.connect(self._refresh_list)
-        self._field_selector.setVisible(not lock_field)
-        layout.addWidget(self._field_selector)
 
         split_layout = QHBoxLayout()
         self._list_widget = QListWidget(self)
