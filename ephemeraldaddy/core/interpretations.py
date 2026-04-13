@@ -106,24 +106,24 @@ NATAL_WEIGHT = { #aka NATAL_WEIGHT - use for calculating sign/planet/house/eleme
     "Moon": 10,
     "AS": 10,
     "MC": 9,
-    "IC": 7, #maybe 8
-    "DS": 7, #maybe 8
+    "IC": 6, #maybe 6-7, was 7
+    "DS": 6, #maybe 6-7, was 7
     "Mercury": 7,
     "Venus": 7,
     "Mars": 7,
     "Jupiter": 6,
     "Saturn": 6,
-    "Uranus": 6,
-    "Neptune": 6,
-    "Pluto": 6,
+    "Uranus": 5.5,
+    "Neptune": 5.5,
+    "Pluto": 5.5,
     "Rahu": 4,
     "Ketu": 4,
-    "Chiron": 2,
-    "Ceres": 2,
-    "Lilith": 2,
-    "Juno": 2,
-    "Vesta": 2,
-    "Pallas": 2,
+    "Chiron": 1.5, #was 2, but I think that was high
+    "Ceres": 1.5, #was 2, but I think that was high
+    "Lilith": 1.5, #was 2, but I think that was high
+    "Juno": 1.5, #was 2, but I think that was high
+    "Vesta": 1.5, #was 2, but I think that was high
+    "Pallas": 1.5, #was 2, but I think that was high
     "Part of Fortune": 1,
 }
 
@@ -2098,7 +2098,7 @@ SIGN_KEYWORDS = {
         "core":"Drives toward freedom. Reinvents self to stay uncaged.",
         "strategy":"Identity through transformation. Expresses tension by breaking molds.",
         "function":"Must stay free. Tension magnet, not by intention—but because their aliveness offends the script. Can burn bridges to escape commitment. Emotionally catalytic.",
-        "behavior": ["Can’t be held still.","Shifts shape with emotion and time.","Often lionized for what breaks them.",],
+        "behavior": ["Can’t be held still.","Shifts shape with emotion and time.",],
         "season": "autumnal",
         "fertility": None,
         "bicorporeal": True,
