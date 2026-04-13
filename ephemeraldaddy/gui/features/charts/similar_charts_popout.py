@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 
@@ -278,6 +279,48 @@ def build_similarity_reasoning_panel_text(
         ]
     )
 
+
+def build_similarity_reasoning_panel_html(
+    *,
+    match: Any,
+    subject_name: str,
+    subject_chart: Any | None = None,
+    compared_chart: Any | None = None,
+    resolve_similarity_band: Callable[[float], tuple[str, str]],
+) -> str:
+    text = build_similarity_reasoning_panel_text(
+        match=match,
+        subject_name=subject_name,
+        subject_chart=subject_chart,
+        compared_chart=compared_chart,
+        resolve_similarity_band=resolve_similarity_band,
+    )
+    lines = text.splitlines()
+    html_lines: list[str] = []
+    for raw_line in lines:
+        line = html.escape(raw_line)
+        if raw_line.startswith("SIMILARITY ANALYSIS"):
+            html_lines.append(f"<div style='font-weight:700'>{line}</div>")
+            continue
+        if raw_line in {"Reasoning:", "Placements in common:", "Aspects in common:", "Distribution similarities:", "Nakshatras in common:", "Defined centers in common:"}:
+            html_lines.append(f"<div style='margin-top:6px;font-weight:600'>{line}</div>")
+            continue
+        if raw_line.startswith("Charts: "):
+            html_lines.append(f"<div><span style='font-weight:600'>Charts:</span> {html.escape(raw_line.replace('Charts: ', '', 1))}</div>")
+            continue
+        if raw_line.startswith("Defined centers in common:"):
+            html_lines.append(f"<div style='margin-top:6px;font-weight:600'>{line}</div>")
+            continue
+        if raw_line and "," in raw_line and all(token.strip() in HD_CENTERS for token in raw_line.split(",")):
+            colored = []
+            for center_name in [token.strip() for token in raw_line.split(",")]:
+                color = str(HD_CENTERS.get(center_name, {}).get("color") or "#cccccc")
+                colored.append(f"<span style='color:{html.escape(color)};font-weight:600'>{html.escape(center_name)}</span>")
+            html_lines.append("<div>" + ", ".join(colored) + "</div>")
+            continue
+        html_lines.append(f"<div>{line if line else '&nbsp;'}</div>")
+    return "".join(html_lines)
+
 def load_similar_chart_candidates(
     *,
     rows: list[tuple[Any, ...]],
@@ -319,6 +362,8 @@ def render_similar_match_blocks(
             extra_bits.append(f"nakshatra {float(match.nakshatra_score) * 100.0:.0f}%")
         if getattr(match, "hd_centers_score", None) is not None:
             extra_bits.append(f"defined centers {float(match.hd_centers_score) * 100.0:.0f}%")
+        if getattr(match, "dominance_score", None) is not None:
+            extra_bits.insert(0, f"dominance {float(match.dominance_score) * 100.0:.0f}%")
         extra_suffix = f", {', '.join(extra_bits)}" if extra_bits else ""
         blocks.append(
             (

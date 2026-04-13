@@ -75,6 +75,7 @@ class AstroTwinMatch:
     placement_score: float
     aspect_score: float
     distribution_score: float
+    dominance_score: float | None = None
     nakshatra_score: float | None = None
     hd_centers_score: float | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
@@ -547,6 +548,7 @@ def find_astro_twins(
             placement_score=placement_score,
             aspect_score=aspect_score,
             distribution_score=distribution_score,
+            dominance_score=_dominance_similarity(query_chart, candidate),
             nakshatra_score=nakshatra_score,
             hd_centers_score=hd_centers_score,
             algorithm_mode=(
