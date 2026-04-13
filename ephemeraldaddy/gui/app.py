@@ -662,6 +662,7 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
+    similarity_gradient_rgb_from_ratio,
     configure_collapsible_header_toggle,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
@@ -6013,12 +6014,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 percent_difference = abs(percent_value - db_percent_value)
                 difference_ratio = min(percent_difference, 10) / 10.0
-                # Keep zero-difference labels readable (dark red floor), then brighten
-                # progressively toward vivid green as the deviation approaches/exceeds 10%.
-                minimum_readable_red = 140
-                maximum_bright_green = 255
-                similarity_red = int(round(minimum_readable_red * (1.0 - difference_ratio)))
-                similarity_green = int(round(maximum_bright_green * difference_ratio))
+                similarity_red, similarity_green, similarity_blue = similarity_gradient_rgb_from_ratio(
+                    difference_ratio
+                )
                 item = QListWidgetItem()
 
                 row_widget = QWidget(section_list)
@@ -6037,7 +6035,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 label_font.setPointSize(max(1, label_font.pointSize() - 1))
                 label_widget.setFont(label_font)
                 label_widget.setStyleSheet(
-                    f"color: rgb({similarity_red}, {similarity_green}, 0);"
+                    f"color: rgb({similarity_red}, {similarity_green}, {similarity_blue});"
                 )
                 top_layout.addWidget(label_widget, stretch=1)
 
@@ -16191,6 +16189,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         manage_collections_button.clicked.connect(self._show_manage_collections_panel)
         property_managers_section.addWidget(manage_collections_button)
 
+        manage_tags_button = QPushButton("Tag Manager")
+        manage_tags_button.clicked.connect(self._launch_manage_tags_dialog)
+        property_managers_section.addWidget(manage_tags_button)
+
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
@@ -16654,9 +16656,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             title="Manage Relationship Types",
         )
 
+    def _launch_manage_tags_dialog(self) -> None:
+        self._launch_manage_metadata_dialog(
+            field=ManageMetadataLabelsDialog.FIELD_TAGS,
+            title="Tag Manager",
+        )
+
     def _launch_manage_metadata_dialog(self, *, field: str, title: str) -> None:
-        all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
-        max_len = max((len(value) for value in all_labels), default=32)
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            # Tags are free-form and not constrained to sentiment/relationship
+            # option lengths. Use Qt's default practical max to avoid truncating
+            # long tags during rename.
+            max_len = 32767
+        else:
+            all_labels = list(SENTIMENT_OPTIONS) + list(RELATION_TYPE)
+            max_len = max((len(value) for value in all_labels), default=32)
         dialog = ManageMetadataLabelsDialog(
             parent=self,
             load_usage=get_metadata_label_usage,
@@ -16667,6 +16681,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             window_title=title,
         )
         dialog.exec()
+        if field == ManageMetadataLabelsDialog.FIELD_TAGS:
+            self._update_tag_completers()
         self._refresh_charts(refresh_metrics=True, force_full_analysis_refresh=True)
 
     def _calibrate_similarity_norms(self) -> None:
