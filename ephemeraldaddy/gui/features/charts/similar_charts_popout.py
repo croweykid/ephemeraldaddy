@@ -481,9 +481,9 @@ def build_similar_charts_popout_dialog(
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
 
-    title_label = QLabel(f"Similar Charts for {subject_name}")
-    title_label.setStyleSheet(header_style)
-    layout.addWidget(title_label)
+    # title_label = QLabel(f"Similar Charts for {subject_name}")
+    # title_label.setStyleSheet(header_style)
+    # layout.addWidget(title_label)
 
     splitter = QSplitter(Qt.Horizontal)
     splitter.setChildrenCollapsible(False)
@@ -496,9 +496,9 @@ def build_similar_charts_popout_dialog(
     info_layout = QVBoxLayout(info_panel)
     info_layout.setContentsMargins(0, 0, 0, 0)
     info_layout.setSpacing(6)
-    #info_header = QLabel("") #don't need no stinkin' QLabel here.
-    info_header.setStyleSheet(header_style)
-    info_layout.addWidget(info_header)
+    # info_header = QLabel("") #don't need no stinkin' QLabel here.
+    # info_header.setStyleSheet(header_style)
+    # info_layout.addWidget(info_header)
     info_output = QLabel("Click ⓘ next to a chart to view similarity analysis.")
     info_output.setWordWrap(True)
     info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
