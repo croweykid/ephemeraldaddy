@@ -18967,6 +18967,12 @@ class MainWindow(QMainWindow):
             return
         self._on_similar_chart_link_activated(normalized_target)
 
+    def _on_similar_chart_popout_analysis_mode_changed(self, dialog: QDialog) -> None:
+        target = str(getattr(dialog, "_similar_chart_popout_last_info_target", "") or "").strip()
+        if not target:
+            return
+        self._show_similar_chart_reasoning(target, target_dialog=dialog)
+
     def _show_similar_chart_reasoning(self, target: str, *, target_dialog: QDialog | None = None) -> None:
         dialog_reasoning_by_target = (
             getattr(target_dialog, "_similar_chart_popout_reasoning_by_target", {})
@@ -19004,22 +19010,60 @@ class MainWindow(QMainWindow):
         )
         if subject_chart is None:
             subject_chart = self._latest_chart
-        html_text = build_similarity_reasoning_panel_html(
-            match=match,
-            subject_name=subject_name,
-            subject_chart=subject_chart,
-            compared_chart=compared_chart,
-            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-            resolve_similarity_band=self._similarity_band_for_percent,
-        )
-        plain_text = build_similarity_reasoning_panel_text(
-            match=match,
-            subject_name=subject_name,
-            subject_chart=subject_chart,
-            compared_chart=compared_chart,
-            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-            resolve_similarity_band=self._similarity_band_for_percent,
-        )
+        analysis_mode = "similarities"
+        if target_dialog is not None:
+            popout_analysis_dropdown = getattr(target_dialog, "_similar_chart_popout_analysis_dropdown", None)
+            if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData"):
+                selected_mode = str(popout_analysis_dropdown.currentData() or "").strip().lower()
+                if selected_mode in {"similarities", "dissimilarities", "bio"}:
+                    analysis_mode = selected_mode
+            target_dialog._similar_chart_popout_last_info_target = target
+
+        compared_name = str(getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}")
+        compared_name = compared_name.strip() or "Unknown chart"
+        biography_text = ""
+        if compared_chart is not None:
+            biography_text = str(getattr(compared_chart, "biography", "") or "").strip()
+            if not biography_text:
+                biography_text = str(getattr(compared_chart, "bio", "") or "").strip()
+            chart_metadata = getattr(compared_chart, "metadata", None)
+            if not biography_text and isinstance(chart_metadata, dict):
+                biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
+        if analysis_mode == "bio":
+            if biography_text:
+                html_text = (
+                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
+                    f"<div style='margin-top:8px;color:#f5f5f5'>{html.escape(biography_text).replace(chr(10), '<br>')}</div>"
+                )
+                plain_text = f"BIO\n\n{biography_text}"
+            else:
+                placeholder = (
+                    f"The database doesn't have any information on {compared_name}'s backstory, so far..."
+                )
+                html_text = (
+                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
+                    f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
+                )
+                plain_text = f"BIO\n\n{placeholder}"
+        else:
+            html_text = build_similarity_reasoning_panel_html(
+                match=match,
+                subject_name=subject_name,
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                resolve_similarity_band=self._similarity_band_for_percent,
+                analysis_mode=analysis_mode,
+            )
+            plain_text = build_similarity_reasoning_panel_text(
+                match=match,
+                subject_name=subject_name,
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                resolve_similarity_band=self._similarity_band_for_percent,
+                analysis_mode=analysis_mode,
+            )
         if popout_info_output is not None:
             if hasattr(popout_info_output, "setHtml"):
                 popout_info_output.setHtml(html_text)
@@ -19318,6 +19362,7 @@ class MainWindow(QMainWindow):
             resolve_similarity_band=self._similarity_band_for_percent,
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
+            on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
         )
         dialog._similar_chart_popout_subject_name = subject_name
         dialog._similar_chart_popout_subject_chart = chart
