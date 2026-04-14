@@ -16437,7 +16437,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
             on_mode_custom_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
-            on_settings_changed=self._save_similarity_calculator_from_controls,
+            on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
+            on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
@@ -16449,6 +16450,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
+        self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
@@ -16564,11 +16566,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         del blocker_default
         del blocker_comprehensive
         del blocker_custom
-        is_custom_mode = normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM
-        for checkbox in getattr(self, "_similarity_calculator_checkboxes", {}).values():
-            checkbox.setEnabled(is_custom_mode)
-        for spinbox in getattr(self, "_similarity_calculator_weights", {}).values():
-            spinbox.setEnabled(is_custom_mode)
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._handle_similar_charts_algorithm_mode_changed(normalized)
@@ -16596,6 +16593,91 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 blocker = QSignalBlocker(spinbox)
                 spinbox.setValue(float(getattr(settings, weight_attr)))
                 del blocker
+        self._update_similarity_calculator_weight_constraints_and_total()
+
+    def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
+        checkbox = self._similarity_calculator_checkboxes.get(key)
+        if checkbox is None:
+            return
+        if checked:
+            checked_keys = [
+                row_key
+                for row_key, row_checkbox in self._similarity_calculator_checkboxes.items()
+                if row_key != key and row_checkbox.isChecked()
+            ]
+            checked_total = sum(
+                float(self._similarity_calculator_weights[row_key].value())
+                for row_key in checked_keys
+            )
+            if checked_total >= 0.9999 and checked_keys:
+                new_weight = min(1.0, len(checked_keys) * 0.01)
+                target_total_existing = max(0.0, 1.0 - new_weight)
+                scale = target_total_existing / checked_total if checked_total > 0 else 0.0
+                for row_key in checked_keys:
+                    spinbox = self._similarity_calculator_weights.get(row_key)
+                    if spinbox is None:
+                        continue
+                    blocker = QSignalBlocker(spinbox)
+                    spinbox.setValue(round(float(spinbox.value()) * scale, 2))
+                    del blocker
+                new_spinbox = self._similarity_calculator_weights.get(key)
+                if new_spinbox is not None:
+                    blocker = QSignalBlocker(new_spinbox)
+                    new_spinbox.setValue(round(new_weight, 2))
+                    del blocker
+        self._update_similarity_calculator_weight_constraints_and_total()
+        self._save_similarity_calculator_from_controls()
+
+    def _on_similarity_calculator_weight_changed(self, key: str, value: float) -> None:
+        spinbox = self._similarity_calculator_weights.get(key)
+        if spinbox is None:
+            return
+        checkbox = self._similarity_calculator_checkboxes.get(key)
+        is_checked = bool(checkbox is not None and checkbox.isChecked())
+        if is_checked:
+            checked_total_excluding_current = sum(
+                float(other_spinbox.value())
+                for other_key, other_spinbox in self._similarity_calculator_weights.items()
+                if other_key != key and self._similarity_calculator_checkboxes[other_key].isChecked()
+            )
+            allowed_value = max(0.0, min(1.0, 1.0 - checked_total_excluding_current))
+            if value > allowed_value + 1e-9:
+                blocker = QSignalBlocker(spinbox)
+                spinbox.setValue(round(allowed_value, 2))
+                del blocker
+        self._update_similarity_calculator_weight_constraints_and_total()
+        self._save_similarity_calculator_from_controls()
+
+    def _update_similarity_calculator_weight_constraints_and_total(self) -> None:
+        checkboxes = getattr(self, "_similarity_calculator_checkboxes", {})
+        weights = getattr(self, "_similarity_calculator_weights", {})
+        if not checkboxes or not weights:
+            return
+
+        checked_total = sum(
+            float(weights[key].value())
+            for key, checkbox in checkboxes.items()
+            if checkbox.isChecked() and key in weights
+        )
+
+        for key, spinbox in weights.items():
+            checkbox = checkboxes.get(key)
+            if checkbox is None:
+                continue
+            if checkbox.isChecked():
+                other_checked_total = sum(
+                    float(other_spinbox.value())
+                    for other_key, other_spinbox in weights.items()
+                    if other_key != key and checkboxes.get(other_key) is not None and checkboxes[other_key].isChecked()
+                )
+                max_for_current = max(0.0, 1.0 - other_checked_total)
+            else:
+                max_for_current = 1.0
+            spinbox.setMaximum(round(max_for_current, 2))
+
+        total_label = getattr(self, "_similarity_calculator_total_label", None)
+        if isinstance(total_label, QLabel):
+            total_label.setText(f"{checked_total:.2f} / 1.00 ({checked_total * 100.0:.1f}%)")
 
     def _save_similarity_calculator_from_controls(self) -> None:
         if not getattr(self, "_similarity_calculator_checkboxes", None):

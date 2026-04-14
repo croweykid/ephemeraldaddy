@@ -55,7 +55,8 @@ def build_similarity_calculator_settings_section(
     on_mode_default_toggled: Callable[[bool], None],
     on_mode_comprehensive_toggled: Callable[[bool], None],
     on_mode_custom_toggled: Callable[[bool], None],
-    on_settings_changed: Callable[[], None],
+    on_checkbox_toggled: Callable[[str, bool], None],
+    on_weight_changed: Callable[[str, float], None],
     on_reset_weights_clicked: Callable[[], None],
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
@@ -92,21 +93,41 @@ def build_similarity_calculator_settings_section(
     calculator_grid.setContentsMargins(0, 0, 0, 0)
     calculator_grid.setHorizontalSpacing(8)
     calculator_grid.setVerticalSpacing(6)
-    calculator_grid.addWidget(QLabel("Factor"), 0, 0)
-    calculator_grid.addWidget(QLabel("Use"), 0, 1)
+    calculator_grid.addWidget(QLabel("Factor"), 0, 1)
     calculator_grid.addWidget(QLabel("Weight"), 0, 2)
+    calculator_grid.addWidget(QLabel("Selected Total"), 0, 3)
+    total_weight_value_label = QLabel("0.00 / 1.00 (0.0%)")
+    total_weight_value_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
+    calculator_grid.addWidget(
+        total_weight_value_label,
+        1,
+        3,
+        len(SIMILARITY_CALCULATOR_FACTOR_ROWS),
+        1,
+        alignment=Qt.AlignRight | Qt.AlignTop,
+    )
     for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
-        calculator_grid.addWidget(QLabel(label_text), row_index, 0)
+        calculator_grid.addWidget(QLabel(label_text), row_index, 1)
         enabled_checkbox = QCheckBox()
         enabled_checkbox.setChecked(True)
-        enabled_checkbox.stateChanged.connect(lambda _state, _: on_settings_changed())
-        calculator_grid.addWidget(enabled_checkbox, row_index, 1, alignment=Qt.AlignCenter)
+        enabled_checkbox.stateChanged.connect(
+            lambda _state, row_key=key, checkbox=enabled_checkbox: on_checkbox_toggled(
+                row_key,
+                checkbox.isChecked(),
+            )
+        )
+        calculator_grid.addWidget(enabled_checkbox, row_index, 0, alignment=Qt.AlignCenter)
         weight_spinbox = QDoubleSpinBox()
         weight_spinbox.setDecimals(2)
         weight_spinbox.setRange(0.0, 1.0)
         weight_spinbox.setSingleStep(0.01)
         weight_spinbox.setAlignment(Qt.AlignRight)
-        weight_spinbox.valueChanged.connect(lambda _value: on_settings_changed())
+        weight_spinbox.valueChanged.connect(
+            lambda _value, row_key=key, spinbox=weight_spinbox: on_weight_changed(
+                row_key,
+                float(spinbox.value()),
+            )
+        )
         calculator_grid.addWidget(weight_spinbox, row_index, 2)
         calculator_checkboxes[key] = enabled_checkbox
         calculator_weights[key] = weight_spinbox
@@ -172,6 +193,7 @@ def build_similarity_calculator_settings_section(
         "custom_radio": custom_radio,
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,
+        "calculator_total_label": total_weight_value_label,
         "threshold_spinboxes": threshold_spinboxes,
     }
 
