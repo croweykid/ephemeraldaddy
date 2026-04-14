@@ -3003,6 +3003,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             dropdown_options=[
                 ("Sign Prevalence", "sign_prevalence"),
+                ("House Prevalence", "house_prevalence"),
                 ("Elemental Prevalence", "elemental_prevalence"),
                 ("Nakshatra Prevalence", "nakshatra_prevalence"),
             ],
