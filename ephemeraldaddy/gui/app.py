@@ -130,6 +130,7 @@ from PySide6.QtGui import (
     QTextCharFormat,
     QTextCursor,
     QColor,
+    QPalette,
     QFont,
     QFontMetrics,
     QGuiApplication,
@@ -226,6 +227,23 @@ class _GlobalCloseShortcutFilter(QObject):
 
         target.close()
         return True
+
+
+class _ComboItemColorDelegate(QStyledItemDelegate):
+    """Respects per-item foreground role colors in combo popup rows."""
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        super().initStyleOption(option, index)
+        foreground_value = index.data(Qt.ForegroundRole)
+        if isinstance(foreground_value, QBrush):
+            foreground_brush = foreground_value
+        elif isinstance(foreground_value, QColor):
+            foreground_brush = QBrush(foreground_value)
+        else:
+            return
+        option.palette.setBrush(QPalette.Text, foreground_brush)
+        option.palette.setBrush(QPalette.ButtonText, foreground_brush)
+        option.palette.setBrush(QPalette.WindowText, foreground_brush)
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
@@ -1913,8 +1931,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_row.setLayout(list_header_layout)
 
         self.collection_combo = QComboBox()
+        self.collection_combo.setItemDelegate(_ComboItemColorDelegate(self.collection_combo))
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
-            self.collection_combo.addItem(collection_label, collection_id)
+            self._add_collection_combo_item(
+                collection_label=collection_label,
+                collection_id=collection_id,
+                is_default=True,
+            )
         self.collection_combo.currentIndexChanged.connect(self._on_collection_changed)
         list_header_layout.addWidget(self.collection_combo)
         self.mark_not_duplicates_button = QPushButton('Mark "Not Duplicates"')
@@ -12850,21 +12873,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_duplicate_sets_sort_availability()
         self.collection_combo.clear()
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
-            self.collection_combo.addItem(collection_label, collection_id)
+            self._add_collection_combo_item(
+                collection_label=collection_label,
+                collection_id=collection_id,
+                is_default=True,
+            )
         if self._show_possible_duplicates_collection:
-            self.collection_combo.addItem(
-                "*possible duplicates*",
-                DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
+            self._add_collection_combo_item(
+                collection_label="*possible duplicates*",
+                collection_id=DEFAULT_COLLECTION_POSSIBLE_DUPLICATES,
+                is_default=True,
             )
         for custom_collection in sorted(
             self._custom_collections.values(),
             key=lambda collection: collection.name.casefold(),
         ):
-            self.collection_combo.addItem(custom_collection.name, custom_collection.collection_id)
+            self._add_collection_combo_item(
+                collection_label=custom_collection.name,
+                collection_id=custom_collection.collection_id,
+                is_default=False,
+            )
         active_index = self.collection_combo.findData(active_collection_id)
         self.collection_combo.setCurrentIndex(max(0, active_index))
         self.collection_combo.blockSignals(False)
         self._refresh_collection_list_widget()
+
+    def _add_collection_combo_item(
+        self,
+        collection_label: str,
+        collection_id: str,
+        *,
+        is_default: bool,
+    ) -> None:
+        display_label = f"🔒 {collection_label}" if is_default else collection_label
+        self.collection_combo.addItem(display_label, collection_id)
+        item_index = self.collection_combo.count() - 1
+        color = QColor("#b0b0b0") if is_default else QColor("#ffffff")
+        self.collection_combo.setItemData(item_index, QBrush(color), Qt.ForegroundRole)
 
 
     def _update_duplicate_sets_sort_availability(self) -> None:
@@ -12883,9 +12928,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self.collections_list_widget.clear()
         for collection_label, _collection_id in DEFAULT_COLLECTION_OPTIONS:
-            item = QListWidgetItem(f"{collection_label} (default)")
+            item = QListWidgetItem(f"🔒 {collection_label} (default)")
             item.setData(Qt.UserRole, "")
             item.setFlags(Qt.ItemIsEnabled)
+            item.setForeground(QBrush(QColor("#b0b0b0")))
             self.collections_list_widget.addItem(item)
         for custom_collection in sorted(
             self._custom_collections.values(),
@@ -12893,6 +12939,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             item = QListWidgetItem(custom_collection.name)
             item.setData(Qt.UserRole, custom_collection.collection_id)
+            item.setForeground(QBrush(QColor("#ffffff")))
             self.collections_list_widget.addItem(item)
         self._update_collection_membership_buttons()
 
