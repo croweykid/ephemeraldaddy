@@ -17,22 +17,6 @@ ZODIAC_NAMES = (
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
 
-HD_GATE_OCCURRENCE_COLORS: dict[int, str] = {
-    1: "#c24a4a",
-    2: "#d98e2f",
-    3: "#8ea63b",
-    4: "#2f9e44",
-    5: "#5dc26a",  # 5 is the "4+" bucket key
-}
-
-
-def get_hd_gate_occurrence_color(gate_occurrence_count: int) -> str:
-    """Return heatmap color for a gate occurrence count."""
-    if gate_occurrence_count <= 0:
-        return "#d6d6d6"
-    bucket = 5 if gate_occurrence_count > 4 else gate_occurrence_count
-    return HD_GATE_OCCURRENCE_COLORS.get(bucket, "#d6d6d6")
-
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
@@ -214,10 +198,42 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
 
 def _render_clickable_gate_line_summary(
     active_lines: set[tuple[int, int]],
-) -> tuple[str, list[dict[str, object]]]:
-    lines_text, line_entries = _render_clickable_lines(active_lines)
-
-    return lines_text, [dict(entry) for entry in line_entries]
+) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
+    if not active_lines:
+        return ["None"], {}
+    grouped_lines: dict[int, list[int]] = {}
+    for gate, line in sorted(active_lines, key=lambda item: (item[0], item[1])):
+        grouped_lines.setdefault(gate, []).append(line)
+    rendered_rows: list[str] = []
+    row_info_map: dict[int, list[dict[str, object]]] = {}
+    for gate in sorted(grouped_lines):
+        line_numbers = grouped_lines[gate]
+        parts: list[str] = []
+        row_entries: list[dict[str, object]] = []
+        cursor = 0
+        for idx, line in enumerate(line_numbers):
+            token = f"{gate}.{line}"
+            parts.append(token)
+            span_start = cursor
+            span_end = cursor + len(token)
+            row_entries.append(
+                {
+                    "kind": "hd_gate_line",
+                    "gate": gate,
+                    "line": line,
+                    "span_start": span_start,
+                    "span_end": span_end,
+                }
+            )
+            cursor += len(token)
+            if idx < len(line_numbers) - 1:
+                separator = ", "
+                parts.append(separator)
+                cursor += len(separator)
+        row_index = len(rendered_rows)
+        rendered_rows.append("".join(parts))
+        row_info_map[row_index] = row_entries
+    return rendered_rows, row_info_map
 
 
 def _render_clickable_property(
@@ -341,7 +357,7 @@ def build_human_design_chart_data_output(
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
-    gate_line_summary, gate_line_info_entries = _render_clickable_gate_line_summary(active_line_set)
+    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_line_set)
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
@@ -384,7 +400,7 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         "GATES & LINES",
         CHART_DATA_DIVIDER,
-        gate_line_summary,
+        *gate_line_lines,
         "",
         CHART_DATA_DIVIDER,
         "CHANNELS",
@@ -398,7 +414,9 @@ def build_human_design_chart_data_output(
     ]
     gates_lines_header_index = rendered_lines.index("GATES & LINES")
     gates_lines_block_start = gates_lines_header_index + 2
-    position_info_map.setdefault(positions_start_index + gates_lines_block_start, []).extend(gate_line_info_entries)
+    for relative_line_index, entries in gate_line_info_map.items():
+        absolute_line_index = positions_start_index + gates_lines_block_start + relative_line_index
+        position_info_map.setdefault(absolute_line_index, []).extend(entries)
     for line_text, entry in (
         (type_line, type_info_entry),
         (authority_line, authority_info_entry),
