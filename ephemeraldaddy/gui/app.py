@@ -25200,13 +25200,21 @@ class MainWindow(QMainWindow):
                 "\n".join(
                     [
                         center_name,
-                        f"*{description}*",
+                        description,
                         "",
                         state_label,
                         state_detail,
                     ]
                 )
             )
+
+        def _show_popout_gate_info(gate: int) -> None:
+            original_chart_info_output = getattr(self, "chart_info_output", None)
+            try:
+                self.chart_info_output = chart_info_output
+                self._show_human_design_gate_line_info(int(gate), None)
+            finally:
+                self.chart_info_output = original_chart_info_output
 
         def _on_bodygraph_click(event: Any) -> None:
             if event.inaxes is None or event.xdata is None or event.ydata is None:
@@ -25223,7 +25231,7 @@ class MainWindow(QMainWindow):
                 gate_text = gate_segment_id.split(":", 1)[1]
                 if not gate_text.isdigit():
                     continue
-                self._show_human_design_gate_line_info(int(gate_text), None)
+                _show_popout_gate_info(int(gate_text))
                 return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
