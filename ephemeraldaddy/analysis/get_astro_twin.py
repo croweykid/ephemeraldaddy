@@ -402,10 +402,10 @@ def chart_similarity_score(query: Chart, candidate: Chart) -> tuple[float, float
     distribution_score = _distribution_similarity(query, candidate)
     dominance_score = _dominance_similarity(query, candidate)
     final_score = (
-        (placement_score * 0.33)
-        + (aspect_score * 0.22)
+        (placement_score * 0.38)
+        + (aspect_score * 0.27)
         + (distribution_score * 0.10)
-        + (dominance_score * 0.35)
+        + (dominance_score * 0.25)
     )
     return final_score, placement_score, aspect_score, distribution_score
 
@@ -419,10 +419,10 @@ def chart_similarity_score_comprehensive(
     nakshatra_score = _nakshatra_similarity(query, candidate)
     hd_centers_score = _defined_centers_similarity(query, candidate)
     comprehensive_score = (
-        (placement_score * 0.27)
+        (placement_score * 0.33)
         + (aspect_score * 0.18)
-        + (distribution_score * 0.08)
-        + (dominance_score * 0.27)
+        + (distribution_score * 0.03)
+        + (dominance_score * 0.26)
         + (nakshatra_score * 0.12)
         + (hd_centers_score * 0.08)
     )
