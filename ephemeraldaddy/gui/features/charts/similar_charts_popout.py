@@ -496,7 +496,7 @@ def build_similar_charts_popout_dialog(
     info_layout = QVBoxLayout(info_panel)
     info_layout.setContentsMargins(0, 0, 0, 0)
     info_layout.setSpacing(6)
-    info_header = QLabel("Chart Info")
+    #info_header = QLabel("") #don't need no stinkin' QLabel here.
     info_header.setStyleSheet(header_style)
     info_layout.addWidget(info_header)
     info_output = QLabel("Click ⓘ next to a chart to view similarity analysis.")
