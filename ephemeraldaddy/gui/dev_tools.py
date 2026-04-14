@@ -139,6 +139,7 @@ def build_similarity_calculator_settings_section(
     weighting_mode_combo = QComboBox()
     weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
     weighting_mode_combo.addItem("Generic base weights", "generic")
+    weighting_mode_combo.addItem("Hybrid (generic + dominant body bonuses)", "hybrid")
     weighting_mode_combo.currentIndexChanged.connect(
         lambda _index: on_placement_weighting_mode_changed(
             str(weighting_mode_combo.currentData() or "chart_defined")

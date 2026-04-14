@@ -13,6 +13,7 @@ SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
+PLACEMENT_WEIGHTING_MODE_HYBRID = "hybrid"
 
 SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "placement",
@@ -161,6 +162,7 @@ def normalize_placement_weighting_mode(value: object) -> str:
     if normalized in {
         PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
         PLACEMENT_WEIGHTING_MODE_GENERIC,
+        PLACEMENT_WEIGHTING_MODE_HYBRID,
     }:
         return normalized
     return PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
@@ -197,22 +199,51 @@ def _house_for_body(chart: Chart, body: str) -> int | None:
 
 
 def _placement_body_weights(query: Chart, weighting_mode: str) -> dict[str, float]:
+    normalized_mode = normalize_placement_weighting_mode(weighting_mode)
     generic_weights = {
         body: max(0.0, float(NATAL_WEIGHT.get(body, 1.0)))
         for body in CORE_BODIES
     }
-    if normalize_placement_weighting_mode(weighting_mode) != PLACEMENT_WEIGHTING_MODE_CHART_DEFINED:
+    if normalized_mode == PLACEMENT_WEIGHTING_MODE_GENERIC:
         return generic_weights
 
     chart_weights = getattr(query, "dominant_planet_weights", None) or {}
-    resolved: dict[str, float] = {}
+    resolved = dict(generic_weights)
+
     for body in CORE_BODIES:
         chart_weight = chart_weights.get(body)
         if chart_weight is None:
-            resolved[body] = generic_weights.get(body, 1.0)
             continue
         resolved[body] = max(0.0, float(chart_weight))
-    return resolved
+
+    if normalized_mode == PLACEMENT_WEIGHTING_MODE_CHART_DEFINED:
+        return resolved
+
+    if not chart_weights:
+        return generic_weights
+
+    ranked_bodies = [
+        body
+        for body, _ in sorted(
+            (
+                (body, max(0.0, float(weight)))
+                for body, weight in chart_weights.items()
+                if body in CORE_BODIES and weight is not None
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    ]
+    top_bodies = ranked_bodies[:3]
+    top_set = set(top_bodies)
+    bottom_bodies = [body for body in reversed(ranked_bodies) if body not in top_set][:3]
+
+    hybrid_weights = dict(generic_weights)
+    for body in top_bodies:
+        hybrid_weights[body] = hybrid_weights.get(body, 1.0) * 1.25
+    for body in bottom_bodies:
+        hybrid_weights[body] = hybrid_weights.get(body, 1.0) * 0.75
+    return hybrid_weights
 
 
 def _placement_similarity(
