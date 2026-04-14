@@ -467,6 +467,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_element_prevalence_counts as _calculate_element_prevalence_counts,
     calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
     calculate_gender_weight_score as _calculate_gender_weight_score,
+    calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
     calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
     calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
@@ -2387,6 +2388,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         label_by_mode = {
             "sign_prevalence": "Distribution of signs (all positions) in database",
+            "house_prevalence": "Distribution of houses (all positions) in database",
             "elemental_prevalence": "Distribution of elements in database",
             "nakshatra_prevalence": "Distribution of nakshatras in database",
         }
@@ -7552,6 +7554,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "negative_count": 0,
             "sign_totals": {sign: 0 for sign in ZODIAC_NAMES},
             "sign_total_count": 0.0,
+            "house_prevalence_totals": {house_num: 0.0 for house_num in range(1, 13)},
+            "house_prevalence_total_count": 0.0,
             "element_prevalence_totals": {
                 element: 0.0 for element in ("Fire", "Earth", "Air", "Water")
             },
@@ -7690,6 +7694,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign = _sign_for_longitude(chart.positions[body])
                 snapshot["sign_totals"][sign] += 1
                 snapshot["sign_total_count"] += 1
+
+            house_prevalence_counts = _calculate_house_prevalence_counts(chart)
+            for house_num in range(1, 13):
+                count = float(house_prevalence_counts.get(house_num, 0.0))
+                snapshot["house_prevalence_totals"][house_num] += count
+                snapshot["house_prevalence_total_count"] += count
 
             element_prevalence_counts = _calculate_element_prevalence_counts(chart)
             for element in ("Fire", "Earth", "Air", "Water"):
@@ -7938,10 +7948,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["dominant_planet_weight_totals"].get(body, 0.0)
             )
         for house_num in range(1, 13):
+            totals["house_prevalence_totals"][house_num] += direction * float(
+                snapshot["house_prevalence_totals"].get(house_num, 0.0)
+            )
             totals["dominant_house_totals"][house_num] += direction * float(snapshot["dominant_house_totals"].get(house_num, 0.0))
             totals["dominant_house_weight_totals"][house_num] += direction * float(
                 snapshot["dominant_house_weight_totals"].get(house_num, 0.0)
             )
+        totals["house_prevalence_total_count"] += direction * float(
+            snapshot.get("house_prevalence_total_count", 0.0)
+        )
         for element in ("Fire", "Earth", "Air", "Water"):
             totals["element_prevalence_totals"][element] += direction * float(
                 snapshot["element_prevalence_totals"].get(element, 0.0)
@@ -9470,7 +9486,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     )
 
             prevalence_mode = self._prevalence_mode
-            if prevalence_mode == "elemental_prevalence":
+            if prevalence_mode == "house_prevalence":
+                prevalence_labels = [str(num) for num in range(1, 13)]
+                selection_prevalence = {
+                    label: (
+                        selection_cache["house_prevalence_totals"][int(label)]
+                        / selection_cache["house_prevalence_total_count"]
+                        if selection_cache["house_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                database_prevalence = {
+                    label: (
+                        database_cache["house_prevalence_totals"][int(label)]
+                        / database_cache["house_prevalence_total_count"]
+                        if database_cache["house_prevalence_total_count"]
+                        else 0.0
+                    )
+                    for label in prevalence_labels
+                }
+                selection_prevalence_counts = {
+                    label: selection_cache["house_prevalence_totals"][int(label)]
+                    for label in prevalence_labels
+                }
+                database_prevalence_counts = {
+                    label: database_cache["house_prevalence_totals"][int(label)]
+                    for label in prevalence_labels
+                }
+            elif prevalence_mode == "elemental_prevalence":
                 prevalence_labels = ["Fire", "Earth", "Air", "Water"]
                 selection_prevalence = {
                     label: (
@@ -19275,7 +19319,11 @@ class MainWindow(QMainWindow):
                 planets = _dominant_planet_keys(chart)
             return [[planet, counts.get(planet, 0)] for planet in planets]
         if chart_key == "dominant_houses":
-            counts = _calculate_dominant_house_weights(chart)
+            mode = self._chart_analysis_selected_mode(chart_key, "dominant_houses")
+            if mode == "house_prevalence":
+                counts = _calculate_house_prevalence_counts(chart)
+            else:
+                counts = _calculate_dominant_house_weights(chart)
             return [[str(house_num), counts.get(house_num, 0)] for house_num in range(1, 13)]
         if chart_key == "dominant_elements":
             mode = self._chart_analysis_selected_mode(chart_key, "dominant_elements")
@@ -19939,7 +19987,12 @@ class MainWindow(QMainWindow):
         return "".join(lines)
 
     def _build_house_popout_info(self, chart: Chart, house_num: int) -> str:
-        ranked_weights = _calculate_dominant_house_weights(chart)
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
+        ranked_weights = (
+            _calculate_house_prevalence_counts(chart)
+            if mode == "house_prevalence"
+            else _calculate_dominant_house_weights(chart)
+        )
         ranked_houses = list(range(1, 13))
         sorted_houses = sorted(
             ranked_houses,
@@ -20010,7 +20063,11 @@ class MainWindow(QMainWindow):
         return "".join(info_parts)
 
     def _build_house_dominance_section(self, chart: Chart, target_house: int) -> str:
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
         lines: list[str] = [self._dominance_section_header_html(chart)]
+        if mode == "house_prevalence":
+            lines.append("<ul><li>House Prevalence mode is active (raw placements, not weighted dominance).</li></ul>")
+            return "".join(lines)
         if not _chart_uses_houses(chart):
             lines.append("<ul><li>Houses are unavailable for this chart, so no house-dominance scoring can be applied.</li></ul>")
             return "".join(lines)
@@ -20168,8 +20225,15 @@ class MainWindow(QMainWindow):
         house_numbers = list(range(1, 13))
         house_counts = {house_num: 0 for house_num in house_numbers}
 
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
+
         if use_houses and houses:
-            planets = [body for body in PLANET_ORDER if body in NATAL_WEIGHT]
+            #planets = [body for body in PLANET_ORDER if body in NATAL_WEIGHT]
+            planets = (
+                list(PLANET_ORDER)
+                if mode == "house_prevalence"
+                else [body for body in PLANET_ORDER if body in NATAL_WEIGHT]
+            )
             for body in planets:
                 if body not in chart.positions:
                     continue
@@ -20177,7 +20241,8 @@ class MainWindow(QMainWindow):
                 house_num = _house_for_longitude(houses, lon)
                 if house_num is None:
                     continue
-                house_counts[house_num] += NATAL_WEIGHT.get(body, 1)
+                #house_counts[house_num] += NATAL_WEIGHT.get(body, 1)
+                house_counts[house_num] += 1 if mode == "house_prevalence" else NATAL_WEIGHT.get(body, 1)
 
         values = [house_counts[house_num] for house_num in house_numbers]
         max_value = max(values) if values else 0
