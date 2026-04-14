@@ -253,6 +253,18 @@ def _extract_section_text_by_id(html_text: str, section_id: str) -> str:
     return _strip_html_text(fragment)
 
 
+def _trim_astrotheme_biography(raw_bio: str) -> str:
+    cleaned = re.sub(r"\s+", " ", raw_bio or "").strip()
+    if not cleaned:
+        return ""
+
+    terminator = "Astrological Profile of "
+    marker_index = cleaned.find(terminator)
+    if marker_index >= 0:
+        cleaned = cleaned[:marker_index].rstrip(" \t\r\n-:|")
+    return cleaned
+
+
 def _extract_profile_candidates_from_html(html_text: str) -> list[tuple[str, str]]:
     candidates: list[tuple[str, str]] = []
     seen_urls: set[str] = set()
@@ -448,7 +460,9 @@ def parse_astrotheme_profile(profile_url: str) -> dict[str, Any]:
             data_rating = candidate
             break
 
-    biography = _extract_section_text_by_id(html_text, "biographie")
+    biography = _trim_astrotheme_biography(
+        _extract_section_text_by_id(html_text, "biographie")
+    )
 
     return {
         "name": name,
