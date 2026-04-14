@@ -184,7 +184,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -294,6 +294,42 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_charts_birth_month_day
         ON charts(birth_month, birth_day)
+        """
+    )
+
+
+def _create_duplicate_exclusions_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS duplicate_exclusions (
+            chart_id_low  INTEGER NOT NULL,
+            chart_id_high INTEGER NOT NULL,
+            created_at    TEXT NOT NULL,
+            PRIMARY KEY (chart_id_low, chart_id_high),
+            CHECK (chart_id_low < chart_id_high)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_low
+        ON duplicate_exclusions(chart_id_low)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_duplicate_exclusions_high
+        ON duplicate_exclusions(chart_id_high)
+        """
+    )
+
+
+def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        DELETE FROM duplicate_exclusions
+        WHERE chart_id_low NOT IN (SELECT id FROM charts)
+           OR chart_id_high NOT IN (SELECT id FROM charts)
         """
     )
 
@@ -791,6 +827,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if _charts_table_exists(conn):
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
+    _create_duplicate_exclusions_table(conn)
+    _prune_duplicate_exclusions(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
@@ -855,6 +893,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 11:
         _migrate_charts_columns(conn)
         conn.execute("PRAGMA user_version = 11")
+        user_version = 11
+    if user_version < 12:
+        _create_duplicate_exclusions_table(conn)
+        _prune_duplicate_exclusions(conn)
+        conn.execute("PRAGMA user_version = 12")
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -2482,6 +2525,57 @@ def list_charts() -> List[
     return rows
 
 
+def list_duplicate_exclusions() -> set[tuple[int, int]]:
+    """Return canonical chart-id pairs explicitly marked as not duplicates."""
+    conn = _get_conn()
+    rows = conn.execute(
+        """
+        SELECT chart_id_low, chart_id_high
+        FROM duplicate_exclusions
+        """
+    ).fetchall()
+    conn.close()
+    return {
+        (int(chart_id_low), int(chart_id_high))
+        for chart_id_low, chart_id_high in rows
+        if chart_id_low is not None and chart_id_high is not None
+    }
+
+
+def save_duplicate_exclusions(chart_ids: List[int]) -> int:
+    """
+    Persist all pair combinations from the provided chart ids as non-duplicates.
+
+    Returns the number of newly-inserted pairs.
+    """
+    normalized_ids = sorted({int(chart_id) for chart_id in chart_ids if chart_id is not None})
+    if len(normalized_ids) < 2:
+        return 0
+    now_iso = datetime.utcnow().isoformat(timespec="seconds")
+    pairs: list[tuple[int, int, str]] = []
+    for index, left_id in enumerate(normalized_ids):
+        for right_id in normalized_ids[index + 1 :]:
+            pairs.append((left_id, right_id, now_iso))
+    conn = _get_conn()
+    inserted = 0
+    with conn:
+        for left_id, right_id, created_at in pairs:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO duplicate_exclusions (
+                    chart_id_low,
+                    chart_id_high,
+                    created_at
+                )
+                VALUES (?, ?, ?)
+                """,
+                (left_id, right_id, created_at),
+            )
+            inserted += int(cursor.rowcount or 0)
+    conn.close()
+    return inserted
+
+
 def set_current_chart(chart_id: Optional[int]) -> None:
     """Mark exactly one chart as current (or clear if None)."""
     conn = _get_conn()
@@ -2523,6 +2617,14 @@ def delete_charts(chart_ids: List[int]) -> int:
         cur = conn.execute(
             f"DELETE FROM charts WHERE id IN ({placeholders})",
             chart_ids,
+        )
+        conn.execute(
+            f"""
+            DELETE FROM duplicate_exclusions
+            WHERE chart_id_low IN ({placeholders})
+               OR chart_id_high IN ({placeholders})
+            """,
+            chart_ids + chart_ids,
         )
     conn.close()
     return cur.rowcount
