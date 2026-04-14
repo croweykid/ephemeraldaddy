@@ -213,30 +213,11 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
 
 
 def _render_clickable_gate_line_summary(
-    active_gates: set[int],
     active_lines: set[tuple[int, int]],
-) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
-    gates_text, gate_entries = _render_clickable_gates(active_gates)
+) -> tuple[str, list[dict[str, object]]]:
     lines_text, line_entries = _render_clickable_lines(active_lines)
 
-    gate_label = "Gates: "
-    line_label = "Lines: "
-    gate_line = f"{gate_label}{gates_text}"
-    lines_line = f"{line_label}{lines_text}"
-
-    info_map: dict[int, list[dict[str, object]]] = {0: [], 1: []}
-    for entry in gate_entries:
-        mapped_entry = dict(entry)
-        mapped_entry["span_start"] = int(entry.get("span_start", 0)) + len(gate_label)
-        mapped_entry["span_end"] = int(entry.get("span_end", 0)) + len(gate_label)
-        info_map[0].append(mapped_entry)
-    for entry in line_entries:
-        mapped_entry = dict(entry)
-        mapped_entry["span_start"] = int(entry.get("span_start", 0)) + len(line_label)
-        mapped_entry["span_end"] = int(entry.get("span_end", 0)) + len(line_label)
-        info_map[1].append(mapped_entry)
-
-    return [gate_line, lines_line], info_map
+    return lines_text, [dict(entry) for entry in line_entries]
 
 
 def _render_clickable_property(
@@ -360,10 +341,7 @@ def build_human_design_chart_data_output(
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
-    gate_line_summary, gate_line_info_map = _render_clickable_gate_line_summary(
-        active_gate_set,
-        active_line_set,
-    )
+    gate_line_summary, gate_line_info_entries = _render_clickable_gate_line_summary(active_line_set)
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
@@ -406,7 +384,7 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         "GATES & LINES",
         CHART_DATA_DIVIDER,
-        *gate_line_summary,
+        gate_line_summary,
         "",
         CHART_DATA_DIVIDER,
         "CHANNELS",
@@ -420,9 +398,7 @@ def build_human_design_chart_data_output(
     ]
     gates_lines_header_index = rendered_lines.index("GATES & LINES")
     gates_lines_block_start = gates_lines_header_index + 2
-    for relative_line_index, entries in gate_line_info_map.items():
-        absolute_line_index = positions_start_index + gates_lines_block_start + relative_line_index
-        position_info_map.setdefault(absolute_line_index, []).extend(entries)
+    position_info_map.setdefault(positions_start_index + gates_lines_block_start, []).extend(gate_line_info_entries)
     for line_text, entry in (
         (type_line, type_info_entry),
         (authority_line, authority_info_entry),
