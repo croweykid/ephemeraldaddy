@@ -382,6 +382,64 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
     return sorted(differences)
 
 
+def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _profile(chart: Any) -> dict[str, int]:
+        positions = getattr(chart, "positions", None) or {}
+        counts: dict[str, int] = {}
+        for body in _PLACEMENT_BODIES:
+            if body in {"AS", "MC"}:
+                continue
+            longitude = positions.get(body)
+            if longitude is None:
+                continue
+            nakshatra = get_nakshatra(longitude)
+            if not nakshatra:
+                continue
+            counts[nakshatra] = counts.get(nakshatra, 0) + 1
+        return counts
+
+    subject_profile = _profile(subject_chart)
+    compared_profile = _profile(compared_chart)
+    subject_top3 = [name for name, _count in sorted(subject_profile.items(), key=lambda item: item[1], reverse=True)[:3]]
+    compared_top3 = [name for name, _count in sorted(compared_profile.items(), key=lambda item: item[1], reverse=True)[:3]]
+    overlap = [nak for nak in subject_top3 if nak in set(compared_top3)]
+    lines: list[str] = []
+    if overlap:
+        lines.append("Shared top nakshatras: " + ", ".join(overlap))
+    lines.append(f"Top-3 overlap: {len(overlap)}/3")
+    return lines
+
+
+def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _top3(chart: Any) -> list[str]:
+        positions = getattr(chart, "positions", None) or {}
+        counts: dict[str, int] = {}
+        for body in _PLACEMENT_BODIES:
+            if body in {"AS", "MC"}:
+                continue
+            longitude = positions.get(body)
+            if longitude is None:
+                continue
+            nakshatra = get_nakshatra(longitude)
+            if not nakshatra:
+                continue
+            counts[nakshatra] = counts.get(nakshatra, 0) + 1
+        return [name for name, _count in sorted(counts.items(), key=lambda item: item[1], reverse=True)[:3]]
+
+    subject_top = _top3(subject_chart)
+    compared_top = _top3(compared_chart)
+    subject_only = [nak for nak in subject_top if nak not in set(compared_top)]
+    compared_only = [nak for nak in compared_top if nak not in set(subject_top)]
+    differences: list[str] = []
+    if subject_only:
+        differences.append("Top nakshatras only in first chart: " + ", ".join(subject_only))
+    if compared_only:
+        differences.append("Top nakshatras only in second chart: " + ", ".join(compared_only))
+    if not differences:
+        differences.append("Top nakshatra dominance profiles are closely aligned.")
+    return differences
+
+
 def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
     def _centers(chart: Any) -> set[str]:
         existing = {
@@ -540,6 +598,11 @@ def build_similarity_reasoning_panel_text(
             lines.append(_section_title_with_weight("Nakshatra Prevalence:", "nakshatra_placement", component_weight_percents))
             lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
             lines.append("")
+        if "nakshatra_dominance" in component_weight_percents:
+            nak_dominance_lines = _nakshatra_dominance_summary(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Nakshatra Dominance:", "nakshatra_dominance", component_weight_percents))
+            lines.append(" | ".join(nak_dominance_lines))
+            lines.append("")
         if "defined_centers" in component_weight_percents:
             centers = _defined_center_overlap_lines(subject_chart, compared_chart)
             lines.append(_section_title_with_weight("Defined centers in common:", "defined_centers", component_weight_percents))
@@ -573,6 +636,11 @@ def build_similarity_reasoning_panel_text(
             nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
             lines.append(_section_title_with_weight("Nakshatra Prevalence differences:", "nakshatra_placement", component_weight_percents))
             lines.append("; ".join(nak_diff) if nak_diff else "No same-body nakshatra differences were found.")
+            lines.append("")
+        if "nakshatra_dominance" in component_weight_percents:
+            nak_dominance_diff = _nakshatra_dominance_differences(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Nakshatra Dominance differences:", "nakshatra_dominance", component_weight_percents))
+            lines.append(" | ".join(nak_dominance_diff))
             lines.append("")
         if "defined_centers" in component_weight_percents:
             centers_diff = _defined_center_difference_lines(subject_chart, compared_chart)
@@ -710,6 +778,13 @@ def build_similarity_reasoning_panel_html(
                     or ["No same-body nakshatra overlaps were found."],
                 )
             )
+        if "nakshatra_dominance" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Nakshatra Dominance:", "nakshatra_dominance", component_weight_percents),
+                    _nakshatra_dominance_summary(subject_chart, compared_chart),
+                )
+            )
         if "defined_centers" in component_weight_percents:
             centers = _defined_center_overlap_lines(subject_chart, compared_chart)
             center_items = centers or ["No overlapping defined centers were found."]
@@ -778,6 +853,13 @@ def build_similarity_reasoning_panel_html(
                     _section_title_with_weight("Nakshatra Prevalence differences:", "nakshatra_placement", component_weight_percents),
                     _nakshatra_difference_lines(subject_chart, compared_chart)
                     or ["No same-body nakshatra differences were found."],
+                )
+            )
+        if "nakshatra_dominance" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Nakshatra Dominance differences:", "nakshatra_dominance", component_weight_percents),
+                    _nakshatra_dominance_differences(subject_chart, compared_chart),
                 )
             )
         if "defined_centers" in component_weight_percents:
