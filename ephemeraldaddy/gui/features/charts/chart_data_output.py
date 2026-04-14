@@ -73,6 +73,9 @@ class ChartDataTableOutput(QPlainTextEdit):
 class ChartSummaryHighlighter(QSyntaxHighlighter):
     """Shared formatter for every chart-data output panel."""
 
+    _HD_PERSONALITY_GATE_COLOR = "#2f9e44"
+    _HD_DESIGN_GATE_COLOR = "#c24a4a"
+    
     _NAKSHATRA_INFO_FIELD_LABELS = (
         "Symbol:",
         "Shakti:",
@@ -667,5 +670,3 @@ def apply_chart_data_highlighter(
     )
     output_widget._summary_highlighter = highlighter
     return highlighter
-    _HD_PERSONALITY_GATE_COLOR = "#2f9e44"
-    _HD_DESIGN_GATE_COLOR = "#c24a4a"
