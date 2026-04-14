@@ -721,7 +721,7 @@ def render_similar_match_blocks(
         band_label, band_color = resolve_similarity_band(similarity_percent)
         extra_bits: list[str] = []
         if getattr(match, "nakshatra_score", None) is not None:
-            extra_bits.append(f"nakshatra {float(match.nakshatra_score) * 100.0:.0f}%")
+            extra_bits.append(f"nakshatra placement {float(match.nakshatra_score) * 100.0:.0f}%")
         if getattr(match, "hd_centers_score", None) is not None:
             extra_bits.append(f"defined centers {float(match.hd_centers_score) * 100.0:.0f}%")
         if getattr(match, "dominance_score", None) is not None:
