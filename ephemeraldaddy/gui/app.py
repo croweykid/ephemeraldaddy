@@ -95,6 +95,9 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_nakshatra_dominance": float(payload.get("weight_nakshatra_dominance", defaults.weight_nakshatra_dominance)),
         "use_defined_centers": _as_bool(payload.get("use_defined_centers", defaults.use_defined_centers), defaults.use_defined_centers),
         "weight_defined_centers": float(payload.get("weight_defined_centers", defaults.weight_defined_centers)),
+        "placement_weighting_mode": _normalize_placement_weighting_mode(
+            payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
+        ),
     }
     return SimilarityCalculatorSettings(**values)
 
@@ -117,6 +120,7 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_nakshatra_dominance": float(value.weight_nakshatra_dominance),
             "use_defined_centers": bool(value.use_defined_centers),
             "weight_defined_centers": float(value.weight_defined_centers),
+            "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
         },
     )
 
@@ -267,12 +271,14 @@ from ephemeraldaddy.gui.window_placement import (
 )
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import (
+    PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
     chart_similarity_score,
     find_astro_twins,
+    normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.core.ephemeris import (
@@ -6001,7 +6007,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(first, second)
+        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+            first,
+            second,
+            placement_weighting_mode=getattr(
+                getattr(self, "_similarity_calculator_settings", None),
+                "placement_weighting_mode",
+                PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+            ),
+        )
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         similarity_percent = final_score * 100.0
@@ -16439,6 +16453,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
             on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
             on_weight_changed=self._on_similarity_calculator_weight_changed,
+            on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
@@ -16451,6 +16466,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
+        self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
@@ -16593,6 +16609,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 blocker = QSignalBlocker(spinbox)
                 spinbox.setValue(float(getattr(settings, weight_attr)))
                 del blocker
+        weighting_mode_combo = getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None)
+        if isinstance(weighting_mode_combo, QComboBox):
+            normalized_mode = _normalize_placement_weighting_mode(
+                getattr(settings, "placement_weighting_mode", PLACEMENT_WEIGHTING_MODE_CHART_DEFINED)
+            )
+            target_index = weighting_mode_combo.findData(normalized_mode)
+            if target_index < 0:
+                target_index = weighting_mode_combo.findData(PLACEMENT_WEIGHTING_MODE_CHART_DEFINED)
+            if target_index >= 0:
+                blocker = QSignalBlocker(weighting_mode_combo)
+                weighting_mode_combo.setCurrentIndex(target_index)
+                del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
@@ -16648,6 +16676,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_similarity_calculator_weight_constraints_and_total()
         self._save_similarity_calculator_from_controls()
 
+    def _on_similarity_calculator_placement_weighting_mode_changed(self, mode: str) -> None:
+        normalized_mode = _normalize_placement_weighting_mode(mode)
+        combo = getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None)
+        if isinstance(combo, QComboBox):
+            current_mode = _normalize_placement_weighting_mode(combo.currentData())
+            if normalized_mode != current_mode:
+                target_index = combo.findData(normalized_mode)
+                if target_index >= 0:
+                    blocker = QSignalBlocker(combo)
+                    combo.setCurrentIndex(target_index)
+                    del blocker
+        self._save_similarity_calculator_from_controls()
+
     def _update_similarity_calculator_weight_constraints_and_total(self) -> None:
         checkboxes = getattr(self, "_similarity_calculator_checkboxes", {})
         weights = getattr(self, "_similarity_calculator_weights", {})
@@ -16697,6 +16738,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_nakshatra_dominance=float(self._similarity_calculator_weights["nakshatra_dominance"].value()),
             use_defined_centers=bool(self._similarity_calculator_checkboxes["defined_centers"].isChecked()),
             weight_defined_centers=float(self._similarity_calculator_weights["defined_centers"].value()),
+            placement_weighting_mode=_normalize_placement_weighting_mode(
+                getattr(
+                    getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None),
+                    "currentData",
+                    lambda: PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+                )()
+            ),
         )
         self._similarity_calculator_settings = settings
         _save_similarity_calculator_settings(self._settings, settings)
