@@ -54,7 +54,8 @@ _ASPECT_COLORS: dict[str, str] = {
     "trine": "#6b705c",
     "opposition": "#c26d3a",
 }
-_SIMILARITY_BODY_TEXT_COLOR = "#B87333"
+_SIMILARITY_LIST_TEXT_COLOR = "#B87333"
+_SIMILARITY_PANEL_BODY_TEXT_COLOR = "#FFFFFF"
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
 _NAKSHATRA_COLOR_MAP: dict[str, str] = {
@@ -69,7 +70,13 @@ _SIMILARITY_TOKEN_COLORS.update(_PLANET_COLOR_MAP)
 _SIMILARITY_TOKEN_COLORS.update(_SIGN_COLOR_MAP)
 _SIMILARITY_TOKEN_COLORS.update(_NAKSHATRA_COLOR_MAP)
 _SIMILARITY_TOKEN_COLORS.update(_ELEMENT_COLOR_MAP)
-_SIMILARITY_TOKEN_COLORS.update(MODE_COLORS)
+for mode_name, mode_color in MODE_COLORS.items():
+    normalized_mode = str(mode_name).strip()
+    if not normalized_mode:
+        continue
+    _SIMILARITY_TOKEN_COLORS[normalized_mode] = str(mode_color)
+    _SIMILARITY_TOKEN_COLORS[normalized_mode.title()] = str(mode_color)
+    _SIMILARITY_TOKEN_COLORS[normalized_mode.upper()] = str(mode_color)
 _SIMILARITY_TOKEN_COLORS.update(_ASPECT_COLORS)
 _SIMILARITY_TOKEN_COLORS.update(
     {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
@@ -359,43 +366,88 @@ def build_similarity_reasoning_panel_html(
         )
         return colored
 
-    text = build_similarity_reasoning_panel_text(
-        match=match,
-        subject_name=subject_name,
-        subject_chart=subject_chart,
-        compared_chart=compared_chart,
-        resolve_similarity_band=resolve_similarity_band,
+    compared_name = _safe_chart_name(
+        compared_chart,
+        str(getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}"),
     )
-    lines = text.splitlines()
-    html_lines: list[str] = []
-    for raw_line in lines:
-        line = html.escape(raw_line)
-        if raw_line.startswith("SIMILARITY ANALYSIS"):
-            html_lines.append(
-                f"<div style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{line}</div>"
+    subject_title = _safe_chart_name(subject_chart, subject_name or "Current chart")
+
+    def _section(title: str, items: list[str]) -> str:
+        bullet_items = items or ["None noted."]
+        rendered_items = []
+        for item in bullet_items:
+            rendered_items.append(
+                "<li style='margin:2px 0;'>"
+                f"{_colorize_body_line(item)}"
+                "</li>"
             )
-            continue
-        if raw_line in {"Placements in common:", "Aspects in common:", "Distribution similarities:", "Nakshatras:", "Defined centers in common:"}:
-            html_lines.append(
-                f"<div style='margin-top:6px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{line}</div>"
-            )
-            continue
-        if raw_line.startswith("Charts: "):
-            html_lines.append(
-                f"<div><span style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>Charts:</span> "
-                f"{html.escape(raw_line.replace('Charts: ', '', 1))}</div>"
-            )
-            continue
-        if raw_line and "," in raw_line and all(token.strip() in HD_CENTERS for token in raw_line.split(",")):
-            colored = []
-            for center_name in [token.strip() for token in raw_line.split(",")]:
-                color = str(HD_CENTERS.get(center_name, {}).get("color") or "#cccccc")
-                colored.append(f"<span style='color:{html.escape(color)};font-weight:600'>{html.escape(center_name)}</span>")
-            html_lines.append("<div>" + ", ".join(colored) + "</div>")
-            continue
+        return (
+            f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{html.escape(title)}</div>"
+            f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
+            + "".join(rendered_items)
+            + "</ul>"
+        )
+
+    html_lines: list[str] = [
+        f"<div style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>SIMILARITY ANALYSIS</div>",
+        (
+            f"<div style='margin-top:4px;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};'>"
+            f"<span style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>Charts:</span> "
+            f"{html.escape(subject_title)} ↔ {html.escape(compared_name)}"
+            "</div>"
+        ),
+    ]
+    if subject_chart is not None and compared_chart is not None:
         html_lines.append(
-            f"<div style='color:{_SIMILARITY_BODY_TEXT_COLOR};font-weight:400'>"
-            f"{_colorize_body_line(raw_line) if raw_line else '&nbsp;'}</div>"
+            _section(
+                "Placements in common:",
+                _common_placement_labels(subject_chart, compared_chart)
+                or ["No exact same-sign placements found in tracked bodies."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Aspects in common:",
+                _common_aspect_labels(subject_chart, compared_chart)
+                or ["No shared aspect signatures were found."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Distribution similarities:",
+                _distribution_summary(subject_chart, compared_chart)
+                or ["No clear elemental/modality overlap was detected."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Nakshatras:",
+                _nakshatra_overlap_lines(subject_chart, compared_chart)
+                or ["No same-body nakshatra overlaps were found."],
+            )
+        )
+        centers = _defined_center_overlap_lines(subject_chart, compared_chart)
+        center_items = centers or ["No overlapping defined centers were found."]
+        if centers:
+            center_items = [
+                f"<span style='color:{html.escape(str(HD_CENTERS.get(center_name, {}).get('color') or '#cccccc'))};font-weight:600'>"
+                f"{html.escape(center_name)}</span>"
+                for center_name in centers
+            ]
+            html_lines.append(
+                f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>Defined centers in common:</div>"
+                f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
+                + "".join(f"<li style='margin:2px 0;'>{center_markup}</li>" for center_markup in center_items)
+                + "</ul>"
+            )
+        else:
+            html_lines.append(_section("Defined centers in common:", center_items))
+    else:
+        html_lines.append(
+            _section(
+                "Details:",
+                ["Detailed similarity details are unavailable because one or both charts could not be loaded."],
+            )
         )
     return "".join(html_lines)
 
@@ -450,7 +502,7 @@ def render_similar_match_blocks(
                 f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
-                f'<span style="font-weight: 400; color: {_SIMILARITY_BODY_TEXT_COLOR};">'
+                f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
                 f"(placements {match.placement_score * 100.0:.0f}%, "
                 f"aspects {match.aspect_score * 100.0:.0f}%, "
                 f"distribution {match.distribution_score * 100.0:.0f}%{extra_suffix})"
@@ -501,10 +553,21 @@ def build_similar_charts_popout_dialog(
     # info_layout.addWidget(info_header)
     info_output = QLabel("Click ⓘ next to a chart to view similarity analysis.")
     info_output.setWordWrap(True)
+    info_output.setAlignment(Qt.AlignTop | Qt.AlignLeft)
     info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
     info_output.setOpenExternalLinks(False)
     info_output.setStyleSheet(info_output_style or output_style)
-    info_layout.addWidget(info_output, 1)
+    info_scroll = QScrollArea()
+    info_scroll.setWidgetResizable(True)
+    info_scroll.setFrameShape(QFrame.NoFrame)
+    info_content = QWidget()
+    info_content_layout = QVBoxLayout(info_content)
+    info_content_layout.setContentsMargins(0, 0, 0, 0)
+    info_content_layout.setSpacing(0)
+    info_content_layout.addWidget(info_output)
+    info_content_layout.addStretch(1)
+    info_scroll.setWidget(info_content)
+    info_layout.addWidget(info_scroll, 1)
     dialog._similar_chart_popout_info_output = info_output
     splitter.addWidget(info_panel)
 
