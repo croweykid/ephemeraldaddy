@@ -1,13 +1,39 @@
-"""Helpers for detecting possible duplicate charts in Database View."""
+"""Helpers for detecting and tiering possible duplicate charts in Database View."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 import re
-from typing import Callable
+from typing import Callable, Literal
 
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
+
+DuplicateLikelihood = Literal[
+    "definite",
+    "likely",
+    "probable_name",
+    "mid_birth_date",
+    "suspected",
+]
+
+LIKELIHOOD_SORT_WEIGHT: dict[DuplicateLikelihood, int] = {
+    "definite": 0,
+    "likely": 1,
+    "probable_name": 1,
+    "mid_birth_date": 2,
+    "suspected": 3,
+}
+
+
+@dataclass(frozen=True)
+class DuplicateDetectionResult:
+    duplicate_ids: set[int]
+    related_names: dict[int, dict[str, list[str]]]
+    likelihood_by_chart_id: dict[int, DuplicateLikelihood]
+    duplicate_sort_key_by_chart_id: dict[int, tuple[int, int, str]]
+
 
 def _normalize_name(value: object) -> str:
     text = str(value or "").strip().casefold()
@@ -55,17 +81,29 @@ def find_possible_duplicate_charts(
     ],
     *,
     load_chart: Callable[[int], Chart | None] | None = None,
-    similarity_threshold_percent: float = 90.0,
+    similarity_threshold_percent: float = 65.0,
     similarity_ceiling_percent: float = 100.0,
-) -> tuple[set[int], dict[int, dict[str, list[str]]]]:
+) -> DuplicateDetectionResult:
     duplicate_ids: set[int] = set()
     related_names: dict[int, dict[str, set[str]]] = {}
     chart_names: dict[int, str] = {}
 
-    birthday_groups: dict[tuple[int, int], list[int]] = {}
+    birthday_groups: dict[tuple[int, int, int], list[int]] = {}
     normalized_name_to_ids: dict[str, set[int]] = {}
-    chart_variants: dict[int, set[str]] = {}
     placeholder_ids: set[int] = set()
+    chart_links: dict[int, set[int]] = {}
+    likelihood_by_chart_id: dict[int, DuplicateLikelihood] = {}
+
+    def attach_likelihood(chart_id: int, likelihood: DuplicateLikelihood) -> None:
+        current = likelihood_by_chart_id.get(chart_id)
+        if current is None or LIKELIHOOD_SORT_WEIGHT[likelihood] < LIKELIHOOD_SORT_WEIGHT[current]:
+            likelihood_by_chart_id[chart_id] = likelihood
+
+    def connect_pair(left_id: int, right_id: int) -> None:
+        if left_id == right_id:
+            return
+        chart_links.setdefault(left_id, set()).add(right_id)
+        chart_links.setdefault(right_id, set()).add(left_id)
 
     for row in rows:
         chart_id = int(row[0])
@@ -73,29 +111,36 @@ def find_possible_duplicate_charts(
         alias = row[2]
         birth_month = row[17]
         birth_day = row[18]
+        birth_year = row[19]
         is_placeholder = bool(row[15]) if len(row) > 15 else False
         if is_placeholder:
             placeholder_ids.add(chart_id)
         chart_names[chart_id] = _display_name(chart_id, name, alias)
 
-        if isinstance(birth_month, int) and isinstance(birth_day, int):
-            birthday_groups.setdefault((birth_month, birth_day), []).append(chart_id)
+        if (
+            isinstance(birth_year, int)
+            and isinstance(birth_month, int)
+            and isinstance(birth_day, int)
+        ):
+            birthday_groups.setdefault((birth_year, birth_month, birth_day), []).append(chart_id)
 
         normalized_variants = {
             value
             for value in (_normalize_name(name), _normalize_name(alias))
             if value
         }
-        if not normalized_variants:
-            continue
-        chart_variants[chart_id] = normalized_variants
         for variant in normalized_variants:
             normalized_name_to_ids.setdefault(variant, set()).add(chart_id)
 
-    def mark_related(group_ids: set[int], reason_key: str) -> None:
+    def mark_related(group_ids: set[int], reason_key: str, likelihood: DuplicateLikelihood) -> None:
         if len(group_ids) < 2:
             return
         duplicate_ids.update(group_ids)
+        group_values = sorted(group_ids)
+        for i, left_id in enumerate(group_values):
+            attach_likelihood(left_id, likelihood)
+            for right_id in group_values[i + 1 :]:
+                connect_pair(left_id, right_id)
         for chart_id in group_ids:
             related_by_reason = related_names.setdefault(chart_id, {})
             related = related_by_reason.setdefault(reason_key, set())
@@ -105,9 +150,9 @@ def find_possible_duplicate_charts(
                 related.add(chart_names.get(other_id, f"Chart #{other_id}"))
 
     for chart_ids in birthday_groups.values():
-        mark_related(set(chart_ids), "birth_date")
+        mark_related(set(chart_ids), "birth_date_year", "mid_birth_date")
     for chart_ids in normalized_name_to_ids.values():
-        mark_related(set(chart_ids), "name")
+        mark_related(set(chart_ids), "name_exact", "probable_name")
 
     variant_values = list(normalized_name_to_ids.keys())
     buckets: dict[str, list[str]] = {}
@@ -124,7 +169,7 @@ def find_possible_duplicate_charts(
                     continue
                 left_ids = normalized_name_to_ids.get(left_variant, set())
                 right_ids = normalized_name_to_ids.get(right_variant, set())
-                mark_related(left_ids.union(right_ids), "name")
+                mark_related(left_ids.union(right_ids), "name_fuzzy", "suspected")
 
     if load_chart is not None and similarity_ceiling_percent >= similarity_threshold_percent:
         min_score = float(similarity_threshold_percent) / 100.0
@@ -155,18 +200,55 @@ def find_possible_duplicate_charts(
                 final_score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
                 if not (min_score <= final_score <= max_score):
                     continue
-                duplicate_ids.update({left_id, right_id})
-                left_related = related_names.setdefault(left_id, {}).setdefault("chart_similarity_90_100", set())
-                right_related = related_names.setdefault(right_id, {}).setdefault("chart_similarity_90_100", set())
-                left_related.add(f"{chart_names.get(right_id, f'Chart #{right_id}')} ({final_score * 100.0:.1f}%)")
-                right_related.add(f"{chart_names.get(left_id, f'Chart #{left_id}')} ({final_score * 100.0:.1f}%)")
+                percent = final_score * 100.0
+                if final_score >= 0.999999:
+                    reason_key = "chart_similarity_100"
+                    likelihood = "definite"
+                else:
+                    reason_key = "chart_similarity_65_100"
+                    likelihood = "likely"
+                mark_related({left_id, right_id}, reason_key, likelihood)
+                left_related = related_names.setdefault(left_id, {}).setdefault(reason_key, set())
+                right_related = related_names.setdefault(right_id, {}).setdefault(reason_key, set())
+                left_related.add(f"{chart_names.get(right_id, f'Chart #{right_id}')} ({percent:.1f}%)")
+                right_related.add(f"{chart_names.get(left_id, f'Chart #{left_id}')} ({percent:.1f}%)")
 
-    return duplicate_ids, {
-        chart_id: {
-            reason_key: sorted(names, key=str.casefold)
-            for reason_key, names in grouped_names.items()
-            if names
-        }
-        for chart_id, grouped_names in related_names.items()
-        if grouped_names
+    component_id_by_chart: dict[int, int] = {}
+    component_index = 0
+    for chart_id in sorted(duplicate_ids):
+        if chart_id in component_id_by_chart:
+            continue
+        component_index += 1
+        stack = [chart_id]
+        component_id_by_chart[chart_id] = component_index
+        while stack:
+            current = stack.pop()
+            for neighbor in chart_links.get(current, set()):
+                if neighbor in component_id_by_chart:
+                    continue
+                component_id_by_chart[neighbor] = component_index
+                stack.append(neighbor)
+
+    duplicate_sort_key_by_chart_id = {
+        chart_id: (
+            component_id_by_chart.get(chart_id, 10_000_000),
+            LIKELIHOOD_SORT_WEIGHT.get(likelihood_by_chart_id.get(chart_id, "suspected"), 9),
+            chart_names.get(chart_id, "").casefold(),
+        )
+        for chart_id in duplicate_ids
     }
+
+    return DuplicateDetectionResult(
+        duplicate_ids=duplicate_ids,
+        related_names={
+            chart_id: {
+                reason_key: sorted(names, key=str.casefold)
+                for reason_key, names in grouped_names.items()
+                if names
+            }
+            for chart_id, grouped_names in related_names.items()
+            if grouped_names
+        },
+        likelihood_by_chart_id=likelihood_by_chart_id,
+        duplicate_sort_key_by_chart_id=duplicate_sort_key_by_chart_id,
+    )
