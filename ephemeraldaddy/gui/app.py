@@ -130,6 +130,7 @@ from PySide6.QtGui import (
     QTextCharFormat,
     QTextCursor,
     QColor,
+    QPalette,
     QFont,
     QFontMetrics,
     QGuiApplication,
@@ -226,6 +227,23 @@ class _GlobalCloseShortcutFilter(QObject):
 
         target.close()
         return True
+
+
+class _ComboItemColorDelegate(QStyledItemDelegate):
+    """Respects per-item foreground role colors in combo popup rows."""
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        super().initStyleOption(option, index)
+        foreground_value = index.data(Qt.ForegroundRole)
+        if isinstance(foreground_value, QBrush):
+            foreground_brush = foreground_value
+        elif isinstance(foreground_value, QColor):
+            foreground_brush = QBrush(foreground_value)
+        else:
+            return
+        option.palette.setBrush(QPalette.Text, foreground_brush)
+        option.palette.setBrush(QPalette.ButtonText, foreground_brush)
+        option.palette.setBrush(QPalette.WindowText, foreground_brush)
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
@@ -1913,6 +1931,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_row.setLayout(list_header_layout)
 
         self.collection_combo = QComboBox()
+        self.collection_combo.setItemDelegate(_ComboItemColorDelegate(self.collection_combo))
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
             self._add_collection_combo_item(
                 collection_label=collection_label,
