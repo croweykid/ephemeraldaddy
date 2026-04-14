@@ -18421,7 +18421,14 @@ class MainWindow(QMainWindow):
         self._on_similar_chart_link_activated(normalized_target)
 
     def _show_similar_chart_reasoning(self, target: str, *, target_dialog: QDialog | None = None) -> None:
-        match = self._similar_charts_reasoning_by_target.get(target)
+        dialog_reasoning_by_target = (
+            getattr(target_dialog, "_similar_chart_popout_reasoning_by_target", {})
+            if target_dialog is not None
+            else {}
+        )
+        if not isinstance(dialog_reasoning_by_target, dict):
+            dialog_reasoning_by_target = {}
+        match = dialog_reasoning_by_target.get(target) or self._similar_charts_reasoning_by_target.get(target)
         popout_info_output = getattr(target_dialog, "_similar_chart_popout_info_output", None)
         if match is None:
             if popout_info_output is not None and hasattr(popout_info_output, "setText"):
@@ -18436,17 +18443,31 @@ class MainWindow(QMainWindow):
             compared_chart = None
         if popout_info_output is None:
             self._set_chart_info_panel_mode("chart_info")
+        subject_name = (
+            str(getattr(target_dialog, "_similar_chart_popout_subject_name", "") or "").strip()
+            if target_dialog is not None
+            else ""
+        )
+        if not subject_name:
+            subject_name = self._similar_charts_subject_name or "Current chart"
+        subject_chart = (
+            getattr(target_dialog, "_similar_chart_popout_subject_chart", None)
+            if target_dialog is not None
+            else None
+        )
+        if subject_chart is None:
+            subject_chart = self._latest_chart
         html_text = build_similarity_reasoning_panel_html(
             match=match,
-            subject_name=self._similar_charts_subject_name or "Current chart",
-            subject_chart=self._latest_chart,
+            subject_name=subject_name,
+            subject_chart=subject_chart,
             compared_chart=compared_chart,
             resolve_similarity_band=self._similarity_band_for_percent,
         )
         plain_text = build_similarity_reasoning_panel_text(
             match=match,
-            subject_name=self._similar_charts_subject_name or "Current chart",
-            subject_chart=self._latest_chart,
+            subject_name=subject_name,
+            subject_chart=subject_chart,
             compared_chart=compared_chart,
             resolve_similarity_band=self._similarity_band_for_percent,
         )
@@ -18719,6 +18740,19 @@ class MainWindow(QMainWindow):
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
+        popout_reasoning_by_target = {}
+        popout_reasoning_by_target.update(
+            map_similar_info_targets(
+                matches=most_similar_matches,
+                info_link_prefix="sim-info:popout:most",
+            )
+        )
+        popout_reasoning_by_target.update(
+            map_similar_info_targets(
+                matches=least_similar_matches,
+                info_link_prefix="sim-info:popout:least",
+            )
+        )
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
@@ -18733,18 +18767,10 @@ class MainWindow(QMainWindow):
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
         )
-        self._similar_charts_reasoning_by_target.update(
-            map_similar_info_targets(
-                matches=most_similar_matches,
-                info_link_prefix="sim-info:popout:most",
-            )
-        )
-        self._similar_charts_reasoning_by_target.update(
-            map_similar_info_targets(
-                matches=least_similar_matches,
-                info_link_prefix="sim-info:popout:least",
-            )
-        )
+        dialog._similar_chart_popout_subject_name = subject_name
+        dialog._similar_chart_popout_subject_chart = chart
+        dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
+        self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
         self._register_popout_shortcuts(dialog)
         self._similar_charts_popout_dialogs.append(dialog)
         dialog.destroyed.connect(

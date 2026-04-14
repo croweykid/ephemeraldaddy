@@ -125,6 +125,35 @@ def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[st
     return matches
 
 
+def _differing_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    differences: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_sign = sign_for_longitude(subject_lon)
+        compared_sign = sign_for_longitude(compared_lon)
+        if subject_sign != compared_sign:
+            differences.append(f"{body}: {subject_sign} vs {compared_sign}")
+            continue
+        if use_houses:
+            subject_house = _house_for_longitude(getattr(subject_chart, "houses", None), subject_lon)
+            compared_house = _house_for_longitude(getattr(compared_chart, "houses", None), compared_lon)
+            if (
+                subject_house is not None
+                and compared_house is not None
+                and subject_house != compared_house
+            ):
+                differences.append(
+                    f"{body} in {subject_sign}: House {subject_house} vs House {compared_house}"
+                )
+    return differences
+
+
 def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
         p1 = str(aspect.get("p1") or "").strip()
@@ -149,6 +178,42 @@ def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     for (left, right), aspect_type in sorted(common_keys):
         labels.append(f"{left} {_aspect_label(aspect_type).lower()} {right}")
     return labels
+
+
+def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
+        p1 = str(aspect.get("p1") or "").strip()
+        p2 = str(aspect.get("p2") or "").strip()
+        aspect_type = str(aspect.get("type") or "").strip().lower()
+        if not p1 or not p2 or not aspect_type:
+            return None
+        left, right = sorted((p1, p2))
+        return (left, right), aspect_type
+
+    subject_keys = {
+        key
+        for aspect in (getattr(subject_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None
+    }
+    compared_keys = {
+        key
+        for aspect in (getattr(compared_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None
+    }
+    only_subject = sorted(subject_keys - compared_keys)
+    only_compared = sorted(compared_keys - subject_keys)
+    differences: list[str] = []
+    if only_subject:
+        differences.append(
+            "Only in first chart: "
+            + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_subject)
+        )
+    if only_compared:
+        differences.append(
+            "Only in second chart: "
+            + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_compared)
+        )
+    return differences
 
 
 def _distribution_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
@@ -214,6 +279,60 @@ def _distribution_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
     return lines
 
 
+def _distribution_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    elements_by_sign = {
+        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
+        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
+        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
+        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
+    }
+    modes_by_sign = {
+        "Aries": "Cardinal", "Cancer": "Cardinal", "Libra": "Cardinal", "Capricorn": "Cardinal",
+        "Taurus": "Fixed", "Leo": "Fixed", "Scorpio": "Fixed", "Aquarius": "Fixed",
+        "Gemini": "Mutable", "Virgo": "Mutable", "Sagittarius": "Mutable", "Pisces": "Mutable",
+    }
+    body_subset = ("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+    subject_element_counts: dict[str, int] = {}
+    compared_element_counts: dict[str, int] = {}
+    subject_mode_counts: dict[str, int] = {}
+    compared_mode_counts: dict[str, int] = {}
+    for body in body_subset:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is not None:
+            sign = sign_for_longitude(subject_lon)
+            if sign in elements_by_sign:
+                element = elements_by_sign[sign]
+                mode = modes_by_sign[sign]
+                subject_element_counts[element] = subject_element_counts.get(element, 0) + 1
+                subject_mode_counts[mode] = subject_mode_counts.get(mode, 0) + 1
+        if compared_lon is not None:
+            sign = sign_for_longitude(compared_lon)
+            if sign in elements_by_sign:
+                element = elements_by_sign[sign]
+                mode = modes_by_sign[sign]
+                compared_element_counts[element] = compared_element_counts.get(element, 0) + 1
+                compared_mode_counts[mode] = compared_mode_counts.get(mode, 0) + 1
+    element_diff = [
+        f"{element} ({subject_element_counts.get(element, 0)} vs {compared_element_counts.get(element, 0)})"
+        for element in ("Fire", "Earth", "Air", "Water")
+        if subject_element_counts.get(element, 0) != compared_element_counts.get(element, 0)
+    ]
+    mode_diff = [
+        f"{mode} ({subject_mode_counts.get(mode, 0)} vs {compared_mode_counts.get(mode, 0)})"
+        for mode in ("Cardinal", "Fixed", "Mutable")
+        if subject_mode_counts.get(mode, 0) != compared_mode_counts.get(mode, 0)
+    ]
+    differences: list[str] = []
+    if element_diff:
+        differences.append("Elemental differences: " + ", ".join(element_diff))
+    if mode_diff:
+        differences.append("Modality differences: " + ", ".join(mode_diff))
+    return differences
+
+
 def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
@@ -228,6 +347,22 @@ def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[st
         if subject_nak and subject_nak == compared_nak:
             same_body_matches.append(f"{body} in {subject_nak}")
     return sorted(same_body_matches)
+
+
+def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    differences: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_nak = get_nakshatra(subject_lon)
+        compared_nak = get_nakshatra(compared_lon)
+        if subject_nak and compared_nak and subject_nak != compared_nak:
+            differences.append(f"{body}: {subject_nak} vs {compared_nak}")
+    return sorted(differences)
 
 
 def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
@@ -251,6 +386,37 @@ def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> li
 
     overlap = sorted(_centers(subject_chart) & _centers(compared_chart))
     return overlap
+
+
+def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _centers(chart: Any) -> set[str]:
+        existing = {
+            str(center).strip()
+            for center in (getattr(chart, "human_design_defined_centers", None) or [])
+            if str(center).strip()
+        }
+        if existing:
+            return existing
+        try:
+            result = build_human_design_result(chart)
+            return {
+                str(center).strip()
+                for center in getattr(result, "defined_centers", [])
+                if str(center).strip()
+            }
+        except Exception:
+            return set()
+
+    subject_centers = _centers(subject_chart)
+    compared_centers = _centers(compared_chart)
+    subject_only = sorted(subject_centers - compared_centers)
+    compared_only = sorted(compared_centers - subject_centers)
+    differences: list[str] = []
+    if subject_only:
+        differences.append("Only in first chart: " + ", ".join(subject_only))
+    if compared_only:
+        differences.append("Only in second chart: " + ", ".join(compared_only))
+    return differences
 
 
 def is_similar_info_target(target: str) -> bool:
@@ -311,6 +477,33 @@ def build_similarity_reasoning_panel_text(
         lines.append("")
         lines.append("Defined centers in common:")
         lines.append(", ".join(centers) if centers else "No overlapping defined centers were found.")
+
+        placement_diff = _differing_placement_labels(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("DISSIMILARITIES ANALYSIS")
+        lines.append("")
+        lines.append("Differing placements:")
+        lines.append("; ".join(placement_diff) if placement_diff else "Tracked placements align closely.")
+
+        aspect_diff = _differing_aspect_labels(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Differing aspects:")
+        lines.append(" | ".join(aspect_diff) if aspect_diff else "Aspect signatures align closely.")
+
+        distribution_diff = _distribution_differences(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Distribution differences:")
+        lines.append(" | ".join(distribution_diff) if distribution_diff else "Elemental and modality distributions are closely aligned.")
+
+        nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Nakshatra differences:")
+        lines.append("; ".join(nak_diff) if nak_diff else "No same-body nakshatra differences were found.")
+
+        centers_diff = _defined_center_difference_lines(subject_chart, compared_chart)
+        lines.append("")
+        lines.append("Defined center differences:")
+        lines.append(" | ".join(centers_diff) if centers_diff else "Defined center sets are the same.")
     else:
         lines.append("Detailed similarity details are unavailable because one or both charts could not be loaded.")
     return "\n".join(
@@ -442,6 +635,45 @@ def build_similarity_reasoning_panel_html(
             )
         else:
             html_lines.append(_section("Defined centers in common:", center_items))
+
+        html_lines.append(
+            f"<div style='margin-top:10px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>DISSIMILARITIES ANALYSIS</div>"
+        )
+        html_lines.append(
+            _section(
+                "Differing placements:",
+                _differing_placement_labels(subject_chart, compared_chart)
+                or ["Tracked placements align closely."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Differing aspects:",
+                _differing_aspect_labels(subject_chart, compared_chart)
+                or ["Aspect signatures align closely."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Distribution differences:",
+                _distribution_differences(subject_chart, compared_chart)
+                or ["Elemental and modality distributions are closely aligned."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Nakshatra differences:",
+                _nakshatra_difference_lines(subject_chart, compared_chart)
+                or ["No same-body nakshatra differences were found."],
+            )
+        )
+        html_lines.append(
+            _section(
+                "Defined center differences:",
+                _defined_center_difference_lines(subject_chart, compared_chart)
+                or ["Defined center sets are the same."],
+            )
+        )
     else:
         html_lines.append(
             _section(
