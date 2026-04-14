@@ -2394,6 +2394,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
             "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
             "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
+            "top3_nakshatras": f"top 3 dominant nakshatras for charts in {scope_label}",
         }
         subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
 
@@ -2406,6 +2407,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "cumulative_signs": f"Cumulative weight of signs across all charts in {scope_label}",
             "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
             "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
+            "cumulative_nakshatras": f"Cumulative weight of nakshatras across all charts in {scope_label}",
         }
         subheader.setText(
             label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulative_signs"])
@@ -2707,14 +2709,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._dominant_factors_mode,
         )
         if isinstance(stored_dominant_factors_mode, str):
-            self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
+            self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs","dominant_nakshatras":"top3_nakshatras"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
 
         stored_cumulativedom_factors_mode = self._settings.value(
             "manage_charts/cumulativedom_factors_mode",
             self._cumulativedom_factors_mode,
         )
         if isinstance(stored_cumulativedom_factors_mode, str):
-            self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
+            self._cumulativedom_factors_mode = {"cumulativedom_signs":"cumulative_signs","cumulativedom_planets":"cumulative_planets","cumulativedom_houses":"cumulative_houses","cumulativedom_nakshatras":"cumulative_nakshatras"}.get(stored_cumulativedom_factors_mode, stored_cumulativedom_factors_mode)
 
         stored_species_mode = self._settings.value(
             "manage_charts/species_distribution_mode",
@@ -3074,6 +3076,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Dominant Signs (Top 3)", "top3_signs"),
                 ("Dominant Bodies (Top 3)", "top3_planets"),
                 ("Dominant Houses (Top 3)", "top3_houses"),
+                ("Dominant Nakshatras (Top 3)", "top3_nakshatras"),
             ],
             show_title=False,
         )
@@ -3112,6 +3115,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
                 ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
                 ("Dominant Houses (Cumulative Weight)", "cumulative_houses"),
+                ("Dominant Nakshatras (Cumulative Weight)", "cumulative_nakshatras"),
             ],
             show_title=False,
         )
@@ -6451,6 +6455,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         return {house_num for house_num, _weight in ranked[:3]}
 
+    @staticmethod
+    def _dominant_nakshatra_top_three_labels(
+        dominant_weights: dict[str, float] | None,
+    ) -> set[str]:
+        if not dominant_weights:
+            return set()
+        nakshatra_order = [name for name, *_ in NAKSHATRA_RANGES]
+        ranked = sorted(
+            (
+                (name, float(weight))
+                for name, weight in dominant_weights.items()
+                if name in nakshatra_order and float(weight) > 0
+            ),
+            key=lambda item: (-item[1], nakshatra_order.index(item[0])),
+        )
+        return {name for name, _weight in ranked[:3]}
+
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
@@ -7602,6 +7623,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 name: 0.0 for name, *_ in NAKSHATRA_RANGES
             },
             "nakshatra_prevalence_total_count": 0.0,
+            "dominant_nakshatra_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
+            "dominant_nakshatra_total_weight": 0.0,
+            "dominant_nakshatra_frequency_totals": {name: 0.0 for name, *_ in NAKSHATRA_RANGES},
             "position_sign_totals_by_body": {
                 body: {sign: 0 for sign in ZODIAC_NAMES}
                 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
@@ -7812,6 +7836,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["dominant_element_totals"][ranked_elements[0]] += 1.0
                 snapshot["dominant_element_total_weight"] += 1.0
 
+            dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
+            for nakshatra_name, *_ in NAKSHATRA_RANGES:
+                nakshatra_weight = float(dominant_nakshatra_weights.get(nakshatra_name, 0.0))
+                if nakshatra_weight <= 0:
+                    continue
+                snapshot["dominant_nakshatra_totals"][nakshatra_name] += nakshatra_weight
+                snapshot["dominant_nakshatra_total_weight"] += nakshatra_weight
+            for nakshatra_name in self._dominant_nakshatra_top_three_labels(dominant_nakshatra_weights):
+                snapshot["dominant_nakshatra_frequency_totals"][nakshatra_name] += 1.0
+
         # Human Design analytics intentionally exclude placeholder charts.
         if compute_human_design_metrics and not snapshot["is_placeholder"]:
             # Human Design profile metrics (persisted on chart for fast lookup where possible).
@@ -7936,6 +7970,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_house_weight_total_weight"] += direction * float(
             snapshot.get("dominant_house_weight_total_weight", 0.0)
         )
+        totals["dominant_nakshatra_total_weight"] += direction * float(
+            snapshot.get("dominant_nakshatra_total_weight", 0.0)
+        )
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
@@ -8010,6 +8047,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for nakshatra_name, *_ in NAKSHATRA_RANGES:
             totals["nakshatra_prevalence_totals"][nakshatra_name] += direction * float(
                 snapshot["nakshatra_prevalence_totals"].get(nakshatra_name, 0.0)
+            )
+            totals["dominant_nakshatra_totals"][nakshatra_name] += direction * float(
+                snapshot["dominant_nakshatra_totals"].get(nakshatra_name, 0.0)
+            )
+            totals["dominant_nakshatra_frequency_totals"][nakshatra_name] += direction * float(
+                snapshot["dominant_nakshatra_frequency_totals"].get(nakshatra_name, 0.0)
             )
         for body, sign_totals in snapshot.get("position_sign_totals_by_body", {}).items():
             for sign in ZODIAC_NAMES:
@@ -8853,11 +8896,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for house_num in range(1, 13)
             }
+            dominant_nakshatra_labels = [name for name, *_ in NAKSHATRA_RANGES]
+            selection_top3_dominant_nakshatras = {
+                name: (
+                    selection_cache["dominant_nakshatra_frequency_totals"][name] / loaded_charts
+                    if loaded_charts
+                    else 0
+                )
+                for name in dominant_nakshatra_labels
+            }
+            database_top3_dominant_nakshatras = {
+                name: (
+                    database_cache["dominant_nakshatra_frequency_totals"][name] / database_loaded_charts
+                    if database_loaded_charts
+                    else 0
+                )
+                for name in dominant_nakshatra_labels
+            }
+            selection_dominant_nakshatras = {
+                name: (
+                    selection_cache["dominant_nakshatra_totals"][name]
+                    / selection_cache["dominant_nakshatra_total_weight"]
+                    if selection_cache["dominant_nakshatra_total_weight"]
+                    else 0
+                )
+                for name in dominant_nakshatra_labels
+            }
+            database_dominant_nakshatras = {
+                name: (
+                    database_cache["dominant_nakshatra_totals"][name]
+                    / database_cache["dominant_nakshatra_total_weight"]
+                    if database_cache["dominant_nakshatra_total_weight"]
+                    else 0
+                )
+                for name in dominant_nakshatra_labels
+            }
             # Keep cumulative-dominance labels in canonical order so this view
             # matches the "by top 3" section and remains predictable.
             cumulative_sign_labels = list(ZODIAC_NAMES)
             cumulative_planet_labels = list(dominant_planet_labels)
             cumulative_house_labels = list(dominant_house_labels)
+            cumulative_nakshatra_labels = list(dominant_nakshatra_labels)
 
             selection_relationships = {
                 relationship: (
@@ -9359,6 +9438,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
                     )
+                elif dominant_mode == "top3_nakshatras":
+                    dominant_sign_canvas = self._build_dominant_planet_chart(
+                        selection_planets=selection_top3_dominant_nakshatras,
+                        database_planets=database_top3_dominant_nakshatras,
+                        selection_planet_counts=selection_cache["dominant_nakshatra_frequency_totals"],
+                        database_planet_counts=database_cache["dominant_nakshatra_frequency_totals"],
+                        loaded_charts=loaded_charts,
+                        labels=dominant_nakshatra_labels,
+                    )
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_nakshatra_labels,
+                        selection_values=[selection_top3_dominant_nakshatras[label] for label in dominant_nakshatra_labels],
+                        database_values=[database_top3_dominant_nakshatras[label] for label in dominant_nakshatra_labels],
+                        selection_counts=[selection_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
+                        database_counts=[database_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
+                        loaded_charts=loaded_charts,
+                    )
                 elif dominant_mode == "top3_signs":
                     dominant_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_top3_dominant_signs,
@@ -9416,6 +9512,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
                     )
+                elif dominant_mode == "top3_nakshatras":
+                    self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
+                        labels=dominant_nakshatra_labels,
+                        selection_values=[selection_top3_dominant_nakshatras[label] for label in dominant_nakshatra_labels],
+                        database_values=[database_top3_dominant_nakshatras[label] for label in dominant_nakshatra_labels],
+                        selection_counts=[selection_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
+                        database_counts=[database_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
+                        loaded_charts=loaded_charts,
+                    )
                 elif dominant_mode == "top3_signs":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
@@ -9471,6 +9576,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         loaded_charts=loaded_charts,
                     )
+                elif cumulativedom_mode == "cumulative_nakshatras":
+                    cumulativedom_sign_canvas = self._build_dominant_planet_chart(
+                        selection_planets=selection_dominant_nakshatras,
+                        database_planets=database_dominant_nakshatras,
+                        selection_planet_counts=selection_cache["dominant_nakshatra_totals"],
+                        database_planet_counts=database_cache["dominant_nakshatra_totals"],
+                        loaded_charts=loaded_charts,
+                        labels=cumulative_nakshatra_labels,
+                    )
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_nakshatra_labels,
+                        selection_values=[selection_dominant_nakshatras[label] for label in cumulative_nakshatra_labels],
+                        database_values=[database_dominant_nakshatras[label] for label in cumulative_nakshatra_labels],
+                        selection_counts=[selection_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
+                        database_counts=[database_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
+                        loaded_charts=loaded_charts,
+                    )
                 else:
                     cumulativedom_sign_canvas = self._build_dominant_sign_chart(
                         selection_signs=selection_dominant_signs,
@@ -9511,6 +9633,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_values=[database_dominant_houses[label] for label in cumulative_house_labels],
                         selection_counts=[selection_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
+                        loaded_charts=loaded_charts,
+                    )
+                elif cumulativedom_mode == "cumulative_nakshatras":
+                    self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
+                        labels=cumulative_nakshatra_labels,
+                        selection_values=[selection_dominant_nakshatras[label] for label in cumulative_nakshatra_labels],
+                        database_values=[database_dominant_nakshatras[label] for label in cumulative_nakshatra_labels],
+                        selection_counts=[selection_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
+                        database_counts=[database_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         loaded_charts=loaded_charts,
                     )
                 else:
