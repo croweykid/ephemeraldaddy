@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import re
-from collections import Counter
 
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QWidget
@@ -15,7 +14,6 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
-from ephemeraldaddy.analysis.human_design import HD_GATE_OCCURRENCE_COLORS
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
@@ -268,12 +266,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_center_header_names.update(
             {f"{center_name} Center" for center_name in self._defined_center_formats}
         )
-        self._hd_gate_count_formats = {
-            bucket: self._make_format(color)
-            for bucket, color in HD_GATE_OCCURRENCE_COLORS.items()
-        }
-        self._hd_gate_count_cache_revision = -1
-        self._hd_gate_count_cache: Counter[int] = Counter()
+        self._hd_personality_gate_format = self._make_format(self._HD_PERSONALITY_GATE_COLOR)
+        self._hd_design_gate_format = self._make_format(self._HD_DESIGN_GATE_COLOR)
+        self._hd_gate_side_cache_revision = -1
+        self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
 
     @staticmethod
     def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
@@ -304,39 +300,50 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     def _qt_index(cls, text: str, index: int) -> int:
         return cls._qt_len(text[:index])
 
-    def _get_hd_gate_occurrence_counts(self) -> Counter[int]:
+    def _get_hd_gate_line_sides(self) -> dict[tuple[int, int], set[str]]:
         document = self.document()
         revision = int(document.revision())
-        if revision == self._hd_gate_count_cache_revision:
-            return self._hd_gate_count_cache
+        if revision == self._hd_gate_side_cache_revision:
+            return self._hd_gate_side_cache
         all_text = document.toPlainText()
-        counts: Counter[int] = Counter()
-        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.[1-6]\b", all_text):
-            gate = int(match.group(1))
-            counts[gate] += 1
-        self._hd_gate_count_cache_revision = revision
-        self._hd_gate_count_cache = counts
-        return counts
-
-    def _apply_hd_gate_heatmap(self, text: str, stripped_text: str) -> None:
-        if not stripped_text or "," not in stripped_text:
-            return
-        if not re.fullmatch(r"(?:\d{1,2}(?:\.[1-6])?)(?:,\s*\d{1,2}(?:\.[1-6])?)*", stripped_text):
-            return
-        counts = self._get_hd_gate_occurrence_counts()
-        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])(?:\.[1-6])?\b", text):
-            gate = int(match.group(1))
-            occurrence_count = counts.get(gate, 0)
-            if occurrence_count <= 0:
+        gate_line_sides: dict[tuple[int, int], set[str]] = {}
+        for text_line in all_text.splitlines():
+            activation_match = re.search(
+                r"^\s*(Personality|Design)\s+[A-Za-z]+\s+.+?\s+([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b",
+                text_line,
+            )
+            if not activation_match:
                 continue
-            bucket = 5 if occurrence_count > 4 else occurrence_count
-            text_format = self._hd_gate_count_formats.get(bucket)
-            if text_format:
-                self.setFormat(
-                    self._qt_index(text, match.start(1)),
-                    self._qt_len(match.group(1)),
-                    text_format,
-                )
+            side_key = activation_match.group(1).strip().lower()
+            gate = int(activation_match.group(2))
+            line = int(activation_match.group(3))
+            gate_line_sides.setdefault((gate, line), set()).add(side_key)
+        self._hd_gate_side_cache_revision = revision
+        self._hd_gate_side_cache = gate_line_sides
+        return gate_line_sides
+
+    def _apply_hd_gate_side_color(self, text: str, stripped_text: str) -> None:
+        if not stripped_text:
+            return
+        if not re.fullmatch(r"(?:\d{1,2}\.[1-6])(?:,\s*\d{1,2}\.[1-6])*", stripped_text):
+            return
+        gate_line_sides = self._get_hd_gate_line_sides()
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b", text):
+            gate = int(match.group(1))
+            line = int(match.group(2))
+            sides = gate_line_sides.get((gate, line), set())
+            if not sides:
+                continue
+            text_format = (
+                self._hd_personality_gate_format
+                if "personality" in sides
+                else self._hd_design_gate_format
+            )
+            self.setFormat(
+                self._qt_index(text, match.start(1)),
+                self._qt_len(match.group(1)),
+                text_format,
+            )
 
     def highlightBlock(self, text: str) -> None:
         self.setFormat(0, self._qt_len(text), self._default_body_format)
@@ -624,7 +631,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 length_qt = self._qt_len(match.group(0))
                 self.setFormat(start_qt, length_qt, text_format)
 
-        self._apply_hd_gate_heatmap(text, stripped_text)
+        self._apply_hd_gate_side_color(text, stripped_text)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
@@ -660,3 +667,5 @@ def apply_chart_data_highlighter(
     )
     output_widget._summary_highlighter = highlighter
     return highlighter
+    _HD_PERSONALITY_GATE_COLOR = "#2f9e44"
+    _HD_DESIGN_GATE_COLOR = "#c24a4a"
