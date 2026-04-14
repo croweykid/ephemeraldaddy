@@ -19,6 +19,12 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+    SimilarityCalculatorSettings,
+    normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -81,6 +87,13 @@ _SIMILARITY_TOKEN_COLORS.update(_ASPECT_COLORS)
 _SIMILARITY_TOKEN_COLORS.update(
     {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
 )
+_ANGLE_POINTS: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
+_DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
+    "placement": 0.38,
+    "aspect": 0.27,
+    "distribution": 0.10,
+    "combined_dominance": 0.25,
+}
 
 
 def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
@@ -161,6 +174,8 @@ def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
         aspect_type = str(aspect.get("type") or "").strip().lower()
         if not p1 or not p2 or not aspect_type:
             return None
+        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
+            return None
         left, right = sorted((p1, p2))
         return (left, right), aspect_type
 
@@ -186,6 +201,8 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
         p2 = str(aspect.get("p2") or "").strip()
         aspect_type = str(aspect.get("type") or "").strip().lower()
         if not p1 or not p2 or not aspect_type:
+            return None
+        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
             return None
         left, right = sorted((p1, p2))
         return (left, right), aspect_type
@@ -419,6 +436,45 @@ def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) ->
     return differences
 
 
+def _resolve_component_weight_percents(
+    *,
+    algorithm_mode: str,
+    similarity_settings: SimilarityCalculatorSettings | None,
+) -> dict[str, int]:
+    normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+        settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+        enabled = settings.enabled_components()
+        raw_weights = settings.weights_by_component()
+    elif normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+        enabled = settings.enabled_components()
+        raw_weights = settings.weights_by_component()
+    else:
+        enabled = {key: True for key in _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS}
+        raw_weights = dict(_DEFAULT_ALGORITHM_COMPONENT_WEIGHTS)
+
+    included_weights = {
+        key: max(0.0, float(raw_weights.get(key, 0.0)))
+        for key, is_enabled in enabled.items()
+        if bool(is_enabled) and float(raw_weights.get(key, 0.0)) > 0.0
+    }
+    total_weight = sum(included_weights.values())
+    if total_weight <= 0.0:
+        return {}
+    return {
+        key: int(round((weight / total_weight) * 100.0))
+        for key, weight in included_weights.items()
+    }
+
+
+def _section_title_with_weight(title: str, component_key: str, component_weight_percents: dict[str, int]) -> str:
+    percent = component_weight_percents.get(component_key)
+    if percent is None:
+        return title
+    return f"{title} ({percent}%)"
+
+
 def is_similar_info_target(target: str) -> bool:
     return str(target or "").strip().startswith(f"{SIMILAR_INFO_TARGET_PREFIX}:")
 
@@ -444,6 +500,7 @@ def build_similarity_reasoning_panel_text(
     subject_name: str,
     subject_chart: Any | None = None,
     compared_chart: Any | None = None,
+    similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
 ) -> str:
     _band_label, _band_color = resolve_similarity_band(float(getattr(match, "score", 0.0)) * 100.0)
@@ -454,56 +511,73 @@ def build_similarity_reasoning_panel_text(
     subject_title = _safe_chart_name(subject_chart, subject_name or "Current chart")
     lines: list[str] = []
     if subject_chart is not None and compared_chart is not None:
-        placement_labels = _common_placement_labels(subject_chart, compared_chart)
-        lines.append("Placements in common:")
-        lines.append("; ".join(placement_labels) if placement_labels else "No exact same-sign placements found in tracked bodies.")
+        component_weight_percents = _resolve_component_weight_percents(
+            algorithm_mode=str(getattr(match, "algorithm_mode", "") or ""),
+            similarity_settings=similarity_settings,
+        )
+        if "placement" in component_weight_percents:
+            placement_labels = _common_placement_labels(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Placements in common:", "placement", component_weight_percents))
+            lines.append("; ".join(placement_labels) if placement_labels else "No exact same-sign placements found in tracked bodies.")
+            lines.append("")
+        if "aspect" in component_weight_percents:
+            aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Aspects in common:", "aspect", component_weight_percents))
+            lines.append("; ".join(aspect_labels) if aspect_labels else "No shared aspect signatures were found.")
+            lines.append("")
+        if "distribution" in component_weight_percents:
+            distribution_lines = _distribution_summary(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Distribution similarities:", "distribution", component_weight_percents))
+            lines.append(" | ".join(distribution_lines) if distribution_lines else "No clear elemental/modality overlap was detected.")
+            lines.append("")
+        if "combined_dominance" in component_weight_percents:
+            dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
+            lines.append(_section_title_with_weight("Combined Dominance:", "combined_dominance", component_weight_percents))
+            lines.append(f"Dominance pattern overlap: {dominance_score * 100.0:.1f}%.")
+            lines.append("")
+        if "nakshatra_placement" in component_weight_percents:
+            nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Nakshatra Prevalence:", "nakshatra_placement", component_weight_percents))
+            lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
+            lines.append("")
+        if "defined_centers" in component_weight_percents:
+            centers = _defined_center_overlap_lines(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Defined centers in common:", "defined_centers", component_weight_percents))
+            lines.append(", ".join(centers) if centers else "No overlapping defined centers were found.")
+            lines.append("")
 
-        aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Aspects in common:")
-        lines.append("; ".join(aspect_labels) if aspect_labels else "No shared aspect signatures were found.")
-
-        distribution_lines = _distribution_summary(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Distribution similarities:")
-        lines.append(" | ".join(distribution_lines) if distribution_lines else "No clear elemental/modality overlap was detected.")
-
-        nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Nakshatras:")
-        lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
-
-        centers = _defined_center_overlap_lines(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Defined centers in common:")
-        lines.append(", ".join(centers) if centers else "No overlapping defined centers were found.")
-
-        placement_diff = _differing_placement_labels(subject_chart, compared_chart)
-        lines.append("")
+        lines.append("------------------------------")
         lines.append("DISSIMILARITIES ANALYSIS")
         lines.append("")
-        lines.append("Differing placements:")
-        lines.append("; ".join(placement_diff) if placement_diff else "Tracked placements align closely.")
-
-        aspect_diff = _differing_aspect_labels(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Differing aspects:")
-        lines.append(" | ".join(aspect_diff) if aspect_diff else "Aspect signatures align closely.")
-
-        distribution_diff = _distribution_differences(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Distribution differences:")
-        lines.append(" | ".join(distribution_diff) if distribution_diff else "Elemental and modality distributions are closely aligned.")
-
-        nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Nakshatra differences:")
-        lines.append("; ".join(nak_diff) if nak_diff else "No same-body nakshatra differences were found.")
-
-        centers_diff = _defined_center_difference_lines(subject_chart, compared_chart)
-        lines.append("")
-        lines.append("Defined center differences:")
-        lines.append(" | ".join(centers_diff) if centers_diff else "Defined center sets are the same.")
+        if "placement" in component_weight_percents:
+            placement_diff = _differing_placement_labels(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Differing placements:", "placement", component_weight_percents))
+            lines.append("; ".join(placement_diff) if placement_diff else "Tracked placements align closely.")
+            lines.append("")
+        if "aspect" in component_weight_percents:
+            aspect_diff = _differing_aspect_labels(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Differing aspects:", "aspect", component_weight_percents))
+            lines.append(" | ".join(aspect_diff) if aspect_diff else "Aspect signatures align closely.")
+            lines.append("")
+        if "distribution" in component_weight_percents:
+            distribution_diff = _distribution_differences(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Distribution differences:", "distribution", component_weight_percents))
+            lines.append(" | ".join(distribution_diff) if distribution_diff else "Elemental and modality distributions are closely aligned.")
+            lines.append("")
+        if "combined_dominance" in component_weight_percents:
+            dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
+            lines.append(_section_title_with_weight("Combined Dominance differences:", "combined_dominance", component_weight_percents))
+            lines.append(f"Dominance mismatch estimate: {(1.0 - dominance_score) * 100.0:.1f}%.")
+            lines.append("")
+        if "nakshatra_placement" in component_weight_percents:
+            nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Nakshatra Prevalence differences:", "nakshatra_placement", component_weight_percents))
+            lines.append("; ".join(nak_diff) if nak_diff else "No same-body nakshatra differences were found.")
+            lines.append("")
+        if "defined_centers" in component_weight_percents:
+            centers_diff = _defined_center_difference_lines(subject_chart, compared_chart)
+            lines.append(_section_title_with_weight("Defined center differences:", "defined_centers", component_weight_percents))
+            lines.append(" | ".join(centers_diff) if centers_diff else "Defined center sets are the same.")
     else:
         lines.append("Detailed similarity details are unavailable because one or both charts could not be loaded.")
     return "\n".join(
@@ -522,6 +596,7 @@ def build_similarity_reasoning_panel_html(
     subject_name: str,
     subject_chart: Any | None = None,
     compared_chart: Any | None = None,
+    similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
 ) -> str:
     def _apply_word_colors(text_value: str, lookup: dict[str, str], *, weight: str = "400") -> str:
@@ -591,89 +666,128 @@ def build_similarity_reasoning_panel_html(
         ),
     ]
     if subject_chart is not None and compared_chart is not None:
-        html_lines.append(
-            _section(
-                "Placements in common:",
-                _common_placement_labels(subject_chart, compared_chart)
-                or ["No exact same-sign placements found in tracked bodies."],
-            )
+        component_weight_percents = _resolve_component_weight_percents(
+            algorithm_mode=str(getattr(match, "algorithm_mode", "") or ""),
+            similarity_settings=similarity_settings,
         )
-        html_lines.append(
-            _section(
-                "Aspects in common:",
-                _common_aspect_labels(subject_chart, compared_chart)
-                or ["No shared aspect signatures were found."],
-            )
-        )
-        html_lines.append(
-            _section(
-                "Distribution similarities:",
-                _distribution_summary(subject_chart, compared_chart)
-                or ["No clear elemental/modality overlap was detected."],
-            )
-        )
-        html_lines.append(
-            _section(
-                "Nakshatras:",
-                _nakshatra_overlap_lines(subject_chart, compared_chart)
-                or ["No same-body nakshatra overlaps were found."],
-            )
-        )
-        centers = _defined_center_overlap_lines(subject_chart, compared_chart)
-        center_items = centers or ["No overlapping defined centers were found."]
-        if centers:
-            center_items = [
-                f"<span style='color:{html.escape(str(HD_CENTERS.get(center_name, {}).get('color') or '#cccccc'))};font-weight:600'>"
-                f"{html.escape(center_name)}</span>"
-                for center_name in centers
-            ]
+        if "placement" in component_weight_percents:
             html_lines.append(
-                f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>Defined centers in common:</div>"
-                f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
-                + "".join(f"<li style='margin:2px 0;'>{center_markup}</li>" for center_markup in center_items)
-                + "</ul>"
+                _section(
+                    _section_title_with_weight("Placements in common:", "placement", component_weight_percents),
+                    _common_placement_labels(subject_chart, compared_chart)
+                    or ["No exact same-sign placements found in tracked bodies."],
+                )
             )
-        else:
-            html_lines.append(_section("Defined centers in common:", center_items))
+        if "aspect" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Aspects in common:", "aspect", component_weight_percents),
+                    _common_aspect_labels(subject_chart, compared_chart)
+                    or ["No shared aspect signatures were found."],
+                )
+            )
+        if "distribution" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Distribution similarities:", "distribution", component_weight_percents),
+                    _distribution_summary(subject_chart, compared_chart)
+                    or ["No clear elemental/modality overlap was detected."],
+                )
+            )
+        if "combined_dominance" in component_weight_percents:
+            dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Combined Dominance:", "combined_dominance", component_weight_percents),
+                    [f"Dominance pattern overlap: {dominance_score * 100.0:.1f}%."],
+                )
+            )
+        if "nakshatra_placement" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Nakshatra Prevalence:", "nakshatra_placement", component_weight_percents),
+                    _nakshatra_overlap_lines(subject_chart, compared_chart)
+                    or ["No same-body nakshatra overlaps were found."],
+                )
+            )
+        if "defined_centers" in component_weight_percents:
+            centers = _defined_center_overlap_lines(subject_chart, compared_chart)
+            center_items = centers or ["No overlapping defined centers were found."]
+            if centers:
+                center_items = [
+                    f"<span style='color:{html.escape(str(HD_CENTERS.get(center_name, {}).get('color') or '#cccccc'))};font-weight:600'>"
+                    f"{html.escape(center_name)}</span>"
+                    for center_name in centers
+                ]
+                html_lines.append(
+                    f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>"
+                    f"{html.escape(_section_title_with_weight('Defined centers in common:', 'defined_centers', component_weight_percents))}</div>"
+                    f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
+                    + "".join(f"<li style='margin:2px 0;'>{center_markup}</li>" for center_markup in center_items)
+                    + "</ul>"
+                )
+            else:
+                html_lines.append(
+                    _section(
+                        _section_title_with_weight("Defined centers in common:", "defined_centers", component_weight_percents),
+                        center_items,
+                    )
+                )
 
+        html_lines.append(
+            "<hr style='margin:12px 0;border:0;border-top:1px solid rgba(255,255,255,0.22);'>"
+        )
         html_lines.append(
             f"<div style='margin-top:10px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>DISSIMILARITIES ANALYSIS</div>"
         )
-        html_lines.append(
-            _section(
-                "Differing placements:",
-                _differing_placement_labels(subject_chart, compared_chart)
-                or ["Tracked placements align closely."],
+        if "placement" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Differing placements:", "placement", component_weight_percents),
+                    _differing_placement_labels(subject_chart, compared_chart)
+                    or ["Tracked placements align closely."],
+                )
             )
-        )
-        html_lines.append(
-            _section(
-                "Differing aspects:",
-                _differing_aspect_labels(subject_chart, compared_chart)
-                or ["Aspect signatures align closely."],
+        if "aspect" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Differing aspects:", "aspect", component_weight_percents),
+                    _differing_aspect_labels(subject_chart, compared_chart)
+                    or ["Aspect signatures align closely."],
+                )
             )
-        )
-        html_lines.append(
-            _section(
-                "Distribution differences:",
-                _distribution_differences(subject_chart, compared_chart)
-                or ["Elemental and modality distributions are closely aligned."],
+        if "distribution" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Distribution differences:", "distribution", component_weight_percents),
+                    _distribution_differences(subject_chart, compared_chart)
+                    or ["Elemental and modality distributions are closely aligned."],
+                )
             )
-        )
-        html_lines.append(
-            _section(
-                "Nakshatra differences:",
-                _nakshatra_difference_lines(subject_chart, compared_chart)
-                or ["No same-body nakshatra differences were found."],
+        if "combined_dominance" in component_weight_percents:
+            dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Combined Dominance differences:", "combined_dominance", component_weight_percents),
+                    [f"Dominance mismatch estimate: {(1.0 - dominance_score) * 100.0:.1f}%."],
+                )
             )
-        )
-        html_lines.append(
-            _section(
-                "Defined center differences:",
-                _defined_center_difference_lines(subject_chart, compared_chart)
-                or ["Defined center sets are the same."],
+        if "nakshatra_placement" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Nakshatra Prevalence differences:", "nakshatra_placement", component_weight_percents),
+                    _nakshatra_difference_lines(subject_chart, compared_chart)
+                    or ["No same-body nakshatra differences were found."],
+                )
             )
-        )
+        if "defined_centers" in component_weight_percents:
+            html_lines.append(
+                _section(
+                    _section_title_with_weight("Defined center differences:", "defined_centers", component_weight_percents),
+                    _defined_center_difference_lines(subject_chart, compared_chart)
+                    or ["Defined center sets are the same."],
+                )
+            )
     else:
         html_lines.append(
             _section(

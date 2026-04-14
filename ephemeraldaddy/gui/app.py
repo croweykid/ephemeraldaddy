@@ -19009,6 +19009,7 @@ class MainWindow(QMainWindow):
             subject_name=subject_name,
             subject_chart=subject_chart,
             compared_chart=compared_chart,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
             resolve_similarity_band=self._similarity_band_for_percent,
         )
         plain_text = build_similarity_reasoning_panel_text(
@@ -19016,6 +19017,7 @@ class MainWindow(QMainWindow):
             subject_name=subject_name,
             subject_chart=subject_chart,
             compared_chart=compared_chart,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
             resolve_similarity_band=self._similarity_band_for_percent,
         )
         if popout_info_output is not None:
