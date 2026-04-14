@@ -237,7 +237,11 @@ from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
-from ephemeraldaddy.gui.dev_tools import ManageMetadataLabelsDialog, SizeCheckerPopup
+from ephemeraldaddy.gui.dev_tools import (
+    ManageMetadataLabelsDialog,
+    SizeCheckerPopup,
+    build_similarity_calculator_settings_section,
+)
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
 from ephemeraldaddy.gui.window_chrome import (
@@ -16419,125 +16423,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
-        similar_charts_algo_label = QLabel("Similarities Calculator")
-        similar_charts_algo_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
-        dev_tools_section.addWidget(similar_charts_algo_label)
-        dev_tools_section.addWidget(
-            QLabel(
-                "Choose which matching algorithm powers Similar Charts results."
-            )
+        similarity_calculator_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Similarities Calculator",
         )
-
-        self._similar_charts_algo_default_radio = QRadioButton("use default")
-        self._similar_charts_algo_comprehensive_radio = QRadioButton("use comprehensive")
-        self._similar_charts_algo_custom_radio = QRadioButton("use custom")
-        similar_charts_algo_group = QButtonGroup(dialog)
-        similar_charts_algo_group.setExclusive(True)
-        similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
-        similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
-        similar_charts_algo_group.addButton(self._similar_charts_algo_custom_radio)
-        self._similar_charts_algo_default_radio.toggled.connect(
-            lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        similarity_controls = build_similarity_calculator_settings_section(
+            dialog=dialog,
+            section_layout=similarity_calculator_section,
+            subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
+            on_mode_default_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            on_mode_comprehensive_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
+            on_mode_custom_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
+            on_settings_changed=self._save_similarity_calculator_from_controls,
+            on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
+            on_calibrate_clicked=self._calibrate_similarity_norms,
+            on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
+            on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
+            threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
-        self._similar_charts_algo_comprehensive_radio.toggled.connect(
-            lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
-        )
-        self._similar_charts_algo_custom_radio.toggled.connect(
-            lambda checked: checked
-            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM)
-        )
+        self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
+        self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
+        self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
+        self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
+        self._similarity_calculator_weights = similarity_controls["calculator_weights"]
+        self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
-        dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
-        dev_tools_section.addWidget(self._similar_charts_algo_comprehensive_radio)
-        dev_tools_section.addWidget(self._similar_charts_algo_custom_radio)
-
-        self._similarity_calculator_checkboxes = {}
-        self._similarity_calculator_weights = {}
-        rows = [
-            ("placement", "Placement score"),
-            ("aspect", "Aspect score"),
-            ("distribution", "Distribution score"),
-            ("combined_dominance", "Combined dominance score"),
-            ("nakshatra_placement", "Nakshatra placement score"),
-            ("nakshatra_dominance", "Nakshatra dominance score"),
-            ("defined_centers", "Defined centers score"),
-        ]
-        calculator_grid = QGridLayout()
-        calculator_grid.setContentsMargins(0, 0, 0, 0)
-        calculator_grid.setHorizontalSpacing(8)
-        calculator_grid.setVerticalSpacing(6)
-        calculator_grid.addWidget(QLabel("Factor"), 0, 0)
-        calculator_grid.addWidget(QLabel("Use"), 0, 1)
-        calculator_grid.addWidget(QLabel("Weight"), 0, 2)
-        for row_index, (key, label_text) in enumerate(rows, start=1):
-            calculator_grid.addWidget(QLabel(label_text), row_index, 0)
-            enabled_checkbox = QCheckBox()
-            enabled_checkbox.setChecked(True)
-            enabled_checkbox.stateChanged.connect(lambda _state, _: self._save_similarity_calculator_from_controls())
-            calculator_grid.addWidget(enabled_checkbox, row_index, 1, alignment=Qt.AlignCenter)
-            weight_spinbox = QDoubleSpinBox()
-            weight_spinbox.setDecimals(2)
-            weight_spinbox.setRange(0.0, 1.0)
-            weight_spinbox.setSingleStep(0.01)
-            weight_spinbox.setAlignment(Qt.AlignRight)
-            weight_spinbox.valueChanged.connect(lambda _value: self._save_similarity_calculator_from_controls())
-            calculator_grid.addWidget(weight_spinbox, row_index, 2)
-            self._similarity_calculator_checkboxes[key] = enabled_checkbox
-            self._similarity_calculator_weights[key] = weight_spinbox
-        dev_tools_section.addLayout(calculator_grid)
         self._load_similarity_calculator_controls()
-
-        reset_similarity_weights_button = QPushButton("Reset Weights to Default")
-        reset_similarity_weights_button.clicked.connect(self._reset_similarity_calculator_defaults)
-        dev_tools_section.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
-
-        calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
-        calibrate_similarity_button.setToolTip(
-            "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
-        )
-        calibrate_similarity_button.clicked.connect(self._calibrate_similarity_norms)
-        dev_tools_section.addWidget(calibrate_similarity_button)
-
-        similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
-        similarity_thresholds_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
-        dev_tools_section.addWidget(similarity_thresholds_label)
-        dev_tools_section.addWidget(
-            QLabel(
-                "Manual override for band cutoffs (q20/q40/q60/q80). "
-                "Values are auto-sorted and saved systemwide."
-            )
-        )
-
-        thresholds_grid = QGridLayout()
-        thresholds_grid.setContentsMargins(0, 0, 0, 0)
-        thresholds_grid.setHorizontalSpacing(8)
-        thresholds_grid.setVerticalSpacing(6)
-        self._similarity_threshold_spinboxes = {}
-        for row_index, (key, label_text) in enumerate(SIMILARITY_THRESHOLD_EDITOR_ROWS):
-            label = QLabel(label_text)
-            spinbox = QDoubleSpinBox()
-            spinbox.setDecimals(1)
-            spinbox.setRange(0.0, 100.0)
-            spinbox.setSingleStep(0.5)
-            spinbox.setSuffix("%")
-            spinbox.setAlignment(Qt.AlignRight)
-            thresholds_grid.addWidget(label, row_index, 0)
-            thresholds_grid.addWidget(spinbox, row_index, 1)
-            self._similarity_threshold_spinboxes[key] = spinbox
-        dev_tools_section.addLayout(thresholds_grid)
         self._load_similarity_thresholds_into_controls()
-
-        thresholds_button_row = QHBoxLayout()
-        thresholds_save_button = QPushButton("Save Threshold Overrides")
-        thresholds_save_button.clicked.connect(self._save_similarity_threshold_overrides)
-        thresholds_reset_button = QPushButton("Reset Thresholds to Defaults")
-        thresholds_reset_button.clicked.connect(self._reset_similarity_threshold_defaults)
-        thresholds_button_row.addWidget(thresholds_save_button)
-        thresholds_button_row.addWidget(thresholds_reset_button)
-        thresholds_button_row.addStretch(1)
-        dev_tools_section.addLayout(thresholds_button_row)
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
         age_tools_section.addWidget(QLabel("Age inference tools."))
