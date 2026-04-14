@@ -6509,6 +6509,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 raw_p1 = aspect.get("p1", "")
                 raw_p2 = aspect.get("p2", "")
+                if raw_p1 in angular_bodies and raw_p2 in angular_bodies:
+                    continue
                 if not use_houses and (
                     raw_p1 in angular_bodies or raw_p2 in angular_bodies
                 ):
@@ -6691,6 +6693,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         continue
                     raw_p1 = aspect.get("p1", "")
                     raw_p2 = aspect.get("p2", "")
+                    if raw_p1 in {"AS", "MC", "DS", "IC"} and raw_p2 in {"AS", "MC", "DS", "IC"}:
+                        continue
                     if not use_houses and (raw_p1 in {"AS", "MC", "DS", "IC"} or raw_p2 in {"AS", "MC", "DS", "IC"}):
                         continue
                     p1 = self._similarities_body_label(raw_p1)
