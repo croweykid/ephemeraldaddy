@@ -68,6 +68,8 @@ ASPECT_WEIGHTS: dict[str, float] = {
     "biquintile": 0.35,
 }
 
+NATAL_ANGLES: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
+
 ELEMENT_BY_SIGN_INDEX = {
     0: "fire", 1: "earth", 2: "air", 3: "water",
     4: "fire", 5: "earth", 6: "air", 7: "water",
@@ -260,11 +262,18 @@ def _canonical_aspect_key(aspect: dict) -> tuple[tuple[str, str], str] | None:
     return (left, right), asp_type
 
 
+def _is_tautological_angle_aspect(body_a: str, body_b: str) -> bool:
+    return body_a in NATAL_ANGLES and body_b in NATAL_ANGLES
+
+
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
     for aspect in getattr(chart, "aspects", None) or []:
         key = _canonical_aspect_key(aspect)
         if key is None:
+            continue
+        (a, b), _ = key
+        if _is_tautological_angle_aspect(a, b):
             continue
         orb = abs(float(aspect.get("delta", 0.0) or 0.0))
         aspect_map.setdefault(key, []).append(orb)
