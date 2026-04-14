@@ -630,22 +630,6 @@ def calculate_sign_prevalence_counts(chart: Chart) -> dict[str, int]:
         counts[sign] += 1
     return counts
 
-def calculate_house_prevalence_counts(chart: Chart) -> dict[int, int]:
-    house_counts = {house_num: 0 for house_num in range(1, 13)}
-    use_houses = chart_uses_houses(chart)
-    houses = getattr(chart, "houses", None) if use_houses else None
-    if not use_houses or not houses:
-        return house_counts
-    for body in PLANET_ORDER:
-        if body not in chart.positions:
-            continue
-        lon = chart.positions[body]
-        house_num = house_for_longitude(houses, lon)
-        if house_num is not None:
-            house_counts[house_num] += 1
-    return house_counts
-
-
 def calculate_dominant_house_weights(chart: Chart) -> dict[int, float]:
     house_counts = {house_num: 0.0 for house_num in range(1, 13)}
     use_houses = chart_uses_houses(chart)
