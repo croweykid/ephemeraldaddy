@@ -12751,6 +12751,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_collection_id = self._coerce_active_collection_id(self._active_collection_id)
         self._active_collection_id = active_collection_id
         self.collection_combo.blockSignals(True)
+        self._update_duplicate_sets_sort_availability()
         self.collection_combo.clear()
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
             self.collection_combo.addItem(collection_label, collection_id)
@@ -12768,6 +12769,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.collection_combo.setCurrentIndex(max(0, active_index))
         self.collection_combo.blockSignals(False)
         self._refresh_collection_list_widget()
+
+
+    def _update_duplicate_sets_sort_availability(self) -> None:
+        is_available = self._show_possible_duplicates_collection
+        self.sort_action_duplicate_sets.setVisible(is_available)
+        self.sort_action_duplicate_sets.setEnabled(is_available)
+        if not is_available and self._sort_mode == "duplicate_sets":
+            self._sort_mode = "alpha"
+            self._sort_descending = False
+            self._update_sort_button_label()
+            self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
+            self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
 
     def _refresh_collection_list_widget(self) -> None:
         if not hasattr(self, "collections_list_widget"):
@@ -14713,13 +14726,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             tooltip_sections.append(f"Likely similar spelling to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
-                    likelihood = self._possible_duplicate_likelihoods.get(cid)
-                    if likelihood == "definite":
-                        item.setForeground(QColor("#7CFF00"))
-                    elif likelihood in {"likely", "probable_name"}:
-                        item.setForeground(QColor("#54D26A"))
-                    elif likelihood == "mid_birth_date":
-                        item.setForeground(QColor("#3CB371"))
                 item.setData(
                     Qt.UserRole + 1,
                     {
@@ -14733,6 +14739,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "place": place_with_gender,
                         "is_placeholder": bool(is_placeholder),
                         "is_deceased": bool(is_deceased),
+                        "duplicate_likelihood": self._possible_duplicate_likelihoods.get(cid, ""),
                     },
                 )
                 self.list_widget.addItem(item)
