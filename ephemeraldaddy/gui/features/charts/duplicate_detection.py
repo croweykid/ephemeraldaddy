@@ -225,6 +225,8 @@ def find_possible_duplicate_charts(
                 left_related.add(f"{chart_names.get(right_id, f'Chart #{right_id}')} ({percent:.1f}%)")
                 right_related.add(f"{chart_names.get(left_id, f'Chart #{left_id}')} ({percent:.1f}%)")
 
+    duplicate_ids = set(chart_links.keys())
+
     component_id_by_chart: dict[int, int] = {}
     component_index = 0
     for chart_id in sorted(duplicate_ids):
@@ -259,9 +261,13 @@ def find_possible_duplicate_charts(
                 if names
             }
             for chart_id, grouped_names in related_names.items()
-            if grouped_names
+            if grouped_names and chart_id in duplicate_ids
         },
-        likelihood_by_chart_id=likelihood_by_chart_id,
+        likelihood_by_chart_id={
+            chart_id: likelihood
+            for chart_id, likelihood in likelihood_by_chart_id.items()
+            if chart_id in duplicate_ids
+        },
         duplicate_sort_key_by_chart_id=duplicate_sort_key_by_chart_id,
         duplicate_group_by_chart_id=component_id_by_chart,
     )

@@ -828,7 +828,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
     _create_duplicate_exclusions_table(conn)
-    _prune_duplicate_exclusions(conn)
+    if _charts_table_exists(conn):
+        _prune_duplicate_exclusions(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
