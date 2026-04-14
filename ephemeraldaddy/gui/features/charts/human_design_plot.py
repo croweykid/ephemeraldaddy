@@ -254,6 +254,7 @@ def draw_human_design_chart(
                 fontsize=6,
                 ha="center",
                 va="center",
+                gid=f"gate-label:{lower_gate}",
             )
             ax.text(
                 elbow_x + ((end_x - elbow_x) * 0.45),
@@ -263,6 +264,7 @@ def draw_human_design_chart(
                 fontsize=6,
                 ha="center",
                 va="center",
+                gid=f"gate-label:{upper_gate}",
             )
             continue
 
@@ -345,6 +347,7 @@ def draw_human_design_chart(
             fontsize=6,
             ha="center",
             va="center",
+            gid=f"gate-label:{gate_a}",
         )
         ax.text(
             mid_x + ((x2 - mid_x) * 0.4),
@@ -354,6 +357,7 @@ def draw_human_design_chart(
             fontsize=6,
             ha="center",
             va="center",
+            gid=f"gate-label:{gate_b}",
         )
 
     for center_name, (x, y) in CENTER_POSITIONS.items():

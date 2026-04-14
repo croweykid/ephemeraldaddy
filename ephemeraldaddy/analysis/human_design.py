@@ -212,6 +212,13 @@ def _render_clickable_lines(active_lines: set[tuple[int, int]]) -> tuple[str, li
     return "".join(parts), info_entries
 
 
+def _render_clickable_gate_line_summary(
+    active_lines: set[tuple[int, int]],
+) -> tuple[str, list[dict[str, object]]]:
+    lines_text, line_entries = _render_clickable_lines(active_lines)
+    return lines_text, [dict(entry) for entry in line_entries]
+
+
 def _render_clickable_property(
     label: str,
     value: str,
@@ -333,8 +340,7 @@ def build_human_design_chart_data_output(
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
 
-    gates_text, gates_info_entries = _render_clickable_gates(active_gate_set)
-    lines_text, lines_info_entries = _render_clickable_lines(active_line_set)
+    gate_line_summary, gate_line_info_entries = _render_clickable_gate_line_summary(active_line_set)
     type_line, type_info_entry = _render_clickable_property("Type", hd_result.hd_type, "type")
     authority_line, authority_info_entry = _render_clickable_property("Authority", hd_result.authority, "authority")
     profile_line, profile_info_entry = _render_clickable_property("Profile", hd_result.profile, "profile")
@@ -375,14 +381,9 @@ def build_human_design_chart_data_output(
         *position_lines,
         "",
         CHART_DATA_DIVIDER,
-        "GATES",
+        "GATES & LINES",
         CHART_DATA_DIVIDER,
-        gates_text,
-        "",
-        CHART_DATA_DIVIDER,
-        "LINES",
-        CHART_DATA_DIVIDER,
-        lines_text,
+        gate_line_summary,
         "",
         CHART_DATA_DIVIDER,
         "CHANNELS",
@@ -394,12 +395,9 @@ def build_human_design_chart_data_output(
         CHART_DATA_DIVIDER,
         *awareness_lines,
     ]
-    gates_line_index = rendered_lines.index(gates_text)
-    lines_line_index = rendered_lines.index(lines_text)
-    for entry in gates_info_entries:
-        position_info_map.setdefault(positions_start_index + gates_line_index, []).append(entry)
-    for entry in lines_info_entries:
-        position_info_map.setdefault(positions_start_index + lines_line_index, []).append(entry)
+    gates_lines_header_index = rendered_lines.index("GATES & LINES")
+    gates_lines_block_start = gates_lines_header_index + 2
+    position_info_map.setdefault(positions_start_index + gates_lines_block_start, []).extend(gate_line_info_entries)
     for line_text, entry in (
         (type_line, type_info_entry),
         (authority_line, authority_info_entry),

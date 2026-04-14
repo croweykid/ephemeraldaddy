@@ -24665,6 +24665,35 @@ class MainWindow(QMainWindow):
                 return
             if not figure.axes or event.inaxes is not figure.axes[0]:
                 return
+
+            def _resolve_gate_from_artist_id(artist_id: str, prefix: str) -> int | None:
+                if not artist_id.startswith(prefix):
+                    return None
+                gate_text = artist_id.split(":", 1)[1]
+                if not gate_text.isdigit():
+                    return None
+                return int(gate_text)
+
+            for line in event.inaxes.lines:
+                gate_segment_id = str(getattr(line, "get_gid", lambda: "")() or "")
+                gate = _resolve_gate_from_artist_id(gate_segment_id, "gate-segment:")
+                if gate is None:
+                    continue
+                contains, _info = line.contains(event)
+                if not contains:
+                    continue
+                self._show_human_design_gate_line_info(gate, None)
+                return
+            for text in event.inaxes.texts:
+                gate_label_id = str(getattr(text, "get_gid", lambda: "")() or "")
+                gate = _resolve_gate_from_artist_id(gate_label_id, "gate-label:")
+                if gate is None:
+                    continue
+                contains, _info = text.contains(event)
+                if not contains:
+                    continue
+                self._show_human_design_gate_line_info(gate, None)
+                return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
             for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
@@ -24744,6 +24773,8 @@ class MainWindow(QMainWindow):
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
