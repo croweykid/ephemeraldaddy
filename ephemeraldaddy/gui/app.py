@@ -24665,6 +24665,18 @@ class MainWindow(QMainWindow):
                 return
             if not figure.axes or event.inaxes is not figure.axes[0]:
                 return
+            for line in event.inaxes.lines:
+                gate_segment_id = str(getattr(line, "get_gid", lambda: "")() or "")
+                if not gate_segment_id.startswith("gate-segment:"):
+                    continue
+                contains, _info = line.contains(event)
+                if not contains:
+                    continue
+                gate_text = gate_segment_id.split(":", 1)[1]
+                if not gate_text.isdigit():
+                    continue
+                _show_human_design_gate_line_info(int(gate_text), None)
+                return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
             for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
@@ -24744,6 +24756,8 @@ class MainWindow(QMainWindow):
         summary_output.setPlainText("")
         summary_output.setMinimumHeight(220)
         summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         summary_output.viewport().installEventFilter(self)
         right_layout.addWidget(summary_output, 3)
 
