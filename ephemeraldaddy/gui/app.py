@@ -2390,27 +2390,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if subheader is None:
             return
         scope_label = "selection" if use_selection_scope else "database"
-        label_by_mode = {
-            "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
-            "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
-            "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
-            "top3_nakshatras": f"top 3 dominant nakshatras for charts in {scope_label}",
-        }
-        subheader.setText(label_by_mode.get(self._dominant_factors_mode, label_by_mode["top3_signs"]))
+        subheader.setText(
+            self._dominant_factors_subheader_label(
+                self._dominant_factors_mode,
+                scope_label=scope_label,
+            )
+        )
 
     def _update_cumulativedom_factors_subheader(self, *, use_selection_scope: bool = False) -> None:
         subheader = getattr(self, "cumulativedom_factors_subheader", None)
         if subheader is None:
             return
         scope_label = "selection" if use_selection_scope else "database"
-        label_by_mode = {
-            "cumulative_signs": f"Cumulative weight of signs across all charts in {scope_label}",
-            "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
-            "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
-            "cumulative_nakshatras": f"Cumulative weight of nakshatras across all charts in {scope_label}",
-        }
         subheader.setText(
-            label_by_mode.get(self._cumulativedom_factors_mode, label_by_mode["cumulative_signs"])
+            self._cumulative_dominant_factors_subheader_label(
+                self._cumulativedom_factors_mode,
+                scope_label=scope_label,
+            )
         )
 
     def _update_prevalence_subheader(self) -> None:
@@ -3072,12 +3068,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "🪐Dominant Factors (Top 3)",
             "dominant_signs",
             "dominant_signs",
-            dropdown_options=[
-                ("Dominant Signs (Top 3)", "top3_signs"),
-                ("Dominant Bodies (Top 3)", "top3_planets"),
-                ("Dominant Houses (Top 3)", "top3_houses"),
-                ("Dominant Nakshatras (Top 3)", "top3_nakshatras"),
-            ],
+            dropdown_options=self._dominant_factors_top3_dropdown_options(),
             show_title=False,
         )
         self.dominant_factors_subheader = add_database_subheader("Top 3 most dominant signs in selection/database")
@@ -3111,12 +3102,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "🪐Dominant Factors (cumulative weight)",
             "cumulativedom_factors",
             "cumulativedom_factors",
-            dropdown_options=[
-                ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
-                ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
-                ("Dominant Houses (Cumulative Weight)", "cumulative_houses"),
-                ("Dominant Nakshatras (Cumulative Weight)", "cumulative_nakshatras"),
-            ],
+            dropdown_options=self._dominant_factors_cumulative_dropdown_options(),
             show_title=False,
         )
         self.cumulativedom_factors_subheader = add_database_subheader(
@@ -6454,23 +6440,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             key=lambda item: (-item[1], item[0]),
         )
         return {house_num for house_num, _weight in ranked[:3]}
-
-    @staticmethod
-    def _dominant_nakshatra_top_three_labels(
-        dominant_weights: dict[str, float] | None,
-    ) -> set[str]:
-        if not dominant_weights:
-            return set()
-        nakshatra_order = [name for name, *_ in NAKSHATRA_RANGES]
-        ranked = sorted(
-            (
-                (name, float(weight))
-                for name, weight in dominant_weights.items()
-                if name in nakshatra_order and float(weight) > 0
-            ),
-            key=lambda item: (-item[1], nakshatra_order.index(item[0])),
-        )
-        return {name for name, _weight in ranked[:3]}
 
     def _build_common_dominant_nakshatras(
         self, chart_ids: list[int]
