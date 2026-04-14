@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -17,6 +23,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -28,6 +35,167 @@ from ephemeraldaddy.gui.style import (
     INACTIVE_ACTION_BUTTON_STYLE,
     similarity_gradient_rgb_for_range,
 )
+
+SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
+    ("placement", "Placement score"),
+    ("aspect", "Aspect score"),
+    ("distribution", "Distribution score"),
+    ("combined_dominance", "Combined dominance score"),
+    ("nakshatra_placement", "Nakshatra placement score"),
+    ("nakshatra_dominance", "Nakshatra dominance score"),
+    ("defined_centers", "Defined centers score"),
+)
+
+
+def build_similarity_calculator_settings_section(
+    *,
+    dialog: QDialog,
+    section_layout: QVBoxLayout,
+    subheader_style: str,
+    on_mode_default_toggled: Callable[[bool], None],
+    on_mode_comprehensive_toggled: Callable[[bool], None],
+    on_mode_custom_toggled: Callable[[bool], None],
+    on_checkbox_toggled: Callable[[str, bool], None],
+    on_weight_changed: Callable[[str, float], None],
+    on_reset_weights_clicked: Callable[[], None],
+    on_calibrate_clicked: Callable[[], None],
+    on_save_thresholds_clicked: Callable[[], None],
+    on_reset_thresholds_clicked: Callable[[], None],
+    threshold_rows: tuple[tuple[str, str], ...],
+) -> dict[str, object]:
+    similar_charts_algo_label = QLabel("Similarities Calculator")
+    similar_charts_algo_label.setStyleSheet(subheader_style)
+    section_layout.addWidget(similar_charts_algo_label)
+    section_layout.addWidget(
+        QLabel(
+            "Choose which matching algorithm powers Similar Charts results."
+        )
+    )
+
+    default_radio = QRadioButton("use default")
+    comprehensive_radio = QRadioButton("use comprehensive")
+    custom_radio = QRadioButton("use custom")
+    similar_charts_algo_group = QButtonGroup(dialog)
+    similar_charts_algo_group.setExclusive(True)
+    similar_charts_algo_group.addButton(default_radio)
+    similar_charts_algo_group.addButton(comprehensive_radio)
+    similar_charts_algo_group.addButton(custom_radio)
+    default_radio.toggled.connect(on_mode_default_toggled)
+    comprehensive_radio.toggled.connect(on_mode_comprehensive_toggled)
+    custom_radio.toggled.connect(on_mode_custom_toggled)
+    section_layout.addWidget(default_radio)
+    section_layout.addWidget(comprehensive_radio)
+    section_layout.addWidget(custom_radio)
+
+    calculator_checkboxes: dict[str, QCheckBox] = {}
+    calculator_weights: dict[str, QDoubleSpinBox] = {}
+    calculator_grid = QGridLayout()
+    calculator_grid.setContentsMargins(0, 0, 0, 0)
+    calculator_grid.setHorizontalSpacing(8)
+    calculator_grid.setVerticalSpacing(6)
+    calculator_grid.addWidget(QLabel("Factor"), 0, 1)
+    calculator_grid.addWidget(QLabel("Weight"), 0, 2)
+    calculator_grid.addWidget(QLabel("Selected Total"), 0, 3)
+    total_weight_value_label = QLabel("0.00 / 1.00 (0.0%)")
+    total_weight_value_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
+    calculator_grid.addWidget(
+        total_weight_value_label,
+        1,
+        3,
+        len(SIMILARITY_CALCULATOR_FACTOR_ROWS),
+        1,
+        alignment=Qt.AlignRight | Qt.AlignTop,
+    )
+    for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
+        calculator_grid.addWidget(QLabel(label_text), row_index, 1)
+        enabled_checkbox = QCheckBox()
+        enabled_checkbox.setChecked(True)
+        enabled_checkbox.stateChanged.connect(
+            lambda _state, row_key=key, checkbox=enabled_checkbox: on_checkbox_toggled(
+                row_key,
+                checkbox.isChecked(),
+            )
+        )
+        calculator_grid.addWidget(enabled_checkbox, row_index, 0, alignment=Qt.AlignCenter)
+        weight_spinbox = QDoubleSpinBox()
+        weight_spinbox.setDecimals(2)
+        weight_spinbox.setRange(0.0, 1.0)
+        weight_spinbox.setSingleStep(0.01)
+        weight_spinbox.setAlignment(Qt.AlignRight)
+        weight_spinbox.valueChanged.connect(
+            lambda _value, row_key=key, spinbox=weight_spinbox: on_weight_changed(
+                row_key,
+                float(spinbox.value()),
+            )
+        )
+        calculator_grid.addWidget(weight_spinbox, row_index, 2)
+        calculator_checkboxes[key] = enabled_checkbox
+        calculator_weights[key] = weight_spinbox
+    section_layout.addLayout(calculator_grid)
+
+    reset_similarity_weights_button = QPushButton("Reset Weights to Default")
+    reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
+    section_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
+
+    section_divider = QFrame()
+    section_divider.setFrameShape(QFrame.HLine)
+    section_divider.setFrameShadow(QFrame.Sunken)
+    section_layout.addWidget(section_divider)
+
+    calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
+    calibrate_similarity_button.setToolTip(
+        "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
+    )
+    calibrate_similarity_button.clicked.connect(on_calibrate_clicked)
+    section_layout.addWidget(calibrate_similarity_button)
+
+    similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
+    similarity_thresholds_label.setStyleSheet(subheader_style)
+    section_layout.addWidget(similarity_thresholds_label)
+    section_layout.addWidget(
+        QLabel(
+            "Manual override for band cutoffs (q20/q40/q60/q80). "
+            "Values are auto-sorted and saved systemwide."
+        )
+    )
+
+    thresholds_grid = QGridLayout()
+    thresholds_grid.setContentsMargins(0, 0, 0, 0)
+    thresholds_grid.setHorizontalSpacing(8)
+    thresholds_grid.setVerticalSpacing(6)
+    threshold_spinboxes: dict[str, QDoubleSpinBox] = {}
+    for row_index, (key, label_text) in enumerate(threshold_rows):
+        label = QLabel(label_text)
+        spinbox = QDoubleSpinBox()
+        spinbox.setDecimals(1)
+        spinbox.setRange(0.0, 100.0)
+        spinbox.setSingleStep(0.5)
+        spinbox.setSuffix("%")
+        spinbox.setAlignment(Qt.AlignRight)
+        thresholds_grid.addWidget(label, row_index, 0)
+        thresholds_grid.addWidget(spinbox, row_index, 1)
+        threshold_spinboxes[key] = spinbox
+    section_layout.addLayout(thresholds_grid)
+
+    thresholds_button_row = QHBoxLayout()
+    thresholds_save_button = QPushButton("Save Threshold Overrides")
+    thresholds_save_button.clicked.connect(on_save_thresholds_clicked)
+    thresholds_reset_button = QPushButton("Reset Thresholds to Defaults")
+    thresholds_reset_button.clicked.connect(on_reset_thresholds_clicked)
+    thresholds_button_row.addWidget(thresholds_save_button)
+    thresholds_button_row.addWidget(thresholds_reset_button)
+    thresholds_button_row.addStretch(1)
+    section_layout.addLayout(thresholds_button_row)
+
+    return {
+        "default_radio": default_radio,
+        "comprehensive_radio": comprehensive_radio,
+        "custom_radio": custom_radio,
+        "calculator_checkboxes": calculator_checkboxes,
+        "calculator_weights": calculator_weights,
+        "calculator_total_label": total_weight_value_label,
+        "threshold_spinboxes": threshold_spinboxes,
+    }
 
 
 class SizeCheckerPopup(QDialog):
