@@ -21589,16 +21589,16 @@ class MainWindow(QMainWindow):
         target_info_widget: QPlainTextEdit,
         block_offset: int = 0,
     ) -> bool:
-        block = cursor.block()
-        block_number = block.blockNumber() + block_offset
-        block_text = block.text()
-        info_index = block_text.rfind("ⓘ")
+        targets_main_chart_info = target_info_widget is self.chart_info_output
 
-        cursor_pos = cursor.positionInBlock()
-        original_chart_info_output = self.chart_info_output
-        self.chart_info_output = target_info_widget
-        try:
-            if target_info_widget is original_chart_info_output:
+        def _handle_click() -> bool:
+            block = cursor.block()
+            block_number = block.blockNumber() + block_offset
+            block_text = block.text()
+            info_index = block_text.rfind("ⓘ")
+
+            cursor_pos = cursor.positionInBlock()
+            if targets_main_chart_info:
                 self._set_chart_info_panel_mode("chart_info")
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
@@ -21732,6 +21732,18 @@ class MainWindow(QMainWindow):
                 self._show_aspect_keyword_info(str(aspect_info.get("type", "")))
                 return True
             return False
+
+        return self._run_with_chart_info_output(target_info_widget, _handle_click)
+
+    def _run_with_chart_info_output(
+        self,
+        target_info_widget: QPlainTextEdit,
+        callback: Callable[[], Any],
+    ) -> Any:
+        original_chart_info_output = self.chart_info_output
+        self.chart_info_output = target_info_widget
+        try:
+            return callback()
         finally:
             self.chart_info_output = original_chart_info_output
 
@@ -25155,12 +25167,18 @@ class MainWindow(QMainWindow):
                 "\n".join(
                     [
                         center_name,
-                        f"*{description}*",
+                        description,
                         "",
                         state_label,
                         state_detail,
                     ]
                 )
+            )
+
+        def _show_popout_gate_info(gate: int) -> None:
+            self._run_with_chart_info_output(
+                chart_info_output,
+                lambda: self._show_human_design_gate_line_info(int(gate), None),
             )
 
         def _on_bodygraph_click(event: Any) -> None:
@@ -25178,7 +25196,7 @@ class MainWindow(QMainWindow):
                 gate_text = gate_segment_id.split(":", 1)[1]
                 if not gate_text.isdigit():
                     continue
-                self._show_human_design_gate_line_info(int(gate_text), None)
+                _show_popout_gate_info(int(gate_text))
                 return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
