@@ -258,6 +258,8 @@ from ephemeraldaddy.core.db import (
     find_self_tagged_chart,
     clear_self_tag_from_other_charts,
     resolve_user_age_details,
+    list_duplicate_exclusions,
+    save_duplicate_exclusions,
 )
 
 from ephemeraldaddy.data.age_distribution_estimator import discrete_age_distribution
@@ -1519,6 +1521,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._possible_duplicate_related_names: dict[int, dict[str, list[str]]] = {}
         self._possible_duplicate_likelihoods: dict[int, DuplicateLikelihood] = {}
         self._possible_duplicate_sort_keys: dict[int, tuple[int, int, str]] = {}
+        self._possible_duplicate_group_ids: dict[int, int] = {}
+        self._excluded_duplicate_pairs: set[tuple[int, int]] = list_duplicate_exclusions()
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -1836,6 +1840,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.collection_combo.addItem(collection_label, collection_id)
         self.collection_combo.currentIndexChanged.connect(self._on_collection_changed)
         list_header_layout.addWidget(self.collection_combo)
+        self.mark_not_duplicates_button = QPushButton('Mark "Not Duplicates"')
+        self.mark_not_duplicates_button.setObjectName("manage_mark_not_duplicates_button")
+        self.mark_not_duplicates_button.clicked.connect(self._on_mark_not_duplicates)
+        self.mark_not_duplicates_button.setVisible(False)
+        self.mark_not_duplicates_button.setEnabled(False)
+        list_header_layout.addWidget(self.mark_not_duplicates_button, alignment=Qt.AlignRight)
         list_header_layout.addWidget(self.sort_button, alignment=Qt.AlignRight)
         self._update_sort_button_label()
         list_layout.addWidget(list_header_row)
@@ -12823,6 +12833,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         inactive_style = INACTIVE_ACTION_BUTTON_STYLE if not can_manage_membership else ""
         self.collection_add_selected_button.setStyleSheet(inactive_style)
         self.collection_remove_selected_button.setStyleSheet(inactive_style)
+        self._update_mark_not_duplicates_button_visibility()
+
+    def _update_mark_not_duplicates_button_visibility(self) -> None:
+        if not hasattr(self, "mark_not_duplicates_button"):
+            return
+        is_possible_duplicates_mode = (
+            self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+            and self._show_possible_duplicates_collection
+        )
+        self.mark_not_duplicates_button.setVisible(is_possible_duplicates_mode)
+        if not is_possible_duplicates_mode:
+            self.mark_not_duplicates_button.setEnabled(False)
+            return
+        selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
+        self.mark_not_duplicates_button.setEnabled(selected_count >= 2)
 
     def _on_collection_changed(self, index: int) -> None:
         previous_collection_id = self._active_collection_id
@@ -12842,8 +12867,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
         self._populate_list()
+        self._update_mark_not_duplicates_button_visibility()
 
     def _on_check_for_duplicates(self) -> None:
+        self._excluded_duplicate_pairs = list_duplicate_exclusions()
         rows = [
             normalized
             for row in self._chart_rows
@@ -12854,17 +12881,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             load_chart=self._get_chart_for_filter,
             similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
+            excluded_pairs=self._excluded_duplicate_pairs,
         )
         if not duplicate_result.duplicate_ids:
             self._possible_duplicate_chart_ids = set()
             self._possible_duplicate_related_names = {}
             self._possible_duplicate_likelihoods = {}
             self._possible_duplicate_sort_keys = {}
+            self._possible_duplicate_group_ids = {}
             self._show_possible_duplicates_collection = False
             if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
                 self._active_collection_id = DEFAULT_COLLECTION_ALL
             self._refresh_collection_controls()
             self._populate_list()
+            self._update_mark_not_duplicates_button_visibility()
             QMessageBox.information(
                 self,
                 "Possible duplicates",
@@ -12875,10 +12905,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._possible_duplicate_related_names = duplicate_result.related_names
         self._possible_duplicate_likelihoods = duplicate_result.likelihood_by_chart_id
         self._possible_duplicate_sort_keys = duplicate_result.duplicate_sort_key_by_chart_id
+        self._possible_duplicate_group_ids = duplicate_result.duplicate_group_by_chart_id
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
         self._populate_list()
+        self._update_mark_not_duplicates_button_visibility()
+
+    def _on_mark_not_duplicates(self) -> None:
+        selected_ids = sorted(set(self._selected_chart_ids()))
+        if len(selected_ids) < 2:
+            QMessageBox.information(
+                self,
+                "Mark Not Duplicates",
+                "Select at least two charts to mark as not duplicates.",
+            )
+            return
+        inserted = save_duplicate_exclusions(selected_ids)
+        self._excluded_duplicate_pairs = list_duplicate_exclusions()
+        self._on_check_for_duplicates()
+        QMessageBox.information(
+            self,
+            "Marked Not Duplicates",
+            (
+                f"Stored {inserted} new not-duplicate pair(s). "
+                "These chart pairings will be excluded from future duplicate checks."
+            ),
+        )
 
     def _selected_custom_collection_id(self) -> str | None:
         current_item = self.collections_list_widget.currentItem()
@@ -13516,6 +13569,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
             self.batch_rename_chart_button.setEnabled(rename_enabled)
+        self._update_mark_not_duplicates_button_visibility()
 
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
@@ -14726,6 +14780,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             tooltip_sections.append(f"Likely similar spelling to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
+                    group_id = self._possible_duplicate_group_ids.get(cid)
+                    if group_id is not None:
+                        group_palette = (
+                            QColor("#1f2b22"),
+                            QColor("#1f2230"),
+                            QColor("#2b1f2b"),
+                            QColor("#26231f"),
+                            QColor("#1e2a2a"),
+                            QColor("#2a1e24"),
+                        )
+                        item.setBackground(
+                            QBrush(group_palette[(max(0, int(group_id) - 1)) % len(group_palette)])
+                        )
                 item.setData(
                     Qt.UserRole + 1,
                     {

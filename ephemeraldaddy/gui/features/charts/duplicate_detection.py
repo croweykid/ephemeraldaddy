@@ -33,6 +33,7 @@ class DuplicateDetectionResult:
     related_names: dict[int, dict[str, list[str]]]
     likelihood_by_chart_id: dict[int, DuplicateLikelihood]
     duplicate_sort_key_by_chart_id: dict[int, tuple[int, int, str]]
+    duplicate_group_by_chart_id: dict[int, int]
 
 
 def _normalize_name(value: object) -> str:
@@ -83,6 +84,7 @@ def find_possible_duplicate_charts(
     load_chart: Callable[[int], Chart | None] | None = None,
     similarity_threshold_percent: float = 65.0,
     similarity_ceiling_percent: float = 100.0,
+    excluded_pairs: set[tuple[int, int]] | None = None,
 ) -> DuplicateDetectionResult:
     duplicate_ids: set[int] = set()
     related_names: dict[int, dict[str, set[str]]] = {}
@@ -93,6 +95,12 @@ def find_possible_duplicate_charts(
     placeholder_ids: set[int] = set()
     chart_links: dict[int, set[int]] = {}
     likelihood_by_chart_id: dict[int, DuplicateLikelihood] = {}
+    excluded = excluded_pairs or set()
+
+    def canonical_pair(left_id: int, right_id: int) -> tuple[int, int]:
+        left = int(left_id)
+        right = int(right_id)
+        return (left, right) if left < right else (right, left)
 
     def attach_likelihood(chart_id: int, likelihood: DuplicateLikelihood) -> None:
         current = likelihood_by_chart_id.get(chart_id)
@@ -101,6 +109,8 @@ def find_possible_duplicate_charts(
 
     def connect_pair(left_id: int, right_id: int) -> None:
         if left_id == right_id:
+            return
+        if canonical_pair(left_id, right_id) in excluded:
             return
         chart_links.setdefault(left_id, set()).add(right_id)
         chart_links.setdefault(right_id, set()).add(left_id)
@@ -146,6 +156,8 @@ def find_possible_duplicate_charts(
             related = related_by_reason.setdefault(reason_key, set())
             for other_id in group_ids:
                 if other_id == chart_id:
+                    continue
+                if canonical_pair(chart_id, other_id) in excluded:
                     continue
                 related.add(chart_names.get(other_id, f"Chart #{other_id}"))
 
@@ -251,4 +263,5 @@ def find_possible_duplicate_charts(
         },
         likelihood_by_chart_id=likelihood_by_chart_id,
         duplicate_sort_key_by_chart_id=duplicate_sort_key_by_chart_id,
+        duplicate_group_by_chart_id=component_id_by_chart,
     )
