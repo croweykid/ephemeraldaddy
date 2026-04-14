@@ -57,6 +57,7 @@ def build_similarity_calculator_settings_section(
     on_mode_custom_toggled: Callable[[bool], None],
     on_checkbox_toggled: Callable[[str, bool], None],
     on_weight_changed: Callable[[str, float], None],
+    on_placement_weighting_mode_changed: Callable[[str], None],
     on_reset_weights_clicked: Callable[[], None],
     on_calibrate_clicked: Callable[[], None],
     on_save_thresholds_clicked: Callable[[], None],
@@ -133,6 +134,21 @@ def build_similarity_calculator_settings_section(
         calculator_weights[key] = weight_spinbox
     section_layout.addLayout(calculator_grid)
 
+    weighting_mode_row = QHBoxLayout()
+    weighting_mode_label = QLabel("Placement weighting mode")
+    weighting_mode_combo = QComboBox()
+    weighting_mode_combo.addItem("Chart-defined weights", "chart_defined")
+    weighting_mode_combo.addItem("Generic base weights", "generic")
+    weighting_mode_combo.currentIndexChanged.connect(
+        lambda _index: on_placement_weighting_mode_changed(
+            str(weighting_mode_combo.currentData() or "chart_defined")
+        )
+    )
+    weighting_mode_row.addWidget(weighting_mode_label)
+    weighting_mode_row.addWidget(weighting_mode_combo)
+    weighting_mode_row.addStretch(1)
+    section_layout.addLayout(weighting_mode_row)
+
     reset_similarity_weights_button = QPushButton("Reset Weights to Default")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
     section_layout.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
@@ -194,6 +210,7 @@ def build_similarity_calculator_settings_section(
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,
         "calculator_total_label": total_weight_value_label,
+        "placement_weighting_mode_combo": weighting_mode_combo,
         "threshold_spinboxes": threshold_spinboxes,
     }
 
