@@ -18,7 +18,6 @@ import traceback
 import uuid
 import urllib.parse
 import platform
-from difflib import SequenceMatcher
 from collections import Counter, OrderedDict
 from typing import Any, Callable
 from types import SimpleNamespace
@@ -362,6 +361,7 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
     normalize_aspect_type as _normalize_aspect_type,
 )
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
+    DuplicateLikelihood,
     find_possible_duplicate_charts,
 )
 
@@ -1517,6 +1517,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
         self._possible_duplicate_related_names: dict[int, dict[str, list[str]]] = {}
+        self._possible_duplicate_likelihoods: dict[int, DuplicateLikelihood] = {}
+        self._possible_duplicate_sort_keys: dict[int, tuple[int, int, str]] = {}
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._analysis_chart_export_rows: dict[
@@ -1671,6 +1673,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.sort_action_known_duration = self.sort_menu.addAction("Time Known")
         self.sort_action_alignment = self.sort_menu.addAction("Alignment")
         self.sort_action_social_score = self.sort_menu.addAction("Social Score")
+        self.sort_action_duplicate_sets = self.sort_menu.addAction("duplicate sets?")
         self.sort_action_date.triggered.connect(lambda: self._set_sort_mode("date"))
         self.sort_action_alpha.triggered.connect(lambda: self._set_sort_mode("alpha"))
         self.sort_action_cursedness.triggered.connect(
@@ -1691,6 +1694,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self.sort_action_social_score.triggered.connect(
             lambda: self._set_sort_mode("social_score")
+        )
+        self.sort_action_duplicate_sets.triggered.connect(
+            lambda: self._set_sort_mode("duplicate_sets")
         )
         self.sort_button.setMenu(self.sort_menu)
 
@@ -2779,6 +2785,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.sort_button.setText(f"Sort: Alignment {direction}")
         elif mode == "social_score":
             self.sort_button.setText(f"Sort: Social Score {direction}")
+        elif mode == "duplicate_sets":
+            self.sort_button.setText(f"Sort: Duplicate Sets {direction}")
         else:
             self._sort_mode = "alpha"
             self._sort_descending = False
@@ -12759,7 +12767,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_index = self.collection_combo.findData(active_collection_id)
         self.collection_combo.setCurrentIndex(max(0, active_index))
         self.collection_combo.blockSignals(False)
+        self._update_duplicate_sets_sort_availability()
         self._refresh_collection_list_widget()
+
+
+    def _update_duplicate_sets_sort_availability(self) -> None:
+        is_available = self._show_possible_duplicates_collection
+        self.sort_action_duplicate_sets.setVisible(is_available)
+        self.sort_action_duplicate_sets.setEnabled(is_available)
+        if not is_available and self._sort_mode == "duplicate_sets":
+            self._sort_mode = "alpha"
+            self._sort_descending = False
+            self._update_sort_button_label()
+            self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
+            self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
 
     def _refresh_collection_list_widget(self) -> None:
         if not hasattr(self, "collections_list_widget"):
@@ -12828,15 +12849,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        duplicate_ids, related_names = find_possible_duplicate_charts(
+        duplicate_result = find_possible_duplicate_charts(
             rows,
             load_chart=self._get_chart_for_filter,
-            similarity_threshold_percent=90.0,
+            similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
         )
-        if not duplicate_ids:
+        if not duplicate_result.duplicate_ids:
             self._possible_duplicate_chart_ids = set()
             self._possible_duplicate_related_names = {}
+            self._possible_duplicate_likelihoods = {}
+            self._possible_duplicate_sort_keys = {}
             self._show_possible_duplicates_collection = False
             if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
                 self._active_collection_id = DEFAULT_COLLECTION_ALL
@@ -12845,90 +12868,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.information(
                 self,
                 "Possible duplicates",
-                "No possible duplicates were found from names, birthdays, or 90–100% chart similarity.",
+                "No possible duplicates were found from names, exact birth dates, or 65–100% chart similarity.",
             )
             return
-        self._possible_duplicate_chart_ids = duplicate_ids
-        self._possible_duplicate_related_names = related_names
+        self._possible_duplicate_chart_ids = duplicate_result.duplicate_ids
+        self._possible_duplicate_related_names = duplicate_result.related_names
+        self._possible_duplicate_likelihoods = duplicate_result.likelihood_by_chart_id
+        self._possible_duplicate_sort_keys = duplicate_result.duplicate_sort_key_by_chart_id
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
         self._refresh_collection_controls()
         self._populate_list()
-
-    @staticmethod
-    def _normalize_duplicate_name(value: object) -> str:
-        text = str(value or "").strip().casefold()
-        if not text:
-            return ""
-        return re.sub(r"[^a-z0-9]+", "", text)
-
-    def _compute_possible_duplicate_chart_ids(
-        self,
-        rows: list[
-            tuple[
-                int,
-                str | None,
-                str | None,
-                str | None,
-                str | None,
-                str | None,
-                str | None,
-                int,
-                int,
-                int,
-                int,
-                int,
-                int | None,
-                int,
-                str,
-                int,
-                int,
-                int | None,
-                int | None,
-                int | None,
-            ]
-        ],
-    ) -> set[int]:
-        duplicate_ids: set[int] = set()
-        birthday_groups: dict[tuple[int, int], list[int]] = {}
-        name_groups: dict[str, list[int]] = {}
-        names_by_id: dict[int, str] = {}
-        for row in rows:
-            chart_id = int(row[0])
-            birth_month = row[17]
-            birth_day = row[18]
-            if isinstance(birth_month, int) and isinstance(birth_day, int):
-                birthday_key = (birth_month, birth_day)
-                birthday_groups.setdefault(birthday_key, []).append(chart_id)
-
-            normalized_name = self._normalize_duplicate_name(row[1] or row[2] or "")
-            if normalized_name:
-                names_by_id[chart_id] = normalized_name
-                name_groups.setdefault(normalized_name, []).append(chart_id)
-
-        for chart_ids in birthday_groups.values():
-            if len(chart_ids) >= 2:
-                duplicate_ids.update(chart_ids)
-        for chart_ids in name_groups.values():
-            if len(chart_ids) >= 2:
-                duplicate_ids.update(chart_ids)
-
-        buckets: dict[str, list[tuple[int, str]]] = {}
-        for chart_id, name in names_by_id.items():
-            bucket_key = name[:1]
-            buckets.setdefault(bucket_key, []).append((chart_id, name))
-        for bucket_entries in buckets.values():
-            for index, (left_id, left_name) in enumerate(bucket_entries):
-                for right_id, right_name in bucket_entries[index + 1 :]:
-                    if left_id == right_id:
-                        continue
-                    if abs(len(left_name) - len(right_name)) > 2:
-                        continue
-                    score = SequenceMatcher(None, left_name, right_name).ratio()
-                    if score >= 0.88:
-                        duplicate_ids.add(left_id)
-                        duplicate_ids.add(right_id)
-        return duplicate_ids
 
     def _selected_custom_collection_id(self) -> str | None:
         current_item = self.collections_list_widget.currentItem()
@@ -14388,6 +14338,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "alignment": True,
             "social_score": True,
             "known_duration": True,
+            "duplicate_sets": False,
         }
         if mode == self._sort_mode:
             self._sort_descending = not self._sort_descending
@@ -14651,6 +14602,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         elif self._sort_mode == "social_score":
             rows.sort(key=lambda r: (r[13], (r[1] or "").lower()), reverse=self._sort_descending)
+        elif self._sort_mode == "duplicate_sets":
+            rows.sort(
+                key=lambda r: self._possible_duplicate_sort_keys.get(
+                    r[0],
+                    (10_000_000, 9, (r[1] or "").casefold()),
+                ),
+                reverse=self._sort_descending,
+            )
         else:
             rows.sort(key=lambda r: r[6], reverse=self._sort_descending)
 
@@ -14735,24 +14694,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     related_names = self._possible_duplicate_related_names.get(cid, {})
                     if related_names:
                         tooltip_sections: list[str] = []
-                        name_matches = related_names.get("name", [])
+                        name_matches = related_names.get("name_exact", [])
                         if name_matches:
                             tooltip_names = ", ".join(name_matches[:5])
                             if len(name_matches) > 5:
                                 tooltip_names = f"{tooltip_names}, …"
-                            tooltip_sections.append(f"Similar name to: {tooltip_names}")
-                        birthday_matches = related_names.get("birth_date", [])
+                            tooltip_sections.append(f"Same name as: {tooltip_names}")
+                        birthday_matches = related_names.get("birth_date_year", [])
                         if birthday_matches:
                             tooltip_names = ", ".join(birthday_matches[:5])
                             if len(birthday_matches) > 5:
                                 tooltip_names = f"{tooltip_names}, …"
-                            tooltip_sections.append(f"Similar birth date to: {tooltip_names}")
-                        similarity_matches = related_names.get("chart_similarity_90_100", [])
+                            tooltip_sections.append(f"Same birth date (Y/M/D) as: {tooltip_names}")
+                        similarity_matches = related_names.get("chart_similarity_100", [])
+                        likely_similarity_matches = related_names.get("chart_similarity_65_100", [])
                         if similarity_matches:
                             tooltip_names = ", ".join(similarity_matches[:5])
                             if len(similarity_matches) > 5:
                                 tooltip_names = f"{tooltip_names}, …"
-                            tooltip_sections.append(f"90–100% chart similarity to: {tooltip_names}")
+                            tooltip_sections.append(f"100% chart similarity to: {tooltip_names}")
+                        if likely_similarity_matches:
+                            tooltip_names = ", ".join(likely_similarity_matches[:5])
+                            if len(likely_similarity_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"65–99.9% chart similarity to: {tooltip_names}")
+                        fuzzy_name_matches = related_names.get("name_fuzzy", [])
+                        if fuzzy_name_matches:
+                            tooltip_names = ", ".join(fuzzy_name_matches[:5])
+                            if len(fuzzy_name_matches) > 5:
+                                tooltip_names = f"{tooltip_names}, …"
+                            tooltip_sections.append(f"Likely similar spelling to: {tooltip_names}")
                         if tooltip_sections:
                             item.setToolTip("; ".join(tooltip_sections))
                 item.setData(
@@ -14768,6 +14739,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "place": place_with_gender,
                         "is_placeholder": bool(is_placeholder),
                         "is_deceased": bool(is_deceased),
+                        "duplicate_likelihood": self._possible_duplicate_likelihoods.get(cid, ""),
                     },
                 )
                 self.list_widget.addItem(item)

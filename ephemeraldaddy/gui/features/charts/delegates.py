@@ -28,6 +28,12 @@ class ChartRowDelegate(QStyledItemDelegate):
             "retcon_time": QColor("#4a7bd1"),
             "place": QColor("#9c7a53"),
         }
+        self._duplicate_likelihood_colors = {
+            "definite": QColor("#7CFF00"),
+            "likely": QColor("#54D26A"),
+            "probable_name": QColor("#54D26A"),
+            "mid_birth_date": QColor("#3CB371"),
+        }
 
     def paint(
         self,
@@ -66,6 +72,7 @@ class ChartRowDelegate(QStyledItemDelegate):
         status_text = "💀" if bool(segment_data.get("is_deceased", False)) else ""
 
         is_placeholder = bool(segment_data.get("is_placeholder", False))
+        duplicate_likelihood = str(segment_data.get("duplicate_likelihood", "")).strip()
 
         segments = [
             ("status", status_text),
@@ -85,6 +92,8 @@ class ChartRowDelegate(QStyledItemDelegate):
             color = self._segment_colors.get(key, opt.palette.text().color())
             if is_placeholder:
                 color = QColor("#4a7bd1")
+            elif duplicate_likelihood and key in {"chart", "name", "alias", "date", "time", "retcon_time", "place"}:
+                color = self._duplicate_likelihood_colors.get(duplicate_likelihood, color)
             if opt.state & QStyle.State_Selected:
                 color = color.lighter(125)
             painter.setPen(color)
