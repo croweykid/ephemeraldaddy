@@ -25072,7 +25072,7 @@ class MainWindow(QMainWindow):
                 gate_text = gate_segment_id.split(":", 1)[1]
                 if not gate_text.isdigit():
                     continue
-                _show_human_design_gate_line_info(int(gate_text), None)
+                self._show_human_design_gate_line_info(int(gate_text), None)
                 return
             click_x = float(event.xdata)
             click_y = float(event.ydata)
