@@ -12463,9 +12463,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         membership_row = QHBoxLayout()
         self.collection_add_selected_button = QPushButton("Add Selected Charts")
         self.collection_add_selected_button.clicked.connect(self._on_add_selection_to_collection)
+        self.collection_search_add_button = QPushButton("Search to Add…")
+        self.collection_search_add_button.clicked.connect(self._on_search_chart_to_add_to_collection)
         self.collection_remove_selected_button = QPushButton("Remove Selected Charts")
         self.collection_remove_selected_button.clicked.connect(self._on_remove_selection_from_collection)
         membership_row.addWidget(self.collection_add_selected_button)
+        membership_row.addWidget(self.collection_search_add_button)
         membership_row.addWidget(self.collection_remove_selected_button)
         panel_layout.addLayout(membership_row)
         self._update_collection_membership_buttons()
@@ -12810,27 +12813,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _update_collection_membership_buttons(self) -> None:
         selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
-        selected_collection = self.collections_list_widget.currentItem()
-        selected_collection_name = (
-            selected_collection.text().strip()
-            if selected_collection is not None
-            else ""
+        selected_collection_id = self._selected_custom_collection_id()
+        selected_collection = (
+            self._custom_collections.get(selected_collection_id)
+            if selected_collection_id is not None
+            else None
         )
-        can_manage_membership = selected_count > 0 and bool(selected_collection_name)
+        selected_collection_name = selected_collection.name if selected_collection is not None else ""
+        can_manage_membership = selected_count > 0 and selected_collection is not None
+        can_search_add = selected_collection is not None
 
         if can_manage_membership:
             self.collection_add_selected_button.setText(
                 f"Add {selected_count} to {selected_collection_name}"
             )
+            self.collection_remove_selected_button.setText(
+                f"Remove {selected_count} from {selected_collection_name}"
+            )
         else:
             self.collection_add_selected_button.setText("Add Selected Charts")
+            self.collection_remove_selected_button.setText("Remove Selected Charts")
+        if can_search_add:
+            self.collection_search_add_button.setText(f"Search to add to {selected_collection_name}…")
+        else:
+            self.collection_search_add_button.setText("Search to Add…")
 
         self.collection_add_selected_button.setEnabled(can_manage_membership)
         self.collection_remove_selected_button.setEnabled(can_manage_membership)
+        self.collection_search_add_button.setEnabled(can_search_add)
 
         inactive_style = INACTIVE_ACTION_BUTTON_STYLE if not can_manage_membership else ""
+        search_inactive_style = INACTIVE_ACTION_BUTTON_STYLE if not can_search_add else ""
         self.collection_add_selected_button.setStyleSheet(inactive_style)
         self.collection_remove_selected_button.setStyleSheet(inactive_style)
+        self.collection_search_add_button.setStyleSheet(search_inactive_style)
 
     def _on_collection_changed(self, index: int) -> None:
         previous_collection_id = self._active_collection_id
@@ -13043,6 +13059,102 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
         self._populate_list()
+
+    def _on_search_chart_to_add_to_collection(self) -> None:
+        collection_id = self._selected_custom_collection_id()
+        if collection_id is None or collection_id not in self._custom_collections:
+            QMessageBox.information(self, "Collections", "Select a custom collection first.")
+            return
+        collection = self._custom_collections[collection_id]
+        chart_id = self._prompt_chart_selection_for_collection_add(collection.name)
+        if chart_id is None:
+            return
+        updated_ids = set(collection.chart_ids)
+        updated_ids.add(chart_id)
+        self._custom_collections[collection_id] = CustomCollection(
+            collection_id=collection.collection_id,
+            name=collection.name,
+            chart_ids=frozenset(updated_ids),
+        )
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
+
+    def _prompt_chart_selection_for_collection_add(self, collection_name: str) -> int | None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Search Chart to Add • {collection_name}")
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        helper_label = QLabel("Search for a chart, then add it to this collection.")
+        helper_label.setWordWrap(True)
+        layout.addWidget(helper_label)
+
+        chart_lookup: dict[str, int] = {}
+        labels: list[str] = []
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+            if alias:
+                display_name = f"{display_name} ({alias})"
+            label = f"{display_name}  [#{chart_id}]"
+            labels.append(label)
+            chart_lookup[label] = int(chart_id)
+
+        chart_input = QLineEdit(dialog)
+        chart_input.setPlaceholderText("Search chart name")
+        completer = QCompleter(labels, chart_input)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        chart_input.setCompleter(completer)
+        layout.addWidget(chart_input)
+
+        buttons_row = QHBoxLayout()
+        buttons_row.addStretch(1)
+        cancel_button = QPushButton("Never mind", dialog)
+        add_button = QPushButton(f"Add to {collection_name}", dialog)
+        buttons_row.addWidget(cancel_button)
+        buttons_row.addWidget(add_button)
+        layout.addLayout(buttons_row)
+
+        selected_chart_id: int | None = None
+
+        def _resolve_chart_id(raw_value: str) -> int | None:
+            query = raw_value.strip()
+            if not query:
+                return None
+            direct_match = chart_lookup.get(query)
+            if direct_match is not None:
+                return direct_match
+            for label, chart_id in chart_lookup.items():
+                if query.lower() == label.lower():
+                    return chart_id
+            return None
+
+        def _submit() -> None:
+            nonlocal selected_chart_id
+            chart_id = _resolve_chart_id(chart_input.text())
+            if chart_id is None:
+                QMessageBox.warning(
+                    dialog,
+                    "Collections",
+                    "Select a saved chart from autocomplete before adding.",
+                )
+                return
+            selected_chart_id = chart_id
+            dialog.accept()
+
+        add_button.clicked.connect(_submit)
+        cancel_button.clicked.connect(dialog.reject)
+        chart_input.returnPressed.connect(_submit)
+        QTimer.singleShot(0, chart_input.setFocus)
+
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return selected_chart_id
 
     def _clear_batch_edits(self) -> None:
         if hasattr(self, "_batch_last_selection_ids"):
