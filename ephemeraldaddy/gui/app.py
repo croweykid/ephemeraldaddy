@@ -201,7 +201,9 @@ from ephemeraldaddy.gui.window_placement import (
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    SimilarityCalculatorSettings,
     chart_similarity_score,
     find_astro_twins,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
@@ -501,6 +503,12 @@ from ephemeraldaddy.gui.features.charts.similarity_norms import (
     load_similarity_thresholds,
     save_similarity_calibration,
     save_similarity_thresholds,
+)
+from ephemeraldaddy.gui.features.charts.similarity_calculator import (
+    SIMILARITY_CALCULATOR_ROWS,
+    defaults_similarity_calculator_settings,
+    load_similarity_calculator_settings,
+    save_similarity_calculator_settings,
 )
 from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityInputState,
@@ -1457,6 +1465,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
             self._similar_charts_algorithm_mode,
         )
+        self._similarity_calculator_settings = load_similarity_calculator_settings(self._settings)
+        save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -16241,21 +16251,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
-        similar_charts_algo_label = QLabel("Similar Charts Finder Algorithm")
-        similar_charts_algo_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
-        dev_tools_section.addWidget(similar_charts_algo_label)
-        dev_tools_section.addWidget(
+        similarities_section = self._add_settings_collapsible_section(content_layout, "Similarities Calculator")
+        similarities_section.addWidget(
             QLabel(
                 "Choose which matching algorithm powers Similar Charts results."
             )
         )
+        similar_charts_algo_label = QLabel("Algorithm Mode")
+        similar_charts_algo_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        similarities_section.addWidget(similar_charts_algo_label)
 
         self._similar_charts_algo_default_radio = QRadioButton("use default")
         self._similar_charts_algo_comprehensive_radio = QRadioButton("use comprehensive")
+        self._similar_charts_algo_custom_radio = QRadioButton("use custom")
         similar_charts_algo_group = QButtonGroup(dialog)
         similar_charts_algo_group.setExclusive(True)
         similar_charts_algo_group.addButton(self._similar_charts_algo_default_radio)
         similar_charts_algo_group.addButton(self._similar_charts_algo_comprehensive_radio)
+        similar_charts_algo_group.addButton(self._similar_charts_algo_custom_radio)
         self._similar_charts_algo_default_radio.toggled.connect(
             lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT)
@@ -16264,21 +16277,64 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         )
+        self._similar_charts_algo_custom_radio.toggled.connect(
+            lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM)
+        )
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
-        dev_tools_section.addWidget(self._similar_charts_algo_default_radio)
-        dev_tools_section.addWidget(self._similar_charts_algo_comprehensive_radio)
+        similarities_section.addWidget(self._similar_charts_algo_default_radio)
+        similarities_section.addWidget(self._similar_charts_algo_comprehensive_radio)
+        similarities_section.addWidget(self._similar_charts_algo_custom_radio)
+
+        self._similarity_calculator_checkboxes = {}
+        self._similarity_calculator_weights = {}
+        algorithmic_calibration_label = QLabel("Algorithmic Calibration")
+        algorithmic_calibration_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
+        similarities_section.addWidget(algorithmic_calibration_label)
+        calculator_grid = QGridLayout()
+        calculator_grid.setContentsMargins(0, 0, 0, 0)
+        calculator_grid.setHorizontalSpacing(8)
+        calculator_grid.setVerticalSpacing(6)
+        calculator_grid.addWidget(QLabel("Factor"), 0, 0)
+        calculator_grid.addWidget(QLabel("Use"), 0, 1)
+        calculator_grid.addWidget(QLabel("Weight"), 0, 2)
+        for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_ROWS, start=1):
+            calculator_grid.addWidget(QLabel(label_text), row_index, 0)
+            enabled_checkbox = QCheckBox()
+            enabled_checkbox.setChecked(True)
+            enabled_checkbox.stateChanged.connect(lambda _state: self._save_similarity_calculator_from_controls())
+            calculator_grid.addWidget(enabled_checkbox, row_index, 1, alignment=Qt.AlignCenter)
+            weight_spinbox = QDoubleSpinBox()
+            weight_spinbox.setDecimals(2)
+            weight_spinbox.setRange(0.0, 1.0)
+            weight_spinbox.setSingleStep(0.01)
+            weight_spinbox.setAlignment(Qt.AlignRight)
+            weight_spinbox.valueChanged.connect(lambda _value: self._save_similarity_calculator_from_controls())
+            calculator_grid.addWidget(weight_spinbox, row_index, 2)
+            self._similarity_calculator_checkboxes[key] = enabled_checkbox
+            self._similarity_calculator_weights[key] = weight_spinbox
+        similarities_section.addLayout(calculator_grid)
+
+        reset_similarity_weights_button = QPushButton("Reset Weights to Default")
+        reset_similarity_weights_button.clicked.connect(self._reset_similarity_calculator_defaults)
+        similarities_section.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFrameShadow(QFrame.Sunken)
+        similarities_section.addWidget(divider)
 
         calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
         calibrate_similarity_button.setToolTip(
             "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
         )
         calibrate_similarity_button.clicked.connect(self._calibrate_similarity_norms)
-        dev_tools_section.addWidget(calibrate_similarity_button)
+        similarities_section.addWidget(calibrate_similarity_button)
 
         similarity_thresholds_label = QLabel("Similarity Thresholds (%)")
         similarity_thresholds_label.setStyleSheet(SETTINGS_SECTION_SUBHEADER_STYLE)
-        dev_tools_section.addWidget(similarity_thresholds_label)
-        dev_tools_section.addWidget(
+        similarities_section.addWidget(similarity_thresholds_label)
+        similarities_section.addWidget(
             QLabel(
                 "Manual override for band cutoffs (q20/q40/q60/q80). "
                 "Values are auto-sorted and saved systemwide."
@@ -16301,7 +16357,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             thresholds_grid.addWidget(label, row_index, 0)
             thresholds_grid.addWidget(spinbox, row_index, 1)
             self._similarity_threshold_spinboxes[key] = spinbox
-        dev_tools_section.addLayout(thresholds_grid)
+        similarities_section.addLayout(thresholds_grid)
         self._load_similarity_thresholds_into_controls()
 
         thresholds_button_row = QHBoxLayout()
@@ -16312,7 +16368,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         thresholds_button_row.addWidget(thresholds_save_button)
         thresholds_button_row.addWidget(thresholds_reset_button)
         thresholds_button_row.addStretch(1)
-        dev_tools_section.addLayout(thresholds_button_row)
+        similarities_section.addLayout(thresholds_button_row)
+        self._load_similarity_calculator_controls()
 
         age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
         age_tools_section.addWidget(QLabel("Age inference tools."))
@@ -16412,17 +16469,86 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
         default_radio = getattr(self, "_similar_charts_algo_default_radio", None)
         comprehensive_radio = getattr(self, "_similar_charts_algo_comprehensive_radio", None)
-        if default_radio is None or comprehensive_radio is None:
+        custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
+        if default_radio is None or comprehensive_radio is None or custom_radio is None:
             return
         blocker_default = QSignalBlocker(default_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
+        blocker_custom = QSignalBlocker(custom_radio)
         default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
+        custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         del blocker_default
         del blocker_comprehensive
+        del blocker_custom
+        is_custom_mode = normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM
+        for checkbox in getattr(self, "_similarity_calculator_checkboxes", {}).values():
+            checkbox.setEnabled(is_custom_mode)
+        for spinbox in getattr(self, "_similarity_calculator_weights", {}).values():
+            spinbox.setEnabled(is_custom_mode)
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._handle_similar_charts_algorithm_mode_changed(normalized)
+
+    def _load_similarity_calculator_controls(self) -> None:
+        settings = load_similarity_calculator_settings(self._settings)
+        self._similarity_calculator_settings = settings
+        mapping = {
+            "placement": ("use_placement", "weight_placement"),
+            "aspect": ("use_aspect", "weight_aspect"),
+            "distribution": ("use_distribution", "weight_distribution"),
+            "combined_dominance": ("use_combined_dominance", "weight_combined_dominance"),
+            "nakshatra_placement": ("use_nakshatra_placement", "weight_nakshatra_placement"),
+            "nakshatra_dominance": ("use_nakshatra_dominance", "weight_nakshatra_dominance"),
+            "defined_centers": ("use_defined_centers", "weight_defined_centers"),
+        }
+        for key, (enabled_attr, weight_attr) in mapping.items():
+            checkbox = self._similarity_calculator_checkboxes.get(key)
+            spinbox = self._similarity_calculator_weights.get(key)
+            if checkbox is not None:
+                blocker = QSignalBlocker(checkbox)
+                checkbox.setChecked(bool(getattr(settings, enabled_attr)))
+                del blocker
+            if spinbox is not None:
+                blocker = QSignalBlocker(spinbox)
+                spinbox.setValue(float(getattr(settings, weight_attr)))
+                del blocker
+
+    def _save_similarity_calculator_from_controls(self) -> None:
+        if not getattr(self, "_similarity_calculator_checkboxes", None):
+            return
+        settings = SimilarityCalculatorSettings(
+            use_placement=bool(self._similarity_calculator_checkboxes["placement"].isChecked()),
+            weight_placement=float(self._similarity_calculator_weights["placement"].value()),
+            use_aspect=bool(self._similarity_calculator_checkboxes["aspect"].isChecked()),
+            weight_aspect=float(self._similarity_calculator_weights["aspect"].value()),
+            use_distribution=bool(self._similarity_calculator_checkboxes["distribution"].isChecked()),
+            weight_distribution=float(self._similarity_calculator_weights["distribution"].value()),
+            use_combined_dominance=bool(self._similarity_calculator_checkboxes["combined_dominance"].isChecked()),
+            weight_combined_dominance=float(self._similarity_calculator_weights["combined_dominance"].value()),
+            use_nakshatra_placement=bool(self._similarity_calculator_checkboxes["nakshatra_placement"].isChecked()),
+            weight_nakshatra_placement=float(self._similarity_calculator_weights["nakshatra_placement"].value()),
+            use_nakshatra_dominance=bool(self._similarity_calculator_checkboxes["nakshatra_dominance"].isChecked()),
+            weight_nakshatra_dominance=float(self._similarity_calculator_weights["nakshatra_dominance"].value()),
+            use_defined_centers=bool(self._similarity_calculator_checkboxes["defined_centers"].isChecked()),
+            weight_defined_centers=float(self._similarity_calculator_weights["defined_centers"].value()),
+        )
+        self._similarity_calculator_settings = settings
+        save_similarity_calculator_settings(self._settings, settings)
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._similarity_calculator_settings = settings
+            save_similarity_calculator_settings(parent._settings, settings)
+
+    def _reset_similarity_calculator_defaults(self) -> None:
+        defaults = defaults_similarity_calculator_settings()
+        self._similarity_calculator_settings = defaults
+        save_similarity_calculator_settings(self._settings, defaults)
+        self._load_similarity_calculator_controls()
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._similarity_calculator_settings = defaults
+            save_similarity_calculator_settings(parent._settings, defaults)
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -17254,6 +17380,8 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE,
             self._similar_charts_algorithm_mode,
         )
+        self._similarity_calculator_settings = load_similarity_calculator_settings(self._settings)
+        save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -18316,6 +18444,8 @@ class MainWindow(QMainWindow):
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             return "Similar Charts (comprehensive)"
+        if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+            return "Similar Charts (custom)"
         return "Similar Charts"
 
     def _refresh_similar_charts_section_title(self) -> None:
@@ -18621,6 +18751,7 @@ class MainWindow(QMainWindow):
                 exclude_chart_id=self.current_chart_id,
                 least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
                 algorithm_mode=algorithm_mode,
+                custom_settings=getattr(self, "_similarity_calculator_settings", None),
             )
         except Exception as exc:
             if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -18676,7 +18807,7 @@ class MainWindow(QMainWindow):
                     f" aspects {match.aspect_score * 100.0:.0f}%,"
                     f" distribution {match.distribution_score * 100.0:.0f}%"
                     f"{', dominance ' + str(round((match.dominance_score or 0.0) * 100.0)) + '%' if match.dominance_score is not None else ''}"
-                    f"{', nakshatra ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
+                    f"{', nakshatra placement ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
                     f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
                 )
             )
@@ -18754,6 +18885,7 @@ class MainWindow(QMainWindow):
                 exclude_chart_id=self.current_chart_id,
                 least_similar=False,
                 algorithm_mode=algorithm_mode,
+                custom_settings=getattr(self, "_similarity_calculator_settings", None),
             )
             least_similar_matches = find_astro_twins(
                 chart,
@@ -18762,6 +18894,7 @@ class MainWindow(QMainWindow):
                 exclude_chart_id=self.current_chart_id,
                 least_similar=True,
                 algorithm_mode=algorithm_mode,
+                custom_settings=getattr(self, "_similarity_calculator_settings", None),
             )
         except Exception as exc:
             if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
