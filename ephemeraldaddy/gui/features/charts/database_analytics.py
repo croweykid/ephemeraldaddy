@@ -25,6 +25,7 @@ from ephemeraldaddy.core.interpretations import (
     BAZI_ZODIAC,
     ELEMENT_COLORS,
     HOUSE_COLORS,
+    NAKSHATRA_RANGES,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     RELATION_TYPE,
@@ -204,6 +205,18 @@ class DatabaseAnalyticsChartsMixin:
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
     }
+    DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
+        ("Dominant Signs (Top 3)", "top3_signs"),
+        ("Dominant Bodies (Top 3)", "top3_planets"),
+        ("Dominant Houses (Top 3)", "top3_houses"),
+        ("Dominant Nakshatras (Top 3)", "top3_nakshatras"),
+    )
+    DOMINANT_FACTORS_CUMULATIVE_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
+        ("Dominant Signs (Cumulative Weight)", "cumulative_signs"),
+        ("Dominant Bodies (Cumulative Weight)", "cumulative_planets"),
+        ("Dominant Houses (Cumulative Weight)", "cumulative_houses"),
+        ("Dominant Nakshatras (Cumulative Weight)", "cumulative_nakshatras"),
+    )
 
     def _build_database_subheader_label(self, text: str = "") -> QLabel:
         subheader = QLabel(text)
@@ -213,6 +226,49 @@ class DatabaseAnalyticsChartsMixin:
         subheader.setStyleSheet(subheader_style)
         subheader.setWordWrap(DATABASE_VIEW_SUBHEADER_WORD_WRAP)
         return subheader
+
+    def _dominant_factors_top3_dropdown_options(self) -> list[tuple[str, str]]:
+        return list(self.DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS)
+
+    def _dominant_factors_cumulative_dropdown_options(self) -> list[tuple[str, str]]:
+        return list(self.DOMINANT_FACTORS_CUMULATIVE_DROPDOWN_OPTIONS)
+
+    @staticmethod
+    def _dominant_factors_subheader_label(mode: str, *, scope_label: str) -> str:
+        label_by_mode = {
+            "top3_signs": f"top 3 dominant signs for charts in {scope_label}",
+            "top3_planets": f"top 3 dominant bodies for charts in {scope_label}",
+            "top3_houses": f"top 3 dominant houses for charts in {scope_label}",
+            "top3_nakshatras": f"top 3 dominant nakshatras for charts in {scope_label}",
+        }
+        return label_by_mode.get(mode, label_by_mode["top3_signs"])
+
+    @staticmethod
+    def _cumulative_dominant_factors_subheader_label(mode: str, *, scope_label: str) -> str:
+        label_by_mode = {
+            "cumulative_signs": f"Cumulative weight of signs across all charts in {scope_label}",
+            "cumulative_planets": f"Cumulative weight of bodies across all charts in {scope_label}",
+            "cumulative_houses": f"Cumulative weight of houses across all charts in {scope_label}",
+            "cumulative_nakshatras": f"Cumulative weight of nakshatras across all charts in {scope_label}",
+        }
+        return label_by_mode.get(mode, label_by_mode["cumulative_signs"])
+
+    @staticmethod
+    def _dominant_nakshatra_top_three_labels(
+        dominant_weights: dict[str, float] | None,
+    ) -> set[str]:
+        if not dominant_weights:
+            return set()
+        nakshatra_order = [name for name, *_ in NAKSHATRA_RANGES]
+        ranked = sorted(
+            (
+                (name, float(weight))
+                for name, weight in dominant_weights.items()
+                if name in nakshatra_order and float(weight) > 0
+            ),
+            key=lambda item: (-item[1], nakshatra_order.index(item[0])),
+        )
+        return {name for name, _weight in ranked[:3]}
 
     @staticmethod
     def _value_length_color(
