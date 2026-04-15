@@ -340,7 +340,16 @@ HD_CHANNELS = {
     # ABSTRACT / SENSING
     # =========================
 
-    "48-16"
+    "48-16": {
+        "name": "Channel of the Wavelength",
+        "gates": (48, 16),
+        "centers": ("Spleen", "Ajna"),
+        "circuit": "Collective / Abstract",
+        "explanation": (
+            "Combined intuitive depth with a capacity for repeittion to develop professional skill."
+            "Achieving mastery in any logical process."
+        ),
+    },
 
     "64-47": {
         "name": "Channel of Abstraction",
