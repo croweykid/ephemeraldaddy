@@ -1576,10 +1576,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._human_design_channel_filters = []
         self._human_design_gate_filters = []
         self._human_design_type_filter_combo = None
+        self._human_design_profile_filter_combo = None
+        self._human_design_defined_center_filters = []
         self._human_design_channel_filter_and = None
         self._human_design_channel_filter_or = None
         self._human_design_gate_filter_and = None
         self._human_design_gate_filter_or = None
+        self._human_design_defined_center_filter_and = None
+        self._human_design_defined_center_filter_or = None
         self._year_first_encountered_earliest_input = None
         self._year_first_encountered_latest_input = None
         self._year_first_encountered_blank_checkbox = None
@@ -8444,6 +8448,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._human_design_type_filter_combo is not None
             else "Any"
         )
+        selected_human_design_profile = (
+            str(self._human_design_profile_filter_combo.currentData())
+            if self._human_design_profile_filter_combo is not None
+            else "Any"
+        )
+        selected_human_design_defined_centers = {
+            str(combo.currentData())
+            for combo in self._human_design_defined_center_filters
+            if str(combo.currentData()) != "Any"
+        }
         dnd_stat_ranges_active = any(
             (
                 self._parse_integer_filter_text(min_input.text()) is not None
@@ -8510,6 +8524,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not selected_human_design_channels
             and not selected_human_design_gates
             and selected_human_design_type == "Any"
+            and selected_human_design_profile == "Any"
+            and not selected_human_design_defined_centers
             and not self.search_text_input.text().strip()
             and (
                 self._search_location_country_input is None
@@ -13821,6 +13837,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 channel_combo.setCurrentIndex(0)
             for gate_combo in self._human_design_gate_filters:
                 gate_combo.setCurrentIndex(0)
+            for center_combo in self._human_design_defined_center_filters:
+                center_combo.setCurrentIndex(0)
             if self._human_design_channel_filter_or is not None:
                 self._human_design_channel_filter_or.setChecked(False)
             if self._human_design_channel_filter_and is not None:
@@ -13829,8 +13847,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._human_design_gate_filter_or.setChecked(False)
             if self._human_design_gate_filter_and is not None:
                 self._human_design_gate_filter_and.setChecked(True)
+            if self._human_design_defined_center_filter_or is not None:
+                self._human_design_defined_center_filter_or.setChecked(False)
+            if self._human_design_defined_center_filter_and is not None:
+                self._human_design_defined_center_filter_and.setChecked(True)
             if self._human_design_type_filter_combo is not None:
                 self._human_design_type_filter_combo.setCurrentIndex(0)
+            if self._human_design_profile_filter_combo is not None:
+                self._human_design_profile_filter_combo.setCurrentIndex(0)
             for filters in self._search_body_filters:
                 filters["body"].setCurrentIndex(0)
                 filters["sign"].setCurrentIndex(0)
@@ -15342,6 +15366,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._human_design_type_filter_combo is not None
             else "Any"
         )
+        selected_human_design_profile = (
+            str(self._human_design_profile_filter_combo.currentData())
+            if self._human_design_profile_filter_combo is not None
+            else "Any"
+        )
+        selected_human_design_defined_centers = {
+            str(combo.currentData())
+            for combo in self._human_design_defined_center_filters
+            if str(combo.currentData()) != "Any"
+        }
         active_body_filters = [
             filters
             for filters in self._search_body_filters
@@ -16011,6 +16045,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if self._chart_human_design_type(chart) != selected_human_design_type:
                 return False
 
+        if selected_human_design_profile != "Any":
+            if self._chart_human_design_profile(chart) != selected_human_design_profile:
+                return False
+
+        if selected_human_design_defined_centers:
+            chart_defined_centers = self._chart_human_design_defined_centers(chart)
+            if (
+                self._human_design_defined_center_filter_and is not None
+                and self._human_design_defined_center_filter_and.isChecked()
+            ):
+                if not selected_human_design_defined_centers.issubset(chart_defined_centers):
+                    return False
+            elif not chart_defined_centers.intersection(selected_human_design_defined_centers):
+                return False
+
         if active_dominant_element_filters:
             dominant_element_and_filters = [
                 filters
@@ -16164,6 +16213,47 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.human_design_channels = list(channels)
         chart.human_design_type = hd_type
         return hd_type
+
+    def _chart_human_design_profile(self, chart: Chart) -> str:
+        try:
+            hd_result = build_human_design_result(chart)
+        except Exception:
+            hd_result = None
+        hd_profile = str(getattr(hd_result, "profile", "") or "").strip()
+        if not hd_profile:
+            hd_profile = str(getattr(chart, "human_design_profile", "") or "").strip()
+        if hd_profile:
+            chart.human_design_profile = hd_profile
+        return hd_profile
+
+    def _chart_human_design_defined_centers(self, chart: Chart) -> set[str]:
+        try:
+            hd_result = build_human_design_result(chart)
+        except Exception:
+            hd_result = None
+        defined_centers = {
+            str(center).strip()
+            for center in getattr(hd_result, "defined_centers", [])
+            if str(center).strip()
+        }
+        if not defined_centers:
+            defined_centers = {
+                str(center).strip()
+                for center in (getattr(chart, "human_design_defined_centers", []) or [])
+                if str(center).strip()
+            }
+        ordered_centers = sorted(
+            defined_centers,
+            key=lambda center_name: (
+                self.HD_DEFINED_CENTER_ORDER.index(center_name)
+                if center_name in self.HD_DEFINED_CENTER_ORDER
+                else len(self.HD_DEFINED_CENTER_ORDER),
+                center_name,
+            ),
+        )
+        if ordered_centers:
+            chart.human_design_defined_centers = list(ordered_centers)
+        return set(ordered_centers)
 
     def _chart_body_matches(
         self,
