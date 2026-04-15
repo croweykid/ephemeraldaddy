@@ -398,7 +398,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             self.setFormat(0, self._qt_len(stripped_text), self._copper_header_format)
         if stripped_text.startswith("Defined Centers:"):
             label = "Defined Centers:"
-            self.setFormat(0, self._qt_len(label), self._plain_bold_format)
+            self.setFormat(0, self._qt_len(label), self._copper_header_format)
             centers_text = stripped_text[len(label):].strip()
             if centers_text and centers_text.lower() != "none":
                 for raw_center in [segment.strip() for segment in centers_text.split(",") if segment.strip()]:
@@ -413,6 +413,23 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                             self._qt_len(raw_center),
                             center_format,
                         )
+        if re.search(r"\bBody\b", stripped_text) and re.search(r"\bSign\b", stripped_text) and "G/L" in stripped_text:
+            for header_token in ("Body", "Sign", "Longitude", "G/L", "C", "T", "B"):
+                token_start = 0
+                while True:
+                    token_start = text.find(header_token, token_start)
+                    if token_start == -1:
+                        break
+                    token_end = token_start + len(header_token)
+                    left_ok = token_start == 0 or text[token_start - 1].isspace()
+                    right_ok = token_end == len(text) or text[token_end].isspace()
+                    if left_ok and right_ok:
+                        self.setFormat(
+                            self._qt_index(text, token_start),
+                            self._qt_len(header_token),
+                            self._plain_bold_format,
+                        )
+                    token_start = token_end
         if lowered_stripped in {"defined", "undefined"}:
             self.setFormat(0, self._qt_len(text), self._copper_header_format)
         if (
