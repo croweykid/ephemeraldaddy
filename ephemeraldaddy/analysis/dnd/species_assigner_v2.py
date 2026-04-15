@@ -441,6 +441,15 @@ class SpeciesAssigner:
         dominant_ratio = max(element_ratios.values()) if element_ratios else 0.0
         balance_score = 1.0 - max(0.0, dominant_ratio - 0.25) / 0.25
         balance_score = self._clamp01(balance_score)
+        taurus_stellium_count = sum(
+            1
+            for body, info in positions.items()
+            if body in BODY_WEIGHTS and info.get("sign") == "Taurus"
+        )
+        taurus_dominance_weight = self._clamp01(
+            0.65 * float(sign_ratios.get("Taurus", 0.0))
+            + 0.35 * self._clamp01(max(0.0, taurus_stellium_count - 2) / 4.0)
+        )
 
         tight_outer_to_identity = []
         for outer in ("Uranus", "Neptune", "Pluto"):
@@ -470,6 +479,8 @@ class SpeciesAssigner:
             "dominant_ratio": dominant_ratio,
             "balance_score": balance_score,
             "spikiness": spikiness,
+            "taurus_stellium_count": taurus_stellium_count,
+            "taurus_dominance_weight": taurus_dominance_weight,
             "tight_outer_to_identity": tight_outer_to_identity,
             "aspect_count": len(aspects),
             "personal_signals": personal_signals,
@@ -538,6 +549,8 @@ class SpeciesAssigner:
         balance = float(feats["balance_score"])
         spikiness = float(feats["spikiness"])
         dominant_ratio = float(feats["dominant_ratio"])
+        taurus_stellium_count = int(feats.get("taurus_stellium_count", 0))
+        taurus_dominance_weight = float(feats.get("taurus_dominance_weight", 0.0))
 
         def ratio_signs(*signs: str) -> float:
             return sum(float(sr.get(sign, 0.0)) for sign in signs)
@@ -625,6 +638,12 @@ class SpeciesAssigner:
         cards["Dwarf"].add(0.65 * dwarf_sign_signature, "Taurus/Capricorn is the main sign lane.")
         cards["Dwarf"].add(0.25 * ratio_houses(2, 4, 6, 10), "Material and work houses reinforce it.")
         cards["Dwarf"].add(0.18 * tr["bestial"], "Bestial classical coding supports the earthy stock.")
+        if taurus_stellium_count >= 3:
+            stellium_bonus = 1.20 * taurus_dominance_weight
+            cards["Dwarf"].add(
+                stellium_bonus,
+                f"Taurus stellium ({taurus_stellium_count} placements) boosts Dwarf by Taurus-dominance weight.",
+            )
 
         # Elf
         cards["Elf"].add(0.88 * er["Air"], "Air is the main Elven atmosphere.")
