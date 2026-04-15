@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.analysis.get_astro_twin import (
+    BODY_WEIGHTS,
+    CORE_BODIES,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
@@ -96,6 +98,10 @@ _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "distribution": 0.10,
     "combined_dominance": 0.25,
 }
+_SIGN_SEQUENCE: tuple[str, ...] = (
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+)
 
 
 def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
@@ -352,6 +358,137 @@ def _distribution_differences(subject_chart: Any, compared_chart: Any) -> list[s
     return differences
 
 
+def _weighted_overlap_similarity(values_a: dict[Any, float], values_b: dict[Any, float]) -> float:
+    total_a = sum(max(0.0, float(value)) for value in values_a.values())
+    total_b = sum(max(0.0, float(value)) for value in values_b.values())
+    if total_a <= 0.0 or total_b <= 0.0:
+        return 0.0
+    keys = set(values_a) | set(values_b)
+    overlap = sum(
+        min(max(0.0, float(values_a.get(key, 0.0))), max(0.0, float(values_b.get(key, 0.0))))
+        for key in keys
+    )
+    return max(0.0, min(1.0, overlap / min(total_a, total_b)))
+
+
+def _top_weighted_items(weights: dict[Any, float], *, count: int = 3) -> list[Any]:
+    return [key for key, value in sorted(weights.items(), key=lambda item: item[1], reverse=True)[:count] if value > 0.0]
+
+
+def _sign_weight_profile(chart: Any) -> dict[str, float]:
+    positions = getattr(chart, "positions", None) or {}
+    profile = {sign: 0.0 for sign in _SIGN_SEQUENCE}
+    for body in CORE_BODIES:
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        sign_name = sign_for_longitude(longitude)
+        if sign_name in profile:
+            profile[sign_name] += float(BODY_WEIGHTS.get(body, 0.8))
+    return profile
+
+
+def _house_weight_profile(chart: Any) -> dict[int, float]:
+    houses = getattr(chart, "houses", None)
+    positions = getattr(chart, "positions", None) or {}
+    profile = {house: 0.0 for house in range(1, 13)}
+    for body in CORE_BODIES:
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        house = _house_for_longitude(houses, longitude)
+        if house is None:
+            continue
+        profile[house] += float(BODY_WEIGHTS.get(body, 0.8))
+    return profile
+
+
+def _body_dominance_profile(chart: Any) -> dict[str, float]:
+    houses = getattr(chart, "houses", None)
+    positions = getattr(chart, "positions", None) or {}
+    profile: dict[str, float] = {}
+    for body in CORE_BODIES:
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        weight = float(BODY_WEIGHTS.get(body, 0.8))
+        house = _house_for_longitude(houses, longitude)
+        if house in {1, 4, 7, 10}:
+            weight *= 1.30
+        elif house in {2, 5, 8, 11}:
+            weight *= 1.12
+        profile[body] = weight
+    return profile
+
+
+def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *, analysis_mode: str) -> list[str]:
+    q_sign = _sign_weight_profile(subject_chart)
+    c_sign = _sign_weight_profile(compared_chart)
+    q_house = _house_weight_profile(subject_chart)
+    c_house = _house_weight_profile(compared_chart)
+    q_body = _body_dominance_profile(subject_chart)
+    c_body = _body_dominance_profile(compared_chart)
+
+    sign_overlap = _weighted_overlap_similarity(q_sign, c_sign)
+    house_overlap = _weighted_overlap_similarity(q_house, c_house)
+    body_overlap = _weighted_overlap_similarity(q_body, c_body)
+
+    q_sign_top = _top_weighted_items(q_sign, count=3)
+    c_sign_top = _top_weighted_items(c_sign, count=3)
+    q_house_top = _top_weighted_items(q_house, count=3)
+    c_house_top = _top_weighted_items(c_house, count=3)
+    q_body_top = _top_weighted_items(q_body, count=3)
+    c_body_top = _top_weighted_items(c_body, count=3)
+
+    shared_signs = [sign for sign in q_sign_top if sign in set(c_sign_top)]
+    shared_houses = [house for house in q_house_top if house in set(c_house_top)]
+    shared_bodies = [body for body in q_body_top if body in set(c_body_top)]
+
+    only_subject_signs = [sign for sign in q_sign_top if sign not in set(c_sign_top)]
+    only_compared_signs = [sign for sign in c_sign_top if sign not in set(q_sign_top)]
+    only_subject_houses = [house for house in q_house_top if house not in set(c_house_top)]
+    only_compared_houses = [house for house in c_house_top if house not in set(q_house_top)]
+    only_subject_bodies = [body for body in q_body_top if body not in set(c_body_top)]
+    only_compared_bodies = [body for body in c_body_top if body not in set(q_body_top)]
+
+    lines: list[str] = [
+        "Weighted in Combined Dominance: signs 40%, houses 30%, planets/bodies 30%.",
+        "Nakshatra dominance is scored separately in the Nakshatra Dominance section (when enabled).",
+    ]
+    if analysis_mode == "dissimilarities":
+        lines.extend(
+            [
+                f"Sign dominance mismatch: {(1.0 - sign_overlap) * 100.0:.1f}% (overlap {sign_overlap * 100.0:.1f}%).",
+                (
+                    "Top sign differences: "
+                    f"first-only [{', '.join(only_subject_signs) or 'none'}]; "
+                    f"second-only [{', '.join(only_compared_signs) or 'none'}]."
+                ),
+                f"House dominance mismatch: {(1.0 - house_overlap) * 100.0:.1f}% (overlap {house_overlap * 100.0:.1f}%).",
+                (
+                    "Top house differences: "
+                    f"first-only [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
+                    f"second-only [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
+                ),
+                f"Planet/body dominance mismatch: {(1.0 - body_overlap) * 100.0:.1f}% (overlap {body_overlap * 100.0:.1f}%).",
+                (
+                    "Top body differences: "
+                    f"first-only [{', '.join(only_subject_bodies) or 'none'}]; "
+                    f"second-only [{', '.join(only_compared_bodies) or 'none'}]."
+                ),
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"Sign dominance overlap: {sign_overlap * 100.0:.1f}%; shared top signs: {', '.join(shared_signs) or 'none'}.",
+                f"House dominance overlap: {house_overlap * 100.0:.1f}%; shared top houses: {', '.join(f'House {house}' for house in shared_houses) or 'none'}.",
+                f"Planet/body dominance overlap: {body_overlap * 100.0:.1f}%; shared top bodies: {', '.join(shared_bodies) or 'none'}.",
+            ]
+        )
+    return lines
+
+
 def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
@@ -596,6 +733,7 @@ def build_similarity_reasoning_panel_text(
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 lines.append(_section_title_with_weight("Combined Dominance differences:", "combined_dominance", component_weight_percents))
                 lines.append(f"Dominance mismatch estimate: {(1.0 - dominance_score) * 100.0:.1f}%.")
+                lines.extend(_combined_dominance_detail_lines(subject_chart, compared_chart, analysis_mode="dissimilarities"))
                 lines.append("")
             if "nakshatra_placement" in component_weight_percents:
                 nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
@@ -631,6 +769,7 @@ def build_similarity_reasoning_panel_text(
                 dominance_score = float(getattr(match, "dominance_score", 0.0) or 0.0)
                 lines.append(_section_title_with_weight("Combined Dominance:", "combined_dominance", component_weight_percents))
                 lines.append(f"Dominance pattern overlap: {dominance_score * 100.0:.1f}%.")
+                lines.extend(_combined_dominance_detail_lines(subject_chart, compared_chart, analysis_mode="similarities"))
                 lines.append("")
             if "nakshatra_placement" in component_weight_percents:
                 nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
@@ -774,7 +913,8 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight("Combined Dominance differences:", "combined_dominance", component_weight_percents),
-                        [f"Dominance mismatch estimate: {(1.0 - dominance_score) * 100.0:.1f}%."],
+                        [f"Dominance mismatch estimate: {(1.0 - dominance_score) * 100.0:.1f}%."]
+                        + _combined_dominance_detail_lines(subject_chart, compared_chart, analysis_mode="dissimilarities"),
                     )
                 )
             if "nakshatra_placement" in component_weight_percents:
@@ -830,7 +970,8 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight("Combined Dominance:", "combined_dominance", component_weight_percents),
-                        [f"Dominance pattern overlap: {dominance_score * 100.0:.1f}%."],
+                        [f"Dominance pattern overlap: {dominance_score * 100.0:.1f}%."]
+                        + _combined_dominance_detail_lines(subject_chart, compared_chart, analysis_mode="similarities"),
                     )
                 )
             if "nakshatra_placement" in component_weight_percents:
