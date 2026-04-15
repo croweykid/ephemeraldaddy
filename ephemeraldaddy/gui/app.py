@@ -19135,9 +19135,19 @@ class MainWindow(QMainWindow):
         )
         self._active_collection_id = candidate_id
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
-        self._save_custom_collections_to_settings()
-        self._refresh_collection_controls()
-        self._populate_list()
+        payload = [
+            {
+                "id": collection.collection_id,
+                "name": collection.name,
+                "chart_ids": sorted(collection.chart_ids),
+            }
+            for collection in self._custom_collections.values()
+        ]
+        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        if hasattr(self, "_refresh_collection_controls"):
+            self._refresh_collection_controls()
+        if hasattr(self, "_populate_list"):
+            self._populate_list()
         QMessageBox.information(
             dialog,
             "Collection Created",
