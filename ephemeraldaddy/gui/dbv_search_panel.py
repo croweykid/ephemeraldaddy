@@ -627,6 +627,40 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_type_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
     hd_type_row.addWidget(window._human_design_type_filter_combo, 1)
     human_design_group_layout.addLayout(hd_type_row)
+
+    hd_profile_row = QHBoxLayout()
+    hd_profile_row.addWidget(QLabel("Profile"))
+    window._human_design_profile_filter_combo = QComboBox()
+    apply_default_dropdown_style(window._human_design_profile_filter_combo)
+    window._human_design_profile_filter_combo.addItem("Any", "Any")
+    for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
+        window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
+    window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
+    hd_profile_row.addWidget(window._human_design_profile_filter_combo, 1)
+    human_design_group_layout.addLayout(hd_profile_row)
+
+    hd_defined_centers_row = QHBoxLayout()
+    hd_defined_centers_row.addWidget(QLabel("Defined Centers"))
+    for _ in range(3):
+        center_combo = QComboBox()
+        apply_default_dropdown_style(center_combo)
+        center_combo.addItem("Any", "Any")
+        for center_label in getattr(window, "HD_DEFINED_CENTER_ORDER", ()):
+            center_combo.addItem(center_label, center_label)
+        center_combo.currentIndexChanged.connect(window._on_filter_changed)
+        window._human_design_defined_center_filters.append(center_combo)
+        hd_defined_centers_row.addWidget(center_combo, 1)
+    window._human_design_defined_center_filter_and = QRadioButton("AND")
+    window._human_design_defined_center_filter_or = QRadioButton("OR")
+    hd_defined_center_group = QButtonGroup(window)
+    hd_defined_center_group.setExclusive(True)
+    hd_defined_center_group.addButton(window._human_design_defined_center_filter_and)
+    hd_defined_center_group.addButton(window._human_design_defined_center_filter_or)
+    window._human_design_defined_center_filter_and.setChecked(True)
+    hd_defined_center_group.buttonClicked.connect(window._on_filter_changed)
+    hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_and)
+    hd_defined_centers_row.addWidget(window._human_design_defined_center_filter_or)
+    human_design_group_layout.addLayout(hd_defined_centers_row)
     layout.addWidget(human_design_section)
 
     #Search: year first encountered
