@@ -741,16 +741,16 @@ def format_chart_text(
             if isinstance(v, (int, float)):
                 house_num = i + 1
                 sign_label = sign_for_longitude(float(v))
-                house_name = _house_display_name(house_num)
-                house_label = f"{house_num:>2} {house_name}"
-                line = f"{house_label:<18}: {sign_label:<11} {_degree_in_sign_text(float(v))}"
+                house_number_text = f"{house_num:>2}"
+                line = f"{house_number_text}: {sign_label:<11} {_degree_in_sign_text(float(v))}"
+                house_number_start = line.find(house_number_text)
                 sign_start = line.find(sign_label)
                 entry_list: list[dict[str, object]] = [
                     {
                         "kind": "house_keyword",
                         "house": house_num,
-                        "span_start": 0,
-                        "span_end": len(house_label),
+                        "span_start": house_number_start,
+                        "span_end": house_number_start + len(house_number_text),
                     }
                 ]
                 if sign_start != -1:
