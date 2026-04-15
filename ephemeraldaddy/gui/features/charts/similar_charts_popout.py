@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSplitter,
     QVBoxLayout,
@@ -956,12 +958,24 @@ def build_similar_charts_popout_dialog(
     info_link_prefix: str = "sim-info",
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
+    on_make_collection_clicked: Callable[[QDialog], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle(f"Similar Charts — {subject_name}")
     dialog.setModal(False)
     dialog.resize(860, 700)
     layout = QVBoxLayout(dialog)
+
+    top_row = QHBoxLayout()
+    top_row.setContentsMargins(0, 0, 0, 0)
+    top_row.addStretch(1)
+    make_collection_button = QPushButton("Make collection from similar charts")
+    make_collection_button.setCursor(Qt.PointingHandCursor)
+    make_collection_button.setVisible(on_make_collection_clicked is not None)
+    if on_make_collection_clicked is not None:
+        make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
+    top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
+    layout.addLayout(top_row)
 
     # title_label = QLabel(f"Similar Charts for {subject_name}")
     # title_label.setStyleSheet(header_style)
@@ -1009,6 +1023,7 @@ def build_similar_charts_popout_dialog(
         analysis_dropdown.currentIndexChanged.connect(lambda _index: on_analysis_mode_changed(dialog))
     dialog._similar_chart_popout_analysis_dropdown = analysis_dropdown
     dialog._similar_chart_popout_info_output = info_output
+    dialog._similar_chart_popout_make_collection_button = make_collection_button
     splitter.addWidget(info_panel)
 
     list_splitter = QSplitter(Qt.Horizontal)
