@@ -341,30 +341,43 @@ def _orb_similarity(orb_a: float, orb_b: float, max_orb_delta: float = 8.0) -> f
 def _aspect_similarity(query: Chart, candidate: Chart) -> float:
     q_map = _aspect_map(query)
     c_map = _aspect_map(candidate)
-    if not q_map:
+    if not q_map and not c_map:
+        return 0.5
+    if not q_map or not c_map:
         return 0.0
 
-    total = 0.0
-    possible = 0.0
+    def _directional_overlap(
+        source_map: dict[tuple[tuple[str, str], str], list[float]],
+        target_map: dict[tuple[tuple[str, str], str], list[float]],
+    ) -> float:
+        total = 0.0
+        possible = 0.0
 
-    for key, q_orbs in q_map.items():
-        (a, b), asp_type = key
-        aspect_weight = ASPECT_WEIGHTS.get(asp_type, 0.3)
-        body_weight = (BODY_WEIGHTS.get(a, 0.75) + BODY_WEIGHTS.get(b, 0.75)) / 2.0
-        base_weight = aspect_weight * body_weight
-        possible += base_weight
+        for key, source_orbs in source_map.items():
+            (a, b), asp_type = key
+            aspect_weight = ASPECT_WEIGHTS.get(asp_type, 0.3)
+            body_weight = (BODY_WEIGHTS.get(a, 0.75) + BODY_WEIGHTS.get(b, 0.75)) / 2.0
+            base_weight = aspect_weight * body_weight
+            possible += base_weight
 
-        candidate_orbs = c_map.get(key)
-        if not candidate_orbs:
-            continue
+            target_orbs = target_map.get(key)
+            if not target_orbs:
+                continue
 
-        best_match = 0.0
-        for q_orb in q_orbs:
-            for c_orb in candidate_orbs:
-                best_match = max(best_match, _orb_similarity(q_orb, c_orb))
-        total += base_weight * best_match
+            best_match = 0.0
+            for source_orb in source_orbs:
+                for target_orb in target_orbs:
+                    best_match = max(best_match, _orb_similarity(source_orb, target_orb))
+            total += base_weight * best_match
 
-    return _safe_divide(total, possible)
+        return _safe_divide(total, possible)
+
+    # Symmetric overlap penalizes "extra-only" aspect sets and helps prevent
+    # highly noisy charts from ranking as similar merely by containing a subset
+    # of the query's aspects.
+    source_recall = _directional_overlap(q_map, c_map)
+    target_precision = _directional_overlap(c_map, q_map)
+    return max(0.0, min(1.0, (source_recall + target_precision) / 2.0))
 
 
 def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> float:
@@ -418,6 +431,19 @@ def _sign_weight_profile(chart: Chart) -> dict[int, float]:
 
 
 def _body_dominance_profile(chart: Chart) -> dict[str, float]:
+    dominant_weights = getattr(chart, "dominant_planet_weights", None) or {}
+    if dominant_weights:
+        resolved_profile: dict[str, float] = {}
+        for body in CORE_BODIES:
+            value = dominant_weights.get(body)
+            if value is None:
+                continue
+            resolved_profile[body] = max(0.0, float(value))
+        if resolved_profile:
+            total = sum(resolved_profile.values())
+            if total > 0.0:
+                return {body: value / total for body, value in resolved_profile.items()}
+
     positions = getattr(chart, "positions", None) or {}
     profile: dict[str, float] = {}
     for body in CORE_BODIES:
