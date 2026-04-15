@@ -39,12 +39,12 @@ ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 SPECIES_DISTRIBUTION_CALIBRATION: Dict[str, float] = {
     # Frequently over-selected broad buckets.
     "Human": 0.84,
-    "Halfling": 0.92,
-    "Dwarf": 0.94,
-    "Orcs": 0.94,
-    "Half-orcs": 0.95,
+    #"Halfling": 0.92,
+    #"Dwarf": 0.94,
+    #"Orcs": 0.94,
+    #"Half-orcs": 0.95,
     # Under-selected families reported in production data.
-    "Shapeshifter": 1.38,
+    "Shapeshifter": 1.06,
     "Triton": 1.30,
     "Rodentfolk": 1.30,
     "Elf": 1.24,
