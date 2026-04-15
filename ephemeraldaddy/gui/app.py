@@ -6079,6 +6079,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
+        toggle.setProperty("similarities_base_title", title)
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -6124,6 +6125,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_no_match_row: bool = True,
     ) -> None:
         section_list.clear()
+        base_title = str(toggle.property("similarities_base_title") or toggle.text())
+        toggle.setText(f"{len(matches)} {base_title}")
         if matches:
             for label, match_count, total_count in matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
@@ -19135,9 +19138,19 @@ class MainWindow(QMainWindow):
         )
         self._active_collection_id = candidate_id
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
-        self._save_custom_collections_to_settings()
-        self._refresh_collection_controls()
-        self._populate_list()
+        payload = [
+            {
+                "id": collection.collection_id,
+                "name": collection.name,
+                "chart_ids": sorted(collection.chart_ids),
+            }
+            for collection in self._custom_collections.values()
+        ]
+        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+        if hasattr(self, "_refresh_collection_controls"):
+            self._refresh_collection_controls()
+        if hasattr(self, "_populate_list"):
+            self._populate_list()
         QMessageBox.information(
             dialog,
             "Collection Created",
