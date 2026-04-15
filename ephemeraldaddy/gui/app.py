@@ -19001,6 +19001,10 @@ class MainWindow(QMainWindow):
         if not matches:
             QMessageBox.information(dialog, "Similar Charts", "No similar charts are available to collect yet.")
             return
+        if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
+            self._custom_collections = {}
+        if not hasattr(self, "_active_collection_id"):
+            self._active_collection_id = DEFAULT_COLLECTION_ALL
 
         base_name = sanitize_collection_name(f"similar to {subject_name}")
         existing_names = {collection.name.casefold() for collection in self._custom_collections.values()}
