@@ -5896,15 +5896,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             list_style=similarities_list_style,
         )
         (
-            self.similarities_common_aspects_toggle,
-            self.similarities_common_aspects_list,
-        ) = self._add_similarities_collapsible_section(
-            layout,
-            "Aspects in common",
-            min_height=160,
-            list_style=similarities_list_style,
-        )
-        (
             self.similarities_common_hd_gates_toggle,
             self.similarities_common_hd_gates_list,
         ) = self._add_similarities_collapsible_section(
@@ -6079,6 +6070,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             expanded=False,
             style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
         )
+        toggle.setProperty("similarities_base_title", title)
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -6124,6 +6116,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_no_match_row: bool = True,
     ) -> None:
         section_list.clear()
+        base_title = str(toggle.property("similarities_base_title") or toggle.text())
+        if not show_no_match_row and not matches:
+            toggle.setText(base_title)
+        else:
+            toggle.setText(f"{len(matches)} {base_title}")
         if matches:
             for label, match_count, total_count in matches:
                 percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
