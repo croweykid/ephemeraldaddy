@@ -122,22 +122,39 @@ def build_circuit_group_completion(active_gate_set: set[int]) -> list[dict[str, 
     return circuit_payload
 
 
-def _build_hd_positions_lines(hd_result: HumanDesignResult) -> list[str]:
+def _build_hd_positions_lines(
+    hd_result: HumanDesignResult,
+) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
     """Build a Human Design-native POSITIONS block (no zodiac sign import)."""
+    header_line = f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<7}  {'C':<1}  {'T':<1}  {'B':<1}"
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
-        f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<7}  {'C':<1}  {'T':<1}  {'B':<1}",
+        header_line,
         CHART_DATA_DIVIDER,
     ]
+    info_map: dict[int, list[dict[str, object]]] = {}
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
         body_label = f"{'Personality' if activation.side == 'personality' else 'Design'} {activation.body}"
         sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
         gl_text = f"{activation.gate}.{activation.line}"
-        lines.append(
-            f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  {gl_text:<7}  {activation.color:<1}  {activation.tone:<1}  {activation.base:<1}"
+        line_text = (
+            f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
+            f"{gl_text:<7}  {activation.color:<1}  {activation.tone:<1}  {activation.base:<1}"
         )
-    return lines
+        lines.append(line_text)
+        gl_start = line_text.find(gl_text)
+        if gl_start != -1:
+            info_map[len(lines) - 1] = [
+                {
+                    "kind": "hd_gate_line",
+                    "gate": activation.gate,
+                    "line": activation.line,
+                    "span_start": gl_start,
+                    "span_end": gl_start + len(gl_text),
+                }
+            ]
+    return lines, info_map
 
 
 def _render_clickable_gates(active_gates: set[int]) -> tuple[str, list[dict[str, object]]]:
@@ -352,7 +369,7 @@ def build_human_design_chart_data_output(
     position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    position_lines = _build_hd_positions_lines(hd_result)
+    position_lines, positions_info_map = _build_hd_positions_lines(hd_result)
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
@@ -416,6 +433,10 @@ def build_human_design_chart_data_output(
     gates_lines_block_start = gates_lines_header_index + 2
     for relative_line_index, entries in gate_line_info_map.items():
         absolute_line_index = positions_start_index + gates_lines_block_start + relative_line_index
+        position_info_map.setdefault(absolute_line_index, []).extend(entries)
+    positions_header_index = rendered_lines.index("POSITIONS")
+    for relative_line_index, entries in positions_info_map.items():
+        absolute_line_index = positions_start_index + positions_header_index + relative_line_index
         position_info_map.setdefault(absolute_line_index, []).extend(entries)
     for line_text, entry in (
         (type_line, type_info_entry),

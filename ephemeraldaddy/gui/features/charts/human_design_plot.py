@@ -214,22 +214,31 @@ def draw_human_design_chart(
         y1 = _offset_center_y(y1)
         y2 = _offset_center_y(y2)
 
+        if channel_key == (10, 34):
+            # Drawn as part of the 20-34 custom bridge geometry (with gate 10).
+            continue
+
         if channel_key == (20, 34):
             sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
             throat_x, throat_y = CENTER_POSITIONS["Throat"]
+            g_x, g_y = CENTER_POSITIONS["G"]
             sacral_y = _offset_center_y(sacral_y)
             throat_y = _offset_center_y(throat_y)
+            g_y = _offset_center_y(g_y)
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             end_y = throat_y
             elbow_x = min(start_x, end_x) - 0.065
-            elbow_y = (start_y + end_y) * 0.5
+            elbow_y = g_y
+            g_bridge_end_x = g_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
 
             lower_gate = 34
             upper_gate = 20
+            bridge_gate = 10
             lower_gate_active = lower_gate in hd_result.active_gates
             upper_gate_active = upper_gate in hd_result.active_gates
+            bridge_gate_active = bridge_gate in hd_result.active_gates
             ax.plot(
                 [start_x, elbow_x],
                 [start_y, elbow_y],
@@ -246,6 +255,14 @@ def draw_human_design_chart(
                 alpha=0.95,
                 gid=f"gate-segment:{upper_gate}",
             )
+            ax.plot(
+                [elbow_x, g_bridge_end_x],
+                [elbow_y, elbow_y],
+                color=CHANNEL_ACTIVE_COLOR if bridge_gate_active else CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+                gid=f"gate-segment:{bridge_gate}",
+            )
             ax.text(
                 start_x + ((elbow_x - start_x) * 0.55),
                 start_y + ((elbow_y - start_y) * 0.55),
@@ -259,6 +276,15 @@ def draw_human_design_chart(
                 elbow_x + ((end_x - elbow_x) * 0.45),
                 elbow_y + ((end_y - elbow_y) * 0.45),
                 f"{upper_gate}",
+                color="#ffffff",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            ax.text(
+                elbow_x + ((g_bridge_end_x - elbow_x) * 0.6),
+                elbow_y,
+                f"{bridge_gate}",
                 color="#ffffff",
                 fontsize=6,
                 ha="center",
