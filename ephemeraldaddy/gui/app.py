@@ -1946,6 +1946,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.mark_not_duplicates_button.setObjectName("manage_mark_not_duplicates_button")
         self.mark_not_duplicates_button.clicked.connect(self._on_mark_not_duplicates)
         self.mark_not_duplicates_button.setEnabled(False)
+        self.mark_not_duplicates_button.setVisible(False)
         list_header_layout.addWidget(self.mark_not_duplicates_button, alignment=Qt.AlignRight)
         list_header_layout.addWidget(self.sort_button, alignment=Qt.AlignRight)
         self._update_sort_button_label()
@@ -13006,6 +13007,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_index = self.collection_combo.findData(active_collection_id)
         self.collection_combo.setCurrentIndex(max(0, active_index))
         self.collection_combo.blockSignals(False)
+        self._update_mark_not_duplicates_visibility()
         self._refresh_collection_list_widget()
 
     def _add_collection_combo_item(
@@ -13032,6 +13034,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_sort_button_label()
             self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
             self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
+
+    def _update_mark_not_duplicates_visibility(self) -> None:
+        if not hasattr(self, "mark_not_duplicates_button"):
+            return
+        is_visible = (
+            self._show_possible_duplicates_collection
+            and self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        )
+        self.mark_not_duplicates_button.setVisible(is_visible)
+        if not is_visible:
+            self.mark_not_duplicates_button.setEnabled(False)
 
     def _refresh_collection_list_widget(self) -> None:
         if not hasattr(self, "collections_list_widget"):
@@ -13107,6 +13120,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else self._active_collection_id
         )
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
+        self._update_mark_not_duplicates_visibility()
         self._populate_list()
 
     def _on_check_for_duplicates(self) -> None:
@@ -13904,7 +13918,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             rename_enabled = selected_count == 1
             self.batch_rename_chart_button.setEnabled(rename_enabled)
         if hasattr(self, "mark_not_duplicates_button"):
-            self.mark_not_duplicates_button.setEnabled(selected_count >= 2)
+            is_ready = (
+                self.mark_not_duplicates_button.isVisible()
+                and selected_count >= 2
+            )
+            self.mark_not_duplicates_button.setEnabled(is_ready)
 
     def _on_import_csv(self) -> None:
         self._on_import_csv_type_1()
