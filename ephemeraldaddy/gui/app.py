@@ -616,6 +616,10 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     map_similar_info_targets,
 )
+from ephemeraldaddy.gui.features.charts.db_info_panel import (
+    DBInfoPanel,
+    add_similarity_match_row,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -5728,6 +5732,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title = QLabel("Similarities Analysis")
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         title_layout.addWidget(title)
+        self.similarities_db_info_toggle_button = QPushButton("DB Info")
+        self.similarities_db_info_toggle_button.setCursor(Qt.PointingHandCursor)
+        self.similarities_db_info_toggle_button.setMinimumHeight(20)
+        self.similarities_db_info_toggle_button.clicked.connect(
+            self._toggle_similarities_db_info_panel
+        )
+        title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
         export_button = QPushButton()
@@ -5917,8 +5928,55 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             min_height=120,
             list_style=similarities_list_style,
         )
+        self.similarities_db_info_panel = DBInfoPanel(panel)
+        self.similarities_db_info_panel.setVisible(False)
+        layout.addWidget(self.similarities_db_info_panel)
         layout.addStretch(1)
         return panel
+
+    def _set_similarities_db_info_panel_visible(self, visible: bool) -> None:
+        info_panel = getattr(self, "similarities_db_info_panel", None)
+        if info_panel is None:
+            return
+        info_panel.setVisible(bool(visible))
+        if not visible:
+            return
+        self._stabilize_left_scroll_panel_layout(self.similarities_analysis_panel_scroll)
+        scrollbar = self.similarities_analysis_panel_scroll.verticalScrollBar()
+        if scrollbar is not None:
+            QTimer.singleShot(0, lambda sb=scrollbar: sb.setValue(sb.maximum()))
+            QTimer.singleShot(120, lambda sb=scrollbar: sb.setValue(sb.maximum()))
+
+    def _toggle_similarities_db_info_panel(self) -> None:
+        info_panel = getattr(self, "similarities_db_info_panel", None)
+        if info_panel is None:
+            return
+        self._set_similarities_db_info_panel_visible(not info_panel.isVisible())
+
+    def _handle_similarity_info_target_requested(self, target: str) -> None:
+        info_panel = getattr(self, "similarities_db_info_panel", None)
+        if info_panel is None:
+            return
+        normalized_target = str(target or "").strip().lower()
+        if not normalized_target:
+            return
+        self._set_similarities_db_info_panel_visible(True)
+        target_output = info_panel.output
+
+        def _render_target() -> None:
+            if normalized_target.startswith("gate:"):
+                gate_text = normalized_target.split(":", 1)[1]
+                if gate_text.isdigit():
+                    self._show_human_design_gate_line_info(int(gate_text), None)
+                    return
+            if normalized_target.startswith("house:"):
+                house_text = normalized_target.split(":", 1)[1]
+                if house_text.isdigit():
+                    self._show_house_keyword_info(int(house_text))
+                    return
+            target_output.setPlainText("No DB info renderer is available for this item yet.")
+
+        self._run_with_chart_info_output(target_output, _render_target)
 
     def _selected_chart_ids(
         self,
@@ -6144,56 +6202,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 similarity_red, similarity_green, similarity_blue = similarity_gradient_rgb_from_ratio(
                     difference_ratio
                 )
-                item = QListWidgetItem()
-
-                row_widget = QWidget(section_list)
-                row_layout = QVBoxLayout(row_widget)
-                row_layout.setContentsMargins(6, 2, 6, 2)
-                row_layout.setSpacing(2)
-
-                top_row = QWidget(row_widget)
-                top_layout = QHBoxLayout(top_row)
-                top_layout.setContentsMargins(0, 0, 0, 0)
-                top_layout.setSpacing(10)
-
-                label_widget = QLabel(f"({match_count}) {label}")  # this includes the total count in the label
-                label_widget.setWordWrap(True)
-                label_font = label_widget.font()
-                label_font.setPointSize(max(1, label_font.pointSize() - 1))
-                label_widget.setFont(label_font)
-                label_widget.setStyleSheet(
-                    f"color: rgb({similarity_red}, {similarity_green}, {similarity_blue});"
+                add_similarity_match_row(
+                    section_list=section_list,
+                    section_title=base_title,
+                    label=label,
+                    match_count=match_count,
+                    percent_value=percent_value,
+                    db_percent_value=db_percent_value,
+                    selection_total_count=selection_total_count,
+                    total_count=total_count,
+                    similarity_rgb=(
+                        similarity_red,
+                        similarity_green,
+                        similarity_blue,
+                    ),
+                    on_info_target_requested=self._handle_similarity_info_target_requested,
                 )
-                top_layout.addWidget(label_widget, stretch=1)
-
-                percent_bar = QProgressBar()
-                percent_bar.setRange(0, 100)
-                percent_bar.setValue(percent_value)
-                percent_bar.setTextVisible(False)
-                percent_bar.setFixedWidth(120)
-                percent_bar.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-                top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
-                row_layout.addWidget(top_row)
-
-                unknown_suffix = ""
-                if selection_total_count > 0 and total_count < selection_total_count:
-                    unknown_count = selection_total_count - total_count
-                    unknown_percent_value = int(
-                        round((unknown_count / selection_total_count) * 100)
-                    )
-                    unknown_suffix = f" | {unknown_percent_value}% unknown"
-                tiny_label = QLabel(
-                    f"{percent_value}% of selection | {db_percent_value}% of DB{unknown_suffix}"
-                )
-                tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
-                row_layout.addWidget(tiny_label, stretch=0, alignment=Qt.AlignLeft)
-
-                section_list.addItem(item)
-                row_height = max(row_widget.sizeHint().height() + 6, 32)
-                item.setSizeHint(QSize(0, row_height))
-                section_list.setItemWidget(item, row_widget)
             toggle.setChecked(True)
             return
 
