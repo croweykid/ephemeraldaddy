@@ -18993,6 +18993,63 @@ class MainWindow(QMainWindow):
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
 
+    def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
+        subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
+        if not subject_name:
+            subject_name = "Current chart"
+        matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
+        if not matches:
+            QMessageBox.information(dialog, "Similar Charts", "No similar charts are available to collect yet.")
+            return
+
+        base_name = sanitize_collection_name(f"similar to {subject_name}")
+        existing_names = {collection.name.casefold() for collection in self._custom_collections.values()}
+        collection_name = base_name
+        if base_name.casefold() in existing_names:
+            suffix_pattern = re.compile(rf"^{re.escape(base_name)}\s*#(\d+)$", re.IGNORECASE)
+            highest_suffix = 0
+            for custom_collection in self._custom_collections.values():
+                existing_name = custom_collection.name.strip()
+                if existing_name.casefold() == base_name.casefold():
+                    continue
+                match = suffix_pattern.match(existing_name)
+                if match:
+                    highest_suffix = max(highest_suffix, int(match.group(1)))
+            collection_name = f"{base_name} #{highest_suffix + 1}"
+
+        base_id = normalize_collection_id(collection_name.replace(" ", "_"))
+        candidate_id = base_id
+        suffix = 2
+        while candidate_id in DEFAULT_COLLECTION_IDS or candidate_id in self._custom_collections:
+            candidate_id = f"{base_id}_{suffix}"
+            suffix += 1
+
+        chart_ids: set[int] = set()
+        for similar_match in matches[:25]:
+            try:
+                chart_ids.add(int(getattr(similar_match, "chart_id", 0)))
+            except (TypeError, ValueError):
+                continue
+        if not chart_ids:
+            QMessageBox.information(dialog, "Similar Charts", "No valid similar chart IDs were found.")
+            return
+
+        self._custom_collections[candidate_id] = CustomCollection(
+            collection_id=candidate_id,
+            name=collection_name,
+            chart_ids=frozenset(chart_ids),
+        )
+        self._active_collection_id = candidate_id
+        self._settings.setValue("manage_charts/active_collection_id", candidate_id)
+        self._save_custom_collections_to_settings()
+        self._refresh_collection_controls()
+        self._populate_list()
+        QMessageBox.information(
+            dialog,
+            "Collection Created",
+            f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
+        )
+
     def _show_similar_chart_reasoning(self, target: str, *, target_dialog: QDialog | None = None) -> None:
         dialog_reasoning_by_target = (
             getattr(target_dialog, "_similar_chart_popout_reasoning_by_target", {})
@@ -19383,10 +19440,12 @@ class MainWindow(QMainWindow):
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
             on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
+            on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
         )
         dialog._similar_chart_popout_subject_name = subject_name
         dialog._similar_chart_popout_subject_chart = chart
         dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
+        dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
         self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
         self._register_popout_shortcuts(dialog)
         self._similar_charts_popout_dialogs.append(dialog)
