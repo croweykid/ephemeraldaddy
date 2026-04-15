@@ -65,6 +65,13 @@ def build_dbv_search_panel(window) -> "QWidget":
     def apply_default_dropdown_style(dropdown: QComboBox) -> None:
         dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
+    def center_dropdown_items(dropdown: QComboBox) -> None:
+        dropdown.setEditable(True)
+        dropdown.lineEdit().setReadOnly(True)
+        dropdown.lineEdit().setAlignment(Qt.AlignCenter)
+        for item_index in range(dropdown.count()):
+            dropdown.setItemData(item_index, Qt.AlignCenter, Qt.TextAlignmentRole)
+
     search_title = QLabel("Database search")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     layout.addWidget(search_title)
@@ -600,6 +607,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         gate_combo.addItem("Any", "Any")
         for gate_value in range(1, 65):
             gate_combo.addItem(str(gate_value), gate_value)
+        center_dropdown_items(gate_combo)
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
         hd_gates_row.addWidget(gate_combo, 1)
