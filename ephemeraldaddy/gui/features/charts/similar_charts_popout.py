@@ -104,6 +104,7 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
+_DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
 
 
 def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
@@ -380,7 +381,7 @@ def _top_weighted_items(weights: dict[Any, float], *, count: int = 3) -> list[An
 def _sign_weight_profile(chart: Any) -> dict[str, float]:
     positions = getattr(chart, "positions", None) or {}
     profile = {sign: 0.0 for sign in _SIGN_SEQUENCE}
-    for body in CORE_BODIES:
+    for body in _DOMINANCE_BODIES:
         longitude = positions.get(body)
         if longitude is None:
             continue
@@ -394,7 +395,7 @@ def _house_weight_profile(chart: Any) -> dict[int, float]:
     houses = getattr(chart, "houses", None)
     positions = getattr(chart, "positions", None) or {}
     profile = {house: 0.0 for house in range(1, 13)}
-    for body in CORE_BODIES:
+    for body in _DOMINANCE_BODIES:
         longitude = positions.get(body)
         if longitude is None:
             continue
@@ -409,7 +410,7 @@ def _body_dominance_profile(chart: Any) -> dict[str, float]:
     houses = getattr(chart, "houses", None)
     positions = getattr(chart, "positions", None) or {}
     profile: dict[str, float] = {}
-    for body in CORE_BODIES:
+    for body in _DOMINANCE_BODIES:
         longitude = positions.get(body)
         if longitude is None:
             continue
@@ -455,6 +456,7 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
 
     lines: list[str] = [
         "Weighted in Combined Dominance: signs 40%, houses 30%, planets/bodies 30%.",
+        #"Angles (AS/IC/DS/MC) are excluded from this dominance breakdown.",
         "Nakshatra dominance is scored separately in the Nakshatra Dominance section (when enabled).",
     ]
     if analysis_mode == "dissimilarities":
