@@ -651,7 +651,7 @@ def build_similarity_reasoning_panel_text(
         lines.append("Detailed similarity details are unavailable because one or both charts could not be loaded.")
     return "\n".join(
         [
-            "DISSIMILARITIES ANALYSIS" if analysis_mode == "dissimilarities" else "SIMILARITIES ANALYSIS",
+            "ⓘDISSIMILARITIES ANALYSIS" if analysis_mode == "dissimilarities" else "ⓘSIMILARITIES ANALYSIS",
             "",
             f"Charts: {subject_title} ↔ {compared_name}",
             "\n".join(lines),
@@ -729,7 +729,7 @@ def build_similarity_reasoning_panel_html(
     html_lines: list[str] = [
         (
             f"<div style='font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>"
-            + ("DISSIMILARITIES ANALYSIS" if analysis_mode == "dissimilarities" else "SIMILARITIES ANALYSIS")
+            + ("ⓘDISSIMILARITIES ANALYSIS" if analysis_mode == "dissimilarities" else "ⓘSIMILARITIES ANALYSIS")
             + "</div>"
         ),
         (
@@ -982,9 +982,9 @@ def build_similar_charts_popout_dialog(
     # info_header.setStyleSheet(header_style)
     # info_layout.addWidget(info_header)
     analysis_dropdown = QComboBox()
-    analysis_dropdown.addItem("SIMILARITIES ANALYSIS", "similarities")
-    analysis_dropdown.addItem("DISSIMILARITIES ANALYSIS", "dissimilarities")
-    analysis_dropdown.addItem("BIO", "bio")
+    analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
+    analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
+    analysis_dropdown.addItem("ⓘBIO", "bio")
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 

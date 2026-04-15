@@ -561,11 +561,13 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_CENTERS,
     HD_CHANNELS,
     HD_DEFINITIONS,
+    GATE_REFERENCE,
     HD_PROFILES,
     HD_STRATEGIES,
     HD_TYPES,
+    LINE_ARCHETYPES,
     canonicalize_hd_authority_label,
-    format_gate_line_info,
+    #format_gate_line_info,
 )
 from ephemeraldaddy.gui.features.charts.human_design_plot import (
     BODYGRAPH_VERTICAL_OFFSET,
@@ -21634,16 +21636,26 @@ class MainWindow(QMainWindow):
         target_info_widget: QPlainTextEdit,
         block_offset: int = 0,
     ) -> bool:
-        block = cursor.block()
-        block_number = block.blockNumber() + block_offset
-        block_text = block.text()
-        info_index = block_text.rfind("ⓘ")
+        # block = cursor.block()
+        # block_number = block.blockNumber() + block_offset
+        # block_text = block.text()
+        # info_index = block_text.rfind("ⓘ")        
+        targets_main_chart_info = target_info_widget is self.chart_info_output
 
-        cursor_pos = cursor.positionInBlock()
-        original_chart_info_output = self.chart_info_output
-        self.chart_info_output = target_info_widget
-        try:
-            if target_info_widget is original_chart_info_output:
+
+        # cursor_pos = cursor.positionInBlock()
+        # original_chart_info_output = self.chart_info_output
+        # self.chart_info_output = target_info_widget
+        # try:
+        #     if target_info_widget is original_chart_info_output:
+        def _handle_click() -> bool:
+            block = cursor.block()
+            block_number = block.blockNumber() + block_offset
+            block_text = block.text()
+            info_index = block_text.rfind("ⓘ")
+
+            cursor_pos = cursor.positionInBlock()
+            if targets_main_chart_info:
                 self._set_chart_info_panel_mode("chart_info")
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
@@ -21777,6 +21789,18 @@ class MainWindow(QMainWindow):
                 self._show_aspect_keyword_info(str(aspect_info.get("type", "")))
                 return True
             return False
+
+        return self._run_with_chart_info_output(target_info_widget, _handle_click)
+
+    def _run_with_chart_info_output(
+        self,
+        target_info_widget: QPlainTextEdit,
+        callback: Callable[[], Any],
+    ) -> Any:
+        original_chart_info_output = self.chart_info_output
+        self.chart_info_output = target_info_widget
+        try:
+            return callback()
         finally:
             self.chart_info_output = original_chart_info_output
 
@@ -22045,7 +22069,46 @@ class MainWindow(QMainWindow):
 
     def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
         line_number = int(line) if isinstance(line, int) else None
-        self.chart_info_output.setPlainText(format_gate_line_info(gate, line_number))
+        gate_number = int(gate)
+        gate_info = GATE_REFERENCE.get(
+            gate_number,
+            {"name": "Unknown Gate", "meaning": "No gate reference available."},
+        )
+
+        title = f"Gate {gate_number} • {gate_info['name']}"
+        if line_number is not None:
+            title = f"Gate {gate_number} • Line {line_number}"
+
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+
+        title_fmt = QTextCharFormat()
+        title_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        title_fmt.setFontWeight(QFont.Bold)
+
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
+
+        cursor.insertText(f"{title}\n\n", title_fmt)
+        cursor.insertText(f"Gate {gate_number}:", header_fmt)
+        cursor.insertText(f" {gate_info['meaning']}", plain_fmt)
+
+        if line_number is not None:
+            line_text = LINE_ARCHETYPES.get(line_number, "No line archetype available.")
+            cursor.insertText("\n\n", plain_fmt)
+            cursor.insertText(f"Line {line_number} Archetype:", header_fmt)
+            cursor.insertText(f" {line_text}", plain_fmt)
+
+        self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
         key = str(property_key or "").strip().lower()
@@ -25209,12 +25272,16 @@ class MainWindow(QMainWindow):
             )
 
         def _show_popout_gate_info(gate: int) -> None:
-            original_chart_info_output = getattr(self, "chart_info_output", None)
-            try:
-                self.chart_info_output = chart_info_output
-                self._show_human_design_gate_line_info(int(gate), None)
-            finally:
-                self.chart_info_output = original_chart_info_output
+            # original_chart_info_output = getattr(self, "chart_info_output", None)
+            # try:
+            #     self.chart_info_output = chart_info_output
+            #     self._show_human_design_gate_line_info(int(gate), None)
+            # finally:
+            #     self.chart_info_output = original_chart_info_output
+            self._run_with_chart_info_output(
+                chart_info_output,
+                lambda: self._show_human_design_gate_line_info(int(gate), None),
+            )
 
         def _on_bodygraph_click(event: Any) -> None:
             if event.inaxes is None or event.xdata is None or event.ydata is None:
