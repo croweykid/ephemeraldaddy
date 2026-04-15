@@ -14,6 +14,11 @@ SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
 PLACEMENT_WEIGHTING_MODE_HYBRID = "hybrid"
+HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES: dict[int, float] = {
+    0: 0.82,
+    1: 0.92,
+    2: 1.00,
+}
 
 SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "placement",
@@ -280,7 +285,24 @@ def _placement_similarity(
             if q_house is not None and q_house == c_house:
                 total += house_weight
 
-    return _safe_divide(total, possible)
+    similarity = _safe_divide(total, possible)
+    normalized_mode = normalize_placement_weighting_mode(weighting_mode)
+    if normalized_mode != PLACEMENT_WEIGHTING_MODE_HYBRID:
+        return similarity
+
+    # Hybrid mode intentionally blends chart-defined dominance with generic
+    # body priorities. To keep "same core identity" charts from being buried
+    # by high aspect overlap, we anchor placement similarity to luminary signs.
+    luminary_sign_matches = 0
+    for luminary in ("Sun", "Moon"):
+        q_lon = q_positions.get(luminary)
+        c_lon = c_positions.get(luminary)
+        if q_lon is None or c_lon is None:
+            continue
+        if _sign_index(q_lon) == _sign_index(c_lon):
+            luminary_sign_matches += 1
+    luminary_multiplier = HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES.get(luminary_sign_matches, 1.0)
+    return max(0.0, min(1.0, similarity * luminary_multiplier))
 
 
 def _canonical_aspect_key(aspect: dict) -> tuple[tuple[str, str], str] | None:
