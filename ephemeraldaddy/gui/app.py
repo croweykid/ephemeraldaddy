@@ -95,6 +95,8 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_nakshatra_dominance": float(payload.get("weight_nakshatra_dominance", defaults.weight_nakshatra_dominance)),
         "use_defined_centers": _as_bool(payload.get("use_defined_centers", defaults.use_defined_centers), defaults.use_defined_centers),
         "weight_defined_centers": float(payload.get("weight_defined_centers", defaults.weight_defined_centers)),
+        "use_human_design_gates": _as_bool(payload.get("use_human_design_gates", defaults.use_human_design_gates), defaults.use_human_design_gates),
+        "weight_human_design_gates": float(payload.get("weight_human_design_gates", defaults.weight_human_design_gates)),
         "placement_weighting_mode": _normalize_placement_weighting_mode(
             payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
         ),
@@ -120,6 +122,8 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_nakshatra_dominance": float(value.weight_nakshatra_dominance),
             "use_defined_centers": bool(value.use_defined_centers),
             "weight_defined_centers": float(value.weight_defined_centers),
+            "use_human_design_gates": bool(value.use_human_design_gates),
+            "weight_human_design_gates": float(value.weight_human_design_gates),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
         },
     )
@@ -16859,6 +16863,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "nakshatra_placement": ("use_nakshatra_placement", "weight_nakshatra_placement"),
             "nakshatra_dominance": ("use_nakshatra_dominance", "weight_nakshatra_dominance"),
             "defined_centers": ("use_defined_centers", "weight_defined_centers"),
+            "human_design_gates": ("use_human_design_gates", "weight_human_design_gates"),
         }
         for key, (enabled_attr, weight_attr) in mapping.items():
             checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -17000,6 +17005,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_nakshatra_dominance=float(self._similarity_calculator_weights["nakshatra_dominance"].value()),
             use_defined_centers=bool(self._similarity_calculator_checkboxes["defined_centers"].isChecked()),
             weight_defined_centers=float(self._similarity_calculator_weights["defined_centers"].value()),
+            use_human_design_gates=bool(self._similarity_calculator_checkboxes["human_design_gates"].isChecked()),
+            weight_human_design_gates=float(self._similarity_calculator_weights["human_design_gates"].value()),
             placement_weighting_mode=_normalize_placement_weighting_mode(
                 getattr(
                     getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None),

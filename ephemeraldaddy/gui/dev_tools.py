@@ -44,6 +44,7 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("nakshatra_placement", "Nakshatra placement score"),
     ("nakshatra_dominance", "Nakshatra dominance score"),
     ("defined_centers", "Defined centers score"),
+    ("human_design_gates", "Human Design gates score"),
 )
 
 
