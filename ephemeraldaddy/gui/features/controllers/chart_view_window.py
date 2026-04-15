@@ -226,7 +226,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addStretch(1)
     chart_panel_layout.addWidget(chart_info_header, 0)
 
-    owner.chart_info_output = QPlainTextEdit()
+    owner.chart_info_output = QTextEdit()
     owner.chart_info_output.setReadOnly(True)
     owner.chart_info_output.setPlaceholderText(
         "Click the ⓘ next to a position or aspect to see details/interpretation."
