@@ -28,6 +28,7 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "nakshatra_placement",
     "nakshatra_dominance",
     "defined_centers",
+    "human_design_gates",
 )
 
 CORE_BODIES: tuple[str, ...] = (
@@ -119,6 +120,8 @@ class SimilarityCalculatorSettings:
     weight_nakshatra_dominance: float = 0.00
     use_defined_centers: bool = True
     weight_defined_centers: float = 0.08
+    use_human_design_gates: bool = False
+    weight_human_design_gates: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
 
     @classmethod
@@ -134,6 +137,7 @@ class SimilarityCalculatorSettings:
             "nakshatra_placement": max(0.0, float(self.weight_nakshatra_placement)),
             "nakshatra_dominance": max(0.0, float(self.weight_nakshatra_dominance)),
             "defined_centers": max(0.0, float(self.weight_defined_centers)),
+            "human_design_gates": max(0.0, float(self.weight_human_design_gates)),
         }
 
     def enabled_components(self) -> dict[str, bool]:
@@ -145,6 +149,7 @@ class SimilarityCalculatorSettings:
             "nakshatra_placement": bool(self.use_nakshatra_placement),
             "nakshatra_dominance": bool(self.use_nakshatra_dominance),
             "defined_centers": bool(self.use_defined_centers),
+            "human_design_gates": bool(self.use_human_design_gates),
         }
 
     def normalized_placement_weighting_mode(self) -> str:
@@ -575,6 +580,29 @@ def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
     return max(0.0, min(1.0, (overlap * 0.75) + (top3_overlap * 0.25)))
 
 
+def _human_design_gates(chart: Chart) -> set[int]:
+    raw_gates = getattr(chart, "human_design_gates", None) or []
+    resolved_gates: set[int] = set()
+    for gate in raw_gates:
+        try:
+            resolved_gates.add(int(gate))
+        except (TypeError, ValueError):
+            continue
+    return resolved_gates
+
+
+def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
+    q_gates = _human_design_gates(query)
+    c_gates = _human_design_gates(candidate)
+    if not q_gates and not c_gates:
+        return 0.5
+    union = q_gates | c_gates
+    if not union:
+        return 0.0
+    intersection = q_gates & c_gates
+    return len(intersection) / len(union)
+
+
 def _similarity_component_scores(
     query: Chart,
     candidate: Chart,
@@ -589,6 +617,7 @@ def _similarity_component_scores(
         "nakshatra_placement": _nakshatra_similarity(query, candidate),
         "nakshatra_dominance": _nakshatra_dominance_similarity(query, candidate),
         "defined_centers": _defined_centers_similarity(query, candidate),
+        "human_design_gates": _human_design_gates_similarity(query, candidate),
     }
 
 
