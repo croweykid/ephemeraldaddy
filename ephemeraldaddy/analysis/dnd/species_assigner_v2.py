@@ -39,15 +39,16 @@ ALL_MAJOR_ASPECTS = HARD_ASPECTS | SOFT_ASPECTS | {"quincunx"}
 SPECIES_DISTRIBUTION_CALIBRATION: Dict[str, float] = {
     # Frequently over-selected broad buckets.
     "Human": 0.84,
+    "Dragon":0.84,
     #"Halfling": 0.92,
     #"Dwarf": 0.94,
     #"Orcs": 0.94,
     #"Half-orcs": 0.95,
     # Under-selected families reported in production data.
     "Shapeshifter": 1.06,
-    "Triton": 1.30,
-    "Rodentfolk": 1.30,
-    "Elf": 1.24,
+    "Triton": 1.06,
+    "Rodentfolk": 1.06,
+    "Elf": 1.15,
 }
 
 
@@ -610,12 +611,12 @@ class SpeciesAssigner:
 
         # Cyborgs
         cards["Cyborgs"].add(0.72 * p("Mercury"), "Mercury handles throughput and interface.")
-        cards["Cyborgs"].add(0.70 * p("Saturn"), "Saturn gives engineered structure.")
         cards["Cyborgs"].add(0.70 * p("Uranus"), "Uranus gives augmentation and novel hardware.")
         cards["Cyborgs"].add(0.28 * (er["Air"] + er["Earth"]), "Air/Earth supports the engineered body.")
         cards["Cyborgs"].add(0.32 * link("Mercury", "Uranus", ALL_MAJOR_ASPECTS), "Mercury-Uranus link supports synthetic cognition.")
         cards["Cyborgs"].add(0.28 * link("Mars", "Uranus", ALL_MAJOR_ASPECTS), "Mars-Uranus helps the weaponized end.")
         cards["Cyborgs"].add(0.18 * ratio_houses(3, 6, 10, 11), "Systems houses reinforce the fit.")
+        #Add Aquarius dominance
 
         # Cyclops
         cards["Cyclops"].add(0.72 * p("Sun"), "Cyclops needs solar centrality.")
@@ -761,12 +762,13 @@ class SpeciesAssigner:
         cards["Plasmoid"].add(0.22 * link("Neptune", "Uranus", ALL_MAJOR_ASPECTS), "Neptune-Uranus contact helps.")
 
         # Robots
-        cards["Robots"].add(0.88 * p("Saturn"), "Saturn is the primary Robots signal.")
+        cards["Robots"].add(0.88 * p("Uranus"), "Uranus is the primary Robots signal.")
         cards["Robots"].add(0.72 * p("Mercury"), "Mercury adds instruction and cognition.")
-        cards["Robots"].add(0.32 * p("Uranus"), "Uranus supports the construct edge.")
+        cards["Robots"].add(0.32 * p("Saturn"), "Saturn supports the construct edge.")
         cards["Robots"].add(0.52 * (er["Earth"] + er["Air"]), "Air/Earth supports constructed life.")
         cards["Robots"].add(0.28 * ratio_houses(3, 6, 10), "Procedure-heavy houses reinforce it.")
         cards["Robots"].add(-0.20 * max(p("Moon"), p("Neptune")), "High Moon/Neptune softens Robots.")
+        #add Libra or Aquarius dominance
 
         # Rodentfolk
         cards["Rodentfolk"].add(0.82 * er["Earth"], "Rodentfolk needs an Earth floor.")
