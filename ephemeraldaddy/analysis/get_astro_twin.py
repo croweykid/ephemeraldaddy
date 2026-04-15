@@ -42,8 +42,6 @@ CORE_BODIES: tuple[str, ...] = (
     "Uranus",
     "Neptune",
     "Pluto",
-    "AS",
-    "MC",
 )
 
 BODY_WEIGHTS: dict[str, float] = {
@@ -57,8 +55,11 @@ BODY_WEIGHTS: dict[str, float] = {
     "Uranus": 0.65,
     "Neptune": 0.65,
     "Pluto": 0.7,
+    # Angles are retained here strictly for aspect endpoint weighting.
     "AS": 1.35,
+    "DS": 1.0,
     "MC": 1.1,
+    "IC": 1.0,
 }
 
 ASPECT_WEIGHTS: dict[str, float] = {

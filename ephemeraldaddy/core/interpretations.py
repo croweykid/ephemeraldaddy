@@ -104,10 +104,6 @@ VERY_FAST_TRANSIT_BODIES = {"Moon"}
 NATAL_WEIGHT = { #aka NATAL_WEIGHT - use for calculating sign/planet/house/element dominance
     "Sun": 10,
     "Moon": 10,
-    "AS": 10,
-    "MC": 9,
-    "IC": 6, #maybe 6-7, was 7
-    "DS": 6, #maybe 6-7, was 7
     "Mercury": 7,
     "Venus": 7,
     "Mars": 7,
@@ -129,6 +125,15 @@ NATAL_WEIGHT = { #aka NATAL_WEIGHT - use for calculating sign/planet/house/eleme
 
 # Back-compat alias used by aspect scoring helpers.
 POSITION_WEIGHTS = NATAL_WEIGHT
+
+# Angle points should only be treated as aspect endpoints, not as generic
+# body/planet dominance weights.
+ANGLE_ASPECT_WEIGHTS = {
+    "AS": 10,
+    "MC": 9,
+    "IC": 6,
+    "DS": 6,
+}
 
 TRANSIT_WEIGHT = { #use for calculating aspect priority in charts
     "Pluto": 10,
@@ -297,12 +302,13 @@ def aspect_orb_factor(asp: dict) -> float:
 def aspect_pair_weight(p1: str, p2: str, planet_weights: dict[str, float] | None = None) -> float:
     p1 = normalize_aspect_body(p1)
     p2 = normalize_aspect_body(p2)
+    aspect_base_weights = {**NATAL_WEIGHT, **ANGLE_ASPECT_WEIGHTS}
     if planet_weights:
-        p1_weight = float(planet_weights.get(p1, NATAL_WEIGHT.get(p1, 1)))
-        p2_weight = float(planet_weights.get(p2, NATAL_WEIGHT.get(p2, 1)))
+        p1_weight = float(planet_weights.get(p1, aspect_base_weights.get(p1, 1)))
+        p2_weight = float(planet_weights.get(p2, aspect_base_weights.get(p2, 1)))
     else:
-        p1_weight = float(NATAL_WEIGHT.get(p1, 1))
-        p2_weight = float(NATAL_WEIGHT.get(p2, 1))
+        p1_weight = float(aspect_base_weights.get(p1, 1))
+        p2_weight = float(aspect_base_weights.get(p2, 1))
     return math.sqrt(max(p1_weight, 0.0) * max(p2_weight, 0.0))
 
 
