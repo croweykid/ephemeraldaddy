@@ -146,5 +146,67 @@ You can import a CSV-based public database from **Manage Charts → Import DB fr
 - Charts created directly in the app are tagged with `chart_type=personal`.
 - The Manage Charts search panel includes a **Chart Type** filter so you can query by this field.
 - Exports include a `chart_type` CSV column (and legacy `source`) for round-tripping datasets.
+
+### CSV format: **Import DB from CSV** (generic importer)
+
+This importer accepts either:
+
+1. **Simple 3-column rows** (no header required):
+   - `name`
+   - `datetime`
+   - `birth_place`
+2. **Round-trip export rows** (the same schema produced by **Export selected charts**), with this header:
+   - `id,name,birth_place,datetime_iso,tz_name,latitude,longitude,used_utc_fallback,sentiments,relationship_types,positive_sentiment_intensity,negative_sentiment_intensity,familiarity,dominant_planet_weights,dominant_sign_weights,chart_type,source`
+
+Notes:
+- A header row that includes both `datetime_iso` and `latitude` is auto-detected and skipped.
+- Comma-delimited and tab-delimited rows are both accepted.
+- Datetime parsing accepts ISO values plus common variants (for example: `YYYY-MM-DD HH:MM`, `MM/DD/YYYY`, `Month DD YYYY`).
+- If required data cannot be resolved (bad datetime, missing/un-geocodable place, etc.), the importer falls back to:
+  - date at **12:00 UTC**
+  - `lat=0.0`, `lon=0.0`
+  - `used_utc_fallback=1` (warning)
+- Date-only values are treated as unknown-time records and normalized to noon.
+
+#### Minimal generic example
+
+```csv
+Ada Lovelace,1815-12-10 08:00,London UK
+Alan Turing,1912-06-23,Cambridge UK
+```
+
+#### Round-trip/export-compatible example
+
+```csv
+id,name,birth_place,datetime_iso,tz_name,latitude,longitude,used_utc_fallback,sentiments,relationship_types,positive_sentiment_intensity,negative_sentiment_intensity,familiarity,dominant_planet_weights,dominant_sign_weights,chart_type,source
+1,Grace Hopper,New York USA,1906-12-09T09:00:00,America/New_York,40.712800,-74.006000,0,"mentor, pioneer","friend",8,1,7,"{""Mercury"": 0.2}","{""Sagittarius"": 0.3}",public_db,public_db
+```
+
+### CSV format: **Import CSV from The Pattern**
+
+The Pattern importer requires a header row that includes **all** of the following columns (case-insensitive):
+
+- `full name`
+- `birthday`
+- `birth time`
+- `gender`
+- `birthtimezone`
+
+Notes:
+- `birthtimezone` should be a valid IANA timezone (for example `America/New_York`).
+- Birth place is inferred from timezone (last segment, e.g. `America/Los_Angeles` → `Los Angeles`) and then geocoded.
+- If `birth time` is `unknown`, or timezone/place/date cannot be resolved, importer falls back to **12:00 UTC** and `lat/lon=0.0`.
+- `gender` normalization:
+  - `f` → `F`
+  - `m` → `M`
+  - `unknown`/blank → unset
+
+#### Pattern example
+
+```csv
+full name,birthday,birth time,gender,birthtimezone
+Jane Doe,1992-04-03,14:20,f,America/Los_Angeles
+John Doe,1988-11-30,unknown,m,Europe/London
+```
 # Composite charts (transit overlays + synastry)
 See `docs/composite_charts_deployment.md` for deployment steps and new shared composition helpers.
