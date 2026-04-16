@@ -5976,7 +5976,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     return
             target_output.setPlainText("No DB info renderer is available for this item yet.")
 
-        self._run_with_chart_info_output(target_output, _render_target)
+        
+        original_chart_info_output = getattr(self, "chart_info_output", None)
+        self.chart_info_output = target_output
+        try:
+            _render_target()
+        finally:
+            self.chart_info_output = original_chart_info_output
 
     def _selected_chart_ids(
         self,
