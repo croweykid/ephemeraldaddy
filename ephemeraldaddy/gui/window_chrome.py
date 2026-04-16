@@ -236,8 +236,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         tools_menu,
         "See Similar Charts",
         dialog,
-        "_show_similar_charts_popout",
-        "on_show_similar_charts_popout",
+        "_on_menu_see_similar_charts",
     )
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
