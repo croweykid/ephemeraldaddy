@@ -52,7 +52,7 @@ CHANNEL_CENTER_MARGIN = 0.012
 CHANNEL_INACTIVE_COLOR = "#5e5e5e"
 CHANNEL_PERSONALITY_ACTIVE_COLOR = "#5dc26a"
 CHANNEL_DESIGN_ACTIVE_COLOR = "#d65b5b"
-DUAL_ACTIVATION_STRIPE_LENGTH_PIXELS = 6.0
+DUAL_ACTIVATION_RED_DASH_PATTERN = (2.0, 2.0)
 BODY_TEXT_COLOR: dict[str, str] = {
     "Sun": "#f5c542",
     "Earth": "#c8914f",
@@ -231,30 +231,26 @@ def draw_human_design_chart(
                 gid=f"gate-segment:{gate}",
             )
             return
-            display_start_x, display_start_y = ax.transData.transform((start_x, start_y))
-            display_end_x, display_end_y = ax.transData.transform((end_x, end_y))
-            display_length = ((display_end_x - display_start_x) ** 2 + (display_end_y - display_start_y) ** 2) ** 0.5
-            stripe_count = max(2, int(display_length / DUAL_ACTIVATION_STRIPE_LENGTH_PIXELS))
-            for stripe_index in range(stripe_count):
-                t0 = stripe_index / stripe_count
-                t1 = (stripe_index + 1) / stripe_count
-                stripe_start_x = start_x + ((end_x - start_x) * t0)
-                stripe_start_y = start_y + ((end_y - start_y) * t0)
-                stripe_end_x = start_x + ((end_x - start_x) * t1)
-                stripe_end_y = start_y + ((end_y - start_y) * t1)
-                stripe_color = (
-                    CHANNEL_PERSONALITY_ACTIVE_COLOR
-                    if stripe_index % 2 == 0
-                    else CHANNEL_DESIGN_ACTIVE_COLOR
-                )
-                ax.plot(
-                    [stripe_start_x, stripe_end_x],
-                    [stripe_start_y, stripe_end_y],
-                    color=stripe_color,
-                    linewidth=3.0,
-                    alpha=0.95,
-                    gid=f"gate-segment:{gate}",
-                )
+        if has_personality and has_design:
+            ax.plot(
+                [start_x, end_x],
+                [start_y, end_y],
+                color=CHANNEL_PERSONALITY_ACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+                gid=f"gate-segment:{gate}",
+            )
+            ax.plot(
+                [start_x, end_x],
+                [start_y, end_y],
+                color=CHANNEL_DESIGN_ACTIVE_COLOR,
+                linewidth=2.4,
+                alpha=0.95,
+                linestyle=(0, DUAL_ACTIVATION_RED_DASH_PATTERN),
+                solid_capstyle="butt",
+                dash_capstyle="butt",
+                gid=f"gate-segment:{gate}",
+            )
             return
         active_color = CHANNEL_PERSONALITY_ACTIVE_COLOR if has_personality else CHANNEL_DESIGN_ACTIVE_COLOR
         ax.plot(
