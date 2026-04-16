@@ -19148,10 +19148,9 @@ class MainWindow(QMainWindow):
 
         chart_ids: set[int] = set()
         for similar_match in matches[:25]:
-            try:
-                chart_ids.add(int(getattr(similar_match, "chart_id", 0)))
-            except (TypeError, ValueError):
-                continue
+            chart_id = self._extract_similar_match_chart_id(similar_match)
+            if chart_id is not None:
+                chart_ids.add(chart_id)
         if not chart_ids:
             QMessageBox.information(dialog, "Similar Charts", "No valid similar chart IDs were found.")
             return
@@ -19163,17 +19162,9 @@ class MainWindow(QMainWindow):
         )
         self._active_collection_id = candidate_id
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
-        payload = [
-            {
-                "id": collection.collection_id,
-                "name": collection.name,
-                "chart_ids": sorted(collection.chart_ids),
-            }
-            for collection in self._custom_collections.values()
-        ]
-        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
-        if hasattr(self, "_refresh_collection_controls"):
-            self._refresh_collection_controls()
+        self._save_custom_collections_to_settings()
+        self._settings.sync()
+        self._refresh_collection_controls()
         if hasattr(self, "_populate_list"):
             self._populate_list()
         QMessageBox.information(
@@ -19181,6 +19172,17 @@ class MainWindow(QMainWindow):
             "Collection Created",
             f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
         )
+
+    @staticmethod
+    def _extract_similar_match_chart_id(similar_match: object) -> int | None:
+        raw_chart_id = getattr(similar_match, "chart_id", None)
+        if raw_chart_id is None and isinstance(similar_match, dict):
+            raw_chart_id = similar_match.get("chart_id")
+        try:
+            chart_id = int(raw_chart_id)
+        except (TypeError, ValueError):
+            return None
+        return chart_id if chart_id > 0 else None
 
     def _show_similar_chart_reasoning(self, target: str, *, target_dialog: QDialog | None = None) -> None:
         dialog_reasoning_by_target = (
