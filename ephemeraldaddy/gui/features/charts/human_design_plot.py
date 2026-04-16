@@ -52,7 +52,7 @@ CHANNEL_CENTER_MARGIN = 0.012
 CHANNEL_INACTIVE_COLOR = "#5e5e5e"
 CHANNEL_PERSONALITY_ACTIVE_COLOR = "#5dc26a"
 CHANNEL_DESIGN_ACTIVE_COLOR = "#d65b5b"
-DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS = 2.4
+DUAL_ACTIVATION_STRIPE_LENGTH_PIXELS = 6.0
 BODY_TEXT_COLOR: dict[str, str] = {
     "Sun": "#f5c542",
     "Earth": "#c8914f",
@@ -231,48 +231,30 @@ def draw_human_design_chart(
                 gid=f"gate-segment:{gate}",
             )
             return
-        if has_personality and has_design:
-            dx_local = end_x - start_x
-            dy_local = end_y - start_y
-            segment_length_local = (dx_local ** 2 + dy_local ** 2) ** 0.5 or 1.0
-            normal_x_local = -dy_local / segment_length_local
-            normal_y_local = dx_local / segment_length_local
-            p_x1, p_y1, p_x2, p_y2 = _offset_segment_in_display_pixels(
-                ax,
-                start_x,
-                start_y,
-                end_x,
-                end_y,
-                normal_x_local,
-                normal_y_local,
-                -DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS,
-            )
-            d_x1, d_y1, d_x2, d_y2 = _offset_segment_in_display_pixels(
-                ax,
-                start_x,
-                start_y,
-                end_x,
-                end_y,
-                normal_x_local,
-                normal_y_local,
-                DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS,
-            )
-            ax.plot(
-                [p_x1, p_x2],
-                [p_y1, p_y2],
-                color=CHANNEL_PERSONALITY_ACTIVE_COLOR,
-                linewidth=2.3,
-                alpha=0.95,
-                gid=f"gate-segment:{gate}",
-            )
-            ax.plot(
-                [d_x1, d_x2],
-                [d_y1, d_y2],
-                color=CHANNEL_DESIGN_ACTIVE_COLOR,
-                linewidth=2.3,
-                alpha=0.95,
-                gid=f"gate-segment:{gate}",
-            )
+        display_start_x, display_start_y = ax.transData.transform((start_x, start_y))
+            display_end_x, display_end_y = ax.transData.transform((end_x, end_y))
+            display_length = ((display_end_x - display_start_x) ** 2 + (display_end_y - display_start_y) ** 2) ** 0.5
+            stripe_count = max(2, int(display_length / DUAL_ACTIVATION_STRIPE_LENGTH_PIXELS))
+            for stripe_index in range(stripe_count):
+                t0 = stripe_index / stripe_count
+                t1 = (stripe_index + 1) / stripe_count
+                stripe_start_x = start_x + ((end_x - start_x) * t0)
+                stripe_start_y = start_y + ((end_y - start_y) * t0)
+                stripe_end_x = start_x + ((end_x - start_x) * t1)
+                stripe_end_y = start_y + ((end_y - start_y) * t1)
+                stripe_color = (
+                    CHANNEL_PERSONALITY_ACTIVE_COLOR
+                    if stripe_index % 2 == 0
+                    else CHANNEL_DESIGN_ACTIVE_COLOR
+                )
+                ax.plot(
+                    [stripe_start_x, stripe_end_x],
+                    [stripe_start_y, stripe_end_y],
+                    color=stripe_color,
+                    linewidth=3.0,
+                    alpha=0.95,
+                    gid=f"gate-segment:{gate}",
+                )
             return
         active_color = CHANNEL_PERSONALITY_ACTIVE_COLOR if has_personality else CHANNEL_DESIGN_ACTIVE_COLOR
         ax.plot(
