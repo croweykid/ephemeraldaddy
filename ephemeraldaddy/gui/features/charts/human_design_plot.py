@@ -50,7 +50,9 @@ CENTER_HALF_WIDTH = 0.08
 CENTER_HALF_HEIGHT = 0.045
 CHANNEL_CENTER_MARGIN = 0.012
 CHANNEL_INACTIVE_COLOR = "#5e5e5e"
-CHANNEL_ACTIVE_COLOR = "#5dc26a"
+CHANNEL_PERSONALITY_ACTIVE_COLOR = "#5dc26a"
+CHANNEL_DESIGN_ACTIVE_COLOR = "#d65b5b"
+DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS = 2.4
 BODY_TEXT_COLOR: dict[str, str] = {
     "Sun": "#f5c542",
     "Earth": "#c8914f",
@@ -207,6 +209,81 @@ def draw_human_design_chart(
         for slot_index, channel in enumerate(pair_ordered):
             ordered_channels.append((*channel, slot_index, channel_count))
 
+    personality_gate_set = {activation.gate for activation in hd_result.personality_activations}
+    design_gate_set = {activation.gate for activation in hd_result.design_activations}
+
+    def _draw_gate_segment(
+        start_x: float,
+        start_y: float,
+        end_x: float,
+        end_y: float,
+        gate: int,
+    ) -> None:
+        has_personality = gate in personality_gate_set
+        has_design = gate in design_gate_set
+        if not has_personality and not has_design:
+            ax.plot(
+                [start_x, end_x],
+                [start_y, end_y],
+                color=CHANNEL_INACTIVE_COLOR,
+                linewidth=3.0,
+                alpha=0.95,
+                gid=f"gate-segment:{gate}",
+            )
+            return
+        if has_personality and has_design:
+            dx_local = end_x - start_x
+            dy_local = end_y - start_y
+            segment_length_local = (dx_local ** 2 + dy_local ** 2) ** 0.5 or 1.0
+            normal_x_local = -dy_local / segment_length_local
+            normal_y_local = dx_local / segment_length_local
+            p_x1, p_y1, p_x2, p_y2 = _offset_segment_in_display_pixels(
+                ax,
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+                normal_x_local,
+                normal_y_local,
+                -DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS,
+            )
+            d_x1, d_y1, d_x2, d_y2 = _offset_segment_in_display_pixels(
+                ax,
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+                normal_x_local,
+                normal_y_local,
+                DUAL_ACTIVATION_PARALLEL_OFFSET_PIXELS,
+            )
+            ax.plot(
+                [p_x1, p_x2],
+                [p_y1, p_y2],
+                color=CHANNEL_PERSONALITY_ACTIVE_COLOR,
+                linewidth=2.3,
+                alpha=0.95,
+                gid=f"gate-segment:{gate}",
+            )
+            ax.plot(
+                [d_x1, d_x2],
+                [d_y1, d_y2],
+                color=CHANNEL_DESIGN_ACTIVE_COLOR,
+                linewidth=2.3,
+                alpha=0.95,
+                gid=f"gate-segment:{gate}",
+            )
+            return
+        active_color = CHANNEL_PERSONALITY_ACTIVE_COLOR if has_personality else CHANNEL_DESIGN_ACTIVE_COLOR
+        ax.plot(
+            [start_x, end_x],
+            [start_y, end_y],
+            color=active_color,
+            linewidth=3.0,
+            alpha=0.95,
+            gid=f"gate-segment:{gate}",
+        )
+
     for gate_a, gate_b, center_a, center_b, channel_index, channel_count in ordered_channels:
         channel_key = _channel_key(gate_a, gate_b)
         x1, y1 = CENTER_POSITIONS[center_a]
@@ -236,33 +313,9 @@ def draw_human_design_chart(
             lower_gate = 34
             upper_gate = 20
             bridge_gate = 10
-            lower_gate_active = lower_gate in hd_result.active_gates
-            upper_gate_active = upper_gate in hd_result.active_gates
-            bridge_gate_active = bridge_gate in hd_result.active_gates
-            ax.plot(
-                [start_x, elbow_x],
-                [start_y, elbow_y],
-                color=CHANNEL_ACTIVE_COLOR if lower_gate_active else CHANNEL_INACTIVE_COLOR,
-                linewidth=3.0,
-                alpha=0.95,
-                gid=f"gate-segment:{lower_gate}",
-            )
-            ax.plot(
-                [elbow_x, end_x],
-                [elbow_y, end_y],
-                color=CHANNEL_ACTIVE_COLOR if upper_gate_active else CHANNEL_INACTIVE_COLOR,
-                linewidth=3.0,
-                alpha=0.95,
-                gid=f"gate-segment:{upper_gate}",
-            )
-            ax.plot(
-                [elbow_x, g_bridge_end_x],
-                [elbow_y, elbow_y],
-                color=CHANNEL_ACTIVE_COLOR if bridge_gate_active else CHANNEL_INACTIVE_COLOR,
-                linewidth=3.0,
-                alpha=0.95,
-                gid=f"gate-segment:{bridge_gate}",
-            )
+            _draw_gate_segment(start_x, start_y, elbow_x, elbow_y, lower_gate)
+            _draw_gate_segment(elbow_x, elbow_y, end_x, end_y, upper_gate)
+            _draw_gate_segment(elbow_x, elbow_y, g_bridge_end_x, elbow_y, bridge_gate)
             ax.text(
                 start_x + ((elbow_x - start_x) * 0.55),
                 start_y + ((elbow_y - start_y) * 0.55),
@@ -345,24 +398,8 @@ def draw_human_design_chart(
         x1, y1, x2, y2 = clipped_x1, clipped_y1, clipped_x2, clipped_y2
         mid_x = (x1 + x2) / 2
         mid_y = (y1 + y2) / 2
-        gate_a_active = gate_a in hd_result.active_gates
-        gate_b_active = gate_b in hd_result.active_gates
-        ax.plot(
-            [x1, mid_x],
-            [y1, mid_y],
-            color=CHANNEL_ACTIVE_COLOR if gate_a_active else CHANNEL_INACTIVE_COLOR,
-            linewidth=3.0,
-            alpha=0.95,
-            gid=f"gate-segment:{gate_a}",
-        )
-        ax.plot(
-            [mid_x, x2],
-            [mid_y, y2],
-            color=CHANNEL_ACTIVE_COLOR if gate_b_active else CHANNEL_INACTIVE_COLOR,
-            linewidth=3.0,
-            alpha=0.95,
-            gid=f"gate-segment:{gate_b}",
-        )
+        _draw_gate_segment(x1, y1, mid_x, mid_y, gate_a)
+        _draw_gate_segment(mid_x, mid_y, x2, y2, gate_b)
         ax.text(
             x1 + ((mid_x - x1) * 0.6),
             y1 + ((mid_y - y1) * 0.6),
