@@ -7,7 +7,16 @@ from .interpretations import MODES, PLANET_ORDER
 import datetime
 
 class Chart:
-    def __init__(self, name, dt_local, lat, lon, tz=None, alias: str | None = None):
+    def __init__(
+        self,
+        name,
+        dt_local,
+        lat,
+        lon,
+        tz=None,
+        alias: str | None = None,
+        from_whence: str | None = None,
+    ):
         """
         name: label for the chart
         dt_local: datetime in local civil time (may be naive)
@@ -48,6 +57,7 @@ class Chart:
         self.chart_type = "personal"
         self.name = name
         self.alias = alias
+        self.from_whence = from_whence
         self.gender = None
         self.lat = lat
         self.lon = lon
@@ -103,6 +113,7 @@ class Chart:
         return {
             "name": self.name,
             "alias": self.alias,
+            "from_whence": self.from_whence,
             "gender": self.gender,
             "datetime": str(self.dt),
             "lat": self.lat,

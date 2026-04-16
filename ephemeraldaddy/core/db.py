@@ -69,6 +69,7 @@ CHART_EXPORT_LABEL_OVERRIDES: dict[str, str] = {
 
 CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "alias": "",
+    "from_whence": "",
     "gender": "",
     "birth_place": "",
     "tz_name": "",
@@ -226,6 +227,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
             name              TEXT NOT NULL,
             alias             TEXT,
+            from_whence       TEXT,
             gender            TEXT,
             birth_place       TEXT,
             datetime_iso      TEXT NOT NULL,
@@ -357,6 +359,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN alias TEXT
+            """
+        )
+    if "from_whence" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN from_whence TEXT
             """
         )
     if "gender" not in columns:
@@ -1935,7 +1944,7 @@ def append_database(source: Path) -> dict[str, Any]:
                 target_conn.execute(
                     """
                     INSERT INTO charts
-                        (id, name, alias, gender, birth_place, datetime_iso, tz_name,
+                        (id, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
@@ -1947,12 +1956,13 @@ def append_database(source: Path) -> dict[str, Any]:
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
                         chart_name,
                         _row_value("alias"),
+                        _row_value("from_whence"),
                         _row_value("gender"),
                         _row_value("birth_place"),
                         datetime_iso,
@@ -2090,7 +2100,7 @@ def save_chart(
         cur = conn.execute(
             """
             INSERT INTO charts
-                (name, alias, gender, birth_place, datetime_iso, tz_name,
+                (name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                  lat, lon, used_utc_fallback, sentiments, relationship_types, tags,
                  comments,
                  rectification_notes,
@@ -2114,11 +2124,12 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
                 getattr(chart, "alias", None),
+                getattr(chart, "from_whence", None),
                 getattr(chart, "gender", None),
                 birth_place,
                 chart.dt.isoformat(),
@@ -2302,6 +2313,7 @@ def update_chart(
             UPDATE charts
             SET name = ?,
                 alias = ?,
+                from_whence = ?,
                 gender = ?,
                 birth_place = ?,
                 datetime_iso = ?,
@@ -2361,6 +2373,7 @@ def update_chart(
             (
                 chart.name,
                 getattr(chart, "alias", None),
+                getattr(chart, "from_whence", None),
                 getattr(chart, "gender", None),
                 resolved_birth_place,
                 chart.dt.isoformat(),
@@ -2735,7 +2748,7 @@ def load_chart(chart_id: int):
     )
     cur = conn.execute(
         f"""
-        SELECT name, alias, gender, birth_place, datetime_iso, tz_name, lat, lon,
+        SELECT name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
                used_utc_fallback, sentiments, relationship_types,
                tags, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
@@ -2762,6 +2775,7 @@ def load_chart(chart_id: int):
     (
         name,
         alias,
+        from_whence,
         gender,
         birth_place,
         datetime_iso,
@@ -2822,6 +2836,7 @@ def load_chart(chart_id: int):
         placeholder = SimpleNamespace()
         placeholder.name = name
         placeholder.alias = alias
+        placeholder.from_whence = from_whence
         placeholder.gender = gender
         placeholder.birth_place = birth_place
         placeholder.dt = datetime.fromisoformat(datetime_iso)
@@ -2896,7 +2911,7 @@ def load_chart(chart_id: int):
     if tz_name and dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo(tz_name))
 
-    chart = Chart(name, dt, lat, lon, tz=None, alias=alias)
+    chart = Chart(name, dt, lat, lon, tz=None, alias=alias, from_whence=from_whence)
     chart.gender = gender
     chart.birth_place = birth_place
     chart.used_utc_fallback = bool(used_utc_fallback)
