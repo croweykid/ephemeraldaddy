@@ -3,7 +3,8 @@ from .ephemeris import planetary_positions, planetary_retrogrades, local_siderea
 from .houses import placidus_houses_and_axes, porphyry_houses
 from .aspects import find_aspects
 from .timeutils import localize_naive_datetime
-from .interpretations import MODES
+from .interpretations import MODES, PLANET_ORDER
+import datetime
 
 class Chart:
     def __init__(self, name, dt_local, lat, lon, tz=None, alias: str | None = None):
@@ -50,6 +51,8 @@ class Chart:
         self.lat = lat
         self.lon = lon
         self.birthtime_unknown = False
+        self.signs_unknown = False
+        self.unknown_signs = []
         self.dt_local = dt_local
         self.retcon_time_used = False
         self.retcon_hour = None
@@ -140,6 +143,8 @@ class Chart:
             "aspects": self.aspects,
             "modal_distribution": self.modal_distribution,
             "used_utc_fallback": self.used_utc_fallback,
+            "signs_unknown": bool(getattr(self, "signs_unknown", False)),
+            "unknown_signs": list(getattr(self, "unknown_signs", []) or []),
         }
 
 
@@ -221,3 +226,45 @@ class Chart:
             if start <= lon_cmp < end:
                 return i
         return None
+
+
+def _sign_for_longitude(lon: float) -> str:
+    signs = (
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+    )
+    return signs[int((float(lon) % 360.0) // 30)]
+
+
+def compute_unknown_sign_positions(chart: Chart) -> list[str]:
+    """
+    Return body names whose sign differs between 00:00 and 23:59 local time.
+    """
+    if (
+        not bool(getattr(chart, "birthtime_unknown", False))
+        or bool(getattr(chart, "retcon_time_used", False))
+        or getattr(getattr(chart, "dt", None), "tzinfo", None) is None
+    ):
+        return []
+    base_date = chart.dt.date()
+    tzinfo = chart.dt.tzinfo
+    midnight = datetime.datetime(base_date.year, base_date.month, base_date.day, 0, 0, tzinfo=tzinfo)
+    pre_midnight = datetime.datetime(base_date.year, base_date.month, base_date.day, 23, 59, tzinfo=tzinfo)
+    positions_midnight = planetary_positions(midnight, chart.lat, chart.lon)
+    positions_pre_midnight = planetary_positions(pre_midnight, chart.lat, chart.lon)
+    ordered_names = [body for body in PLANET_ORDER if body in positions_midnight and body in positions_pre_midnight]
+    extras = sorted(
+        set(positions_midnight).intersection(positions_pre_midnight).difference(ordered_names)
+    )
+    ordered_names.extend(extras)
+    unknown_positions: list[str] = []
+    for body in ordered_names:
+        if _sign_for_longitude(positions_midnight[body]) != _sign_for_longitude(positions_pre_midnight[body]):
+            unknown_positions.append(body)
+    return unknown_positions
+
+
+def apply_unknown_sign_metadata(chart: Chart) -> None:
+    unknown_positions = compute_unknown_sign_positions(chart)
+    chart.unknown_signs = unknown_positions
+    chart.signs_unknown = bool(unknown_positions)
