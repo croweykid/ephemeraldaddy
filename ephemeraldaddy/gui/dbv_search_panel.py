@@ -45,6 +45,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     ZODIAC_NAMES = app_module.ZODIAC_NAMES
     ASPECT_DEFS = app_module.ASPECT_DEFS
     HD_CHANNELS = app_module.HD_CHANNELS
+    NAKSHATRA_RANGES = app_module.NAKSHATRA_RANGES
     NATAL_CHART_MIN_YEAR = app_module.NATAL_CHART_MIN_YEAR
     NATAL_CHART_MAX_YEAR = app_module.NATAL_CHART_MAX_YEAR
     SEARCH_SENTIMENT_OPTIONS = app_module.SEARCH_SENTIMENT_OPTIONS
@@ -516,6 +517,51 @@ def build_dbv_search_panel(window) -> "QWidget":
     dominant_mode_layout.addRow(dominant_mode_row)
 
     layout.addWidget(dominant_mode_section)
+
+    #Search: Dominant Nakshatra section
+    dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
+        "🪐Dominant Nakshatra"
+    )
+
+    dominant_nakshatra_layout = QFormLayout()
+    dominant_nakshatra_layout.setLabelAlignment(Qt.AlignLeft)
+    dominant_nakshatra_group_layout.addLayout(dominant_nakshatra_layout)
+
+    for _ in range(3):
+        dominant_nakshatra_row = QWidget()
+        dominant_nakshatra_row_layout = QHBoxLayout()
+        dominant_nakshatra_row_layout.setContentsMargins(0, 0, 0, 0)
+        dominant_nakshatra_row.setLayout(dominant_nakshatra_row_layout)
+
+        nakshatra_combo = QComboBox()
+        apply_default_dropdown_style(nakshatra_combo)
+        nakshatra_combo.addItem("Any", "Any")
+        for nakshatra_name, *_ in NAKSHATRA_RANGES:
+            nakshatra_combo.addItem(str(nakshatra_name), str(nakshatra_name))
+        nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+        filter_and = QRadioButton("AND")
+        filter_or = QRadioButton("OR")
+        filter_group = QButtonGroup(dominant_nakshatra_row)
+        filter_group.setExclusive(True)
+        filter_group.addButton(filter_and)
+        filter_group.addButton(filter_or)
+        filter_and.setChecked(True)
+        filter_group.buttonClicked.connect(window._on_filter_changed)
+
+        dominant_nakshatra_row_layout.addWidget(QLabel("🌙"))
+        dominant_nakshatra_row_layout.addWidget(nakshatra_combo, 1)
+        dominant_nakshatra_row_layout.addWidget(filter_and)
+        dominant_nakshatra_row_layout.addWidget(filter_or)
+
+        window._dominant_nakshatra_filters.append({
+            "nakshatra": nakshatra_combo,
+            "and": filter_and,
+            "or": filter_or,
+        })
+        dominant_nakshatra_layout.addRow(dominant_nakshatra_row)
+
+    layout.addWidget(dominant_nakshatra_section)
 
     #Search: Dominant Elements section
     dominant_element_section, dominant_element_group_layout = add_collapsible_section(
