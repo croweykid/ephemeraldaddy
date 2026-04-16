@@ -19278,6 +19278,21 @@ class MainWindow(QMainWindow):
             f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
         )
 
+    def _save_custom_collections_to_settings(self) -> None:
+        collections = getattr(self, "_custom_collections", {})
+        if not isinstance(collections, dict):
+            collections = {}
+        payload = [
+            {
+                "id": collection.collection_id,
+                "name": collection.name,
+                "chart_ids": sorted(collection.chart_ids),
+            }
+            for collection in collections.values()
+            if isinstance(collection, CustomCollection)
+        ]
+        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
+
     @staticmethod
     def _extract_similar_match_chart_id(similar_match: object) -> int | None:
         raw_chart_id = getattr(similar_match, "chart_id", None)
