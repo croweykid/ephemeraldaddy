@@ -15702,20 +15702,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             name_value = chart_row[1] if chart_row else None
             alias_value = chart_row[2] if chart_row else None
+            from_whence_value = None
             birth_place_value = chart_row[5] if chart_row else None
             source_value = chart_row[14] if chart_row else None
             gender_value = chart_row[3] if chart_row else None
-            if chart_row is None:
-                chart = self._get_chart_for_filter(chart_id)
-                if chart is not None:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is not None:
+                if chart_row is None:
                     name_value = getattr(chart, "name", None)
                     alias_value = getattr(chart, "alias", None)
                     birth_place_value = getattr(chart, "birth_place", None)
                     source_value = getattr(chart, "source", None)
                     gender_value = getattr(chart, "gender", None)
+                from_whence_value = getattr(chart, "from_whence", None)
             if not (
                 matches(name_value)
                 or matches(alias_value)
+                or matches(from_whence_value)
                 or matches(birth_place_value)
                 or matches(source_value)
                 or matches(gender_value)
@@ -18349,6 +18352,10 @@ class MainWindow(QMainWindow):
         self.alias_edit.setPlaceholderText("Alias: i.e. wr.t nb.t-nfr.w ꜣḫ.t-zḥ")
         self.alias_edit.setText("Alias")
         self.alias_edit.textChanged.connect(self._mark_lucygoosey)
+        self.from_whence_label = QLabel("From:")
+        self.from_whence_edit = QLineEdit()
+        self.from_whence_edit.setPlaceholderText("Ptolemic Dynasty")
+        self.from_whence_edit.textChanged.connect(self._mark_lucygoosey)
         self.gender_combo = QComboBox()
         self.gender_combo.addItem("Gender", "")
         for gender_option in GENDER_OPTIONS:
@@ -18370,7 +18377,10 @@ class MainWindow(QMainWindow):
         name_row.setSpacing(8)
         name_row.addWidget(self.name_edit, 1)
         name_row.addWidget(self.alias_edit, 0)
+        name_row.addWidget(self.from_whence_label, 0)
+        name_row.addWidget(self.from_whence_edit, 0)
         self.alias_edit.setFixedWidth(180)
+        self.from_whence_edit.setFixedWidth(180)
         name_row_widget = QWidget()
         name_row_widget.setLayout(name_row)
         form.addRow(name_row_widget)
@@ -18922,6 +18932,7 @@ class MainWindow(QMainWindow):
         for widget in (
             self.name_edit,
             self.alias_edit,
+            self.from_whence_edit,
             self.gender_combo,
             self.data_rating_combo,
             self.birth_month_edit,
@@ -23700,6 +23711,7 @@ class MainWindow(QMainWindow):
         placeholder = SimpleNamespace()
         placeholder.name = self.name_edit.text().strip() or "Anonymous"
         placeholder.alias = self.alias_edit.text().strip() or None
+        placeholder.from_whence = self.from_whence_edit.text().strip() or None
         placeholder.gender = self.gender_combo.currentData() or None
         placeholder.dt = dt_local.replace(tzinfo=ZoneInfo("UTC"))
         placeholder.lat = 0.0
@@ -23747,6 +23759,7 @@ class MainWindow(QMainWindow):
         self._clear_required_field_highlights()
         name = self.name_edit.text().strip() or "Anonymous"
         alias = self.alias_edit.text().strip() or None
+        from_whence = self.from_whence_edit.text().strip() or None
         gender = self.gender_combo.currentData() or None
         place = self.place_edit.text().strip() or "Chicago, IL, USA"
 
@@ -23821,7 +23834,15 @@ class MainWindow(QMainWindow):
 
         # Build chart
         try:
-            chart = Chart(name, dt_local, lat, lon, tz=tz_override, alias=alias)
+            chart = Chart(
+                name,
+                dt_local,
+                lat,
+                lon,
+                tz=tz_override,
+                alias=alias,
+                from_whence=from_whence,
+            )
             chart.gender = gender
         except Exception as e:
             if show_feedback:
@@ -24139,6 +24160,9 @@ class MainWindow(QMainWindow):
                 chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
+                chart.name = self.name_edit.text().strip() or chart.name
+                chart.alias = self.alias_edit.text().strip() or None
+                chart.from_whence = self.from_whence_edit.text().strip() or None
                 chart.gender = self.gender_combo.currentData() or None
                 chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
                 chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
@@ -24314,6 +24338,7 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         self.name_edit.clear()
         self.alias_edit.clear()
+        self.from_whence_edit.clear()
         self.gender_combo.setCurrentIndex(0)
         self.data_rating_combo.setCurrentIndex(0)
         self.place_edit.clear()
@@ -24579,6 +24604,7 @@ class MainWindow(QMainWindow):
         self._suppress_lucygoosey = True
         self.name_edit.setText(chart.name or "")
         self.alias_edit.setText(getattr(chart, "alias", "") or "")
+        self.from_whence_edit.setText(getattr(chart, "from_whence", "") or "")
         gender_value = getattr(chart, "gender", None) or ""
         gender_index = self.gender_combo.findData(gender_value)
         self.gender_combo.setCurrentIndex(max(0, gender_index))
