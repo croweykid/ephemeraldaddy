@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QProgressBar,
-    QPushButton,
     QSizePolicy,
     QTextEdit,
     QToolButton,
@@ -111,20 +110,17 @@ def add_similarity_match_row(
     top_layout.setSpacing(10)
 
     if info_target and callable(on_info_target_requested):
-        label_widget = QPushButton(f"({match_count}) {label}")
-        label_widget.setFlat(True)
-        label_widget.setCursor(Qt.PointingHandCursor)
-        label_widget.setStyleSheet(
-            "QPushButton {"
-            f"  color: rgb({similarity_red}, {similarity_green}, {similarity_blue});"
-            "  text-align: left;"
-            "  border: none;"
-            "  padding: 0;"
-            "  text-decoration: underline;"
-            "}"
-            "QPushButton:hover { text-decoration: none; }"
+        label_widget = QLabel()
+        label_widget.setText(
+            f'<a href="{info_target}" style="color: rgb({similarity_red}, {similarity_green}, {similarity_blue});">'
+            f"({match_count}) {label}"
+            "</a>"
         )
-        label_widget.clicked.connect(lambda _checked=False, target=info_target: on_info_target_requested(target))
+        label_widget.setTextFormat(Qt.RichText)
+        label_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        label_widget.setOpenExternalLinks(False)
+        label_widget.setCursor(Qt.PointingHandCursor)
+        label_widget.linkActivated.connect(on_info_target_requested)
     else:
         label_widget = QLabel(f"({match_count}) {label}")
         label_widget.setStyleSheet(
