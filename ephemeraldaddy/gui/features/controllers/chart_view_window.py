@@ -187,7 +187,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.setSpacing(6)
     chart_info_header.setLayout(chart_info_header_layout)
 
-    owner.chart_info_toggle_button = QPushButton("Chart Info")
+    owner.chart_info_toggle_button = QPushButton("Info")
     owner.chart_info_toggle_button.setCheckable(True)
     owner.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_info_toggle_button.setMinimumHeight(24)
@@ -195,7 +195,7 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("chart_info")
     )
 
-    owner.chart_bio_toggle_button = QPushButton("Bio")
+    owner.chart_bio_toggle_button = QPushButton("👤") #Biography / #Bio
     owner.chart_bio_toggle_button.setCheckable(True)
     owner.chart_bio_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_bio_toggle_button.setMinimumHeight(24)
@@ -203,7 +203,7 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("biography")
     )
 
-    owner.chart_comments_toggle_button = QPushButton("Comments")
+    owner.chart_comments_toggle_button = QPushButton("💭") #Personal thoughts / #Comments
     owner.chart_comments_toggle_button.setCheckable(True)
     owner.chart_comments_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_comments_toggle_button.setMinimumHeight(24)
@@ -211,7 +211,7 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("comments")
     )
 
-    owner.chart_rectification_toggle_button = QPushButton("Rectification")
+    owner.chart_rectification_toggle_button = QPushButton("⏳💬") #Rectification Notes
     owner.chart_rectification_toggle_button.setCheckable(True)
     owner.chart_rectification_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_rectification_toggle_button.setMinimumHeight(24)
@@ -219,7 +219,7 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("rectification")
     )
 
-    owner.chart_source_toggle_button = QPushButton("Source")
+    owner.chart_source_toggle_button = QPushButton("🌐") #Source
     owner.chart_source_toggle_button.setCheckable(True)
     owner.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_source_toggle_button.setMinimumHeight(24)

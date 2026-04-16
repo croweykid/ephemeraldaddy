@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
 
 
 def parse_similarity_info_target(section_title: str, label: str) -> str | None:
@@ -57,7 +58,7 @@ class DBInfoPanel(QWidget):
         header.setLayout(header_layout)
 
         self.title_label = QLabel("DB Info Panel", header)
-        self.title_label.setStyleSheet("font-weight: 600; color: #f4d27a;")
+        self.title_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
 

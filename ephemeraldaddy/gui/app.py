@@ -5973,18 +5973,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 gate_text = normalized_target.split(":", 1)[1]
                 if gate_text.isdigit():
                     gate_number = int(gate_text)
-                    if hasattr(self, "_show_human_design_gate_line_info"):
-                        self._show_human_design_gate_line_info(gate_number, None)
-                    else:
+                    if not self._invoke_db_info_renderer(
+                        "_show_human_design_gate_line_info",
+                        target_output,
+                        gate_number,
+                        None,
+                    ):
                         self._render_db_gate_info_fallback(target_output, gate_number)
                     return
             if normalized_target.startswith("house:"):
                 house_text = normalized_target.split(":", 1)[1]
                 if house_text.isdigit():
                     house_number = int(house_text)
-                    if hasattr(self, "_show_house_keyword_info"):
-                        self._show_house_keyword_info(house_number)
-                    else:
+                    if not self._invoke_db_info_renderer(
+                        "_show_house_keyword_info",
+                        target_output,
+                        house_number,
+                    ):
                         self._render_db_house_info_fallback(target_output, house_number)
                     return
             target_output.setPlainText("No DB info renderer is available for this item yet.")
@@ -6002,6 +6007,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return callback()
         finally:
             self.chart_info_output = original_chart_info_output
+
+    def _invoke_db_info_renderer(
+        self,
+        renderer_name: str,
+        target_info_widget,
+        *args: Any,
+    ) -> bool:
+        local_renderer = getattr(self, renderer_name, None)
+        if callable(local_renderer):
+            self._run_with_chart_info_output(
+                target_info_widget,
+                lambda: local_renderer(*args),
+            )
+            return True
+
+        parent_widget = self.parent()
+        parent_renderer = getattr(parent_widget, renderer_name, None)
+        if callable(parent_renderer):
+            original_parent_output = getattr(parent_widget, "chart_info_output", None)
+            parent_widget.chart_info_output = target_info_widget
+            try:
+                parent_renderer(*args)
+            finally:
+                parent_widget.chart_info_output = original_parent_output
+            return True
+        return False
 
     @staticmethod
     def _render_db_house_info_fallback(target_info_widget, house_num: int) -> None:
@@ -19315,7 +19346,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(dialog, "Similar Charts", "No similar charts are available to collect yet.")
             return
         if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
-            self._custom_collections = {}
+            self._custom_collections = self._load_custom_collections_from_settings()
         if not hasattr(self, "_active_collection_id"):
             self._active_collection_id = DEFAULT_COLLECTION_ALL
 
@@ -19359,15 +19390,58 @@ class MainWindow(QMainWindow):
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
         self._save_custom_collections_to_settings()
         self._settings.sync()
-        if hasattr(self, "_refresh_collection_controls"):
-            self._refresh_collection_controls()
-        if hasattr(self, "_populate_list"):
-            self._populate_list()
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is not None:
+            manage_dialog._custom_collections = dict(self._custom_collections)
+            manage_dialog._active_collection_id = candidate_id
+            manage_dialog._settings.setValue("manage_charts/active_collection_id", candidate_id)
+            manage_dialog._refresh_collection_controls()
+            manage_dialog._populate_list()
         QMessageBox.information(
             dialog,
             "Collection Created",
             f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
         )
+
+    def _load_custom_collections_from_settings(self) -> dict[str, CustomCollection]:
+        raw_value = self._settings.value("manage_charts/custom_collections", "[]")
+        parsed: object = []
+        if isinstance(raw_value, str):
+            try:
+                parsed = json.loads(raw_value)
+            except json.JSONDecodeError:
+                parsed = []
+        elif isinstance(raw_value, list):
+            parsed = raw_value
+
+        collections: dict[str, CustomCollection] = {}
+        if not isinstance(parsed, list):
+            return collections
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            raw_name = entry.get("name")
+            raw_id = entry.get("id")
+            if raw_name is None:
+                continue
+            name = sanitize_collection_name(raw_name)
+            collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
+            if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
+                continue
+            raw_chart_ids = entry.get("chart_ids", [])
+            chart_ids: set[int] = set()
+            if isinstance(raw_chart_ids, list):
+                for value in raw_chart_ids:
+                    try:
+                        chart_ids.add(int(value))
+                    except (TypeError, ValueError):
+                        continue
+            collections[collection_id] = CustomCollection(
+                collection_id=collection_id,
+                name=name,
+                chart_ids=frozenset(chart_ids),
+            )
+        return collections
 
     def _save_custom_collections_to_settings(self) -> None:
         collections = getattr(self, "_custom_collections", {})
