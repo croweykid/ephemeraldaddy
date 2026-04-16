@@ -19359,7 +19359,8 @@ class MainWindow(QMainWindow):
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
         self._save_custom_collections_to_settings()
         self._settings.sync()
-        self._refresh_collection_controls()
+        if hasattr(self, "_refresh_collection_controls"):
+            self._refresh_collection_controls()
         if hasattr(self, "_populate_list"):
             self._populate_list()
         QMessageBox.information(
