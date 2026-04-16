@@ -211,6 +211,14 @@ def build_chart_view_left_panel(
         lambda: owner._set_chart_info_panel_mode("comments")
     )
 
+    owner.chart_rectification_toggle_button = QPushButton("Rectification")
+    owner.chart_rectification_toggle_button.setCheckable(True)
+    owner.chart_rectification_toggle_button.setCursor(Qt.PointingHandCursor)
+    owner.chart_rectification_toggle_button.setMinimumHeight(24)
+    owner.chart_rectification_toggle_button.clicked.connect(
+        lambda: owner._set_chart_info_panel_mode("rectification")
+    )
+
     owner.chart_source_toggle_button = QPushButton("Source")
     owner.chart_source_toggle_button.setCheckable(True)
     owner.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
@@ -222,6 +230,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.addWidget(owner.chart_info_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_bio_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_comments_toggle_button, 0)
+    chart_info_header_layout.addWidget(owner.chart_rectification_toggle_button, 0)
     chart_info_header_layout.addWidget(owner.chart_source_toggle_button, 0)
     chart_info_header_layout.addStretch(1)
     chart_panel_layout.addWidget(chart_info_header, 0)
