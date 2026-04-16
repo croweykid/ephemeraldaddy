@@ -16,7 +16,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
 from ephemeraldaddy.core.ephemeris import (
     get_lilith_display_name,
@@ -85,9 +85,8 @@ def _pad_display_column(text: str, width: int) -> str:
 
 
 def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
-    if not getattr(chart, "birthtime_unknown", False) or getattr(
-        chart, "retcon_time_used", False
-    ):
+    apply_unknown_sign_metadata(chart)
+    if not bool(getattr(chart, "signs_unknown", False)):
         return {}
     tzinfo = chart.dt.tzinfo
     if tzinfo is None:
@@ -120,6 +119,8 @@ def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
     ordered_names.extend(extras)
     lines: dict[str, dict[str, object]] = {}
     for body in ordered_names:
+        if body not in set(getattr(chart, "unknown_signs", []) or []):
+            continue
         sign_midnight = sign_for_longitude(positions_midnight[body])
         sign_pre_noon = sign_for_longitude(positions_pre_noon[body])
         if sign_midnight != sign_pre_noon:

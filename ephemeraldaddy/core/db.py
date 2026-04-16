@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any, List, Tuple, Optional
 
 from zoneinfo import ZoneInfo
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, compute_unknown_sign_positions
 from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 
@@ -49,6 +49,8 @@ CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
     "chart_type",
     "source",
     "birthtime_unknown",
+    "signs_unknown",
+    "unknown_signs",
     "is_placeholder",
     "is_deceased",
     "birth_month",
@@ -86,6 +88,8 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "social_score": 0,
     "birthtime_unknown": 0,
     "retcon_time_used": 0,
+    "signs_unknown": 0,
+    "unknown_signs": "",
     "retcon_hour": None,
     "retcon_minute": None,
     "dominant_sign_weights": "",
@@ -244,6 +248,8 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             data_rating TEXT NOT NULL DEFAULT 'blank',
             social_score INTEGER NOT NULL DEFAULT 0,
             birthtime_unknown INTEGER NOT NULL DEFAULT 0,
+            signs_unknown    INTEGER NOT NULL DEFAULT 0,
+            unknown_signs    TEXT,
             retcon_time_used  INTEGER NOT NULL DEFAULT 0,
             retcon_hour       INTEGER,
             retcon_minute     INTEGER,
@@ -377,6 +383,20 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN relationship_types TEXT
+            """
+        )
+    if "signs_unknown" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN signs_unknown INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "unknown_signs" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN unknown_signs TEXT
             """
         )
     if "tags" not in columns:
@@ -1045,6 +1065,40 @@ def _parse_string_list(value: Optional[str]) -> list[str]:
         if text:
             values.append(text)
     return values
+
+
+def _resolve_unknown_sign_metadata(
+    chart: Any,
+    *,
+    birthtime_unknown: Optional[bool],
+    retcon_time_used: Optional[bool],
+) -> tuple[bool, list[str]]:
+    resolved_birthtime_unknown = bool(
+        birthtime_unknown
+        if birthtime_unknown is not None
+        else getattr(chart, "birthtime_unknown", False)
+    )
+    resolved_retcon_time_used = bool(
+        retcon_time_used
+        if retcon_time_used is not None
+        else getattr(chart, "retcon_time_used", False)
+    )
+    if not resolved_birthtime_unknown or resolved_retcon_time_used:
+        return False, []
+
+    original_birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
+    original_retcon_time_used = bool(getattr(chart, "retcon_time_used", False))
+    try:
+        chart.birthtime_unknown = resolved_birthtime_unknown
+        chart.retcon_time_used = resolved_retcon_time_used
+        unknown_positions = compute_unknown_sign_positions(chart)
+    except Exception:
+        unknown_positions = []
+    finally:
+        chart.birthtime_unknown = original_birthtime_unknown
+        chart.retcon_time_used = original_retcon_time_used
+
+    return bool(unknown_positions), list(unknown_positions)
 
 
 def _resolve_human_design_metadata(chart: Any) -> tuple[Optional[str], Optional[str]]:
@@ -1876,7 +1930,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
-                         social_score, birthtime_unknown, retcon_time_used, retcon_hour, retcon_minute,
+                         social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
                          human_design_type, human_design_authority,
@@ -1884,7 +1938,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1913,6 +1967,8 @@ def append_database(source: Path) -> dict[str, Any]:
                         str(_row_value("data_rating") or "blank"),
                         int(social_score),
                         int(_row_value("birthtime_unknown") or 0),
+                        int(_row_value("signs_unknown") or 0),
+                        _row_value("unknown_signs"),
                         int(_row_value("retcon_time_used") or 0),
                         int(_row_value("retcon_hour")) if _row_value("retcon_hour") is not None else None,
                         int(_row_value("retcon_minute")) if _row_value("retcon_minute") is not None else None,
@@ -2010,6 +2066,13 @@ def save_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    resolved_signs_unknown, resolved_unknown_signs = _resolve_unknown_sign_metadata(
+        chart,
+        birthtime_unknown=birthtime_unknown,
+        retcon_time_used=retcon_time_used,
+    )
+    chart.signs_unknown = resolved_signs_unknown
+    chart.unknown_signs = list(resolved_unknown_signs)
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
     conn = _get_conn()
@@ -2025,6 +2088,7 @@ def save_chart(
                  positive_sentiment_intensity, negative_sentiment_intensity,
                  familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
+                 signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
                  dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
@@ -2039,7 +2103,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2093,6 +2157,8 @@ def save_chart(
                     if birthtime_unknown is not None
                     else bool(getattr(chart, "birthtime_unknown", False))
                 ),
+                int(resolved_signs_unknown),
+                _serialize_string_list(resolved_unknown_signs),
                 int(
                     retcon_time_used
                     if retcon_time_used is not None
@@ -2208,6 +2274,13 @@ def update_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    resolved_signs_unknown, resolved_unknown_signs = _resolve_unknown_sign_metadata(
+        chart,
+        birthtime_unknown=birthtime_unknown,
+        retcon_time_used=retcon_time_used,
+    )
+    chart.signs_unknown = resolved_signs_unknown
+    chart.unknown_signs = list(resolved_unknown_signs)
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
     conn = _get_conn()
@@ -2240,6 +2313,8 @@ def update_chart(
                 data_rating = ?,
                 social_score = ?,
                 birthtime_unknown = ?,
+                signs_unknown = ?,
+                unknown_signs = ?,
                 retcon_time_used = ?,
                 retcon_hour = ?,
                 retcon_minute = ?,
@@ -2322,6 +2397,8 @@ def update_chart(
                     if birthtime_unknown is not None
                     else bool(getattr(chart, "birthtime_unknown", False))
                 ),
+                int(resolved_signs_unknown),
+                _serialize_string_list(resolved_unknown_signs),
                 int(
                     retcon_time_used
                     if retcon_time_used is not None
@@ -2648,7 +2725,7 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                tags, comments, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown,
+               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
@@ -2693,6 +2770,8 @@ def load_chart(chart_id: int):
         year_first_encountered,
         data_rating,
         birthtime_unknown,
+        signs_unknown,
+        unknown_signs,
         retcon_time_used,
         retcon_hour,
         retcon_minute,
@@ -2757,6 +2836,8 @@ def load_chart(chart_id: int):
         placeholder.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
         placeholder.data_rating = str(data_rating or "blank")
         placeholder.birthtime_unknown = bool(birthtime_unknown)
+        placeholder.signs_unknown = bool(signs_unknown)
+        placeholder.unknown_signs = _parse_string_list(unknown_signs)
         placeholder.retcon_time_used = bool(retcon_time_used)
         placeholder.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
         placeholder.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
@@ -2824,6 +2905,8 @@ def load_chart(chart_id: int):
     chart.year_first_encountered = _normalize_year_first_encountered(year_first_encountered)
     chart.data_rating = str(data_rating or "blank")
     chart.birthtime_unknown = bool(birthtime_unknown)
+    chart.signs_unknown = bool(signs_unknown)
+    chart.unknown_signs = _parse_string_list(unknown_signs)
     chart.retcon_time_used = bool(retcon_time_used)
     chart.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
     chart.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
