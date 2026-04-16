@@ -187,7 +187,7 @@ def build_chart_view_left_panel(
     chart_info_header_layout.setSpacing(6)
     chart_info_header.setLayout(chart_info_header_layout)
 
-    owner.chart_info_toggle_button = QPushButton("Info")
+    owner.chart_info_toggle_button = QPushButton("ⓘ")
     owner.chart_info_toggle_button.setCheckable(True)
     owner.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
     owner.chart_info_toggle_button.setMinimumHeight(24)
