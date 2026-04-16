@@ -334,11 +334,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     for aspect_name in sorted(ASPECT_DEFS):
         aspect_options.append((aspect_name.replace("_", " ").title(), aspect_name))
 
-    searchable_planets = [
-        (label, key)
-        for label, key in window._searchable_bodies()
-        if key not in {"AS", "IC", "DS", "MC"}
-    ]
+    searchable_planets = list(window._searchable_bodies())
 
     for _ in range(3):
         aspect_row = QWidget()
