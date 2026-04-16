@@ -231,7 +231,7 @@ def draw_human_design_chart(
                 gid=f"gate-segment:{gate}",
             )
             return
-        display_start_x, display_start_y = ax.transData.transform((start_x, start_y))
+            display_start_x, display_start_y = ax.transData.transform((start_x, start_y))
             display_end_x, display_end_y = ax.transData.transform((end_x, end_y))
             display_length = ((display_end_x - display_start_x) ** 2 + (display_end_y - display_start_y) ** 2) ** 0.5
             stripe_count = max(2, int(display_length / DUAL_ACTIVATION_STRIPE_LENGTH_PIXELS))

@@ -5733,13 +5733,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title = QLabel("Similarities Analysis")
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         title_layout.addWidget(title)
-        self.similarities_db_info_toggle_button = QPushButton("DB Info")
-        self.similarities_db_info_toggle_button.setCursor(Qt.PointingHandCursor)
-        self.similarities_db_info_toggle_button.setMinimumHeight(20)
-        self.similarities_db_info_toggle_button.clicked.connect(
-            self._toggle_similarities_db_info_panel
-        )
-        title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
+        # self.similarities_db_info_toggle_button = QPushButton("DB Info")
+        # self.similarities_db_info_toggle_button.setCursor(Qt.PointingHandCursor)
+        # self.similarities_db_info_toggle_button.setMinimumHeight(20)
+        # self.similarities_db_info_toggle_button.clicked.connect(
+        #     self._toggle_similarities_db_info_panel
+        # )
+        # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
         export_button = QPushButton()
@@ -5968,12 +5968,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if normalized_target.startswith("gate:"):
                 gate_text = normalized_target.split(":", 1)[1]
                 if gate_text.isdigit():
-                    self._show_human_design_gate_line_info(int(gate_text), None)
+                    gate_number = int(gate_text)
+                    if hasattr(self, "_show_human_design_gate_line_info"):
+                        self._show_human_design_gate_line_info(gate_number, None)
+                    else:
+                        self._render_db_gate_info_fallback(target_output, gate_number)
                     return
             if normalized_target.startswith("house:"):
                 house_text = normalized_target.split(":", 1)[1]
                 if house_text.isdigit():
-                    self._show_house_keyword_info(int(house_text))
+                    house_number = int(house_text)
+                    if hasattr(self, "_show_house_keyword_info"):
+                        self._show_house_keyword_info(house_number)
+                    else:
+                        self._render_db_house_info_fallback(target_output, house_number)
                     return
             target_output.setPlainText("No DB info renderer is available for this item yet.")
 
@@ -5990,6 +5998,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return callback()
         finally:
             self.chart_info_output = original_chart_info_output
+
+    @staticmethod
+    def _render_db_house_info_fallback(target_info_widget, house_num: int) -> None:
+        house_keywords = HOUSE_DEFINITIONS.get(house_num, {}).get("core_domains", [])
+        clean_keywords = [str(item).strip() for item in house_keywords if str(item).strip()]
+        if not clean_keywords:
+            target_info_widget.setPlainText(f"H{house_num}\n\nNo house keywords available.")
+            return
+        lines = [f"H{house_num}", "", *(f"• {keyword}" for keyword in clean_keywords)]
+        target_info_widget.setPlainText("\n".join(lines))
+
+    @staticmethod
+    def _render_db_gate_info_fallback(target_info_widget, gate_num: int) -> None:
+        gate_info = GATE_REFERENCE.get(
+            int(gate_num),
+            {"name": "Unknown Gate", "meaning": "No gate reference available."},
+        )
+        title = f"Gate {int(gate_num)} • {gate_info['name']}"
+        body = str(gate_info.get("meaning", "")).strip() or "No gate reference available."
+        target_info_widget.setPlainText(f"{title}\n\nGate {int(gate_num)}: {body}")
 
     def _selected_chart_ids(
         self,
