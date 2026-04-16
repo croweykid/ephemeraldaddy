@@ -174,6 +174,13 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
         )
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_action(
+        tools_menu,
+        "See Similar Charts",
+        window,
+        "_show_similar_charts_popout",
+        "on_show_similar_charts_popout",
+    )
     _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
@@ -225,6 +232,12 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         _bind_menu_action(charts_menu, "Human Design Chart", dialog, "_on_menu_get_human_design_info")
 
     tools_menu = menu_bar.addMenu("Tools")
+    _bind_menu_action(
+        tools_menu,
+        "See Similar Charts",
+        dialog,
+        "_on_menu_see_similar_charts",
+    )
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")

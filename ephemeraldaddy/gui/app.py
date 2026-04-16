@@ -12984,6 +12984,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.raise_()
         dialog.activateWindow()
 
+    def _on_menu_see_similar_charts(self) -> None:
+        self._run_main_window_chart_action("see_similar_charts")
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -19546,8 +19549,48 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _show_similar_charts_popout(self) -> None:
-        chart = self._latest_chart
+    def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
+        manage_dialog = self._manage_charts_dialog
+        database_view_active = (
+            requester is manage_dialog
+            or (
+                manage_dialog is not None
+                and manage_dialog.isVisible()
+                and manage_dialog.isActiveWindow()
+            )
+        )
+        chart: Chart | None
+        subject_chart_id: int | None
+        if database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
+            selected_chart_ids = manage_dialog._selected_chart_ids()
+            if len(selected_chart_ids) < 1:
+                QMessageBox.information(
+                    self,
+                    "Similar Charts",
+                    "Please select a chart to see its similar charts! Thanksss",
+                )
+                return
+            if len(selected_chart_ids) > 1:
+                QMessageBox.information(
+                    self,
+                    "Similar Charts",
+                    "Whoa. Please select just 1 chart to view its similar charts. Don't get nuts.",
+                )
+                return
+            subject_chart_id = int(selected_chart_ids[0])
+            try:
+                chart = load_chart(subject_chart_id)
+            except Exception as exc:
+                QMessageBox.warning(
+                    self,
+                    "Similar Charts",
+                    f"Could not load the selected chart:\n{exc}",
+                )
+                return
+        else:
+            chart = self._latest_chart
+            subject_chart_id = self.current_chart_id
+
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
             return
@@ -19581,7 +19624,7 @@ class MainWindow(QMainWindow):
                 chart,
                 candidates,
                 top_k=25,
-                exclude_chart_id=self.current_chart_id,
+                exclude_chart_id=subject_chart_id,
                 least_similar=False,
                 algorithm_mode=algorithm_mode,
                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
@@ -19590,7 +19633,7 @@ class MainWindow(QMainWindow):
                 chart,
                 candidates,
                 top_k=25,
-                exclude_chart_id=self.current_chart_id,
+                exclude_chart_id=subject_chart_id,
                 least_similar=True,
                 algorithm_mode=algorithm_mode,
                 custom_settings=getattr(self, "_similarity_calculator_settings", None),
@@ -21473,6 +21516,8 @@ class MainWindow(QMainWindow):
         elif action_name == "get_human_design_info":
             self._latest_chart = chart
             self.on_get_human_design_info()
+        elif action_name == "see_similar_charts":
+            self._show_similar_charts_popout(requester=requester)
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
