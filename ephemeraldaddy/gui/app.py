@@ -19225,7 +19225,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(dialog, "Similar Charts", "No similar charts are available to collect yet.")
             return
         if not hasattr(self, "_custom_collections") or not isinstance(self._custom_collections, dict):
-            self._custom_collections = {}
+            self._custom_collections = self._load_custom_collections_from_settings()
         if not hasattr(self, "_active_collection_id"):
             self._active_collection_id = DEFAULT_COLLECTION_ALL
 
@@ -19269,14 +19269,73 @@ class MainWindow(QMainWindow):
         self._settings.setValue("manage_charts/active_collection_id", candidate_id)
         self._save_custom_collections_to_settings()
         self._settings.sync()
-        self._refresh_collection_controls()
-        if hasattr(self, "_populate_list"):
-            self._populate_list()
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        if manage_dialog is not None:
+            manage_dialog._custom_collections = dict(self._custom_collections)
+            manage_dialog._active_collection_id = candidate_id
+            manage_dialog._settings.setValue("manage_charts/active_collection_id", candidate_id)
+            manage_dialog._refresh_collection_controls()
+            manage_dialog._populate_list()
         QMessageBox.information(
             dialog,
             "Collection Created",
             f"Created collection '{collection_name}' with {len(chart_ids)} similar charts.",
         )
+
+    def _load_custom_collections_from_settings(self) -> dict[str, CustomCollection]:
+        raw_value = self._settings.value("manage_charts/custom_collections", "[]")
+        parsed: object = []
+        if isinstance(raw_value, str):
+            try:
+                parsed = json.loads(raw_value)
+            except json.JSONDecodeError:
+                parsed = []
+        elif isinstance(raw_value, list):
+            parsed = raw_value
+
+        collections: dict[str, CustomCollection] = {}
+        if not isinstance(parsed, list):
+            return collections
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            raw_name = entry.get("name")
+            raw_id = entry.get("id")
+            if raw_name is None:
+                continue
+            name = sanitize_collection_name(raw_name)
+            collection_id = normalize_collection_id(raw_id or name.replace(" ", "_"))
+            if collection_id in DEFAULT_COLLECTION_IDS or collection_id in collections:
+                continue
+            raw_chart_ids = entry.get("chart_ids", [])
+            chart_ids: set[int] = set()
+            if isinstance(raw_chart_ids, list):
+                for value in raw_chart_ids:
+                    try:
+                        chart_ids.add(int(value))
+                    except (TypeError, ValueError):
+                        continue
+            collections[collection_id] = CustomCollection(
+                collection_id=collection_id,
+                name=name,
+                chart_ids=frozenset(chart_ids),
+            )
+        return collections
+
+    def _save_custom_collections_to_settings(self) -> None:
+        collections = getattr(self, "_custom_collections", {})
+        if not isinstance(collections, dict):
+            collections = {}
+        payload = [
+            {
+                "id": collection.collection_id,
+                "name": collection.name,
+                "chart_ids": sorted(collection.chart_ids),
+            }
+            for collection in collections.values()
+            if isinstance(collection, CustomCollection)
+        ]
+        self._settings.setValue("manage_charts/custom_collections", json.dumps(payload))
 
     @staticmethod
     def _extract_similar_match_chart_id(similar_match: object) -> int | None:
