@@ -15266,8 +15266,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not matches_filters:
                     continue
                 display_name = name or "Unnamed"
+                chart = self._get_chart_for_filter(cid)
+                from_whence_label = f"({from_whence_text})" if from_whence_text else ""
                 alias_text = (alias or "").strip()
-                alias_label = f"({alias_text})" if alias_text else ""
                 if used_fallback:
                     display_name = f"⚠️ {display_name}"
                 date_label, time_label = format_chart_row_datetime(
@@ -15275,7 +15276,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     birthtime_unknown=bool(birthtime_unknown),
                 )
                 if is_placeholder:
-                    chart = self._get_chart_for_filter(cid)
+                    # chart = self._get_chart_for_filter(cid)
                     if chart is not None:
                         date_label = self._format_partial_birth_date(
                             getattr(chart, "birth_month", None),
@@ -15305,7 +15306,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 row_prefix = "💀  " if bool(is_deceased) else ""
                 label = (
                     f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {alias_label}  {date_label}  {time_label}"
+                    f"{display_name}  {from_whence_label}  {date_label}  {time_label}"
                     f"  {retcon_time_label}  {place_with_gender}"
                 )
                 item = QListWidgetItem(label)
@@ -15366,6 +15367,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "name": display_name,
                         "raw_name": name or "Unnamed",
                         "alias": alias_text,
+                        "from_whence": from_whence_text,
                         "date": date_label,
                         "time": time_label,
                         "retcon_time": retcon_time_label,
@@ -22311,6 +22313,23 @@ class MainWindow(QMainWindow):
         active_mode = getattr(self, "_chart_info_panel_mode", "comments")
         biography_empty = not biography_edit.toPlainText().strip()
         button.setVisible(active_mode == "biography" and biography_empty)
+
+    
+    def _on_get_bio_for_open_chart(self) -> None:
+        chart_name = self.name_edit.text().strip()
+        if not chart_name:
+            QMessageBox.information(self, "Get Bio", "Please enter or load a chart name first.")
+            return
+        try:
+            biography_text = fetch_astrotheme_biography_by_name(chart_name)
+        except Exception as exc:
+            QMessageBox.warning(self, "Get Bio", f"Could not import biography:\n{exc}")
+            return
+        self.biography_edit.setPlainText(biography_text)
+        if self._latest_chart is not None:
+            self._latest_chart.biography = biography_text
+        self._update_get_bio_button_visibility()
+        QMessageBox.information(self, "Get Bio", "Biography imported from Astrotheme.")
 
     def _refresh_chart_info_panel_toggle_buttons(self) -> None:
         refresh_chart_info_panel_toggle_button_styles(self)

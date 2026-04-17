@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QStackedWidget,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -264,7 +265,7 @@ def refresh_chart_info_panel_toggle_button_styles(owner: QWidget) -> None:
 
         mode_is_active = mode == active_mode
         mode_has_content = has_content_by_mode.get(mode, False)
-        background_rule = "background-color: #2f6a3f;" if mode_has_content else ""
+        background_rule = "background-color: #424f3d;" if mode_has_content else "" #lighter gray instead of #2f6a3f #green, but consider: #95a78e or #52634b or #424f3d
         border_rule = (
             "border: 1px solid #8fd3a1; border-radius: 4px;"
             if mode_is_active
@@ -448,29 +449,48 @@ def build_chart_view_middle_header_controls(
     middle_header_controls_layout.setSpacing(4)
     middle_header_controls.setLayout(middle_header_controls_layout)
     middle_header_controls_layout.addStretch(1)
-    owner.chart_view_middle_header_action_buttons = {}
-    for button_key, button_label, button_tooltip, click_handler in (
+    visibility_store = getattr(owner, "_visibility", None)
+    get_visibility = getattr(visibility_store, "get", None)
+    is_human_design_enabled = bool(
+        callable(get_visibility)
+        and get_visibility("chart_data.human_design_alpha_prototype")
+    )
+
+    button_specs: list[tuple[str, str, str, Callable[..., object]]] = [
         # BaZi Chart
         ("bazi", "🐉", "BaZi Chart", owner.on_open_bazi_window),
-        # Human Design Chart
-        ("human_design", "🪷", "Human Design Chart", owner.on_get_human_design_info),
         # Personal Transit
         ("personal_transit", "🌎", "Personal Transit", owner.on_get_current_transits),
         # Synastry Chart
         ("synastry", "🧬", "Synastry Chart", owner.on_get_synastry_chart),
-        # See Similar Charts
-        ("similar_charts", "👯", "See Similar Charts", owner._show_similar_charts_popout),
-        # Create Gemstone Chart
-        ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
-        # Chart Predictor Quiz
-        ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz", owner.on_open_chart_predictor_quiz),
-    ):
+        ]
+    if is_human_design_enabled:
+        button_specs.insert(
+            1,
+            # Human Design Chart
+            ("human_design", "🪷", "Human Design Chart", owner.on_get_human_design_info),
+        )
+    button_specs.extend(
+        [
+            # See Similar Charts
+            ("similar_charts", "👯", "See Similar Charts", owner._show_similar_charts_popout),
+            # Create Gemstone Chart
+            ("gemstone_chart", "💎", "Create Gemstone Chart", owner.on_create_gemstone_chartwheel),
+            # Chart Predictor Quiz
+            ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz", owner.on_open_chart_predictor_quiz),
+        ]
+    )
+
+    owner.chart_view_middle_header_action_buttons = {}
+    for button_key, button_label, button_tooltip, click_handler in button_specs:
         action_button = QPushButton(button_label)
         action_button.setObjectName(f"chart_view_middle_{button_key}_button")
         action_button.setToolTip(button_tooltip)
         action_button.setAutoDefault(False)
         action_button.setDefault(False)
-        action_button.setFixedSize(28, 24)
+        action_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        action_button.setMinimumWidth(0)
+        action_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
         action_button.clicked.connect(click_handler)
         owner.chart_view_middle_header_action_buttons[button_key] = action_button
         middle_header_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)

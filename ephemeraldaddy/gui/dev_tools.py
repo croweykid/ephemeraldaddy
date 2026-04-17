@@ -376,10 +376,10 @@ class MetadataMigrationPanel(QDialog):
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.Tool, True)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        self.resize(200, 400)
+        self.resize(300, 560)
         self.setMinimumSize(200, 400)
         self.setStyleSheet(
-            "QDialog { background-color: #614051; }"
+            "QDialog { background-color: #26004d; }"
             "QLabel { color: #f5f5f5; }"
             "QPushButton {"
             "background-color: #1e6bd6;"

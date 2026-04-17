@@ -23,6 +23,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             "chart": QColor("#c7a56a"),
             "name": QColor(MIDDLE_PANEL_ACCENT_COLOR),
             "alias": QColor("#7a7a7a"),
+            "alias": QColor("#7a7a7a"),
             "date": QColor("#8d6e63"),
             "time": QColor("#6b705c"),
             "retcon_time": QColor("#4a7bd1"),
@@ -63,8 +64,13 @@ class ChartRowDelegate(QStyledItemDelegate):
         chart_text = f"#{position_text}"
         name_text = str(segment_data.get("name", "Unnamed"))
         alias_text = str(segment_data.get("alias", "")).strip()
-        if alias_text:
-            alias_text = f"({alias_text})"
+        # if alias_text:
+        #     alias_text = f"({alias_text})"
+        from_whence_text = str(segment_data.get("from_whence", "")).strip()
+        if not from_whence_text:
+            from_whence_text = str(segment_data.get("alias", "")).strip()
+        if from_whence_text:
+            from_whence_text = f"({from_whence_text})"
         date_text = str(segment_data.get("date", "??.??.????"))
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
@@ -92,7 +98,15 @@ class ChartRowDelegate(QStyledItemDelegate):
             color = self._segment_colors.get(key, opt.palette.text().color())
             if is_placeholder:
                 color = QColor("#4a7bd1")
-            elif duplicate_likelihood and key in {"chart", "name", "alias", "date", "time", "retcon_time", "place"}:
+            elif duplicate_likelihood and key in {
+                "chart",
+                "name",
+                "from_whence",
+                "date",
+                "time",
+                "retcon_time",
+                "place",
+            }:
                 color = self._duplicate_likelihood_colors.get(duplicate_likelihood, color)
             if opt.state & QStyle.State_Selected:
                 color = color.lighter(125)
