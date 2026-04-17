@@ -644,6 +644,7 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
+    build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
     format_unknown_positions_summary_html,
     install_chart_view_undo_shortcuts,
@@ -18411,6 +18412,10 @@ class MainWindow(QMainWindow):
         middle_layout.setSpacing(0)
         middle_panel.setLayout(middle_layout)
         middle_panel.setMinimumWidth(360)
+        build_chart_view_middle_header_controls(
+            self,
+            middle_layout=middle_layout,
+        )
         
         self.inputs_layout = QVBoxLayout()
         #self.inputs_layout.setContentsMargins(0, 0, 0, 0)

@@ -85,6 +85,9 @@ def _pad_display_column(text: str, width: int) -> str:
 
 
 def _format_time_variant_signs(chart: Chart) -> dict[str, dict[str, object]]:
+    # Chart Data Output should treat rectified time as canonical when enabled.
+    if bool(getattr(chart, "retcon_time_used", False)):
+        return {}
     apply_unknown_sign_metadata(chart)
     if not bool(getattr(chart, "signs_unknown", False)):
         return {}
