@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+import html
 from typing import Callable
 
 from PySide6.QtCore import Qt
@@ -21,10 +23,113 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.core.ephemeris import planetary_positions
+from ephemeraldaddy.core.interpretations import (
+    PLANET_COLORS,
+    PLANET_GLYPHS,
+    PLANET_ORDER,
+    SIGN_COLORS,
+    ZODIAC_NAMES,
+    ZODIAC_SIGNS,
+)
+
 from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 
+def format_unknown_positions_summary_html(
+    chart: Chart | None,
+    *,
+    text_color: str = "#f5f5f5",
+    separator_color: str = "#9a9a9a",
+    houses_unknown_font_px: int = 10,
+) -> str:
+    """Build Chart View unknown-position summary HTML for the placeholder row."""
+    if not isinstance(chart, Chart):
+        return ""
+
+    apply_unknown_sign_metadata(chart)
+    birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
+    signs_unknown = bool(getattr(chart, "signs_unknown", False))
+    if not birthtime_unknown and not signs_unknown:
+        return ""
+
+    safe_text_color = html.escape(text_color)
+    safe_separator_color = html.escape(separator_color)
+    houses_unknown_html = (
+        f'<span style="color: {safe_separator_color}; '
+        f'font-size: {max(8, int(houses_unknown_font_px))}px;">houses unknown</span>'
+    )
+    if not signs_unknown:
+        return houses_unknown_html if birthtime_unknown else ""
+
+    tzinfo = getattr(getattr(chart, "dt", None), "tzinfo", None)
+    if tzinfo is None:
+        return houses_unknown_html
+
+    base_date = chart.dt.date()
+    midnight = datetime.datetime(
+        base_date.year,
+        base_date.month,
+        base_date.day,
+        0,
+        0,
+        tzinfo=tzinfo,
+    )
+    pre_midnight = datetime.datetime(
+        base_date.year,
+        base_date.month,
+        base_date.day,
+        23,
+        59,
+        tzinfo=tzinfo,
+    )
+    positions_midnight = planetary_positions(midnight, chart.lat, chart.lon)
+    positions_pre_midnight = planetary_positions(pre_midnight, chart.lat, chart.lon)
+    sign_to_glyph = {name: glyph for name, glyph in zip(ZODIAC_NAMES, ZODIAC_SIGNS)}
+    unknown_bodies = set(getattr(chart, "unknown_signs", []) or [])
+    ordered_bodies = [
+        body
+        for body in PLANET_ORDER
+        if body in unknown_bodies and body in positions_midnight and body in positions_pre_midnight
+    ]
+    ordered_bodies.extend(
+        sorted(
+            body
+            for body in unknown_bodies
+            if body not in ordered_bodies and body in positions_midnight and body in positions_pre_midnight
+        )
+    )
+
+    def _span(text: str, color: str) -> str:
+        return f'<span style="color: {html.escape(color)};">{html.escape(text)}</span>'
+
+    segments: list[str] = []
+    for body in ordered_bodies:
+        sign_start = sign_for_longitude(positions_midnight[body])
+        sign_end = sign_for_longitude(positions_pre_midnight[body])
+        if sign_start == sign_end:
+            continue
+        body_color = PLANET_COLORS.get(body, safe_text_color)
+        sign_start_color = SIGN_COLORS.get(sign_start, safe_text_color)
+        sign_end_color = SIGN_COLORS.get(sign_end, safe_text_color)
+        body_glyph = PLANET_GLYPHS.get(body, body)
+        sign_start_glyph = sign_to_glyph.get(sign_start, sign_start)
+        sign_end_glyph = sign_to_glyph.get(sign_end, sign_end)
+        segments.append(
+            f"{_span(body_glyph, body_color)}"
+            f"{_span('?:', safe_separator_color)}"
+            f"{_span(sign_start_glyph, sign_start_color)}"
+            f"{_span('/', safe_separator_color)}"
+            f"{_span(sign_end_glyph, sign_end_color)}"
+        )
+
+    pipe_separator = _span(" | ", safe_separator_color)
+    if segments:
+        return f"{pipe_separator.join(segments)}{pipe_separator}{houses_unknown_html}"
+    return houses_unknown_html
 
 class ChartViewUndoController:
     """Adds Chart View-wide Ctrl/Cmd+Z support for text fields and dropdowns."""

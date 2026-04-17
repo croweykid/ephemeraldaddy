@@ -291,7 +291,7 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -637,6 +637,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
     build_chart_view_right_panel,
+    format_unknown_positions_summary_html,
     install_chart_view_undo_shortcuts,
 )
 from ephemeraldaddy.gui.visibility import (
@@ -24847,91 +24848,22 @@ class MainWindow(QMainWindow):
         if label is None:
             return
 
-        active_chart = chart if isinstance(chart, Chart) else None
-        if active_chart is None:
+        if not isinstance(chart, Chart):
             label.clear()
             return
 
-        apply_unknown_sign_metadata(active_chart)
-        birthtime_unknown = bool(getattr(active_chart, "birthtime_unknown", False))
-        signs_unknown = bool(getattr(active_chart, "signs_unknown", False))
-        if not birthtime_unknown and not signs_unknown:
-            label.clear()
-            return
-
-        axis_unknown_html = (
-            f'<span style="color: {CHART_THEME_COLORS.get("text", "#f5f5f5")};">AS/IC/DS/MC:?</span>'
-        )
-        if not signs_unknown:
-            label.setText(axis_unknown_html if birthtime_unknown else "")
-            return
-
-        tzinfo = getattr(getattr(active_chart, "dt", None), "tzinfo", None)
-        if tzinfo is None:
-            label.setText(axis_unknown_html)
-            return
-
-        base_date = active_chart.dt.date()
-        midnight = datetime.datetime(
-            base_date.year,
-            base_date.month,
-            base_date.day,
-            0,
-            0,
-            tzinfo=tzinfo,
-        )
-        pre_midnight = datetime.datetime(
-            base_date.year,
-            base_date.month,
-            base_date.day,
-            23,
-            59,
-            tzinfo=tzinfo,
-        )
-        positions_midnight = planetary_positions(midnight, active_chart.lat, active_chart.lon)
-        positions_pre_midnight = planetary_positions(pre_midnight, active_chart.lat, active_chart.lon)
-        sign_to_glyph = {name: glyph for name, glyph in zip(ZODIAC_NAMES, ZODIAC_SIGNS)}
-        unknown_bodies = set(getattr(active_chart, "unknown_signs", []) or [])
-        ordered_bodies = [
-            body
-            for body in PLANET_ORDER
-            if body in unknown_bodies and body in positions_midnight and body in positions_pre_midnight
-        ]
-        ordered_bodies.extend(
-            sorted(
-                body
-                for body in unknown_bodies
-                if body not in ordered_bodies and body in positions_midnight and body in positions_pre_midnight
+        point_size = label.font().pointSizeF()
+        if point_size <= 0:
+            point_size = 9.0
+        houses_unknown_px = max(8, int(round((point_size * 96.0 / 72.0) - 2.0)))
+        label.setText(
+            format_unknown_positions_summary_html(
+                chart,
+                text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+                separator_color="#9a9a9a",
+                houses_unknown_font_px=houses_unknown_px,
             )
         )
-
-        def _span(text: str, color: str) -> str:
-            return f'<span style="color: {html.escape(color)};">{html.escape(text)}</span>'
-
-        segments: list[str] = []
-        for body in ordered_bodies:
-            sign_start = _sign_for_longitude(positions_midnight[body])
-            sign_end = _sign_for_longitude(positions_pre_midnight[body])
-            if sign_start == sign_end:
-                continue
-            body_color = PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            sign_start_color = SIGN_COLORS.get(sign_start, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            sign_end_color = SIGN_COLORS.get(sign_end, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            body_glyph = PLANET_GLYPHS.get(body, body)
-            sign_start_glyph = sign_to_glyph.get(sign_start, sign_start)
-            sign_end_glyph = sign_to_glyph.get(sign_end, sign_end)
-            segments.append(
-                f"{_span(body_glyph, body_color)}?:"
-                f"{_span(sign_start_glyph, sign_start_color)}/{_span(sign_end_glyph, sign_end_color)}"
-            )
-
-        white_separator = (
-            f'<span style="color: {CHART_THEME_COLORS.get("text", "#f5f5f5")};"> | </span>'
-        )
-        if segments:
-            label.setText(f"{white_separator.join(segments)}{white_separator}{axis_unknown_html}")
-        else:
-            label.setText(axis_unknown_html)
 
     def _toggle_chart_panel_content(
         self,
