@@ -291,7 +291,7 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -18393,6 +18393,13 @@ class MainWindow(QMainWindow):
         placeholder_row = QHBoxLayout()
         placeholder_row.setContentsMargins(8, 0, 0, 0)
         placeholder_row.addWidget(self.placeholder_chart_checkbox, 0, Qt.AlignLeft)
+        self.unknown_positions_summary_label = QLabel("")
+        self.unknown_positions_summary_label.setTextFormat(Qt.RichText)
+        self.unknown_positions_summary_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.unknown_positions_summary_label.setStyleSheet(
+            f"color: {CHART_THEME_COLORS.get('text', '#f5f5f5')};"
+        )
+        placeholder_row.addWidget(self.unknown_positions_summary_label, 1, Qt.AlignRight)
         placeholder_row.addStretch(1)
         placeholder_row_widget = QWidget()
         placeholder_row_widget.setLayout(placeholder_row)
@@ -23929,6 +23936,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._set_chart_right_panel_container_visible(True)
         self._schedule_chart_render(chart, sections={
             "summary",
@@ -24283,6 +24291,7 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._update_tag_completers()
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
@@ -24699,6 +24708,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
@@ -24829,7 +24839,99 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
         self._refresh_chart_preview()
+        self._update_unknown_positions_summary(self._latest_chart)
         self._autosave_checkbox_state()
+
+    def _update_unknown_positions_summary(self, chart: Chart | None = None) -> None:
+        label = getattr(self, "unknown_positions_summary_label", None)
+        if label is None:
+            return
+
+        active_chart = chart if isinstance(chart, Chart) else None
+        if active_chart is None:
+            label.clear()
+            return
+
+        apply_unknown_sign_metadata(active_chart)
+        birthtime_unknown = bool(getattr(active_chart, "birthtime_unknown", False))
+        signs_unknown = bool(getattr(active_chart, "signs_unknown", False))
+        if not birthtime_unknown and not signs_unknown:
+            label.clear()
+            return
+
+        axis_unknown_html = (
+            f'<span style="color: {CHART_THEME_COLORS.get("text", "#f5f5f5")};">AS/IC/DS/MC:?</span>'
+        )
+        if not signs_unknown:
+            label.setText(axis_unknown_html if birthtime_unknown else "")
+            return
+
+        tzinfo = getattr(getattr(active_chart, "dt", None), "tzinfo", None)
+        if tzinfo is None:
+            label.setText(axis_unknown_html)
+            return
+
+        base_date = active_chart.dt.date()
+        midnight = datetime.datetime(
+            base_date.year,
+            base_date.month,
+            base_date.day,
+            0,
+            0,
+            tzinfo=tzinfo,
+        )
+        pre_midnight = datetime.datetime(
+            base_date.year,
+            base_date.month,
+            base_date.day,
+            23,
+            59,
+            tzinfo=tzinfo,
+        )
+        positions_midnight = planetary_positions(midnight, active_chart.lat, active_chart.lon)
+        positions_pre_midnight = planetary_positions(pre_midnight, active_chart.lat, active_chart.lon)
+        sign_to_glyph = {name: glyph for name, glyph in zip(ZODIAC_NAMES, ZODIAC_SIGNS)}
+        unknown_bodies = set(getattr(active_chart, "unknown_signs", []) or [])
+        ordered_bodies = [
+            body
+            for body in PLANET_ORDER
+            if body in unknown_bodies and body in positions_midnight and body in positions_pre_midnight
+        ]
+        ordered_bodies.extend(
+            sorted(
+                body
+                for body in unknown_bodies
+                if body not in ordered_bodies and body in positions_midnight and body in positions_pre_midnight
+            )
+        )
+
+        def _span(text: str, color: str) -> str:
+            return f'<span style="color: {html.escape(color)};">{html.escape(text)}</span>'
+
+        segments: list[str] = []
+        for body in ordered_bodies:
+            sign_start = _sign_for_longitude(positions_midnight[body])
+            sign_end = _sign_for_longitude(positions_pre_midnight[body])
+            if sign_start == sign_end:
+                continue
+            body_color = PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            sign_start_color = SIGN_COLORS.get(sign_start, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            sign_end_color = SIGN_COLORS.get(sign_end, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            body_glyph = PLANET_GLYPHS.get(body, body)
+            sign_start_glyph = sign_to_glyph.get(sign_start, sign_start)
+            sign_end_glyph = sign_to_glyph.get(sign_end, sign_end)
+            segments.append(
+                f"{_span(body_glyph, body_color)}?:"
+                f"{_span(sign_start_glyph, sign_start_color)}/{_span(sign_end_glyph, sign_end_color)}"
+            )
+
+        white_separator = (
+            f'<span style="color: {CHART_THEME_COLORS.get("text", "#f5f5f5")};"> | </span>'
+        )
+        if segments:
+            label.setText(f"{white_separator.join(segments)}{white_separator}{axis_unknown_html}")
+        else:
+            label.setText(axis_unknown_html)
 
     def _toggle_chart_panel_content(
         self,
@@ -24940,6 +25042,7 @@ class MainWindow(QMainWindow):
         chart, _place, _location_msg, _tz_override = chart_result
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        self._update_unknown_positions_summary(chart)
         self._schedule_chart_render(chart)
 
     def _handle_lilith_calculation_method_changed(
@@ -25341,6 +25444,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.stop()
         self.output_text.clear()
         self.chart_info_output.clear()
+        self._update_unknown_positions_summary(None)
         self._position_info_map = {}
         self._aspect_info_map = {}
         self._species_info_map = {}
