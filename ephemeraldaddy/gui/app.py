@@ -273,7 +273,10 @@ from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
     ACTION_CLEAN_BIOGRAPHY,
     ACTION_COMMENTS_TO_SOURCE,
+    ACTION_GET_BIO,
     MIGRATION_ACTION_LABELS,
+    fetch_astrotheme_biography_by_name,
+    launch_metadata_migration_worker,
     run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
@@ -1721,6 +1724,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog: QDialog | None = None
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
+        self._metadata_migration_threads: list[QThread] = []
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
         # Toggle to broaden inference source data (personal-only by default).
@@ -10880,6 +10884,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         logger.info("Astrotheme import completed (id=%s chart_id=%s).", debug_id, chart_id)
 
+    def _on_get_bio_for_open_chart(self) -> None:
+        if self.current_chart_id is not None:
+            self._run_metadata_migration_action(ACTION_GET_BIO)
+            return
+        chart_name = self.name_edit.text().strip()
+        if not chart_name:
+            QMessageBox.information(self, "Get Bio", "Please enter or load a chart name first.")
+            return
+        try:
+            biography_text = fetch_astrotheme_biography_by_name(chart_name)
+        except Exception as exc:
+            QMessageBox.warning(self, "Get Bio", f"Could not import biography:\n{exc}")
+            return
+        self.biography_edit.setPlainText(biography_text)
+        self._update_get_bio_button_visibility()
+        QMessageBox.information(self, "Get Bio", "Biography imported from Astrotheme.")
+
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
         dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
         dialog._shortcut_close_ctrl.activated.connect(dialog.close)
@@ -17565,6 +17586,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 on_alias_to_from_clicked=lambda: self._run_metadata_migration_action(ACTION_ALIAS_TO_FROM),
                 on_comments_to_source_clicked=lambda: self._run_metadata_migration_action(ACTION_COMMENTS_TO_SOURCE),
                 on_clean_biography_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIOGRAPHY),
+                on_get_bio_clicked=lambda: self._run_metadata_migration_action(ACTION_GET_BIO),
             )
 
         panel.show()
@@ -17576,15 +17598,54 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_chart_ids = self._selected_chart_ids()
         return self._exclude_placeholder_chart_ids(selected_chart_ids)
 
+    def _resolve_metadata_target_chart_ids(self) -> list[int]:
+        manage_dialog = self._manage_charts_dialog
+        database_view_active = bool(
+            manage_dialog is not None
+            and manage_dialog.isVisible()
+            and manage_dialog.isActiveWindow()
+        )
+        if database_view_active:
+            return self._selected_non_placeholder_chart_ids()
+        if self.current_chart_id is not None:
+            return [int(self.current_chart_id)]
+        return self._selected_non_placeholder_chart_ids()
+
     def _run_metadata_migration_action(self, action: str) -> None:
         action_label = MIGRATION_ACTION_LABELS.get(action, "Metadata Migration")
-        chart_ids = self._selected_non_placeholder_chart_ids()
+        chart_ids = self._resolve_metadata_target_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
                 action_label,
-                "Select one or more non-placeholder charts in the middle panel first.",
+                "Please selected a chart first",
             )
+            return
+
+        if action == ACTION_GET_BIO:
+            def _handle_finished(outcome, changed_ids) -> None:
+                self._apply_metadata_migration_outcome(
+                    action=action,
+                    action_label=action_label,
+                    outcome=outcome,
+                    changed_ids=changed_ids,
+                )
+
+            def _handle_failed(message: str) -> None:
+                QMessageBox.warning(self, action_label, f"Metadata migration failed:\n{message}")
+
+            thread = launch_metadata_migration_worker(
+                chart_ids=chart_ids,
+                action=action,
+                load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
+                update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+                lookup_biography_by_name=fetch_astrotheme_biography_by_name,
+                random_delay_seconds_range=(1, 6) if len(chart_ids) > 1 else None,
+                on_finished=_handle_finished,
+                on_failed=_handle_failed,
+            )
+            self._metadata_migration_threads.append(thread)
+            thread.finished.connect(lambda: self._metadata_migration_threads.remove(thread) if thread in self._metadata_migration_threads else None)
             return
 
         outcome, changed_ids = run_metadata_migration(
@@ -17593,9 +17654,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
             update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
         )
+        self._apply_metadata_migration_outcome(
+            action=action,
+            action_label=action_label,
+            outcome=outcome,
+            changed_ids=changed_ids,
+        )
 
+    def _apply_metadata_migration_outcome(
+        self,
+        *,
+        action: str,
+        action_label: str,
+        outcome,
+        changed_ids,
+    ) -> None:
         if changed_ids:
             self._refresh_charts(changed_ids=changed_ids)
+            if (
+                action == ACTION_GET_BIO
+                and self.current_chart_id is not None
+                and int(self.current_chart_id) in changed_ids
+            ):
+                refreshed_chart = load_chart(int(self.current_chart_id))
+                biography_text = str(getattr(refreshed_chart, "biography", "") or "")
+                self.biography_edit.setPlainText(biography_text)
+                if self._latest_chart is not None:
+                    self._latest_chart.biography = biography_text
 
         changed_value_label = "URL(s) migrated" if action == ACTION_COMMENTS_TO_SOURCE else "field change(s)"
         QMessageBox.information(
@@ -18827,11 +18912,28 @@ class MainWindow(QMainWindow):
         self.rectification_edit.textChanged.connect(self._mark_lucygoosey)
         self.rectification_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.rectification_edit)
+
+        self.biography_panel_widget = QWidget()
+        biography_panel_layout = QVBoxLayout()
+        biography_panel_layout.setContentsMargins(0, 0, 0, 0)
+        biography_panel_layout.setSpacing(6)
+        self.biography_panel_widget.setLayout(biography_panel_layout)
         self.biography_edit = QTextEdit()
         self.biography_edit.setPlaceholderText("Biography: their backstory")
         self.biography_edit.textChanged.connect(self._mark_lucygoosey)
+        self.biography_edit.textChanged.connect(self._update_get_bio_button_visibility)
         self.biography_edit.setMinimumHeight(140)
-        self.chart_info_content_stack.addWidget(self.biography_edit)
+        biography_panel_layout.addWidget(self.biography_edit, 1)
+        biography_panel_button_row = QHBoxLayout()
+        biography_panel_button_row.setContentsMargins(0, 0, 0, 0)
+        biography_panel_button_row.setSpacing(0)
+        biography_panel_button_row.addStretch(1)
+        self.get_bio_button = QPushButton("Get Bio")
+        self.get_bio_button.setToolTip("Import biography from Astrotheme using this chart's name.")
+        self.get_bio_button.clicked.connect(self._on_get_bio_for_open_chart)
+        biography_panel_button_row.addWidget(self.get_bio_button, 0, Qt.AlignRight)
+        biography_panel_layout.addLayout(biography_panel_button_row)
+        self.chart_info_content_stack.addWidget(self.biography_panel_widget)
         self.source_edit = QTextEdit()
         self.source_edit.setPlaceholderText("Source: where your data about this person came from")
         self.source_edit.textChanged.connect(self._mark_lucygoosey)
@@ -22199,6 +22301,16 @@ class MainWindow(QMainWindow):
             }
             self.chart_info_content_stack.setCurrentIndex(mode_to_index[mode])
         self._refresh_chart_info_panel_toggle_buttons()
+        self._update_get_bio_button_visibility()
+
+    def _update_get_bio_button_visibility(self) -> None:
+        button = getattr(self, "get_bio_button", None)
+        biography_edit = getattr(self, "biography_edit", None)
+        if button is None or biography_edit is None:
+            return
+        active_mode = getattr(self, "_chart_info_panel_mode", "comments")
+        biography_empty = not biography_edit.toPlainText().strip()
+        button.setVisible(active_mode == "biography" and biography_empty)
 
     def _refresh_chart_info_panel_toggle_buttons(self) -> None:
         refresh_chart_info_panel_toggle_button_styles(self)
