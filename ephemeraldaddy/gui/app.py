@@ -265,8 +265,13 @@ from ephemeraldaddy.gui.astrotheme_search import (
 )
 from ephemeraldaddy.gui.dev_tools import (
     ManageMetadataLabelsDialog,
+    MetadataMigrationPanel,
     SizeCheckerPopup,
     build_similarity_calculator_settings_section,
+)
+from ephemeraldaddy.gui.cleanup_metadata import (
+    migrate_comment_urls_to_source,
+    move_alias_to_from_whence,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
@@ -1709,6 +1714,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._size_checker_popup: SizeCheckerPopup | None = None
+        self._metadata_migration_panel: MetadataMigrationPanel | None = None
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
         # Toggle to broaden inference source data (personal-only by default).
@@ -16938,6 +16944,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
 
+        metadata_migration_button = QPushButton("Metadata Migration Panel")
+        metadata_migration_button.clicked.connect(self._toggle_metadata_migration_panel)
+        dev_tools_section.addWidget(metadata_migration_button)
+
         recalculate_all_weights_button = QPushButton("Recalculate All Weights in DB")
         recalculate_all_weights_button.setToolTip(
             "Recompute stored dominant sign/planet weights for all non-placeholder charts."
@@ -17530,6 +17540,113 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         main_window = self.parent()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
+
+    def _toggle_metadata_migration_panel(self) -> None:
+        panel = self._metadata_migration_panel
+        if panel is not None:
+            try:
+                if panel.isVisible():
+                    panel.close()
+                    self._metadata_migration_panel = None
+                    return
+            except RuntimeError:
+                panel = None
+                self._metadata_migration_panel = None
+
+        if panel is None:
+            panel = MetadataMigrationPanel(
+                parent=self,
+                on_alias_to_from_clicked=self._run_alias_to_from_migration,
+                on_comments_to_source_clicked=self._run_comments_to_source_migration,
+            )
+
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
+        self._metadata_migration_panel = panel
+
+    def _selected_non_placeholder_chart_ids(self) -> list[int]:
+        selected_chart_ids = self._selected_chart_ids()
+        return self._exclude_placeholder_chart_ids(selected_chart_ids)
+
+    def _run_alias_to_from_migration(self) -> None:
+        chart_ids = self._selected_non_placeholder_chart_ids()
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "Alias -> From",
+                "Select one or more non-placeholder charts in the middle panel first.",
+            )
+            return
+
+        changed_ids: set[int] = set()
+        error_count = 0
+        for chart_id in chart_ids:
+            try:
+                chart = load_chart(int(chart_id))
+                if chart is None:
+                    error_count += 1
+                    continue
+                if not move_alias_to_from_whence(chart):
+                    continue
+                update_chart(int(chart_id), chart)
+                changed_ids.add(int(chart_id))
+            except Exception:
+                error_count += 1
+
+        if changed_ids:
+            self._refresh_charts(changed_ids=changed_ids)
+
+        QMessageBox.information(
+            self,
+            "Alias -> From complete",
+            (
+                f"Updated {len(changed_ids)} chart(s).\n"
+                f"Skipped {len(chart_ids) - len(changed_ids) - error_count} chart(s) with empty alias.\n"
+                f"Errors: {error_count}."
+            ),
+        )
+
+    def _run_comments_to_source_migration(self) -> None:
+        chart_ids = self._selected_non_placeholder_chart_ids()
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                "Comments -> Source",
+                "Select one or more non-placeholder charts in the middle panel first.",
+            )
+            return
+
+        changed_ids: set[int] = set()
+        migrated_url_count = 0
+        error_count = 0
+        for chart_id in chart_ids:
+            try:
+                chart = load_chart(int(chart_id))
+                if chart is None:
+                    error_count += 1
+                    continue
+                url_count = migrate_comment_urls_to_source(chart)
+                if url_count <= 0:
+                    continue
+                update_chart(int(chart_id), chart)
+                changed_ids.add(int(chart_id))
+                migrated_url_count += url_count
+            except Exception:
+                error_count += 1
+
+        if changed_ids:
+            self._refresh_charts(changed_ids=changed_ids)
+
+        QMessageBox.information(
+            self,
+            "Comments -> Source complete",
+            (
+                f"Updated {len(changed_ids)} chart(s).\n"
+                f"Migrated {migrated_url_count} URL(s).\n"
+                f"Errors: {error_count}."
+            ),
+        )
 
     def _launch_manage_sentiments_dialog(self) -> None:
         self._launch_property_manager_dialog(

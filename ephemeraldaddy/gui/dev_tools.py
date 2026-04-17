@@ -358,6 +358,68 @@ class SizeCheckerPopup(QDialog):
         QApplication.clipboard().setText(self._readout.toPlainText())
 
 
+class MetadataMigrationPanel(QDialog):
+    """Floating metadata migration utility that stays above other app windows."""
+
+    def __init__(
+        self,
+        *,
+        parent: QWidget,
+        on_alias_to_from_clicked: Callable[[], None],
+        on_comments_to_source_clicked: Callable[[], None],
+    ) -> None:
+        super().__init__(None)
+        self.setWindowTitle("Metadata Migration Panel")
+        self.setModal(False)
+        self.setWindowFlag(Qt.Window, True)
+        self.setWindowFlag(Qt.Tool, True)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.resize(560, 260)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        intro = QLabel(
+            "Runs metadata cleanup scripts against the charts currently selected in "
+            "Database View's middle panel."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        alias_button = QPushButton("Alias -> From")
+        alias_button.clicked.connect(on_alias_to_from_clicked)
+        layout.addWidget(alias_button)
+
+        alias_caption = QLabel(
+            "takes the 'alias' property's value for each selected chart and moves it to each "
+            "respective chart's 'from_whence' property"
+        )
+        alias_caption.setWordWrap(True)
+        alias_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        layout.addWidget(alias_caption)
+
+        comments_button = QPushButton("Comments -> Source")
+        comments_button.clicked.connect(on_comments_to_source_clicked)
+        layout.addWidget(comments_button)
+
+        comments_caption = QLabel(
+            "Finds all instances of URLs in these charts' Comments property and migrates "
+            "them to the Source property"
+        )
+        comments_caption.setWordWrap(True)
+        comments_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        layout.addWidget(comments_caption)
+        layout.addStretch(1)
+
+        if isinstance(parent, QWidget):
+            self._anchor_near_parent(parent)
+
+    def _anchor_near_parent(self, parent: QWidget) -> None:
+        anchor = parent.mapToGlobal(QPoint(0, 0))
+        self.move(anchor.x() + 36, anchor.y() + 84)
+
+
 class _RenameLabelDialog(QDialog):
     def __init__(self, *, parent: QWidget, title: str, old_label: str, max_length: int) -> None:
         super().__init__(parent)
