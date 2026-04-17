@@ -161,13 +161,13 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(chart_menu, "New Chart", window, "on_new_chart")
     _bind_menu_action(chart_menu, "Export Chart", window, "on_export_chart")
     chart_menu.addSeparator()
-    _bind_menu_action(chart_menu, "BaZi Chart", window, "on_open_bazi_window")
-    _bind_menu_action(chart_menu, "Personal Transit", window, "on_get_current_transits")
-    _bind_menu_action(chart_menu, "Synastry Chart", window, "on_get_synastry_chart")
+    _bind_menu_action(chart_menu, "🐉 BaZi Chart", window, "on_open_bazi_window")
+    _bind_menu_action(chart_menu, "🌎 Personal Transit", window, "on_get_current_transits")
+    _bind_menu_action(chart_menu, "🧬 Synastry Chart", window, "on_get_synastry_chart")
     if _is_human_design_menu_enabled(window):
         _bind_menu_action(
             chart_menu,
-            "Human Design Chart",
+            "🪷 Human Design Chart",
             window,
             "_on_menu_get_human_design_info",
             "on_get_human_design_info",
@@ -176,14 +176,14 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "See Similar Charts",
+        "👯 See Similar Charts",
         window,
         "_show_similar_charts_popout",
         "on_show_similar_charts_popout",
     )
-    _bind_menu_action(tools_menu, "Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
+    _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
-    _bind_menu_action(tools_menu, "Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
+    _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
     
 
     # view_menu = menu_bar.addMenu("View")
@@ -223,28 +223,28 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "Edit chart", dialog, "_on_edit_chart_from_menu")
     _bind_menu_action(charts_menu, "Delete chart(s)", dialog, "_on_delete", "on_delete")
     _bind_menu_action(charts_menu, "Current Transits", dialog, "_show_current_transits_panel")
-    _bind_menu_action(charts_menu, "Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
+    _bind_menu_action(charts_menu, "🌎 Personal Transit Chart", dialog, "_on_generate_personal_transit_for_selected_chart")
     _bind_menu_action(charts_menu, "Export Chart as MD/TXT", dialog, "_on_menu_export_chart")
     charts_menu.addSeparator()
-    _bind_menu_action(charts_menu, "Synastry Chart", dialog, "_on_generate_composite_chart")
-    _bind_menu_action(charts_menu, "BaZi Chart", dialog, "_on_menu_open_bazi_window")
+    _bind_menu_action(charts_menu, "🧬 Synastry Chart", dialog, "_on_generate_composite_chart")
+    _bind_menu_action(charts_menu, "🐉 BaZi Chart", dialog, "_on_menu_open_bazi_window")
     if _is_human_design_menu_enabled(dialog):
-        _bind_menu_action(charts_menu, "Human Design Chart", dialog, "_on_menu_get_human_design_info")
+        _bind_menu_action(charts_menu, "🪷 Human Design Chart", dialog, "_on_menu_get_human_design_info")
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
         tools_menu,
-        "See Similar Charts",
+        "👯 See Similar Charts",
         dialog,
         "_on_menu_see_similar_charts",
     )
     _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
-    _bind_menu_action(tools_menu, "Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
+    _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
     _bind_menu_action(
         tools_menu,
-        "Chart Predictor Quiz (alpha)",
+        "🔮 Chart Predictor Quiz (alpha)",
         dialog,
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
