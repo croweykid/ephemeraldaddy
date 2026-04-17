@@ -182,7 +182,7 @@ QUIZ_QUESTIONS: tuple[QuizQuestion, ...] = (
         ),
     ),
     QuizQuestion(
-        prompt="Your growth edge right now feels like:",
+        prompt="You're growing right now by working on:",
         options=(
             _option(
                 "speaking up and being seen",
@@ -254,7 +254,7 @@ QUIZ_QUESTIONS: tuple[QuizQuestion, ...] = (
         options=(
             _option("self-definition and body", house_scores={1: 3, 6: 1}, madlib_fragment="keeps returning to the mirror and mission"),
             _option("money and material security", house_scores={2: 4}, madlib_fragment="counts what can be built and banked"),
-            _option("siblings, neighbors, daily info", house_scores={3: 4}, madlib_fragment="lives inside conversations and corridors"),
+            _option("siblings, neighbors, news & gossip", house_scores={3: 4}, madlib_fragment="lives inside conversations and corridors"),
         ),
     ),
     QuizQuestion(
@@ -447,8 +447,7 @@ class ChartPredictorQuizDialog(QDialog):
         content_layout.setSpacing(10)
 
         intro = QLabel(
-            "Answer the prompts and this quiz will estimate your dominant bodies, signs, and houses\n"
-            "using Ephemeral Daddy's natal weighting constants and your answers."
+            "If you answer all the questions, this quiz will attempt to approximate your dominant bodies, signs, and houses.\n *This got whipped up hastily in one afternoon, and hasn't gotten as much attention as some other features of the app, but I intend to actually make it more legit and effective as a tool at some point. Let me know your thoughts."
         )
         intro.setWordWrap(True)
         intro.setStyleSheet(f"font-style: italic; color: {CHART_DATA_HIGHLIGHT_COLOR};")
@@ -533,7 +532,7 @@ class ChartPredictorQuizDialog(QDialog):
         top_bodies = sorted(body_scores.items(), key=lambda item: item[1], reverse=True)[:5]
         top_houses = sorted(house_scores.items(), key=lambda item: item[1], reverse=True)[:5]
         top_signs = sorted(sign_scores.items(), key=lambda item: item[1], reverse=True)[:5]
-        madlib = "Then your archetype " + ", ".join(selection.madlib_fragment for selection in selections[:4]) + "."
+        madlib = "S/he" + ", ".join(selection.madlib_fragment for selection in selections[:4]) + "."
 
         sign_to_glyph = {name: glyph for name, glyph in zip(SIGN_NAMES, ZODIAC_SIGNS)}
 
