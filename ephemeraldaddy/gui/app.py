@@ -271,12 +271,14 @@ from ephemeraldaddy.gui.dev_tools import (
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
+    ACTION_CLEAN_BIRTHPLACE,
     ACTION_CLEAN_BIOGRAPHY,
     ACTION_COMMENTS_TO_SOURCE,
     ACTION_GET_BIO,
     MIGRATION_ACTION_LABELS,
     fetch_astrotheme_biography_by_name,
     launch_metadata_migration_worker,
+    lookup_gazetteer_label,
     run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
@@ -17587,6 +17589,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 on_comments_to_source_clicked=lambda: self._run_metadata_migration_action(ACTION_COMMENTS_TO_SOURCE),
                 on_clean_biography_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIOGRAPHY),
                 on_get_bio_clicked=lambda: self._run_metadata_migration_action(ACTION_GET_BIO),
+                on_clean_birthplace_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIRTHPLACE),
             )
 
         panel.show()
@@ -17653,6 +17656,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             action=action,
             load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
             update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+            lookup_location_label=lookup_gazetteer_label if action == ACTION_CLEAN_BIRTHPLACE else None,
         )
         self._apply_metadata_migration_outcome(
             action=action,

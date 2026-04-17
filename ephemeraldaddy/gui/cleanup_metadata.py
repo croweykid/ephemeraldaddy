@@ -9,10 +9,13 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
 
+from ephemeraldaddy.analysis.country_lookup import resolve_country
+from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
 )
+from ephemeraldaddy.io.geocode import search_locations
 
 HTTP_URL_PATTERN = re.compile(r"Astrotheme profile: https://\S+", re.IGNORECASE)
 BIOGRAPHY_CUTOFF_MARKER = "Astrological Profile of"
@@ -21,13 +24,50 @@ ACTION_ALIAS_TO_FROM = "alias_to_from"
 ACTION_COMMENTS_TO_SOURCE = "comments_to_source"
 ACTION_CLEAN_BIOGRAPHY = "clean_biography"
 ACTION_GET_BIO = "get_bio"
+ACTION_CLEAN_BIRTHPLACE = "clean_birthplace"
 
 MIGRATION_ACTION_LABELS: dict[str, str] = {
     ACTION_ALIAS_TO_FROM: "Alias -> From",
     ACTION_COMMENTS_TO_SOURCE: "Comments -> Source",
     ACTION_CLEAN_BIOGRAPHY: "Clean up Biography Text",
     ACTION_GET_BIO: "Get Bio",
+    ACTION_CLEAN_BIRTHPLACE: "Clean up Birthplace",
 }
+
+_POSTAL_CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9\- ]{2,}$", re.IGNORECASE)
+_STREET_NUMBER_PREFIX_PATTERN = re.compile(r"^\d+[A-Z]?(?:\s*[-/]\s*\d+)?$")
+_STREET_KEYWORDS = (
+    "street",
+    "st.",
+    "st ",
+    "avenue",
+    "ave",
+    "boulevard",
+    "blvd",
+    "road",
+    "rd",
+    "lane",
+    "ln",
+    "drive",
+    "dr",
+    "court",
+    "ct",
+    "highway",
+    "hwy",
+    "route",
+    "rte",
+    "way",
+)
+_NOISE_KEYWORDS = (
+    "post office",
+    "county",
+    "township",
+    "district",
+    "neighborhood",
+    "neighbourhood",
+    "ward",
+    "zip",
+)
 
 
 @dataclass(frozen=True)
@@ -54,6 +94,7 @@ class MetadataMigrationWorker(QObject):
         load_chart_by_id: Callable[[int], Any],
         update_chart_by_id: Callable[[int, Any], None],
         lookup_biography_by_name: Callable[[str], str] | None = None,
+        lookup_location_label: Callable[[str], str | None] | None = None,
         random_delay_seconds_range: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
@@ -62,6 +103,7 @@ class MetadataMigrationWorker(QObject):
         self._load_chart_by_id = load_chart_by_id
         self._update_chart_by_id = update_chart_by_id
         self._lookup_biography_by_name = lookup_biography_by_name
+        self._lookup_location_label = lookup_location_label
         self._random_delay_seconds_range = random_delay_seconds_range
 
     def run(self) -> None:
@@ -72,6 +114,7 @@ class MetadataMigrationWorker(QObject):
                 load_chart_by_id=self._load_chart_by_id,
                 update_chart_by_id=self._update_chart_by_id,
                 lookup_biography_by_name=self._lookup_biography_by_name,
+                lookup_location_label=self._lookup_location_label,
                 random_delay_seconds_range=self._random_delay_seconds_range,
             )
         except Exception as exc:
@@ -89,6 +132,7 @@ def launch_metadata_migration_worker(
     on_finished: Callable[[MetadataMigrationOutcome, set[int]], None],
     on_failed: Callable[[str], None],
     lookup_biography_by_name: Callable[[str], str] | None = None,
+    lookup_location_label: Callable[[str], str | None] | None = None,
     random_delay_seconds_range: tuple[int, int] | None = None,
 ) -> QThread:
     thread = QThread()
@@ -98,6 +142,7 @@ def launch_metadata_migration_worker(
         load_chart_by_id=load_chart_by_id,
         update_chart_by_id=update_chart_by_id,
         lookup_biography_by_name=lookup_biography_by_name,
+        lookup_location_label=lookup_location_label,
         random_delay_seconds_range=random_delay_seconds_range,
     )
     worker.moveToThread(thread)
@@ -199,6 +244,156 @@ def import_biography_from_lookup(
     return True
 
 
+def lookup_gazetteer_label(query: str) -> str | None:
+    cleaned_query = str(query or "").strip()
+    if not cleaned_query:
+        return None
+    try:
+        matches = search_locations(cleaned_query, limit=1)
+    except Exception:
+        return None
+    if not matches:
+        return None
+    label = str(matches[0][0] or "").strip()
+    return label or None
+
+
+def _looks_like_street_or_postal_token(token: str) -> bool:
+    lowered = token.lower()
+    if any(keyword in lowered for keyword in _STREET_KEYWORDS):
+        return True
+    if _STREET_NUMBER_PREFIX_PATTERN.match(token):
+        return True
+    compact = token.replace(" ", "")
+    if any(char.isdigit() for char in compact) and _POSTAL_CODE_PATTERN.match(token):
+        return True
+    return False
+
+
+def _is_noise_location_token(token: str) -> bool:
+    lowered = token.lower().strip()
+    if not lowered:
+        return True
+    if _looks_like_street_or_postal_token(token):
+        return True
+    return any(keyword in lowered for keyword in _NOISE_KEYWORDS)
+
+
+def _choose_city_token(
+    candidates: list[str],
+    *,
+    prefer_last: bool,
+    keep_city_of_prefix: bool,
+) -> str | None:
+    def _normalize_city_label(token: str) -> str:
+        lowered = token.lower()
+        if not keep_city_of_prefix and lowered.startswith("city of "):
+            return token[8:].strip()
+        return token
+
+    preferred_candidates = [token for token in candidates if token.lower().startswith("city of ")]
+    if preferred_candidates:
+        chosen = preferred_candidates[-1] if prefer_last else preferred_candidates[0]
+        return _normalize_city_label(chosen)
+    filtered = [
+        token
+        for token in candidates
+        if not token.lower().startswith("greater ")
+        and " region" not in token.lower()
+    ]
+    if filtered:
+        chosen = filtered[-1] if prefer_last else filtered[0]
+        return _normalize_city_label(chosen)
+    if not candidates:
+        return None
+    chosen = candidates[-1] if prefer_last else candidates[0]
+    return _normalize_city_label(chosen)
+
+
+def _extract_birthplace_query(raw_birth_place: str) -> str | None:
+    raw_parts = [part.strip() for part in str(raw_birth_place or "").split(",") if part.strip()]
+    if not raw_parts:
+        return None
+
+    country_index = None
+    country_iso2 = None
+    for index in range(len(raw_parts) - 1, -1, -1):
+        country_meta = resolve_country(raw_parts[index])
+        if country_meta:
+            country_index = index
+            country_iso2 = str(country_meta.get("alpha_2", "")).strip().upper() or None
+            break
+
+    if country_index is None:
+        country_index = len(raw_parts) - 1
+        country_token = raw_parts[country_index]
+    else:
+        country_token = country_iso2 or raw_parts[country_index]
+
+    local_parts = raw_parts[:country_index]
+    if not local_parts:
+        return f"{country_token}" if country_token else None
+
+    meaningful_parts = [token for token in local_parts if not _is_noise_location_token(token)]
+    if not meaningful_parts:
+        meaningful_parts = [token for token in local_parts if token]
+    if not meaningful_parts:
+        return f"{country_token}" if country_token else None
+
+    if (country_iso2 or "").upper() == "US":
+        state_token = None
+        state_index = -1
+        for index in range(len(meaningful_parts) - 1, -1, -1):
+            normalized = normalize_us_state(meaningful_parts[index])
+            if normalized:
+                state_token = normalized
+                state_index = index
+                break
+        city_candidates = meaningful_parts[:state_index] if state_index >= 0 else meaningful_parts
+        city_token = _choose_city_token(
+            city_candidates,
+            prefer_last=True,
+            keep_city_of_prefix=False,
+        )
+        if city_token and state_token:
+            return f"{city_token}, {state_token}, US"
+        if city_token:
+            return f"{city_token}, US"
+        return f"{country_token}" if country_token else None
+
+    city_token = _choose_city_token(
+        meaningful_parts,
+        prefer_last=False,
+        keep_city_of_prefix=True,
+    )
+    if city_token and country_token:
+        return f"{city_token}, {country_token}"
+    return city_token or country_token
+
+
+def cleanup_birthplace_text(
+    chart: Any,
+    *,
+    lookup_location_label: Callable[[str], str | None] | None = None,
+) -> bool:
+    original_birth_place = str(getattr(chart, "birth_place", "") or "").strip()
+    if not original_birth_place:
+        return False
+    query = _extract_birthplace_query(original_birth_place)
+    if not query:
+        return False
+    normalized_birth_place = None
+    if lookup_location_label is not None:
+        normalized_birth_place = lookup_location_label(query)
+    if not normalized_birth_place:
+        normalized_birth_place = query
+    normalized_birth_place = str(normalized_birth_place or "").strip()
+    if not normalized_birth_place or normalized_birth_place == original_birth_place:
+        return False
+    chart.birth_place = normalized_birth_place
+    return True
+
+
 def run_metadata_migration(
     *,
     chart_ids: list[int],
@@ -206,6 +401,7 @@ def run_metadata_migration(
     load_chart_by_id: Callable[[int], Any],
     update_chart_by_id: Callable[[int, Any], None],
     lookup_biography_by_name: Callable[[str], str] | None = None,
+    lookup_location_label: Callable[[str], str | None] | None = None,
     random_delay_seconds_range: tuple[int, int] | None = None,
 ) -> tuple[MetadataMigrationOutcome, set[int]]:
     changed_chart_ids: set[int] = set()
@@ -237,6 +433,13 @@ def run_metadata_migration(
                 if not import_biography_from_lookup(
                     chart,
                     lookup_biography_by_name=lookup_biography_by_name,
+                ):
+                    continue
+                changed_unit_count += 1
+            elif action == ACTION_CLEAN_BIRTHPLACE:
+                if not cleanup_birthplace_text(
+                    chart,
+                    lookup_location_label=lookup_location_label,
                 ):
                     continue
                 changed_unit_count += 1

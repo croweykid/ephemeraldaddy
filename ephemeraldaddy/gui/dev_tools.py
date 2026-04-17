@@ -369,6 +369,7 @@ class MetadataMigrationPanel(QDialog):
         on_comments_to_source_clicked: Callable[[], None],
         on_clean_biography_clicked: Callable[[], None],
         on_get_bio_clicked: Callable[[], None],
+        on_clean_birthplace_clicked: Callable[[], None],
     ) -> None:
         super().__init__(None)
         self.setWindowTitle("Metadata Cleanup Panel")
@@ -450,6 +451,18 @@ class MetadataMigrationPanel(QDialog):
         get_bio_caption.setWordWrap(True)
         get_bio_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
         layout.addWidget(get_bio_caption)
+
+        birthplace_button = QPushButton("Clean up Birthplace")
+        birthplace_button.clicked.connect(on_clean_birthplace_clicked)
+        layout.addWidget(birthplace_button)
+
+        birthplace_caption = QLabel(
+            "Converts verbose imported birthplace metadata to concise Gazetteer-friendly "
+            "city/region/country labels (removes street addresses, ZIP/postal codes, counties, and landmarks)."
+        )
+        birthplace_caption.setWordWrap(True)
+        birthplace_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
+        layout.addWidget(birthplace_caption)
         layout.addStretch(1)
 
         if isinstance(parent, QWidget):
