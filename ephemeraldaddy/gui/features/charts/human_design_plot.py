@@ -77,7 +77,7 @@ BODYGRAPH_VERTICAL_OFFSET = -0.07
 BODYGRAPH_CONTENT_SCALE = 0.74 #scales the bodygraph chart
 BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
 ACTIVATION_AXES_BOUNDS = (0.70, 0.02, 0.28, 0.96)
-CUSTOM_INTERSECTION_CHANNEL_KEYS = frozenset({(10, 34), (10, 57), (20, 57), (34, 57)})
+CUSTOM_INTERSECTION_CHANNEL_KEYS = frozenset({(10, 20), (10, 34), (10, 57), (20, 57), (34, 57)})
 
 
 def _offset_center_y(y_value: float) -> float:
@@ -283,7 +283,7 @@ def draw_human_design_chart(
             spleen_y = _offset_center_y(spleen_y)
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
-            end_x = throat_x
+            end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             end_y = throat_y - CENTER_HALF_HEIGHT - CHANNEL_CENTER_MARGIN
             elbow_x = min(start_x, end_x) - 0.065
             elbow_y = g_y
@@ -344,8 +344,8 @@ def draw_human_design_chart(
             spleen_y = _offset_center_y(spleen_y)
             throat_start_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             throat_start_y = throat_y
-            spleen_end_x = spleen_x + CENTER_HALF_WIDTH + CHANNEL_CENTER_MARGIN
-            spleen_end_y = spleen_y
+            spleen_end_x = spleen_x
+            spleen_end_y = spleen_y + CENTER_HALF_HEIGHT + CHANNEL_CENTER_MARGIN
             mid_x = (throat_start_x + spleen_end_x) / 2
             mid_y = (throat_start_y + spleen_end_y) / 2
             throat_gate = 16
@@ -356,6 +356,41 @@ def draw_human_design_chart(
                 throat_start_x + ((mid_x - throat_start_x) * 0.6),
                 throat_start_y + ((mid_y - throat_start_y) * 0.6),
                 f"{throat_gate}",
+                color="#ffffff",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            ax.text(
+                mid_x + ((spleen_end_x - mid_x) * 0.4),
+                mid_y + ((spleen_end_y - mid_y) * 0.4),
+                f"{spleen_gate}",
+                color="#ffffff",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            continue
+
+        if channel_key == (27, 50):
+            sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
+            spleen_x, spleen_y = CENTER_POSITIONS["Spleen"]
+            sacral_y = _offset_center_y(sacral_y)
+            spleen_y = _offset_center_y(spleen_y)
+            sacral_start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            sacral_start_y = sacral_y - CENTER_HALF_HEIGHT - CHANNEL_CENTER_MARGIN
+            spleen_end_x = spleen_x + CENTER_HALF_WIDTH + CHANNEL_CENTER_MARGIN
+            spleen_end_y = spleen_y - (CENTER_HALF_HEIGHT * 0.3)
+            mid_x = (sacral_start_x + spleen_end_x) / 2
+            mid_y = (sacral_start_y + spleen_end_y) / 2
+            sacral_gate = 27
+            spleen_gate = 50
+            _draw_gate_segment(sacral_start_x, sacral_start_y, mid_x, mid_y, sacral_gate)
+            _draw_gate_segment(mid_x, mid_y, spleen_end_x, spleen_end_y, spleen_gate)
+            ax.text(
+                sacral_start_x + ((mid_x - sacral_start_x) * 0.6),
+                sacral_start_y + ((mid_y - sacral_start_y) * 0.6),
+                f"{sacral_gate}",
                 color="#ffffff",
                 fontsize=6,
                 ha="center",
