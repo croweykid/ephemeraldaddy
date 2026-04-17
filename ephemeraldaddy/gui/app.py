@@ -15267,6 +15267,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid)
+                from_whence_text = ((getattr(chart, "from_whence", "") if chart is not None else "") or "").strip()
                 from_whence_label = f"({from_whence_text})" if from_whence_text else ""
                 alias_text = (alias or "").strip()
                 if used_fallback:

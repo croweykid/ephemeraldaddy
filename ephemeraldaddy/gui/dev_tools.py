@@ -408,7 +408,7 @@ class MetadataMigrationPanel(QDialog):
         layout.addWidget(alias_button)
 
         alias_caption = QLabel(
-            "takes the 'alias' property's value for each selected chart and moves it to each "
+            "Takes the 'alias' property's value for each selected chart and moves it to each "
             "respective chart's 'from_whence' property"
         )
         alias_caption.setWordWrap(True)
