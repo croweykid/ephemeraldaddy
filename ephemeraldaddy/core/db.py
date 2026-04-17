@@ -1101,7 +1101,10 @@ def _resolve_unknown_sign_metadata(
         if retcon_time_used is not None
         else getattr(chart, "retcon_time_used", False)
     )
-    if not resolved_birthtime_unknown or resolved_retcon_time_used:
+    # "Conditional indicators for unknown birth time" are factual reminders and
+    # should remain available whenever birth time is marked unknown, regardless
+    # of whether a rectified/retcon time is also enabled.
+    if not resolved_birthtime_unknown:
         return False, []
 
     original_birthtime_unknown = bool(getattr(chart, "birthtime_unknown", False))
