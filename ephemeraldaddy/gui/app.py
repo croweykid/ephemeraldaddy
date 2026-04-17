@@ -270,8 +270,11 @@ from ephemeraldaddy.gui.dev_tools import (
     build_similarity_calculator_settings_section,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
-    migrate_comment_urls_to_source,
-    move_alias_to_from_whence,
+    ACTION_ALIAS_TO_FROM,
+    ACTION_CLEAN_BIOGRAPHY,
+    ACTION_COMMENTS_TO_SOURCE,
+    MIGRATION_ACTION_LABELS,
+    run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
@@ -17556,8 +17559,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if panel is None:
             panel = MetadataMigrationPanel(
                 parent=self,
-                on_alias_to_from_clicked=self._run_alias_to_from_migration,
-                on_comments_to_source_clicked=self._run_comments_to_source_migration,
+                on_alias_to_from_clicked=lambda: self._run_metadata_migration_action(ACTION_ALIAS_TO_FROM),
+                on_comments_to_source_clicked=lambda: self._run_metadata_migration_action(ACTION_COMMENTS_TO_SOURCE),
+                on_clean_biography_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIOGRAPHY),
             )
 
         panel.show()
@@ -17569,82 +17573,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_chart_ids = self._selected_chart_ids()
         return self._exclude_placeholder_chart_ids(selected_chart_ids)
 
-    def _run_alias_to_from_migration(self) -> None:
+    def _run_metadata_migration_action(self, action: str) -> None:
+        action_label = MIGRATION_ACTION_LABELS.get(action, "Metadata Migration")
         chart_ids = self._selected_non_placeholder_chart_ids()
         if not chart_ids:
             QMessageBox.information(
                 self,
-                "Alias -> From",
+                action_label,
                 "Select one or more non-placeholder charts in the middle panel first.",
             )
             return
 
-        changed_ids: set[int] = set()
-        error_count = 0
-        for chart_id in chart_ids:
-            try:
-                chart = load_chart(int(chart_id))
-                if chart is None:
-                    error_count += 1
-                    continue
-                if not move_alias_to_from_whence(chart):
-                    continue
-                update_chart(int(chart_id), chart)
-                changed_ids.add(int(chart_id))
-            except Exception:
-                error_count += 1
-
-        if changed_ids:
-            self._refresh_charts(changed_ids=changed_ids)
-
-        QMessageBox.information(
-            self,
-            "Alias -> From complete",
-            (
-                f"Updated {len(changed_ids)} chart(s).\n"
-                f"Skipped {len(chart_ids) - len(changed_ids) - error_count} chart(s) with empty alias.\n"
-                f"Errors: {error_count}."
-            ),
+        outcome, changed_ids = run_metadata_migration(
+            chart_ids=chart_ids,
+            action=action,
+            load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
+            update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
         )
 
-    def _run_comments_to_source_migration(self) -> None:
-        chart_ids = self._selected_non_placeholder_chart_ids()
-        if not chart_ids:
-            QMessageBox.information(
-                self,
-                "Comments -> Source",
-                "Select one or more non-placeholder charts in the middle panel first.",
-            )
-            return
-
-        changed_ids: set[int] = set()
-        migrated_url_count = 0
-        error_count = 0
-        for chart_id in chart_ids:
-            try:
-                chart = load_chart(int(chart_id))
-                if chart is None:
-                    error_count += 1
-                    continue
-                url_count = migrate_comment_urls_to_source(chart)
-                if url_count <= 0:
-                    continue
-                update_chart(int(chart_id), chart)
-                changed_ids.add(int(chart_id))
-                migrated_url_count += url_count
-            except Exception:
-                error_count += 1
-
         if changed_ids:
             self._refresh_charts(changed_ids=changed_ids)
 
+        changed_value_label = "URL(s) migrated" if action == ACTION_COMMENTS_TO_SOURCE else "field change(s)"
         QMessageBox.information(
             self,
-            "Comments -> Source complete",
+            f"{action_label} complete",
             (
-                f"Updated {len(changed_ids)} chart(s).\n"
-                f"Migrated {migrated_url_count} URL(s).\n"
-                f"Errors: {error_count}."
+                f"Updated {outcome.updated_chart_count} chart(s).\n"
+                f"{changed_value_label}: {outcome.changed_unit_count}.\n"
+                f"Unchanged: {outcome.unchanged_count}.\n"
+                f"Errors: {outcome.error_count}."
             ),
         )
 

@@ -367,6 +367,7 @@ class MetadataMigrationPanel(QDialog):
         parent: QWidget,
         on_alias_to_from_clicked: Callable[[], None],
         on_comments_to_source_clicked: Callable[[], None],
+        on_clean_biography_clicked: Callable[[], None],
     ) -> None:
         super().__init__(None)
         self.setWindowTitle("Metadata Migration Panel")
@@ -410,6 +411,18 @@ class MetadataMigrationPanel(QDialog):
         comments_caption.setWordWrap(True)
         comments_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
         layout.addWidget(comments_caption)
+
+        biography_button = QPushButton("Clean up Biography Text")
+        biography_button.clicked.connect(on_clean_biography_clicked)
+        layout.addWidget(biography_button)
+
+        biography_caption = QLabel(
+            "For selected charts, keep biography text up to (but not including) "
+            "'Astrological Profile of', and remove everything from that phrase onward"
+        )
+        biography_caption.setWordWrap(True)
+        biography_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        layout.addWidget(biography_caption)
         layout.addStretch(1)
 
         if isinstance(parent, QWidget):
