@@ -647,7 +647,9 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
     format_unknown_positions_summary_html,
+    install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
+    refresh_chart_info_panel_toggle_button_styles,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -18835,6 +18837,7 @@ class MainWindow(QMainWindow):
         self.source_edit.textChanged.connect(self._mark_lucygoosey)
         self.source_edit.setMinimumHeight(140)
         self.chart_info_content_stack.addWidget(self.source_edit)
+        install_chart_info_panel_content_observers(self)
         self._chart_info_panel_mode = "comments"
         self._set_chart_info_panel_mode("comments")
 
@@ -22198,52 +22201,7 @@ class MainWindow(QMainWindow):
         self._refresh_chart_info_panel_toggle_buttons()
 
     def _refresh_chart_info_panel_toggle_buttons(self) -> None:
-        active_mode = getattr(self, "_chart_info_panel_mode", "comments")
-        chart_info_active = active_mode == "chart_info"
-        comments_active = active_mode == "comments"
-        rectification_active = active_mode == "rectification"
-        biography_active = active_mode == "biography"
-        source_active = active_mode == "source"
-        active_style = (
-            "QPushButton { font-weight: 700; padding: 2px 8px; }"
-            "QPushButton:checked { background-color: #2f3a5a; border: 1px solid #6f7fb4; }"
-        )
-        inactive_style = "QPushButton { font-weight: 400; padding: 2px 8px; }"
-        if hasattr(self, "chart_info_toggle_button"):
-            self.chart_info_toggle_button.blockSignals(True)
-            self.chart_info_toggle_button.setChecked(chart_info_active)
-            self.chart_info_toggle_button.blockSignals(False)
-            self.chart_info_toggle_button.setStyleSheet(
-                active_style if chart_info_active else inactive_style
-            )
-        if hasattr(self, "chart_comments_toggle_button"):
-            self.chart_comments_toggle_button.blockSignals(True)
-            self.chart_comments_toggle_button.setChecked(comments_active)
-            self.chart_comments_toggle_button.blockSignals(False)
-            self.chart_comments_toggle_button.setStyleSheet(
-                active_style if comments_active else inactive_style
-            )
-        if hasattr(self, "chart_bio_toggle_button"):
-            self.chart_bio_toggle_button.blockSignals(True)
-            self.chart_bio_toggle_button.setChecked(biography_active)
-            self.chart_bio_toggle_button.blockSignals(False)
-            self.chart_bio_toggle_button.setStyleSheet(
-                active_style if biography_active else inactive_style
-            )
-        if hasattr(self, "chart_rectification_toggle_button"):
-            self.chart_rectification_toggle_button.blockSignals(True)
-            self.chart_rectification_toggle_button.setChecked(rectification_active)
-            self.chart_rectification_toggle_button.blockSignals(False)
-            self.chart_rectification_toggle_button.setStyleSheet(
-                active_style if rectification_active else inactive_style
-            )
-        if hasattr(self, "chart_source_toggle_button"):
-            self.chart_source_toggle_button.blockSignals(True)
-            self.chart_source_toggle_button.setChecked(source_active)
-            self.chart_source_toggle_button.blockSignals(False)
-            self.chart_source_toggle_button.setStyleSheet(
-                active_style if source_active else inactive_style
-            )
+        refresh_chart_info_panel_toggle_button_styles(self)
 
     def _export_chart_data_output(self) -> None:
         summary_text = self.output_text.toPlainText().strip()

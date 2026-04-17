@@ -39,6 +39,22 @@ from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
 
+CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
+    "chart_info": "chart_info_toggle_button",
+    "comments": "chart_comments_toggle_button",
+    "rectification": "chart_rectification_toggle_button",
+    "biography": "chart_bio_toggle_button",
+    "source": "chart_source_toggle_button",
+}
+
+CHART_INFO_PANEL_CONTENT_ATTRS: dict[str, str] = {
+    "chart_info": "chart_info_output",
+    "comments": "comments_edit",
+    "rectification": "rectification_edit",
+    "biography": "biography_edit",
+    "source": "source_edit",
+}
+
 def format_unknown_positions_summary_html(
     chart: Chart | None,
     *,
@@ -214,6 +230,56 @@ def install_chart_view_undo_shortcuts(*, owner: QWidget, scope_widget: QWidget) 
     controller = ChartViewUndoController(owner=owner, scope_widget=scope_widget)
     controller.install()
     return controller
+
+
+def install_chart_info_panel_content_observers(owner: QWidget) -> None:
+    """Attach content-change observers that keep Chart View panel tab styling in sync."""
+    connected_signals: set[int] = set()
+    for content_attr in CHART_INFO_PANEL_CONTENT_ATTRS.values():
+        content_widget = getattr(owner, content_attr, None)
+        if not isinstance(content_widget, (QTextEdit, QPlainTextEdit)):
+            continue
+        signal_id = id(content_widget)
+        if signal_id in connected_signals:
+            continue
+        content_widget.textChanged.connect(owner._refresh_chart_info_panel_toggle_buttons)
+        connected_signals.add(signal_id)
+
+
+def refresh_chart_info_panel_toggle_button_styles(owner: QWidget) -> None:
+    """Style Chart View panel tab buttons by content presence and active tab state."""
+    active_mode = getattr(owner, "_chart_info_panel_mode", "comments")
+    has_content_by_mode: dict[str, bool] = {}
+    for mode, content_attr in CHART_INFO_PANEL_CONTENT_ATTRS.items():
+        content_widget = getattr(owner, content_attr, None)
+        if isinstance(content_widget, (QTextEdit, QPlainTextEdit)):
+            has_content_by_mode[mode] = bool(content_widget.toPlainText().strip())
+        else:
+            has_content_by_mode[mode] = False
+
+    for mode, button_attr in CHART_INFO_PANEL_BUTTON_ATTRS.items():
+        button = getattr(owner, button_attr, None)
+        if not isinstance(button, QPushButton):
+            continue
+
+        mode_is_active = mode == active_mode
+        mode_has_content = has_content_by_mode.get(mode, False)
+        background_rule = "background-color: #2f6a3f;" if mode_has_content else ""
+        border_rule = (
+            "border: 1px solid #8fd3a1; border-radius: 4px;"
+            if mode_is_active
+            else "border: 1px solid transparent; border-radius: 4px;"
+        )
+        font_weight = "700" if mode_is_active else "400"
+        style = (
+            "QPushButton { "
+            f"font-weight: {font_weight}; padding: 2px 8px; {background_rule} {border_rule}"
+            "}"
+        )
+        button.blockSignals(True)
+        button.setChecked(mode_is_active)
+        button.blockSignals(False)
+        button.setStyleSheet(style)
 
 
 def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:
