@@ -6,7 +6,7 @@ from typing import Callable
 from typing import Any
 
 
-HTTP_URL_PATTERN = re.compile(r"http://\S+", re.IGNORECASE)
+HTTP_URL_PATTERN = re.compile(r"Astrotheme profile: https://\S+", re.IGNORECASE)
 BIOGRAPHY_CUTOFF_MARKER = "Astrological Profile of"
 
 ACTION_ALIAS_TO_FROM = "alias_to_from"
