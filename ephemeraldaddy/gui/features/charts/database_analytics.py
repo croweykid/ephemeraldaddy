@@ -2397,7 +2397,7 @@ class DatabaseAnalyticsChartsMixin:
         bazi_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "🪷BaZi",
+            "🐉BaZi",
             section_key="bazi",
             expanded=self._is_database_metrics_section_expanded("bazi"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -2408,7 +2408,7 @@ class DatabaseAnalyticsChartsMixin:
         self._database_metrics_section_expanded["bazi"] = self._is_database_metrics_section_expanded("bazi")
         self._create_analysis_chart_header(
             bazi_section_layout,
-            "🪷BaZi",
+            "🐉BaZi",
             "bazi",
             "bazi",
             dropdown_options=[

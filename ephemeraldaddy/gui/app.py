@@ -3153,7 +3153,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         human_design_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "🪐Human Design",
+            "🪷Human Design",
             section_key="human_design",
             expanded=self._is_database_metrics_section_expanded("human_design"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -3164,7 +3164,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_expanded["human_design"] = self._is_database_metrics_section_expanded("human_design")
         self._create_analysis_chart_header(
             human_design_section_layout,
-            "🪐Human Design",
+            "🪷Human Design",
             "human_design",
             "human_design",
             dropdown_options=[
@@ -25917,7 +25917,7 @@ class MainWindow(QMainWindow):
         header_label = QLabel(
             "\n".join(
                 [
-                    "🪐Human Design",
+                    "🪷Human Design",
                     f"Name:       {self._latest_chart.name}",
                     f"🐣date: {date_label}",
                     f"🐣time: {time_label}",
