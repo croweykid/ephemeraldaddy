@@ -273,7 +273,9 @@ from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
     ACTION_CLEAN_BIOGRAPHY,
     ACTION_COMMENTS_TO_SOURCE,
+    ACTION_GET_BIO,
     MIGRATION_ACTION_LABELS,
+    fetch_astrotheme_biography_by_name,
     run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
@@ -10877,26 +10879,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         logger.info("Astrotheme import completed (id=%s chart_id=%s).", debug_id, chart_id)
 
-    def _fetch_astrotheme_biography(self, chart_name: str) -> tuple[str, str]:
-        normalized_name = str(chart_name or "").strip()
-        if not normalized_name:
-            raise ValueError("Chart has no name to search.")
-        profile_url = search_astrotheme_profile_url(normalized_name)
-        if not profile_url:
-            raise ValueError("No matching Astrotheme profile was found.")
-        profile_data = parse_astrotheme_profile(profile_url)
-        biography_text = str(profile_data.get("biography", "") or "").strip()
-        if not biography_text:
-            raise ValueError("Astrotheme profile did not include biography text.")
-        return biography_text, str(profile_data.get("profile_url", profile_url) or profile_url)
-
     def _on_get_bio_for_open_chart(self) -> None:
+        if self.current_chart_id is not None:
+            self._run_metadata_migration_action(ACTION_GET_BIO)
+            return
         chart_name = self.name_edit.text().strip()
         if not chart_name:
             QMessageBox.information(self, "Get Bio", "Please enter or load a chart name first.")
             return
         try:
-            biography_text, _profile_url = self._fetch_astrotheme_biography(chart_name)
+            biography_text = fetch_astrotheme_biography_by_name(chart_name)
         except Exception as exc:
             QMessageBox.warning(self, "Get Bio", f"Could not import biography:\n{exc}")
             return
@@ -17589,7 +17581,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 on_alias_to_from_clicked=lambda: self._run_metadata_migration_action(ACTION_ALIAS_TO_FROM),
                 on_comments_to_source_clicked=lambda: self._run_metadata_migration_action(ACTION_COMMENTS_TO_SOURCE),
                 on_clean_biography_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIOGRAPHY),
-                on_get_bio_clicked=self._run_get_bio_for_selected_charts,
+                on_get_bio_clicked=lambda: self._run_metadata_migration_action(ACTION_GET_BIO),
             )
 
         panel.show()
@@ -17602,6 +17594,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._exclude_placeholder_chart_ids(selected_chart_ids)
 
     def _resolve_metadata_target_chart_ids(self) -> list[int]:
+        manage_dialog = self._manage_charts_dialog
+        database_view_active = bool(
+            manage_dialog is not None
+            and manage_dialog.isVisible()
+            and manage_dialog.isActiveWindow()
+        )
+        if database_view_active:
+            return self._selected_non_placeholder_chart_ids()
         if self.current_chart_id is not None:
             return [int(self.current_chart_id)]
         return self._selected_non_placeholder_chart_ids()
@@ -17622,10 +17622,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             action=action,
             load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
             update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+            lookup_biography_by_name=fetch_astrotheme_biography_by_name if action == ACTION_GET_BIO else None,
+            random_delay_seconds_range=(1, 6) if action == ACTION_GET_BIO and len(chart_ids) > 1 else None,
         )
 
         if changed_ids:
             self._refresh_charts(changed_ids=changed_ids)
+            if (
+                action == ACTION_GET_BIO
+                and self.current_chart_id is not None
+                and int(self.current_chart_id) in changed_ids
+            ):
+                refreshed_chart = load_chart(int(self.current_chart_id))
+                biography_text = str(getattr(refreshed_chart, "biography", "") or "")
+                self.biography_edit.setPlainText(biography_text)
+                if self._latest_chart is not None:
+                    self._latest_chart.biography = biography_text
 
         changed_value_label = "URL(s) migrated" if action == ACTION_COMMENTS_TO_SOURCE else "field change(s)"
         QMessageBox.information(
@@ -17636,53 +17648,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"{changed_value_label}: {outcome.changed_unit_count}.\n"
                 f"Unchanged: {outcome.unchanged_count}.\n"
                 f"Errors: {outcome.error_count}."
-            ),
-        )
-
-    def _run_get_bio_for_selected_charts(self) -> None:
-        chart_ids = self._resolve_metadata_target_chart_ids()
-        if not chart_ids:
-            QMessageBox.information(self, "Get Bio", "Please selected a chart first")
-            return
-
-        updated_count = 0
-        unchanged_count = 0
-        error_count = 0
-        changed_ids: set[int] = set()
-        for index, chart_id in enumerate(chart_ids):
-            try:
-                chart = load_chart(int(chart_id))
-                if chart is None:
-                    error_count += 1
-                    continue
-                biography_value = str(getattr(chart, "biography", "") or "").strip()
-                if biography_value:
-                    unchanged_count += 1
-                    continue
-                chart_name = str(getattr(chart, "name", "") or "").strip()
-                biography_text, _profile_url = self._fetch_astrotheme_biography(chart_name)
-                chart.biography = biography_text
-                update_chart(int(chart_id), chart)
-                changed_ids.add(int(chart_id))
-                updated_count += 1
-                if int(chart_id) == int(self.current_chart_id or -1):
-                    self.biography_edit.setPlainText(biography_text)
-                    if self._latest_chart is not None:
-                        self._latest_chart.biography = biography_text
-            except Exception:
-                error_count += 1
-            if index < len(chart_ids) - 1:
-                QThread.sleep(random.randint(1, 6))
-
-        if changed_ids:
-            self._refresh_charts(changed_ids=changed_ids)
-        QMessageBox.information(
-            self,
-            "Get Bio complete",
-            (
-                f"Updated {updated_count} chart(s).\n"
-                f"Unchanged: {unchanged_count}.\n"
-                f"Errors: {error_count}."
             ),
         )
 

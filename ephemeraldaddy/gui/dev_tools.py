@@ -397,8 +397,8 @@ class MetadataMigrationPanel(QDialog):
         layout.setSpacing(10)
 
         intro = QLabel(
-            "Runs metadata cleanup scripts against the charts currently selected in "
-            "Database View's middle panel."
+            "Runs metadata cleanup scripts against currently selected charts "
+            "(Chart View: open chart, Database View: middle-panel selection)."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)

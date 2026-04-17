@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import re
+import random
+import time
 from dataclasses import dataclass
 from typing import Callable
 from typing import Any
 
+from ephemeraldaddy.gui.astrotheme_search import (
+    parse_astrotheme_profile,
+    search_astrotheme_profile_url,
+)
 
 HTTP_URL_PATTERN = re.compile(r"Astrotheme profile: https://\S+", re.IGNORECASE)
 BIOGRAPHY_CUTOFF_MARKER = "Astrological Profile of"
@@ -12,11 +18,13 @@ BIOGRAPHY_CUTOFF_MARKER = "Astrological Profile of"
 ACTION_ALIAS_TO_FROM = "alias_to_from"
 ACTION_COMMENTS_TO_SOURCE = "comments_to_source"
 ACTION_CLEAN_BIOGRAPHY = "clean_biography"
+ACTION_GET_BIO = "get_bio"
 
 MIGRATION_ACTION_LABELS: dict[str, str] = {
     ACTION_ALIAS_TO_FROM: "Alias -> From",
     ACTION_COMMENTS_TO_SOURCE: "Comments -> Source",
     ACTION_CLEAN_BIOGRAPHY: "Clean up Biography Text",
+    ACTION_GET_BIO: "Get Bio",
 }
 
 
@@ -80,12 +88,45 @@ def cleanup_biography_text(chart: Any) -> bool:
     return True
 
 
+def fetch_astrotheme_biography_by_name(chart_name: str) -> str:
+    normalized_name = str(chart_name or "").strip()
+    if not normalized_name:
+        raise ValueError("Chart has no name to search.")
+    profile_url = search_astrotheme_profile_url(normalized_name)
+    if not profile_url:
+        raise ValueError("No matching Astrotheme profile was found.")
+    profile_data = parse_astrotheme_profile(profile_url)
+    biography_text = str(profile_data.get("biography", "") or "").strip()
+    if not biography_text:
+        raise ValueError("Astrotheme profile did not include biography text.")
+    return biography_text
+
+
+def import_biography_from_lookup(
+    chart: Any,
+    *,
+    lookup_biography_by_name: Callable[[str], str],
+) -> bool:
+    biography_value = str(getattr(chart, "biography", "") or getattr(chart, "bio", "") or "").strip()
+    if biography_value:
+        return False
+    chart_name = str(getattr(chart, "name", "") or "").strip()
+    biography_text = lookup_biography_by_name(chart_name)
+    if hasattr(chart, "biography"):
+        chart.biography = biography_text
+    if hasattr(chart, "bio"):
+        chart.bio = biography_text
+    return True
+
+
 def run_metadata_migration(
     *,
     chart_ids: list[int],
     action: str,
     load_chart_by_id: Callable[[int], Any],
     update_chart_by_id: Callable[[int, Any], None],
+    lookup_biography_by_name: Callable[[str], str] | None = None,
+    random_delay_seconds_range: tuple[int, int] | None = None,
 ) -> tuple[MetadataMigrationOutcome, set[int]]:
     changed_chart_ids: set[int] = set()
     changed_unit_count = 0
@@ -110,6 +151,15 @@ def run_metadata_migration(
                 if not cleanup_biography_text(chart):
                     continue
                 changed_unit_count += 1
+            elif action == ACTION_GET_BIO:
+                if lookup_biography_by_name is None:
+                    raise ValueError("lookup_biography_by_name callback is required for get_bio action")
+                if not import_biography_from_lookup(
+                    chart,
+                    lookup_biography_by_name=lookup_biography_by_name,
+                ):
+                    continue
+                changed_unit_count += 1
             else:
                 raise ValueError(f"Unsupported metadata migration action: {action}")
 
@@ -117,6 +167,15 @@ def run_metadata_migration(
             changed_chart_ids.add(int(chart_id))
         except Exception:
             error_count += 1
+        if (
+            action == ACTION_GET_BIO
+            and random_delay_seconds_range is not None
+            and chart_id != chart_ids[-1]
+        ):
+            minimum_delay, maximum_delay = random_delay_seconds_range
+            lower_bound = max(0, min(int(minimum_delay), int(maximum_delay)))
+            upper_bound = max(lower_bound, int(maximum_delay))
+            time.sleep(random.randint(lower_bound, upper_bound))
 
     outcome = MetadataMigrationOutcome(
         selected_count=len(chart_ids),
