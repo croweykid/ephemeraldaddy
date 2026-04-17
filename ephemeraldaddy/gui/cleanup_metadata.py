@@ -232,8 +232,8 @@ def import_biography_from_lookup(
     *,
     lookup_biography_by_name: Callable[[str], str],
 ) -> bool:
-    biography_value = str(getattr(chart, "biography", "") or getattr(chart, "bio", "") or "").strip()
-    if biography_value:
+    existing_biography = str(getattr(chart, "biography", "") or getattr(chart, "bio", "") or "").strip()
+    if biography_text.strip() == existing_biography:
         return False
     chart_name = str(getattr(chart, "name", "") or "").strip()
     biography_text = lookup_biography_by_name(chart_name)

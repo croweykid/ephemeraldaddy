@@ -377,7 +377,7 @@ class MetadataMigrationPanel(QDialog):
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.Tool, True)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        self.resize(300, 560)
+        self.resize(300, 600)
         self.setMinimumSize(200, 400)
         self.setStyleSheet(
             "QDialog { background-color: #26004d; }"
@@ -398,8 +398,7 @@ class MetadataMigrationPanel(QDialog):
         layout.setSpacing(10)
 
         intro = QLabel(
-            "Runs metadata cleanup scripts against currently selected charts "
-            "(Chart View: open chart, Database View: middle-panel selection)."
+            "Runs metadata cleanup scripts against currently selected charts. Yw."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)

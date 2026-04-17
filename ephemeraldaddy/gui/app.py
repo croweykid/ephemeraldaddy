@@ -17469,7 +17469,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         configure_collapsible_header_toggle(
             toggle,
             title=title,
-            expanded=True,
+            expanded=True, #just changing this doesn't fix the issue
             style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
         )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -17605,16 +17605,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return self._exclude_placeholder_chart_ids(selected_chart_ids)
 
     def _resolve_metadata_target_chart_ids(self) -> list[int]:
-        manage_dialog = self._manage_charts_dialog
-        database_view_active = bool(
-            manage_dialog is not None
-            and manage_dialog.isVisible()
-            and manage_dialog.isActiveWindow()
-        )
+        database_view_active = bool(self.isVisible() and self.isActiveWindow())
         if database_view_active:
             return self._selected_non_placeholder_chart_ids()
         if self.current_chart_id is not None:
             return [int(self.current_chart_id)]
+        parent_window = self.parent()
+        if isinstance(parent_window, MainWindow) and parent_window.current_chart_id is not None:
+            return [int(parent_window.current_chart_id)]
         return self._selected_non_placeholder_chart_ids()
 
     def _run_metadata_migration_action(self, action: str) -> None:
@@ -18512,9 +18510,9 @@ class MainWindow(QMainWindow):
         )
         
         self.inputs_layout = QVBoxLayout()
-        #self.inputs_layout.setContentsMargins(0, 0, 0, 0)
+        self.inputs_layout.setContentsMargins(0, 0, 0, 0)
         form = QFormLayout()
-        #form.setContentsMargins(0, 0, 0, 0)
+        form.setContentsMargins(0, 0, 0, 0)
         self.inputs_layout.addLayout(form)
 
         # Natal Chart View : Middle Panel: INPUT FIELDS!
