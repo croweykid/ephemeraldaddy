@@ -375,7 +375,21 @@ class MetadataMigrationPanel(QDialog):
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.Tool, True)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        self.resize(560, 260)
+        self.resize(200, 400)
+        self.setMinimumSize(200, 400)
+        self.setStyleSheet(
+            "QDialog { background-color: #614051; }"
+            "QLabel { color: #f5f5f5; }"
+            "QPushButton {"
+            "background-color: #1e6bd6;"
+            "color: #ffffff;"
+            "border: 1px solid #0f4eab;"
+            "border-radius: 4px;"
+            "padding: 6px 8px;"
+            "}"
+            "QPushButton:hover { background-color: #2a7be8; }"
+            "QPushButton:pressed { background-color: #1559ba; }"
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -397,7 +411,7 @@ class MetadataMigrationPanel(QDialog):
             "respective chart's 'from_whence' property"
         )
         alias_caption.setWordWrap(True)
-        alias_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        alias_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
         layout.addWidget(alias_caption)
 
         comments_button = QPushButton("Comments -> Source")
@@ -409,7 +423,7 @@ class MetadataMigrationPanel(QDialog):
             "them to the Source property"
         )
         comments_caption.setWordWrap(True)
-        comments_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        comments_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
         layout.addWidget(comments_caption)
 
         biography_button = QPushButton("Clean up Biography Text")
@@ -421,7 +435,7 @@ class MetadataMigrationPanel(QDialog):
             "'Astrological Profile of', and remove everything from that phrase onward"
         )
         biography_caption.setWordWrap(True)
-        biography_caption.setStyleSheet("color: #b7b7b7; font-style: italic;")
+        biography_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
         layout.addWidget(biography_caption)
         layout.addStretch(1)
 
