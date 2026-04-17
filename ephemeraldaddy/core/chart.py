@@ -255,7 +255,7 @@ def compute_unknown_sign_positions(chart: Chart) -> list[str]:
     """
     if (
         not bool(getattr(chart, "birthtime_unknown", False))
-        or bool(getattr(chart, "retcon_time_used", False))
+        #or bool(getattr(chart, "retcon_time_used", False)) #nope! this should show even if retcon time is being used! we need to know what we don't know! retcon time is mere speculation, not fact.
         or getattr(getattr(chart, "dt", None), "tzinfo", None) is None
     ):
         return []

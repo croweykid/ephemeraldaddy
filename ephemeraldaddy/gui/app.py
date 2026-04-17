@@ -18598,6 +18598,16 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(self.retcon_time_edit, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
+        # Conditional indicators for unknown birth time: these remain factual and
+        # should be shown whenever birth time is marked unknown, even if rectified time is enabled.
+        self.unknown_birthtime_indicators_label = QLabel("Conditional indicators for unknown birth time ⓘ")
+        self.unknown_birthtime_indicators_label.setStyleSheet("color: #9b9b9b;")
+        self.unknown_birthtime_indicators_label.setToolTip(
+            "When birth time is unknown, this chart can show conditional indicators "
+            "for bodies that may change sign across the day. Rectified time models a "
+            "hypothesis and does not replace the factual unknown-time condition."
+        )
+        form.addRow("", self.unknown_birthtime_indicators_label) #conditional indicators for unknown birth time
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
