@@ -18411,6 +18411,41 @@ class MainWindow(QMainWindow):
         middle_layout.setSpacing(0)
         middle_panel.setLayout(middle_layout)
         middle_panel.setMinimumWidth(360)
+
+        middle_header_controls = QWidget()
+        middle_header_controls_layout = QHBoxLayout()
+        middle_header_controls_layout.setContentsMargins(0, 0, 0, 0)
+        middle_header_controls_layout.setSpacing(4)
+        middle_header_controls.setLayout(middle_header_controls_layout)
+        middle_header_controls_layout.addStretch(1)
+        self.chart_view_middle_header_action_buttons: dict[str, QPushButton] = {}
+        for button_key, button_label, button_tooltip, click_handler in (
+            # BaZi Chart
+            ("bazi", "🐉", "BaZi Chart", self.on_open_bazi_window),
+            # Human Design Chart
+            ("human_design", "🪷", "Human Design Chart", self.on_get_human_design_info),
+            # Personal Transit
+            ("personal_transit", "🌎", "Personal Transit", self.on_get_current_transits),
+            # Synastry Chart
+            ("synastry", "🧬", "Synastry Chart", self.on_get_synastry_chart),
+            # See Similar Charts
+            ("similar_charts", "👯", "See Similar Charts", self._show_similar_charts_popout),
+            # Create Gemstone Chart
+            ("gemstone_chart", "💎", "Create Gemstone Chart", self.on_create_gemstone_chartwheel),
+            # Chart Predictor Quiz
+            ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz", self.on_open_chart_predictor_quiz),
+        ):
+            action_button = QPushButton(button_label)
+            action_button.setObjectName(f"chart_view_middle_{button_key}_button")
+            action_button.setToolTip(button_tooltip)
+            action_button.setAutoDefault(False)
+            action_button.setDefault(False)
+            action_button.setFixedSize(28, 24)
+            action_button.clicked.connect(click_handler)
+            self.chart_view_middle_header_action_buttons[button_key] = action_button
+            middle_header_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
+        middle_header_controls_layout.addStretch(1)
+        middle_layout.addWidget(middle_header_controls, 0, Qt.AlignTop)
         
         self.inputs_layout = QVBoxLayout()
         #self.inputs_layout.setContentsMargins(0, 0, 0, 0)
