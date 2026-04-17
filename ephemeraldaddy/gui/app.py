@@ -276,6 +276,7 @@ from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_GET_BIO,
     MIGRATION_ACTION_LABELS,
     fetch_astrotheme_biography_by_name,
+    launch_metadata_migration_worker,
     run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
@@ -1720,6 +1721,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings_dialog: QDialog | None = None
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
+        self._metadata_migration_threads: list[QThread] = []
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
         # Toggle to broaden inference source data (personal-only by default).
@@ -17617,15 +17619,53 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if action == ACTION_GET_BIO:
+            def _handle_finished(outcome, changed_ids) -> None:
+                self._apply_metadata_migration_outcome(
+                    action=action,
+                    action_label=action_label,
+                    outcome=outcome,
+                    changed_ids=changed_ids,
+                )
+
+            def _handle_failed(message: str) -> None:
+                QMessageBox.warning(self, action_label, f"Metadata migration failed:\n{message}")
+
+            thread = launch_metadata_migration_worker(
+                chart_ids=chart_ids,
+                action=action,
+                load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
+                update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+                lookup_biography_by_name=fetch_astrotheme_biography_by_name,
+                random_delay_seconds_range=(1, 6) if len(chart_ids) > 1 else None,
+                on_finished=_handle_finished,
+                on_failed=_handle_failed,
+            )
+            self._metadata_migration_threads.append(thread)
+            thread.finished.connect(lambda: self._metadata_migration_threads.remove(thread) if thread in self._metadata_migration_threads else None)
+            return
+
         outcome, changed_ids = run_metadata_migration(
             chart_ids=chart_ids,
             action=action,
             load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
             update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
-            lookup_biography_by_name=fetch_astrotheme_biography_by_name if action == ACTION_GET_BIO else None,
-            random_delay_seconds_range=(1, 6) if action == ACTION_GET_BIO and len(chart_ids) > 1 else None,
+        )
+        self._apply_metadata_migration_outcome(
+            action=action,
+            action_label=action_label,
+            outcome=outcome,
+            changed_ids=changed_ids,
         )
 
+    def _apply_metadata_migration_outcome(
+        self,
+        *,
+        action: str,
+        action_label: str,
+        outcome,
+        changed_ids,
+    ) -> None:
         if changed_ids:
             self._refresh_charts(changed_ids=changed_ids)
             if (

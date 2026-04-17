@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Callable
 from typing import Any
 
+from PySide6.QtCore import QObject, QThread, Signal
+
 from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
@@ -38,6 +40,84 @@ class MetadataMigrationOutcome:
     @property
     def unchanged_count(self) -> int:
         return max(0, self.selected_count - self.updated_chart_count - self.error_count)
+
+
+class MetadataMigrationWorker(QObject):
+    finished = Signal(object, object)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        *,
+        chart_ids: list[int],
+        action: str,
+        load_chart_by_id: Callable[[int], Any],
+        update_chart_by_id: Callable[[int, Any], None],
+        lookup_biography_by_name: Callable[[str], str] | None = None,
+        random_delay_seconds_range: tuple[int, int] | None = None,
+    ) -> None:
+        super().__init__()
+        self._chart_ids = list(chart_ids)
+        self._action = action
+        self._load_chart_by_id = load_chart_by_id
+        self._update_chart_by_id = update_chart_by_id
+        self._lookup_biography_by_name = lookup_biography_by_name
+        self._random_delay_seconds_range = random_delay_seconds_range
+
+    def run(self) -> None:
+        try:
+            outcome, changed_ids = run_metadata_migration(
+                chart_ids=self._chart_ids,
+                action=self._action,
+                load_chart_by_id=self._load_chart_by_id,
+                update_chart_by_id=self._update_chart_by_id,
+                lookup_biography_by_name=self._lookup_biography_by_name,
+                random_delay_seconds_range=self._random_delay_seconds_range,
+            )
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.finished.emit(outcome, changed_ids)
+
+
+def launch_metadata_migration_worker(
+    *,
+    chart_ids: list[int],
+    action: str,
+    load_chart_by_id: Callable[[int], Any],
+    update_chart_by_id: Callable[[int, Any], None],
+    on_finished: Callable[[MetadataMigrationOutcome, set[int]], None],
+    on_failed: Callable[[str], None],
+    lookup_biography_by_name: Callable[[str], str] | None = None,
+    random_delay_seconds_range: tuple[int, int] | None = None,
+) -> QThread:
+    thread = QThread()
+    worker = MetadataMigrationWorker(
+        chart_ids=chart_ids,
+        action=action,
+        load_chart_by_id=load_chart_by_id,
+        update_chart_by_id=update_chart_by_id,
+        lookup_biography_by_name=lookup_biography_by_name,
+        random_delay_seconds_range=random_delay_seconds_range,
+    )
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+
+    def _handle_finished(outcome: object, changed_ids: object) -> None:
+        on_finished(outcome, changed_ids)
+        thread.quit()
+
+    def _handle_failed(message: str) -> None:
+        on_failed(message)
+        thread.quit()
+
+    worker.finished.connect(_handle_finished)
+    worker.failed.connect(_handle_failed)
+    worker.finished.connect(worker.deleteLater)
+    worker.failed.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
+    thread.start()
+    return thread
 
 
 def move_alias_to_from_whence(chart: Any) -> bool:
