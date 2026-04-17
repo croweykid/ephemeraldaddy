@@ -447,7 +447,7 @@ class ChartPredictorQuizDialog(QDialog):
         content_layout.setSpacing(10)
 
         intro = QLabel(
-            "If you answer all the questions, this quiz will attempt to approximate your dominant bodies, signs, and houses.\n *This got whipped up hastily in one afternoon, and hasn't gotten as much attention as some other features of the app, but I intend to actually make it more legit and effective as a tool at some point. Let me know your thoughts."
+            "If you answer all the questions, this quiz will attempt to approximate your dominant bodies, signs, and houses."
         )
         intro.setWordWrap(True)
         intro.setStyleSheet(f"font-style: italic; color: {CHART_DATA_HIGHLIGHT_COLOR};")
@@ -582,7 +582,7 @@ class ChartPredictorQuizDialog(QDialog):
             *sign_lines,
             _header("Likely Dominant Houses:"),
             *house_lines,
-            "<div style='margin-top:10px;'>Note: The quiz is very much under development, but I think it does OK at the moment.</div>",
+            "<div style='margin-top:10px;'>Note: The quiz is very much under development, but I think it does OK at the moment. It got whipped up hastily in one afternoon, and hasn't gotten as much attention as some other features of the app, but I intend to actually make it more legit and effective as a tool at some point. Let me know your thoughts.</div>",
         ]
 
         self._results.setHtml("".join(html))
