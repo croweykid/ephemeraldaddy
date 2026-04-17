@@ -1724,6 +1724,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
+        self._settings_section_expanded_session: dict[str, bool] = {}
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
         self._metadata_migration_threads: list[QThread] = []
@@ -17460,6 +17461,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent_layout: QVBoxLayout,
         title: str,
     ) -> QVBoxLayout:
+        expanded = self._settings_section_expanded_session.get(title, False)
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
@@ -17469,7 +17471,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         configure_collapsible_header_toggle(
             toggle,
             title=title,
-            expanded=True,
+            expanded=expanded,
             style_sheet=SETTINGS_COLLAPSIBLE_TOGGLE_STYLE,
         )
         toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -17486,8 +17488,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _toggle_section(checked: bool) -> None:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             section_content.setVisible(checked)
+            self._settings_section_expanded_session[title] = checked
 
         toggle.toggled.connect(_toggle_section)
+        _toggle_section(expanded)
 
         container.setMaximumWidth(640)
         container.setMinimumWidth(320)
