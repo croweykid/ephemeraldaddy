@@ -23,7 +23,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             "chart": QColor("#c7a56a"),
             "name": QColor(MIDDLE_PANEL_ACCENT_COLOR),
             "alias": QColor("#7a7a7a"),
-            "alias": QColor("#7a7a7a"),
+            "from_whence": QColor("#7a7a7a"),
             "date": QColor("#8d6e63"),
             "time": QColor("#6b705c"),
             "retcon_time": QColor("#4a7bd1"),
@@ -64,11 +64,9 @@ class ChartRowDelegate(QStyledItemDelegate):
         chart_text = f"#{position_text}"
         name_text = str(segment_data.get("name", "Unnamed"))
         alias_text = str(segment_data.get("alias", "")).strip()
-        # if alias_text:
-        #     alias_text = f"({alias_text})"
         from_whence_text = str(segment_data.get("from_whence", "")).strip()
-        if not from_whence_text:
-            from_whence_text = str(segment_data.get("alias", "")).strip()
+        if alias_text:
+            alias_text = f"({alias_text})"
         if from_whence_text:
             from_whence_text = f"({from_whence_text})"
         date_text = str(segment_data.get("date", "??.??.????"))
@@ -85,6 +83,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             ("chart", chart_text),
             ("name", name_text),
             ("alias", alias_text),
+            ("from_whence", from_whence_text),
             ("date", date_text),
             ("time", time_text),
             ("retcon_time", retcon_time_text),
