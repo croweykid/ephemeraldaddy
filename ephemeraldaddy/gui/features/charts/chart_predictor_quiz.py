@@ -492,9 +492,11 @@ class ChartPredictorQuizDialog(QDialog):
         results_header_row = QHBoxLayout()
         results_header_row.setContentsMargins(0, 0, 0, 0)
         results_header_row.setSpacing(4)
-        results_label = QLabel("Results Output")
-        results_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
-        results_header_row.addWidget(results_label, 0, Qt.AlignLeft | Qt.AlignTop)
+        
+        self._results_label = QLabel("Results Output")
+        self._results_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        self._results_label.setVisible(False)
+        results_header_row.addWidget(self._results_label, 0, Qt.AlignLeft | Qt.AlignTop)
         results_header_row.addStretch(1)
 
         self._export_button = QToolButton(results_panel)
@@ -504,6 +506,7 @@ class ChartPredictorQuizDialog(QDialog):
             tooltip="export quiz results to MD/TXT",
         )
         self._export_button.clicked.connect(self._export_quiz_results)
+        self._export_button.setVisible(False)
         self._export_button.setEnabled(False)
         results_header_row.addWidget(self._export_button, 0, Qt.AlignRight | Qt.AlignTop)
         results_layout.addLayout(results_header_row, 0)
@@ -631,6 +634,8 @@ class ChartPredictorQuizDialog(QDialog):
 
         self._results.setHtml("".join(html))
         self._results.setVisible(True)
+        self._results_label.setVisible(True)
+        self._export_button.setVisible(True)
         self._export_button.setEnabled(True)
 
         body_plain = ", ".join(f"{body} {score:.1f}" for body, score in top_bodies)
