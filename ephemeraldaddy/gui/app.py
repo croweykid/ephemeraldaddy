@@ -15273,6 +15273,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 from_whence_text = ((getattr(chart, "from_whence", "") if chart is not None else "") or "").strip()
                 from_whence_label = f"({from_whence_text})" if from_whence_text else ""
                 alias_text = (alias or "").strip()
+                alias_label = f"({alias_text})" if alias_text else ""
                 if used_fallback:
                     display_name = f"⚠️ {display_name}"
                 date_label, time_label = format_chart_row_datetime(
@@ -15310,7 +15311,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 row_prefix = "💀  " if bool(is_deceased) else ""
                 label = (
                     f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {from_whence_label}  {date_label}  {time_label}"
+                    f"{display_name}  {alias_label}  {from_whence_label}  {date_label}  {time_label}"
                     f"  {retcon_time_label}  {place_with_gender}"
                 )
                 item = QListWidgetItem(label)
