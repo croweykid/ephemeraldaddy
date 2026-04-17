@@ -368,6 +368,7 @@ class MetadataMigrationPanel(QDialog):
         on_alias_to_from_clicked: Callable[[], None],
         on_comments_to_source_clicked: Callable[[], None],
         on_clean_biography_clicked: Callable[[], None],
+        on_get_bio_clicked: Callable[[], None],
     ) -> None:
         super().__init__(None)
         self.setWindowTitle("Metadata Cleanup Panel")
@@ -437,6 +438,18 @@ class MetadataMigrationPanel(QDialog):
         biography_caption.setWordWrap(True)
         biography_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
         layout.addWidget(biography_caption)
+
+        get_bio_button = QPushButton("Get Bio")
+        get_bio_button.clicked.connect(on_get_bio_clicked)
+        layout.addWidget(get_bio_button)
+
+        get_bio_caption = QLabel(
+            "Imports biography from Astrotheme for selected chart(s). "
+            "When multiple charts are selected, requests are delayed 1–6 seconds each."
+        )
+        get_bio_caption.setWordWrap(True)
+        get_bio_caption.setStyleSheet("color: #ddd7df; font-style: italic;")
+        layout.addWidget(get_bio_caption)
         layout.addStretch(1)
 
         if isinstance(parent, QWidget):
