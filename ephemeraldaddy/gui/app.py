@@ -637,6 +637,7 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
     build_chart_view_left_panel,
     build_chart_view_right_panel,
+    format_unknown_positions_summary_html,
     install_chart_view_undo_shortcuts,
 )
 from ephemeraldaddy.gui.visibility import (
@@ -18393,6 +18394,13 @@ class MainWindow(QMainWindow):
         placeholder_row = QHBoxLayout()
         placeholder_row.setContentsMargins(8, 0, 0, 0)
         placeholder_row.addWidget(self.placeholder_chart_checkbox, 0, Qt.AlignLeft)
+        self.unknown_positions_summary_label = QLabel("")
+        self.unknown_positions_summary_label.setTextFormat(Qt.RichText)
+        self.unknown_positions_summary_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.unknown_positions_summary_label.setStyleSheet(
+            f"color: {CHART_THEME_COLORS.get('text', '#f5f5f5')};"
+        )
+        placeholder_row.addWidget(self.unknown_positions_summary_label, 1, Qt.AlignRight)
         placeholder_row.addStretch(1)
         placeholder_row_widget = QWidget()
         placeholder_row_widget.setLayout(placeholder_row)
@@ -23929,6 +23937,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._set_chart_right_panel_container_visible(True)
         self._schedule_chart_render(chart, sections={
             "summary",
@@ -24283,6 +24292,7 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._update_tag_completers()
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
@@ -24699,6 +24709,7 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        self._update_unknown_positions_summary(chart)
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
@@ -24829,7 +24840,30 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
         self._refresh_chart_preview()
+        self._update_unknown_positions_summary(self._latest_chart)
         self._autosave_checkbox_state()
+
+    def _update_unknown_positions_summary(self, chart: Chart | None = None) -> None:
+        label = getattr(self, "unknown_positions_summary_label", None)
+        if label is None:
+            return
+
+        if not isinstance(chart, Chart):
+            label.clear()
+            return
+
+        point_size = label.font().pointSizeF()
+        if point_size <= 0:
+            point_size = 9.0
+        houses_unknown_px = max(8, int(round((point_size * 96.0 / 72.0) - 2.0)))
+        label.setText(
+            format_unknown_positions_summary_html(
+                chart,
+                text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+                separator_color="#9a9a9a",
+                houses_unknown_font_px=houses_unknown_px,
+            )
+        )
 
     def _toggle_chart_panel_content(
         self,
@@ -24940,6 +24974,7 @@ class MainWindow(QMainWindow):
         chart, _place, _location_msg, _tz_override = chart_result
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        self._update_unknown_positions_summary(chart)
         self._schedule_chart_render(chart)
 
     def _handle_lilith_calculation_method_changed(
@@ -25341,6 +25376,7 @@ class MainWindow(QMainWindow):
             self._render_flush_timer.stop()
         self.output_text.clear()
         self.chart_info_output.clear()
+        self._update_unknown_positions_summary(None)
         self._position_info_map = {}
         self._aspect_info_map = {}
         self._species_info_map = {}
