@@ -6,7 +6,7 @@ from typing import Callable
 from typing import Any
 
 
-HTTP_URL_PATTERN = re.compile(r"http://\S+", re.IGNORECASE)
+HTTP_URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
 BIOGRAPHY_CUTOFF_MARKER = "Astrological Profile of"
 
 ACTION_ALIAS_TO_FROM = "alias_to_from"
@@ -35,6 +35,9 @@ class MetadataMigrationOutcome:
 def move_alias_to_from_whence(chart: Any) -> bool:
     alias_value = str(getattr(chart, "alias", "") or "").strip()
     if not alias_value:
+        return False
+    from_whence_value = str(getattr(chart, "from_whence", "") or "").strip()
+    if from_whence_value:
         return False
     chart.from_whence = alias_value
     chart.alias = ""
