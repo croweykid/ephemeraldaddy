@@ -6,17 +6,26 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
+    QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from ephemeraldaddy.core.interpretations import NATAL_WEIGHT
+from ephemeraldaddy.core.interpretations import (
+    HOUSE_COLORS,
+    NATAL_WEIGHT,
+    PLANET_COLORS,
+    PLANET_GLYPHS,
+    SIGN_COLORS,
+    ZODIAC_SIGNS,
+)
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DATABASE_VIEW_PANEL_HEADER_STYLE
 
 
 SIGN_NAMES: tuple[str, ...] = (
@@ -442,21 +451,27 @@ class ChartPredictorQuizDialog(QDialog):
             "using Ephemeral Daddy's natal weighting constants and your answers."
         )
         intro.setWordWrap(True)
+        intro.setStyleSheet(f"font-style: italic; color: {CHART_DATA_HIGHLIGHT_COLOR};")
         content_layout.addWidget(intro)
 
         for index, question in enumerate(QUIZ_QUESTIONS, start=1):
             question_block = self._build_question_block(index, question)
             content_layout.addWidget(question_block)
 
-        self._results = QPlainTextEdit()
+        run_button_row = QHBoxLayout()
+        run_button_row.addStretch(1)
+        run_button = QPushButton("Predict Chart Properties")
+        run_button.clicked.connect(self._run_quiz)
+        run_button_row.addWidget(run_button, 0, Qt.AlignHCenter)
+        run_button_row.addStretch(1)
+        content_layout.addLayout(run_button_row)
+
+        self._results = QTextEdit()
         self._results.setReadOnly(True)
         self._results.setMinimumHeight(220)
-        self._results.setPlaceholderText("Select one answer per question, then click Predict Chart.")
+        self._results.setPlaceholderText("Select one answer per question, then click Predict Chart Properties.")
+        self._results.setVisible(False)
         content_layout.addWidget(self._results)
-
-        run_button = QPushButton("Predict Chart")
-        run_button.clicked.connect(self._run_quiz)
-        content_layout.addWidget(run_button, 0, Qt.AlignRight)
 
         scroll_area.setWidget(scroll_content)
 
@@ -466,8 +481,15 @@ class ChartPredictorQuizDialog(QDialog):
         question_layout.setContentsMargins(0, 0, 0, 0)
         question_layout.setSpacing(4)
 
-        prompt = QLabel(f"{index}. {question.prompt}")
+        prompt_text = question.prompt
+        for prefix in ("[Signs] ", "[Houses] ", "[Blend] "):
+            if prompt_text.startswith(prefix):
+                prompt_text = prompt_text[len(prefix):]
+                break
+
+        prompt = QLabel(f"{index}. {prompt_text}")
         prompt.setWordWrap(True)
+        prompt.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         question_layout.addWidget(prompt)
 
         group = QButtonGroup(container)
@@ -513,27 +535,59 @@ class ChartPredictorQuizDialog(QDialog):
         top_signs = sorted(sign_scores.items(), key=lambda item: item[1], reverse=True)[:5]
         madlib = "Then your archetype " + ", ".join(selection.madlib_fragment for selection in selections[:4]) + "."
 
-        lines = [
-            "CHART PREDICTOR QUIZ RESULT",
-            "",
-            f"Questions answered: {len(selections)}",
-            "",
-            "Dominant bodies (weighted):",
-        ]
-        lines.extend(f"  • {body}: {score:.1f}" for body, score in top_bodies)
-        lines.append("")
-        lines.append("Dominant signs (quiz-derived):")
-        lines.extend(f"  • {sign}: {score:.1f}" for sign, score in top_signs)
-        lines.append("")
-        lines.append("Likely active houses:")
-        lines.extend(f"  • House {house}: {score:.1f}" for house, score in top_houses)
-        lines.append("")
-        lines.append("Narrative mode:")
-        lines.append(f"  • {madlib}")
-        lines.append("")
-        lines.append("Note: The quiz is very much under development, but I think it does OK at the moment.")
+        sign_to_glyph = {name: glyph for name, glyph in zip(SIGN_NAMES, ZODIAC_SIGNS)}
 
-        self._results.setPlainText("\n".join(lines))
+        def _header(text: str) -> str:
+            return (
+                f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};margin-top:10px;'>"
+                f"{text}</div>"
+            )
+
+        def _escape(value: str) -> str:
+            return (
+                value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
+        body_lines = []
+        for body, score in top_bodies:
+            color = PLANET_COLORS.get(body, "#ffffff")
+            glyph = PLANET_GLYPHS.get(body, "")
+            label = f"{glyph} {body}".strip()
+            body_lines.append(f"<div style='color:{color};'>• {_escape(label)}: {score:.1f}</div>")
+
+        sign_lines = []
+        for sign, score in top_signs:
+            color = SIGN_COLORS.get(sign, "#ffffff")
+            glyph = sign_to_glyph.get(sign, "")
+            label = f"{glyph} {sign}".strip()
+            sign_lines.append(f"<div style='color:{color};'>• {_escape(label)}: {score:.1f}</div>")
+
+        house_lines = []
+        for house, score in top_houses:
+            color = HOUSE_COLORS.get(str(house), "#ffffff")
+            house_lines.append(f"<div style='color:{color};'>• House {house}: {score:.1f}</div>")
+
+        html = [
+            f"<div style='font-weight:700;font-size:14.5px;color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
+            "CHART PREDICTOR QUIZ RESULT"
+            "</div>",
+            f"<div style='font-style:italic;color:{CHART_DATA_HIGHLIGHT_COLOR};margin-top:4px;'>"
+            f"{_escape(madlib)}"
+            "</div>",
+            _header("Likely Dominant Bodies:"),
+            *body_lines,
+            _header("Likely Dominant Signs:"),
+            *sign_lines,
+            _header("Likely Dominant Houses:"),
+            *house_lines,
+            "<div style='margin-top:10px;'>Note: The quiz is very much under development, but I think it does OK at the moment.</div>",
+        ]
+
+        self._results.setHtml("".join(html))
+        self._results.setVisible(True)
 
 
 def create_chart_predictor_quiz_dialog(parent: QWidget | None = None) -> ChartPredictorQuizDialog:
