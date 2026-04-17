@@ -265,8 +265,16 @@ from ephemeraldaddy.gui.astrotheme_search import (
 )
 from ephemeraldaddy.gui.dev_tools import (
     ManageMetadataLabelsDialog,
+    MetadataMigrationPanel,
     SizeCheckerPopup,
     build_similarity_calculator_settings_section,
+)
+from ephemeraldaddy.gui.cleanup_metadata import (
+    ACTION_ALIAS_TO_FROM,
+    ACTION_CLEAN_BIOGRAPHY,
+    ACTION_COMMENTS_TO_SOURCE,
+    MIGRATION_ACTION_LABELS,
+    run_metadata_migration,
 )
 from ephemeraldaddy.gui.property_manager import PropertyManagerCoordinator
 from ephemeraldaddy.gui.tooltips import apply_default_text_tooltips
@@ -1709,6 +1717,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._size_checker_popup: SizeCheckerPopup | None = None
+        self._metadata_migration_panel: MetadataMigrationPanel | None = None
         self._dev_user_age_label: QLabel | None = None
         self._dev_age_distribution_canvas: FigureCanvas | None = None
         # Toggle to broaden inference source data (personal-only by default).
@@ -16938,6 +16947,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
 
+        metadata_migration_button = QPushButton("Metadata Migration Panel")
+        metadata_migration_button.clicked.connect(self._toggle_metadata_migration_panel)
+        dev_tools_section.addWidget(metadata_migration_button)
+
         recalculate_all_weights_button = QPushButton("Recalculate All Weights in DB")
         recalculate_all_weights_button.setToolTip(
             "Recompute stored dominant sign/planet weights for all non-placeholder charts."
@@ -17530,6 +17543,68 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         main_window = self.parent()
         if isinstance(main_window, MainWindow):
             main_window._size_checker_popup = popup
+
+    def _toggle_metadata_migration_panel(self) -> None:
+        panel = self._metadata_migration_panel
+        if panel is not None:
+            try:
+                if panel.isVisible():
+                    panel.close()
+                    self._metadata_migration_panel = None
+                    return
+            except RuntimeError:
+                panel = None
+                self._metadata_migration_panel = None
+
+        if panel is None:
+            panel = MetadataMigrationPanel(
+                parent=self,
+                on_alias_to_from_clicked=lambda: self._run_metadata_migration_action(ACTION_ALIAS_TO_FROM),
+                on_comments_to_source_clicked=lambda: self._run_metadata_migration_action(ACTION_COMMENTS_TO_SOURCE),
+                on_clean_biography_clicked=lambda: self._run_metadata_migration_action(ACTION_CLEAN_BIOGRAPHY),
+            )
+
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
+        self._metadata_migration_panel = panel
+
+    def _selected_non_placeholder_chart_ids(self) -> list[int]:
+        selected_chart_ids = self._selected_chart_ids()
+        return self._exclude_placeholder_chart_ids(selected_chart_ids)
+
+    def _run_metadata_migration_action(self, action: str) -> None:
+        action_label = MIGRATION_ACTION_LABELS.get(action, "Metadata Migration")
+        chart_ids = self._selected_non_placeholder_chart_ids()
+        if not chart_ids:
+            QMessageBox.information(
+                self,
+                action_label,
+                "Select one or more non-placeholder charts in the middle panel first.",
+            )
+            return
+
+        outcome, changed_ids = run_metadata_migration(
+            chart_ids=chart_ids,
+            action=action,
+            load_chart_by_id=lambda chart_id: load_chart(int(chart_id)),
+            update_chart_by_id=lambda chart_id, chart: update_chart(int(chart_id), chart),
+        )
+
+        if changed_ids:
+            self._refresh_charts(changed_ids=changed_ids)
+
+        changed_value_label = "URL(s) migrated" if action == ACTION_COMMENTS_TO_SOURCE else "field change(s)"
+        QMessageBox.information(
+            self,
+            f"{action_label} complete",
+            (
+                f"Updated {outcome.updated_chart_count} chart(s).\n"
+                f"{changed_value_label}: {outcome.changed_unit_count}.\n"
+                f"Unchanged: {outcome.unchanged_count}.\n"
+                f"Errors: {outcome.error_count}."
+            ),
+        )
 
     def _launch_manage_sentiments_dialog(self) -> None:
         self._launch_property_manager_dialog(
