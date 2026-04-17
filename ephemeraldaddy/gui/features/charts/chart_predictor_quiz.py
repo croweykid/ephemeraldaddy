@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
 from dataclasses import dataclass
+from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +28,12 @@ from ephemeraldaddy.core.interpretations import (
     SIGN_COLORS,
     ZODIAC_SIGNS,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DATABASE_VIEW_PANEL_HEADER_STYLE
+from ephemeraldaddy.gui.features.charts.exporters import get_text_export_path
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    DATABASE_VIEW_PANEL_HEADER_STYLE,
+    configure_share_export_icon_button,
+)
 
 
 SIGN_NAMES: tuple[str, ...] = (
@@ -42,6 +50,14 @@ SIGN_NAMES: tuple[str, ...] = (
     "Aquarius",
     "Pisces",
 )
+
+
+def _get_share_icon_path() -> str | None:
+    module_root = Path(__file__).resolve().parents[3]
+    icon_path = module_root / "graphics" / "share_icon2.png"
+    if icon_path.exists():
+        return str(icon_path)
+    return None
 
 
 @dataclass(frozen=True)
@@ -431,6 +447,9 @@ class ChartPredictorQuizDialog(QDialog):
 
         self._button_groups: list[QButtonGroup] = []
         self._question_buttons: list[list[QRadioButton]] = []
+        self._settings = QSettings()
+        self._latest_results_markdown = ""
+        self._latest_results_plain = ""
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(8, 8, 8, 8)
@@ -465,12 +484,39 @@ class ChartPredictorQuizDialog(QDialog):
         run_button_row.addStretch(1)
         content_layout.addLayout(run_button_row)
 
-        self._results = QTextEdit()
+        results_panel = QWidget(self)
+        results_layout = QVBoxLayout(results_panel)
+        results_layout.setContentsMargins(0, 0, 0, 0)
+        results_layout.setSpacing(4)
+
+        results_header_row = QHBoxLayout()
+        results_header_row.setContentsMargins(0, 0, 0, 0)
+        results_header_row.setSpacing(4)
+        self._results_label = QLabel("Results Output")
+        self._results_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        self._results_label.setVisible(False)
+        results_header_row.addWidget(self._results_label, 0, Qt.AlignLeft | Qt.AlignTop)
+        results_header_row.addStretch(1)
+
+        self._export_button = QToolButton(results_panel)
+        configure_share_export_icon_button(
+            self._export_button,
+            share_icon_path=_get_share_icon_path(),
+            tooltip="export quiz results to MD/TXT",
+        )
+        self._export_button.clicked.connect(self._export_quiz_results)
+        self._export_button.setVisible(False)
+        self._export_button.setEnabled(False)
+        results_header_row.addWidget(self._export_button, 0, Qt.AlignRight | Qt.AlignTop)
+        results_layout.addLayout(results_header_row, 0)
+
+        self._results = QTextEdit(results_panel)
         self._results.setReadOnly(True)
         self._results.setMinimumHeight(220)
         self._results.setPlaceholderText("Select one answer per question, then click Predict Chart Properties.")
         self._results.setVisible(False)
-        content_layout.addWidget(self._results)
+        results_layout.addWidget(self._results)
+        content_layout.addWidget(results_panel)
 
         scroll_area.setWidget(scroll_content)
 
@@ -587,6 +633,63 @@ class ChartPredictorQuizDialog(QDialog):
 
         self._results.setHtml("".join(html))
         self._results.setVisible(True)
+        self._results_label.setVisible(True)
+        self._export_button.setVisible(True)
+        self._export_button.setEnabled(True)
+
+        body_plain = ", ".join(f"{body} {score:.1f}" for body, score in top_bodies)
+        sign_plain = ", ".join(f"{sign} {score:.1f}" for sign, score in top_signs)
+        house_plain = ", ".join(f"House {house} {score:.1f}" for house, score in top_houses)
+
+        self._latest_results_plain = (
+            "Chart Predictor Quiz — Results\n\n"
+            f"Dominant Bodies: {body_plain}\n"
+            f"Dominant Signs: {sign_plain}\n"
+            f"Dominant Houses: {house_plain}\n"
+            f"Madlib Reading: {madlib}\n\n"
+            "Note: The quiz is very much under development, but I think it does OK at the moment.\n"
+        )
+        self._latest_results_markdown = (
+            "# Chart Predictor Quiz — Results\n\n"
+            f"## Dominant Bodies\n\n{body_plain}\n\n"
+            f"## Dominant Signs\n\n{sign_plain}\n\n"
+            f"## Dominant Houses\n\n{house_plain}\n\n"
+            f"## Madlib Reading\n\n{madlib}\n\n"
+            "Note: The quiz is very much under development, but I think it does OK at the moment.\n"
+        )
+
+    def _export_quiz_results(self) -> None:
+        if not self._latest_results_plain.strip():
+            QMessageBox.information(
+                self,
+                "No results to export",
+                "Run the quiz first to generate results before exporting.",
+            )
+            return
+
+        file_path = get_text_export_path(
+            self,
+            self._settings,
+            dialog_title="Export quiz results as TXT/MD",
+            default_stem=f"chart-predictor-quiz-results-{date.today().isoformat()}",
+            preference_key="chart_predictor_quiz_export_format",
+            default_extension=".txt",
+        )
+        if not file_path:
+            return
+
+        export_text = (
+            self._latest_results_markdown
+            if file_path.lower().endswith(".md")
+            else self._latest_results_plain
+        )
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                handle.write(export_text.rstrip() + "\n")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", f"Could not save export:\n{exc}")
+            return
+        QMessageBox.information(self, "Export complete", f"Saved quiz results export to:\n{file_path}")
 
 
 def create_chart_predictor_quiz_dialog(parent: QWidget | None = None) -> ChartPredictorQuizDialog:
