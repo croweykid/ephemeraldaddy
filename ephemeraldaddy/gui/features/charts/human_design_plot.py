@@ -273,13 +273,19 @@ def draw_human_design_chart(
             # Drawn as part of the 20-34 custom bridge geometry (with gate 10).
             continue
 
+        if channel_key in {(10, 57), (20, 57), (34, 57)}:
+            # Drawn through the shared 20-34-10-57 custom intersection geometry.
+            continue
+
         if channel_key == (20, 34):
             sacral_x, sacral_y = CENTER_POSITIONS["Sacral"]
             throat_x, throat_y = CENTER_POSITIONS["Throat"]
             g_x, g_y = CENTER_POSITIONS["G"]
+            spleen_x, spleen_y = CENTER_POSITIONS["Spleen"]
             sacral_y = _offset_center_y(sacral_y)
             throat_y = _offset_center_y(throat_y)
             g_y = _offset_center_y(g_y)
+            spleen_y = _offset_center_y(spleen_y)
             start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
@@ -287,13 +293,17 @@ def draw_human_design_chart(
             elbow_x = min(start_x, end_x) - 0.065
             elbow_y = g_y
             g_bridge_end_x = g_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            spleen_start_x = spleen_x + CENTER_HALF_WIDTH + CHANNEL_CENTER_MARGIN
+            spleen_start_y = spleen_y
 
             lower_gate = 34
             upper_gate = 20
             bridge_gate = 10
+            spleen_gate = 57
             _draw_gate_segment(start_x, start_y, elbow_x, elbow_y, lower_gate)
             _draw_gate_segment(elbow_x, elbow_y, end_x, end_y, upper_gate)
             _draw_gate_segment(elbow_x, elbow_y, g_bridge_end_x, elbow_y, bridge_gate)
+            _draw_gate_segment(spleen_start_x, spleen_start_y, elbow_x, elbow_y, spleen_gate)
             ax.text(
                 start_x + ((elbow_x - start_x) * 0.55),
                 start_y + ((elbow_y - start_y) * 0.55),
@@ -316,6 +326,15 @@ def draw_human_design_chart(
                 elbow_x + ((g_bridge_end_x - elbow_x) * 0.6),
                 elbow_y,
                 f"{bridge_gate}",
+                color="#ffffff",
+                fontsize=6,
+                ha="center",
+                va="center",
+            )
+            ax.text(
+                spleen_start_x + ((elbow_x - spleen_start_x) * 0.45),
+                spleen_start_y + ((elbow_y - spleen_start_y) * 0.45),
+                f"{spleen_gate}",
                 color="#ffffff",
                 fontsize=6,
                 ha="center",
