@@ -18504,7 +18504,7 @@ class MainWindow(QMainWindow):
         # Chart Entry/Edit Window: MIDDLE panel (inputs + output).
         middle_panel = QWidget()
         middle_layout = QVBoxLayout()
-        #middle_layout.setContentsMargins(0, 0, 0, 0)
+        middle_layout.setContentsMargins(0, 0, 0, 0)
         middle_layout.setSpacing(0)
         middle_panel.setLayout(middle_layout)
         middle_panel.setMinimumWidth(360)
