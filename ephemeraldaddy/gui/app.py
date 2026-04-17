@@ -16947,7 +16947,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         size_checker_button.clicked.connect(self._toggle_size_checker)
         dev_tools_section.addWidget(size_checker_button)
 
-        metadata_migration_button = QPushButton("Metadata Migration Panel")
+        metadata_migration_button = QPushButton("Metadata Cleanup Panel")
         metadata_migration_button.clicked.connect(self._toggle_metadata_migration_panel)
         dev_tools_section.addWidget(metadata_migration_button)
 

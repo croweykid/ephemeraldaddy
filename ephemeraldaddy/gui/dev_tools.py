@@ -370,7 +370,7 @@ class MetadataMigrationPanel(QDialog):
         on_clean_biography_clicked: Callable[[], None],
     ) -> None:
         super().__init__(None)
-        self.setWindowTitle("Metadata Migration Panel")
+        self.setWindowTitle("Metadata Cleanup Panel")
         self.setModal(False)
         self.setWindowFlag(Qt.Window, True)
         self.setWindowFlag(Qt.Tool, True)
