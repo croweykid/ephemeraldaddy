@@ -24571,6 +24571,7 @@ class MainWindow(QMainWindow):
         self.output_text.clear()
         self._clear_chart_displays()
         self._sync_chart_right_panel_placeholder_state(None)
+        self._set_chart_right_panel("subjective_notes")
         self._set_chart_right_panel_container_visible(True)
 
     def _on_delete_this_chart(self) -> None:
@@ -24900,10 +24901,12 @@ class MainWindow(QMainWindow):
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
         if getattr(chart, "is_placeholder", False):
+            self._set_chart_right_panel("subjective_notes")
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays()
             self._hide_chart_loading_overlay()
         else:
+            self._set_chart_right_panel("analytics")
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart)
         return True

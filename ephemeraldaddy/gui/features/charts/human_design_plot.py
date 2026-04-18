@@ -134,6 +134,20 @@ def _offset_segment_in_display_pixels(
     p2_data = inv_transform.transform((p2_display[0] + display_offset_x, p2_display[1] + display_offset_y))
     return p1_data[0], p1_data[1], p2_data[0], p2_data[1]
 
+def _shift_point_in_display_pixels(
+    ax: object,
+    x_value: float,
+    y_value: float,
+    *,
+    dx_pixels: float = 0.0,
+    dy_pixels: float = 0.0,
+) -> tuple[float, float]:
+    if abs(dx_pixels) < 1e-9 and abs(dy_pixels) < 1e-9:
+        return x_value, y_value
+    transform = ax.transData
+    point_display = transform.transform((x_value, y_value))
+    shifted_data = transform.inverted().transform((point_display[0] + dx_pixels, point_display[1] + dy_pixels))
+    return shifted_data[0], shifted_data[1]
 
 PAIR_CHANNEL_ORDER_LEFT_TO_RIGHT: dict[tuple[str, str], list[tuple[int, int]]] = {
     ("Ajna", "Head"): [(64, 47), (61, 24), (63, 4)],
@@ -293,9 +307,12 @@ def draw_human_design_chart(
             start_y = sacral_y
             end_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             end_y = throat_y - CENTER_HALF_HEIGHT - CHANNEL_CENTER_MARGIN
+            start_x, start_y = _shift_point_in_display_pixels(ax, start_x, start_y, dx_pixels=3.0)
+            end_x, end_y = _shift_point_in_display_pixels(ax, end_x, end_y, dx_pixels=3.0)
             elbow_x = min(start_x, end_x) - 0.065
             elbow_y = g_y
             g_bridge_end_x = g_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
+            g_bridge_end_x, _g_bridge_end_y = _shift_point_in_display_pixels(ax, g_bridge_end_x, elbow_y, dx_pixels=3.0)
             spleen_start_x = spleen_x + CENTER_HALF_WIDTH + CHANNEL_CENTER_MARGIN
             spleen_start_y = spleen_y + (CENTER_HALF_HEIGHT * 0.6)
 
@@ -352,6 +369,12 @@ def draw_human_design_chart(
             spleen_y = _offset_center_y(spleen_y)
             throat_start_x = throat_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             throat_start_y = throat_y
+            throat_start_x, throat_start_y = _shift_point_in_display_pixels(
+                ax,
+                throat_start_x,
+                throat_start_y,
+                dx_pixels=3.0,
+            )
             spleen_end_x = spleen_x
             spleen_end_y = spleen_y + CENTER_HALF_HEIGHT + CHANNEL_CENTER_MARGIN
             mid_x = (throat_start_x + spleen_end_x) / 2
@@ -387,6 +410,13 @@ def draw_human_design_chart(
             spleen_y = _offset_center_y(spleen_y)
             sacral_start_x = sacral_x - CENTER_HALF_WIDTH - CHANNEL_CENTER_MARGIN
             sacral_start_y = sacral_y - CENTER_HALF_HEIGHT - CHANNEL_CENTER_MARGIN
+            sacral_start_x, sacral_start_y = _shift_point_in_display_pixels(
+                ax,
+                sacral_start_x,
+                sacral_start_y,
+                dx_pixels=3.0,
+                dy_pixels=10.0,
+            )
             spleen_end_x = spleen_x + CENTER_HALF_WIDTH + CHANNEL_CENTER_MARGIN
             spleen_end_y = spleen_y - (CENTER_HALF_HEIGHT * 0.3)
             mid_x = (sacral_start_x + spleen_end_x) / 2

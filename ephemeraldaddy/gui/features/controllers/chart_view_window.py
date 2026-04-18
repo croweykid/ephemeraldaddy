@@ -137,7 +137,7 @@ def format_unknown_positions_summary_html(
         sign_end_glyph = sign_to_glyph.get(sign_end, sign_end)
         segments.append(
             f"{_span(body_glyph, body_color)}"
-            f"{_span('?:', safe_separator_color)}"
+            f"{_span(':', safe_separator_color)}"
             f"{_span(sign_start_glyph, sign_start_color)}"
             f"{_span('/', safe_separator_color)}"
             f"{_span(sign_end_glyph, sign_end_color)}"
