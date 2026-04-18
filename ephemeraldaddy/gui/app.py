@@ -593,6 +593,9 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     CENTER_POSITIONS,
     draw_human_design_chart,
 )
+from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
+    build_human_design_top_splitter,
+)
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     collect_anagram_words,
@@ -26179,138 +26182,18 @@ class MainWindow(QMainWindow):
         chart_container_layout.addWidget(canvas, 0, 0)
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
 
-        hd_analytics_container = QWidget()
-        hd_analytics_container.setObjectName("hd_popout_analytics_container")
-        hd_analytics_container_layout = QHBoxLayout(hd_analytics_container)
-        hd_analytics_container_layout.setContentsMargins(0, 0, 0, 0)
-        hd_analytics_container_layout.setSpacing(0)
-
-        hd_analytics_toggle = QToolButton()
-        hd_analytics_toggle.setCheckable(True)
-        hd_analytics_toggle.setChecked(True)
-        hd_analytics_toggle.setAutoRaise(True)
-        hd_analytics_toggle.setArrowType(Qt.LeftArrow)
-        hd_analytics_toggle.setCursor(Qt.PointingHandCursor)
-        hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
-        hd_analytics_toggle.setStyleSheet(
-            "QToolButton { border: none; color: #B8860B; padding: 4px 2px; background: transparent; }"
-            "QToolButton:hover { color: #FFD700; }"
+        top_splitter = build_human_design_top_splitter(
+            chart_container=chart_container,
+            hd_result=hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+            add_collapsible_section=lambda panel, layout, title: self._add_left_panel_collapsible_section(
+                panel,
+                layout,
+                title,
+                expanded=True,
+            ),
         )
-        hd_analytics_toggle.setFixedWidth(16)
-        hd_analytics_container_layout.addWidget(hd_analytics_toggle, 0, Qt.AlignTop)
-
-        hd_analytics_content = QWidget()
-        hd_analytics_content_layout = QVBoxLayout(hd_analytics_content)
-        hd_analytics_content_layout.setContentsMargins(6, 0, 0, 0)
-        hd_analytics_content_layout.setSpacing(6)
-
-        hd_analytics_scroll = QScrollArea()
-        hd_analytics_scroll.setWidgetResizable(True)
-        hd_analytics_scroll.setFrameShape(QScrollArea.NoFrame)
-        hd_analytics_scroll.setMinimumWidth(240)
-        hd_analytics_scroll.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
-            "QScrollBar:vertical { background: transparent; width: 8px; margin: 0; }"
-            "QScrollBar::handle:vertical { background: #666666; min-height: 20px; border-radius: 4px; }"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        )
-
-        hd_analytics_panel = QWidget()
-        hd_analytics_layout = QVBoxLayout(hd_analytics_panel)
-        hd_analytics_layout.setContentsMargins(0, 0, 0, 0)
-        hd_analytics_layout.setSpacing(6)
-
-        hd_section_layout = self._add_left_panel_collapsible_section(
-            hd_analytics_panel,
-            hd_analytics_layout,
-            "HD Analytics",
-            expanded=True,
-        )
-
-        hd_line_summary = QLabel("Line Distribution (Personality + Design activations)")
-        hd_line_summary.setWordWrap(True)
-        hd_line_summary.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-        hd_section_layout.addWidget(hd_line_summary)
-
-        line_counts = {line: 0 for line in range(1, 7)}
-        for activation in (*hd_result.personality_activations, *hd_result.design_activations):
-            if 1 <= int(activation.line) <= 6:
-                line_counts[int(activation.line)] += 1
-
-        hd_line_chart_figure = Figure(figsize=(3.2, 2.6))
-        hd_line_chart_canvas = FigureCanvas(hd_line_chart_figure)
-        hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
-        hd_line_chart_figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
-        hd_line_chart_ax.set_facecolor(CHART_THEME_COLORS["background"])
-
-        line_numbers = list(range(1, 7))
-        line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
-        bars = hd_line_chart_ax.bar(
-            line_numbers,
-            line_values,
-            color="#5dc26a",
-            edgecolor="#E0E0E0",
-            linewidth=0.5,
-            alpha=0.95,
-        )
-        hd_line_chart_ax.set_xticks(line_numbers)
-        hd_line_chart_ax.set_xticklabels([f"L{line_number}" for line_number in line_numbers], color=CHART_THEME_COLORS["text"])
-        hd_line_chart_ax.tick_params(axis="y", colors=CHART_THEME_COLORS["text"], labelsize=8)
-        hd_line_chart_ax.tick_params(axis="x", labelsize=8)
-        hd_line_chart_ax.set_ylim(0, max(1, max(line_values) + 1))
-        hd_line_chart_ax.grid(axis="y", color=CHART_THEME_COLORS["line"], linewidth=0.6, alpha=0.4)
-        for spine in hd_line_chart_ax.spines.values():
-            spine.set_visible(False)
-        for bar, value in zip(bars, line_values):
-            hd_line_chart_ax.text(
-                bar.get_x() + (bar.get_width() / 2),
-                value + 0.05,
-                str(value),
-                ha="center",
-                va="bottom",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=8,
-                fontweight="bold",
-            )
-        hd_line_chart_figure.subplots_adjust(left=0.14, bottom=0.18, right=0.98, top=0.98)
-        hd_line_chart_canvas.setMinimumHeight(210)
-        hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        hd_section_layout.addWidget(hd_line_chart_canvas)
-
-        hd_analytics_layout.addStretch(1)
-        hd_analytics_scroll.setWidget(hd_analytics_panel)
-        hd_analytics_content_layout.addWidget(hd_analytics_scroll)
-        hd_analytics_container_layout.addWidget(hd_analytics_content, 1)
-
-        top_splitter = QSplitter(Qt.Horizontal)
-        top_splitter.setChildrenCollapsible(False)
-        top_splitter.addWidget(chart_container)
-        top_splitter.addWidget(hd_analytics_container)
-        top_splitter.setStretchFactor(0, 5)
-        top_splitter.setStretchFactor(1, 2)
-
-        hd_analytics_expanded_width = 300
-
-        def _set_hd_analytics_expanded(expanded: bool) -> None:
-            nonlocal hd_analytics_expanded_width
-            if expanded:
-                hd_analytics_content.show()
-                hd_analytics_toggle.setArrowType(Qt.LeftArrow)
-                hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
-                hd_analytics_container.setMinimumWidth(220)
-                hd_analytics_container.setMaximumWidth(16777215)
-                top_splitter.setSizes([max(560, top_splitter.width() - hd_analytics_expanded_width), hd_analytics_expanded_width])
-                return
-            hd_analytics_expanded_width = max(240, hd_analytics_container.width())
-            hd_analytics_content.hide()
-            hd_analytics_toggle.setArrowType(Qt.RightArrow)
-            hd_analytics_toggle.setToolTip("Expand HD analytics panel")
-            hd_analytics_container.setMinimumWidth(hd_analytics_toggle.width() + 2)
-            hd_analytics_container.setMaximumWidth(hd_analytics_toggle.width() + 2)
-            top_splitter.setSizes([max(560, top_splitter.width() - (hd_analytics_toggle.width() + 2)), hd_analytics_toggle.width() + 2])
-
-        hd_analytics_toggle.toggled.connect(_set_hd_analytics_expanded)
-        _set_hd_analytics_expanded(True)
 
         right_splitter = QSplitter(Qt.Vertical)
         right_splitter.setChildrenCollapsible(False)
