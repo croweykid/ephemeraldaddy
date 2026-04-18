@@ -1982,7 +1982,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         database_view_button_handlers: dict[str, Callable[[], None]] = {
             "bazi": self._on_menu_open_bazi_window,
             "personal_transit": self._on_menu_get_personal_transit,
-            "synastry": self._on_generate_composite_chart,
+            "synastry": self._on_menu_get_synastry_chart,
             "human_design": self._on_menu_get_human_design_info,
             "similar_charts": self._on_menu_see_similar_charts,
             "gemstone_chart": self._on_menu_create_gemstone_chart,
@@ -13140,6 +13140,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
+    def _on_menu_get_synastry_chart(self) -> None:
+        self._run_main_window_chart_action("get_synastry_chart")
+
     def _on_menu_open_chart_predictor_quiz(self) -> None:
         dialog = create_chart_predictor_quiz_dialog(self)
         self._register_popout_shortcuts(dialog)
@@ -21983,6 +21986,22 @@ class MainWindow(QMainWindow):
         elif action_name == "get_human_design_info":
             self._latest_chart = chart
             self.on_get_human_design_info()
+        elif action_name == "get_synastry_chart":
+            if chart_id is None:
+                QMessageBox.information(
+                    self,
+                    "No chart selected",
+                    "Please select a saved chart first.",
+                )
+                return
+            manage_dialog = self._get_or_create_manage_charts_dialog()
+            chart_ids = manage_dialog._prompt_composite_chart_selection(
+                default_first_chart_id=chart_id,
+                focus_second_input=True,
+            )
+            if chart_ids is None:
+                return
+            manage_dialog._generate_composite_chart_for_ids(*chart_ids)
         elif action_name == "see_similar_charts":
             self._show_similar_charts_popout(requester=requester)
         else:
