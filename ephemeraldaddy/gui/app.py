@@ -1979,6 +1979,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ),
             object_name_prefix="database_view_middle",
         )
+        database_view_button_handlers: dict[str, Callable[[], None]] = {
+            "bazi": self._on_menu_open_bazi_window,
+            "personal_transit": self._on_menu_get_personal_transit,
+            "synastry": self._on_generate_composite_chart,
+            "human_design": self._on_menu_get_human_design_info,
+            "similar_charts": self._on_menu_see_similar_charts,
+            "gemstone_chart": self._on_menu_create_gemstone_chart,
+            "chart_predictor_quiz": self._on_menu_open_chart_predictor_quiz,
+        }
+        for button_key, action_button in self.database_view_middle_header_action_buttons.items():
+            try:
+                action_button.clicked.disconnect()
+            except TypeError:
+                pass
+            handler = database_view_button_handlers.get(button_key)
+            if handler is not None:
+                action_button.clicked.connect(handler)
         list_action_buttons_layout.addStretch(1)
         list_layout.addWidget(list_action_buttons_row, 0, Qt.AlignTop)
         list_header_row = QWidget()
