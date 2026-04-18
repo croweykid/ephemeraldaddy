@@ -593,6 +593,9 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     CENTER_POSITIONS,
     draw_human_design_chart,
 )
+from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
+    build_human_design_top_splitter,
+)
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     collect_anagram_words,
@@ -26178,7 +26181,17 @@ class MainWindow(QMainWindow):
         chart_container_layout.setSpacing(0)
         chart_container_layout.addWidget(canvas, 0, 0)
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
-        right_layout.addWidget(chart_container, 7)
+
+        top_splitter = build_human_design_top_splitter(
+            chart_container=chart_container,
+            hd_result=hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+        )
+
+        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.setChildrenCollapsible(False)
+        right_splitter.addWidget(top_splitter)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -26192,7 +26205,10 @@ class MainWindow(QMainWindow):
         summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         summary_output.viewport().installEventFilter(self)
-        right_layout.addWidget(summary_output, 3)
+        right_splitter.addWidget(summary_output)
+        right_splitter.setStretchFactor(0, 7)
+        right_splitter.setStretchFactor(1, 3)
+        right_layout.addWidget(right_splitter, 1)
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
