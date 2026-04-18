@@ -648,6 +648,7 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
 )
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
+    build_chart_header_action_buttons,
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
@@ -1962,7 +1963,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(6)
         self.list_panel.setLayout(list_layout)
+        list_action_buttons_row = QWidget()
+        list_action_buttons_layout = QHBoxLayout()
+        list_action_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        list_action_buttons_layout.setSpacing(4)
+        list_action_buttons_row.setLayout(list_action_buttons_layout)
+        list_action_buttons_layout.addStretch(1)
+        self.database_view_middle_header_action_buttons = build_chart_header_action_buttons(
+            self,
+            layout=list_action_buttons_layout,
+            include_human_design=bool(
+                self._visibility.get("chart_data.human_design_alpha_prototype")
+            ),
+            object_name_prefix="database_view_middle",
+        )
+        list_action_buttons_layout.addStretch(1)
+        list_layout.addWidget(list_action_buttons_row, 0, Qt.AlignTop)
         list_header_row = QWidget()
         list_header_layout = QHBoxLayout()
         list_header_layout.setContentsMargins(0, 0, 0, 0)
