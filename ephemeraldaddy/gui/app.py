@@ -26187,12 +26187,6 @@ class MainWindow(QMainWindow):
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
-            add_collapsible_section=lambda panel, layout, title: self._add_left_panel_collapsible_section(
-                panel,
-                layout,
-                title,
-                expanded=True,
-            ),
         )
 
         right_splitter = QSplitter(Qt.Vertical)

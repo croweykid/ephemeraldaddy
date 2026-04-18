@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Callable
-
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import Qt
@@ -19,7 +17,15 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
+from ephemeraldaddy.gui.style import (
+    COLLAPSIBLE_SECTION_CONTENT_STYLE,
+    DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+    configure_collapsible_header_toggle,
+)
 
+def _theme_color(theme: dict[str, str], key: str, fallback: str) -> str:
+    value = str(theme.get(key, "") or "").strip()
+    return value or fallback
 
 def build_human_design_top_splitter(
     *,
@@ -27,7 +33,6 @@ def build_human_design_top_splitter(
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
-    add_collapsible_section: Callable[[QWidget, QVBoxLayout, str], QVBoxLayout],
 ) -> QSplitter:
     """Build the Human Design popout top row with chart + collapsible analytics panel."""
 
@@ -67,12 +72,55 @@ def build_human_design_top_splitter(
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
     )
 
+    def _add_local_collapsible_section(
+        panel: QWidget,
+        layout: QVBoxLayout,
+        title: str,
+        *,
+        expanded: bool = True,
+    ) -> QVBoxLayout:
+        section = QWidget(panel)
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(0)
+
+        toggle = QToolButton(section)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=title,
+            expanded=expanded,
+            style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
+        )
+
+        content = QWidget(section)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(8, 6, 8, 8)
+        content_layout.setSpacing(6)
+        content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        content.setVisible(expanded)
+
+        def _toggle_content(checked: bool) -> None:
+            content.setVisible(checked)
+            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+
+        toggle.toggled.connect(_toggle_content)
+
+        section_layout.addWidget(toggle)
+        section_layout.addWidget(content)
+        layout.addWidget(section)
+        return content_layout
+
     hd_analytics_panel = QWidget()
     hd_analytics_layout = QVBoxLayout(hd_analytics_panel)
     hd_analytics_layout.setContentsMargins(0, 0, 0, 0)
     hd_analytics_layout.setSpacing(6)
 
-    hd_section_layout = add_collapsible_section(hd_analytics_panel, hd_analytics_layout, "HD Analytics")
+    hd_section_layout = _add_local_collapsible_section(
+        hd_analytics_panel,
+        hd_analytics_layout,
+        "HD Analytics",
+        expanded=True,
+    )
 
     hd_line_summary = QLabel("Line Distribution (Personality + Design activations)")
     hd_line_summary.setWordWrap(True)
@@ -87,8 +135,9 @@ def build_human_design_top_splitter(
     hd_line_chart_figure = Figure(figsize=(3.2, 2.6))
     hd_line_chart_canvas = FigureCanvas(hd_line_chart_figure)
     hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
-    hd_line_chart_figure.patch.set_facecolor(chart_theme_colors["background"])
-    hd_line_chart_ax.set_facecolor(chart_theme_colors["background"])
+    
+    hd_line_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
+    hd_line_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
 
     line_numbers = list(range(1, 7))
     line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
@@ -103,12 +152,12 @@ def build_human_design_top_splitter(
     hd_line_chart_ax.set_xticks(line_numbers)
     hd_line_chart_ax.set_xticklabels(
         [f"L{line_number}" for line_number in line_numbers],
-        color=chart_theme_colors["text"],
+        color=_theme_color(chart_theme_colors, "text", "#f0f0f0"),
     )
-    hd_line_chart_ax.tick_params(axis="y", colors=chart_theme_colors["text"], labelsize=8)
+    hd_line_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
     hd_line_chart_ax.tick_params(axis="x", labelsize=8)
     hd_line_chart_ax.set_ylim(0, max(1, max(line_values) + 1))
-    hd_line_chart_ax.grid(axis="y", color=chart_theme_colors["line"], linewidth=0.6, alpha=0.4)
+    hd_line_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_line_chart_ax.spines.values():
         spine.set_visible(False)
     for bar, value in zip(bars, line_values):
@@ -118,7 +167,7 @@ def build_human_design_top_splitter(
             str(value),
             ha="center",
             va="bottom",
-            color=chart_theme_colors["text"],
+            color=_theme_color(chart_theme_colors, "text", "#f0f0f0"),
             fontsize=8,
             fontweight="bold",
         )
