@@ -455,6 +455,37 @@ def build_chart_view_middle_header_controls(
         callable(get_visibility)
         and get_visibility("chart_data.human_design_alpha_prototype")
     )
+    owner.chart_view_middle_header_action_buttons = build_chart_header_action_buttons(
+        owner,
+        layout=middle_header_controls_layout,
+        include_human_design=is_human_design_enabled,
+        object_name_prefix="chart_view_middle",
+    )
+    middle_header_controls_layout.addStretch(1)
+    middle_layout.addWidget(middle_header_controls, 0, Qt.AlignTop)
+
+
+def build_chart_header_action_buttons(
+    owner: QWidget,
+    *,
+    layout: QHBoxLayout,
+    include_human_design: bool,
+    object_name_prefix: str,
+) -> dict[str, QPushButton]:
+    """Build the shared top-row chart action buttons into ``layout``."""
+    _require_owner_attrs(
+        owner,
+        (
+            "on_open_bazi_window",
+            "on_get_human_design_info",
+            "on_get_current_transits",
+            "on_get_synastry_chart",
+            "_show_similar_charts_popout",
+            "on_create_gemstone_chartwheel",
+            "on_open_chart_predictor_quiz",
+        ),
+        context="build_chart_header_action_buttons",
+    )
 
     button_specs: list[tuple[str, str, str, Callable[..., object]]] = [
         # BaZi Chart
@@ -464,7 +495,7 @@ def build_chart_view_middle_header_controls(
         # Synastry Chart
         ("synastry", "🧬", "Synastry Chart", owner.on_get_synastry_chart),
         ]
-    if is_human_design_enabled:
+    if include_human_design:
         button_specs.insert(
             1,
             # Human Design Chart
@@ -481,10 +512,10 @@ def build_chart_view_middle_header_controls(
         ]
     )
 
-    owner.chart_view_middle_header_action_buttons = {}
+    action_buttons: dict[str, QPushButton] = {}
     for button_key, button_label, button_tooltip, click_handler in button_specs:
         action_button = QPushButton(button_label)
-        action_button.setObjectName(f"chart_view_middle_{button_key}_button")
+        action_button.setObjectName(f"{object_name_prefix}_{button_key}_button")
         action_button.setToolTip(button_tooltip)
         action_button.setAutoDefault(False)
         action_button.setDefault(False)
@@ -492,10 +523,9 @@ def build_chart_view_middle_header_controls(
         action_button.setMinimumWidth(0)
         action_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
         action_button.clicked.connect(click_handler)
-        owner.chart_view_middle_header_action_buttons[button_key] = action_button
-        middle_header_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
-    middle_header_controls_layout.addStretch(1)
-    middle_layout.addWidget(middle_header_controls, 0, Qt.AlignTop)
+        action_buttons[button_key] = action_button
+        layout.addWidget(action_button, 0, Qt.AlignHCenter)
+    return action_buttons
 
 
 def apply_chart_view_middle_panel_typography(
