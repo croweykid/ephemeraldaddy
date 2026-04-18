@@ -26061,7 +26061,7 @@ class MainWindow(QMainWindow):
             header_font.setPointSizeF(max(1.0, header_font.pointSizeF() * 0.65))
         header_label.setFont(header_font)
 
-        figure = Figure(figsize=(10.9, 10.9))
+        figure = Figure(figsize=(7.9, 10.9))
         canvas = FigureCanvas(figure)
         draw_human_design_chart(
             figure,
