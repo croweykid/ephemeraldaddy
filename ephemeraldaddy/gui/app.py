@@ -651,6 +651,7 @@ from ephemeraldaddy.gui.features.controllers.main_window import (
 )
 from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     apply_chart_view_middle_panel_typography,
+    build_chart_header_action_buttons,
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
@@ -1965,7 +1966,41 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.list_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(6)
         self.list_panel.setLayout(list_layout)
+        list_action_buttons_row = QWidget()
+        list_action_buttons_layout = QHBoxLayout()
+        list_action_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        list_action_buttons_layout.setSpacing(4)
+        list_action_buttons_row.setLayout(list_action_buttons_layout)
+        list_action_buttons_layout.addStretch(1)
+        self.database_view_middle_header_action_buttons = build_chart_header_action_buttons(
+            self,
+            layout=list_action_buttons_layout,
+            include_human_design=bool(
+                self._visibility.get("chart_data.human_design_alpha_prototype")
+            ),
+            object_name_prefix="database_view_middle",
+        )
+        database_view_button_handlers: dict[str, Callable[[], None]] = {
+            "bazi": self._on_menu_open_bazi_window,
+            "personal_transit": self._on_menu_get_personal_transit,
+            "synastry": self._on_generate_composite_chart,
+            "human_design": self._on_menu_get_human_design_info,
+            "similar_charts": self._on_menu_see_similar_charts,
+            "gemstone_chart": self._on_menu_create_gemstone_chart,
+            "chart_predictor_quiz": self._on_menu_open_chart_predictor_quiz,
+        }
+        for button_key, action_button in self.database_view_middle_header_action_buttons.items():
+            try:
+                action_button.clicked.disconnect()
+            except TypeError:
+                pass
+            handler = database_view_button_handlers.get(button_key)
+            if handler is not None:
+                action_button.clicked.connect(handler)
+        list_action_buttons_layout.addStretch(1)
+        list_layout.addWidget(list_action_buttons_row, 0, Qt.AlignTop)
         list_header_row = QWidget()
         list_header_layout = QHBoxLayout()
         list_header_layout.setContentsMargins(0, 0, 0, 0)
