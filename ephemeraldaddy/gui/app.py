@@ -1710,6 +1710,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
         self._transit_popout_chart_by_dialog: dict[QDialog, Chart] = {}
+        self._personal_transit_generation_in_progress = False
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._popout_summary_contexts: dict[QWidget, dict[str, object]] = {}
         self._transit_window_result_cache: OrderedDict[tuple[object, ...], dict[str, object]] = OrderedDict()
@@ -3656,7 +3657,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "QPushButton:pressed { background-color: #5f7d5f; }"
         )
         self.generate_personal_transit_button.clicked.connect(
-            self._on_generate_personal_transit
+            self._on_personal_transit_generate_clicked
         )
         personal_transit_controls_layout.addWidget(self.generate_personal_transit_button)
 
@@ -3981,7 +3982,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self.personal_transit_chart_input.setText(selected_label)
         self.personal_transit_chart_input.setCursorPosition(len(selected_label))
-        self._on_generate_personal_transit()
+        # Keep autocomplete selection side-effect free. Triggering generation here
+        # can race with a button click and open duplicate popouts.
+
+    def _on_personal_transit_generate_clicked(self, *_args) -> None:
+        self._on_personal_transit_enter_pressed()
 
     def _on_personal_transit_enter_pressed(self) -> None:
         raw = self.personal_transit_chart_input.text().strip()
@@ -4007,22 +4012,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_generate_personal_transit()
 
     def _on_generate_personal_transit(self) -> None:
-        chart_id = self._resolve_personal_transit_chart_id()
-        if chart_id is None:
-            QMessageBox.warning(
-                self,
-                "Generate Personal Transit",
-                "Select a saved chart from autocomplete before generating.",
-            )
+        if self._personal_transit_generation_in_progress:
             return
-
+        self._personal_transit_generation_in_progress = True
         try:
-            natal_chart = load_chart(chart_id)
-        except ValueError as exc:
-            QMessageBox.warning(self, "Generate Personal Transit", str(exc))
-            return
+            chart_id = self._resolve_personal_transit_chart_id()
+            if chart_id is None:
+                QMessageBox.warning(
+                    self,
+                    "Generate Personal Transit",
+                    "Select a saved chart from autocomplete before generating.",
+                )
+                return
 
-        try:
+            try:
+                natal_chart = load_chart(chart_id)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Generate Personal Transit", str(exc))
+                return
+
             transit_datetime_utc, include_time = self._selected_transit_datetime_utc()
             place_label = getattr(self, "_transit_location_label", "Unknown")
             timestamp_label = (
@@ -4080,13 +4088,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         except Exception as exc:
             logger.exception(
                 "Failed to generate personal transit for chart_id=%s",
-                chart_id,
+                locals().get("chart_id"),
             )
             QMessageBox.critical(
                 self,
                 "Generate Personal Transit",
                 f"Failed to generate personal transit chart.\n\n{exc}",
             )
+        finally:
+            self._personal_transit_generation_in_progress = False
 
     def _on_generate_composite_chart(self) -> None:
         selected_items = self.list_widget.selectedItems()
