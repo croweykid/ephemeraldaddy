@@ -53,30 +53,13 @@ CHANNEL_INACTIVE_COLOR = "#5e5e5e"
 CHANNEL_PERSONALITY_ACTIVE_COLOR = "#5dc26a"
 CHANNEL_DESIGN_ACTIVE_COLOR = "#d65b5b"
 DUAL_ACTIVATION_RED_DASH_PATTERN = (2.0, 2.0)
-BODY_TEXT_COLOR: dict[str, str] = {
-    "Sun": "#f5c542",
-    "Earth": "#c8914f",
-    "Moon": "#6ea8ff",
-    "Rahu": "#b07bff",
-    "Ketu": "#8f5fd6",
-    "Mercury": "#6ccf91",
-    "Venus": "#e784d5",
-    "Mars": "#e06c5b",
-    "Jupiter": "#e0a95b",
-    "Saturn": "#9fa7b3",
-    "Uranus": "#6bc7d9",
-    "Neptune": "#5d7ccf",
-    "Pluto": "#b86b8f",
-}
-
 CENTER_FILL_COLORS: dict[str, str] = {center_name: center_data["color"] for center_name, center_data in HD_CENTERS.items()}
 
 CHANNEL_SPACING = 0.014
 CHANNEL_EXTRA_SPACING_PIXELS = 6.0
 BODYGRAPH_VERTICAL_OFFSET = -0.07
 BODYGRAPH_CONTENT_SCALE = 0.74 #scales the bodygraph chart
-BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.66, 0.96)
-ACTIVATION_AXES_BOUNDS = (0.70, 0.02, 0.28, 0.96)
+BODYGRAPH_AXES_BOUNDS = (0.02, 0.02, 0.96, 0.96)
 CUSTOM_INTERSECTION_CHANNEL_KEYS = frozenset({(10, 20), (10, 34), (10, 57), (20, 57), (34, 57)})
 
 
@@ -172,8 +155,6 @@ def draw_human_design_chart(
     figure.patch.set_facecolor(chart_theme_colors["background"])
     ax = figure.add_axes(BODYGRAPH_AXES_BOUNDS)
     ax.set_facecolor(chart_theme_colors["background"])
-    text_ax = figure.add_axes(ACTIVATION_AXES_BOUNDS)
-    text_ax.set_facecolor(chart_theme_colors["background"])
     center_min_x = min(x - CENTER_HALF_WIDTH for _center, (x, _y) in BASE_CENTER_POSITIONS.items()) - 0.03
     center_max_x = max(x + CENTER_HALF_WIDTH for _center, (x, _y) in BASE_CENTER_POSITIONS.items()) + 0.03
     center_min_y = min(_offset_center_y(y) - CENTER_HALF_HEIGHT for _center, (_x, y) in BASE_CENTER_POSITIONS.items()) - 0.03
@@ -186,9 +167,6 @@ def draw_human_design_chart(
     ax.set_ylim(content_center_y - scaled_half_height, content_center_y + scaled_half_height)
     ax.margins(x=0.0, y=0.0)
     ax.axis("off")
-    text_ax.set_xlim(0.0, 1.0)
-    text_ax.set_ylim(0.0, 1.0)
-    text_ax.axis("off")
     unique_channels: list[tuple[int, int, str, str]] = []
     seen_channel_pairs: set[tuple[int, int]] = set()
     for gate_a, gate_b, center_a, center_b in CHANNELS:
@@ -536,28 +514,3 @@ def draw_human_design_chart(
             )
         )
         ax.text(x, y, center_name, color="#ffffff", fontsize=7, ha="center", va="center", fontweight="bold")
-
-    
-    text_ax.text(0.52, 0.98, "PERSONALITY", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
-    for idx, activation in enumerate(hd_result.personality_activations):
-        text_ax.text(
-            0.52,
-            0.95 - (idx * 0.028),
-            f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
-            color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
-            fontsize=6,
-            ha="left",
-            va="top",
-        )
-
-    text_ax.text(0.02, 0.98, "DESIGN", color="#f5f5f5", fontsize=7, ha="left", va="top", fontweight="bold")
-    for idx, activation in enumerate(hd_result.design_activations):
-        text_ax.text(
-            0.02,
-            0.95 - (idx * 0.028),
-            f"{activation.body:>10}  {activation.gate}.{activation.line}.{activation.color}.{activation.tone}.{activation.base}",
-            color=BODY_TEXT_COLOR.get(activation.body, "#f0f0f0"),
-            fontsize=6,
-            ha="left",
-            va="top",
-        )
