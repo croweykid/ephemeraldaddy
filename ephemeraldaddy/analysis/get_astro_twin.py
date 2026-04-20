@@ -6,7 +6,12 @@ from math import sqrt
 from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, aspect_score
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_WEIGHTS,
+    NATAL_WEIGHT,
+    aspect_pair_weight,
+    aspect_score,
+)
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -374,7 +379,24 @@ def _aspect_similarity(query: Chart, candidate: Chart) -> float:
                 )
                 for source_orb in source_orbs
             ]
-            base_weight = max(source_aspect_scores, default=0.0)
+            orb_weighted_base = max(source_aspect_scores, default=0.0)
+            fallback_base = max(
+                (
+                    max(0.0, float(ASPECT_SCORE_WEIGHTS.get(str(asp_type).replace(" ", "_").lower(), 0.0)))
+                    * max(
+                        0.0,
+                        float(
+                            aspect_pair_weight(
+                                a,
+                                b,
+                                planet_weights=source_planet_weights,
+                            )
+                        ),
+                    )
+                ),
+                0.0,
+            )
+            base_weight = orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
             possible += base_weight
 
             target_orbs = target_map.get(key)
