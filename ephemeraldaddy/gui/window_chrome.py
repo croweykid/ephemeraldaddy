@@ -172,6 +172,13 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
             "_on_menu_get_human_design_info",
             "on_get_human_design_info",
         )
+        _bind_menu_action(
+            chart_menu,
+            "🪷 Human Design Synastry Chart",
+            window,
+            "_on_menu_get_human_design_synastry_chart",
+            "on_get_human_design_synastry_chart",
+        )
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(
@@ -230,6 +237,13 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(charts_menu, "🐉 BaZi Chart", dialog, "_on_menu_open_bazi_window")
     if _is_human_design_menu_enabled(dialog):
         _bind_menu_action(charts_menu, "🪷 Human Design Chart", dialog, "_on_menu_get_human_design_info")
+        _bind_menu_action(
+            charts_menu,
+            "🪷 Human Design Synastry Chart",
+            dialog,
+            "_on_menu_get_human_design_synastry_chart",
+            "on_get_human_design_synastry_chart",
+        )
 
     tools_menu = menu_bar.addMenu("Tools")
     _bind_menu_action(

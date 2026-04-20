@@ -599,6 +599,13 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     CENTER_POSITIONS,
     draw_human_design_chart,
 )
+from ephemeraldaddy.gui.features.charts.human_design_synastry_popout import (
+    HD_SYNASTRY_PRIMARY_COLOR,
+    HD_SYNASTRY_SECONDARY_COLOR,
+    HD_SYNASTRY_STRIPE_PATTERN,
+    build_human_design_synastry_bundle,
+    build_human_design_synastry_summary_lines,
+)
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_top_splitter,
 )
@@ -4130,9 +4137,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         default_first_chart_id: int | None = None,
         focus_second_input: bool = False,
+        *,
+        dialog_title: str = "Generate Composite Chart",
+        submit_button_text: str = "Synastrize!",
+        include_placeholders: bool = True,
     ) -> tuple[int, int] | None:
         dialog = QDialog(self)
-        dialog.setWindowTitle("Generate Composite Chart")
+        dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
 
         layout = QVBoxLayout(dialog)
@@ -4143,6 +4154,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         labels: list[str] = []
         for row in list_charts():
             chart_id, name, alias, *_rest = row
+            is_placeholder = bool(row[15]) if len(row) > 15 else False
+            if not include_placeholders and is_placeholder:
+                continue
             display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             if alias:
                 display_name = f"{display_name} ({alias})"
@@ -4177,7 +4191,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         second_chart_input.setCompleter(second_completer)
         layout.addWidget(second_chart_input)
 
-        synastrize_button = QPushButton("Synastrize!", dialog)
+        synastrize_button = QPushButton(submit_button_text, dialog)
         layout.addWidget(synastrize_button)
 
         selected_chart_ids: tuple[int, int] | None = None
@@ -4201,14 +4215,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if base_chart_id is None or overlay_chart_id is None:
                 QMessageBox.warning(
                     dialog,
-                    "Generate Composite Chart",
+                    dialog_title,
                     "Select two saved charts from autocomplete before generating.",
                 )
                 return
             if base_chart_id == overlay_chart_id:
                 QMessageBox.warning(
                     dialog,
-                    "Generate Composite Chart",
+                    dialog_title,
                     "Select two different charts.",
                 )
                 return
@@ -13219,6 +13233,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
+    def _on_menu_get_human_design_synastry_chart(self) -> None:
+        self._run_main_window_chart_action("get_human_design_synastry_chart")
+
     def _on_menu_open_chart_predictor_quiz(self) -> None:
         dialog = create_chart_predictor_quiz_dialog(self)
         self._register_popout_shortcuts(dialog)
@@ -22062,6 +22079,8 @@ class MainWindow(QMainWindow):
         elif action_name == "get_human_design_info":
             self._latest_chart = chart
             self.on_get_human_design_info()
+        elif action_name == "get_human_design_synastry_chart":
+            self.on_get_human_design_synastry_chart()
         elif action_name == "see_similar_charts":
             self._show_similar_charts_popout(requester=requester)
         else:
@@ -26349,6 +26368,83 @@ class MainWindow(QMainWindow):
         popout_context["summary_block_offset"] = summary_block_offset
 
         dialog.resize(1320, 1080)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+
+    def on_get_human_design_synastry_chart(self) -> None:
+        chart_ids = self._prompt_composite_chart_selection(
+            dialog_title="Human Design Synastry Chart",
+            submit_button_text="Build Synastry Bodygraph",
+            include_placeholders=False,
+        )
+        if chart_ids is None:
+            return
+        try:
+            chart_one = load_chart(int(chart_ids[0]))
+            chart_two = load_chart(int(chart_ids[1]))
+        except ValueError as exc:
+            QMessageBox.warning(self, "Human Design Synastry Chart", str(exc))
+            return
+
+        bundle = build_human_design_synastry_bundle(chart_one, chart_two)
+
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowTitle("🪷 Human Design Synastry")
+        dialog.setMinimumSize(860, 840)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        header_label = QLabel(
+            "\n".join(
+                [
+                    "🪷 Human Design Synastry",
+                    f"Chart 1 (orange): {chart_one.name}",
+                    f"Chart 2 (blue): {chart_two.name}",
+                    "Shared gates are shown as striped channel segments.",
+                ]
+            )
+        )
+        header_label.setStyleSheet(f"{CHART_DATA_POPOUT_HEADER_STYLE} background: transparent;")
+        header_font = header_label.font()
+        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        layout.addWidget(header_label)
+
+        figure = Figure(figsize=(7.9, 10.9))
+        canvas = FigureCanvas(figure)
+        draw_human_design_chart(
+            figure,
+            bundle.combined_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            primary_gate_set=set(bundle.chart_one_gates),
+            secondary_gate_set=set(bundle.chart_two_gates),
+            primary_active_color=HD_SYNASTRY_PRIMARY_COLOR,
+            secondary_active_color=HD_SYNASTRY_SECONDARY_COLOR,
+            secondary_dash_pattern=HD_SYNASTRY_STRIPE_PATTERN,
+        )
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(canvas, 8)
+
+        summary_output = ChartDataTableOutput()
+        summary_output.setReadOnly(True)
+        summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        apply_chart_data_highlighter(summary_output)
+        summary_output.setPlainText(
+            "\n".join(
+                build_human_design_synastry_summary_lines(
+                    chart_one_name=str(chart_one.name),
+                    chart_two_name=str(chart_two.name),
+                    bundle=bundle,
+                )
+            )
+        )
+        layout.addWidget(summary_output, 3)
+
+        dialog.resize(1100, 980)
         self._register_popout_shortcuts(dialog)
         dialog.show()
 

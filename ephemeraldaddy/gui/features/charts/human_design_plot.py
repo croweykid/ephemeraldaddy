@@ -150,6 +150,11 @@ def draw_human_design_chart(
     hd_result: HumanDesignResult,
     *,
     chart_theme_colors: dict[str, str],
+    primary_gate_set: set[int] | None = None,
+    secondary_gate_set: set[int] | None = None,
+    primary_active_color: str = CHANNEL_PERSONALITY_ACTIVE_COLOR,
+    secondary_active_color: str = CHANNEL_DESIGN_ACTIVE_COLOR,
+    secondary_dash_pattern: tuple[float, ...] = DUAL_ACTIVATION_RED_DASH_PATTERN,
 ) -> None:
     figure.clear()
     figure.patch.set_facecolor(chart_theme_colors["background"])
@@ -204,8 +209,16 @@ def draw_human_design_chart(
         for slot_index, channel in enumerate(pair_ordered):
             ordered_channels.append((*channel, slot_index, channel_count))
 
-    personality_gate_set = {activation.gate for activation in hd_result.personality_activations}
-    design_gate_set = {activation.gate for activation in hd_result.design_activations}
+    personality_gate_set = (
+        {int(gate) for gate in primary_gate_set}
+        if primary_gate_set is not None
+        else {activation.gate for activation in hd_result.personality_activations}
+    )
+    design_gate_set = (
+        {int(gate) for gate in secondary_gate_set}
+        if secondary_gate_set is not None
+        else {activation.gate for activation in hd_result.design_activations}
+    )
 
     def _draw_gate_segment(
         start_x: float,
@@ -230,7 +243,7 @@ def draw_human_design_chart(
             ax.plot(
                 [start_x, end_x],
                 [start_y, end_y],
-                color=CHANNEL_PERSONALITY_ACTIVE_COLOR,
+                color=primary_active_color,
                 linewidth=3.0,
                 alpha=0.95,
                 gid=f"gate-segment:{gate}",
@@ -238,16 +251,16 @@ def draw_human_design_chart(
             ax.plot(
                 [start_x, end_x],
                 [start_y, end_y],
-                color=CHANNEL_DESIGN_ACTIVE_COLOR,
+                color=secondary_active_color,
                 linewidth=2.4,
                 alpha=0.95,
-                linestyle=(0, DUAL_ACTIVATION_RED_DASH_PATTERN),
+                linestyle=(0, secondary_dash_pattern),
                 solid_capstyle="butt",
                 dash_capstyle="butt",
                 gid=f"gate-segment:{gate}",
             )
             return
-        active_color = CHANNEL_PERSONALITY_ACTIVE_COLOR if has_personality else CHANNEL_DESIGN_ACTIVE_COLOR
+        active_color = primary_active_color if has_personality else secondary_active_color
         ax.plot(
             [start_x, end_x],
             [start_y, end_y],
