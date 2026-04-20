@@ -298,6 +298,17 @@ class ChartAnalysisSectionsController:
         )
         self.add_section(
             panel=panel,
+            section_key="planet_dynamics",
+            section_title="Body Dynamics",
+            header_title="Body Dynamics",
+            subtitle_text="Per-body aspect counts grouped as Antagonizing, Enabling, and Escalating, plus each body's relative dominance share.",
+            default_filename="ephemeraldaddy_chart_planet_dynamics",
+            chart_container_attr="planet_dynamics_container",
+            chart_layout_attr="planet_dynamics_container_layout",
+            expanded=False,
+        )
+        self.add_section(
+            panel=panel,
             section_key="dominant_houses",
             section_title="Houses",
             header_title="Dominant houses",
@@ -370,17 +381,6 @@ class ChartAnalysisSectionsController:
                 ("Dominant Modes", "dominant_modes"),
                 ("Modal Prevalence", "modal_prevalence"),
             ],
-            expanded=False,
-        )
-        self.add_section(
-            panel=panel,
-            section_key="planet_dynamics",
-            section_title="Body Dynamics",
-            header_title="Body Dynamics",
-            subtitle_text="Per-body aspect counts grouped as Antagonizing, Enabling, and Escalating, plus each body's relative dominance share.",
-            default_filename="ephemeraldaddy_chart_planet_dynamics",
-            chart_container_attr="planet_dynamics_container",
-            chart_layout_attr="planet_dynamics_container_layout",
             expanded=False,
         )
         self.add_section(
