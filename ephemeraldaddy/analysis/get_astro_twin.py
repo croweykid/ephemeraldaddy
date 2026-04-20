@@ -199,6 +199,11 @@ def _nakshatra_index(lon: float | None) -> int | None:
 
 
 def _house_for_body(chart: Chart, body: str) -> int | None:
+    uses_houses = (not bool(getattr(chart, "birthtime_unknown", False))) or bool(
+        getattr(chart, "retcon_time_used", False)
+    )
+    if not uses_houses:
+        return None
     houses = getattr(chart, "houses", None)
     positions = getattr(chart, "positions", None) or {}
     lon = positions.get(body)
@@ -529,15 +534,27 @@ def _dominance_similarity(query: Chart, candidate: Chart) -> float:
     sign_component = (sign_overlap * 0.72) + (sign_top3_overlap * 0.28)
     house_component = (house_overlap * 0.68) + (house_top3_overlap * 0.32)
     body_component = (body_overlap * 0.66) + (body_top3_overlap * 0.34)
-    return max(
-        0.0,
-        min(
-            1.0,
-            (sign_component * 0.40)
-            + (house_component * 0.30)
-            + (body_component * 0.30),
-        ),
+    house_component_enabled = (
+        (not bool(getattr(query, "birthtime_unknown", False)) or bool(getattr(query, "retcon_time_used", False)))
+        and (not bool(getattr(candidate, "birthtime_unknown", False)) or bool(getattr(candidate, "retcon_time_used", False)))
     )
+    component_values = {
+        "sign": sign_component,
+        "body": body_component,
+    }
+    component_weights = {
+        "sign": 0.40,
+        "body": 0.30,
+    }
+    if house_component_enabled:
+        component_values["house"] = house_component
+        component_weights["house"] = 0.30
+    total_weight = sum(component_weights.values()) or 1.0
+    normalized_score = sum(
+        component_values[key] * component_weights[key]
+        for key in component_values
+    ) / total_weight
+    return max(0.0, min(1.0, normalized_score))
 
 
 def _combined_dominance_similarity(query: Chart, candidate: Chart) -> float:
