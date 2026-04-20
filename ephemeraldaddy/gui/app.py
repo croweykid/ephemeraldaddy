@@ -4964,6 +4964,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         transit_ranges: dict[tuple[str, str, str, str], dict[str, object]] = {}
         transit_workers: dict[tuple[str, str, str, str], tuple[QThread, TransitAspectWindowWorker]] = {}
         calendar_info_map: dict[int, dict[str, object]] = {}
+        transit_worker_relay = TransitAspectWindowRelay(dialog)
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
             PERSONAL_TRANSIT_MODE_DAILY_VIBE: "Daily Vibe",
@@ -5300,6 +5301,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _refresh_summary()
             _drain_preload_queue()
 
+        transit_worker_relay.ready.connect(
+            lambda mode, a, b, c, start_dt, end_dt, metadata: _on_window_ready(
+                (str(mode), str(a), str(b), str(c)),
+                start_dt,
+                end_dt,
+                metadata,
+            )
+        )
+        transit_worker_relay.failed.connect(
+            lambda mode, a, b, c, error_text: _on_window_failed(
+                (str(mode), str(a), str(b), str(c)),
+                error_text,
+            )
+        )
+
         MAX_TRANSIT_WINDOW_WORKERS = 2
         preload_queue: list[tuple[str, str, str, str]] = []
 
@@ -5334,16 +5350,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
             worker.finished.connect(
-                lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
-                    (str(mode), str(a), str(b), str(c)),
+                lambda a, b, c, start_dt, end_dt, metadata, mode=mode: transit_worker_relay.ready.emit(
+                    str(mode),
+                    str(a),
+                    str(b),
+                    str(c),
                     start_dt,
                     end_dt,
                     metadata,
                 )
             )
             worker.failed.connect(
-                lambda a, b, c, error_text, mode=mode: _on_window_failed(
-                    (str(mode), str(a), str(b), str(c)),
+                lambda a, b, c, error_text, mode=mode: transit_worker_relay.failed.emit(
+                    str(mode),
+                    str(a),
+                    str(b),
+                    str(c),
                     error_text,
                 )
             )
