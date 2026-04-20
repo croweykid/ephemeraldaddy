@@ -431,6 +431,8 @@ from ephemeraldaddy.core.interpretations import (
     SENTIMENT_COLORS,
     SENTIMENT_OPTIONS,
     HOUSE_COLORS,
+    INNER_PLANETS,
+    OUTER_PLANETS,
     SIGN_COLORS,
     SIGN_ELEMENTS,
     ZODIAC_SIGNS,
@@ -20488,21 +20490,25 @@ class MainWindow(QMainWindow):
             if not selected_planet:
                 return []
             metric_scores = scores.get(selected_planet, {})
+            dominant_weights = _calculate_dominant_planet_weights(chart)
+            tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
+            total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
+            dominance_percent = (
+                (float(dominant_weights.get(selected_planet, 0.0)) / total_tracked_weight) * 100.0
+                if total_tracked_weight > 0
+                else 0.0
+            )
             metric_label_map = {
-                "stability": "Groundedness",
-                "constructiveness": "Productivity",
-                "volatility": "Reactivity",
-                "fragility": "Fragility",
-                "adaptability": "Resilience",
+                "antagonizing": "Antagonizing",
+                "enabling": "Enabling",
+                "escalating": "Escalating",
             }
             metric_order = (
-                "stability",
-                "constructiveness",
-                "volatility",
-                "fragility",
-                "adaptability",
+                "antagonizing",
+                "enabling",
+                "escalating",
             )
-            return [["planet", selected_planet]] + [
+            return [["planet", selected_planet], ["dominance", round(dominance_percent, 1)]] + [
                 [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
                 for metric in metric_order
             ]
@@ -21739,21 +21745,24 @@ class MainWindow(QMainWindow):
             return
 
         metric_order = [
-            "stability",
-            "constructiveness",
-            "volatility",
-            "fragility",
-            "adaptability",
+            "antagonizing",
+            "enabling",
+            "escalating",
         ]
-        metric_labels = ["Groundedness", "Productivity", "Reactivity", "Fragility", "Resilience"]
+        metric_labels = ["Antagonizing", "Enabling", "Escalating"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
         bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
+        dominant_weights = _calculate_dominant_planet_weights(chart)
+        tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
+        total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
+        selected_weight = float(dominant_weights.get(selected_planet, 0.0))
+        dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
 
         bars = ax.bar(metric_labels, values, color=bar_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
-        ax.set_ylim(0, max(10.0, max_value + 0.8))
+        ax.set_ylim(0, max(1.0, max_value + 0.8))
         ax.set_anchor("W")
 
         label_offset = max(0.12, (max_value * 0.02) if max_value else 0.12)
@@ -21770,7 +21779,12 @@ class MainWindow(QMainWindow):
 
         for spine in ax.spines.values():
             spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
-        ax.set_title(f"{_display_body_name(selected_planet)} Dynamics", color="#f5f5f5", fontsize=10, pad=8)
+        ax.set_title(
+            f"{_display_body_name(selected_planet)} Dynamics ({dominance_percent:.1f}% dominant)",
+            color="#f5f5f5",
+            fontsize=10,
+            pad=8,
+        )
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
@@ -25842,13 +25856,17 @@ class MainWindow(QMainWindow):
     def _render_planet_dynamics(self, chart: Chart) -> None:
         dropdown = self._chart_analysis_chart_dropdowns.get("planet_dynamics")
         scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        dynamics_bodies = [
+            body
+            for body in PLANET_ORDER
+            if body in (INNER_PLANETS | OUTER_PLANETS) and body in scores
+        ]
         if dropdown is not None:
             current = dropdown.currentData()
             dropdown.blockSignals(True)
             dropdown.clear()
-            for body in _dominant_planet_keys(chart):
-                if body in scores:
-                    dropdown.addItem(_display_body_name(body).upper(), body)
+            for body in dynamics_bodies:
+                dropdown.addItem(_display_body_name(body).upper(), body)
             if dropdown.count() > 0:
                 current_index = dropdown.findData(current)
                 dropdown.setCurrentIndex(current_index if current_index >= 0 else 0)
