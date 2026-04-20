@@ -6,7 +6,12 @@ from math import sqrt
 from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
-from ephemeraldaddy.core.interpretations import NATAL_WEIGHT
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_WEIGHTS,
+    NATAL_WEIGHT,
+    aspect_pair_weight,
+    aspect_score,
+)
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -60,20 +65,6 @@ BODY_WEIGHTS: dict[str, float] = {
     "DS": 1.0,
     "MC": 1.1,
     "IC": 1.0,
-}
-
-ASPECT_WEIGHTS: dict[str, float] = {
-    "conjunction": 1.0,
-    "opposition": 0.9,
-    "square": 0.9,
-    "trine": 0.8,
-    "sextile": 0.7,
-    "quincunx": 0.55,
-    "semisquare": 0.4,
-    "sesquiquadrate": 0.45,
-    "semisextile": 0.35,
-    "quintile": 0.35,
-    "biquintile": 0.35,
 }
 
 NATAL_ANGLES: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
@@ -358,17 +349,54 @@ def _aspect_similarity(query: Chart, candidate: Chart) -> float:
         return 0.0
 
     def _directional_overlap(
+        source_chart: Chart,
         source_map: dict[tuple[tuple[str, str], str], list[float]],
         target_map: dict[tuple[tuple[str, str], str], list[float]],
     ) -> float:
         total = 0.0
         possible = 0.0
+        source_planet_weights = getattr(source_chart, "dominant_planet_weights", None) or None
 
         for key, source_orbs in source_map.items():
             (a, b), asp_type = key
-            aspect_weight = ASPECT_WEIGHTS.get(asp_type, 0.3)
-            body_weight = (BODY_WEIGHTS.get(a, 0.75) + BODY_WEIGHTS.get(b, 0.75)) / 2.0
-            base_weight = aspect_weight * body_weight
+            if not source_orbs:
+                continue
+
+            source_aspect_scores = [
+                max(
+                    0.0,
+                    float(
+                        aspect_score(
+                            {
+                                "p1": a,
+                                "p2": b,
+                                "type": asp_type,
+                                "delta": float(source_orb),
+                            },
+                            planet_weights=source_planet_weights,
+                        )
+                    ),
+                )
+                for source_orb in source_orbs
+            ]
+            orb_weighted_base = max(source_aspect_scores, default=0.0)
+            fallback_base = max(
+                (
+                    max(0.0, float(ASPECT_SCORE_WEIGHTS.get(str(asp_type).replace(" ", "_").lower(), 0.0)))
+                    * max(
+                        0.0,
+                        float(
+                            aspect_pair_weight(
+                                a,
+                                b,
+                                planet_weights=source_planet_weights,
+                            )
+                        ),
+                    )
+                ),
+                0.0,
+            )
+            base_weight = orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
             possible += base_weight
 
             target_orbs = target_map.get(key)
@@ -386,8 +414,8 @@ def _aspect_similarity(query: Chart, candidate: Chart) -> float:
     # Symmetric overlap penalizes "extra-only" aspect sets and helps prevent
     # highly noisy charts from ranking as similar merely by containing a subset
     # of the query's aspects.
-    source_recall = _directional_overlap(q_map, c_map)
-    target_precision = _directional_overlap(c_map, q_map)
+    source_recall = _directional_overlap(query, q_map, c_map)
+    target_precision = _directional_overlap(candidate, c_map, q_map)
     return max(0.0, min(1.0, (source_recall + target_precision) / 2.0))
 
 
