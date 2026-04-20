@@ -8,6 +8,7 @@ import html
 import json
 import math
 import logging
+import threading
 import numpy as np
 import os
 import random
@@ -19,6 +20,7 @@ import uuid
 import urllib.parse
 import platform
 from collections import Counter, OrderedDict
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable
 from types import SimpleNamespace
 from pathlib import Path
@@ -502,7 +504,6 @@ from ephemeraldaddy.gui.dbv_search_panel import build_dbv_search_panel
 from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog,
     TransitAspectWindowRelay,
-    TransitAspectWindowWorker,
 )
 
 from ephemeraldaddy.gui.features.charts.metrics import (
@@ -4960,7 +4961,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             canvas.draw_idle()
 
         transit_ranges: dict[tuple[str, str, str, str], dict[str, object]] = {}
-        transit_workers: dict[tuple[str, str, str, str], tuple[QThread, TransitAspectWindowWorker]] = {}
+        transit_futures: dict[tuple[str, str, str, str], Future[tuple[str, object]]] = {}
+        transit_cancel_events: dict[tuple[str, str, str, str], threading.Event] = {}
+        transit_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="personal-transit-window")
+        transit_relay = TransitAspectWindowRelay(dialog)
+        transit_runtime_state = {"active": True}
         calendar_info_map: dict[int, dict[str, object]] = {}
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
@@ -5070,23 +5075,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _finalize_transit_worker_shutdown() -> None:
             nonlocal _transit_shutdown_in_progress
-            pending_keys = list(transit_workers.keys())
-            for key in pending_keys:
-                worker_entry = transit_workers.get(key)
-                if worker_entry is None:
-                    continue
-                thread, _worker = worker_entry
-                if thread.isRunning():
-                    return
-                transit_workers.pop(key, None)
-
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
             _transit_shutdown_in_progress = False
             for callback in callbacks:
                 callback()
 
-        #ojo: changes here feel risky...
         def _begin_transit_worker_shutdown(on_complete: Callable[[], None]) -> None:
             nonlocal _transit_shutdown_in_progress
 
@@ -5098,30 +5092,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             logger.debug(
                 "Transit worker shutdown started (id=%s active_workers=%s).",
                 debug_id,
-                len(transit_workers),
+                len(transit_futures),
             )
 
-            for key, (thread, _worker) in list(transit_workers.items()):
-                try:
-                    thread.finished.connect(_finalize_transit_worker_shutdown)
-                    thread.requestInterruption()
-                    thread.quit()
-                    if thread.isRunning():
-                        thread.wait(3000)
-                    if not thread.isRunning():
-                        transit_workers.pop(key, None)
-                except RuntimeError:
-                    logger.exception(
-                        "Transit worker shutdown runtime error (id=%s worker_key=%s).",
-                        debug_id,
-                        key,
-                    )
-                    transit_workers.pop(key, None)
-                    continue
+            for key, event in list(transit_cancel_events.items()):
+                event.set()
+                pending_future = transit_futures.get(key)
+                if pending_future is not None:
+                    pending_future.cancel()
+            transit_cancel_events.clear()
+            transit_futures.clear()
             _finalize_transit_worker_shutdown()
             logger.debug("Transit worker shutdown finished (id=%s).", debug_id)
 
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
+        dialog.destroyed.connect(lambda _=None: transit_runtime_state.__setitem__("active", False))
+        dialog.destroyed.connect(lambda _=None: transit_executor.shutdown(wait=False, cancel_futures=True))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
 
         def _refresh_summary() -> None:
@@ -5212,24 +5198,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 horizontal_scrollbar.setValue(min(previous_horizontal_position, horizontal_scrollbar.maximum()))
 
             QTimer.singleShot(0, _restore_scroll_positions)
-        def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
-            transit_workers.pop(key, None)
-            _finalize_transit_worker_shutdown()
-            _drain_preload_queue()
-
-        def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
-            worker_entry = transit_workers.get(key)
-            if worker_entry is not None:
-                thread, _worker = worker_entry
-                try:
-                    thread.requestInterruption()
-                    thread.quit()
-                except RuntimeError:
-                    transit_workers.pop(key, None)
-
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
             debug_id = _new_debug_action_id("transit_window_ready")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5266,7 +5236,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
             debug_id = _new_debug_action_id("transit_window_failed")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5298,13 +5267,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _refresh_summary()
             _drain_preload_queue()
 
+        transit_relay.ready.connect(
+            lambda mode, a, b, c, start_dt, end_dt, metadata: _on_window_ready(
+                (str(mode), str(a), str(b), str(c)),
+                start_dt,
+                end_dt,
+                metadata,
+            )
+        )
+        transit_relay.failed.connect(
+            lambda mode, a, b, c, error_text: _on_window_failed(
+                (str(mode), str(a), str(b), str(c)),
+                str(error_text),
+            )
+        )
+
         MAX_TRANSIT_WINDOW_WORKERS = 2
         preload_queue: list[tuple[str, str, str, str]] = []
-        # Personal transit popouts were intermittently crashing during initial load
-        # on some macOS/PySide builds while background preload workers were spinning up.
-        # Keep async lookup available on explicit user interaction (calendar click),
-        # but disable eager preloading to prioritize stability.
-        enable_transit_window_preload = False
+        enable_transit_window_preload = True
 
         def _start_window_worker(key: tuple[str, str, str, str], state: dict[str, object], *, refresh: bool) -> None:
             hit = state.get("hit")
@@ -5320,46 +5300,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if refresh:
                 _refresh_summary()
 
-            # Keep worker threads independent from dialog ownership so dialog teardown
-            # cannot delete a still-running QThread wrapper.
-            thread = QThread()
             scan_config = _scan_config_for_hit(hit)
             state["include_time"] = scan_config.include_time
-            worker = TransitAspectWindowWorker(
-                natal_chart,
-                transit_chart.dt,
-                transit_location,
-                hit,
-                mode_rules.get(mode, TRANSIT_ASPECT_RULES),
-                step_hours=scan_config.scan_step_hours,
-                precision_minutes=scan_config.scan_precision_minutes,
-            )
-            worker.moveToThread(thread)
-            thread.started.connect(worker.run)
-            worker.finished.connect(
-                lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
-                    (str(mode), str(a), str(b), str(c)),
-                    start_dt,
-                    end_dt,
-                    metadata,
+            cancel_event = threading.Event()
+            transit_cancel_events[key] = cancel_event
+
+            def _lookup_window() -> tuple[str, object]:
+                try:
+                    result = find_transit_aspect_window_result(
+                        natal_chart,
+                        transit_chart.dt,
+                        transit_location,
+                        hit,
+                        mode_rules.get(mode, TRANSIT_ASPECT_RULES),
+                        step_hours=scan_config.scan_step_hours,
+                        precision_minutes=scan_config.scan_precision_minutes,
+                        should_cancel=cancel_event.is_set,
+                    )
+                except Exception as exc:
+                    return ("failed", str(exc))
+                if result.out_of_scope:
+                    return ("failed", "Transit date is outside the configured ephemeris scope.")
+                metadata = {
+                    "start_truncated_to_scope": result.start_truncated_to_scope,
+                    "end_truncated_to_scope": result.end_truncated_to_scope,
+                }
+                return ("ready", (result.start, result.end, metadata))
+
+            future = transit_executor.submit(_lookup_window)
+            transit_futures[key] = future
+
+            def _on_future_done(done_future: Future[tuple[str, object]], *, worker_key: tuple[str, str, str, str]) -> None:
+                transit_futures.pop(worker_key, None)
+                transit_cancel_events.pop(worker_key, None)
+                if not transit_runtime_state["active"] or _transit_shutdown_in_progress:
+                    return
+                if done_future.cancelled():
+                    transit_relay.failed.emit(worker_key[0], worker_key[1], worker_key[2], worker_key[3], "Cancelled")
+                    return
+                status, payload = done_future.result()
+                if status == "ready":
+                    start_dt, end_dt, metadata = payload
+                    transit_relay.ready.emit(worker_key[0], worker_key[1], worker_key[2], worker_key[3], start_dt, end_dt, metadata)
+                    return
+                transit_relay.failed.emit(worker_key[0], worker_key[1], worker_key[2], worker_key[3], str(payload))
+
+            future.add_done_callback(
+                lambda done_future, worker_key=key: _on_future_done(
+                    done_future,
+                    worker_key=worker_key,
                 )
             )
-            worker.failed.connect(
-                lambda a, b, c, error_text, mode=mode: _on_window_failed(
-                    (str(mode), str(a), str(b), str(c)),
-                    error_text,
-                )
-            )
-            worker.finished.connect(thread.quit)
-            worker.failed.connect(thread.quit)
-            thread.finished.connect(worker.deleteLater)
-            thread.finished.connect(thread.deleteLater)
-            thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
-            transit_workers[key] = (thread, worker)
-            thread.start()
 
         def _drain_preload_queue() -> None:
-            while preload_queue and len(transit_workers) < MAX_TRANSIT_WINDOW_WORKERS:
+            while preload_queue and len(transit_futures) < MAX_TRANSIT_WINDOW_WORKERS:
                 queue_key = preload_queue.pop(0)
                 state = transit_ranges.get(queue_key)
                 if state is None:
@@ -5367,7 +5361,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if state.get("resolved") or state.get("resolving") or state.get("failed"):
                     continue
                 _start_window_worker(queue_key, state, refresh=False)
-            if not transit_workers:
+            if not transit_futures:
                 _refresh_summary()
 
         def _ensure_window_async(key: tuple[str, str, str, str], state: dict[str, object]) -> None:
