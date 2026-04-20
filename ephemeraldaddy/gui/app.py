@@ -5300,6 +5300,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         MAX_TRANSIT_WINDOW_WORKERS = 2
         preload_queue: list[tuple[str, str, str, str]] = []
+        # Personal transit popouts were intermittently crashing during initial load
+        # on some macOS/PySide builds while background preload workers were spinning up.
+        # Keep async lookup available on explicit user interaction (calendar click),
+        # but disable eager preloading to prioritize stability.
+        enable_transit_window_preload = False
 
         def _start_window_worker(key: tuple[str, str, str, str], state: dict[str, object], *, refresh: bool) -> None:
             hit = state.get("hit")
@@ -5540,8 +5545,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 preload_queue.clear()
                 _redraw_chart_wheel()
                 _refresh_summary()
-                preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
-                QTimer.singleShot(0, _drain_preload_queue)
+                if enable_transit_window_preload:
+                    preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
+                    QTimer.singleShot(0, _drain_preload_queue)
 
             _begin_transit_worker_shutdown(_finish_update)
 
@@ -5551,8 +5557,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         update_button.clicked.connect(_on_update_chart)
         _redraw_chart_wheel()
         _refresh_summary()
-        preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
-        QTimer.singleShot(0, _drain_preload_queue)
+        if enable_transit_window_preload:
+            preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
+            QTimer.singleShot(0, _drain_preload_queue)
 
         dialog.resize(1320, 1080)
         self._register_popout_shortcuts(dialog)
