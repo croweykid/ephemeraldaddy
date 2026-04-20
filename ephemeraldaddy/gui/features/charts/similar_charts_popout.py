@@ -32,12 +32,15 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_WEIGHTS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
     MODE_COLORS,
+    aspect_pair_weight,
+    aspect_score,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
@@ -205,6 +208,81 @@ def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     for (left, right), aspect_type in sorted(common_keys):
         labels.append(f"{left} {_aspect_label(aspect_type).lower()} {right}")
     return labels
+
+
+def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any) -> list[tuple[str, float]]:
+    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
+        p1 = str(aspect.get("p1") or "").strip()
+        p2 = str(aspect.get("p2") or "").strip()
+        aspect_type = str(aspect.get("type") or "").strip().lower()
+        if not p1 or not p2 or not aspect_type:
+            return None
+        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
+            return None
+        left, right = sorted((p1, p2))
+        return (left, right), aspect_type
+
+    def _aspect_base_weight(chart: Any, key: tuple[tuple[str, str], str]) -> float:
+        (left, right), aspect_type = key
+        planet_weights = getattr(chart, "dominant_planet_weights", None) or None
+        matching_orbs: list[float] = []
+        for aspect in (getattr(chart, "aspects", None) or []):
+            canonical = _canonical(aspect)
+            if canonical != key:
+                continue
+            matching_orbs.append(abs(float(aspect.get("delta", 0.0) or 0.0)))
+        source_aspect_scores = [
+            max(
+                0.0,
+                float(
+                    aspect_score(
+                        {"p1": left, "p2": right, "type": aspect_type, "delta": orb},
+                        planet_weights=planet_weights,
+                    )
+                ),
+            )
+            for orb in matching_orbs
+        ]
+        orb_weighted_base = max(source_aspect_scores, default=0.0)
+        fallback_base = max(
+            (
+                max(0.0, float(ASPECT_SCORE_WEIGHTS.get(str(aspect_type).replace(" ", "_").lower(), 0.0)))
+                * max(0.0, float(aspect_pair_weight(left, right, planet_weights=planet_weights)))
+            ),
+            0.0,
+        )
+        return orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
+
+    subject_keys = {
+        key
+        for aspect in (getattr(subject_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None
+    }
+    common_keys = {
+        key
+        for aspect in (getattr(compared_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None and key in subject_keys
+    }
+    sorted_keys = sorted(common_keys)
+    if not sorted_keys:
+        return []
+
+    weighted_rows: list[tuple[str, float]] = []
+    raw_weights: list[float] = []
+    for key in sorted_keys:
+        (left, right), aspect_type = key
+        label = f"{left} {_aspect_label(aspect_type).lower()} {right}"
+        subject_weight = _aspect_base_weight(subject_chart, key)
+        compared_weight = _aspect_base_weight(compared_chart, key)
+        raw_weight = (subject_weight + compared_weight) / 2.0
+        raw_weights.append(raw_weight)
+        weighted_rows.append((label, raw_weight))
+
+    total_raw = sum(raw_weights)
+    if total_raw <= 0.0:
+        equal_share = 100.0 / float(len(weighted_rows))
+        return [(label, equal_share) for label, _ in weighted_rows]
+    return [(label, (raw / total_raw) * 100.0) for label, raw in weighted_rows]
 
 
 def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
@@ -1013,7 +1091,7 @@ def build_similarity_reasoning_panel_html(
             )
         return (
             f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>{html.escape(title)}</div>"
-            f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
+            f"<ul style='margin:4px 0 0 9px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
             + "".join(rendered_items)
             + "</ul>"
         )
@@ -1150,16 +1228,37 @@ def build_similarity_reasoning_panel_html(
                     )
                 )
             if "aspect" in component_weight_percents:
+                aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
+                aspect_items = (
+                    [
+                        f"{label} ([{weight:.1f}% weight total])"
+                        for label, weight in aspect_weighted_labels
+                    ]
+                    if aspect_weighted_labels
+                    else ["No shared aspect signatures were found."]
+                )
+                aspect_weight_percent = component_weight_percents.get("aspect")
+                aspect_match_percent = component_score_percents.get("aspect")
+                title = _section_title_with_weight_and_match(
+                    "Aspects in common:",
+                    "aspect",
+                    component_weight_percents,
+                    component_score_percents,
+                )
+                if (
+                    aspect_weighted_labels
+                    and aspect_weight_percent is not None
+                    and aspect_match_percent is not None
+                ):
+                    relevance_points = (float(aspect_weight_percent) * float(aspect_match_percent)) / 100.0
+                    title = (
+                        f"{title} + [{relevance_points:.1f} relevance points] = "
+                        f"[{relevance_points:.1f}/100 similarity points]"
+                    )
                 html_lines.append(
                     _section(
-                        _section_title_with_weight_and_match(
-                            "Aspects in common:",
-                            "aspect",
-                            component_weight_percents,
-                            component_score_percents,
-                        ),
-                        _common_aspect_labels(subject_chart, compared_chart)
-                        or ["No shared aspect signatures were found."],
+                        title,
+                        aspect_items,
                     )
                 )
             if "distribution" in component_weight_percents:
@@ -1226,7 +1325,7 @@ def build_similarity_reasoning_panel_html(
                     html_lines.append(
                         f"<div style='margin-top:8px;font-weight:700;color:{SIMILARITY_SECTION_HEADER_COLOR}'>"
                         f"{html.escape(_section_title_with_weight_and_match('Defined centers in common:', 'defined_centers', component_weight_percents, component_score_percents))}</div>"
-                        f"<ul style='margin:4px 0 0 18px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
+                        f"<ul style='margin:4px 0 0 9px;padding:0;color:{_SIMILARITY_PANEL_BODY_TEXT_COLOR};font-weight:400'>"
                         + "".join(f"<li style='margin:2px 0;'>{center_markup}</li>" for center_markup in center_items)
                         + "</ul>"
                     )
