@@ -510,11 +510,9 @@ STANDARD_NCV_PIE_CHART = {
 }
 
 PLANET_DYNAMICS_BAR_COLORS = {
-    "stability": "#6aa84f",      # green
-    "constructiveness": "#a94442", # brick red
-    "volatility": "#7fff00",     # chartreuse
-    "fragility": "#6fa8dc",      # blue
-    "adaptability": "#f4c542",   # saffron
+    "antagonizing": "#b30000",  # stress/friction red
+    "enabling": "#6666ff",      # chill vibes violet/blue
+    "escalating": "#ffff00",    # amplifying yellow
 }
 
 STANDARD_NCV_POPOUT_LAYOUT = {
