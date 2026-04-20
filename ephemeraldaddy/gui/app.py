@@ -6605,7 +6605,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self, chart_ids: list[int]
     ) -> list[tuple[str, int, int]]:
         charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
-        charts = [chart for chart in charts if chart is not None]
+        charts = [chart for chart in charts if chart is not None and _chart_uses_houses(chart)]
         chart_count = len(charts)
         if chart_count < 2:
             return []
@@ -7091,8 +7091,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         db_common_dominant_bodies = dict(
             (label, count) for label, count, _total in self._build_common_dominant_bodies(db_chart_ids)
         )
+        db_common_dominant_houses_matches = self._build_common_dominant_houses(db_chart_ids)
         db_common_dominant_houses = dict(
-            (label, count) for label, count, _total in self._build_common_dominant_houses(db_chart_ids)
+            (label, count) for label, count, _total in db_common_dominant_houses_matches
+        )
+        db_common_dominant_houses_totals = dict(
+            (label, total) for label, _count, total in db_common_dominant_houses_matches
         )
         db_common_dominant_nakshatras = dict(
             (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
@@ -7211,7 +7215,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         match_count,
                         total_count,
                         int(db_common_dominant_houses.get(label, 0)),
-                        db_total_count,
+                        int(db_common_dominant_houses_totals.get(label, db_total_count)),
                         self._similarity_matching_chart_names(
                             "Top 3 Dominant Houses in common",
                             label,
