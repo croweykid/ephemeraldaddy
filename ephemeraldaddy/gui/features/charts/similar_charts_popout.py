@@ -825,7 +825,7 @@ def build_similarity_reasoning_panel_text(
     compared_chart: Any | None = None,
     similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
-    show_granular_explanations: bool = True,
+    show_granular_explanations: bool = False,
     analysis_mode: str = "similarities",
 ) -> str:
     _band_label, _band_color = resolve_similarity_band(float(getattr(match, "score", 0.0)) * 100.0)
@@ -1064,7 +1064,7 @@ def build_similarity_reasoning_panel_html(
     compared_chart: Any | None = None,
     similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
-    show_granular_explanations: bool = True,
+    show_granular_explanations: bool = False,
     analysis_mode: str = "similarities",
 ) -> str:
     def _apply_word_colors(text_value: str, lookup: dict[str, str], *, weight: str = "400") -> str:

@@ -130,7 +130,7 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
     )
 
 
-def _load_astrotwin_granular_explanation(settings, *, fallback: bool = True) -> bool:
+def _load_astrotwin_granular_explanation(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION, int(fallback))
     if isinstance(value, bool):
         return value
@@ -1606,7 +1606,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._similarity_calculator_settings = _load_similarity_calculator_settings(self._settings)
         _save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
-        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=True)
+        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=False)
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
@@ -17148,7 +17148,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_granular_explanations_toggled=self._on_astrotwin_granular_explanation_toggled,
-            show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", True)),
+            show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
             on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
@@ -17320,7 +17320,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         granular_checkbox = getattr(self, "_astrotwin_granular_explanation_checkbox", None)
         if isinstance(granular_checkbox, QCheckBox):
             blocker = QSignalBlocker(granular_checkbox)
-            granular_checkbox.setChecked(bool(getattr(self, "_astrotwin_granular_explanation", True)))
+            granular_checkbox.setChecked(bool(getattr(self, "_astrotwin_granular_explanation", False)))
             del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
 
@@ -18441,7 +18441,7 @@ class MainWindow(QMainWindow):
         )
         self._similarity_calculator_settings = _load_similarity_calculator_settings(self._settings)
         _save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
-        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=True)
+        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=False)
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
@@ -19932,7 +19932,7 @@ class MainWindow(QMainWindow):
                 subject_chart=subject_chart,
                 compared_chart=compared_chart,
                 similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", True)),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
                 resolve_similarity_band=self._similarity_band_for_percent,
                 analysis_mode=analysis_mode,
             )
@@ -19942,7 +19942,7 @@ class MainWindow(QMainWindow):
                 subject_chart=subject_chart,
                 compared_chart=compared_chart,
                 similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", True)),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
                 resolve_similarity_band=self._similarity_band_for_percent,
                 analysis_mode=analysis_mode,
             )
