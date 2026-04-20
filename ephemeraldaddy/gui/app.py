@@ -297,6 +297,12 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
+    PersonalTransitLocationError,
+    build_personal_transit_header_lines,
+    recalculate_personal_transit,
+    resolve_personal_transit_location,
+)
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
     apply_window_placement,
@@ -4809,24 +4815,49 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_layout = QVBoxLayout()
         layout.addLayout(right_layout, 3)
 
-        location_label = getattr(self, "_transit_location_label", None) or "Unknown"
+        controls_layout = QGridLayout()
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setHorizontalSpacing(8)
+        controls_layout.setVerticalSpacing(6)
+
+        controls_layout.addWidget(QLabel("Date"), 0, 0)
+        popout_date_input = QDateEdit()
+        popout_date_input.setDisplayFormat("yyyy-MM-dd")
+        popout_date_input.setCalendarPopup(True)
+        popout_date_input.setDateRange(
+            QDate(1900, 1, 1),
+            QDate(2100, 12, 31),
+        )
+        controls_layout.addWidget(popout_date_input, 0, 1)
+
+        controls_layout.addWidget(QLabel("Time"), 0, 2)
+        popout_time_input = QTimeEdit()
+        popout_time_input.setDisplayFormat("HH:mm")
+        controls_layout.addWidget(popout_time_input, 0, 3)
+
+        controls_layout.addWidget(QLabel("Place"), 1, 0)
+        popout_location_input = QLineEdit()
+        popout_location_input.setPlaceholderText("City, Country or lat, lon")
+        controls_layout.addWidget(popout_location_input, 1, 1, 1, 3)
+
+        update_button = QPushButton("Update Chart")
+        controls_layout.addWidget(update_button, 0, 4, 2, 1)
+        right_layout.addLayout(controls_layout)
+
         local_tz = datetime.datetime.now().astimezone().tzinfo or datetime.timezone.utc
-        transit_dt_local = transit_chart.dt.astimezone(local_tz)
-        date_label = transit_dt_local.strftime("%m.%d.%Y")
-        time_label = transit_dt_local.strftime("%H:%M") if include_time else "omitted"
-        timezone_label = transit_dt_local.strftime("%Z") or str(local_tz)
+        location_label = getattr(transit_chart, "birth_place", None) or getattr(self, "_transit_location_label", None) or "Unknown"
+        raw_location = location_label
+        transit_location = (transit_chart.lat, transit_chart.lon)
+        if transit_chart.dt:
+            transit_dt_local = transit_chart.dt.astimezone(local_tz)
+            popout_date_input.setDate(QDate(transit_dt_local.year, transit_dt_local.month, transit_dt_local.day))
+            popout_time_input.setTime(QTime(transit_dt_local.hour, transit_dt_local.minute))
+        popout_location_input.setText(raw_location)
 
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(12)
-        header_left = QLabel(
-            "\n".join(
-                [
-                    f"Name: {natal_chart.name}",
-                    format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
-                ]
-            )
-        )
+        header_left = QLabel("")
         header_left.setStyleSheet(CHART_DATA_POPOUT_HEADER_STYLE)
         header_font = header_left.font()
         header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
@@ -4838,31 +4869,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         figure = Figure(figsize=(10.9, 10.9))
         canvas = FigureCanvas(figure)
-        overlay_positions = {
-            name: body.lon_deg
-            for name, body in transit_positions_in_natal_houses.items()
-            if name not in {"AS", "MC", "DS", "IC"}
-        }
-        natal_for_plot = copy.deepcopy(natal_chart)
-        natal_for_plot.name = transit_chart.name
-        natal_for_plot.aspects = []
-        overlay_aspects = _overlay_aspect_segments(all_hits)
-        draw_chart_wheel(
-            figure,
-            natal_for_plot,
-            canvas=canvas,
-            overlay_positions=overlay_positions,
-            overlay_aspects=overlay_aspects,
-            overlay_aspects_only=True,
-            overlay_color="#b54a4a",
-            overlay_sign_color="#de8a8a",
-            base_monochrome_color="#4f72b8",
-            wheel_padding=0.03,
-            show_title=False,
-            symbol_scale=0.7,
-        )
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        canvas.draw_idle()
         right_layout.addWidget(canvas, 7)
 
         summary_controls = QHBoxLayout()
@@ -4912,14 +4919,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         self._popout_summary_contexts[popout_context_key] = popout_context
 
-        summary_header_lines = [
-            "Personal Transit (Transit → Natal)",
-            "---------------------------------",
-            f"Name:      {natal_chart.name}",
-            format_chart_header("when_where", date=date_label, time=time_label, timezone=timezone_label, location=location_label, lat=transit_chart.lat, lon=transit_chart.lon),
-            "",
-        ]
-        transit_location = (transit_chart.lat, transit_chart.lon)
+        def _summary_header_lines() -> list[str]:
+            return build_personal_transit_header_lines(
+                natal_chart_name=natal_chart.name,
+                transit_chart=transit_chart,
+                location_label=location_label,
+                include_time=include_time,
+                local_tz=local_tz,
+            )
+
+        def _redraw_chart_wheel() -> None:
+            header_left.setText("\n".join(_summary_header_lines()[2:4]))
+            dialog.setWindowTitle(transit_chart.name)
+            figure.clear()
+            overlay_positions = {
+                name: body.lon_deg
+                for name, body in transit_positions_in_natal_houses.items()
+                if name not in {"AS", "MC", "DS", "IC"}
+            }
+            all_aspect_hits = list(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_LIFE_FORECAST, []))
+            all_aspect_hits.extend(aspect_hits_by_mode.get(PERSONAL_TRANSIT_MODE_DAILY_VIBE, []))
+            natal_for_plot = copy.deepcopy(natal_chart)
+            natal_for_plot.name = transit_chart.name
+            natal_for_plot.aspects = []
+            overlay_aspects = _overlay_aspect_segments(all_aspect_hits)
+            draw_chart_wheel(
+                figure,
+                natal_for_plot,
+                canvas=canvas,
+                overlay_positions=overlay_positions,
+                overlay_aspects=overlay_aspects,
+                overlay_aspects_only=True,
+                overlay_color="#b54a4a",
+                overlay_sign_color="#de8a8a",
+                base_monochrome_color="#4f72b8",
+                wheel_padding=0.03,
+                show_title=False,
+                symbol_scale=0.7,
+            )
+            canvas.draw_idle()
+
         transit_ranges: dict[tuple[str, str, str, str], dict[str, object]] = {}
         transit_workers: dict[tuple[str, str, str, str], tuple[QThread, TransitAspectWindowWorker]] = {}
         calendar_info_map: dict[int, dict[str, object]] = {}
@@ -4932,7 +4971,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             PERSONAL_TRANSIT_MODE_DAILY_VIBE: personal_transit_rules_for_mode(PERSONAL_TRANSIT_MODE_DAILY_VIBE),
         }
         transit_scan_config = resolve_transit_window_scan_config()
-        include_time = transit_scan_config.include_time
 
         def _scan_config_for_hit(hit_obj: Any):
             return resolve_transit_window_scan_config_for_transit_body(
@@ -5031,6 +5069,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _transit_shutdown_callbacks: list[Callable[[], None]] = []
 
         def _finalize_transit_worker_shutdown() -> None:
+            nonlocal _transit_shutdown_in_progress
             pending_keys = list(transit_workers.keys())
             for key in pending_keys:
                 worker_entry = transit_workers.get(key)
@@ -5043,6 +5082,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
+            _transit_shutdown_in_progress = False
             for callback in callbacks:
                 callback()
 
@@ -5090,7 +5130,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             previous_vertical_position = vertical_scrollbar.value()
             previous_horizontal_position = horizontal_scrollbar.value()
             sort_mode = summary_sort_combo.currentText()
-            lines = list(summary_header_lines)
+            lines = _summary_header_lines()
             aspect_info_map: dict[int, dict[str, object]] = {}
             calendar_info_map.clear()
             sections = _build_personal_transit_sections(sort_mode)
@@ -5355,7 +5395,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _start_window_worker(key, state, refresh=True)
 
         def _build_personal_transit_export_text() -> str:
-            lines = list(summary_header_lines)
+            lines = _summary_header_lines()
             sort_mode = summary_sort_combo.currentText()
             sections = _build_personal_transit_sections(sort_mode)
             for section_title, section_subtitle, entries, empty_mode in sections:
@@ -5450,9 +5490,66 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _ensure_window_async(key, state)
             return True
 
+        def _on_update_chart() -> None:
+            nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
+
+            try:
+                resolved_location = resolve_personal_transit_location(
+                    popout_location_input.text(),
+                    fallback_lat=transit_chart.lat,
+                    fallback_lon=transit_chart.lon,
+                    fallback_location_label=location_label,
+                )
+            except PersonalTransitLocationError as error:
+                QMessageBox.warning(
+                    dialog,
+                    "Location lookup failed",
+                    f"Could not resolve location '{popout_location_input.text().strip()}'.\n{error}",
+                )
+                return
+
+            selected_date = popout_date_input.date()
+            selected_time = popout_time_input.time()
+            selected_local = datetime.datetime(
+                selected_date.year(),
+                selected_date.month(),
+                selected_date.day(),
+                selected_time.hour(),
+                selected_time.minute(),
+                tzinfo=local_tz,
+            )
+            recalculated = recalculate_personal_transit(
+                natal_chart=natal_chart,
+                selected_local_datetime=selected_local,
+                location=resolved_location,
+                raw_location=popout_location_input.text(),
+            )
+
+            def _finish_update() -> None:
+                nonlocal transit_chart, transit_positions_in_natal_houses, aspect_hits_by_mode, transit_location, include_time, location_label, raw_location
+                transit_chart = recalculated.transit_chart
+                transit_positions_in_natal_houses = recalculated.transit_positions_in_natal_houses
+                aspect_hits_by_mode = recalculated.aspect_hits_by_mode
+                transit_location = (recalculated.transit_chart.lat, recalculated.transit_chart.lon)
+                include_time = recalculated.include_time
+                location_label = recalculated.location_label
+                raw_location = recalculated.raw_location
+                popout_location_input.setText(raw_location)
+                transit_ranges.clear()
+                calendar_info_map.clear()
+                preload_queue.clear()
+                _redraw_chart_wheel()
+                _refresh_summary()
+                preload_queue.extend([key for key, state in transit_ranges.items() if not state.get("resolved")])
+                QTimer.singleShot(0, _drain_preload_queue)
+
+            _begin_transit_worker_shutdown(_finish_update)
+
         popout_context["custom_click_handler"] = _handle_calendar_click
 
         summary_sort_combo.currentTextChanged.connect(lambda _text: _refresh_summary())
+        update_button.clicked.connect(_on_update_chart)
+        _redraw_chart_wheel()
         _refresh_summary()
         preload_queue[:] = [key for key, state in transit_ranges.items() if not state.get("resolved")]
         QTimer.singleShot(0, _drain_preload_queue)
