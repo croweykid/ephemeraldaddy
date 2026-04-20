@@ -13,8 +13,8 @@ from ephemeraldaddy.core.composite import (
 
 
 class TransitAspectWindowRelay(QObject):
-    ready = Signal(str, str, str, object, object, object)
-    failed = Signal(str, str, str, str)
+    ready = Signal(str, str, str, str, object, object, object)
+    failed = Signal(str, str, str, str, str)
 
 
 class ManagedTransitPopoutDialog(QDialog):
