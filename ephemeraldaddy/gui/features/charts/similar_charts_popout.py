@@ -825,6 +825,7 @@ def build_similarity_reasoning_panel_text(
     compared_chart: Any | None = None,
     similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    show_granular_explanations: bool = True,
     analysis_mode: str = "similarities",
 ) -> str:
     _band_label, _band_color = resolve_similarity_band(float(getattr(match, "score", 0.0)) * 100.0)
@@ -945,14 +946,40 @@ def build_similarity_reasoning_panel_text(
                 lines.append("; ".join(placement_labels) if placement_labels else "No exact same-sign placements found in tracked bodies.")
                 lines.append("")
             if "aspect" in component_weight_percents:
-                aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
-                lines.append(
-                    _section_title_with_weight_and_match(
+                if show_granular_explanations:
+                    aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
+                    aspect_labels = [
+                        f"{label} ([{weight:.1f}% weight total])"
+                        for label, weight in aspect_weighted_labels
+                    ]
+                    aspect_weight_percent = component_weight_percents.get("aspect")
+                    aspect_match_percent = component_score_percents.get("aspect")
+                    title = _section_title_with_weight_and_match(
                         "Aspects in common:",
                         "aspect",
                         component_weight_percents,
                         component_score_percents,
                     )
+                    if (
+                        aspect_weighted_labels
+                        and aspect_weight_percent is not None
+                        and aspect_match_percent is not None
+                    ):
+                        relevance_points = (float(aspect_weight_percent) * float(aspect_match_percent)) / 100.0
+                        title = (
+                            f"{title} + [{relevance_points:.1f} relevance points] = "
+                            f"[{relevance_points:.1f}/100 similarity points]"
+                        )
+                else:
+                    aspect_labels = _common_aspect_labels(subject_chart, compared_chart)
+                    title = _section_title_with_weight_and_match(
+                        "Aspects in common:",
+                        "aspect",
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                lines.append(
+                    title
                 )
                 lines.append("; ".join(aspect_labels) if aspect_labels else "No shared aspect signatures were found.")
                 lines.append("")
@@ -1037,6 +1064,7 @@ def build_similarity_reasoning_panel_html(
     compared_chart: Any | None = None,
     similarity_settings: SimilarityCalculatorSettings | None = None,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    show_granular_explanations: bool = True,
     analysis_mode: str = "similarities",
 ) -> str:
     def _apply_word_colors(text_value: str, lookup: dict[str, str], *, weight: str = "400") -> str:
@@ -1228,33 +1256,44 @@ def build_similarity_reasoning_panel_html(
                     )
                 )
             if "aspect" in component_weight_percents:
-                aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
-                aspect_items = (
-                    [
-                        f"{label} ([{weight:.1f}% weight total])"
-                        for label, weight in aspect_weighted_labels
-                    ]
-                    if aspect_weighted_labels
-                    else ["No shared aspect signatures were found."]
-                )
-                aspect_weight_percent = component_weight_percents.get("aspect")
-                aspect_match_percent = component_score_percents.get("aspect")
-                title = _section_title_with_weight_and_match(
-                    "Aspects in common:",
-                    "aspect",
-                    component_weight_percents,
-                    component_score_percents,
-                )
-                if (
-                    aspect_weighted_labels
-                    and aspect_weight_percent is not None
-                    and aspect_match_percent is not None
-                ):
-                    relevance_points = (float(aspect_weight_percent) * float(aspect_match_percent)) / 100.0
-                    title = (
-                        f"{title} + [{relevance_points:.1f} relevance points] = "
-                        f"[{relevance_points:.1f}/100 similarity points]"
+                if show_granular_explanations:
+                    aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
+                    aspect_items = (
+                        [
+                            f"{label} ([{weight:.1f}% weight total])"
+                            for label, weight in aspect_weighted_labels
+                        ]
+                        if aspect_weighted_labels
+                        else ["No shared aspect signatures were found."]
                     )
+                    aspect_weight_percent = component_weight_percents.get("aspect")
+                    aspect_match_percent = component_score_percents.get("aspect")
+                    title = _section_title_with_weight_and_match(
+                        "Aspects in common:",
+                        "aspect",
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                    if (
+                        aspect_weighted_labels
+                        and aspect_weight_percent is not None
+                        and aspect_match_percent is not None
+                    ):
+                        relevance_points = (float(aspect_weight_percent) * float(aspect_match_percent)) / 100.0
+                        title = (
+                            f"{title} + [{relevance_points:.1f} relevance points] = "
+                            f"[{relevance_points:.1f}/100 similarity points]"
+                        )
+                else:
+                    title = _section_title_with_weight_and_match(
+                        "Aspects in common:",
+                        "aspect",
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                    aspect_items = _common_aspect_labels(subject_chart, compared_chart) or [
+                        "No shared aspect signatures were found."
+                    ]
                 html_lines.append(
                     _section(
                         title,
