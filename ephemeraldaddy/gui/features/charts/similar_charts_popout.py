@@ -685,10 +685,16 @@ def _resolve_component_score_percents(
     similarity_settings: SimilarityCalculatorSettings | None,
 ) -> dict[str, int]:
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    active_placement_mode = (
+        similarity_settings.normalized_placement_weighting_mode()
+        if similarity_settings is not None
+        else SimilarityCalculatorSettings.defaults_from_comprehensive().normalized_placement_weighting_mode()
+    )
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
         effective_settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
     else:
         effective_settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+        effective_settings.placement_weighting_mode = active_placement_mode
 
     _overall_score, component_scores = chart_similarity_score_custom(
         subject_chart,
