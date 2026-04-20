@@ -12,11 +12,11 @@ from ephemeraldaddy.core.composite import (
     PERSONAL_TRANSIT_MODE_LIFE_FORECAST,
     assign_houses,
     compute_aspects,
-    format_chart_header,
     normalize_chart,
     personal_transit_rules_for_mode,
 )
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
+from ephemeraldaddy.gui.style import format_chart_header
 
 
 class PersonalTransitLocationError(ValueError):
