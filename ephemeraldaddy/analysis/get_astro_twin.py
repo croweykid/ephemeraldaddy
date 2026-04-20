@@ -316,14 +316,22 @@ def _is_tautological_angle_aspect(body_a: str, body_b: str) -> bool:
     return body_a in NATAL_ANGLES and body_b in NATAL_ANGLES
 
 
+def _is_tautological_node_opposition(body_a: str, body_b: str, aspect_type: str) -> bool:
+    if str(aspect_type).strip().lower() != "opposition":
+        return False
+    return {str(body_a).strip(), str(body_b).strip()} == {"Rahu", "Ketu"}
+
+
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
     for aspect in getattr(chart, "aspects", None) or []:
         key = _canonical_aspect_key(aspect)
         if key is None:
             continue
-        (a, b), _ = key
+        (a, b), aspect_type = key
         if _is_tautological_angle_aspect(a, b):
+            continue
+        if _is_tautological_node_opposition(a, b, aspect_type):
             continue
         orb = abs(float(aspect.get("delta", 0.0) or 0.0))
         aspect_map.setdefault(key, []).append(orb)
