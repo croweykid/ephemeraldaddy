@@ -111,6 +111,12 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
 _DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
 
 
+def _is_tautological_node_opposition(p1: str, p2: str, aspect_type: str) -> bool:
+    if str(aspect_type).strip().lower() != "opposition":
+        return False
+    return {str(p1).strip(), str(p2).strip()} == {"Rahu", "Ketu"}
+
+
 def _house_for_longitude(houses: list[float] | None, longitude: float | None) -> int | None:
     if not houses or longitude is None or len(houses) < 12:
         return None
@@ -191,6 +197,8 @@ def _common_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
             return None
         if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
             return None
+        if _is_tautological_node_opposition(p1, p2, aspect_type):
+            return None
         left, right = sorted((p1, p2))
         return (left, right), aspect_type
 
@@ -218,6 +226,8 @@ def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any
         if not p1 or not p2 or not aspect_type:
             return None
         if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
+            return None
+        if _is_tautological_node_opposition(p1, p2, aspect_type):
             return None
         left, right = sorted((p1, p2))
         return (left, right), aspect_type
@@ -293,6 +303,8 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
         if not p1 or not p2 or not aspect_type:
             return None
         if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
+            return None
+        if _is_tautological_node_opposition(p1, p2, aspect_type):
             return None
         left, right = sorted((p1, p2))
         return (left, right), aspect_type
@@ -716,6 +728,57 @@ def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) ->
     return differences
 
 
+def _human_design_gate_set(chart: Any) -> set[int]:
+    existing: set[int] = set()
+    for gate in (getattr(chart, "human_design_gates", None) or []):
+        try:
+            existing.add(int(gate))
+        except (TypeError, ValueError):
+            continue
+    if existing:
+        return existing
+    try:
+        result = build_human_design_result(chart)
+    except Exception:
+        return set()
+    resolved: set[int] = set()
+    for gate in (getattr(result, "active_gates", None) or []):
+        try:
+            resolved.add(int(gate))
+        except (TypeError, ValueError):
+            continue
+    return resolved
+
+
+def _human_design_gate_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_gates = _human_design_gate_set(subject_chart)
+    compared_gates = _human_design_gate_set(compared_chart)
+    shared = sorted(subject_gates & compared_gates)
+    union_size = len(subject_gates | compared_gates)
+    overlap_percent = (len(shared) / union_size * 100.0) if union_size else 0.0
+    lines = [
+        f"Gate overlap: {len(shared)}/{union_size} ({overlap_percent:.1f}%)."
+    ]
+    if shared:
+        lines.append("Shared gates: " + ", ".join(f"Gate {gate}" for gate in shared))
+    return lines
+
+
+def _human_design_gate_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_gates = _human_design_gate_set(subject_chart)
+    compared_gates = _human_design_gate_set(compared_chart)
+    subject_only = sorted(subject_gates - compared_gates)
+    compared_only = sorted(compared_gates - subject_gates)
+    differences: list[str] = []
+    if subject_only:
+        differences.append("Only in first chart: " + ", ".join(f"Gate {gate}" for gate in subject_only))
+    if compared_only:
+        differences.append("Only in second chart: " + ", ".join(f"Gate {gate}" for gate in compared_only))
+    if not differences:
+        differences.append("Human Design gate sets are identical.")
+    return differences
+
+
 def _resolve_component_weight_percents(
     *,
     algorithm_mode: str,
@@ -932,6 +995,18 @@ def build_similarity_reasoning_panel_text(
                     )
                 )
                 lines.append(" | ".join(centers_diff) if centers_diff else "Defined center sets are the same.")
+            if "human_design_gates" in component_weight_percents:
+                hd_gate_diff = _human_design_gate_difference_lines(subject_chart, compared_chart)
+                lines.append("")
+                lines.append(
+                    _section_title_with_weight_and_match(
+                        "Human Design gate differences:",
+                        "human_design_gates",
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                )
+                lines.append(" | ".join(hd_gate_diff))
         else:
             if "placement" in component_weight_percents:
                 placement_labels = _common_placement_labels(subject_chart, compared_chart)
@@ -1043,6 +1118,18 @@ def build_similarity_reasoning_panel_text(
                     )
                 )
                 lines.append(", ".join(centers) if centers else "No overlapping defined centers were found.")
+                lines.append("")
+            if "human_design_gates" in component_weight_percents:
+                hd_gate_lines = _human_design_gate_overlap_lines(subject_chart, compared_chart)
+                lines.append(
+                    _section_title_with_weight_and_match(
+                        "Human Design gates in common:",
+                        "human_design_gates",
+                        component_weight_percents,
+                        component_score_percents,
+                    )
+                )
+                lines.append(" | ".join(hd_gate_lines) if hd_gate_lines else "No Human Design gate overlap was found.")
                 lines.append("")
     else:
         lines.append("Detailed similarity details are unavailable because one or both charts could not be loaded.")
@@ -1241,6 +1328,18 @@ def build_similarity_reasoning_panel_html(
                         or ["Defined center sets are the same."],
                     )
                 )
+            if "human_design_gates" in component_weight_percents:
+                html_lines.append(
+                    _section(
+                        _section_title_with_weight_and_match(
+                            "Human Design gate differences:",
+                            "human_design_gates",
+                            component_weight_percents,
+                            component_score_percents,
+                        ),
+                        _human_design_gate_difference_lines(subject_chart, compared_chart),
+                    )
+                )
         else:
             if "placement" in component_weight_percents:
                 html_lines.append(
@@ -1380,6 +1479,19 @@ def build_similarity_reasoning_panel_html(
                             center_items,
                         )
                     )
+            if "human_design_gates" in component_weight_percents:
+                html_lines.append(
+                    _section(
+                        _section_title_with_weight_and_match(
+                            "Human Design gates in common:",
+                            "human_design_gates",
+                            component_weight_percents,
+                            component_score_percents,
+                        ),
+                        _human_design_gate_overlap_lines(subject_chart, compared_chart)
+                        or ["No Human Design gate overlap was found."],
+                    )
+                )
     else:
         html_lines.append(
             _section(
