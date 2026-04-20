@@ -33,6 +33,7 @@ OUTLINED_PLANET_KEYS = frozenset({"Neptune", "Pluto", "Rahu", "Ketu"})
 SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE = "similar_charts/algorithm_mode"
 SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
+SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -127,6 +128,21 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
         },
     )
+
+
+def _load_astrotwin_granular_explanation(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
 
 
 from PySide6.QtGui import (
@@ -1590,6 +1606,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._similarity_calculator_settings = _load_similarity_calculator_settings(self._settings)
         _save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
+        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=False)
+        self._settings.setValue(
+            SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
+            int(self._astrotwin_granular_explanation),
+        )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -17126,6 +17147,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
+            on_granular_explanations_toggled=self._on_astrotwin_granular_explanation_toggled,
+            show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
             on_calibrate_clicked=self._calibrate_similarity_norms,
             on_save_thresholds_clicked=self._save_similarity_threshold_overrides,
             on_reset_thresholds_clicked=self._reset_similarity_threshold_defaults,
@@ -17138,6 +17161,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
+        self._astrotwin_granular_explanation_checkbox = similarity_controls["granular_explanations_checkbox"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
         self._load_similarity_calculator_controls()
@@ -17293,7 +17317,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 blocker = QSignalBlocker(weighting_mode_combo)
                 weighting_mode_combo.setCurrentIndex(target_index)
                 del blocker
+        granular_checkbox = getattr(self, "_astrotwin_granular_explanation_checkbox", None)
+        if isinstance(granular_checkbox, QCheckBox):
+            blocker = QSignalBlocker(granular_checkbox)
+            granular_checkbox.setChecked(bool(getattr(self, "_astrotwin_granular_explanation", False)))
+            del blocker
         self._update_similarity_calculator_weight_constraints_and_total()
+
+    def _on_astrotwin_granular_explanation_toggled(self, checked: bool) -> None:
+        self._astrotwin_granular_explanation = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
+            int(self._astrotwin_granular_explanation),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._astrotwin_granular_explanation = self._astrotwin_granular_explanation
+            parent._settings.setValue(
+                SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
+                int(self._astrotwin_granular_explanation),
+            )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -18398,6 +18441,11 @@ class MainWindow(QMainWindow):
         )
         self._similarity_calculator_settings = _load_similarity_calculator_settings(self._settings)
         _save_similarity_calculator_settings(self._settings, self._similarity_calculator_settings)
+        self._astrotwin_granular_explanation = _load_astrotwin_granular_explanation(self._settings, fallback=False)
+        self._settings.setValue(
+            SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
+            int(self._astrotwin_granular_explanation),
+        )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
@@ -19884,6 +19932,7 @@ class MainWindow(QMainWindow):
                 subject_chart=subject_chart,
                 compared_chart=compared_chart,
                 similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
                 resolve_similarity_band=self._similarity_band_for_percent,
                 analysis_mode=analysis_mode,
             )
@@ -19893,6 +19942,7 @@ class MainWindow(QMainWindow):
                 subject_chart=subject_chart,
                 compared_chart=compared_chart,
                 similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
                 resolve_similarity_band=self._similarity_band_for_percent,
                 analysis_mode=analysis_mode,
             )
