@@ -4430,7 +4430,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _refresh_summary() -> None:
             sort_mode = summary_sort_combo.currentText()
-            lines = _summary_header_lines()
+            lines = list(summary_header_lines)
             aspect_info_map: dict[int, dict[str, object]] = {}
             sorted_hits = self._sort_popout_aspects(
                 aspect_hits,
