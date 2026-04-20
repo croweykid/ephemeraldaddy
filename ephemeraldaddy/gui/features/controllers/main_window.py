@@ -377,7 +377,7 @@ class ChartAnalysisSectionsController:
             section_key="planet_dynamics",
             section_title="Body Dynamics",
             header_title="Body Dynamics",
-            subtitle_text="Per-body trait scoring derived from dignity, house/sect/aspect context, dispositors, rulership, and thematic repetition.",
+            subtitle_text="Per-body aspect counts grouped as Antagonizing, Enabling, and Escalating, plus each body's relative dominance share.",
             default_filename="ephemeraldaddy_chart_planet_dynamics",
             chart_container_attr="planet_dynamics_container",
             chart_layout_attr="planet_dynamics_container_layout",
