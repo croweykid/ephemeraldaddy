@@ -2268,7 +2268,7 @@ class DatabaseAnalyticsChartsMixin:
         percent_delta = abs(selection_pct - database_pct)
         rounded_delta = int(round(percent_delta))
 
-        if math.isclose(selection_pct, database_pct, abs_tol=0.05):
+        if rounded_delta == 0:
             return (
                 f'• {label} ({selection_count}) | ({database_count} in DB) | '
                 '<span style="color: #b8b8b8;">0% difference '
