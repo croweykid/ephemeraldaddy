@@ -13,7 +13,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_pair_weight,
     aspect_score,
 )
-from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
+from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
