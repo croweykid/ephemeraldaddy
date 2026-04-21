@@ -206,6 +206,10 @@ def _house_for_longitude(houses: list[float] | None, longitude: float | None) ->
 def _safe_chart_name(chart: Any, fallback: str) -> str:
     return str(getattr(chart, "name", "") or fallback).strip() or fallback
 
+def _chart_possessive_label(chart: Any, fallback: str) -> str:
+    name = _safe_chart_name(chart, fallback)
+    suffix = "'" if name.endswith("s") else "'s"
+    return f"{name}{suffix} chart"
 
 def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
@@ -555,6 +559,9 @@ def _common_aspect_labels_with_weight_details(subject_chart: Any, compared_chart
 
 
 def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
         p1 = str(aspect.get("p1") or "").strip()
         p2 = str(aspect.get("p2") or "").strip()
@@ -583,12 +590,12 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
     differences: list[str] = []
     if only_subject:
         differences.append(
-            "Only in first chart: "
+            f"Only in {subject_label}: "
             + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_subject)
         )
     if only_compared:
         differences.append(
-            "Only in second chart: "
+            f"Only in {compared_label}: "
             + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_compared)
         )
     return differences
@@ -775,6 +782,8 @@ def _body_dominance_profile(chart: Any) -> dict[str, float]:
 
 
 def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *, analysis_mode: str) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
     q_sign = _sign_weight_profile(subject_chart)
     c_sign = _sign_weight_profile(compared_chart)
     q_house = _house_weight_profile(subject_chart)
@@ -815,20 +824,21 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
                 f"Sign dominance mismatch: {(1.0 - sign_overlap) * 100.0:.1f}% (overlap {sign_overlap * 100.0:.1f}%).",
                 (
                     "Top sign differences: "
-                    f"first-only [{', '.join(only_subject_signs) or 'none'}]; "
-                    f"second-only [{', '.join(only_compared_signs) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(only_subject_signs) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(only_compared_signs) or 'none'}]."
                 ),
                 f"House dominance mismatch: {(1.0 - house_overlap) * 100.0:.1f}% (overlap {house_overlap * 100.0:.1f}%).",
                 (
                     "Top house differences: "
-                    f"first-only [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
-                    f"second-only [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
+                ),
                 ),
                 f"Planet/body dominance mismatch: {(1.0 - body_overlap) * 100.0:.1f}% (overlap {body_overlap * 100.0:.1f}%).",
                 (
                     "Top body differences: "
-                    f"first-only [{', '.join(only_subject_bodies) or 'none'}]; "
-                    f"second-only [{', '.join(only_compared_bodies) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(only_subject_bodies) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(only_compared_bodies) or 'none'}]."
                 ),
             ]
         )
@@ -874,7 +884,7 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
             differences.append(f"{body}: {subject_nak} vs {compared_nak}")
     return sorted(differences)
 
-
+#note: currently this is using Nakshatra Prevalence, NOT Nakshatra dominance.
 def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
     def _profile(chart: Any) -> dict[str, int]:
         positions = getattr(chart, "positions", None) or {}
@@ -904,6 +914,9 @@ def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> lis
 
 
 def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _top3(chart: Any) -> list[str]:
         positions = getattr(chart, "positions", None) or {}
         counts: dict[str, int] = {}
@@ -925,15 +938,18 @@ def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) ->
     compared_only = [nak for nak in compared_top if nak not in set(subject_top)]
     differences: list[str] = []
     if subject_only:
-        differences.append("Top nakshatras only in first chart: " + ", ".join(subject_only))
+        differences.append(f"Top nakshatras only in {subject_label}: " + ", ".join(subject_only))
     if compared_only:
-        differences.append("Top nakshatras only in second chart: " + ", ".join(compared_only))
+        differences.append(f"Top nakshatras only in {compared_label}: " + ", ".join(compared_only))
     if not differences:
-        differences.append("Top nakshatra dominance profiles are closely aligned.")
+        differences.append("Top nakshatra dominance profiles essentially the same.")
     return differences
 
 
 def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _centers(chart: Any) -> set[str]:
         existing = {
             str(center).strip()
@@ -981,9 +997,9 @@ def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) ->
     compared_only = sorted(compared_centers - subject_centers)
     differences: list[str] = []
     if subject_only:
-        differences.append("Only in first chart: " + ", ".join(subject_only))
+        differences.append(f"Only in {subject_label}: " + ", ".join(subject_only))
     if compared_only:
-        differences.append("Only in second chart: " + ", ".join(compared_only))
+        differences.append(f"Only in {compared_label}: " + ", ".join(compared_only))
     return differences
 
 
@@ -1010,6 +1026,9 @@ def _human_design_gate_set(chart: Any) -> set[int]:
 
 
 def _human_design_gate_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     subject_gates = _human_design_gate_set(subject_chart)
     compared_gates = _human_design_gate_set(compared_chart)
     shared = sorted(subject_gates & compared_gates)
@@ -1030,9 +1049,9 @@ def _human_design_gate_difference_lines(subject_chart: Any, compared_chart: Any)
     compared_only = sorted(compared_gates - subject_gates)
     differences: list[str] = []
     if subject_only:
-        differences.append("Only in first chart: " + ", ".join(f"Gate {gate}" for gate in subject_only))
+        differences.append(f"Only in {subject_label}: " + ", ".join(f"Gate {gate}" for gate in subject_only))
     if compared_only:
-        differences.append("Only in second chart: " + ", ".join(f"Gate {gate}" for gate in compared_only))
+        differences.append(f"Only in {compared_label}: " + ", ".join(f"Gate {gate}" for gate in compared_only))
     if not differences:
         differences.append("Human Design gate sets are identical.")
     return differences
