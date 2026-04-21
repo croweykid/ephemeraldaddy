@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import os
 import random
+import statistics
 import subprocess
 import sys
 import traceback
