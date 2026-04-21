@@ -6,7 +6,8 @@ import html
 import re
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QToolButton,
     QScrollArea,
     QSplitter,
     QVBoxLayout,
@@ -1578,6 +1580,8 @@ def build_similar_charts_popout_dialog(
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
     on_make_collection_clicked: Callable[[QDialog], None] | None = None,
+    on_export_clicked: Callable[[QDialog], None] | None = None,
+    share_icon_path: str | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle(f"Similar Charts — {subject_name}")
@@ -1594,6 +1598,19 @@ def build_similar_charts_popout_dialog(
     if on_make_collection_clicked is not None:
         make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
     top_row.addWidget(make_collection_button, 0, Qt.AlignRight)
+    export_button = QToolButton()
+    if share_icon_path:
+        export_button.setIcon(QIcon(share_icon_path))
+        export_button.setIconSize(QSize(14, 14))
+    else:
+        export_button.setText("↗")
+    export_button.setAutoRaise(True)
+    export_button.setCursor(Qt.PointingHandCursor)
+    export_button.setToolTip("Export Top 25 Most Similar & Top 25 Least Similar charts as TXT or Markdown")
+    export_button.setVisible(on_export_clicked is not None)
+    if on_export_clicked is not None:
+        export_button.clicked.connect(lambda _checked=False: on_export_clicked(dialog))
+    top_row.addWidget(export_button, 0, Qt.AlignRight)
     layout.addLayout(top_row)
 
     # title_label = QLabel(f"Similar Charts for {subject_name}")
@@ -1643,6 +1660,7 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_analysis_dropdown = analysis_dropdown
     dialog._similar_chart_popout_info_output = info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
+    dialog._similar_chart_popout_export_button = export_button
     splitter.addWidget(info_panel)
 
     list_splitter = QSplitter(Qt.Horizontal)
