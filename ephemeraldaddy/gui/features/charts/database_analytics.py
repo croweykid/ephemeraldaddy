@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import csv
+import html
 import math
 import re
 import statistics
@@ -2250,6 +2251,52 @@ class DatabaseAnalyticsChartsMixin:
         minutes = int(round(total_minutes)) % (24 * 60)
         hours, mins = divmod(minutes, 60)
         return f"{hours:02d}:{mins:02d}"
+
+    @staticmethod
+    def _format_birthplace_comparison_line(
+        *,
+        label: str,
+        selection_count: int,
+        database_count: int,
+        selection_total: int,
+        database_total: int,
+    ) -> str:
+        safe_label = html.escape(str(label))
+        if selection_total <= 0 or database_total <= 0:
+            return f"• {safe_label} ({database_count} in DB)"
+
+        selection_pct = (float(selection_count) / float(selection_total)) * 100.0
+        database_pct = (float(database_count) / float(database_total)) * 100.0
+        percent_delta = abs(selection_pct - database_pct)
+        rounded_delta = int(round(percent_delta))
+
+        if rounded_delta == 0:
+            return (
+                f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
+                '<span style="color: #b8b8b8;">0% difference '
+                "(selection % identical to DB)</span>"
+            )
+
+        if selection_pct > database_pct:
+            return (
+                f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
+                f'<span style="color: lime;">{rounded_delta}% difference '
+                "more common in selection than DB</span>"
+            )
+
+        return (
+            f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
+            f'<span style="color: red;">{rounded_delta}% difference '
+            "less common in selection than DB</span>"
+        )
+
+    def _build_birthplace_comparison_text_widget(self, lines: list[str]) -> QLabel:
+        widget = QLabel()
+        widget.setTextFormat(Qt.RichText)
+        widget.setWordWrap(True)
+        widget.setStyleSheet("font-size: 11px; color: #f5f5f5;")
+        widget.setText("<br>".join(lines))
+        return widget
 
     @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
