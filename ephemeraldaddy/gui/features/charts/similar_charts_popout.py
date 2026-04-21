@@ -78,6 +78,14 @@ _ASPECT_COLORS: dict[str, str] = {
 }
 _SIMILARITY_LIST_TEXT_COLOR = "#B87333"
 _SIMILARITY_PANEL_BODY_TEXT_COLOR = "#FFFFFF"
+_SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
+    "placement": "placements",
+    "aspect": "aspects",
+    "distribution": "distribution",
+    "combined_dominance": "dominance",
+    "nakshatra_placement": "nakshatra placement",
+    "defined_centers": "defined centers",
+}
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
 _NAKSHATRA_COLOR_MAP: dict[str, str] = {
@@ -833,7 +841,6 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
                     f"only in {subject_label} [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
                     f"only in {compared_label} [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
                 ),
-                ),
                 f"Planet/body dominance mismatch: {(1.0 - body_overlap) * 100.0:.1f}% (overlap {body_overlap * 100.0:.1f}%).",
                 (
                     "Top body differences: "
@@ -1087,6 +1094,44 @@ def _resolve_component_weight_percents(
         key: int(round((weight / total_weight) * 100.0))
         for key, weight in included_weights.items()
     }
+
+
+def resolve_similarity_component_keys_for_display(
+    *,
+    algorithm_mode: str,
+    similarity_settings: SimilarityCalculatorSettings | None,
+) -> list[str]:
+    component_weight_percents = _resolve_component_weight_percents(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=similarity_settings,
+    )
+    return [key for key in component_weight_percents if key in _SIMILARITY_COMPONENT_LABELS]
+
+
+def format_similarity_component_summary(
+    *,
+    match: Any,
+    component_keys: list[str] | None = None,
+) -> str:
+    keys = component_keys or ["placement", "aspect", "distribution", "combined_dominance"]
+    values_by_component = {
+        "placement": getattr(match, "placement_score", None),
+        "aspect": getattr(match, "aspect_score", None),
+        "distribution": getattr(match, "distribution_score", None),
+        "combined_dominance": getattr(match, "dominance_score", None),
+        "nakshatra_placement": getattr(match, "nakshatra_score", None),
+        "defined_centers": getattr(match, "hd_centers_score", None),
+    }
+    bits: list[str] = []
+    for key in keys:
+        score = values_by_component.get(key)
+        if score is None:
+            continue
+        label = _SIMILARITY_COMPONENT_LABELS.get(key)
+        if not label:
+            continue
+        bits.append(f"{label} {float(score) * 100.0:.0f}%")
+    return ", ".join(bits) if bits else "no enabled criteria"
 
 
 def _section_title_with_weight(title: str, component_key: str, component_weight_percents: dict[str, int]) -> str:
@@ -1851,22 +1896,24 @@ def render_similar_match_blocks(
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     info_link_prefix: str = "sim-info",
+    algorithm_mode: str = "default",
+    similarity_settings: SimilarityCalculatorSettings | None = None,
 ) -> str:
     if not matches:
         return "No charts found."
+    component_keys = resolve_similarity_component_keys_for_display(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=similarity_settings,
+    )
     blocks: list[str] = []
     for rank, match in enumerate(matches, start=1):
         safe_name = html.escape(str(match.chart_name))
         similarity_percent = float(match.score) * 100.0
         band_label, band_color = resolve_similarity_band(similarity_percent)
-        extra_bits: list[str] = []
-        if getattr(match, "nakshatra_score", None) is not None:
-            extra_bits.append(f"nakshatra placement {float(match.nakshatra_score) * 100.0:.0f}%")
-        if getattr(match, "hd_centers_score", None) is not None:
-            extra_bits.append(f"defined centers {float(match.hd_centers_score) * 100.0:.0f}%")
-        if getattr(match, "dominance_score", None) is not None:
-            extra_bits.insert(0, f"dominance {float(match.dominance_score) * 100.0:.0f}%")
-        extra_suffix = f", {', '.join(extra_bits)}" if extra_bits else ""
+        component_summary = format_similarity_component_summary(
+            match=match,
+            component_keys=component_keys,
+        )
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
@@ -1875,9 +1922,7 @@ def render_similar_match_blocks(
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
-                f"(placements {match.placement_score * 100.0:.0f}%, "
-                f"aspects {match.aspect_score * 100.0:.0f}%, "
-                f"distribution {match.distribution_score * 100.0:.0f}%{extra_suffix})"
+                f"({component_summary})"
                 "</span>"
             )
         )
@@ -1896,6 +1941,8 @@ def build_similar_charts_popout_dialog(
     info_output_style: str | None = None,
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    algorithm_mode: str = "default",
+    similarity_settings: SimilarityCalculatorSettings | None = None,
     info_link_prefix: str = "sim-info",
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
@@ -2011,6 +2058,8 @@ def build_similar_charts_popout_dialog(
                 highlight_color=highlight_color,
                 resolve_similarity_band=resolve_similarity_band,
                 info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                algorithm_mode=algorithm_mode,
+                similarity_settings=similarity_settings,
             )
         )
 
