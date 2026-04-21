@@ -6,6 +6,7 @@ from math import sqrt
 from typing import Iterable
 
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
     NATAL_WEIGHT,
@@ -621,6 +622,17 @@ def _human_design_gates(chart: Chart) -> set[int]:
     raw_gates = getattr(chart, "human_design_gates", None) or []
     resolved_gates: set[int] = set()
     for gate in raw_gates:
+        try:
+            resolved_gates.add(int(gate))
+        except (TypeError, ValueError):
+            continue
+    if resolved_gates:
+        return resolved_gates
+    try:
+        hd_result = calculate_human_design(chart)
+    except Exception:
+        return set()
+    for gate in (getattr(hd_result, "active_gates", None) or []):
         try:
             resolved_gates.add(int(gate))
         except (TypeError, ValueError):
