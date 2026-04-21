@@ -11,7 +11,6 @@ import logging
 import numpy as np
 import os
 import random
-import statistics
 import subprocess
 import sys
 import traceback
@@ -682,6 +681,8 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
+    draw_weight_distribution_reference_lines,
+    format_weight_distribution_html,
     format_unknown_positions_summary_html,
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
@@ -21439,6 +21440,7 @@ class MainWindow(QMainWindow):
         for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
             tick_label.set_gid(f"body:{body}")
             tick_label.set_picker(5)
+        draw_weight_distribution_reference_lines(ax, values)
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -25909,18 +25911,35 @@ class MainWindow(QMainWindow):
         chart_ruler_label = self._chart_analysis_footer_labels.get("dominant_planets")
         if chart_ruler_label is None:
             return
+        distribution_html = format_weight_distribution_html(
+            self._dominant_body_distribution_weights(chart)
+        )
         if chart is None:
-            chart_ruler_label.setText("Chart Ruler: Unknown")
+            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
         rulers = self._chart_ruler_planets(chart)
         if not rulers:
-            chart_ruler_label.setText("Chart Ruler: Unknown")
+            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
         ruler_html = " &amp; ".join(
             f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>'
             for ruler in rulers
         )
-        chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}")
+        chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}<br>{distribution_html}")
+
+    def _dominant_body_distribution_weights(self, chart: Chart | None) -> list[float]:
+        if chart is None:
+            return []
+        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
+        if mode == "sidereal_planet_prevalence":
+            weighted_counts = _calculate_sidereal_planet_prevalence_counts(chart)
+        else:
+            weighted_counts = _calculate_dominant_planet_weights(chart)
+        return [
+            float(weight)
+            for weight in weighted_counts.values()
+            if isinstance(weight, (int, float))
+        ]
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
