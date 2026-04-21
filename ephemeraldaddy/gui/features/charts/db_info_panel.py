@@ -149,10 +149,17 @@ def add_similarity_match_row(
         unknown_percent_value = int(round((unknown_count / selection_total_count) * 100))
         unknown_suffix = f" | {unknown_percent_value}% unknown"
 
+    selection_percent_text = f"{percent_value}% of selection"
+    if percent_value < db_percent_value:
+        selection_percent_text = f'<span style="color: #ff2d2d;">{selection_percent_text}</span>'
+    elif percent_value > db_percent_value:
+        selection_percent_text = f'<span style="color: #7fff00;">{selection_percent_text}</span>'
+
     tiny_label = QLabel(
-        f"{percent_value}% of selection | {db_percent_value}% of DB{unknown_suffix}"
+        f"{selection_percent_text} | {db_percent_value}% of DB{unknown_suffix}"
     )
     tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    tiny_label.setTextFormat(Qt.RichText)
     tiny_label.setStyleSheet("color: #9f9f9f; font-size: 8px;")
     row_layout.addWidget(tiny_label, stretch=0, alignment=Qt.AlignLeft)
 
