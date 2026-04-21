@@ -38,6 +38,7 @@ class Chart:
         self.familiarity_factors = []
         self.dominant_sign_weights = {}
         self.dominant_planet_weights = {}
+        self.dominant_nakshatra_weights = {}
         self.dominant_element_weights = {}
         self.dominant_mode = None
         self.human_design_gates = []
@@ -145,6 +146,7 @@ class Chart:
             "bazi_hour_element": self.bazi_hour_element,
             "dominant_sign_weights": self.dominant_sign_weights,
             "dominant_planet_weights": self.dominant_planet_weights,
+            "dominant_nakshatra_weights": self.dominant_nakshatra_weights,
             "dominant_element_weights": self.dominant_element_weights,
             "dominant_mode": self.dominant_mode,
             "age_when_first_met": self.age_when_first_met,

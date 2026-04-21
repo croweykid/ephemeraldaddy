@@ -13,6 +13,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_pair_weight,
     aspect_score,
 )
+from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -638,13 +639,30 @@ def _nakshatra_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
-    q_profile = _nakshatra_weight_profile(query)
-    c_profile = _nakshatra_weight_profile(candidate)
+    q_profile = _dominant_nakshatra_weight_profile(query)
+    c_profile = _dominant_nakshatra_weight_profile(candidate)
     overlap = _weighted_overlap_similarity(q_profile, c_profile)
     q_top3 = _top_keys(q_profile, count=3)
     c_top3 = _top_keys(c_profile, count=3)
     top3_overlap = len(q_top3 & c_top3) / 3.0
     return max(0.0, min(1.0, (overlap * 0.75) + (top3_overlap * 0.25)))
+
+
+def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
+    raw_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
+    if not raw_weights:
+        raw_weights = calculate_dominant_nakshatra_weights(chart)
+        chart.dominant_nakshatra_weights = dict(raw_weights)
+    normalized: dict[str, float] = {}
+    for nakshatra_name, raw_value in raw_weights.items():
+        normalized[str(nakshatra_name)] = max(0.0, float(raw_value or 0.0))
+    total = sum(normalized.values())
+    if total <= 0:
+        return normalized
+    return {
+        nakshatra_name: (value / total)
+        for nakshatra_name, value in normalized.items()
+    }
 
 
 def _human_design_gates(chart: Chart) -> set[int]:
