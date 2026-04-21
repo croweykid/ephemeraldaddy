@@ -7842,6 +7842,59 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addStretch(1)
         return widget
 
+    @staticmethod
+    def _format_birthplace_comparison_line(
+        *,
+        label: str,
+        selection_count: int,
+        database_count: int,
+        selection_total: int,
+        database_total: int,
+    ) -> str:
+        if selection_total <= 0 or database_total <= 0:
+            return f"• {label} ({database_count} in DB)"
+
+        selection_pct = (float(selection_count) / float(selection_total)) * 100.0
+        database_pct = (float(database_count) / float(database_total)) * 100.0
+        percent_delta = abs(selection_pct - database_pct)
+        rounded_delta = int(round(percent_delta))
+
+        if math.isclose(selection_pct, database_pct, abs_tol=0.05):
+            return (
+                f'• {label} ({selection_count}) | ({database_count} in DB) | '
+                '<span style="color: #b8b8b8;">0% difference '
+                "(selection % identical to DB)</span>"
+            )
+
+        if selection_pct > database_pct:
+            return (
+                f'• {label} ({selection_count}) | ({database_count} in DB) | '
+                f'<span style="color: lime;">{rounded_delta}% difference '
+                "more common in selection than DB</span>"
+            )
+
+        return (
+            f'• {label} ({selection_count}) | ({database_count} in DB) | '
+            f'<span style="color: red;">{rounded_delta}% difference '
+            "less common in selection than DB</span>"
+        )
+
+    def _build_birthplace_comparison_text_widget(self, lines: list[str]) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        widget.setLayout(layout)
+        for line in lines:
+            label = QLabel()
+            label.setTextFormat(Qt.RichText)
+            label.setText(line)
+            label.setStyleSheet("font-size: 11px; color: #f5f5f5;")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+        layout.addStretch(1)
+        return widget
+
     def _empty_database_metrics_cache(self) -> dict[str, Any]:
         return {
             "chart_ids": set(),
@@ -10587,37 +10640,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if _should_refresh_database_metric_section("birthplace"):
                 self._clear_layout(self.birthplace_chart_layout)
                 if birthplace_mode == "countries":
-                    country_labels = [
-                        item[0]
-                        for item in sorted(
-                            selection_country_counts.items() if loaded_charts else database_country_counts.items(),
-                            key=lambda item: (-item[1], item[0]),
-                        )
-                    ]
-                    if country_labels:
-                        country_canvas = self._build_count_distribution_chart(
-                            labels=country_labels,
-                            selection_counts=[selection_country_counts.get(label, 0) for label in country_labels],
-                            database_counts=[database_country_counts.get(label, 0) for label in country_labels],
-                            loaded_charts=loaded_charts,
-                            auto_height=True,
-                            use_earthtone_cycle=True,
-                        )
-                        self.birthplace_chart_layout.addWidget(country_canvas, 0)
-                    else:
-                        self.birthplace_chart_layout.addWidget(self._build_text_analysis_widget(["None available"]), 0, Qt.AlignTop)
+                    source_counts = selection_country_counts if loaded_charts else database_country_counts
                 else:
                     if birthplace_mode == "towns":
                         source_counts = selection_city_counts if loaded_charts else database_city_counts
                     else:
                         source_counts = selection_state_counts if loaded_charts else database_state_counts
-                    top_items = sorted(source_counts.items(), key=lambda item: (-item[1], item[0]))
-                    lines: list[str] = []
-                    if top_items:
-                        lines.extend([f"• {label} ({count})" for label, count in top_items])
-                    else:
-                        lines.append("None available")
-                    self.birthplace_chart_layout.addWidget(self._build_text_analysis_widget(lines), 0, Qt.AlignTop)
+                top_items = sorted(source_counts.items(), key=lambda item: (-item[1], item[0]))
+                lines: list[str] = []
+                if top_items:
+                    for label, count in top_items:
+                        if birthplace_mode == "countries":
+                            database_count = int(database_country_counts.get(label, 0))
+                        elif birthplace_mode == "towns":
+                            database_count = int(database_city_counts.get(label, 0))
+                        else:
+                            database_count = int(database_state_counts.get(label, 0))
+                        lines.append(
+                            self._format_birthplace_comparison_line(
+                                label=label,
+                                selection_count=int(count),
+                                database_count=database_count,
+                                selection_total=int(loaded_charts),
+                                database_total=int(database_loaded_charts),
+                            )
+                        )
+                else:
+                    lines.append("None available")
+                self.birthplace_chart_layout.addWidget(
+                    self._build_birthplace_comparison_text_widget(lines),
+                    0,
+                    Qt.AlignTop,
+                )
 
             if birthplace_mode == "countries":
                 country_labels = [
