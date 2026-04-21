@@ -96,6 +96,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "retcon_minute": None,
     "dominant_sign_weights": "",
     "dominant_planet_weights": "",
+    "dominant_nakshatra_weights": "",
     "dominant_element_weights": "",
     "dominant_mode": "",
     "modal_distribution": "",
@@ -259,6 +260,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             retcon_minute     INTEGER,
             dominant_sign_weights TEXT,
             dominant_planet_weights TEXT,
+            dominant_nakshatra_weights TEXT,
             dominant_element_weights TEXT,
             dominant_mode TEXT,
             modal_distribution TEXT,
@@ -586,6 +588,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN dominant_planet_weights TEXT
+            """
+        )
+    if "dominant_nakshatra_weights" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN dominant_nakshatra_weights TEXT
             """
         )
     if "dominant_element_weights" not in columns:
@@ -1952,14 +1961,14 @@ def append_database(source: Path) -> dict[str, Any]:
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
                          alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
-                         dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
+                         dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
                          human_design_type, human_design_authority,
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -1997,6 +2006,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         int(_row_value("retcon_minute")) if _row_value("retcon_minute") is not None else None,
                         _row_value("dominant_sign_weights"),
                         _row_value("dominant_planet_weights"),
+                        _row_value("dominant_nakshatra_weights"),
                         _row_value("dominant_element_weights"),
                         _row_value("dominant_mode"),
                         _row_value("modal_distribution"),
@@ -2068,6 +2078,7 @@ def save_chart(
     retcon_time_used: Optional[bool] = None,
     dominant_sign_weights: Optional[dict[str, float]] = None,
     dominant_planet_weights: Optional[dict[str, float]] = None,
+    dominant_nakshatra_weights: Optional[dict[str, float]] = None,
     chart_type: Optional[str] = None,
     source: Optional[str] = None,
     is_placeholder: Optional[bool] = None,
@@ -2114,7 +2125,7 @@ def save_chart(
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
-                 dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
+                 dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
                  human_design_type, human_design_authority,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2127,7 +2138,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2201,6 +2212,11 @@ def save_chart(
                     dominant_planet_weights
                     if dominant_planet_weights is not None
                     else getattr(chart, "dominant_planet_weights", None)
+                ),
+                _serialize_weight_map(
+                    dominant_nakshatra_weights
+                    if dominant_nakshatra_weights is not None
+                    else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
                 getattr(chart, "dominant_mode", None),
@@ -2278,6 +2294,7 @@ def update_chart(
     retcon_time_used: Optional[bool] = None,
     dominant_sign_weights: Optional[dict[str, float]] = None,
     dominant_planet_weights: Optional[dict[str, float]] = None,
+    dominant_nakshatra_weights: Optional[dict[str, float]] = None,
     chart_type: Optional[str] = None,
     source: Optional[str] = None,
     is_placeholder: Optional[bool] = None,
@@ -2348,6 +2365,7 @@ def update_chart(
                 retcon_minute = ?,
                 dominant_sign_weights = ?,
                 dominant_planet_weights = ?,
+                dominant_nakshatra_weights = ?,
                 dominant_element_weights = ?,
                 dominant_mode = ?,
                 modal_distribution = ?,
@@ -2445,6 +2463,11 @@ def update_chart(
                     dominant_planet_weights
                     if dominant_planet_weights is not None
                     else getattr(chart, "dominant_planet_weights", None)
+                ),
+                _serialize_weight_map(
+                    dominant_nakshatra_weights
+                    if dominant_nakshatra_weights is not None
+                    else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
                 getattr(chart, "dominant_mode", None),
@@ -2757,7 +2780,7 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, dominant_element_weights, dominant_mode, modal_distribution,
+               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2809,6 +2832,7 @@ def load_chart(chart_id: int):
         retcon_minute,
         dominant_sign_weights,
         dominant_planet_weights,
+        dominant_nakshatra_weights,
         dominant_element_weights,
         dominant_mode,
         modal_distribution,
@@ -2877,6 +2901,7 @@ def load_chart(chart_id: int):
         placeholder.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
         placeholder.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
+        placeholder.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
         placeholder.dominant_element_weights = _parse_weight_map(dominant_element_weights)
         placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
         placeholder.modal_distribution = _parse_weight_map(modal_distribution)
@@ -2947,6 +2972,7 @@ def load_chart(chart_id: int):
     chart.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
     chart.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
+    chart.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
     chart.dominant_element_weights = _parse_weight_map(dominant_element_weights)
     chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
     chart.modal_distribution = _parse_weight_map(modal_distribution)
@@ -3024,7 +3050,8 @@ def invalidate_all_dominant_weight_caches() -> None:
             """
             UPDATE charts
             SET dominant_sign_weights = '',
-                dominant_planet_weights = ''
+                dominant_planet_weights = '',
+                dominant_nakshatra_weights = ''
             """
         )
     conn.close()

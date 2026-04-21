@@ -10965,6 +10965,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.biography = str(profile_data.get("biography", "") or "")
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         chart.is_placeholder = False
 
         try:
@@ -12327,6 +12328,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.sentiments = sentiments
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12408,6 +12410,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.relationship_types = relationship_types
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12479,6 +12482,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart.familiarity = familiarity_value
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     update_chart(
                         chart_id,
                         chart,
@@ -12553,6 +12557,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 setattr(chart, metric_attr, value)
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12658,6 +12663,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.alignment_score = alignment_value
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12778,6 +12784,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.source = source
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12832,6 +12839,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.gender = resolved_gender
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12884,6 +12892,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.birthtime_unknown = checked
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -14459,6 +14468,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart.name = new_name
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             update_chart(
                 int(chart_id),
                 chart,
@@ -14667,6 +14677,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         continue
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart_id = save_chart(
                         chart,
                         birth_place=birth_place,
@@ -14804,6 +14815,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart.source = SOURCE_PUBLIC_DB
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart_id = save_chart(
                         chart,
                         birth_place=birth_place,
@@ -14912,6 +14924,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if chart is not None and not getattr(chart, "is_placeholder", False):
                         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                         update_chart(
                             chart_id,
                             chart,
@@ -14993,6 +15006,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if chart is not None and not getattr(chart, "is_placeholder", False):
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart.dominant_element_weights = _calculate_dominant_element_weights(chart)
                     mode_weights = _calculate_mode_weights(chart)
                     chart.modal_distribution = dict(mode_weights)
@@ -24169,6 +24183,7 @@ class MainWindow(QMainWindow):
         placeholder.source = placeholder.chart_type
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
+        placeholder.dominant_nakshatra_weights = {}
         placeholder.is_placeholder = True
         placeholder.is_deceased = self.deceased_checkbox.isChecked()
         placeholder.birth_month = month
@@ -24653,6 +24668,7 @@ class MainWindow(QMainWindow):
             chart, place, location_msg, tz_override = chart_result
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             chart.is_placeholder = False
 
         #chart, place, location_msg, tz_override = chart_result
@@ -24676,6 +24692,7 @@ class MainWindow(QMainWindow):
 
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
@@ -25396,6 +25413,7 @@ class MainWindow(QMainWindow):
         chart, _place, _location_msg, _tz_override = chart_result
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         self._update_unknown_positions_summary(chart)
         self._schedule_chart_render(chart)
 

@@ -649,7 +649,10 @@ def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
-    raw_weights = calculate_dominant_nakshatra_weights(chart)
+    raw_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
+    if not raw_weights:
+        raw_weights = calculate_dominant_nakshatra_weights(chart)
+        chart.dominant_nakshatra_weights = dict(raw_weights)
     normalized: dict[str, float] = {}
     for nakshatra_name, raw_value in raw_weights.items():
         normalized[str(nakshatra_name)] = max(0.0, float(raw_value or 0.0))
