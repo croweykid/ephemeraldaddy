@@ -27,6 +27,7 @@ from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.analysis.get_astro_twin import (
     BODY_WEIGHTS,
     CORE_BODIES,
+    HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES,
     NATAL_WEIGHT,
     PLACEMENT_WEIGHTING_MODE_HYBRID,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -243,6 +244,23 @@ def _common_placement_labels_with_weight_details(
     normalized_mode = normalize_placement_weighting_mode(placement_weighting_mode)
     effective_weights = _placement_body_weights(subject_chart, normalized_mode)
     matches: list[str] = []
+    hybrid_sign_match_count = 0
+    hybrid_multiplier = 1.0
+    if normalized_mode == PLACEMENT_WEIGHTING_MODE_HYBRID:
+        for luminary in ("Sun", "Moon"):
+            subject_lon = subject_positions.get(luminary)
+            compared_lon = compared_positions.get(luminary)
+            if subject_lon is None or compared_lon is None:
+                continue
+            if sign_for_longitude(subject_lon) == sign_for_longitude(compared_lon):
+                hybrid_sign_match_count += 1
+        hybrid_multiplier = float(
+            HYBRID_LUMINARY_BONUS_BY_SIGN_MATCHES.get(hybrid_sign_match_count, 1.0)
+        )
+
+    top_signs = _top_weighted_items(_sign_weight_profile(subject_chart), count=3)
+    top_houses = _top_weighted_items(_house_weight_profile(subject_chart), count=3)
+
     for body in _PLACEMENT_BODIES:
         subject_lon = subject_positions.get(body)
         compared_lon = compared_positions.get(body)
@@ -255,10 +273,12 @@ def _common_placement_labels_with_weight_details(
         base_weight = max(0.0, float(NATAL_WEIGHT.get(body, 1.0)))
         effective_weight = max(0.0, float(effective_weights.get(body, base_weight)))
         multiplier = (effective_weight / base_weight) if base_weight > 0.0 else 1.0
-        detail = (
-            f"(base {base_weight:.2f} × mode multiplier {multiplier:.2f} = {effective_weight:.2f}; "
-            f"sign +{effective_weight:.2f} placement pts"
-        )
+        sign_similarity_points = 1.0
+        sign_points = sign_similarity_points * effective_weight
+        detail_parts = [
+            f"{body}={base_weight:.2f} pts (generic base weight) × mode multiplier {multiplier:.2f} = {effective_weight:.2f} position relevance",
+            f"{body} in {subject_sign} = {sign_similarity_points:.0f} similarity pt × {effective_weight:.2f} relevance pts = {sign_points:.2f} sign similarity-relevance pts",
+        ]
         label = f"{body} in {subject_sign}"
         if use_houses:
             subject_house = _house_for_longitude(getattr(subject_chart, "houses", None), subject_lon)
@@ -266,14 +286,40 @@ def _common_placement_labels_with_weight_details(
             house_weight = effective_weight * 0.65
             if subject_house is not None and compared_house is not None and subject_house == compared_house:
                 label = f"{label} (House {subject_house})"
-                detail = f"{detail}; house +{house_weight:.2f} placement pts)"
+                house_similarity_points = 1.0
+                house_points = house_similarity_points * house_weight
+                detail_parts.append(
+                    f"{body} in H{subject_house} = {house_similarity_points:.0f} similarity pt × "
+                    f"({effective_weight:.2f} body relevance × 0.65 house relevance = {house_weight:.2f}) = "
+                    f"{house_points:.2f} house similarity-relevance pts"
+                )
             else:
-                detail = f"{detail}; house match not met, +0.00/{house_weight:.2f} house pts)"
+                detail_parts.append(
+                    f"House lane available but no match: +0.00/{house_weight:.2f} house similarity-relevance pts"
+                )
         else:
-            detail = f"{detail}; house component unavailable)"
+            subject_house = None
+            detail_parts.append("House lane unavailable for one or both charts")
+
+        dominance_reasons: list[str] = []
+        if subject_sign in top_signs:
+            dominance_reasons.append(f"subject chart's dominant {subject_sign}")
+        if subject_house is not None and subject_house in top_houses:
+            dominance_reasons.append(f"subject chart's dominant House {subject_house}")
+        if dominance_reasons:
+            detail_parts.append(
+                "Chart-defined context tags: "
+                + ", ".join(dominance_reasons)
+                + " (informational; does not change arithmetic)"
+            )
+
+        detail = "; ".join(detail_parts)
         if normalized_mode == PLACEMENT_WEIGHTING_MODE_HYBRID:
-            detail = f"{detail[:-1]}; luminary hybrid bonus applied at section level)"
-        matches.append(f"{label} {detail}")
+            detail = (
+                f"{detail}; section-level hybrid multiplier {hybrid_multiplier:.2f} "
+                f"(Sun/Moon sign matches: {hybrid_sign_match_count}/2)"
+            )
+        matches.append(f"{label}: {detail}.")
     return matches
 
 
