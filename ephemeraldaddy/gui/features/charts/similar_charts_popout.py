@@ -25,10 +25,14 @@ from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.analysis.get_astro_twin import (
     BODY_WEIGHTS,
     CORE_BODIES,
+    NATAL_WEIGHT,
+    PLACEMENT_WEIGHTING_MODE_HYBRID,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
+    _placement_body_weights,
     chart_similarity_score_custom,
+    normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode,
 )
 from ephemeraldaddy.core.interpretations import (
@@ -159,6 +163,52 @@ def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[st
     return matches
 
 
+def _common_placement_labels_with_weight_details(
+    subject_chart: Any,
+    compared_chart: Any,
+    *,
+    placement_weighting_mode: str,
+) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    normalized_mode = normalize_placement_weighting_mode(placement_weighting_mode)
+    effective_weights = _placement_body_weights(subject_chart, normalized_mode)
+    matches: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_sign = sign_for_longitude(subject_lon)
+        compared_sign = sign_for_longitude(compared_lon)
+        if subject_sign != compared_sign:
+            continue
+        base_weight = max(0.0, float(NATAL_WEIGHT.get(body, 1.0)))
+        effective_weight = max(0.0, float(effective_weights.get(body, base_weight)))
+        multiplier = (effective_weight / base_weight) if base_weight > 0.0 else 1.0
+        detail = (
+            f"(base {base_weight:.2f} × mode multiplier {multiplier:.2f} = {effective_weight:.2f}; "
+            f"sign +{effective_weight:.2f} placement pts"
+        )
+        label = f"{body} in {subject_sign}"
+        if use_houses:
+            subject_house = _house_for_longitude(getattr(subject_chart, "houses", None), subject_lon)
+            compared_house = _house_for_longitude(getattr(compared_chart, "houses", None), compared_lon)
+            house_weight = effective_weight * 0.65
+            if subject_house is not None and compared_house is not None and subject_house == compared_house:
+                label = f"{label} (House {subject_house})"
+                detail = f"{detail}; house +{house_weight:.2f} placement pts)"
+            else:
+                detail = f"{detail}; house match not met, +0.00/{house_weight:.2f} house pts)"
+        else:
+            detail = f"{detail}; house component unavailable)"
+        if normalized_mode == PLACEMENT_WEIGHTING_MODE_HYBRID:
+            detail = f"{detail[:-1]}; luminary hybrid bonus applied at section level)"
+        matches.append(f"{label} {detail}")
+    return matches
+
+
 def _differing_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
@@ -184,6 +234,51 @@ def _differing_placement_labels(subject_chart: Any, compared_chart: Any) -> list
             ):
                 differences.append(
                     f"{body} in {subject_sign}: House {subject_house} vs House {compared_house}"
+                )
+    return differences
+
+
+def _differing_placement_labels_with_weight_details(
+    subject_chart: Any,
+    compared_chart: Any,
+    *,
+    placement_weighting_mode: str,
+) -> list[str]:
+    subject_positions = getattr(subject_chart, "positions", None) or {}
+    compared_positions = getattr(compared_chart, "positions", None) or {}
+    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    effective_weights = _placement_body_weights(subject_chart, placement_weighting_mode)
+    differences: list[str] = []
+    for body in _PLACEMENT_BODIES:
+        subject_lon = subject_positions.get(body)
+        compared_lon = compared_positions.get(body)
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_sign = sign_for_longitude(subject_lon)
+        compared_sign = sign_for_longitude(compared_lon)
+        base_weight = max(0.0, float(NATAL_WEIGHT.get(body, 1.0)))
+        effective_weight = max(0.0, float(effective_weights.get(body, base_weight)))
+        multiplier = (effective_weight / base_weight) if base_weight > 0.0 else 1.0
+        house_weight = effective_weight * 0.65
+        if subject_sign != compared_sign:
+            differences.append(
+                f"{body}: {subject_sign} vs {compared_sign} "
+                f"(base {base_weight:.2f} × mode multiplier {multiplier:.2f} = {effective_weight:.2f}; "
+                f"sign +0.00/{effective_weight:.2f} placement pts)"
+            )
+            continue
+        if use_houses:
+            subject_house = _house_for_longitude(getattr(subject_chart, "houses", None), subject_lon)
+            compared_house = _house_for_longitude(getattr(compared_chart, "houses", None), compared_lon)
+            if (
+                subject_house is not None
+                and compared_house is not None
+                and subject_house != compared_house
+            ):
+                differences.append(
+                    f"{body} in {subject_sign}: House {subject_house} vs House {compared_house} "
+                    f"(base {base_weight:.2f} × mode multiplier {multiplier:.2f} = {effective_weight:.2f}; "
+                    f"sign +{effective_weight:.2f} pts, house +0.00/{house_weight:.2f} pts)"
                 )
     return differences
 
@@ -293,6 +388,102 @@ def _common_aspect_labels_with_relevance(subject_chart: Any, compared_chart: Any
         equal_share = 100.0 / float(len(weighted_rows))
         return [(label, equal_share) for label, _ in weighted_rows]
     return [(label, (raw / total_raw) * 100.0) for label, raw in weighted_rows]
+
+
+def _common_aspect_labels_with_weight_details(subject_chart: Any, compared_chart: Any) -> list[str]:
+    def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
+        p1 = str(aspect.get("p1") or "").strip()
+        p2 = str(aspect.get("p2") or "").strip()
+        aspect_type = str(aspect.get("type") or "").strip().lower()
+        if not p1 or not p2 or not aspect_type:
+            return None
+        if p1 in _ANGLE_POINTS and p2 in _ANGLE_POINTS:
+            return None
+        if _is_tautological_node_opposition(p1, p2, aspect_type):
+            return None
+        left, right = sorted((p1, p2))
+        return (left, right), aspect_type
+
+    def _aspect_base_weight(chart: Any, key: tuple[tuple[str, str], str]) -> tuple[float, float, float]:
+        (left, right), aspect_type = key
+        planet_weights = getattr(chart, "dominant_planet_weights", None) or None
+        matching_orbs: list[float] = []
+        for aspect in (getattr(chart, "aspects", None) or []):
+            canonical = _canonical(aspect)
+            if canonical != key:
+                continue
+            matching_orbs.append(abs(float(aspect.get("delta", 0.0) or 0.0)))
+        source_aspect_scores = [
+            max(
+                0.0,
+                float(
+                    aspect_score(
+                        {"p1": left, "p2": right, "type": aspect_type, "delta": orb},
+                        planet_weights=planet_weights,
+                    )
+                ),
+            )
+            for orb in matching_orbs
+        ]
+        orb_weighted_base = max(source_aspect_scores, default=0.0)
+        type_weight = max(0.0, float(ASPECT_SCORE_WEIGHTS.get(str(aspect_type).replace(" ", "_").lower(), 0.0)))
+        pair_weight = max(0.0, float(aspect_pair_weight(left, right, planet_weights=planet_weights)))
+        fallback_base = max(type_weight * pair_weight, 0.0)
+        base_weight = orb_weighted_base if orb_weighted_base > 0.0 else fallback_base
+        return base_weight, type_weight, pair_weight
+
+    subject_keys = {
+        key
+        for aspect in (getattr(subject_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None
+    }
+    common_keys = {
+        key
+        for aspect in (getattr(compared_chart, "aspects", None) or [])
+        if (key := _canonical(aspect)) is not None and key in subject_keys
+    }
+    sorted_keys = sorted(common_keys)
+    if not sorted_keys:
+        return []
+
+    rows: list[tuple[str, float, float, float, float, float]] = []
+    total_raw = 0.0
+    for key in sorted_keys:
+        (left, right), aspect_type = key
+        label = f"{left} {_aspect_label(aspect_type).lower()} {right}"
+        subject_weight, subject_type_weight, subject_pair_weight = _aspect_base_weight(subject_chart, key)
+        compared_weight, compared_type_weight, compared_pair_weight = _aspect_base_weight(compared_chart, key)
+        raw_weight = (subject_weight + compared_weight) / 2.0
+        total_raw += raw_weight
+        rows.append(
+            (
+                label,
+                raw_weight,
+                subject_weight,
+                compared_weight,
+                (subject_type_weight + compared_type_weight) / 2.0,
+                (subject_pair_weight + compared_pair_weight) / 2.0,
+            )
+        )
+
+    if total_raw <= 0.0:
+        equal_share = 100.0 / float(len(rows))
+        return [
+            (
+                f"{label} ([{equal_share:.1f}% weight total]) "
+                f"(avg type base {type_weight:.2f} × avg pair/body weight {pair_weight:.2f}; "
+                f"query {query_weight:.2f}, candidate {candidate_weight:.2f}, avg raw {raw_weight:.2f})"
+            )
+            for label, raw_weight, query_weight, candidate_weight, type_weight, pair_weight in rows
+        ]
+    return [
+        (
+            f"{label} ([{((raw_weight / total_raw) * 100.0):.1f}% weight total]) "
+            f"(avg type base {type_weight:.2f} × avg pair/body weight {pair_weight:.2f}; "
+            f"query {query_weight:.2f}, candidate {candidate_weight:.2f}, avg raw {raw_weight:.2f})"
+        )
+        for label, raw_weight, query_weight, candidate_weight, type_weight, pair_weight in rows
+    ]
 
 
 def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
@@ -848,6 +1039,18 @@ def _resolve_component_score_percents(
     }
 
 
+def _resolve_active_placement_weighting_mode(
+    *,
+    similarity_settings: SimilarityCalculatorSettings | None,
+) -> str:
+    mode = (
+        similarity_settings.normalized_placement_weighting_mode()
+        if similarity_settings is not None
+        else SimilarityCalculatorSettings.defaults_from_comprehensive().normalized_placement_weighting_mode()
+    )
+    return normalize_placement_weighting_mode(mode)
+
+
 def _section_title_with_weight_and_match(
     title: str,
     component_key: str,
@@ -900,6 +1103,9 @@ def build_similarity_reasoning_panel_text(
     lines: list[str] = []
     if subject_chart is not None and compared_chart is not None:
         algorithm_mode = str(getattr(match, "algorithm_mode", "") or "")
+        active_placement_mode = _resolve_active_placement_weighting_mode(
+            similarity_settings=similarity_settings,
+        )
         component_weight_percents = _resolve_component_weight_percents(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
@@ -912,7 +1118,15 @@ def build_similarity_reasoning_panel_text(
         )
         if analysis_mode == "dissimilarities":
             if "placement" in component_weight_percents:
-                placement_diff = _differing_placement_labels(subject_chart, compared_chart)
+                placement_diff = (
+                    _differing_placement_labels_with_weight_details(
+                        subject_chart,
+                        compared_chart,
+                        placement_weighting_mode=active_placement_mode,
+                    )
+                    if show_granular_explanations
+                    else _differing_placement_labels(subject_chart, compared_chart)
+                )
                 lines.append(
                     _section_title_with_weight_and_match(
                         "Differing placements:",
@@ -1009,7 +1223,15 @@ def build_similarity_reasoning_panel_text(
                 lines.append(" | ".join(hd_gate_diff))
         else:
             if "placement" in component_weight_percents:
-                placement_labels = _common_placement_labels(subject_chart, compared_chart)
+                placement_labels = (
+                    _common_placement_labels_with_weight_details(
+                        subject_chart,
+                        compared_chart,
+                        placement_weighting_mode=active_placement_mode,
+                    )
+                    if show_granular_explanations
+                    else _common_placement_labels(subject_chart, compared_chart)
+                )
                 lines.append(
                     _section_title_with_weight_and_match(
                         "Placements in common:",
@@ -1023,10 +1245,7 @@ def build_similarity_reasoning_panel_text(
             if "aspect" in component_weight_percents:
                 if show_granular_explanations:
                     aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
-                    aspect_labels = [
-                        f"{label} ([{weight:.1f}% weight total])"
-                        for label, weight in aspect_weighted_labels
-                    ]
+                    aspect_labels = _common_aspect_labels_with_weight_details(subject_chart, compared_chart)
                     aspect_weight_percent = component_weight_percents.get("aspect")
                     aspect_match_percent = component_score_percents.get("aspect")
                     title = _section_title_with_weight_and_match(
@@ -1226,6 +1445,9 @@ def build_similarity_reasoning_panel_html(
     ]
     if subject_chart is not None and compared_chart is not None:
         algorithm_mode = str(getattr(match, "algorithm_mode", "") or "")
+        active_placement_mode = _resolve_active_placement_weighting_mode(
+            similarity_settings=similarity_settings,
+        )
         component_weight_percents = _resolve_component_weight_percents(
             algorithm_mode=algorithm_mode,
             similarity_settings=similarity_settings,
@@ -1246,7 +1468,15 @@ def build_similarity_reasoning_panel_html(
                             component_weight_percents,
                             component_score_percents,
                         ),
-                        _differing_placement_labels(subject_chart, compared_chart)
+                        (
+                            _differing_placement_labels_with_weight_details(
+                                subject_chart,
+                                compared_chart,
+                                placement_weighting_mode=active_placement_mode,
+                            )
+                            if show_granular_explanations
+                            else _differing_placement_labels(subject_chart, compared_chart)
+                        )
                         or ["Tracked placements align closely."],
                     )
                 )
@@ -1350,7 +1580,15 @@ def build_similarity_reasoning_panel_html(
                             component_weight_percents,
                             component_score_percents,
                         ),
-                        _common_placement_labels(subject_chart, compared_chart)
+                        (
+                            _common_placement_labels_with_weight_details(
+                                subject_chart,
+                                compared_chart,
+                                placement_weighting_mode=active_placement_mode,
+                            )
+                            if show_granular_explanations
+                            else _common_placement_labels(subject_chart, compared_chart)
+                        )
                         or ["No exact same-sign placements found in tracked bodies."],
                     )
                 )
@@ -1358,10 +1596,7 @@ def build_similarity_reasoning_panel_html(
                 if show_granular_explanations:
                     aspect_weighted_labels = _common_aspect_labels_with_relevance(subject_chart, compared_chart)
                     aspect_items = (
-                        [
-                            f"{label} ([{weight:.1f}% weight total])"
-                            for label, weight in aspect_weighted_labels
-                        ]
+                        _common_aspect_labels_with_weight_details(subject_chart, compared_chart)
                         if aspect_weighted_labels
                         else ["No shared aspect signatures were found."]
                     )
