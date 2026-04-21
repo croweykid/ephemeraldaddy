@@ -982,6 +982,9 @@ def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> li
 
 
 def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _centers(chart: Any) -> set[str]:
         existing = {
             str(center).strip()
