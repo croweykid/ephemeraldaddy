@@ -11,7 +11,6 @@ import logging
 import numpy as np
 import os
 import random
-import statistics
 import subprocess
 import sys
 import traceback
@@ -682,6 +681,8 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
+    draw_weight_distribution_reference_lines,
+    format_weight_distribution_html,
     format_unknown_positions_summary_html,
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
@@ -21423,25 +21424,7 @@ class MainWindow(QMainWindow):
         for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
             tick_label.set_gid(f"body:{body}")
             tick_label.set_picker(5)
-        distribution_values = [float(value) for value in values if isinstance(value, (int, float))]
-        if distribution_values:
-            mode_value = statistics.multimode(distribution_values)[0]
-            average_value = statistics.fmean(distribution_values)
-            median_value = statistics.median(distribution_values)
-            reference_lines = [
-                (mode_value, "#ff7f7f"),
-                (average_value, "#ff4d4d"),
-                (median_value, "#b22222"),
-            ]
-            for line_value, line_color in reference_lines:
-                ax.axhline(
-                    y=line_value,
-                    color=line_color,
-                    linestyle="--",
-                    linewidth=1.1,
-                    alpha=0.95,
-                    zorder=1.5,
-                )
+        draw_weight_distribution_reference_lines(ax, values)
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -25908,7 +25891,9 @@ class MainWindow(QMainWindow):
         chart_ruler_label = self._chart_analysis_footer_labels.get("dominant_planets")
         if chart_ruler_label is None:
             return
-        distribution_html = self._dominant_body_weight_distribution_html(chart)
+        distribution_html = format_weight_distribution_html(
+            self._dominant_body_distribution_weights(chart)
+        )
         if chart is None:
             chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
@@ -25922,26 +25907,19 @@ class MainWindow(QMainWindow):
         )
         chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}<br>{distribution_html}")
 
-    def _dominant_body_weight_distribution_html(self, chart: Chart | None) -> str:
+    def _dominant_body_distribution_weights(self, chart: Chart | None) -> list[float]:
         if chart is None:
-            return "Weight Distribution - <b>Mode:</b> 0, <b>Avg:</b> 0, <b>Median:</b> 0"
+            return []
         mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
         if mode == "sidereal_planet_prevalence":
             weighted_counts = _calculate_sidereal_planet_prevalence_counts(chart)
         else:
             weighted_counts = _calculate_dominant_planet_weights(chart)
-        weights = [float(weight) for weight in weighted_counts.values() if isinstance(weight, (int, float))]
-        if not weights:
-            return "Weight Distribution - <b>Mode:</b> 0, <b>Avg:</b> 0, <b>Median:</b> 0"
-        mode_weight = statistics.multimode(weights)[0]
-        avg_weight = statistics.fmean(weights)
-        median_weight = statistics.median(weights)
-        return (
-            "Weight Distribution - "
-            f"<b>Mode:</b> {mode_weight:.2f}, "
-            f"<b>Avg:</b> {avg_weight:.2f}, "
-            f"<b>Median:</b> {median_weight:.2f}"
-        )
+        return [
+            float(weight)
+            for weight in weighted_counts.values()
+            if isinstance(weight, (int, float))
+        ]
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
