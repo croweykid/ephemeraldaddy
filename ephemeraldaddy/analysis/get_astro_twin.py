@@ -5,7 +5,7 @@ import heapq
 from math import sqrt
 from typing import Iterable
 
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
@@ -212,6 +212,8 @@ def _nakshatra_index(lon: float | None) -> int | None:
 
 
 def _house_for_body(chart: Chart, body: str) -> int | None:
+    if not chart_uses_houses(chart):
+        return None
     houses = getattr(chart, "houses", None)
     positions = getattr(chart, "positions", None) or {}
     lon = positions.get(body)
@@ -282,7 +284,12 @@ def _placement_similarity(
 
     total = 0.0
     possible = 0.0
-    use_houses = bool(getattr(query, "houses", None)) and bool(getattr(candidate, "houses", None))
+    use_houses = (
+        chart_uses_houses(query)
+        and chart_uses_houses(candidate)
+        and bool(getattr(query, "houses", None))
+        and bool(getattr(candidate, "houses", None))
+    )
 
     for body in CORE_BODIES:
         q_lon = q_positions.get(body)
@@ -346,11 +353,14 @@ def _is_tautological_node_opposition(body_a: str, body_b: str, aspect_type: str)
 
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
+    include_angle_aspects = chart_uses_houses(chart)
     for aspect in getattr(chart, "aspects", None) or []:
         key = _canonical_aspect_key(aspect)
         if key is None:
             continue
         (a, b), aspect_type = key
+        if not include_angle_aspects and (a in NATAL_ANGLES or b in NATAL_ANGLES):
+            continue
         if _is_tautological_angle_aspect(a, b):
             continue
         if _is_tautological_node_opposition(a, b, aspect_type):
@@ -519,21 +529,25 @@ def _body_dominance_profile(chart: Chart) -> dict[str, float]:
 
     positions = getattr(chart, "positions", None) or {}
     profile: dict[str, float] = {}
+    include_houses = chart_uses_houses(chart)
     for body in CORE_BODIES:
         longitude = positions.get(body)
         if longitude is None:
             continue
         weight = BODY_WEIGHTS.get(body, 0.8)
-        house = _house_for_body(chart, body)
-        if house in {1, 4, 7, 10}:
-            weight *= 1.30
-        elif house in {2, 5, 8, 11}:
-            weight *= 1.12
+        if include_houses:
+            house = _house_for_body(chart, body)
+            if house in {1, 4, 7, 10}:
+                weight *= 1.30
+            elif house in {2, 5, 8, 11}:
+                weight *= 1.12
         profile[body] = weight
     return profile
 
 
 def _house_weight_profile(chart: Chart) -> dict[int, float]:
+    if not chart_uses_houses(chart):
+        return {house: 0.0 for house in range(1, 13)}
     positions = getattr(chart, "positions", None) or {}
     profile = {house: 0.0 for house in range(1, 13)}
     for body in CORE_BODIES:
@@ -586,23 +600,30 @@ def _dominance_similarity(query: Chart, candidate: Chart) -> float:
     c_body = _body_dominance_profile(candidate)
 
     sign_overlap = _weighted_overlap_similarity(q_sign, c_sign)
-    house_overlap = _weighted_overlap_similarity(q_house, c_house)
+    use_house_component = chart_uses_houses(query) and chart_uses_houses(candidate)
+    house_overlap = _weighted_overlap_similarity(q_house, c_house) if use_house_component else 0.0
     body_overlap = _weighted_overlap_similarity(q_body, c_body)
 
     sign_top3_overlap = len(_top_keys(q_sign, count=3) & _top_keys(c_sign, count=3)) / 3.0
-    house_top3_overlap = len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+    house_top3_overlap = (
+        len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+        if use_house_component
+        else 0.0
+    )
     body_top3_overlap = len(_top_keys(q_body, count=3) & _top_keys(c_body, count=3)) / 3.0
 
     sign_component = (sign_overlap * 0.72) + (sign_top3_overlap * 0.28)
     house_component = (house_overlap * 0.68) + (house_top3_overlap * 0.32)
     body_component = (body_overlap * 0.66) + (body_top3_overlap * 0.34)
+    house_weight = 0.30 if use_house_component else 0.0
+    body_weight = 0.30 if use_house_component else 0.60
     return max(
         0.0,
         min(
             1.0,
             (sign_component * 0.40)
-            + (house_component * 0.30)
-            + (body_component * 0.30),
+            + (house_component * house_weight)
+            + (body_component * body_weight),
         ),
     )
 
