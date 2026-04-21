@@ -653,10 +653,12 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    format_similarity_component_summary,
     is_similar_info_target,
     load_similar_chart_candidates,
     make_similar_info_target,
     map_similar_info_targets,
+    resolve_similarity_component_keys_for_display,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import (
     DBInfoPanel,
@@ -20085,10 +20087,18 @@ class MainWindow(QMainWindow):
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(True)
         match_blocks: list[str] = []
+        component_keys = resolve_similarity_component_keys_for_display(
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
             similarity_percent = match.score * 100.0
             band_label, band_color = self._similarity_band_for_percent(similarity_percent)
+            component_summary = format_similarity_component_summary(
+                match=match,
+                component_keys=component_keys,
+            )
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -20101,12 +20111,7 @@ class MainWindow(QMainWindow):
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
-                    f" (placements {match.placement_score * 100.0:.0f}%,"
-                    f" aspects {match.aspect_score * 100.0:.0f}%,"
-                    f" distribution {match.distribution_score * 100.0:.0f}%"
-                    f"{', dominance ' + str(round((match.dominance_score or 0.0) * 100.0)) + '%' if match.dominance_score is not None else ''}"
-                    f"{', nakshatra placement ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
-                    f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
+                    f" ({component_summary})"
                 )
             )
             self._similar_charts_export_rows.append(
@@ -20284,6 +20289,8 @@ class MainWindow(QMainWindow):
             info_output_style="font-weight: 400; color: #f5f5f5;",
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
             on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
