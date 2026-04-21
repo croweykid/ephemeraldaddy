@@ -20738,7 +20738,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(popout_canvas, STANDARD_NCV_POPOUT_LAYOUT["chart_stretch"])
         layout.addWidget(info_panel, STANDARD_NCV_POPOUT_LAYOUT["info_stretch"])
 
-        if title == "Nakshatra Prevalence":
+        if title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
             info_panel.setPlaceholderText(
                 "Click a nakshatra label or bar to view its description."
             )
@@ -20823,6 +20823,7 @@ class MainWindow(QMainWindow):
             "Houses": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
+            "Dominant Nakshatras": (9.0, 6.6),
             "Modes": (8.0, 5.4),
             "Dominant Modes": (8.0, 5.4),
             "Modal Prevalence": (8.0, 5.4),
@@ -20842,7 +20843,7 @@ class MainWindow(QMainWindow):
             self._draw_house_tally(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
-        elif title == "Nakshatra Prevalence":
+        elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
             self._draw_nakshatra_wordcloud(ax, chart)
         elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
             self._draw_modal_distribution(ax, chart)
@@ -25923,11 +25924,15 @@ class MainWindow(QMainWindow):
         )
 
     def _render_nakshatra_wordcloud(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode(
+            "nakshatra_prevalence",
+            "nakshatra_prevalence",
+        )
         self._render_metric_panel(
             canvas_attr="nakshatra_wordcloud_canvas",
             container_layout=self.nakshatra_wordcloud_container_layout,
             figsize=(5.5, 5.1),
-            title="Nakshatra Prevalence",
+            title="Dominant Nakshatras" if selected_mode == "dominant_nakshatras" else "Nakshatra Prevalence",
             draw_fn=self._draw_nakshatra_wordcloud,
             chart=chart,
         )

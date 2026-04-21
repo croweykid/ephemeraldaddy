@@ -49,6 +49,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_score,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import DEFAULT_DROPDOWN_STYLE
 
@@ -893,22 +894,12 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
             differences.append(f"{body}: {subject_nak} vs {compared_nak}")
     return sorted(differences)
 
-#note: currently this is using Nakshatra Prevalence, NOT Nakshatra dominance.
 def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
-    def _profile(chart: Any) -> dict[str, int]:
-        positions = getattr(chart, "positions", None) or {}
-        counts: dict[str, int] = {}
-        for body in _PLACEMENT_BODIES:
-            if body in {"AS", "MC"}:
-                continue
-            longitude = positions.get(body)
-            if longitude is None:
-                continue
-            nakshatra = get_nakshatra(longitude)
-            if not nakshatra:
-                continue
-            counts[nakshatra] = counts.get(nakshatra, 0) + 1
-        return counts
+    def _profile(chart: Any) -> dict[str, float]:
+        return {
+            str(name): max(0.0, float(value or 0.0))
+            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+        }
 
     subject_profile = _profile(subject_chart)
     compared_profile = _profile(compared_chart)
@@ -927,19 +918,11 @@ def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) ->
     compared_label = _chart_possessive_label(compared_chart, "Chart 2")
 
     def _top3(chart: Any) -> list[str]:
-        positions = getattr(chart, "positions", None) or {}
-        counts: dict[str, int] = {}
-        for body in _PLACEMENT_BODIES:
-            if body in {"AS", "MC"}:
-                continue
-            longitude = positions.get(body)
-            if longitude is None:
-                continue
-            nakshatra = get_nakshatra(longitude)
-            if not nakshatra:
-                continue
-            counts[nakshatra] = counts.get(nakshatra, 0) + 1
-        return [name for name, _count in sorted(counts.items(), key=lambda item: item[1], reverse=True)[:3]]
+        weights = {
+            str(name): max(0.0, float(value or 0.0))
+            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+        }
+        return [name for name, _count in sorted(weights.items(), key=lambda item: item[1], reverse=True)[:3]]
 
     subject_top = _top3(subject_chart)
     compared_top = _top3(compared_chart)
