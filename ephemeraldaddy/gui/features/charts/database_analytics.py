@@ -2252,6 +2252,51 @@ class DatabaseAnalyticsChartsMixin:
         return f"{hours:02d}:{mins:02d}"
 
     @staticmethod
+    def _format_birthplace_comparison_line(
+        *,
+        label: str,
+        selection_count: int,
+        database_count: int,
+        selection_total: int,
+        database_total: int,
+    ) -> str:
+        if selection_total <= 0 or database_total <= 0:
+            return f"• {label} ({database_count} in DB)"
+
+        selection_pct = (float(selection_count) / float(selection_total)) * 100.0
+        database_pct = (float(database_count) / float(database_total)) * 100.0
+        percent_delta = abs(selection_pct - database_pct)
+        rounded_delta = int(round(percent_delta))
+
+        if math.isclose(selection_pct, database_pct, abs_tol=0.05):
+            return (
+                f'• {label} ({selection_count}) | ({database_count} in DB) | '
+                '<span style="color: #b8b8b8;">0% difference '
+                "(selection % identical to DB)</span>"
+            )
+
+        if selection_pct > database_pct:
+            return (
+                f'• {label} ({selection_count}) | ({database_count} in DB) | '
+                f'<span style="color: lime;">{rounded_delta}% difference '
+                "more common in selection than DB</span>"
+            )
+
+        return (
+            f'• {label} ({selection_count}) | ({database_count} in DB) | '
+            f'<span style="color: red;">{rounded_delta}% difference '
+            "less common in selection than DB</span>"
+        )
+
+    def _build_birthplace_comparison_text_widget(self, lines: list[str]) -> QLabel:
+        widget = QLabel()
+        widget.setTextFormat(Qt.RichText)
+        widget.setWordWrap(True)
+        widget.setStyleSheet("font-size: 11px; color: #f5f5f5;")
+        widget.setText("<br>".join(lines))
+        return widget
+
+    @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
         parts = [part.strip() for part in (raw_place or "").split(",") if part.strip()]
         if not parts:

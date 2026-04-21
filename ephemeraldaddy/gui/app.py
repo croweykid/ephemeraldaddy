@@ -7842,59 +7842,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addStretch(1)
         return widget
 
-    @staticmethod
-    def _format_birthplace_comparison_line(
-        *,
-        label: str,
-        selection_count: int,
-        database_count: int,
-        selection_total: int,
-        database_total: int,
-    ) -> str:
-        if selection_total <= 0 or database_total <= 0:
-            return f"• {label} ({database_count} in DB)"
-
-        selection_pct = (float(selection_count) / float(selection_total)) * 100.0
-        database_pct = (float(database_count) / float(database_total)) * 100.0
-        percent_delta = abs(selection_pct - database_pct)
-        rounded_delta = int(round(percent_delta))
-
-        if math.isclose(selection_pct, database_pct, abs_tol=0.05):
-            return (
-                f'• {label} ({selection_count}) | ({database_count} in DB) | '
-                '<span style="color: #b8b8b8;">0% difference '
-                "(selection % identical to DB)</span>"
-            )
-
-        if selection_pct > database_pct:
-            return (
-                f'• {label} ({selection_count}) | ({database_count} in DB) | '
-                f'<span style="color: lime;">{rounded_delta}% difference '
-                "more common in selection than DB</span>"
-            )
-
-        return (
-            f'• {label} ({selection_count}) | ({database_count} in DB) | '
-            f'<span style="color: red;">{rounded_delta}% difference '
-            "less common in selection than DB</span>"
-        )
-
-    def _build_birthplace_comparison_text_widget(self, lines: list[str]) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-        widget.setLayout(layout)
-        for line in lines:
-            label = QLabel()
-            label.setTextFormat(Qt.RichText)
-            label.setText(line)
-            label.setStyleSheet("font-size: 11px; color: #f5f5f5;")
-            label.setWordWrap(True)
-            layout.addWidget(label)
-        layout.addStretch(1)
-        return widget
-
     def _empty_database_metrics_cache(self) -> dict[str, Any]:
         return {
             "chart_ids": set(),
