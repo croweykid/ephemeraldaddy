@@ -325,7 +325,7 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -24352,6 +24352,7 @@ class MainWindow(QMainWindow):
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
         chart.retcon_hour = self.retcon_time_edit.time().hour()
         chart.retcon_minute = self.retcon_time_edit.time().minute()
+        apply_time_specific_metadata_policy(chart)
         chart.birth_place = place
         chart.birth_month = qdate.month()
         chart.birth_day = qdate.day()

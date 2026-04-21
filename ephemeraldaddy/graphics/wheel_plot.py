@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.gui.style import DARK_THEME
 
 
@@ -65,11 +66,6 @@ def _format_degree_minutes(value):
         deg += 1
         minutes = 0
     return f"{deg:02d}°{minutes:02d}'"
-
-def _chart_uses_houses(chart) -> bool:
-    return not getattr(chart, "birthtime_unknown", False) or getattr(
-        chart, "retcon_time_used", False
-    )
 
 def _draw_chart_wheel(
     fig,
@@ -148,7 +144,7 @@ def _draw_chart_wheel(
             linewidth=2.2,
             color=DARK_THEME["wheel_circle"])
 
-    use_houses = _chart_uses_houses(chart)
+    use_houses = chart_uses_houses(chart)
 
     # Sign sectors + glyphs
     sign_inner_radius = 0.18
