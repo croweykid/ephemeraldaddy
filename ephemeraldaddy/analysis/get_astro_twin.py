@@ -111,7 +111,9 @@ class AstroTwinMatch:
     distribution_score: float
     dominance_score: float | None = None
     nakshatra_score: float | None = None
+    nakshatra_dominance_score: float | None = None
     hd_centers_score: float | None = None
+    human_design_gates_score: float | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
 
 
@@ -917,7 +919,9 @@ def find_astro_twins(
                 aspect_score = component_scores["aspect"]
                 distribution_score = component_scores["distribution"]
                 nakshatra_score = component_scores["nakshatra_placement"]
+                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
+                human_design_gates_score = component_scores["human_design_gates"]
             elif use_comprehensive:
                 (
                     rank_score,
@@ -932,6 +936,13 @@ def find_astro_twins(
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
+                comprehensive_component_scores = _similarity_component_scores(
+                    query_chart,
+                    candidate,
+                    placement_weighting_mode=placement_weighting_mode,
+                )
+                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
+                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
             else:
                 rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
                     query_chart,
@@ -940,6 +951,8 @@ def find_astro_twins(
                 )
                 nakshatra_score = None
                 hd_centers_score = None
+                nakshatra_dominance_score = None
+                human_design_gates_score = None
         else:
             if use_custom:
                 final_score, component_scores = chart_similarity_score_custom(
@@ -951,7 +964,9 @@ def find_astro_twins(
                 aspect_score = component_scores["aspect"]
                 distribution_score = component_scores["distribution"]
                 nakshatra_score = component_scores["nakshatra_placement"]
+                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
+                human_design_gates_score = component_scores["human_design_gates"]
             elif use_comprehensive:
                 (
                     final_score,
@@ -965,6 +980,13 @@ def find_astro_twins(
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
+                comprehensive_component_scores = _similarity_component_scores(
+                    query_chart,
+                    candidate,
+                    placement_weighting_mode=placement_weighting_mode,
+                )
+                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
+                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
             else:
                 final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
                     query_chart,
@@ -973,6 +995,8 @@ def find_astro_twins(
                 )
                 nakshatra_score = None
                 hd_centers_score = None
+                nakshatra_dominance_score = None
+                human_design_gates_score = None
             rank_score = final_score
 
         dominance_score = _combined_dominance_similarity(query_chart, candidate)
@@ -985,7 +1009,9 @@ def find_astro_twins(
             distribution_score=distribution_score,
             dominance_score=dominance_score,
             nakshatra_score=nakshatra_score,
+            nakshatra_dominance_score=nakshatra_dominance_score,
             hd_centers_score=hd_centers_score,
+            human_design_gates_score=human_design_gates_score,
             algorithm_mode=normalized_mode,
         )
         destination_heap = scored_matches

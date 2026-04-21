@@ -81,10 +81,12 @@ _SIMILARITY_PANEL_BODY_TEXT_COLOR = "#FFFFFF"
 _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "placement": "placements",
     "aspect": "aspects",
-    "distribution": "distribution",
-    "combined_dominance": "dominance",
+    "distribution": "distribution (element/mode)",
+    "combined_dominance": "dominance (sign/body/house)",
     "nakshatra_placement": "nakshatra placement",
-    "defined_centers": "defined centers",
+    "nakshatra_dominance": "nakshatra dominance",
+    "defined_centers": "defined centers (HD)",
+    "human_design_gates": "active gates (HD)",
 }
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
@@ -1120,7 +1122,9 @@ def format_similarity_component_summary(
         "distribution": getattr(match, "distribution_score", None),
         "combined_dominance": getattr(match, "dominance_score", None),
         "nakshatra_placement": getattr(match, "nakshatra_score", None),
+        "nakshatra_dominance": getattr(match, "nakshatra_dominance_score", None),
         "defined_centers": getattr(match, "hd_centers_score", None),
+        "human_design_gates": getattr(match, "human_design_gates_score", None),
     }
     bits: list[str] = []
     for key in keys:
