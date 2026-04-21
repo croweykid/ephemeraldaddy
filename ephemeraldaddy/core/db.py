@@ -12,7 +12,11 @@ from types import SimpleNamespace
 from typing import Any, List, Tuple, Optional
 
 from zoneinfo import ZoneInfo
-from ephemeraldaddy.core.chart import Chart, compute_unknown_sign_positions
+from ephemeraldaddy.core.chart import (
+    Chart,
+    apply_time_specific_metadata_policy,
+    compute_unknown_sign_positions,
+)
 from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 
@@ -2100,6 +2104,23 @@ def save_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    resolved_birthtime_unknown = bool(
+        birthtime_unknown
+        if birthtime_unknown is not None
+        else bool(getattr(chart, "birthtime_unknown", False))
+    )
+    resolved_retcon_time_used = bool(
+        retcon_time_used
+        if retcon_time_used is not None
+        else bool(getattr(chart, "retcon_time_used", False))
+    )
+    chart.birthtime_unknown = resolved_birthtime_unknown
+    chart.retcon_time_used = resolved_retcon_time_used
+    if retcon_hour is not None:
+        chart.retcon_hour = int(retcon_hour)
+    if retcon_minute is not None:
+        chart.retcon_minute = int(retcon_minute)
+    apply_time_specific_metadata_policy(chart)
     resolved_signs_unknown, resolved_unknown_signs = _resolve_unknown_sign_metadata(
         chart,
         birthtime_unknown=birthtime_unknown,
@@ -2189,18 +2210,10 @@ def save_chart(
                     getattr(chart, "negative_sentiment_intensity", None),
                     getattr(chart, "familiarity", None),
                 ),
-                int(
-                    birthtime_unknown
-                    if birthtime_unknown is not None
-                    else bool(getattr(chart, "birthtime_unknown", False))
-                ),
+                int(resolved_birthtime_unknown),
                 int(resolved_signs_unknown),
                 _serialize_string_list(resolved_unknown_signs),
-                int(
-                    retcon_time_used
-                    if retcon_time_used is not None
-                    else bool(getattr(chart, "retcon_time_used", False))
-                ),
+                int(resolved_retcon_time_used),
                 int(retcon_hour) if retcon_hour is not None else getattr(chart, "retcon_hour", None),
                 int(retcon_minute) if retcon_minute is not None else getattr(chart, "retcon_minute", None),
                 _serialize_weight_map(
@@ -2317,6 +2330,23 @@ def update_chart(
         or getattr(chart, "chart_type", None)
         or getattr(chart, "source", None)
     )
+    resolved_birthtime_unknown = bool(
+        birthtime_unknown
+        if birthtime_unknown is not None
+        else bool(getattr(chart, "birthtime_unknown", False))
+    )
+    resolved_retcon_time_used = bool(
+        retcon_time_used
+        if retcon_time_used is not None
+        else bool(getattr(chart, "retcon_time_used", False))
+    )
+    chart.birthtime_unknown = resolved_birthtime_unknown
+    chart.retcon_time_used = resolved_retcon_time_used
+    if retcon_hour is not None:
+        chart.retcon_hour = int(retcon_hour)
+    if retcon_minute is not None:
+        chart.retcon_minute = int(retcon_minute)
+    apply_time_specific_metadata_policy(chart)
     resolved_signs_unknown, resolved_unknown_signs = _resolve_unknown_sign_metadata(
         chart,
         birthtime_unknown=birthtime_unknown,
@@ -2440,18 +2470,10 @@ def update_chart(
                     getattr(chart, "negative_sentiment_intensity", None),
                     getattr(chart, "familiarity", None),
                 ),
-                int(
-                    birthtime_unknown
-                    if birthtime_unknown is not None
-                    else bool(getattr(chart, "birthtime_unknown", False))
-                ),
+                int(resolved_birthtime_unknown),
                 int(resolved_signs_unknown),
                 _serialize_string_list(resolved_unknown_signs),
-                int(
-                    retcon_time_used
-                    if retcon_time_used is not None
-                    else bool(getattr(chart, "retcon_time_used", False))
-                ),
+                int(resolved_retcon_time_used),
                 int(retcon_hour) if retcon_hour is not None else getattr(chart, "retcon_hour", None),
                 int(retcon_minute) if retcon_minute is not None else getattr(chart, "retcon_minute", None),
                 _serialize_weight_map(
@@ -2997,6 +3019,7 @@ def load_chart(chart_id: int):
     chart.birth_month = birth_month
     chart.birth_day = birth_day
     chart.birth_year = birth_year
+    apply_time_specific_metadata_policy(chart)
     return chart
 
 def load_dominant_sign_weights(
@@ -3055,3 +3078,50 @@ def invalidate_all_dominant_weight_caches() -> None:
             """
         )
     conn.close()
+
+
+def backfill_unknown_time_chart_metadata(*, limit: Optional[int] = None) -> int:
+    """
+    Re-save non-placeholder charts where birth time is unknown and no rectified
+    time is enabled, so time-specific metadata is sanitized consistently.
+    """
+    conn = _get_conn()
+    query = """
+        SELECT id
+        FROM charts
+        WHERE is_placeholder = 0
+          AND birthtime_unknown = 1
+          AND retcon_time_used = 0
+        ORDER BY id ASC
+    """
+    if limit is not None:
+        rows = conn.execute(query + " LIMIT ?", (max(0, int(limit)),)).fetchall()
+    else:
+        rows = conn.execute(query).fetchall()
+    conn.close()
+
+    chart_ids = [int(row[0]) for row in rows if row and row[0] is not None]
+    for chart_id in chart_ids:
+        chart = load_chart(chart_id)
+        update_chart(
+            chart_id,
+            chart,
+            birth_place=getattr(chart, "birth_place", None),
+            sentiments=list(getattr(chart, "sentiments", []) or []),
+            relationship_types=list(getattr(chart, "relationship_types", []) or []),
+            birthtime_unknown=bool(getattr(chart, "birthtime_unknown", False)),
+            retcon_time_used=bool(getattr(chart, "retcon_time_used", False)),
+            dominant_sign_weights=dict(getattr(chart, "dominant_sign_weights", {}) or {}),
+            dominant_planet_weights=dict(getattr(chart, "dominant_planet_weights", {}) or {}),
+            dominant_nakshatra_weights=dict(getattr(chart, "dominant_nakshatra_weights", {}) or {}),
+            chart_type=getattr(chart, "chart_type", None),
+            source=getattr(chart, "source", None),
+            is_placeholder=bool(getattr(chart, "is_placeholder", False)),
+            is_deceased=bool(getattr(chart, "is_deceased", False)),
+            birth_month=getattr(chart, "birth_month", None),
+            birth_day=getattr(chart, "birth_day", None),
+            birth_year=getattr(chart, "birth_year", None),
+            retcon_hour=getattr(chart, "retcon_hour", None),
+            retcon_minute=getattr(chart, "retcon_minute", None),
+        )
+    return len(chart_ids)

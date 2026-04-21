@@ -6,6 +6,87 @@ from .timeutils import localize_naive_datetime
 from .interpretations import MODES, PLANET_ORDER
 import datetime
 
+ANGLE_BODIES = frozenset({"AS", "MC", "DS", "IC"})
+
+
+def chart_uses_houses(chart) -> bool:
+    return not bool(getattr(chart, "birthtime_unknown", False)) or bool(
+        getattr(chart, "retcon_time_used", False)
+    )
+
+
+def _effective_chart_datetime(chart) -> datetime.datetime | None:
+    dt = getattr(chart, "dt", None)
+    if not isinstance(dt, datetime.datetime):
+        return None
+    if chart_uses_houses(chart) and bool(getattr(chart, "retcon_time_used", False)):
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_hour is not None and retcon_minute is not None:
+            try:
+                return dt.replace(
+                    hour=int(retcon_hour),
+                    minute=int(retcon_minute),
+                    second=0,
+                    microsecond=0,
+                )
+            except Exception:
+                return dt
+    return dt
+
+
+def sanitize_time_specific_metadata(chart) -> None:
+    chart.houses = []
+    chart.housesPo = []
+    positions = getattr(chart, "positions", None) or {}
+    for angle in ANGLE_BODIES:
+        positions.pop(angle, None)
+    chart.positions = positions
+    aspects = getattr(chart, "aspects", None) or []
+    chart.aspects = [
+        aspect
+        for aspect in aspects
+        if str(aspect.get("p1", "")).strip() not in ANGLE_BODIES
+        and str(aspect.get("p2", "")).strip() not in ANGLE_BODIES
+    ]
+
+
+def recompute_time_specific_metadata(chart) -> None:
+    dt_effective = _effective_chart_datetime(chart)
+    if dt_effective is None:
+        sanitize_time_specific_metadata(chart)
+        return
+    lat = getattr(chart, "lat", None)
+    lon = getattr(chart, "lon", None)
+    if lat is None or lon is None:
+        sanitize_time_specific_metadata(chart)
+        return
+
+    lst_deg = local_sidereal_time_deg(dt_effective, lon)
+    chart.housesPo = porphyry_houses(lst_deg, lat)
+    chart.houses, placidus_angles = placidus_houses_and_axes(dt_effective, lat, lon)
+
+    positions = getattr(chart, "positions", None) or {}
+    for angle in ANGLE_BODIES:
+        positions.pop(angle, None)
+    positions.update(placidus_angles)
+    asc = positions.get("AS")
+    mc = positions.get("MC")
+    if asc is not None:
+        positions["DS"] = (asc + 180.0) % 360.0
+    if mc is not None:
+        positions["IC"] = (mc + 180.0) % 360.0
+    chart.positions = positions
+    chart.aspects = find_aspects(chart.positions)
+
+
+def apply_time_specific_metadata_policy(chart) -> None:
+    if chart_uses_houses(chart):
+        recompute_time_specific_metadata(chart)
+    else:
+        sanitize_time_specific_metadata(chart)
+
+
 class Chart:
     def __init__(
         self,
@@ -95,17 +176,10 @@ class Chart:
         self.retrogrades = planetary_retrogrades(self.dt)
 
         # real RAMC/LST in degrees, based on this chart’s datetime and longitude
-        lst_deg = local_sidereal_time_deg(self.dt, lon)
-        self.housesPo = porphyry_houses(lst_deg, lat) #porphyry house definitions
-        self.houses, placidus_angles = placidus_houses_and_axes(self.dt, lat, lon)
-        self.positions.update(placidus_angles)
-        asc = self.positions.get("AS")
-        mc = self.positions.get("MC")
-        if asc is not None:
-            self.positions["DS"] = (asc + 180.0) % 360.0
-        if mc is not None:
-            self.positions["IC"] = (mc + 180.0) % 360.0
-
+        self.housesPo = []
+        self.houses = []
+        self.aspects = []
+        recompute_time_specific_metadata(self)
         self._add_part_of_fortune()
         self.aspects = find_aspects(self.positions)
         self.modal_distribution = self._modal_distribution()
