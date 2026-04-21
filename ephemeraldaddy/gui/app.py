@@ -648,6 +648,8 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_similar_charts_export_lines,
+    build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
@@ -20309,70 +20311,6 @@ class MainWindow(QMainWindow):
         band = classify_similarity(similarity_percent, thresholds)
         return band.label, band.color
 
-    def _build_similar_charts_export_lines(
-        self,
-        *,
-        subject_name: str,
-        rows: list[dict[str, Any]],
-        is_markdown: bool,
-    ) -> list[str]:
-        lines: list[str] = []
-        if is_markdown:
-            lines.append(f"# Similar Charts for {subject_name}")
-            lines.append("")
-            lines.append(
-                "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution | Dominance |"
-            )
-            lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|")
-            for row in rows:
-                lines.append(
-                    f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
-                    f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | {row['placement_percent']:.1f}% | "
-                    f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
-                )
-            return lines
-
-        lines.append(f"Similar Charts for {subject_name}")
-        lines.append("")
-        for row in rows:
-            lines.append(
-                f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
-                f"Similarity {row['similarity_percent']:.1f}% "
-                f"[{row.get('similarity_band', 'unclassified')}] "
-                f"(placements {row['placement_percent']:.1f}%, "
-                f"aspects {row['aspect_percent']:.1f}%, "
-                f"distribution {row['distribution_percent']:.1f}%, "
-                f"dominance {float(row.get('dominance_percent') or 0.0):.1f}%)"
-            )
-        return lines
-
-    def _build_similar_charts_export_rows_from_matches(
-        self,
-        matches: list[Any],
-    ) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for rank, match in enumerate(matches, start=1):
-            similarity_percent = float(getattr(match, "score", 0.0) or 0.0) * 100.0
-            band_label, _band_color = self._similarity_band_for_percent(similarity_percent)
-            rows.append(
-                {
-                    "rank": rank,
-                    "chart_id": int(getattr(match, "chart_id", 0) or 0),
-                    "chart_name": str(getattr(match, "chart_name", "") or ""),
-                    "similarity_percent": round(similarity_percent, 1),
-                    "similarity_band": band_label,
-                    "placement_percent": round(float(getattr(match, "placement_score", 0.0) or 0.0) * 100.0, 1),
-                    "aspect_percent": round(float(getattr(match, "aspect_score", 0.0) or 0.0) * 100.0, 1),
-                    "distribution_percent": round(float(getattr(match, "distribution_score", 0.0) or 0.0) * 100.0, 1),
-                    "dominance_percent": (
-                        round(float(getattr(match, "dominance_score", 0.0) or 0.0) * 100.0, 1)
-                        if getattr(match, "dominance_score", None) is not None
-                        else None
-                    ),
-                }
-            )
-        return rows
-
     def _export_similar_charts_share(self) -> None:
         if not self._similar_charts_export_rows:
             QMessageBox.information(
@@ -20395,7 +20333,7 @@ class MainWindow(QMainWindow):
             return
 
         is_markdown = file_path.lower().endswith(".md")
-        lines = self._build_similar_charts_export_lines(
+        lines = build_similar_charts_export_lines(
             subject_name=self._similar_charts_subject_name or "Current chart",
             rows=self._similar_charts_export_rows,
             is_markdown=is_markdown,
@@ -20430,22 +20368,28 @@ class MainWindow(QMainWindow):
             return
 
         is_markdown = file_path.lower().endswith(".md")
-        most_rows = self._build_similar_charts_export_rows_from_matches(most_matches[:25])
-        least_rows = self._build_similar_charts_export_rows_from_matches(least_matches[:25])
+        most_rows = build_similar_charts_export_rows_from_matches(
+            matches=most_matches[:25],
+            resolve_similarity_band=self._similarity_band_for_percent,
+        )
+        least_rows = build_similar_charts_export_rows_from_matches(
+            matches=least_matches[:25],
+            resolve_similarity_band=self._similarity_band_for_percent,
+        )
         lines: list[str] = []
         if is_markdown:
-            lines.extend(self._build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
+            lines.extend(build_similar_charts_export_lines(subject_name=subject_name, rows=[], is_markdown=True))
             lines.append("")
             lines.append("## Top 25 Most Similar Charts")
             lines.append("")
             lines.extend(
-                self._build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=True)[2:]
+                build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=True)[2:]
             )
             lines.append("")
             lines.append("## Top 25 Least Similar Charts")
             lines.append("")
             lines.extend(
-                self._build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
+                build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=True)[2:]
             )
         else:
             lines.append(f"Similar Charts for {subject_name}")
@@ -20453,13 +20397,13 @@ class MainWindow(QMainWindow):
             lines.append("Top 25 Most Similar Charts")
             lines.append("")
             lines.extend(
-                self._build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=False)[2:]
+                build_similar_charts_export_lines(subject_name=subject_name, rows=most_rows, is_markdown=False)[2:]
             )
             lines.append("")
             lines.append("Top 25 Least Similar Charts")
             lines.append("")
             lines.extend(
-                self._build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=False)[2:]
+                build_similar_charts_export_lines(subject_name=subject_name, rows=least_rows, is_markdown=False)[2:]
             )
         try:
             with open(file_path, "w", encoding="utf-8") as handle:

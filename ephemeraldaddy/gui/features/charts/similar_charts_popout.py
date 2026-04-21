@@ -113,6 +113,72 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
 _DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
 
 
+def build_similar_charts_export_rows_from_matches(
+    *,
+    matches: list[Any],
+    resolve_similarity_band: Callable[[float], tuple[str, str]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for rank, match in enumerate(matches, start=1):
+        similarity_percent = float(getattr(match, "score", 0.0) or 0.0) * 100.0
+        band_label, _band_color = resolve_similarity_band(similarity_percent)
+        rows.append(
+            {
+                "rank": rank,
+                "chart_id": int(getattr(match, "chart_id", 0) or 0),
+                "chart_name": str(getattr(match, "chart_name", "") or ""),
+                "similarity_percent": round(similarity_percent, 1),
+                "similarity_band": band_label,
+                "placement_percent": round(float(getattr(match, "placement_score", 0.0) or 0.0) * 100.0, 1),
+                "aspect_percent": round(float(getattr(match, "aspect_score", 0.0) or 0.0) * 100.0, 1),
+                "distribution_percent": round(float(getattr(match, "distribution_score", 0.0) or 0.0) * 100.0, 1),
+                "dominance_percent": (
+                    round(float(getattr(match, "dominance_score", 0.0) or 0.0) * 100.0, 1)
+                    if getattr(match, "dominance_score", None) is not None
+                    else None
+                ),
+            }
+        )
+    return rows
+
+
+def build_similar_charts_export_lines(
+    *,
+    subject_name: str,
+    rows: list[dict[str, Any]],
+    is_markdown: bool,
+) -> list[str]:
+    lines: list[str] = []
+    if is_markdown:
+        lines.append(f"# Similar Charts for {subject_name}")
+        lines.append("")
+        lines.append(
+            "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution | Dominance |"
+        )
+        lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|")
+        for row in rows:
+            lines.append(
+                f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
+                f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | {row['placement_percent']:.1f}% | "
+                f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
+            )
+        return lines
+
+    lines.append(f"Similar Charts for {subject_name}")
+    lines.append("")
+    for row in rows:
+        lines.append(
+            f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
+            f"Similarity {row['similarity_percent']:.1f}% "
+            f"[{row.get('similarity_band', 'unclassified')}] "
+            f"(placements {row['placement_percent']:.1f}%, "
+            f"aspects {row['aspect_percent']:.1f}%, "
+            f"distribution {row['distribution_percent']:.1f}%, "
+            f"dominance {float(row.get('dominance_percent') or 0.0):.1f}%)"
+        )
+    return lines
+
+
 def _is_tautological_node_opposition(p1: str, p2: str, aspect_type: str) -> bool:
     if str(aspect_type).strip().lower() != "opposition":
         return False
