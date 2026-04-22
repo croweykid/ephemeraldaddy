@@ -9,10 +9,23 @@ import datetime
 ANGLE_BODIES = frozenset({"AS", "MC", "DS", "IC"})
 
 
-def chart_uses_houses(chart) -> bool:
+def resolve_use_birth_time_data(chart) -> bool:
     return not bool(getattr(chart, "birthtime_unknown", False)) or bool(
         getattr(chart, "retcon_time_used", False)
     )
+
+
+def sync_use_birth_time_data(chart) -> bool:
+    resolved = resolve_use_birth_time_data(chart)
+    try:
+        chart.use_birth_time_data = resolved
+    except Exception:
+        pass
+    return resolved
+
+
+def chart_uses_houses(chart) -> bool:
+    return sync_use_birth_time_data(chart)
 
 
 def _effective_chart_datetime(chart) -> datetime.datetime | None:
@@ -81,13 +94,19 @@ def recompute_time_specific_metadata(chart) -> None:
 
 
 def apply_time_specific_metadata_policy(chart) -> None:
-    if chart_uses_houses(chart):
+    use_birth_time_data = sync_use_birth_time_data(chart)
+    if use_birth_time_data:
         recompute_time_specific_metadata(chart)
     else:
         sanitize_time_specific_metadata(chart)
 
 
 class Chart:
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name in {"birthtime_unknown", "retcon_time_used"}:
+            object.__setattr__(self, "use_birth_time_data", resolve_use_birth_time_data(self))
+
     def __init__(
         self,
         name,
@@ -150,6 +169,7 @@ class Chart:
         self.retcon_time_used = False
         self.retcon_hour = None
         self.retcon_minute = None
+        self.use_birth_time_data = True
         self.is_deceased = False
         self._explicit_tz = tz
         self.used_utc_fallback = False  # will be set if tz inference falls back to UTC
@@ -232,6 +252,7 @@ class Chart:
             "aspects": self.aspects,
             "modal_distribution": self.modal_distribution,
             "used_utc_fallback": self.used_utc_fallback,
+            "use_birth_time_data": bool(getattr(self, "use_birth_time_data", chart_uses_houses(self))),
             "signs_unknown": bool(getattr(self, "signs_unknown", False)),
             "unknown_signs": list(getattr(self, "unknown_signs", []) or []),
         }

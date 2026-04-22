@@ -39,6 +39,7 @@ from ephemeraldaddy.analysis.human_design import (
     derive_human_design_profile,
 )
 from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_AUTHORITY_COLORS,
@@ -404,9 +405,7 @@ class DatabaseAnalyticsChartsMixin:
             return None
         try:
             dt_local = resolve_bazi_birth_datetime(chart)
-            include_hour = not bool(getattr(chart, "birthtime_unknown", False)) or bool(
-                getattr(chart, "retcon_time_used", False)
-            )
+            include_hour = chart_uses_houses(chart)
             bazi_data = build_bazi_chart_data(dt_local, include_hour=include_hour)
         except Exception:
             return None
@@ -2379,9 +2378,7 @@ class DatabaseAnalyticsChartsMixin:
                 continue
 
             dt_value = getattr(chart, "dt", None)
-            has_known_time = (not bool(getattr(chart, "birthtime_unknown", False))) or bool(
-                getattr(chart, "retcon_time_used", False)
-            )
+            has_known_time = chart_uses_houses(chart)
             if isinstance(dt_value, datetime.datetime) and has_known_time:
                 birth_minutes.append((int(dt_value.hour) * 60) + int(dt_value.minute))
 
