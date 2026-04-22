@@ -41,6 +41,8 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
+    MODES,
+    SIGN_ELEMENTS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     SIGN_COLORS,
@@ -612,33 +614,10 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
     return differences
 
 
-_ELEMENT_BY_SIGN: dict[str, str] = {
-    "Aries": "Fire",
-    "Leo": "Fire",
-    "Sagittarius": "Fire",
-    "Taurus": "Earth",
-    "Virgo": "Earth",
-    "Capricorn": "Earth",
-    "Gemini": "Air",
-    "Libra": "Air",
-    "Aquarius": "Air",
-    "Cancer": "Water",
-    "Scorpio": "Water",
-    "Pisces": "Water",
-}
 _MODE_BY_SIGN: dict[str, str] = {
-    "Aries": "Cardinal",
-    "Cancer": "Cardinal",
-    "Libra": "Cardinal",
-    "Capricorn": "Cardinal",
-    "Taurus": "Fixed",
-    "Leo": "Fixed",
-    "Scorpio": "Fixed",
-    "Aquarius": "Fixed",
-    "Gemini": "Mutable",
-    "Virgo": "Mutable",
-    "Sagittarius": "Mutable",
-    "Pisces": "Mutable",
+    str(sign): str(mode_name).title()
+    for mode_name, signs in MODES.items()
+    for sign in signs
 }
 
 
@@ -667,8 +646,8 @@ def _distribution_summary(
 
         subject_sign = sign_for_longitude(subject_lon)
         compared_sign = sign_for_longitude(compared_lon)
-        subject_element = _ELEMENT_BY_SIGN.get(subject_sign)
-        compared_element = _ELEMENT_BY_SIGN.get(compared_sign)
+        subject_element = SIGN_ELEMENTS.get(subject_sign)
+        compared_element = SIGN_ELEMENTS.get(compared_sign)
         subject_mode = _MODE_BY_SIGN.get(subject_sign)
         compared_mode = _MODE_BY_SIGN.get(compared_sign)
 
@@ -731,8 +710,8 @@ def _distribution_differences(
         weight = max(0.0, float(effective_weights.get(body, NATAL_WEIGHT.get(body, 1.0))))
         subject_sign = sign_for_longitude(subject_lon)
         compared_sign = sign_for_longitude(compared_lon)
-        subject_element = _ELEMENT_BY_SIGN.get(subject_sign)
-        compared_element = _ELEMENT_BY_SIGN.get(compared_sign)
+        subject_element = SIGN_ELEMENTS.get(subject_sign)
+        compared_element = SIGN_ELEMENTS.get(compared_sign)
         subject_mode = _MODE_BY_SIGN.get(subject_sign)
         compared_mode = _MODE_BY_SIGN.get(compared_sign)
         if subject_element and compared_element and subject_element != compared_element:
