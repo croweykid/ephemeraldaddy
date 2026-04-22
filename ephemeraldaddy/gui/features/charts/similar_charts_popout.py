@@ -901,7 +901,6 @@ def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[st
         + (", ".join(shared_top) if shared_top else "none")
         + "."
     )
-    lines.append("These weights come from body importance, not nakshatra dominance lore.")
     return lines
 
 
