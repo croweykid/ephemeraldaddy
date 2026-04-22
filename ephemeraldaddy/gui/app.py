@@ -11300,7 +11300,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         tagging_section, tagging_section_layout = add_collapsible_section("Tagging")
         tagging_row = QHBoxLayout()
         self.batch_tags_input = QLineEdit()
-        self.batch_tags_input.setPlaceholderText("comma-separated tags")
+        self.batch_tags_input.setPlaceholderText("add one tag")
         self.batch_tags_input.textChanged.connect(
             lambda: render_tag_chip_preview(
                 self.batch_tags_preview_label,
@@ -12067,20 +12067,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if preserve_lucygoosey and bool(getattr(self, "_batch_tags_lucygoosey", False)):
             return
         self.batch_tags_input.blockSignals(True)
-        first_value = values[0] if values else ""
-        self.batch_tags_input.setText(first_value)
+        self.batch_tags_input.setText("")
         self.batch_tags_input.blockSignals(False)
         render_tag_chip_preview(
             getattr(self, "batch_tags_preview_label", None),
-            parse_tag_text(first_value),
+            [],
         )
         self._batch_tags_lucygoosey = False
-        if values and len(set(values)) > 1:
-            self.batch_tags_input.setToolTip(
-                "Selected charts have mixed tag values. Applying will overwrite all selected charts."
-            )
-        else:
-            self.batch_tags_input.setToolTip("")
+        self.batch_tags_input.setToolTip("Add one tag at a time to the selected charts.")
 
     def _render_batch_selection_tag_summary(
         self,
@@ -12607,23 +12601,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         parsed_tags = parse_tag_text(self.batch_tags_input.text())
-        display_tags = ", ".join(parsed_tags) if parsed_tags else "blank"
+        if not parsed_tags:
+            QMessageBox.information(
+                self,
+                "Tag required",
+                "Enter a tag to add to the selected charts.",
+            )
+            return
+        if len(parsed_tags) > 1:
+            QMessageBox.information(
+                self,
+                "One tag at a time",
+                "Please enter only one tag in this field.",
+            )
+            return
+
+        tag_to_add = parsed_tags[0]
         selected_count = len(chart_ids)
-        action_label = f"Set tags to '{display_tags}' for"
+        action_label = f"Add tag '{tag_to_add}' to"
         if not self._confirm_batch_edit(action_label, selected_count):
             self._update_batch_edit_state()
             return
 
+        normalized_key = tag_to_add.casefold()
+        changed_ids: set[int] = set()
         try:
             for chart_id in chart_ids:
                 chart = load_chart(chart_id)
-                chart.tags = list(parsed_tags)
+                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
+                if any(tag.casefold() == normalized_key for tag in existing_tags):
+                    continue
+                chart.tags = existing_tags + [tag_to_add]
                 update_chart(
                     chart_id,
                     chart,
                     retcon_time_used=getattr(chart, "retcon_time_used", False),
                 )
                 self._chart_cache[chart_id] = chart
+                changed_ids.add(int(chart_id))
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -12632,8 +12647,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if not changed_ids:
+            QMessageBox.information(
+                self,
+                "No changes applied",
+                f"All selected charts already have the tag '{tag_to_add}'.",
+            )
+            self._update_batch_edit_state()
+            return
+
         self._batch_tags_lucygoosey = False
-        changed_ids = set(chart_ids)
+        self.batch_tags_input.setText(tag_to_add)
         self._update_tag_completers()
         self._update_sentiment_tally(
             show_progress=True,
