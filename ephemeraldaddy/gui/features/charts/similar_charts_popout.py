@@ -33,6 +33,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
     _placement_body_weights,
+    _top_keys,
     chart_similarity_score_custom,
     normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode,
@@ -47,6 +48,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_COLORS,
     SIGN_COLORS,
     MODE_COLORS,
+    NAKSHATRA_RANGES,
     aspect_pair_weight,
     aspect_score,
 )
@@ -116,6 +118,9 @@ _SIMILARITY_TOKEN_COLORS.update(_ASPECT_COLORS)
 _SIMILARITY_TOKEN_COLORS.update(
     {str(center): str(data.get("color") or "#cccccc") for center, data in HD_CENTERS.items()}
 )
+_NAKSHATRA_INDEX_BY_NAME: dict[str, int] = {
+    str(name): idx for idx, (name, *_range_data) in enumerate(NAKSHATRA_RANGES)
+}
 _ANGLE_POINTS: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
 _DEFAULT_ALGORITHM_COMPONENT_WEIGHTS: dict[str, float] = {
     "placement": 0.38,
@@ -865,35 +870,76 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
 
 
 def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
-    subject_positions = getattr(subject_chart, "positions", None) or {}
-    compared_positions = getattr(compared_chart, "positions", None) or {}
-    same_body_matches: list[str] = []
-    for body in _PLACEMENT_BODIES:
-        subject_lon = subject_positions.get(body)
-        compared_lon = compared_positions.get(body)
-        if subject_lon is None or compared_lon is None:
-            continue
-        subject_nak = get_nakshatra(subject_lon)
-        compared_nak = get_nakshatra(compared_lon)
-        if subject_nak and subject_nak == compared_nak:
-            same_body_matches.append(f"{body} in {subject_nak}")
-    return sorted(same_body_matches)
+    subject_profile = _nakshatra_weight_profile(subject_chart)
+    compared_profile = _nakshatra_weight_profile(compared_chart)
+    overlap = _weighted_overlap_similarity(subject_profile, compared_profile)
+    subject_top3 = _top_keys(subject_profile, count=3)
+    compared_top3 = _top_keys(compared_profile, count=3)
+    shared_top = [
+        _nakshatra_name_for_index(index)
+        for index in sorted(subject_top3 & compared_top3)
+    ]
+    lines = [f"Body-weighted placement-profile overlap: {overlap * 100.0:.1f}%."]
+    lines.append(
+        "Shared top-3 nakshatras by placement-profile weight: "
+        + (", ".join(shared_top) if shared_top else "none")
+        + "."
+    )
+    lines.append("These weights come from body importance, not nakshatra dominance lore.")
+    return lines
 
 
 def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
-    subject_positions = getattr(subject_chart, "positions", None) or {}
-    compared_positions = getattr(compared_chart, "positions", None) or {}
-    differences: list[str] = []
-    for body in _PLACEMENT_BODIES:
-        subject_lon = subject_positions.get(body)
-        compared_lon = compared_positions.get(body)
-        if subject_lon is None or compared_lon is None:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+    subject_profile = _nakshatra_weight_profile(subject_chart)
+    compared_profile = _nakshatra_weight_profile(compared_chart)
+    subject_top3 = _top_keys(subject_profile, count=3)
+    compared_top3 = _top_keys(compared_profile, count=3)
+    subject_only = [
+        _nakshatra_name_for_index(index)
+        for index in sorted(subject_top3 - compared_top3)
+    ]
+    compared_only = [
+        _nakshatra_name_for_index(index)
+        for index in sorted(compared_top3 - subject_top3)
+    ]
+    lines = []
+    if subject_only:
+        lines.append(f"Top placement-profile nakshatras only in {subject_label}: {', '.join(subject_only)}.")
+    if compared_only:
+        lines.append(f"Top placement-profile nakshatras only in {compared_label}: {', '.join(compared_only)}.")
+    if not lines:
+        lines.append("Top body-weighted placement profiles are closely aligned.")
+    return lines
+
+
+def _nakshatra_name_for_index(index: int) -> str:
+    if 0 <= index < len(NAKSHATRA_RANGES):
+        return str(NAKSHATRA_RANGES[index][0])
+    return f"Nakshatra #{index + 1}"
+
+
+def _nakshatra_weight_profile(chart: Any) -> dict[int, float]:
+    positions = getattr(chart, "positions", None) or {}
+    weighted_counts = {index: 0.0 for index in range(27)}
+    for body in CORE_BODIES:
+        if body in {"AS", "MC"}:
             continue
-        subject_nak = get_nakshatra(subject_lon)
-        compared_nak = get_nakshatra(compared_lon)
-        if subject_nak and compared_nak and subject_nak != compared_nak:
-            differences.append(f"{body}: {subject_nak} vs {compared_nak}")
-    return sorted(differences)
+        longitude = positions.get(body)
+        if longitude is None:
+            continue
+        nakshatra_name = get_nakshatra(longitude)
+        if not nakshatra_name:
+            continue
+        nakshatra_index = _NAKSHATRA_INDEX_BY_NAME.get(str(nakshatra_name))
+        if nakshatra_index is None:
+            continue
+        weighted_counts[nakshatra_index] += float(BODY_WEIGHTS.get(body, 0.8))
+    total = sum(weighted_counts.values())
+    if total <= 0:
+        return weighted_counts
+    return {index: (value / total) for index, value in weighted_counts.items()}
 
 def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
     def _profile(chart: Any) -> dict[str, float]:
@@ -1305,13 +1351,13 @@ def build_similarity_reasoning_panel_text(
                 nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
                 lines.append(
                     _section_title_with_weight_and_match(
-                        "Nakshatra Prevalence differences:",
+                        "Nakshatra Placement Profile differences:",
                         "nakshatra_placement",
                         component_weight_percents,
                         component_score_percents,
                     )
                 )
-                lines.append("; ".join(nak_diff) if nak_diff else "No same-body nakshatra differences were found.")
+                lines.append("; ".join(nak_diff) if nak_diff else "No major placement-profile differences were found.")
                 lines.append("")
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_diff = _nakshatra_dominance_differences(subject_chart, compared_chart)
@@ -1437,13 +1483,13 @@ def build_similarity_reasoning_panel_text(
                 nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
                 lines.append(
                     _section_title_with_weight_and_match(
-                        "Nakshatra Prevalence:",
+                        "Nakshatra Placement Profile:",
                         "nakshatra_placement",
                         component_weight_percents,
                         component_score_percents,
                     )
                 )
-                lines.append("; ".join(nak_lines) if nak_lines else "No same-body nakshatra overlaps were found.")
+                lines.append("; ".join(nak_lines) if nak_lines else "No placement-profile overlap details were found.")
                 lines.append("")
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_lines = _nakshatra_dominance_summary(subject_chart, compared_chart)
@@ -1659,13 +1705,13 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight_and_match(
-                            "Nakshatra Prevalence differences:",
+                            "Nakshatra Placement Profile differences:",
                             "nakshatra_placement",
                             component_weight_percents,
                             component_score_percents,
                         ),
                         _nakshatra_difference_lines(subject_chart, compared_chart)
-                        or ["No same-body nakshatra differences were found."],
+                        or ["No major placement-profile differences were found."],
                     )
                 )
             if "nakshatra_dominance" in component_weight_percents:
@@ -1804,13 +1850,13 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight_and_match(
-                            "Nakshatra Prevalence:",
+                            "Nakshatra Placement Profile:",
                             "nakshatra_placement",
                             component_weight_percents,
                             component_score_percents,
                         ),
                         _nakshatra_overlap_lines(subject_chart, compared_chart)
-                        or ["No same-body nakshatra overlaps were found."],
+                        or ["No placement-profile overlap details were found."],
                     )
                 )
             if "nakshatra_dominance" in component_weight_percents:
