@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
     Chart,
     apply_time_specific_metadata_policy,
+    chart_uses_houses,
     compute_unknown_sign_positions,
 )
 from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
@@ -1193,9 +1194,7 @@ def _resolve_bazi_metadata(chart: Any) -> dict[str, Optional[str]]:
                 dt_local = chart_dt
     if not isinstance(dt_local, datetime):
         return metadata
-    include_hour = not bool(getattr(chart, "birthtime_unknown", False)) or bool(
-        getattr(chart, "retcon_time_used", False)
-    )
+    include_hour = chart_uses_houses(chart)
     if include_hour and bool(getattr(chart, "retcon_time_used", False)):
         retcon_hour = getattr(chart, "retcon_hour", None)
         retcon_minute = getattr(chart, "retcon_minute", None)
@@ -2979,6 +2978,7 @@ def load_chart(chart_id: int):
         placeholder.retcon_time_used = bool(retcon_time_used)
         placeholder.retcon_hour = int(retcon_hour) if retcon_hour is not None else None
         placeholder.retcon_minute = int(retcon_minute) if retcon_minute is not None else None
+        placeholder.use_birth_time_data = chart_uses_houses(placeholder)
         placeholder.dominant_sign_weights = _parse_weight_map(dominant_sign_weights)
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
         placeholder.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
@@ -3079,6 +3079,7 @@ def load_chart(chart_id: int):
     chart.birth_day = birth_day
     chart.birth_year = birth_year
     apply_time_specific_metadata_policy(chart)
+    chart.use_birth_time_data = chart_uses_houses(chart)
     return chart
 
 def load_dominant_sign_weights(

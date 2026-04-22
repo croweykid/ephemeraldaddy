@@ -24,7 +24,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
     UNKNOWN_BAZI_VALUE,
     build_bazi_chart_data,
 )
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.interpretations import BAZI_ELEMENTS, BAZI_ZODIAC
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
@@ -769,11 +769,10 @@ def create_bazi_window_dialog(
     share_icon_path: str | None = None,
 ) -> QDialog:
     dt_local = resolve_bazi_birth_datetime(chart)
-    has_known_birth_hour = (
+    has_known_birth_hour = chart_uses_houses(chart) and (
         not bool(getattr(chart, "birthtime_unknown", False))
         or (
-            bool(getattr(chart, "retcon_time_used", False))
-            and getattr(chart, "retcon_hour", None) is not None
+            getattr(chart, "retcon_hour", None) is not None
             and getattr(chart, "retcon_minute", None) is not None
         )
     )
