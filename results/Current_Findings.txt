@@ -1,8 +1,22 @@
 Current Findings:
 
-4.22.2026 | Based on current calculation of Mars dominance:
- 30,589 cumulative Mars weight for 216 Public Mars dom charts = 142 avg (most famous celebrities)
- 58,846 cumulative Mars weight for 430 Parasocial Mars dom charts = 137 avg (lesser celebrities)
- 14,724 cumulative Mars weight for 115 Personal Mars dom charts = 128 avg (people I know)
+4.22.2026 by Crowey | Based on current calculation of body dominance:
+ * Placeholder charts are automatically excluded from astrologically-filtered search results.
+ ** Not all birth times are known, and house placement may impact dominance weights - that being said, I believe it should theoretically affect most charts fairly equally when spread out over a large sample size.
+ *** Rounded values.
 
- 
+
+Mars Dominance Spread:
+ 30,589 cumulative Mars weight for 216 Public Mars dom charts = 142 avg (most famous celebrities)
+ 59,178 cumulative Mars weight for 433 Parasocial Mars dom charts = 137 avg (lesser celebrities)
+ 14,386 cumulative Mars weight for 112 Personal Mars dom charts = 128 avg (people I know). 
+
+Venus Dominance Spread:
+ 29,294 cumulative Venus weight for 209 Public Venus dom charts = 140 avg (most famous celebrities)
+ 61,631 cumulative Venus weight for 452 Parasocial Venus dom charts = 136 avg (lesser celebrities)
+ 12,332 cumulative Venus weight for 95 Personal Venus dom charts = 129 avg (people I know). 
+
+Mercury Dominance Spread:
+ 32,974 cumulative Mercury weight for 221 Public Mercury dom charts = 149 avg (most famous celebrities)
+ 67,107 cumulative Mercury weight for 467 Parasocial Mercury dom charts = 144 avg (lesser celebrities)
+ 12,082 cumulative Mercury weight for 103 Personal Mercury dom charts = 117 avg (people I know). 

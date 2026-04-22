@@ -472,6 +472,7 @@ from ephemeraldaddy.core.interpretations import (
     GENERATION_COLORS,
     ASPECT_COLORS,
     ASPECT_FRICTION,
+    ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
 )
 
@@ -652,6 +653,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_similar_chart_bio_panel_content,
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -4653,9 +4655,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         synastry_base_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Aspect":
+            aspect_sort_rank = {
+                aspect_type: index for index, aspect_type in enumerate(ASPECT_SCORE_WEIGHTS.keys())
+            }
             return sorted(
                 aspect_hits,
-                key=lambda hit: (hit.aspect.replace("_", " ").title(), hit.a.name, hit.b.name, hit.orb_deg),
+                key=lambda hit: (
+                    aspect_sort_rank.get(str(hit.aspect).replace(" ", "_").lower(), len(aspect_sort_rank)),
+                    -float(getattr(hit, "exactness", 0.0)),
+                    float(getattr(hit, "orb_deg", 0.0)),
+                    str(getattr(hit.a, "name", "")),
+                    str(getattr(hit.b, "name", "")),
+                ),
             )
         if sort_mode == "Position":
             return sorted(
@@ -11541,8 +11552,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.addWidget(batch_year_first_encountered_button, 3, 2)
 
         self.batch_positive_sentiment_intensity_spin = QSpinBox()
-        self.batch_positive_sentiment_intensity_spin.setRange(1, 10)
-        self.batch_positive_sentiment_intensity_spin.setValue(1)
+        self.batch_positive_sentiment_intensity_spin.setRange(0, 10)
+        self.batch_positive_sentiment_intensity_spin.setSpecialValueText("blank")
+        self.batch_positive_sentiment_intensity_spin.setValue(0)
         self.batch_positive_sentiment_intensity_spin.valueChanged.connect(
             lambda _value: self._on_batch_metric_field_lucygoosey("positive_sentiment_intensity")
         )
@@ -11554,7 +11566,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda: self._on_batch_sentiment_metric_assign(
                 "positive_sentiment_intensity",
                 "positive sentiment intensity",
-                self.batch_positive_sentiment_intensity_spin.value(),
+                self._batch_metric_spinbox_to_value(self.batch_positive_sentiment_intensity_spin),
             )
         )
         sentiment_metrics_layout.addWidget(QLabel("Positive intensity"), 0, 0)
@@ -11566,8 +11578,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.addWidget(batch_positive_button, 0, 2)
 
         self.batch_negative_sentiment_intensity_spin = QSpinBox()
-        self.batch_negative_sentiment_intensity_spin.setRange(1, 10)
-        self.batch_negative_sentiment_intensity_spin.setValue(1)
+        self.batch_negative_sentiment_intensity_spin.setRange(0, 10)
+        self.batch_negative_sentiment_intensity_spin.setSpecialValueText("blank")
+        self.batch_negative_sentiment_intensity_spin.setValue(0)
         self.batch_negative_sentiment_intensity_spin.valueChanged.connect(
             lambda _value: self._on_batch_metric_field_lucygoosey("negative_sentiment_intensity")
         )
@@ -11579,7 +11592,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda: self._on_batch_sentiment_metric_assign(
                 "negative_sentiment_intensity",
                 "negative sentiment intensity",
-                self.batch_negative_sentiment_intensity_spin.value(),
+                self._batch_metric_spinbox_to_value(self.batch_negative_sentiment_intensity_spin),
             )
         )
         sentiment_metrics_layout.addWidget(QLabel("Negative intensity"), 1, 0)
@@ -11591,8 +11604,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sentiment_metrics_layout.addWidget(batch_negative_button, 1, 2)
 
         self.batch_familiarity_spin = QSpinBox()
-        self.batch_familiarity_spin.setRange(1, 10)
-        self.batch_familiarity_spin.setValue(1)
+        self.batch_familiarity_spin.setRange(0, 10)
+        self.batch_familiarity_spin.setSpecialValueText("blank")
+        self.batch_familiarity_spin.setValue(0)
         self.batch_familiarity_spin.valueChanged.connect(
             lambda _value: self._on_batch_metric_field_lucygoosey("familiarity")
         )
@@ -11604,7 +11618,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             lambda: self._on_batch_sentiment_metric_assign(
                 "familiarity",
                 "familiarity",
-                self.batch_familiarity_spin.value(),
+                self._batch_metric_spinbox_to_value(self.batch_familiarity_spin),
             )
         )
         familiarity_label_widget = QWidget()
@@ -11808,13 +11822,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
             source_values.append(source_value)
             positive_intensities.append(
-                int(getattr(chart, "positive_sentiment_intensity", 1) or 1)
+                self._normalized_batch_sentiment_metric_optional(
+                    getattr(chart, "positive_sentiment_intensity", None)
+                )
             )
             negative_intensities.append(
-                int(getattr(chart, "negative_sentiment_intensity", 1) or 1)
+                self._normalized_batch_sentiment_metric_optional(
+                    getattr(chart, "negative_sentiment_intensity", None)
+                )
             )
             familiarity_values.append(
-                int(getattr(chart, "familiarity", 1) or 1)
+                self._normalized_batch_sentiment_metric_optional(
+                    getattr(chart, "familiarity", None)
+                )
             )
             matched_expectations_values.append(
                 self._matched_expectations_value_for_chart(chart)
@@ -11955,6 +11975,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(raw_value) if raw_value is not None else 0
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
+        if raw_value is None:
+            return default
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().casefold()
+            if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+                return default
+        try:
+            parsed_value = int(raw_value)
+        except (TypeError, ValueError):
+            return default
+        return max(1, min(10, parsed_value))
+
+    @staticmethod
+    def _normalized_batch_sentiment_metric_optional(raw_value: Any) -> int | None:
+        if raw_value is None:
+            return None
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().casefold()
+            if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+                return None
+        try:
+            parsed_value = int(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if 1 <= parsed_value <= 10:
+            return parsed_value
+        return None
+
+    @staticmethod
+    def _batch_metric_spinbox_to_value(spinbox: QSpinBox) -> int | None:
+        value = int(spinbox.value())
+        if value <= 0:
+            return None
+        return max(1, min(10, value))
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
@@ -12360,13 +12417,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         field_key: str,
         spinbox: QSpinBox,
-        values: list[int],
+        values: list[int | None],
         *,
         preserve_lucygoosey: bool = False,
     ) -> None:
         if not values:
             self._batch_metric_programmatic_update = True
-            spinbox.setValue(1)
+            spinbox.setValue(0)
             self._batch_metric_programmatic_update = False
             self._set_batch_metric_lucygoosey_state(field_key, False)
             spinbox.setToolTip("")
@@ -12375,7 +12432,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         self._batch_metric_programmatic_update = True
         spinbox.blockSignals(True)
-        spinbox.setValue(values[0])
+        first_value = values[0]
+        spinbox.setValue(int(first_value) if first_value is not None else 0)
         spinbox.blockSignals(False)
         self._batch_metric_programmatic_update = False
         self._set_batch_metric_lucygoosey_state(field_key, False)
@@ -13979,11 +14037,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_deceased_checkbox,
             QuadStateSlider.MODE_EMPTY,
         )
-        self.batch_positive_sentiment_intensity_spin.setValue(1)
+        self.batch_positive_sentiment_intensity_spin.setValue(0)
         self.batch_positive_sentiment_intensity_spin.setToolTip("")
-        self.batch_negative_sentiment_intensity_spin.setValue(1)
+        self.batch_negative_sentiment_intensity_spin.setValue(0)
         self.batch_negative_sentiment_intensity_spin.setToolTip("")
-        self.batch_familiarity_spin.setValue(1)
+        self.batch_familiarity_spin.setValue(0)
         self.batch_familiarity_spin.setToolTip("")
         self.batch_matched_expectations_spin.setValue(0)
         self.batch_matched_expectations_spin.setToolTip("")
@@ -15494,7 +15552,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         int,
         int,
         int,
-        int,
+        int | None,
         int,
         int | None,
         int,
@@ -15521,7 +15579,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             int(padded[7] or 0),
             int(padded[8] or 0),
             int(padded[9] or 0),
-            int(padded[10] or 1),
+            (
+                int(padded[10])
+                if padded[10] not in (None, "", "blank", "none", "null", "unset", "unknown")
+                else None
+            ),
             max(0, int(padded[11] or 0)),
             int(padded[12]) if padded[12] is not None else None,
             int(padded[13] or 0),
@@ -15569,7 +15631,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif self._sort_mode == "age":
             rows.sort(key=lambda r: self._age_sort_key(r[4]), reverse=self._sort_descending)
         elif self._sort_mode == "familiarity":
-            rows.sort(key=lambda r: (r[10], (r[1] or "").lower()), reverse=self._sort_descending)
+            rows.sort(
+                key=lambda r: (
+                    r[10] is None,
+                    int(r[10]) if r[10] is not None else -1,
+                    (r[1] or "").lower(),
+                ),
+                reverse=self._sort_descending,
+            )
         elif self._sort_mode == "known_duration":
             rows.sort(
                 key=lambda r: (
@@ -16379,33 +16448,43 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if chart_year_first_encountered is None:
                 return False
 
-        chart_positive_sentiment_intensity = int(
-            getattr(chart, "positive_sentiment_intensity", 1) or 1
+        chart_positive_sentiment_intensity = self._normalized_batch_sentiment_metric_optional(
+            getattr(chart, "positive_sentiment_intensity", None)
         )
-        chart_negative_sentiment_intensity = int(
-            getattr(chart, "negative_sentiment_intensity", 1) or 1
+        chart_negative_sentiment_intensity = self._normalized_batch_sentiment_metric_optional(
+            getattr(chart, "negative_sentiment_intensity", None)
         )
-        chart_familiarity = int(getattr(chart, "familiarity", 1) or 1)
+        chart_familiarity = self._normalized_batch_sentiment_metric_optional(
+            getattr(chart, "familiarity", None)
+        )
 
         if positive_sentiment_intensity_min is not None and (
-            chart_positive_sentiment_intensity < positive_sentiment_intensity_min
+            chart_positive_sentiment_intensity is None
+            or chart_positive_sentiment_intensity < positive_sentiment_intensity_min
         ):
             return False
         if positive_sentiment_intensity_max is not None and (
-            chart_positive_sentiment_intensity > positive_sentiment_intensity_max
+            chart_positive_sentiment_intensity is None
+            or chart_positive_sentiment_intensity > positive_sentiment_intensity_max
         ):
             return False
         if negative_sentiment_intensity_min is not None and (
-            chart_negative_sentiment_intensity < negative_sentiment_intensity_min
+            chart_negative_sentiment_intensity is None
+            or chart_negative_sentiment_intensity < negative_sentiment_intensity_min
         ):
             return False
         if negative_sentiment_intensity_max is not None and (
-            chart_negative_sentiment_intensity > negative_sentiment_intensity_max
+            chart_negative_sentiment_intensity is None
+            or chart_negative_sentiment_intensity > negative_sentiment_intensity_max
         ):
             return False
-        if familiarity_min is not None and chart_familiarity < familiarity_min:
+        if familiarity_min is not None and (
+            chart_familiarity is None or chart_familiarity < familiarity_min
+        ):
             return False
-        if familiarity_max is not None and chart_familiarity > familiarity_max:
+        if familiarity_max is not None and (
+            chart_familiarity is None or chart_familiarity > familiarity_max
+        ):
             return False
 
         chart_alignment_score_raw = getattr(chart, "alignment_score", None)
@@ -20230,21 +20309,11 @@ class MainWindow(QMainWindow):
             if not biography_text and isinstance(chart_metadata, dict):
                 biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
         if analysis_mode == "bio":
-            if biography_text:
-                html_text = (
-                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
-                    f"<div style='margin-top:8px;color:#f5f5f5'>{html.escape(biography_text).replace(chr(10), '<br>')}</div>"
-                )
-                plain_text = f"BIO\n\n{biography_text}"
-            else:
-                placeholder = (
-                    f"The database doesn't have any information on {compared_name}'s backstory, so far..."
-                )
-                html_text = (
-                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
-                    f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
-                )
-                plain_text = f"BIO\n\n{placeholder}"
+            html_text, plain_text = build_similar_chart_bio_panel_content(
+                compared_name=compared_name,
+                biography_text=biography_text,
+                compared_chart=compared_chart,
+            )
         else:
             html_text = build_similarity_reasoning_panel_html(
                 match=match,
@@ -25280,6 +25349,20 @@ class MainWindow(QMainWindow):
             return
         for chart_id in chart_ids:
             self._chart_view_navigation_cache.pop(int(chart_id), None)
+
+    @staticmethod
+    def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
+        if raw_value is None:
+            return default
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().casefold()
+            if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+                return default
+        try:
+            parsed_value = int(raw_value)
+        except (TypeError, ValueError):
+            return default
+        return max(1, min(10, parsed_value))
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
