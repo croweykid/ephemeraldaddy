@@ -549,6 +549,8 @@ HOUSE_CUSP_BLEND_DEGREES = 8.0
 NATURAL_HOUSE_SIGN_BONUS = 6.0
 NATURAL_HOUSE_PLANET_BONUS = 6.0
 DISPOSITOR_PLANET_ATTENUATION = 0.35
+DISPOSITOR_SIGN_ATTENUATION = 0.30
+DISPOSITOR_MAX_DEPTH = 2
 CHART_RULER_BONUS = 4.0
 TIGHT_ASPECT_ORB_DEGREES = 1.0
 TIGHT_ASPECT_INTENSITY_MIN = 1.2
@@ -4223,15 +4225,17 @@ SOCIAL_ROLE = [
 
 #enneagram (approximated)
 ENNEAGRAM = [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
+#if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
+#Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
+    "1":{"signs":{"Virgo","Capricorn"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "2":{"signs":{"Cancer"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "3":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "4":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "5":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "6":{"signs":{},"houses":{6,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "7":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    "8":{"signs":{"Aries","Sagittarius","Leo"},"houses":{},"bodies":{"Mars",},"nakshatras":{""},"positions":{},"aspects":{},},
+    "9":{"signs":{"Pisces","Libra"},"houses":{12,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
 ]
 
 MBTI_ELEMENTS = [

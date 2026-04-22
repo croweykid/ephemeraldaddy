@@ -12,6 +12,8 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
     CHART_RULER_BONUS,
     DISPOSITOR_PLANET_ATTENUATION,
+    DISPOSITOR_SIGN_ATTENUATION,
+    DISPOSITOR_MAX_DEPTH,
     DETRIMENT_WEIGHT,
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
@@ -44,9 +46,6 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
-
-DISPOSITOR_SIGN_ATTENUATION = 0.30
-DISPOSITOR_MAX_DEPTH = 2
 
 PLANET_DYNAMICS_METRICS = (
     "antagonizing",
