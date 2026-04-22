@@ -675,6 +675,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similar_chart_bio_panel_content,
+    build_predictions_panel_content,
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -686,7 +687,6 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     load_similar_chart_candidates,
     make_similar_info_target,
     map_similar_info_targets,
-    render_predictions_panel_content,
     resolve_similarity_component_keys_for_display,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import (
@@ -20200,9 +20200,8 @@ class MainWindow(QMainWindow):
         if popout_info_output is None:
             return
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
-
-        render_predictions_panel_content(
-            output_widget=popout_info_output,
+        
+        html_text, plain_text = build_predictions_panel_content(
             matches=matches,
             load_chart_by_id=load_chart,
             default_alignment_to_zero_when_unassigned=bool(
@@ -20212,7 +20211,11 @@ class MainWindow(QMainWindow):
                     True,
                 )
             ),
-        )
+            )
+        if hasattr(popout_info_output, "setHtml"):
+            popout_info_output.setHtml(html_text)
+        else:
+            popout_info_output.setText(plain_text)
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
