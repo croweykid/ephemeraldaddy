@@ -457,6 +457,7 @@ MODE_COLORS = {
     "fixed": "#336600", #olive
 }
 
+#commented this out to prevent future confusion, cos I don't actually want to use this; it unbalances the whole system for modern planets! :(
 # PLANET_RULERSHIP_CLASSICAL = {
 #     "Sun": {"Leo"},
 #     "Moon": {"Cancer"},
@@ -466,6 +467,33 @@ MODE_COLORS = {
 #     "Jupiter": {"Sagittarius","Pisces"},
 #     "Saturn": {"Capricorn","Aquarius"},
 # }
+
+HELLENISTIC_HEMISPHERES = { #this is evidently about BALANCE; where they best thrive, not their nature
+    "Sun": {"diurnal"}, #because of fire.
+    "Moon": {"nocturnal"}, #because of earth
+    "Mercury": {"crepuscular"}, #ambivalent, transgender, 
+    "Venus": {"nocturnal"}, #'esp effective in darkness' was the rationale. But sculptors & painters of the world disagree...
+    "Mars": {"nocturnal"}, #'fiery and impulsive energy is calmed by the coolness of night'. Hey back in the day, did you know most war deities were female? fun fact. Arsinoe & Astarte for...astarters...
+    "Jupiter": {"diurnal"}, #expanding & bringing good fortune in daylight 
+    "Saturn": {"diurnal"}, #cold restrictive malefic moderated by daytime warmth
+    #then I got nuts and added outer planets; fight me, bro...
+    "Neptune": {"nocturnal"}, #noncanonical - but neptune is arguably best when it's dreaming, not sleepwalking awake; sleepingin the day is like a coma and who wants that? lol
+    "Uranus": {"crepuscular"}, #noncanonical - but it's the liminal, changeful unpredictability of it.
+    "Pluto": {"diurnal"}, #noncanonical - but in keeping with the motif, let's hold power to account in broad daylight?
+}
+
+PLANETARY_JOYS = { #2,4,7,8 & 10 don't get bonuses
+    "Sun": {9}, #'God'
+    "Moon": {3}, #'Goddess'
+    "Mercury": {1}, #'Helm'
+    "Venus": {5}, #'Good fortune'
+    "Mars": {6},  #'Bad fortune'
+    "Jupiter": {11}, #'Good spirit'
+    "Saturn": {12}, #'Bad spirit'
+    "Neptune": {8}, #noncanonical in Hellenistic tradition, but Neptune is at home with ego death
+    "Uranus": {}, #noncanonical in Hellenistic tradition. Neither 2, 7 nor 4 make much sense for Uranus.
+    "Pluto": {10}, #noncanonical in Hellenistic tradition, but Pluto loves power.
+}
 
 #not sure if I should use both signs or not.
 PLANET_RULERSHIP = {
