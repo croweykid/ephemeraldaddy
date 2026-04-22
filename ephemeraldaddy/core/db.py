@@ -87,6 +87,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "negative_sentiment_intensity": 0,
     "familiarity": 0,
     "alignment_score": None,
+    "matched_expectations": 0,
     "familiarity_factors": "",
     "age_when_first_met": 0,
     "year_first_encountered": None,
@@ -251,6 +252,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
             familiarity INTEGER NOT NULL DEFAULT 1,
             alignment_score INTEGER,
+            matched_expectations INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
             age_when_first_met INTEGER NOT NULL DEFAULT 0,
             year_first_encountered INTEGER,
@@ -477,6 +479,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN alignment_score INTEGER
+            """
+        )
+    if "matched_expectations" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN matched_expectations INTEGER NOT NULL DEFAULT 0
             """
         )
     #indent?
@@ -1248,6 +1257,16 @@ def _normalize_alignment_score(value: Optional[int]) -> Optional[int]:
     return max(-10, min(10, parsed))
 
 
+def _normalize_matched_expectations(value: Optional[int]) -> int:
+    if value is None:
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(9, parsed))
+
+
 def calculate_social_score(
     positive_sentiment_intensity: Optional[int],
     negative_sentiment_intensity: Optional[int],
@@ -1992,7 +2011,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         (id, name, alias, from_whence, gender, birth_place, datetime_iso, tz_name,
                          lat, lon, used_utc_fallback, sentiments, relationship_types, tags, comments, rectification_notes, biography, chart_data_source,
                          positive_sentiment_intensity, negative_sentiment_intensity, familiarity,
-                         alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
+                         alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          human_design_gates, human_design_lines, human_design_channels,
@@ -2001,7 +2020,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2026,6 +2045,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         neg_intensity,
                         familiarity,
                         _normalize_alignment_score(_row_value("alignment_score")),
+                        _normalize_matched_expectations(_row_value("matched_expectations")),
                         _row_value("familiarity_factors"),
                         max(0, int(_row_value("age_when_first_met") or 0)),
                         _normalize_year_first_encountered(_row_value("year_first_encountered")),
@@ -2171,7 +2191,7 @@ def save_chart(
                  biography,
                  chart_data_source,
                  positive_sentiment_intensity, negative_sentiment_intensity,
-                 familiarity, alignment_score, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
+                 familiarity, alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating, social_score,
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
@@ -2188,7 +2208,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2227,6 +2247,9 @@ def save_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_matched_expectations(
+                    getattr(chart, "matched_expectations", None)
                 ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
@@ -2411,6 +2434,7 @@ def update_chart(
                 negative_sentiment_intensity = ?,
                 familiarity = ?,
                 alignment_score = ?,
+                matched_expectations = ?,
                 familiarity_factors = ?,
                 age_when_first_met = ?,
                 year_first_encountered = ?,
@@ -2487,6 +2511,9 @@ def update_chart(
                 ),
                 _normalize_alignment_score(
                     getattr(chart, "alignment_score", None)
+                ),
+                _normalize_matched_expectations(
+                    getattr(chart, "matched_expectations", None)
                 ),
                 _serialize_familiarity_factors(
                     getattr(chart, "familiarity_factors", [])
@@ -2829,7 +2856,7 @@ def load_chart(chart_id: int):
                used_utc_fallback, sentiments, relationship_types,
                tags, comments, rectification_notes, biography, chart_data_source,
                positive_sentiment_intensity, negative_sentiment_intensity,
-               familiarity, alignment_score, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
+               familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
@@ -2871,6 +2898,7 @@ def load_chart(chart_id: int):
         negative_sentiment_intensity,
         familiarity,
         alignment_score,
+        matched_expectations,
         familiarity_factors,
         age_when_first_met,
         year_first_encountered,
@@ -2937,6 +2965,7 @@ def load_chart(chart_id: int):
         normalized_familiarity = _normalize_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
         placeholder.alignment_score = _normalize_alignment_score(alignment_score)
+        placeholder.matched_expectations = _normalize_matched_expectations(matched_expectations)
         placeholder.sentiment_confidence = normalized_familiarity
         placeholder.familiarity_factors = parse_familiarity_factors(
             familiarity_factors
@@ -3009,6 +3038,7 @@ def load_chart(chart_id: int):
     )
     chart.familiarity = _normalize_sentiment_metric(familiarity)
     chart.alignment_score = _normalize_alignment_score(alignment_score)
+    chart.matched_expectations = _normalize_matched_expectations(matched_expectations)
     chart.familiarity_factors = parse_familiarity_factors(
         familiarity_factors
     )
