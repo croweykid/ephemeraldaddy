@@ -33,6 +33,7 @@ from ephemeraldaddy.core.interpretations import (
     TIGHT_ASPECT_INTENSITY_MIN,
     TIGHT_ASPECT_ORB_DEGREES,
     SIGN_ELEMENTS,
+    ZODIAC_NAMES,
     ZODIAC_SIGNS,
     aspect_orb_allowance,
     aspect_pair_weight,
