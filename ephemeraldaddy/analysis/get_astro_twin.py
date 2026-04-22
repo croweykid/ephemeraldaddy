@@ -369,6 +369,7 @@ class AstroTwinMatch:
     hd_centers_score: float | None = None
     human_design_gates_score: float | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
+    chart_uses_houses: bool = True
 
 
 @dataclass(slots=True)
@@ -1338,6 +1339,7 @@ def find_astro_twins(
             hd_centers_score=hd_centers_score,
             human_design_gates_score=human_design_gates_score,
             algorithm_mode=normalized_mode,
+            chart_uses_houses=chart_uses_houses(candidate),
         )
         destination_heap = scored_matches
         if least_similar and query_top3_signs:
