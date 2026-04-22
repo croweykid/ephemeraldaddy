@@ -9,7 +9,10 @@ from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
+    MODES,
     NATAL_WEIGHT,
+    SIGN_ELEMENTS,
+    ZODIAC_SIGNS,
     aspect_pair_weight,
     aspect_score,
 )
@@ -71,35 +74,11 @@ BODY_WEIGHTS: dict[str, float] = {
 
 NATAL_ANGLES: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
 
-ELEMENT_BY_SIGN_INDEX: tuple[str, ...] = (
-    "fire",
-    "earth",
-    "air",
-    "water",
-    "fire",
-    "earth",
-    "air",
-    "water",
-    "fire",
-    "earth",
-    "air",
-    "water",
-)
-
-MODE_BY_SIGN_INDEX: tuple[str, ...] = (
-    "cardinal",
-    "fixed",
-    "mutable",
-    "cardinal",
-    "fixed",
-    "mutable",
-    "cardinal",
-    "fixed",
-    "mutable",
-    "cardinal",
-    "fixed",
-    "mutable",
-)
+MODE_BY_SIGN_NAME: dict[str, str] = {
+    str(sign): str(mode_name).lower()
+    for mode_name, signs in MODES.items()
+    for sign in signs
+}
 
 
 @dataclass(slots=True)
@@ -222,6 +201,26 @@ def _house_for_body(chart: Chart, body: str) -> int | None:
     if len(houses) < 12:
         return None
     return Chart._house_index(float(lon), list(houses)) + 1
+
+
+def _element_for_sign_index(sign_idx: int) -> str | None:
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+        return None
+    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    element = SIGN_ELEMENTS.get(sign_name)
+    if not element:
+        return None
+    return str(element).lower()
+
+
+def _mode_for_sign_index(sign_idx: int) -> str | None:
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+        return None
+    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    mode = MODE_BY_SIGN_NAME.get(sign_name)
+    if not mode:
+        return None
+    return str(mode).lower()
 
 
 def _placement_body_weights(query: Chart, weighting_mode: str) -> dict[str, float]:
@@ -485,17 +484,19 @@ def _distribution_similarity(
             continue
         body_weight = max(0.0, float(body_weights.get(body, NATAL_WEIGHT.get(body, 1.0))))
 
-        q_element = ELEMENT_BY_SIGN_INDEX[q_sign]
-        c_element = ELEMENT_BY_SIGN_INDEX[c_sign]
-        element_possible += body_weight
-        if q_element == c_element:
-            element_total += body_weight
+        q_element = _element_for_sign_index(q_sign)
+        c_element = _element_for_sign_index(c_sign)
+        if q_element is not None and c_element is not None:
+            element_possible += body_weight
+            if q_element == c_element:
+                element_total += body_weight
 
-        q_mode = MODE_BY_SIGN_INDEX[q_sign]
-        c_mode = MODE_BY_SIGN_INDEX[c_sign]
-        mode_possible += body_weight
-        if q_mode == c_mode:
-            mode_total += body_weight
+        q_mode = _mode_for_sign_index(q_sign)
+        c_mode = _mode_for_sign_index(c_sign)
+        if q_mode is not None and c_mode is not None:
+            mode_possible += body_weight
+            if q_mode == c_mode:
+                mode_total += body_weight
 
     element_similarity = _safe_divide(element_total, element_possible)
     mode_similarity = _safe_divide(mode_total, mode_possible)
