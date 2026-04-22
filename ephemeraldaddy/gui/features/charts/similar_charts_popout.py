@@ -56,7 +56,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
-from ephemeraldaddy.gui.style import DEFAULT_DROPDOWN_STYLE
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
 
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
@@ -84,6 +84,21 @@ _ASPECT_COLORS: dict[str, str] = {
 }
 _SIMILARITY_LIST_TEXT_COLOR = "#B87333"
 _SIMILARITY_PANEL_BODY_TEXT_COLOR = "#FFFFFF"
+_SIMILARITY_LABEL_HIGHLIGHT_PREFIXES: tuple[str, ...] = (
+    "Distribution similarities:",
+    "Elemental body-match score:",
+    "Elemental matches by body:",
+    "Modal body-match score:",
+    "Modal matches by body:",
+    "Dominance pattern overlap:",
+    "Weighted in Combined Dominance:",
+    "Sign dominance overlap:",
+    "House dominance overlap:",
+    "Planet/body dominance overlap:",
+    "Body-weighted placement-profile overlap:",
+    "Shared top-3 nakshatras by placement-profile weight:",
+    "Top-3 overlap:",
+)
 _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "placement": "placements",
     "aspect": "aspects",
@@ -840,7 +855,6 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
             else "Weighted in Combined Dominance: signs 40%, planets/bodies 60% (house data unavailable for one or both charts)."
         ),
         #"Angles (AS/IC/DS/MC) are excluded from this dominance breakdown.",
-        "Nakshatra dominance is scored separately in the Nakshatra Dominance section (when enabled).",
     ]
     if analysis_mode == "dissimilarities":
         lines.extend(
@@ -883,6 +897,7 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
                 f"Planet/body dominance overlap: {body_overlap * 100.0:.1f}%; shared top bodies: {', '.join(shared_bodies) or 'none'}.",
             ]
         )
+    lines.append("* Nakshatra dominance is scored separately in the Nakshatra Dominance section (when enabled).")
     return lines
 
 
@@ -1595,6 +1610,19 @@ def build_similarity_reasoning_panel_html(
         return "".join(chunks)
 
     def _colorize_body_line(raw_line: str) -> str:
+        if raw_line.startswith("* "):
+            return (
+                f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};font-style:italic'>"
+                f"{html.escape(raw_line)}"
+                "</span>"
+            )
+        for prefix in _SIMILARITY_LABEL_HIGHLIGHT_PREFIXES:
+            if raw_line.startswith(prefix):
+                suffix = raw_line[len(prefix) :]
+                return (
+                    f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};font-weight:600'>{html.escape(prefix)}</span>"
+                    f"{_apply_word_colors(suffix, _SIMILARITY_TOKEN_COLORS)}"
+                )
         colored = _apply_word_colors(raw_line, _SIMILARITY_TOKEN_COLORS)
         colored = re.sub(
             r"\bHouse\s+(1[0-2]|[1-9])\b",
