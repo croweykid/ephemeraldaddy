@@ -2134,6 +2134,7 @@ def build_similar_charts_popout_dialog(
     analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
     analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
     analysis_dropdown.addItem("ⓘBIO", "bio")
+    analysis_dropdown.addItem("ⓘPREDICTIONS", "predictions")
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 
