@@ -653,6 +653,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_similar_chart_bio_panel_content,
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -20307,21 +20308,11 @@ class MainWindow(QMainWindow):
             if not biography_text and isinstance(chart_metadata, dict):
                 biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
         if analysis_mode == "bio":
-            if biography_text:
-                html_text = (
-                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
-                    f"<div style='margin-top:8px;color:#f5f5f5'>{html.escape(biography_text).replace(chr(10), '<br>')}</div>"
-                )
-                plain_text = f"BIO\n\n{biography_text}"
-            else:
-                placeholder = (
-                    f"The database doesn't have any information on {compared_name}'s backstory, so far..."
-                )
-                html_text = (
-                    "<div style='font-weight:700;color:#B87333'>BIO</div>"
-                    f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
-                )
-                plain_text = f"BIO\n\n{placeholder}"
+            html_text, plain_text = build_similar_chart_bio_panel_content(
+                compared_name=compared_name,
+                biography_text=biography_text,
+                compared_chart=compared_chart,
+            )
         else:
             html_text = build_similarity_reasoning_panel_html(
                 match=match,
