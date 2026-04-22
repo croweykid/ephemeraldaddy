@@ -250,7 +250,7 @@ def _chart_possessive_label(chart: Any, fallback: str) -> str:
 def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
-    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    use_houses = chart_uses_houses(subject_chart) and chart_uses_houses(compared_chart)
     matches: list[str] = []
     for body in _PLACEMENT_BODIES:
         subject_lon = subject_positions.get(body)
@@ -279,7 +279,7 @@ def _common_placement_labels_with_weight_details(
 ) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
-    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    use_houses = chart_uses_houses(subject_chart) and chart_uses_houses(compared_chart)
     normalized_mode = normalize_placement_weighting_mode(placement_weighting_mode)
     effective_weights = _placement_body_weights(subject_chart, normalized_mode)
     matches: list[str] = []
@@ -320,7 +320,7 @@ def _common_placement_labels_with_weight_details(
 def _differing_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
-    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    use_houses = chart_uses_houses(subject_chart) and chart_uses_houses(compared_chart)
     differences: list[str] = []
     for body in _PLACEMENT_BODIES:
         subject_lon = subject_positions.get(body)
@@ -354,7 +354,7 @@ def _differing_placement_labels_with_weight_details(
 ) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
-    use_houses = bool(getattr(subject_chart, "houses", None)) and bool(getattr(compared_chart, "houses", None))
+    use_houses = chart_uses_houses(subject_chart) and chart_uses_houses(compared_chart)
     effective_weights = _placement_body_weights(subject_chart, placement_weighting_mode)
     differences: list[str] = []
     for body in _PLACEMENT_BODIES:
