@@ -634,6 +634,10 @@ def _combined_dominance_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
+    """Build a normalized, weighted nakshatra distribution across tracked bodies.
+
+    This is intentionally chart-level prevalence, not same-body placement matching.
+    """
     positions = getattr(chart, "positions", None) or {}
     weighted_counts = {index: 0.0 for index in range(27)}
     for body in CORE_BODIES:
@@ -650,6 +654,11 @@ def _nakshatra_weight_profile(chart: Chart) -> dict[int, float]:
 
 
 def _nakshatra_similarity(query: Chart, candidate: Chart) -> float:
+    """Compare weighted nakshatra prevalence profiles between two charts.
+
+    Note: this score does *not* require the same celestial body to occupy the same
+    nakshatra in both charts. It compares overall chart distribution shape.
+    """
     q_profile = _nakshatra_weight_profile(query)
     c_profile = _nakshatra_weight_profile(candidate)
     overlap = sum(min(q_profile[index], c_profile[index]) for index in range(27))
