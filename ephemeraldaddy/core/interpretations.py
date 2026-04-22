@@ -4224,19 +4224,19 @@ SOCIAL_ROLE = [
 ]
 
 #enneagram (approximated)
-ENNEAGRAM = [
+ENNEAGRAM = {
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
-    "1":{"signs":{"Virgo","Capricorn"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "2":{"signs":{"Cancer"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "3":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "4":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "5":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "6":{"signs":{},"houses":{6,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "7":{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-    "8":{"signs":{"Aries","Sagittarius","Leo"},"houses":{},"bodies":{"Mars",},"nakshatras":{""},"positions":{},"aspects":{},},
-    "9":{"signs":{"Pisces","Libra"},"houses":{12,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
-]
+    1:{"signs":{"Virgo","Capricorn"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    2:{"signs":{"Cancer"},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    3:{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    4:{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    5:{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    6:{"signs":{},"houses":{6,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    7:{"signs":{},"houses":{},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+    8:{"signs":{"Aries","Sagittarius","Leo"},"houses":{},"bodies":{"Mars",},"nakshatras":{""},"positions":{},"aspects":{},},
+    9:{"signs":{"Pisces","Libra"},"houses":{12,},"bodies":{},"nakshatras":{""},"positions":{},"aspects":{},},
+}
 
 MBTI_ELEMENTS = [
 {"element":"fire","E":10,"S":10,"F":5,"P":5},

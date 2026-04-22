@@ -384,6 +384,7 @@ from ephemeraldaddy.core.db import (
     set_current_chart,
     parse_relationship_types,
     list_recognized_tags,
+    add_tag_to_charts,
     backup_database,
     restore_database,
     append_database,
@@ -11963,22 +11964,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
             return
 
-        normalized_key = tag_value.casefold()
-        changed_ids: set[int] = set()
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
-                if any(tag.casefold() == normalized_key for tag in existing_tags):
-                    continue
-                chart.tags = existing_tags + [tag_value]
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
-                changed_ids.add(int(chart_id))
+            changed_ids = add_tag_to_charts(chart_ids, tag_value)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -11998,6 +11985,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_value)
+        normalized_key = tag_value.casefold()
+        for chart_id in changed_ids:
+            cached_chart = self._get_chart_for_filter(chart_id)
+            if cached_chart is None:
+                continue
+            existing_tags = normalize_tag_list(getattr(cached_chart, "tags", []))
+            if any(tag.casefold() == normalized_key for tag in existing_tags):
+                continue
+            cached_chart.tags = existing_tags + [tag_value]
+            self._chart_cache[chart_id] = cached_chart
         self._update_tag_completers()
         self._update_sentiment_tally(
             show_progress=True,
@@ -12623,22 +12620,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._update_batch_edit_state()
             return
 
-        normalized_key = tag_to_add.casefold()
-        changed_ids: set[int] = set()
         try:
-            for chart_id in chart_ids:
-                chart = load_chart(chart_id)
-                existing_tags = normalize_tag_list(getattr(chart, "tags", []))
-                if any(tag.casefold() == normalized_key for tag in existing_tags):
-                    continue
-                chart.tags = existing_tags + [tag_to_add]
-                update_chart(
-                    chart_id,
-                    chart,
-                    retcon_time_used=getattr(chart, "retcon_time_used", False),
-                )
-                self._chart_cache[chart_id] = chart
-                changed_ids.add(int(chart_id))
+            changed_ids = add_tag_to_charts(chart_ids, tag_to_add)
         except Exception as exc:
             QMessageBox.critical(
                 self,
@@ -12658,6 +12641,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._batch_tags_lucygoosey = False
         self.batch_tags_input.setText(tag_to_add)
+        normalized_key = tag_to_add.casefold()
+        for chart_id in changed_ids:
+            cached_chart = self._get_chart_for_filter(chart_id)
+            if cached_chart is None:
+                continue
+            existing_tags = normalize_tag_list(getattr(cached_chart, "tags", []))
+            if any(tag.casefold() == normalized_key for tag in existing_tags):
+                continue
+            cached_chart.tags = existing_tags + [tag_to_add]
+            self._chart_cache[chart_id] = cached_chart
         self._update_tag_completers()
         self._update_sentiment_tally(
             show_progress=True,
