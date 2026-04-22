@@ -34,6 +34,9 @@ SETTINGS_KEY_LILITH_CALCULATION_METHOD = "chart_calculation/lilith_method"
 SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE = "similar_charts/algorithm_mode"
 SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
+SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
+    "similar_charts/predictions_alignment_default_zero_when_unassigned"
+)
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -132,6 +135,24 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
 
 def _load_astrotwin_granular_explanation(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+def _load_predictions_alignment_default_zero_when_unassigned(
+    settings,
+    *,
+    fallback: bool = True,
+) -> bool:
+    value = settings.value(SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO, int(fallback))
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -653,7 +674,11 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+<<<<<<< Updated upstream
     build_similar_chart_bio_panel_content,
+=======
+    build_predictions_panel_content,
+>>>>>>> Stashed changes
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -1625,6 +1650,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
+        )
+        self._similar_predictions_default_zero_for_unassigned_alignment = (
+            _load_predictions_alignment_default_zero_when_unassigned(self._settings, fallback=True)
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
+            int(self._similar_predictions_default_zero_for_unassigned_alignment),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -17479,6 +17511,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
+
+        predictions_default_zero_checkbox = QCheckBox(
+            "Predictions: default alignment to 0 when unassigned"
+        )
+        predictions_default_zero_checkbox.setChecked(
+            bool(getattr(self, "_similar_predictions_default_zero_for_unassigned_alignment", True))
+        )
+        predictions_default_zero_checkbox.setToolTip(
+            "When enabled, unassigned alignment values are treated as 0 in Similar Charts > Predictions."
+        )
+        predictions_default_zero_checkbox.toggled.connect(self._on_predictions_default_zero_toggled)
+        dev_tools_section.addWidget(predictions_default_zero_checkbox)
+
+        #should this be here or no?
         add_database_info_settings_section(self, content_layout)
 
         similarity_calculator_section = self._add_settings_collapsible_section(
@@ -17688,6 +17734,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._settings.setValue(
                 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
                 int(self._astrotwin_granular_explanation),
+            )
+
+    def _on_predictions_default_zero_toggled(self, checked: bool) -> None:
+        self._similar_predictions_default_zero_for_unassigned_alignment = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
+            int(self._similar_predictions_default_zero_for_unassigned_alignment),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._similar_predictions_default_zero_for_unassigned_alignment = (
+                self._similar_predictions_default_zero_for_unassigned_alignment
+            )
+            parent._settings.setValue(
+                SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
+                int(self._similar_predictions_default_zero_for_unassigned_alignment),
             )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
@@ -18797,6 +18859,13 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
+        )
+        self._similar_predictions_default_zero_for_unassigned_alignment = (
+            _load_predictions_alignment_default_zero_when_unassigned(self._settings, fallback=True)
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
+            int(self._similar_predictions_default_zero_for_unassigned_alignment),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
@@ -20115,10 +20184,41 @@ class MainWindow(QMainWindow):
         self._on_similar_chart_link_activated(normalized_target)
 
     def _on_similar_chart_popout_analysis_mode_changed(self, dialog: QDialog) -> None:
+        popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
+        selected_mode = (
+            str(popout_analysis_dropdown.currentData() or "").strip().lower()
+            if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
+            else ""
+        )
+        if selected_mode == "predictions":
+            self._show_similar_chart_popout_predictions(dialog)
+            return
         target = str(getattr(dialog, "_similar_chart_popout_last_info_target", "") or "").strip()
         if not target:
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
+
+    def _show_similar_chart_popout_predictions(self, dialog: QDialog) -> None:
+        popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None:
+            return
+        matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
+        
+        html_text, plain_text = build_predictions_panel_content(
+            matches=matches,
+            load_chart_by_id=load_chart,
+            default_alignment_to_zero_when_unassigned=bool(
+                getattr(
+                    self,
+                    "_similar_predictions_default_zero_for_unassigned_alignment",
+                    True,
+                )
+            ),
+            )
+        if hasattr(popout_info_output, "setHtml"):
+            popout_info_output.setHtml(html_text)
+        else:
+            popout_info_output.setText(plain_text)
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
@@ -20294,9 +20394,12 @@ class MainWindow(QMainWindow):
             popout_analysis_dropdown = getattr(target_dialog, "_similar_chart_popout_analysis_dropdown", None)
             if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData"):
                 selected_mode = str(popout_analysis_dropdown.currentData() or "").strip().lower()
-                if selected_mode in {"similarities", "dissimilarities", "bio"}:
+                if selected_mode in {"similarities", "dissimilarities", "bio", "predictions"}:
                     analysis_mode = selected_mode
             target_dialog._similar_chart_popout_last_info_target = target
+            if analysis_mode == "predictions":
+                self._show_similar_chart_popout_predictions(target_dialog)
+                return
 
         compared_name = str(getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}")
         compared_name = compared_name.strip() or "Unknown chart"
