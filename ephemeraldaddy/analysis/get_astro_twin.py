@@ -998,7 +998,7 @@ def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
     q_gates = _human_design_gates(query)
     c_gates = _human_design_gates(candidate)
     if not q_gates and not c_gates:
-        return 0.5
+        return 1.0
     union = q_gates | c_gates
     if not union:
         return 0.0
@@ -1061,7 +1061,7 @@ def _defined_centers_similarity(query: Chart, candidate: Chart) -> float:
     q_centers = _defined_centers(query)
     c_centers = _defined_centers(candidate)
     if not q_centers and not c_centers:
-        return 0.5
+        return 1.0
     union = q_centers | c_centers
     if not union:
         return 0.0
