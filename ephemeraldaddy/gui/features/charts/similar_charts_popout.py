@@ -196,15 +196,15 @@ def _alignment_marker_color_for_value(value: float) -> str:
     clamped = max(-9.0, min(9.0, float(value)))
     magnitude_ratio = abs(clamped) / 9.0 if 9.0 else 0.0
     if clamped > 0:
-        # Muted green near 0 -> brighter green near +9.
-        red = int(round(72 * (1.0 - magnitude_ratio)))
-        green = int(round(130 + (125 * magnitude_ratio)))
-        blue = int(round(54 * (1.0 - magnitude_ratio)))
+        # Darker green near 0 -> bright green near +9.
+        red = int(round(88 * (1.0 - magnitude_ratio)))
+        green = int(round(120 + (135 * magnitude_ratio)))
+        blue = int(round(72 * (1.0 - magnitude_ratio)))
     elif clamped < 0:
         # Medium red near 0 -> darker/deeper red near -9.
-        red = int(round(176 - (92 * magnitude_ratio)))
-        green = int(round(70 * (1.0 - magnitude_ratio)))
-        blue = int(round(70 * (1.0 - magnitude_ratio)))
+        red = int(round(170 - (80 * magnitude_ratio)))
+        green = int(round(72 * (1.0 - magnitude_ratio)))
+        blue = int(round(72 * (1.0 - magnitude_ratio)))
     else:
         return "#c2c2c2"
     return f"#{red:02x}{green:02x}{blue:02x}"
@@ -222,26 +222,12 @@ def _alignment_spectrum_html(value: object) -> str:
     marker_left_percent = ((clamped + 9.0) / 18.0) * 100.0
     marker_color = _alignment_marker_color_for_value(clamped)
     return (
-        "<div style='display:inline-block;min-width:170px;vertical-align:middle;margin-left:6px;'>"
-        "<div style='position:relative;height:12px;border-radius:6px;"
-        "background:linear-gradient(90deg,#5a1111 0%,#8f1f1f 28%,#595959 50%,#2a6b2a 72%,#12b325 100%);"
+        f"<span style='font-weight:700;color:{html.escape(marker_color)}'>{clamped:+.0f}</span>"
+        "<div style='margin-top:4px;position:relative;height:12px;border-radius:6px;"
+        "background:linear-gradient(90deg,#4a1111 0%,#8b1a1a 50%,#1d4a1d 100%);"
         "border:1px solid #2f2f2f;'>"
         f"<div style='position:absolute;left:calc({marker_left_percent:.2f}% - 1px);top:-2px;height:16px;width:3px;"
-        f"background:{html.escape(marker_color)};border-radius:2px;box-shadow:0 0 5px {html.escape(marker_color)};'"
-        f" title='Alignment {clamped:+.0f}'></div>"
-        "</div>"
-        "<div style='display:flex;justify-content:space-between;margin-top:2px;font-size:9px;color:#8f8f8f;'>"
-        "<span>-9</span><span>0</span><span>+9</span>"
-        "</div>"
-        "</div>"
-    )
-
-
-def _predictions_line_html(label: str, value_html: str) -> str:
-    return (
-        "<div style='margin-top:5px;'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)}:</span> "
-        f"{value_html}"
+        f"background:{html.escape(marker_color)};border-radius:2px;box-shadow:0 0 4px {html.escape(marker_color)};'></div>"
         "</div>"
     )
 
@@ -271,14 +257,19 @@ def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text:
         bio_plain = placeholder
 
     predictions_html_rows = [
-        _predictions_line_html(
-            label,
-            f"<span style='color:#f5f5f5'>{html.escape(_format_prediction_metric_value(value))}</span>",
+        (
+            f"<div style='margin-top:5px;'>"
+            f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)}:</span> "
+            f"<span style='color:#f5f5f5'>{html.escape(_format_prediction_metric_value(value))}</span>"
+            "</div>"
         )
         for label, value in prediction_rows
     ]
     predictions_html_rows.append(
-        _predictions_line_html("Alignment", _alignment_spectrum_html(alignment_value))
+        f"<div style='margin-top:7px;'>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Alignment:</span>"
+        f"{_alignment_spectrum_html(alignment_value)}"
+        "</div>"
     )
     html_text = (
         f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>BIO</div>"
@@ -2222,7 +2213,7 @@ def build_predictions_panel_content(
     if not matches:
         placeholder = "No similar charts were found, so no predictions are available."
         html_text = (
-            f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
+            "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
             f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
         )
         return html_text, f"PREDICTIONS\n\n{placeholder}"
@@ -2259,7 +2250,7 @@ def build_predictions_panel_content(
     if not positive_values or not negative_values or not alignment_values:
         placeholder = "Could not load enough similar-chart metrics to calculate predictions."
         html_text = (
-            f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
+            "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
             f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
         )
         return html_text, f"PREDICTIONS\n\n{placeholder}"
@@ -2305,17 +2296,17 @@ def build_predictions_panel_content(
         )
 
     html_text = (
-        f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
+        "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
         "<div style='margin-top:8px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User's Positive Sentiment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {positive_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {positive_avg}<br><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User's Negative Sentiment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {negative_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {negative_avg}<br><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User-Assessed Alignment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {alignment_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {alignment_avg}"
+        "User's Positive Sentiment Likelihood (based on similar charts):<br>"
+        f"By median: {positive_median}<br>"
+        f"By avg: {positive_avg}<br><br>"
+        "User's Negative Sentiment Likelihood (based on similar charts):<br>"
+        f"By median: {negative_median}<br>"
+        f"By avg: {negative_avg}<br><br>"
+        "User-Assessed Alignment Likelihood (based on similar charts):<br>"
+        f"By median: {alignment_median}<br>"
+        f"By avg: {alignment_avg}"
         f"{alignment_spectrum_html}"
         f"{alignment_skip_footnote_html}"
         "</div>"
@@ -2334,24 +2325,6 @@ def build_predictions_panel_content(
         f"{alignment_skip_footnote_text}"
     )
     return html_text, plain_text
-
-
-def render_predictions_panel_content(
-    *,
-    output_widget: Any,
-    matches: list[Any],
-    load_chart_by_id: Callable[[int], Any],
-    default_alignment_to_zero_when_unassigned: bool = True,
-) -> None:
-    html_text, plain_text = build_predictions_panel_content(
-        matches=matches,
-        load_chart_by_id=load_chart_by_id,
-        default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
-    )
-    if hasattr(output_widget, "setHtml"):
-        output_widget.setHtml(html_text)
-    else:
-        output_widget.setText(plain_text)
 
 
 def build_similar_charts_popout_dialog(
