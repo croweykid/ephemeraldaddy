@@ -309,6 +309,9 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
 )
+from ephemeraldaddy.gui.features.controllers.db_info import (
+    add_database_info_settings_section,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
@@ -825,6 +828,7 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
     similarity_gradient_rgb_from_ratio,
+    similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
@@ -1770,6 +1774,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
+        self._settings_db_info_label: QLabel | None = None
+        self._database_weight_norms: dict[str, Any] = {}
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._metadata_migration_panel: MetadataMigrationPanel | None = None
         self._metadata_migration_threads: list[QThread] = []
@@ -17394,6 +17400,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
+        add_database_info_settings_section(self, content_layout)
+
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
             "Similarities Calculator",
@@ -26170,13 +26178,7 @@ class MainWindow(QMainWindow):
         self._update_chart_ruler_footer(chart)
 
     def _chart_ruler_planets(self, chart: Chart) -> list[str]:
-        birthtime_unknown_value = getattr(chart, "birthtime_unknown", False)
-        if isinstance(birthtime_unknown_value, str):
-            normalized_unknown = birthtime_unknown_value.strip().lower()
-            birthtime_unknown = normalized_unknown in {"1", "true", "yes", "on"}
-        else:
-            birthtime_unknown = bool(birthtime_unknown_value)
-        if birthtime_unknown:
+        if not _chart_uses_houses(chart):
             return []
         asc_longitude = None
         positions = getattr(chart, "positions", None) or {}
@@ -26202,14 +26204,15 @@ class MainWindow(QMainWindow):
         if chart_ruler_label is None:
             return
         distribution_html = format_weight_distribution_html(
-            self._dominant_body_distribution_weights(chart)
+            self._dominant_body_distribution_weights(chart),
+            metric_color_resolver=self._dominant_body_distribution_metric_color,
         )
         if chart is None:
-            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
+            chart_ruler_label.setText(f"<b>Chart Ruler:</b> Unknown<br>{distribution_html}")
             return
         rulers = self._chart_ruler_planets(chart)
         if not rulers:
-            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
+            chart_ruler_label.setText(f"<b>Chart Ruler:</b> Unknown<br>{distribution_html}")
             return
         ruler_html = " &amp; ".join(
             f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>' #white-ish
@@ -26230,6 +26233,25 @@ class MainWindow(QMainWindow):
             for weight in weighted_counts.values()
             if isinstance(weight, (int, float))
         ]
+
+    def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
+        norms = getattr(self, "_database_weight_norms", None)
+        if not isinstance(norms, dict):
+            return None
+        chart_norms = norms.get("chart_distribution_norms")
+        if not isinstance(chart_norms, dict):
+            return None
+        body_norms = chart_norms.get("bodies")
+        if not isinstance(body_norms, dict):
+            return None
+        baseline_values = body_norms.get(metric_key)
+        if not isinstance(baseline_values, list):
+            return None
+        numeric_values = [float(value) for value in baseline_values if isinstance(value, (int, float))]
+        if not numeric_values:
+            return None
+        rgb = similarity_gradient_rgb_for_range(float(metric_value), min(numeric_values), max(numeric_values))
+        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
