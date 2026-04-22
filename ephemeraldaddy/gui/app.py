@@ -11802,13 +11802,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             source_value = _normalize_gui_source(getattr(chart, "source", SOURCE_PERSONAL) or SOURCE_PERSONAL)
             source_values.append(source_value)
             positive_intensities.append(
-                int(getattr(chart, "positive_sentiment_intensity", 1) or 1)
+                self._normalized_batch_sentiment_metric_value(
+                    getattr(chart, "positive_sentiment_intensity", 1)
+                )
             )
             negative_intensities.append(
-                int(getattr(chart, "negative_sentiment_intensity", 1) or 1)
+                self._normalized_batch_sentiment_metric_value(
+                    getattr(chart, "negative_sentiment_intensity", 1)
+                )
             )
             familiarity_values.append(
-                int(getattr(chart, "familiarity", 1) or 1)
+                self._normalized_batch_sentiment_metric_value(
+                    getattr(chart, "familiarity", 1)
+                )
             )
             matched_expectations_values.append(
                 self._matched_expectations_value_for_chart(chart)
@@ -11949,6 +11955,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(raw_value) if raw_value is not None else 0
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
+        if raw_value is None:
+            return default
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().casefold()
+            if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+                return default
+        try:
+            parsed_value = int(raw_value)
+        except (TypeError, ValueError):
+            return default
+        return max(1, min(10, parsed_value))
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
@@ -25272,6 +25292,20 @@ class MainWindow(QMainWindow):
             return
         for chart_id in chart_ids:
             self._chart_view_navigation_cache.pop(int(chart_id), None)
+
+    @staticmethod
+    def _normalized_batch_sentiment_metric_value(raw_value: Any, default: int = 1) -> int:
+        if raw_value is None:
+            return default
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().casefold()
+            if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+                return default
+        try:
+            parsed_value = int(raw_value)
+        except (TypeError, ValueError):
+            return default
+        return max(1, min(10, parsed_value))
 
     @staticmethod
     def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
