@@ -331,14 +331,21 @@ def draw_weight_distribution_reference_lines(ax, values: list[float]) -> None:
 def format_weight_distribution_html(values: list[float]) -> str:
     stats = resolve_weight_distribution_stats(values)
     if stats is None:
-        return "<b>Avg Weight:</b> 0, <b>Median:</b> 0<br><b>Min:</b> 0, <b>Max:</b> 0"
+        return (
+            "<b>Avg Weight:</b> 0, <b>Median:</b> 0"
+            "<br><b>Min:</b> 0, <b>Max:</b> 0, "
+            "<b>Range:</b> 0, "
+            '<span title="the sum of all this chart\'s body weights"><b>Total:</b> 0</span>'
+        )
     _mode_value, avg_value, median_value, min_value, max_value = stats
+    total_value = sum(float(value) for value in values if isinstance(value, (int, float)))
     return (
         f"<b>Avg Weight:</b> {avg_value:.2f}, "
         f"<b>Median:</b> {median_value:.2f}"
         f"<br><b>Min:</b> {min_value:.2f}, "
         f"<b>Max:</b> {max_value:.2f}, "
-        f"<br><b>Range:</b> {max_value-min_value:.2f}"
+        f"<b>Range:</b> {max_value-min_value:.2f}, "
+        f'<span title="the sum of all this chart\'s body weights"><b>Total:</b> {total_value:.2f}</span>'
     )
 
 
