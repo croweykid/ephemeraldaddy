@@ -337,7 +337,8 @@ def format_weight_distribution_html(values: list[float]) -> str:
         f"<b>Avg Weight:</b> {avg_value:.2f}, "
         f"<b>Median:</b> {median_value:.2f}"
         f"<br><b>Min:</b> {min_value:.2f}, "
-        f"<b>Max:</b> {max_value:.2f}"
+        f"<b>Max:</b> {max_value:.2f}, "
+        f"<br><b>Range:</b> {max_value-min_value:.2f}"
     )
 
 
