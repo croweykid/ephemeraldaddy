@@ -25888,7 +25888,13 @@ class MainWindow(QMainWindow):
         self._update_chart_ruler_footer(chart)
 
     def _chart_ruler_planets(self, chart: Chart) -> list[str]:
-        if bool(getattr(chart, "birthtime_unknown", False)):
+        birthtime_unknown_value = getattr(chart, "birthtime_unknown", False)
+        if isinstance(birthtime_unknown_value, str):
+            normalized_unknown = birthtime_unknown_value.strip().lower()
+            birthtime_unknown = normalized_unknown in {"1", "true", "yes", "on"}
+        else:
+            birthtime_unknown = bool(birthtime_unknown_value)
+        if birthtime_unknown:
             return []
         asc_longitude = None
         positions = getattr(chart, "positions", None) or {}

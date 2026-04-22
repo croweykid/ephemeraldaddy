@@ -2273,20 +2273,20 @@ class DatabaseAnalyticsChartsMixin:
         if rounded_delta == 0:
             return (
                 f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
-                '<span style="color: #b8b8b8;">0% difference '
+                '<span style="color: #b8b8b8;">'
                 "(selection % identical to DB)</span>"
             )
 
         if selection_pct > database_pct:
             return (
                 f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
-                f'<span style="color: lime;">{rounded_delta}% difference '
+                f'<span style="color: lime;">{rounded_delta}% '
                 "more common in selection than DB</span>"
             )
 
         return (
             f'• {safe_label} ({selection_count}) | ({database_count} in DB) | '
-            f'<span style="color: red;">{rounded_delta}% difference '
+            f'<span style="color: red;">{rounded_delta}% '
             "less common in selection than DB</span>"
         )
 

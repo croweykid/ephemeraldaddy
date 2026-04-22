@@ -329,13 +329,11 @@ def draw_weight_distribution_reference_lines(ax, values: list[float]) -> None:
 def format_weight_distribution_html(values: list[float]) -> str:
     stats = resolve_weight_distribution_stats(values)
     if stats is None:
-        return "Weight Distribution - <b>Mode:</b> 0, <b>Avg:</b> 0, <b>Median:</b> 0"
+        return "<b>Avg:</b> 0, <b>Median:</b> 0"
     mode_value, avg_value, median_value = stats
     mode_text = f"{mode_value:.2f}" if mode_value is not None else "N/A"
     return (
-        "Weight Distribution - "
-        f"<b>Mode:</b> {mode_text}, "
-        f"<b>Avg:</b> {avg_value:.2f}, "
+        f"<b>Avg Weight:</b> {avg_value:.2f}, "
         f"<b>Median:</b> {median_value:.2f}"
     )
 
