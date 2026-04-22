@@ -2065,6 +2065,7 @@ def build_predictions_panel_content(
     *,
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
+    default_alignment_to_zero_when_unassigned: bool = True,
 ) -> tuple[str, str]:
     if not matches:
         placeholder = "No similar charts were found, so no predictions are available."
@@ -2077,6 +2078,7 @@ def build_predictions_panel_content(
     positive_values: list[float] = []
     negative_values: list[float] = []
     alignment_values: list[float] = []
+    skipped_alignment_count = 0
 
     for match in matches:
         raw_chart_id = getattr(match, "chart_id", None)
@@ -2095,7 +2097,12 @@ def build_predictions_panel_content(
         positive_values.append(float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1)))
         negative_values.append(float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1)))
         raw_alignment = getattr(compared_chart, "alignment_score", None)
-        alignment_values.append(float(raw_alignment) if isinstance(raw_alignment, int | float) else 0.0)
+        if isinstance(raw_alignment, int | float):
+            alignment_values.append(float(raw_alignment))
+        elif default_alignment_to_zero_when_unassigned:
+            alignment_values.append(0.0)
+        else:
+            skipped_alignment_count += 1
 
     if not positive_values or not negative_values or not alignment_values:
         placeholder = "Could not load enough similar-chart metrics to calculate predictions."
@@ -2115,6 +2122,36 @@ def build_predictions_panel_content(
     alignment_median = _fmt(statistics.median(alignment_values))
     alignment_avg = _fmt(statistics.fmean(alignment_values))
 
+    alignment_median_numeric = float(statistics.median(alignment_values))
+    alignment_avg_numeric = float(statistics.fmean(alignment_values))
+    alignment_median_pos = max(0.0, min(100.0, ((alignment_median_numeric + 10.0) / 20.0) * 100.0))
+    alignment_avg_pos = max(0.0, min(100.0, ((alignment_avg_numeric + 10.0) / 20.0) * 100.0))
+    alignment_spectrum_html = (
+        "<div style='position:relative;margin-top:8px;height:16px;border-radius:8px;"
+        "background:linear-gradient(90deg,#8b0000 0%,#cf3a3a 38%,#777777 50%,#2f6cd6 62%,#0b3d91 100%);"
+        "border:1px solid rgba(245,245,245,0.35);'>"
+        f"<div style='position:absolute;left:{alignment_median_pos:.2f}%;top:-3px;width:2px;height:22px;"
+        "background:#f5f5f5;opacity:0.95;' title='Median'></div>"
+        f"<div style='position:absolute;left:{alignment_avg_pos:.2f}%;top:2px;width:8px;height:8px;"
+        "border-radius:50%;background:#f4d35e;border:1px solid #1a1a1a;' title='Average'></div>"
+        "</div>"
+        "<div style='margin-top:4px;color:#f5f5f5;font-size:10px;'>"
+        "Median marker: <span style='font-weight:600;'>|</span> &nbsp; Avg marker: "
+        "<span style='display:inline-block;width:8px;height:8px;border-radius:50%;"
+        "background:#f4d35e;border:1px solid #1a1a1a;vertical-align:middle;'></span>"
+        "</div>"
+    )
+    alignment_skip_footnote_html = ""
+    alignment_skip_footnote_text = ""
+    if skipped_alignment_count > 0 and not default_alignment_to_zero_when_unassigned:
+        alignment_skip_footnote_html = (
+            f"<div style='margin-top:6px;color:#ffffff;font-size:10px;font-variant:small-caps;'>"
+            f"*[{skipped_alignment_count} of 25 charts not analyzed due to missing data]</div>"
+        )
+        alignment_skip_footnote_text = (
+            f"\n*[{skipped_alignment_count} of 25 charts not analyzed due to missing data]"
+        )
+
     html_text = (
         "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
         "<div style='margin-top:8px;color:#f5f5f5'>"
@@ -2127,6 +2164,8 @@ def build_predictions_panel_content(
         "User-Assessed Alignment Likelihood (based on similar charts):<br>"
         f"By median: {alignment_median}<br>"
         f"By avg: {alignment_avg}"
+        f"{alignment_spectrum_html}"
+        f"{alignment_skip_footnote_html}"
         "</div>"
     )
     plain_text = (
@@ -2140,6 +2179,7 @@ def build_predictions_panel_content(
         "User-Assessed Alignment Likelihood (based on similar charts):\n"
         f"By median: {alignment_median}\n"
         f"By avg: {alignment_avg}"
+        f"{alignment_skip_footnote_text}"
     )
     return html_text, plain_text
 
