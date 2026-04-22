@@ -21,6 +21,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
     PLANET_FALL,
+    PLANET_ORDER,
     PLANET_RULERSHIP,
     RULERSHIP_WEIGHT,
     SIGN_ELEMENTS,
@@ -31,18 +32,6 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
-from ephemeraldaddy.gui.features.charts.metrics import (
-    CHART_RULER_BONUS,
-    DISPOSITOR_PLANET_ATTENUATION,
-    TIGHT_ASPECT_INTENSITY_MAX,
-    TIGHT_ASPECT_INTENSITY_MIN,
-    TIGHT_ASPECT_ORB_DEGREES,
-    dominant_planet_keys,
-    house_for_longitude,
-    house_membership_weights,
-    planet_weight,
-)
-from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -106,6 +95,122 @@ MODE_BY_SIGN_NAME: dict[str, str] = {
     for sign in signs
 }
 
+HOUSE_CUSP_BLEND_DEGREES = 8.0
+NATURAL_HOUSE_SIGN_BONUS = 6.0
+NATURAL_HOUSE_PLANET_BONUS = 6.0
+DISPOSITOR_PLANET_ATTENUATION = 0.35
+CHART_RULER_BONUS = 4.0
+TIGHT_ASPECT_ORB_DEGREES = 1.0
+TIGHT_ASPECT_INTENSITY_MIN = 1.2
+TIGHT_ASPECT_INTENSITY_MAX = 1.4
+
+
+def _sign_for_longitude(lon: float) -> str:
+    return str(ZODIAC_SIGNS[int(float(lon) % 360.0 // 30)])
+
+
+def _house_for_longitude(cusps: list[float] | None, lon: float) -> int | None:
+    if not cusps or len(cusps) < 12:
+        return None
+    normalized_lon = float(lon) % 360.0
+    for index in range(12):
+        start = float(cusps[index]) % 360.0
+        end = float(cusps[(index + 1) % 12]) % 360.0
+        if end <= start:
+            end += 360.0
+        check_lon = normalized_lon
+        if check_lon < start:
+            check_lon += 360.0
+        if start <= check_lon < end:
+            return index + 1
+    return None
+
+
+def _house_membership_weights(
+    cusps: list[float] | None,
+    lon: float,
+    blend_degrees: float = HOUSE_CUSP_BLEND_DEGREES,
+) -> dict[int, float]:
+    primary_house = _house_for_longitude(cusps, lon)
+    if primary_house is None:
+        return {}
+    if not cusps or blend_degrees <= 0:
+        return {primary_house: 1.0}
+
+    lon_norm = lon % 360.0
+    index = primary_house - 1
+    start = cusps[index] % 360.0
+    end = cusps[(index + 1) % 12] % 360.0
+    if end <= start:
+        end += 360.0
+    check_lon = lon_norm
+    if check_lon < start:
+        check_lon += 360.0
+
+    dist_to_start = check_lon - start
+    dist_to_end = end - check_lon
+    weights = {primary_house: 1.0}
+    prev_house = 12 if primary_house == 1 else primary_house - 1
+    next_house = 1 if primary_house == 12 else primary_house + 1
+
+    if dist_to_start < blend_degrees:
+        share_prev = max(0.0, (blend_degrees - dist_to_start) / blend_degrees) * 0.5
+        weights[primary_house] -= share_prev
+        weights[prev_house] = weights.get(prev_house, 0.0) + share_prev
+
+    if dist_to_end < blend_degrees:
+        share_next = max(0.0, (blend_degrees - dist_to_end) / blend_degrees) * 0.5
+        weights[primary_house] -= share_next
+        weights[next_house] = weights.get(next_house, 0.0) + share_next
+
+    total = sum(weights.values())
+    if total <= 0:
+        return {primary_house: 1.0}
+    return {house: value / total for house, value in weights.items() if value > 0}
+
+
+def _dominant_planet_keys(chart: Chart) -> list[str]:
+    planets = [body for body in PLANET_ORDER if normalize_body_name(body) in NATAL_WEIGHT]
+    return [body for body in planets if body not in {"AS", "MC", "DS", "IC"}]
+
+
+def _planet_sign_weight(
+    body: str,
+    lon: float,
+    house_num: int | None,
+) -> tuple[str, float]:
+    sign = _sign_for_longitude(lon)
+    canonical_body = normalize_body_name(body)
+    weight = float(NATAL_WEIGHT.get(canonical_body, 1.0))
+    rulerships = PLANET_RULERSHIP.get(body)
+    if rulerships and sign in rulerships:
+        weight += float(RULERSHIP_WEIGHT)
+    exaltation = PLANET_EXALTATION.get(body)
+    if exaltation and sign == exaltation.get("sign"):
+        weight += float(EXALTATION_WEIGHT)
+    detriments = PLANET_DETRIMENT.get(body)
+    if detriments and sign in detriments:
+        weight += float(DETRIMENT_WEIGHT)
+    fall = PLANET_FALL.get(body)
+    if fall and sign == fall.get("sign"):
+        weight += float(FALL_WEIGHT)
+    if house_num:
+        weight += float(HOUSE_WEIGHTS.get(house_num, 0.0))
+    if house_num and NATURAL_HOUSE_SIGNS.get(house_num) == sign:
+        weight += NATURAL_HOUSE_SIGN_BONUS
+    return sign, weight
+
+
+def _planet_weight(
+    body: str,
+    lon: float,
+    house_num: int | None,
+) -> float:
+    _sign, weight = _planet_sign_weight(body, lon, house_num)
+    if house_num and NATURAL_HOUSE_PLANETS.get(house_num) == normalize_body_name(body):
+        weight += NATURAL_HOUSE_PLANET_BONUS
+    return weight
+
 
 def build_body_dominance_explanation_bullets(
     chart: Chart,
@@ -118,8 +223,8 @@ def build_body_dominance_explanation_bullets(
 
     use_houses = chart_uses_houses(chart)
     houses = getattr(chart, "houses", None) if use_houses else None
-    sign = sign_for_longitude(lon)
-    house_num = house_for_longitude(houses, lon)
+    sign = _sign_for_longitude(lon)
+    house_num = _house_for_longitude(houses, lon)
     canonical_body = normalize_body_name(body_name)
     display_name = str(display_body_name(body_name))
     natal_base_weight = float(NATAL_WEIGHT.get(canonical_body, 1.0))
@@ -163,7 +268,7 @@ def build_body_dominance_explanation_bullets(
         bullets.append(f"House {house_num} placement weight (+{house_weight:g} pts).")
 
     if house_num and houses:
-        membership = house_membership_weights(houses, lon)
+        membership = _house_membership_weights(houses, lon)
         blended = [f"House {h}: {share * 100:.1f}%" for h, share in sorted(membership.items())]
         if blended:
             bullets.append("House blend (cusp proximity split for house charts): " + ", ".join(blended) + ".")
@@ -182,15 +287,15 @@ def build_body_dominance_explanation_bullets(
         + (f"; after natural house/body additions: {total_weight:g} pts." if natural_planet_bonus else ".")
     )
 
-    base_subtotals = {key: 0.0 for key in dominant_planet_keys(chart)}
+    base_subtotals = {key: 0.0 for key in _dominant_planet_keys(chart)}
     for key in base_subtotals:
         key_lon = chart.positions.get(key)
         if key_lon is None:
             continue
-        key_house = house_for_longitude(houses, key_lon)
-        base_subtotals[key] = float(planet_weight(key, key_lon, houses, key_house))
+        key_house = _house_for_longitude(houses, key_lon)
+        base_subtotals[key] = float(_planet_weight(key, key_lon, key_house))
 
-    asc_sign = sign_for_longitude(houses[0]) if houses and len(houses) >= 1 else None
+    asc_sign = _sign_for_longitude(houses[0]) if houses and len(houses) >= 1 else None
     if asc_sign:
         for ruler, ruled_signs in PLANET_RULERSHIP.items():
             if asc_sign in ruled_signs and ruler in base_subtotals:
@@ -201,7 +306,7 @@ def build_body_dominance_explanation_bullets(
         key_lon = chart.positions.get(key)
         if key_lon is None:
             continue
-        key_sign = sign_for_longitude(key_lon)
+        key_sign = _sign_for_longitude(key_lon)
         rulers = [
             ruler
             for ruler, ruled_signs in PLANET_RULERSHIP.items()
