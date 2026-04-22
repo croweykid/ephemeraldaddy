@@ -309,6 +309,9 @@ from ephemeraldaddy.gui.window_chrome import (
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
 )
+from ephemeraldaddy.gui.features.controllers.db_info import (
+    add_database_info_settings_section,
+)
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
@@ -17396,26 +17399,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         custom_db_export_button.clicked.connect(self._on_custom_db_export)
         dev_tools_section.addWidget(custom_db_export_button)
 
-        database_info_section = self._add_settings_collapsible_section(
-            content_layout,
-            "Database Info",
-        )
-        database_info_section.addWidget(
-            QLabel(
-                "Compute database-level medians/averages for dominant body, sign, and house weights."
-            )
-        )
-        refresh_database_info_button = QPushButton("Refresh Database Info")
-        refresh_database_info_button.setToolTip(
-            "Calculate per-item and per-category total medians/averages across the saved charts."
-        )
-        refresh_database_info_button.clicked.connect(self._refresh_settings_database_info)
-        database_info_section.addWidget(refresh_database_info_button, alignment=Qt.AlignLeft)
-
-        self._settings_db_info_label = QLabel("No database info computed yet.")
-        self._settings_db_info_label.setWordWrap(True)
-        self._settings_db_info_label.setTextFormat(Qt.RichText)
-        database_info_section.addWidget(self._settings_db_info_label)
+        add_database_info_settings_section(self, content_layout)
 
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
@@ -17528,112 +17512,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 normalized,
                 invalidate_db_cache=False,
             )
-
-    def _format_database_weight_summary_html(
-        self,
-        *,
-        title: str,
-        key_order: list[str],
-        values_by_key: dict[str, list[float]],
-        totals: list[float],
-    ) -> str:
-        if not key_order:
-            return f"<b>{html.escape(title)}</b><br><i>No values available.</i>"
-        rows: list[str] = [f"<b>{html.escape(title)}</b>"]
-        for key in key_order:
-            numeric_values = [float(value) for value in values_by_key.get(key, [])]
-            if not numeric_values:
-                continue
-            avg_value = statistics.fmean(numeric_values)
-            median_value = statistics.median(numeric_values)
-            rows.append(
-                f"{html.escape(str(key))}: avg {avg_value:.2f}, median {median_value:.2f}"
-            )
-        if totals:
-            total_avg = statistics.fmean(totals)
-            total_median = statistics.median(totals)
-            rows.append(f"Totals: avg {total_avg:.2f}, median {total_median:.2f}")
-        return "<br>".join(rows)
-
-    def _refresh_settings_database_info(self) -> None:
-        if self._settings_db_info_label is None:
-            return
-
-        chart_ids: list[int] = []
-        for row in self._chart_rows:
-            normalized = self._normalize_chart_row(row)
-            if normalized is None:
-                continue
-            chart_ids.append(normalized[0])
-
-        if not chart_ids:
-            self._settings_db_info_label.setText("No charts available in the database.")
-            return
-
-        body_keys: list[str] = []
-        body_values_by_key: dict[str, list[float]] = {}
-        sign_values_by_key: dict[str, list[float]] = {sign: [] for sign in ZODIAC_NAMES}
-        house_values_by_key: dict[str, list[float]] = {str(house_num): [] for house_num in range(1, 13)}
-        body_totals: list[float] = []
-        sign_totals: list[float] = []
-        house_totals: list[float] = []
-
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(chart_id)
-            if chart is None or getattr(chart, "is_placeholder", False):
-                continue
-
-            body_weights = _calculate_dominant_planet_weights(chart)
-            sign_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
-            house_weights = _calculate_dominant_house_weights(chart)
-
-            for key in body_weights:
-                if key not in body_keys:
-                    body_keys.append(key)
-                    body_values_by_key.setdefault(key, [])
-            for key in body_keys:
-                body_values_by_key.setdefault(key, []).append(float(body_weights.get(key, 0.0)))
-            for sign in ZODIAC_NAMES:
-                sign_values_by_key[sign].append(float(sign_weights.get(sign, 0.0)))
-            for house_num in range(1, 13):
-                house_values_by_key[str(house_num)].append(float(house_weights.get(house_num, 0.0)))
-
-            body_totals.append(sum(float(value) for value in body_weights.values()))
-            sign_totals.append(sum(float(sign_weights.get(sign, 0.0)) for sign in ZODIAC_NAMES))
-            house_totals.append(sum(float(house_weights.get(house_num, 0.0)) for house_num in range(1, 13)))
-
-        if not body_totals and not sign_totals and not house_totals:
-            self._settings_db_info_label.setText("No non-placeholder charts were available for analysis.")
-            return
-
-        self._database_weight_norms = {
-            "body_values_by_key": body_values_by_key,
-            "sign_values_by_key": sign_values_by_key,
-            "house_values_by_key": house_values_by_key,
-            "body_totals": body_totals,
-            "sign_totals": sign_totals,
-            "house_totals": house_totals,
-        }
-
-        body_html = self._format_database_weight_summary_html(
-            title="Body Weights",
-            key_order=body_keys,
-            values_by_key=body_values_by_key,
-            totals=body_totals,
-        )
-        sign_html = self._format_database_weight_summary_html(
-            title="Sign Weights",
-            key_order=list(ZODIAC_NAMES),
-            values_by_key=sign_values_by_key,
-            totals=sign_totals,
-        )
-        house_html = self._format_database_weight_summary_html(
-            title="House Weights",
-            key_order=[str(house_num) for house_num in range(1, 13)],
-            values_by_key=house_values_by_key,
-            totals=house_totals,
-        )
-        self._settings_db_info_label.setText(f"{body_html}<br><br>{sign_html}<br><br>{house_html}")
 
     def _refresh_lilith_body_labels_in_filters(self) -> None:
         lilith_label = _display_body_label("Lilith")
