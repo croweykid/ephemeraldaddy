@@ -674,11 +674,8 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
-<<<<<<< Updated upstream
     build_similar_chart_bio_panel_content,
-=======
     build_predictions_panel_content,
->>>>>>> Stashed changes
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
