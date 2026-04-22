@@ -26170,13 +26170,7 @@ class MainWindow(QMainWindow):
         self._update_chart_ruler_footer(chart)
 
     def _chart_ruler_planets(self, chart: Chart) -> list[str]:
-        birthtime_unknown_value = getattr(chart, "birthtime_unknown", False)
-        if isinstance(birthtime_unknown_value, str):
-            normalized_unknown = birthtime_unknown_value.strip().lower()
-            birthtime_unknown = normalized_unknown in {"1", "true", "yes", "on"}
-        else:
-            birthtime_unknown = bool(birthtime_unknown_value)
-        if birthtime_unknown:
+        if not _chart_uses_houses(chart):
             return []
         asc_longitude = None
         positions = getattr(chart, "positions", None) or {}
@@ -26205,11 +26199,11 @@ class MainWindow(QMainWindow):
             self._dominant_body_distribution_weights(chart)
         )
         if chart is None:
-            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
+            chart_ruler_label.setText(f"<b>Chart Ruler:</b> Unknown<br>{distribution_html}")
             return
         rulers = self._chart_ruler_planets(chart)
         if not rulers:
-            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
+            chart_ruler_label.setText(f"<b>Chart Ruler:</b> Unknown<br>{distribution_html}")
             return
         ruler_html = " &amp; ".join(
             f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>' #white-ish
