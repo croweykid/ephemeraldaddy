@@ -157,6 +157,40 @@ def _ensure_alignment_score_nullable(conn: sqlite3.Connection) -> None:
     _create_indexes(conn)
 
 
+def _ensure_sentiment_metrics_nullable(conn: sqlite3.Connection) -> None:
+    table_info = conn.execute("PRAGMA table_info(charts)").fetchall()
+    target_columns = {
+        "positive_sentiment_intensity",
+        "negative_sentiment_intensity",
+        "familiarity",
+    }
+    not_null_targets = {
+        str(info[1])
+        for info in table_info
+        if str(info[1]) in target_columns and bool(info[3])
+    }
+    if not not_null_targets:
+        return
+
+    conn.execute("ALTER TABLE charts RENAME TO charts_legacy_sentiment_metrics_not_null")
+    _create_charts_table(conn)
+
+    legacy_columns = _table_columns(conn, "charts_legacy_sentiment_metrics_not_null")
+    new_table_info = conn.execute("PRAGMA table_info(charts)").fetchall()
+    ordered_new_columns = [str(info[1]) for info in new_table_info]
+    transferable_columns = [column for column in ordered_new_columns if column in legacy_columns]
+    quoted_columns = ", ".join([f'"{column}"' for column in transferable_columns])
+    conn.execute(
+        f"""
+        INSERT INTO charts ({quoted_columns})
+        SELECT {quoted_columns}
+        FROM charts_legacy_sentiment_metrics_not_null
+        """
+    )
+    conn.execute("DROP TABLE charts_legacy_sentiment_metrics_not_null")
+    _create_indexes(conn)
+
+
 def normalize_chart_type(value: Optional[str]) -> str:
     normalized = (value or "").strip().lower().replace(" ", "_")
     if normalized == CHART_TYPE_PUBLIC_DB:
@@ -249,9 +283,9 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             rectification_notes TEXT,
             biography         TEXT,
             chart_data_source TEXT,
-            positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
-            negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1,
-            familiarity INTEGER NOT NULL DEFAULT 1,
+            positive_sentiment_intensity INTEGER,
+            negative_sentiment_intensity INTEGER,
+            familiarity INTEGER,
             alignment_score INTEGER,
             matched_expectations INTEGER NOT NULL DEFAULT 0,
             familiarity_factors TEXT,
@@ -356,6 +390,7 @@ def _prune_duplicate_exclusions(conn: sqlite3.Connection) -> None:
 def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
     columns = _table_columns(conn, "charts")
     added_year_first_encountered = False
+    added_familiarity = False
     if "is_current" not in columns:
         conn.execute(
             """
@@ -458,23 +493,24 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             ALTER TABLE charts
-            ADD COLUMN positive_sentiment_intensity INTEGER NOT NULL DEFAULT 1
+            ADD COLUMN positive_sentiment_intensity INTEGER
             """
         )
     if "negative_sentiment_intensity" not in columns:
         conn.execute(
             """
             ALTER TABLE charts
-            ADD COLUMN negative_sentiment_intensity INTEGER NOT NULL DEFAULT 1
+            ADD COLUMN negative_sentiment_intensity INTEGER
             """
         )
     if "familiarity" not in columns:
         conn.execute(
             """
             ALTER TABLE charts
-            ADD COLUMN familiarity INTEGER NOT NULL DEFAULT 1
+            ADD COLUMN familiarity INTEGER
             """
         )
+        added_familiarity = True
     if "alignment_score" not in columns:
         conn.execute(
             """
@@ -490,12 +526,12 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
         )
     #indent?
-    if "sentiment_confidence" in columns:
+    if added_familiarity and "sentiment_confidence" in columns:
         conn.execute(
             """
             UPDATE charts
             SET familiarity = sentiment_confidence
-            WHERE familiarity IS NULL OR familiarity = 1
+            WHERE familiarity IS NULL
             """
         )
     if "familiarity_factors" not in columns:
@@ -785,6 +821,7 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
     )
 
     _ensure_alignment_score_nullable(conn)
+    _ensure_sentiment_metrics_nullable(conn)
 
     if added_year_first_encountered:
         _sync_year_first_encountered_from_age(conn)
@@ -1234,16 +1271,25 @@ def _normalize_year_first_encountered(value: Optional[int]) -> Optional[int]:
         return parsed
     return None
 
-def _normalize_sentiment_metric(value: Optional[int]) -> int:
+def _normalize_optional_sentiment_metric(value: Optional[int]) -> Optional[int]:
     if value is None:
-        return 1
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"", "blank", "none", "null", "unset", "unknown"}:
+            return None
     try:
         parsed = int(value)
     except (TypeError, ValueError):
-        return 1
+        return None
     if 1 <= parsed <= 10:
         return parsed
-    return 1
+    return None
+
+
+def _normalize_sentiment_metric(value: Optional[int]) -> int:
+    optional_value = _normalize_optional_sentiment_metric(value)
+    return optional_value if optional_value is not None else 1
 
 
 def _normalize_alignment_score(value: Optional[int]) -> Optional[int]:
@@ -2235,13 +2281,13 @@ def save_chart(
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
                 getattr(chart, "chart_data_source", None),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
                 ),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "negative_sentiment_intensity", None)
                 ),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "familiarity", None)
                 ),
                 _normalize_alignment_score(
@@ -2499,13 +2545,13 @@ def update_chart(
                 getattr(chart, "rectification_notes", None),
                 getattr(chart, "biography", None),
                 getattr(chart, "chart_data_source", None),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "positive_sentiment_intensity", None)
                 ),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "negative_sentiment_intensity", None)
                 ),
-                _normalize_sentiment_metric(
+                _normalize_optional_sentiment_metric(
                     getattr(chart, "familiarity", None)
                 ),
                 _normalize_alignment_score(
@@ -2595,7 +2641,7 @@ def list_charts() -> List[
         int,
         int,
         int,
-        int,
+        Optional[int],
         int,
         Optional[int],
         int,
@@ -2659,7 +2705,7 @@ def list_charts() -> List[
             int,
             int,
             int,
-            int,
+            Optional[int],
             int,
             Optional[int],
             int,
@@ -2695,14 +2741,14 @@ def list_charts() -> List[
         birth_day,
         birth_year,
     ) in raw_rows:
-        normalized_familiarity = _normalize_sentiment_metric(familiarity)
+        normalized_familiarity = _normalize_optional_sentiment_metric(familiarity)
         resolved_social_score = (
             int(social_score)
             if social_score is not None
             else calculate_social_score(
                 positive_sentiment_intensity,
                 negative_sentiment_intensity,
-                normalized_familiarity,
+                familiarity,
             )
         )
         rows.append(
@@ -2955,17 +3001,19 @@ def load_chart(chart_id: int):
         placeholder.rectification_notes = rectification_notes or ""
         placeholder.biography = biography or ""
         placeholder.chart_data_source = chart_data_source or ""
-        placeholder.positive_sentiment_intensity = _normalize_sentiment_metric(
+        placeholder.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
             positive_sentiment_intensity
         )
-        placeholder.negative_sentiment_intensity = _normalize_sentiment_metric(
+        placeholder.negative_sentiment_intensity = _normalize_optional_sentiment_metric(
             negative_sentiment_intensity
         )
-        normalized_familiarity = _normalize_sentiment_metric(familiarity)
+        normalized_familiarity = _normalize_optional_sentiment_metric(familiarity)
         placeholder.familiarity = normalized_familiarity
         placeholder.alignment_score = _normalize_alignment_score(alignment_score)
         placeholder.matched_expectations = _normalize_matched_expectations(matched_expectations)
-        placeholder.sentiment_confidence = normalized_familiarity
+        placeholder.sentiment_confidence = (
+            normalized_familiarity if normalized_familiarity is not None else 1
+        )
         placeholder.familiarity_factors = parse_familiarity_factors(
             familiarity_factors
         )
@@ -3030,13 +3078,13 @@ def load_chart(chart_id: int):
     chart.rectification_notes = rectification_notes or ""
     chart.biography = biography or ""
     chart.chart_data_source = chart_data_source or ""
-    chart.positive_sentiment_intensity = _normalize_sentiment_metric(
+    chart.positive_sentiment_intensity = _normalize_optional_sentiment_metric(
         positive_sentiment_intensity
     )
-    chart.negative_sentiment_intensity = _normalize_sentiment_metric(
+    chart.negative_sentiment_intensity = _normalize_optional_sentiment_metric(
         negative_sentiment_intensity
     )
-    chart.familiarity = _normalize_sentiment_metric(familiarity)
+    chart.familiarity = _normalize_optional_sentiment_metric(familiarity)
     chart.alignment_score = _normalize_alignment_score(alignment_score)
     chart.matched_expectations = _normalize_matched_expectations(matched_expectations)
     chart.familiarity_factors = parse_familiarity_factors(
