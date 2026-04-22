@@ -1,0 +1,8 @@
+Current Findings:
+
+4.22.2026 | Based on current calculation of Mars dominance:
+ 30,589 cumulative Mars weight for 216 Public Mars dom charts = 142 avg (most famous celebrities)
+ 58,846 cumulative Mars weight for 430 Parasocial Mars dom charts = 137 avg (lesser celebrities)
+ 14,724 cumulative Mars weight for 115 Personal Mars dom charts = 128 avg (people I know)
+
+ 
