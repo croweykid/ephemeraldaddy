@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+import statistics
 from typing import Any, Callable
 
 from PySide6.QtCore import QSize, Qt
@@ -2058,6 +2059,89 @@ def render_similar_match_blocks(
             )
         )
     return "<br><br>".join(blocks)
+
+
+def build_predictions_panel_content(
+    *,
+    matches: list[Any],
+    load_chart_by_id: Callable[[int], Any],
+) -> tuple[str, str]:
+    if not matches:
+        placeholder = "No similar charts were found, so no predictions are available."
+        html_text = (
+            "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
+            f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
+        )
+        return html_text, f"PREDICTIONS\n\n{placeholder}"
+
+    positive_values: list[float] = []
+    negative_values: list[float] = []
+    alignment_values: list[float] = []
+
+    for match in matches:
+        raw_chart_id = getattr(match, "chart_id", None)
+        if raw_chart_id is None and isinstance(match, dict):
+            raw_chart_id = match.get("chart_id")
+        try:
+            chart_id = int(raw_chart_id)
+        except (TypeError, ValueError):
+            continue
+        if chart_id <= 0:
+            continue
+        try:
+            compared_chart = load_chart_by_id(chart_id)
+        except Exception:
+            continue
+        positive_values.append(float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1)))
+        negative_values.append(float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1)))
+        raw_alignment = getattr(compared_chart, "alignment_score", None)
+        alignment_values.append(float(raw_alignment) if isinstance(raw_alignment, int | float) else 0.0)
+
+    if not positive_values or not negative_values or not alignment_values:
+        placeholder = "Could not load enough similar-chart metrics to calculate predictions."
+        html_text = (
+            "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
+            f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
+        )
+        return html_text, f"PREDICTIONS\n\n{placeholder}"
+
+    def _fmt(value: float) -> str:
+        return f"{float(value):.2f}"
+
+    positive_median = _fmt(statistics.median(positive_values))
+    positive_avg = _fmt(statistics.fmean(positive_values))
+    negative_median = _fmt(statistics.median(negative_values))
+    negative_avg = _fmt(statistics.fmean(negative_values))
+    alignment_median = _fmt(statistics.median(alignment_values))
+    alignment_avg = _fmt(statistics.fmean(alignment_values))
+
+    html_text = (
+        "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
+        "<div style='margin-top:8px;color:#f5f5f5'>"
+        "User's Positive Sentiment Likelihood (based on similar charts):<br>"
+        f"By median: {positive_median}<br>"
+        f"By avg: {positive_avg}<br><br>"
+        "User's Negative Sentiment Likelihood (based on similar charts):<br>"
+        f"By median: {negative_median}<br>"
+        f"By avg: {negative_avg}<br><br>"
+        "User-Assessed Alignment Likelihood (based on similar charts):<br>"
+        f"By median: {alignment_median}<br>"
+        f"By avg: {alignment_avg}"
+        "</div>"
+    )
+    plain_text = (
+        "PREDICTIONS\n\n"
+        "User's Positive Sentiment Likelihood (based on similar charts):\n"
+        f"By median: {positive_median}\n"
+        f"By avg: {positive_avg}\n\n"
+        "User's Negative Sentiment Likelihood (based on similar charts):\n"
+        f"By median: {negative_median}\n"
+        f"By avg: {negative_avg}\n\n"
+        "User-Assessed Alignment Likelihood (based on similar charts):\n"
+        f"By median: {alignment_median}\n"
+        f"By avg: {alignment_avg}"
+    )
+    return html_text, plain_text
 
 
 def build_similar_charts_popout_dialog(

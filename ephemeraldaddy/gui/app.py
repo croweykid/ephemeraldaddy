@@ -649,6 +649,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+    build_predictions_panel_content,
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -20042,92 +20043,14 @@ class MainWindow(QMainWindow):
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
 
-    @staticmethod
-    def _format_similar_charts_prediction_value(value: float) -> str:
-        return f"{float(value):.2f}"
-
     def _show_similar_chart_popout_predictions(self, dialog: QDialog) -> None:
         popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
         if popout_info_output is None:
             return
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
-        if not matches:
-            placeholder = "No similar charts were found, so no predictions are available."
-            html_text = (
-                "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
-                f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
-            )
-            plain_text = f"PREDICTIONS\n\n{placeholder}"
-            if hasattr(popout_info_output, "setHtml"):
-                popout_info_output.setHtml(html_text)
-            else:
-                popout_info_output.setText(plain_text)
-            return
-
-        positive_values: list[float] = []
-        negative_values: list[float] = []
-        alignment_values: list[float] = []
-        for match in matches:
-            chart_id = self._extract_similar_match_chart_id(match)
-            if chart_id is None:
-                continue
-            try:
-                compared_chart = load_chart(chart_id)
-            except Exception:
-                continue
-            positive_values.append(float(int(getattr(compared_chart, "positive_sentiment_intensity", 1) or 1)))
-            negative_values.append(float(int(getattr(compared_chart, "negative_sentiment_intensity", 1) or 1)))
-            raw_alignment = getattr(compared_chart, "alignment_score", None)
-            if isinstance(raw_alignment, int | float):
-                alignment_values.append(float(raw_alignment))
-            else:
-                alignment_values.append(0.0)
-
-        if not positive_values or not negative_values or not alignment_values:
-            placeholder = "Could not load enough similar-chart metrics to calculate predictions."
-            html_text = (
-                "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
-                f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
-            )
-            plain_text = f"PREDICTIONS\n\n{placeholder}"
-            if hasattr(popout_info_output, "setHtml"):
-                popout_info_output.setHtml(html_text)
-            else:
-                popout_info_output.setText(plain_text)
-            return
-
-        positive_median = self._format_similar_charts_prediction_value(statistics.median(positive_values))
-        positive_avg = self._format_similar_charts_prediction_value(statistics.fmean(positive_values))
-        negative_median = self._format_similar_charts_prediction_value(statistics.median(negative_values))
-        negative_avg = self._format_similar_charts_prediction_value(statistics.fmean(negative_values))
-        alignment_median = self._format_similar_charts_prediction_value(statistics.median(alignment_values))
-        alignment_avg = self._format_similar_charts_prediction_value(statistics.fmean(alignment_values))
-
-        html_text = (
-            "<div style='font-weight:700;color:#B87333'>PREDICTIONS</div>"
-            "<div style='margin-top:8px;color:#f5f5f5'>"
-            "User's Positive Sentiment Likelihood (based on similar charts):<br>"
-            f"By median: {positive_median}<br>"
-            f"By avg: {positive_avg}<br><br>"
-            "User's Negative Sentiment Likelihood (based on similar charts):<br>"
-            f"By median: {negative_median}<br>"
-            f"By avg: {negative_avg}<br><br>"
-            "User-Assessed Alignment Likelihood (based on similar charts):<br>"
-            f"By median: {alignment_median}<br>"
-            f"By avg: {alignment_avg}"
-            "</div>"
-        )
-        plain_text = (
-            "PREDICTIONS\n\n"
-            "User's Positive Sentiment Likelihood (based on similar charts):\n"
-            f"By median: {positive_median}\n"
-            f"By avg: {positive_avg}\n\n"
-            "User's Negative Sentiment Likelihood (based on similar charts):\n"
-            f"By median: {negative_median}\n"
-            f"By avg: {negative_avg}\n\n"
-            "User-Assessed Alignment Likelihood (based on similar charts):\n"
-            f"By median: {alignment_median}\n"
-            f"By avg: {alignment_avg}"
+        html_text, plain_text = build_predictions_panel_content(
+            matches=matches,
+            load_chart_by_id=load_chart,
         )
         if hasattr(popout_info_output, "setHtml"):
             popout_info_output.setHtml(html_text)
