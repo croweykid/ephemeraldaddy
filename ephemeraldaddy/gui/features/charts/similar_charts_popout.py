@@ -97,6 +97,7 @@ _SIMILARITY_LABEL_HIGHLIGHT_PREFIXES: tuple[str, ...] = (
     "Planet/body dominance overlap:",
     "Body-weighted placement-profile overlap:",
     "Shared top-3 nakshatras by placement-profile weight:",
+    "Shared top nakshatras",
     "Top-3 overlap:",
 )
 _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
