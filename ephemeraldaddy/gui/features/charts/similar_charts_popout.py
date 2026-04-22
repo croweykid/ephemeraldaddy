@@ -878,12 +878,13 @@ def _nakshatra_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[st
         _nakshatra_name_for_index(index)
         for index in sorted(subject_top3 & compared_top3)
     ]
-    lines = [f"Weighted prevalence overlap: {overlap * 100.0:.1f}%."]
+    lines = [f"Body-weighted placement-profile overlap: {overlap * 100.0:.1f}%."]
     lines.append(
-        "Shared top-3 nakshatras by weighted prevalence: "
+        "Shared top-3 nakshatras by placement-profile weight: "
         + (", ".join(shared_top) if shared_top else "none")
         + "."
     )
+    lines.append("These weights come from body importance, not nakshatra dominance lore.")
     return lines
 
 
@@ -904,11 +905,11 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
     ]
     lines = []
     if subject_only:
-        lines.append(f"Top prevalence nakshatras only in {subject_label}: {', '.join(subject_only)}.")
+        lines.append(f"Top placement-profile nakshatras only in {subject_label}: {', '.join(subject_only)}.")
     if compared_only:
-        lines.append(f"Top prevalence nakshatras only in {compared_label}: {', '.join(compared_only)}.")
+        lines.append(f"Top placement-profile nakshatras only in {compared_label}: {', '.join(compared_only)}.")
     if not lines:
-        lines.append("Top weighted prevalence nakshatra profiles are closely aligned.")
+        lines.append("Top body-weighted placement profiles are closely aligned.")
     return lines
 
 
@@ -1349,13 +1350,13 @@ def build_similarity_reasoning_panel_text(
                 nak_diff = _nakshatra_difference_lines(subject_chart, compared_chart)
                 lines.append(
                     _section_title_with_weight_and_match(
-                        "Nakshatra Weighted Prevalence differences:",
+                        "Nakshatra Placement Profile differences:",
                         "nakshatra_placement",
                         component_weight_percents,
                         component_score_percents,
                     )
                 )
-                lines.append("; ".join(nak_diff) if nak_diff else "No major weighted-prevalence differences were found.")
+                lines.append("; ".join(nak_diff) if nak_diff else "No major placement-profile differences were found.")
                 lines.append("")
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_diff = _nakshatra_dominance_differences(subject_chart, compared_chart)
@@ -1481,13 +1482,13 @@ def build_similarity_reasoning_panel_text(
                 nak_lines = _nakshatra_overlap_lines(subject_chart, compared_chart)
                 lines.append(
                     _section_title_with_weight_and_match(
-                        "Nakshatra Weighted Prevalence:",
+                        "Nakshatra Placement Profile:",
                         "nakshatra_placement",
                         component_weight_percents,
                         component_score_percents,
                     )
                 )
-                lines.append("; ".join(nak_lines) if nak_lines else "No weighted-prevalence overlap details were found.")
+                lines.append("; ".join(nak_lines) if nak_lines else "No placement-profile overlap details were found.")
                 lines.append("")
             if "nakshatra_dominance" in component_weight_percents:
                 nak_dominance_lines = _nakshatra_dominance_summary(subject_chart, compared_chart)
@@ -1703,13 +1704,13 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight_and_match(
-                            "Nakshatra Weighted Prevalence differences:",
+                            "Nakshatra Placement Profile differences:",
                             "nakshatra_placement",
                             component_weight_percents,
                             component_score_percents,
                         ),
                         _nakshatra_difference_lines(subject_chart, compared_chart)
-                        or ["No major weighted-prevalence differences were found."],
+                        or ["No major placement-profile differences were found."],
                     )
                 )
             if "nakshatra_dominance" in component_weight_percents:
@@ -1848,13 +1849,13 @@ def build_similarity_reasoning_panel_html(
                 html_lines.append(
                     _section(
                         _section_title_with_weight_and_match(
-                            "Nakshatra Weighted Prevalence:",
+                            "Nakshatra Placement Profile:",
                             "nakshatra_placement",
                             component_weight_percents,
                             component_score_percents,
                         ),
                         _nakshatra_overlap_lines(subject_chart, compared_chart)
-                        or ["No weighted-prevalence overlap details were found."],
+                        or ["No placement-profile overlap details were found."],
                     )
                 )
             if "nakshatra_dominance" in component_weight_percents:
