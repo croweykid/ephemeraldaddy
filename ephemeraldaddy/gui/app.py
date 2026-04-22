@@ -333,6 +333,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
+    build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
     chart_similarity_score,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
@@ -547,10 +548,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     planet_sign_weight as _planet_sign_weight,
     planet_weight as _planet_weight,
 )
-from ephemeraldaddy.gui.features.charts.dominance_explanations import (
-    build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
-)
-
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
