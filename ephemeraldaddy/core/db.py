@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, List, Tuple, Optional
+from typing import Any, Iterable, List, Tuple, Optional
 
 from zoneinfo import ZoneInfo
 from ephemeraldaddy.core.chart import (
@@ -1334,6 +1334,37 @@ def list_recognized_tags() -> list[str]:
             if key not in deduped:
                 deduped[key] = tag
     return sorted(deduped.values(), key=lambda value: value.casefold())
+
+
+def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
+    """Add one tag to many charts and return ids that actually changed."""
+    normalized_tag = str(tag_value or "").strip()
+    if not normalized_tag:
+        return set()
+
+    normalized_ids = sorted({int(chart_id) for chart_id in chart_ids})
+    if not normalized_ids:
+        return set()
+
+    placeholders = ", ".join("?" for _ in normalized_ids)
+    changed_ids: set[int] = set()
+    normalized_key = normalized_tag.casefold()
+    with _get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT id, tags FROM charts WHERE id IN ({placeholders})",
+            tuple(normalized_ids),
+        ).fetchall()
+        for row_id, raw_tags in rows:
+            existing_tags = parse_tags(raw_tags)
+            if any(tag.casefold() == normalized_key for tag in existing_tags):
+                continue
+            existing_tags.append(normalized_tag)
+            conn.execute(
+                "UPDATE charts SET tags = ? WHERE id = ?",
+                (_serialize_tags(existing_tags), int(row_id)),
+            )
+            changed_ids.add(int(row_id))
+    return changed_ids
 
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
