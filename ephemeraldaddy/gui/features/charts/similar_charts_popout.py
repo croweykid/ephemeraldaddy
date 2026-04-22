@@ -177,6 +177,115 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
 _DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
 
 
+def _format_prediction_metric_value(value: object) -> str:
+    if value is None:
+        return "blank"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        rounded = round(float(value), 1)
+        return f"{rounded:.1f}".rstrip("0").rstrip(".")
+    normalized = str(value).strip()
+    return normalized or "blank"
+
+
+def _alignment_marker_color_for_value(value: float) -> str:
+    clamped = max(-9.0, min(9.0, float(value)))
+    magnitude_ratio = abs(clamped) / 9.0 if 9.0 else 0.0
+    if clamped > 0:
+        # Darker green near 0 -> bright green near +9.
+        red = int(round(88 * (1.0 - magnitude_ratio)))
+        green = int(round(120 + (135 * magnitude_ratio)))
+        blue = int(round(72 * (1.0 - magnitude_ratio)))
+    elif clamped < 0:
+        # Medium red near 0 -> darker/deeper red near -9.
+        red = int(round(170 - (80 * magnitude_ratio)))
+        green = int(round(72 * (1.0 - magnitude_ratio)))
+        blue = int(round(72 * (1.0 - magnitude_ratio)))
+    else:
+        return "#c2c2c2"
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def _alignment_spectrum_html(value: object) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return (
+            "<span style='font-weight:700;color:#b8b8b8'>blank</span>"
+            " <span style='color:#7f7f7f'>(unassigned)</span>"
+        )
+    clamped = max(-9.0, min(9.0, numeric))
+    marker_left_percent = ((clamped + 9.0) / 18.0) * 100.0
+    marker_color = _alignment_marker_color_for_value(clamped)
+    return (
+        f"<span style='font-weight:700;color:{html.escape(marker_color)}'>{clamped:+.0f}</span>"
+        "<div style='margin-top:4px;position:relative;height:12px;border-radius:6px;"
+        "background:linear-gradient(90deg,#4a1111 0%,#8b1a1a 50%,#1d4a1d 100%);"
+        "border:1px solid #2f2f2f;'>"
+        f"<div style='position:absolute;left:calc({marker_left_percent:.2f}% - 1px);top:-2px;height:16px;width:3px;"
+        f"background:{html.escape(marker_color)};border-radius:2px;box-shadow:0 0 4px {html.escape(marker_color)};'></div>"
+        "</div>"
+    )
+
+
+def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text: str, compared_chart: Any | None) -> tuple[str, str]:
+    prediction_rows = [
+        ("Social score", getattr(compared_chart, "social_score", None) if compared_chart is not None else None),
+        ("Familiarity", getattr(compared_chart, "familiarity", None) if compared_chart is not None else None),
+        ("Matched expectations", getattr(compared_chart, "matched_expectations", None) if compared_chart is not None else None),
+        (
+            "Positive sentiment intensity",
+            getattr(compared_chart, "positive_sentiment_intensity", None) if compared_chart is not None else None,
+        ),
+        (
+            "Negative sentiment intensity",
+            getattr(compared_chart, "negative_sentiment_intensity", None) if compared_chart is not None else None,
+        ),
+    ]
+    alignment_value = getattr(compared_chart, "alignment_score", None) if compared_chart is not None else None
+
+    if biography_text:
+        bio_html = f"<div style='margin-top:8px;color:#f5f5f5'>{html.escape(biography_text).replace(chr(10), '<br>')}</div>"
+        bio_plain = biography_text
+    else:
+        placeholder = f"The database doesn't have any information on {compared_name}'s backstory, so far..."
+        bio_html = f"<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>{html.escape(placeholder)}</div>"
+        bio_plain = placeholder
+
+    predictions_html_rows = [
+        (
+            f"<div style='margin-top:5px;'>"
+            f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)}:</span> "
+            f"<span style='color:#f5f5f5'>{html.escape(_format_prediction_metric_value(value))}</span>"
+            "</div>"
+        )
+        for label, value in prediction_rows
+    ]
+    predictions_html_rows.append(
+        f"<div style='margin-top:7px;'>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Alignment:</span>"
+        f"{_alignment_spectrum_html(alignment_value)}"
+        "</div>"
+    )
+    html_text = (
+        f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>BIO</div>"
+        f"{bio_html}"
+        f"<div style='margin-top:12px;font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
+        + "".join(predictions_html_rows)
+    )
+
+    plain_prediction_lines = [
+        f"{label}: {_format_prediction_metric_value(value)}"
+        for label, value in prediction_rows
+    ]
+    plain_prediction_lines.append(f"Alignment: {_format_prediction_metric_value(alignment_value)}")
+    plain_text = "\n".join(["BIO", "", bio_plain, "", "PREDICTIONS", *plain_prediction_lines])
+    return html_text, plain_text
+
+
 def build_similar_charts_export_rows_from_matches(
     *,
     matches: list[Any],
@@ -1646,8 +1755,16 @@ def build_similarity_reasoning_panel_html(
             if raw_line.startswith(prefix):
                 suffix = raw_line[len(prefix) :]
                 return (
-                    f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};font-weight:600'>{html.escape(prefix)}</span>"
+                    f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};font-weight:700'>{html.escape(prefix)}</span>"
                     f"{_apply_word_colors(suffix, _SIMILARITY_TOKEN_COLORS)}"
+                )
+        if ":" in raw_line:
+            label, remainder = raw_line.split(":", 1)
+            clean_label = str(label).strip()
+            if clean_label and " " in clean_label:
+                return (
+                    f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};font-weight:700'>{html.escape(clean_label)}:</span>"
+                    f"{_apply_word_colors(remainder, _SIMILARITY_TOKEN_COLORS)}"
                 )
         colored = _apply_word_colors(raw_line, _SIMILARITY_TOKEN_COLORS)
         colored = re.sub(
