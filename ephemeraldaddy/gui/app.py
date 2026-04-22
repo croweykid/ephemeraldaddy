@@ -4988,7 +4988,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             canvas.draw_idle()
 
         transit_ranges: dict[tuple[str, str, str, str], dict[str, object]] = {}
-        transit_workers: dict[tuple[str, str, str, str], tuple[QThread, TransitAspectWindowWorker]] = {}
+        transit_workers: dict[
+            tuple[str, str, str, str],
+            tuple[QThread, TransitAspectWindowWorker, TransitAspectWindowRelay],
+        ] = {}
         calendar_info_map: dict[int, dict[str, object]] = {}
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
@@ -5103,7 +5106,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 worker_entry = transit_workers.get(key)
                 if worker_entry is None:
                     continue
-                thread, _worker = worker_entry
+                thread, _worker, _relay = worker_entry
                 if thread.isRunning():
                     return
                 transit_workers.pop(key, None)
@@ -5129,7 +5132,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 len(transit_workers),
             )
 
-            for key, (thread, _worker) in list(transit_workers.items()):
+            for key, (thread, _worker, _relay) in list(transit_workers.items()):
                 try:
                     thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
@@ -5248,7 +5251,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
             if worker_entry is not None:
-                thread, _worker = worker_entry
+                thread, _worker, _relay = worker_entry
                 try:
                     thread.requestInterruption()
                     thread.quit()
@@ -5357,9 +5360,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 step_hours=scan_config.scan_step_hours,
                 precision_minutes=scan_config.scan_precision_minutes,
             )
+            relay = TransitAspectWindowRelay(dialog)
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
-            worker.finished.connect(
+            worker.finished.connect(relay.ready)
+            worker.failed.connect(relay.failed)
+            relay.ready.connect(
                 lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
                     (str(mode), str(a), str(b), str(c)),
                     start_dt,
@@ -5367,7 +5373,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     metadata,
                 )
             )
-            worker.failed.connect(
+            relay.failed.connect(
                 lambda a, b, c, error_text, mode=mode: _on_window_failed(
                     (str(mode), str(a), str(b), str(c)),
                     error_text,
@@ -5378,7 +5384,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
-            transit_workers[key] = (thread, worker)
+            transit_workers[key] = (thread, worker, relay)
             thread.start()
 
         def _drain_preload_queue() -> None:
