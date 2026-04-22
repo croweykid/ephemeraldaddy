@@ -469,6 +469,7 @@ from ephemeraldaddy.core.interpretations import (
     GENERATION_COLORS,
     ASPECT_COLORS,
     ASPECT_FRICTION,
+    ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
 )
 
@@ -4647,9 +4648,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         synastry_base_planet_weights: dict[str, float] | None = None,
     ) -> list[Any]:
         if sort_mode == "Aspect":
+            aspect_sort_rank = {
+                aspect_type: index for index, aspect_type in enumerate(ASPECT_SCORE_WEIGHTS.keys())
+            }
             return sorted(
                 aspect_hits,
-                key=lambda hit: (hit.aspect.replace("_", " ").title(), hit.a.name, hit.b.name, hit.orb_deg),
+                key=lambda hit: (
+                    aspect_sort_rank.get(str(hit.aspect).replace(" ", "_").lower(), len(aspect_sort_rank)),
+                    -float(getattr(hit, "exactness", 0.0)),
+                    float(getattr(hit, "orb_deg", 0.0)),
+                    str(getattr(hit.a, "name", "")),
+                    str(getattr(hit.b, "name", "")),
+                ),
             )
         if sort_mode == "Position":
             return sorted(
@@ -5207,7 +5217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for _section_title, _section_subtitle, entries, empty_mode in sections:
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
-                    for hit, source_mode in entries[:80]:
+                    for hit, source_mode in entries:
                         key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.setdefault(
                             key,
@@ -5474,7 +5484,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for section_title, section_subtitle, entries, empty_mode in sections:
                 lines.extend([section_title, section_subtitle, ""])
                 if entries:
-                    for hit, source_mode in entries[:80]:
+                    for hit, source_mode in entries:
                         key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.get(key, {})
                         start_dt = state.get("start")
