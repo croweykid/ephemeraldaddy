@@ -9335,12 +9335,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for snapshot in self._iter_database_metric_snapshots(database_cache["chart_ids"])
             ]
             selection_matched_expectations = [
-                float(max(0, min(9, int(getattr(self._get_chart_for_filter(chart_id), "matched_expectations", 0) or 0))))
+                float(self._matched_expectations_value_for_chart(self._get_chart_for_filter(chart_id)))
                 for chart_id in chart_ids
                 if self._get_chart_for_filter(chart_id) is not None
             ]
             database_matched_expectations = [
-                float(max(0, min(9, int(getattr(self._get_chart_for_filter(chart_id), "matched_expectations", 0) or 0))))
+                float(self._matched_expectations_value_for_chart(self._get_chart_for_filter(chart_id)))
                 for chart_id in database_cache["chart_ids"]
                 if self._get_chart_for_filter(chart_id) is not None
             ]
@@ -11811,7 +11811,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 int(getattr(chart, "familiarity", 1) or 1)
             )
             matched_expectations_values.append(
-                max(0, min(9, int(getattr(chart, "matched_expectations", 0) or 0)))
+                self._matched_expectations_value_for_chart(chart)
             )
             tag_values.append(
                 ", ".join(normalize_tag_list(getattr(chart, "tags", [])))
@@ -11949,6 +11949,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return int(raw_value) if raw_value is not None else 0
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
+        if chart is None:
+            return 0
+        raw_value = getattr(chart, "matched_expectations", 0)
+        try:
+            parsed_value = int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            parsed_value = 0
+        return max(0, min(9, parsed_value))
 
     def _set_batch_alignment_state(self, items: list[tuple[int, Chart]]) -> None:
         if not items:
@@ -25341,7 +25352,7 @@ class MainWindow(QMainWindow):
             getattr(chart, "familiarity", 1) or 1
         )
         self.matched_expectations_spin.setValue(
-            max(0, min(9, int(getattr(chart, "matched_expectations", 0) or 0)))
+            self._matched_expectations_value_for_chart(chart)
         )
         loaded_alignment = getattr(chart, "alignment_score", None)
         self._set_alignment_score_state(
