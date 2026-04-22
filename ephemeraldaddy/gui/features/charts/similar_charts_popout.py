@@ -28,6 +28,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     BODY_WEIGHTS,
     CORE_BODIES,
     NATAL_WEIGHT,
+    PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     PLACEMENT_WEIGHTING_MODE_HYBRID,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -126,6 +127,34 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
 _DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
+_ELEMENT_BY_SIGN: dict[str, str] = {
+    "Aries": "Fire",
+    "Leo": "Fire",
+    "Sagittarius": "Fire",
+    "Taurus": "Earth",
+    "Virgo": "Earth",
+    "Capricorn": "Earth",
+    "Gemini": "Air",
+    "Libra": "Air",
+    "Aquarius": "Air",
+    "Cancer": "Water",
+    "Scorpio": "Water",
+    "Pisces": "Water",
+}
+_MODE_BY_SIGN: dict[str, str] = {
+    "Aries": "Cardinal",
+    "Cancer": "Cardinal",
+    "Libra": "Cardinal",
+    "Capricorn": "Cardinal",
+    "Taurus": "Fixed",
+    "Leo": "Fixed",
+    "Scorpio": "Fixed",
+    "Aquarius": "Fixed",
+    "Gemini": "Mutable",
+    "Virgo": "Mutable",
+    "Sagittarius": "Mutable",
+    "Pisces": "Mutable",
+}
 
 
 def build_similar_charts_export_rows_from_matches(
@@ -613,119 +642,87 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
 
 
 def _distribution_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
-    subject_positions = getattr(subject_chart, "positions", None) or {}
-    compared_positions = getattr(compared_chart, "positions", None) or {}
-    elements_by_sign = {
-        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
-        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
-        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
-        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
-    }
-    modes_by_sign = {
-        "Aries": "Cardinal", "Cancer": "Cardinal", "Libra": "Cardinal", "Capricorn": "Cardinal",
-        "Taurus": "Fixed", "Leo": "Fixed", "Scorpio": "Fixed", "Aquarius": "Fixed",
-        "Gemini": "Mutable", "Virgo": "Mutable", "Sagittarius": "Mutable", "Pisces": "Mutable",
-    }
-    body_subset = ("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
-    subject_element_counts: dict[str, int] = {}
-    compared_element_counts: dict[str, int] = {}
-    subject_mode_counts: dict[str, int] = {}
-    compared_mode_counts: dict[str, int] = {}
-    for body in body_subset:
-        subject_lon = subject_positions.get(body)
-        compared_lon = compared_positions.get(body)
-        if subject_lon is not None:
-            sign = sign_for_longitude(subject_lon)
-            if sign in elements_by_sign:
-                subject_element_counts[elements_by_sign[sign]] = subject_element_counts.get(elements_by_sign[sign], 0) + 1
-                subject_mode_counts[modes_by_sign[sign]] = subject_mode_counts.get(modes_by_sign[sign], 0) + 1
-        if compared_lon is not None:
-            sign = sign_for_longitude(compared_lon)
-            if sign in elements_by_sign:
-                compared_element_counts[elements_by_sign[sign]] = compared_element_counts.get(elements_by_sign[sign], 0) + 1
-                compared_mode_counts[modes_by_sign[sign]] = compared_mode_counts.get(modes_by_sign[sign], 0) + 1
+    distribution_rows = _distribution_body_rows(subject_chart, compared_chart)
+    if not distribution_rows:
+        return []
 
-    shared_elements = sorted(
-        element
-        for element in {"Fire", "Earth", "Air", "Water"}
-        if subject_element_counts.get(element, 0) > 0 and compared_element_counts.get(element, 0) > 0
-    )
-    shared_modes = sorted(
-        mode
-        for mode in {"Cardinal", "Fixed", "Mutable"}
-        if subject_mode_counts.get(mode, 0) > 0 and compared_mode_counts.get(mode, 0) > 0
-    )
-    lines: list[str] = []
-    if shared_elements:
-        lines.append(
-            "Shared elemental emphasis: "
-            + ", ".join(
-                f"{element} ({subject_element_counts.get(element, 0)} vs {compared_element_counts.get(element, 0)})"
-                for element in shared_elements
-            )
-        )
-    if shared_modes:
-        lines.append(
-            "Shared modality emphasis: "
-            + ", ".join(
-                f"{mode} ({subject_mode_counts.get(mode, 0)} vs {compared_mode_counts.get(mode, 0)})"
-                for mode in shared_modes
-            )
-        )
+    element_possible = sum(weight for _body, _se, _ce, _sm, _cm, weight in distribution_rows)
+    mode_possible = sum(weight for _body, _se, _ce, _sm, _cm, weight in distribution_rows)
+    element_total = sum(weight for _body, subject_element, compared_element, _sm, _cm, weight in distribution_rows if subject_element == compared_element)
+    mode_total = sum(weight for _body, _se, _ce, subject_mode, compared_mode, weight in distribution_rows if subject_mode == compared_mode)
+
+    element_similarity = (element_total / element_possible) if element_possible > 0.0 else 0.0
+    mode_similarity = (mode_total / mode_possible) if mode_possible > 0.0 else 0.0
+
+    element_hits = [
+        f"{body} ({subject_element})"
+        for body, subject_element, compared_element, _subject_mode, _compared_mode, _weight in distribution_rows
+        if subject_element == compared_element
+    ]
+    mode_hits = [
+        f"{body} ({subject_mode})"
+        for body, _subject_element, _compared_element, subject_mode, compared_mode, _weight in distribution_rows
+        if subject_mode == compared_mode
+    ]
+
+    lines = [
+        f"Placement-driven elemental matches: {element_similarity * 100.0:.1f}% weighted ({element_total:.2f}/{element_possible:.2f})",
+        f"Placement-driven modality matches: {mode_similarity * 100.0:.1f}% weighted ({mode_total:.2f}/{mode_possible:.2f})",
+    ]
+    if element_hits:
+        lines.append("Element matches by body: " + ", ".join(element_hits[:8]))
+    if mode_hits:
+        lines.append("Modality matches by body: " + ", ".join(mode_hits[:8]))
     return lines
 
 
-def _distribution_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+def _distribution_body_rows(
+    subject_chart: Any,
+    compared_chart: Any,
+) -> list[tuple[str, str, str, str, str, float]]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
     compared_positions = getattr(compared_chart, "positions", None) or {}
-    elements_by_sign = {
-        "Aries": "Fire", "Leo": "Fire", "Sagittarius": "Fire",
-        "Taurus": "Earth", "Virgo": "Earth", "Capricorn": "Earth",
-        "Gemini": "Air", "Libra": "Air", "Aquarius": "Air",
-        "Cancer": "Water", "Scorpio": "Water", "Pisces": "Water",
-    }
-    modes_by_sign = {
-        "Aries": "Cardinal", "Cancer": "Cardinal", "Libra": "Cardinal", "Capricorn": "Cardinal",
-        "Taurus": "Fixed", "Leo": "Fixed", "Scorpio": "Fixed", "Aquarius": "Fixed",
-        "Gemini": "Mutable", "Virgo": "Mutable", "Sagittarius": "Mutable", "Pisces": "Mutable",
-    }
-    body_subset = ("Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
-    subject_element_counts: dict[str, int] = {}
-    compared_element_counts: dict[str, int] = {}
-    subject_mode_counts: dict[str, int] = {}
-    compared_mode_counts: dict[str, int] = {}
-    for body in body_subset:
+    subject_body_weights = _placement_body_weights(subject_chart, PLACEMENT_WEIGHTING_MODE_CHART_DEFINED)
+    rows: list[tuple[str, str, str, str, str, float]] = []
+    for body in CORE_BODIES:
         subject_lon = subject_positions.get(body)
         compared_lon = compared_positions.get(body)
-        if subject_lon is not None:
-            sign = sign_for_longitude(subject_lon)
-            if sign in elements_by_sign:
-                element = elements_by_sign[sign]
-                mode = modes_by_sign[sign]
-                subject_element_counts[element] = subject_element_counts.get(element, 0) + 1
-                subject_mode_counts[mode] = subject_mode_counts.get(mode, 0) + 1
-        if compared_lon is not None:
-            sign = sign_for_longitude(compared_lon)
-            if sign in elements_by_sign:
-                element = elements_by_sign[sign]
-                mode = modes_by_sign[sign]
-                compared_element_counts[element] = compared_element_counts.get(element, 0) + 1
-                compared_mode_counts[mode] = compared_mode_counts.get(mode, 0) + 1
+        if subject_lon is None or compared_lon is None:
+            continue
+        subject_sign = sign_for_longitude(subject_lon)
+        compared_sign = sign_for_longitude(compared_lon)
+        if subject_sign not in _ELEMENT_BY_SIGN or compared_sign not in _ELEMENT_BY_SIGN:
+            continue
+        rows.append(
+            (
+                body,
+                _ELEMENT_BY_SIGN[subject_sign],
+                _ELEMENT_BY_SIGN[compared_sign],
+                _MODE_BY_SIGN[subject_sign],
+                _MODE_BY_SIGN[compared_sign],
+                max(0.0, float(subject_body_weights.get(body, NATAL_WEIGHT.get(body, 1.0)))),
+            )
+        )
+    return rows
+
+
+def _distribution_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+    distribution_rows = _distribution_body_rows(subject_chart, compared_chart)
     element_diff = [
-        f"{element} ({subject_element_counts.get(element, 0)} vs {compared_element_counts.get(element, 0)})"
-        for element in ("Fire", "Earth", "Air", "Water")
-        if subject_element_counts.get(element, 0) != compared_element_counts.get(element, 0)
+        f"{body} ({subject_element} vs {compared_element}, w={weight:.2f})"
+        for body, subject_element, compared_element, _subject_mode, _compared_mode, weight in distribution_rows
+        if subject_element != compared_element
     ]
     mode_diff = [
-        f"{mode} ({subject_mode_counts.get(mode, 0)} vs {compared_mode_counts.get(mode, 0)})"
-        for mode in ("Cardinal", "Fixed", "Mutable")
-        if subject_mode_counts.get(mode, 0) != compared_mode_counts.get(mode, 0)
+        f"{body} ({subject_mode} vs {compared_mode}, w={weight:.2f})"
+        for body, _subject_element, _compared_element, subject_mode, compared_mode, weight in distribution_rows
+        if subject_mode != compared_mode
     ]
     differences: list[str] = []
     if element_diff:
-        differences.append("Elemental differences: " + ", ".join(element_diff))
+        differences.append("Element mismatches by placement: " + ", ".join(element_diff[:8]))
     if mode_diff:
-        differences.append("Modality differences: " + ", ".join(mode_diff))
+        differences.append("Modality mismatches by placement: " + ", ".join(mode_diff[:8]))
     return differences
 
 
