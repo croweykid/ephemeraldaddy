@@ -830,6 +830,7 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
     similarity_gradient_rgb_from_ratio,
+    similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
@@ -26286,7 +26287,8 @@ class MainWindow(QMainWindow):
         if chart_ruler_label is None:
             return
         distribution_html = format_weight_distribution_html(
-            self._dominant_body_distribution_weights(chart)
+            self._dominant_body_distribution_weights(chart),
+            metric_color_resolver=self._dominant_body_distribution_metric_color,
         )
         if chart is None:
             chart_ruler_label.setText(f"<b>Chart Ruler:</b> Unknown<br>{distribution_html}")
@@ -26314,6 +26316,25 @@ class MainWindow(QMainWindow):
             for weight in weighted_counts.values()
             if isinstance(weight, (int, float))
         ]
+
+    def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
+        norms = getattr(self, "_database_weight_norms", None)
+        if not isinstance(norms, dict):
+            return None
+        chart_norms = norms.get("chart_distribution_norms")
+        if not isinstance(chart_norms, dict):
+            return None
+        body_norms = chart_norms.get("bodies")
+        if not isinstance(body_norms, dict):
+            return None
+        baseline_values = body_norms.get(metric_key)
+        if not isinstance(baseline_values, list):
+            return None
+        numeric_values = [float(value) for value in baseline_values if isinstance(value, (int, float))]
+        if not numeric_values:
+            return None
+        rgb = similarity_gradient_rgb_for_range(float(metric_value), min(numeric_values), max(numeric_values))
+        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
