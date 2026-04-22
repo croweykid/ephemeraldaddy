@@ -8869,7 +8869,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not include_blank_alignment
             and matched_expectations_min is None
             and matched_expectations_max is None
-            and not include_blank_matched_expectations
+            and not (
+                include_blank_matched_expectations
+                and (
+                    matched_expectations_min is not None
+                    or matched_expectations_max is not None
+                )
+            )
             and not notes_comments_active
             and not notes_bio_active
             and not notes_rectification_active
@@ -16388,20 +16394,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if isinstance(chart_matched_expectations_raw, int)
             else None
         )
-        if matched_expectations_min is not None:
-            if (
-                chart_matched_expectations is None
-                or chart_matched_expectations < matched_expectations_min
-            ):
-                return False
-        if matched_expectations_max is not None:
-            if (
-                chart_matched_expectations is None
-                or chart_matched_expectations > matched_expectations_max
-            ):
-                return False
-        if include_blank_matched_expectations and chart_matched_expectations is not None:
-            return False
+        has_matched_expectations_range = (
+            matched_expectations_min is not None
+            or matched_expectations_max is not None
+        )
+        if has_matched_expectations_range:
+            if chart_matched_expectations is None:
+                if not include_blank_matched_expectations:
+                    return False
+            else:
+                if (
+                    matched_expectations_min is not None
+                    and chart_matched_expectations < matched_expectations_min
+                ):
+                    return False
+                if (
+                    matched_expectations_max is not None
+                    and chart_matched_expectations > matched_expectations_max
+                ):
+                    return False
 
         # if bool(getattr(chart, "is_placeholder", False)):
         #     return incomplete_birthdate_state != Qt.PartiallyChecked
