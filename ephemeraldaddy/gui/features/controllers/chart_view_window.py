@@ -285,7 +285,7 @@ def refresh_chart_info_panel_toggle_button_styles(owner: QWidget) -> None:
         button.setStyleSheet(style)
 
 
-def resolve_weight_distribution_stats(values: list[float]) -> tuple[float | None, float, float] | None:
+def resolve_weight_distribution_stats(values: list[float]) -> tuple[float | None, float, float, float, float] | None:
     numeric_values = [float(value) for value in values if isinstance(value, (int, float))]
     if not numeric_values:
         return None
@@ -301,14 +301,16 @@ def resolve_weight_distribution_stats(values: list[float]) -> tuple[float | None
         mode_value = float(modal_values[0])
     avg_value = statistics.fmean(numeric_values)
     median_value = statistics.median(numeric_values)
-    return (mode_value, avg_value, median_value)
+    min_value = min(numeric_values)
+    max_value = max(numeric_values)
+    return (mode_value, avg_value, median_value, min_value, max_value)
 
 
 def draw_weight_distribution_reference_lines(ax, values: list[float]) -> None:
     stats = resolve_weight_distribution_stats(values)
     if stats is None:
         return
-    mode_value, avg_value, median_value = stats
+    mode_value, avg_value, median_value, _min_value, _max_value = stats
     reference_lines: list[tuple[float, str]] = [
         (avg_value, "#ff4d4d"),
         (median_value, "#b22222"),
@@ -329,12 +331,13 @@ def draw_weight_distribution_reference_lines(ax, values: list[float]) -> None:
 def format_weight_distribution_html(values: list[float]) -> str:
     stats = resolve_weight_distribution_stats(values)
     if stats is None:
-        return "<b>Avg:</b> 0, <b>Median:</b> 0"
-    mode_value, avg_value, median_value = stats
-    mode_text = f"{mode_value:.2f}" if mode_value is not None else "N/A"
+        return "<b>Avg Weight:</b> 0, <b>Median:</b> 0<br><b>Min:</b> 0, <b>Max:</b> 0"
+    _mode_value, avg_value, median_value, min_value, max_value = stats
     return (
         f"<b>Avg Weight:</b> {avg_value:.2f}, "
         f"<b>Median:</b> {median_value:.2f}"
+        f"<br><b>Min:</b> {min_value:.2f}, "
+        f"<b>Max:</b> {max_value:.2f}"
     )
 
 
