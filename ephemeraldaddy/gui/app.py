@@ -5217,7 +5217,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for _section_title, _section_subtitle, entries, empty_mode in sections:
                 lines.extend([_section_title, _section_subtitle, ""])
                 if entries:
-                    for hit, source_mode in entries:
+                    for hit, source_mode in entries[:80]:
                         key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.setdefault(
                             key,
@@ -5484,7 +5484,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for section_title, section_subtitle, entries, empty_mode in sections:
                 lines.extend([section_title, section_subtitle, ""])
                 if entries:
-                    for hit, source_mode in entries:
+                    for hit, source_mode in entries[:80]:
                         key = _transit_range_key(source_mode, hit)
                         state = transit_ranges.get(key, {})
                         start_dt = state.get("start")
