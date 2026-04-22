@@ -482,8 +482,8 @@ h3, h4, h5, h6 {{
 STANDARD_NCV_HORIZONTAL_BAR_CHART = {
     "background": "#111111",
     "spine_color": "#444444",
-    "x_tick_color": "#f5f5f5",
-    "y_tick_color": "#f5f5f5",
+    "x_tick_color": "#f5f5f5", #white-ish
+    "y_tick_color": "#f5f5f5", #white-ish
     "x_tick_label_rotation": 90,
     "x_tick_label_size": 7,
     "y_tick_label_size": 8,
@@ -502,7 +502,7 @@ STANDARD_NCV_PIE_CHART = {
     "wedge_edge_color": "#111111",
     "legend_loc": "upper center",
     "legend_anchor": (0.5, -0.08),
-    "legend_label_color": "#f5f5f5",
+    "legend_label_color": "#f5f5f5", #white-ish
     "legend_font_size": 8,
     "legend_label_format": "{percent:.0f}% {label}",
     "legend_ncol": 2,

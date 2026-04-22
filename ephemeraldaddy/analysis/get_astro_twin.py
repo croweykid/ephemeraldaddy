@@ -12,7 +12,7 @@ from ephemeraldaddy.core.interpretations import (
     MODES,
     NATAL_WEIGHT,
     SIGN_ELEMENTS,
-    ZODIAC_SIGNS,
+    ZODIAC_NAMES,
     aspect_pair_weight,
     aspect_score,
 )
@@ -204,7 +204,7 @@ def _house_for_body(chart: Chart, body: str) -> int | None:
 
 
 def _element_for_sign_index(sign_idx: int) -> str | None:
-    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_NAMES):
         return None
     sign_name = str(ZODIAC_SIGNS[sign_idx])
     element = SIGN_ELEMENTS.get(sign_name)
@@ -214,9 +214,9 @@ def _element_for_sign_index(sign_idx: int) -> str | None:
 
 
 def _mode_for_sign_index(sign_idx: int) -> str | None:
-    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_NAMES):
         return None
-    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    sign_name = str(ZODIAC_NAMES[sign_idx])
     mode = MODE_BY_SIGN_NAME.get(sign_name)
     if not mode:
         return None

@@ -20938,7 +20938,7 @@ class MainWindow(QMainWindow):
             f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
         )
         sign_header_color = str(
-            SIGN_COLORS.get(sign_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            SIGN_COLORS.get(sign_name, CHART_THEME_COLORS.get("text", "#f5f5f5")) #basically white
         ).strip() or CHART_THEME_COLORS.get("text", "#f5f5f5")
 
         def _section_header(label: str) -> str:
@@ -21373,7 +21373,7 @@ class MainWindow(QMainWindow):
         )
         signs = list(ZODIAC_NAMES)
         values = [weighted_counts[sign] for sign in signs]
-        colors = [SIGN_COLORS.get(sign, "#6fa8dc") for sign in signs]
+        colors = [SIGN_COLORS.get(sign, "#6fa8dc") for sign in signs] #cornflower blue
         max_value = max(values) if values else 0
 
         bars = ax.bar(signs, values, color=colors)
@@ -21427,10 +21427,10 @@ class MainWindow(QMainWindow):
             planets = _dominant_planet_keys(chart)
             weighted_counts = _calculate_dominant_planet_weights(chart)
         values = [weighted_counts[body] for body in planets]
-        colors = [PLANET_COLORS.get(body, "#6fa8dc") for body in planets]
+        colors = [PLANET_COLORS.get(body, "#6fa8dc") for body in planets] #cornflower blue
         max_value = max(values) if values else 0
 
-        edge_colors = ["#9933ff" if body in OUTLINED_PLANET_KEYS else "none" for body in planets]
+        edge_colors = ["#9933ff" if body in OUTLINED_PLANET_KEYS else "none" for body in planets] #bright purple
         line_widths = [.1 if body in OUTLINED_PLANET_KEYS else 0 for body in planets]
         bars = ax.bar(
             planets,
@@ -21521,15 +21521,15 @@ class MainWindow(QMainWindow):
             return
 
         house_labels = [str(num) for num in house_numbers]
-        house_colors = [HOUSE_COLORS.get(label, "#6fa8dc") for label in house_labels]
+        house_colors = [HOUSE_COLORS.get(label, "#6fa8dc") for label in house_labels] #cornflower blue
         bars = ax.bar(house_labels, values, color=house_colors)
         for bar, house_num in zip(bars, house_numbers, strict=True):
             bar.set_gid(f"house:{house_num}")
             bar.set_picker(True)
         ax.set_ylim(0, max(1, max_value + 1))
         ax.margins(x=0.03)
-        ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5")
-        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
+        ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5") #white-ish
+        ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5") #white-ish
         for tick_label, house_num in zip(ax.get_xticklabels(), house_numbers, strict=True):
             tick_label.set_gid(f"house:{house_num}")
             tick_label.set_picker(True)
@@ -21578,7 +21578,7 @@ class MainWindow(QMainWindow):
             ax.set_axis_off()
             return
 
-        colors = [ELEMENT_COLORS.get(element, "#6fa8dc") for element in elements]
+        colors = [ELEMENT_COLORS.get(element, "#6fa8dc") for element in elements] #cornflower blue
         ax.pie(
             values,
             colors=colors,
@@ -21633,7 +21633,7 @@ class MainWindow(QMainWindow):
             return
 
         bar_colors = [ #nice elegant patch that names according to the color key code
-            NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1]
+            NAKSHATRA_PLANET_COLOR.get(name, (None, "#6fa8dc"))[1] #cornflower blue
             for name in nakshatras
         ]
         bars = ax.bar(nakshatras, values, color=bar_colors)
@@ -21719,7 +21719,7 @@ class MainWindow(QMainWindow):
             ax.set_axis_off()
             return
 
-        colors = [mode_colors.get(mode, "#6fa8dc") for mode in modal_order]
+        colors = [mode_colors.get(mode, "#6fa8dc") for mode in modal_order] #cornflower blue
         wedges, _ = ax.pie(
             values,
             colors=colors,
@@ -21853,7 +21853,7 @@ class MainWindow(QMainWindow):
         ax.set_xlim(0, 10)
         ax.set_ylim(-0.35, 0.35)
         ax.set_xticks([0, 2.5, 7.5, 10], labels=["0%", "25%", "75%", "100%"])
-        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5")
+        ax.tick_params(axis="x", labelsize=8, colors="#f5f5f5") #white-ish
         ax.set_yticks([])
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -21868,7 +21868,7 @@ class MainWindow(QMainWindow):
             selected_planet = next(iter(scores), "")
 
         if not selected_planet:
-            ax.text(0.5, 0.5, "No planet dynamics data", ha="center", va="center", color="#f5f5f5", fontsize=10)
+            ax.text(0.5, 0.5, "No planet dynamics data", ha="center", va="center", color="#f5f5f5", fontsize=10) #white-ish
             ax.set_axis_off()
             return
 
@@ -21879,7 +21879,7 @@ class MainWindow(QMainWindow):
         ]
         metric_labels = ["Antagonizing", "Enabling", "Escalating"]
         values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
-        bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order]
+        bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
         dominant_weights = _calculate_dominant_planet_weights(chart)
         tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
         total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
@@ -21901,7 +21901,7 @@ class MainWindow(QMainWindow):
                 f"{value:.1f}",
                 ha="center",
                 va="bottom",
-                color="#f5f5f5",
+                color="#f5f5f5", #white-ish
                 fontsize=8,
             )
 
@@ -21909,7 +21909,7 @@ class MainWindow(QMainWindow):
             spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
         ax.set_title(
             f"{_display_body_name(selected_planet)} Dynamics ({dominance_percent:.1f}% dominant)",
-            color="#f5f5f5",
+            color="#f5f5f5", #white-ish
             fontsize=10,
             pad=8,
         )
@@ -22945,8 +22945,8 @@ class MainWindow(QMainWindow):
                 verb_choices,
                 [""],
                 adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
             )
             header = f"{body} in {sign}"
         else:
@@ -22956,18 +22956,18 @@ class MainWindow(QMainWindow):
                 verbs,
                 house_keywords,
                 adverbs,
-                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                noun_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                verb_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+                noun_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+                adverb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
             )
             add_unique_lines(
                 6,
                 sign_verbs,
                 planet_nouns,
                 house_of_keywords,
-                verb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                noun_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                adverb_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                verb_color=SIGN_COLORS.get(sign_key, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+                noun_color=PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
+                adverb_color=HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")), #white-ish
             )
             header = f"{body} in {sign} • House {house_num}"
         self._set_chart_info_lines_with_segments(header, unique_lines)
@@ -23413,13 +23413,13 @@ class MainWindow(QMainWindow):
         house1_keywords = HOUSE_DEFINITIONS.get(house1, {}).get("core_domains", []) if house1 else []
         house2_keywords = HOUSE_DEFINITIONS.get(house2, {}).get("core_domains", []) if house2 else []
 
-        p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        sign1_color = SIGN_COLORS.get(sign1_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        sign1_color = SIGN_COLORS.get(sign1_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        sign2_color = SIGN_COLORS.get(sign2_key, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
+        aspect_color = ASPECT_COLORS.get(atype, CHART_THEME_COLORS.get("text", "#f5f5f5")) #white-ish
 
         line_segments: list[list[tuple[str, str | None]]] = []
         seen: set[tuple[str, str, str, str, str, str, str]] = set()
@@ -25309,8 +25309,8 @@ class MainWindow(QMainWindow):
         label.setText(
             format_unknown_positions_summary_html(
                 chart,
-                text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
-                separator_color="#9a9a9a",
+                text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"), #white-ish
+                separator_color="#9a9a9a", #midgray
                 houses_unknown_font_px=houses_unknown_px,
             )
         )
@@ -25400,15 +25400,15 @@ class MainWindow(QMainWindow):
 
     def _update_time_input_text_colors(self) -> None:
         birth_time_color = (
-            "#f5f5f5"
+            "#f5f5f5" #white-ish
             if (
                 not self.time_unknown_checkbox.isChecked()
                 and self._birth_time_user_overridden
             )
-            else "#8a8a8a"
+            else "#8a8a8a" #midgray
         )
         retcon_time_color = (
-            "#f5f5f5" if self._retcon_time_user_overridden else "#8a8a8a"
+            "#f5f5f5" if self._retcon_time_user_overridden else "#8a8a8a"  #white-ish or midgray
         )
         self.time_edit.setStyleSheet(f"color: {birth_time_color};")
         self.retcon_time_edit.setStyleSheet(f"color: {retcon_time_color};")
@@ -25936,7 +25936,7 @@ class MainWindow(QMainWindow):
             chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
         ruler_html = " &amp; ".join(
-            f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>'
+            f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>' #white-ish
             for ruler in rulers
         )
         chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}<br>{distribution_html}")
