@@ -9,7 +9,10 @@ from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
+    MODES,
     NATAL_WEIGHT,
+    SIGN_ELEMENTS,
+    ZODIAC_SIGNS,
     aspect_pair_weight,
     aspect_score,
 )
@@ -70,16 +73,10 @@ BODY_WEIGHTS: dict[str, float] = {
 
 NATAL_ANGLES: frozenset[str] = frozenset({"AS", "IC", "MC", "DS"})
 
-ELEMENT_BY_SIGN_INDEX = {
-    0: "fire", 1: "earth", 2: "air", 3: "water",
-    4: "fire", 5: "earth", 6: "air", 7: "water",
-    8: "fire", 9: "earth", 10: "air", 11: "water",
-}
-
-MODE_BY_SIGN_INDEX = {
-    0: "cardinal", 1: "fixed", 2: "mutable", 3: "cardinal",
-    4: "fixed", 5: "mutable", 6: "cardinal", 7: "fixed",
-    8: "mutable", 9: "cardinal", 10: "fixed", 11: "mutable",
+MODE_BY_SIGN_NAME: dict[str, str] = {
+    str(sign): str(mode_name).lower()
+    for mode_name, signs in MODES.items()
+    for sign in signs
 }
 
 
@@ -199,6 +196,26 @@ def _house_for_body(chart: Chart, body: str) -> int | None:
     if len(houses) < 12:
         return None
     return Chart._house_index(float(lon), list(houses)) + 1
+
+
+def _element_for_sign_index(sign_idx: int) -> str | None:
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+        return None
+    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    element = SIGN_ELEMENTS.get(sign_name)
+    if not element:
+        return None
+    return str(element).lower()
+
+
+def _mode_for_sign_index(sign_idx: int) -> str | None:
+    if sign_idx < 0 or sign_idx >= len(ZODIAC_SIGNS):
+        return None
+    sign_name = str(ZODIAC_SIGNS[sign_idx])
+    mode = MODE_BY_SIGN_NAME.get(sign_name)
+    if not mode:
+        return None
+    return str(mode).lower()
 
 
 def _placement_body_weights(query: Chart, weighting_mode: str) -> dict[str, float]:
@@ -433,33 +450,44 @@ def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> floa
     return max(0.0, min(1.0, dot / (norm_a * norm_b)))
 
 
-def _distribution_vectors(chart: Chart) -> tuple[dict[str, float], dict[str, float]]:
-    positions = getattr(chart, "positions", None) or {}
-    element_counts = {"fire": 0.0, "earth": 0.0, "air": 0.0, "water": 0.0}
-    mode_counts = {"cardinal": 0.0, "fixed": 0.0, "mutable": 0.0}
+def _distribution_similarity(
+    query: Chart,
+    candidate: Chart,
+    *,
+    weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+) -> float:
+    q_positions = getattr(query, "positions", None) or {}
+    c_positions = getattr(candidate, "positions", None) or {}
+    body_weights = _placement_body_weights(query, weighting_mode)
+
+    element_total = 0.0
+    element_possible = 0.0
+    mode_total = 0.0
+    mode_possible = 0.0
     for body in CORE_BODIES:
-        if body in {"AS", "MC"}:
+        q_sign = _sign_index(q_positions.get(body))
+        c_sign = _sign_index(c_positions.get(body))
+        if q_sign is None or c_sign is None:
             continue
-        sign_idx = _sign_index(positions.get(body))
-        if sign_idx is None:
-            continue
-        element_counts[ELEMENT_BY_SIGN_INDEX[sign_idx]] += 1.0
-        mode_counts[MODE_BY_SIGN_INDEX[sign_idx]] += 1.0
+        body_weight = max(0.0, float(body_weights.get(body, NATAL_WEIGHT.get(body, 1.0))))
 
-    element_total = max(1.0, sum(element_counts.values()))
-    mode_total = max(1.0, sum(mode_counts.values()))
-    return (
-        {k: v / element_total for k, v in element_counts.items()},
-        {k: v / mode_total for k, v in mode_counts.items()},
-    )
+        q_element = _element_for_sign_index(q_sign)
+        c_element = _element_for_sign_index(c_sign)
+        if q_element is not None and c_element is not None:
+            element_possible += body_weight
+            if q_element == c_element:
+                element_total += body_weight
 
+        q_mode = _mode_for_sign_index(q_sign)
+        c_mode = _mode_for_sign_index(c_sign)
+        if q_mode is not None and c_mode is not None:
+            mode_possible += body_weight
+            if q_mode == c_mode:
+                mode_total += body_weight
 
-def _distribution_similarity(query: Chart, candidate: Chart) -> float:
-    q_elements, q_modes = _distribution_vectors(query)
-    c_elements, c_modes = _distribution_vectors(candidate)
-    element_similarity = _cosine_similarity(q_elements, c_elements)
-    mode_similarity = _cosine_similarity(q_modes, c_modes)
-    return (element_similarity * 0.55) + (mode_similarity * 0.45)
+    element_similarity = _safe_divide(element_total, element_possible)
+    mode_similarity = _safe_divide(mode_total, mode_possible)
+    return (element_similarity + mode_similarity) / 2.0
 
 
 def _sign_weight_profile(chart: Chart) -> dict[int, float]:
@@ -661,7 +689,11 @@ def _similarity_component_scores(
     return {
         "placement": _placement_similarity(query, candidate, weighting_mode=placement_weighting_mode),
         "aspect": _aspect_similarity(query, candidate),
-        "distribution": _distribution_similarity(query, candidate),
+        "distribution": _distribution_similarity(
+            query,
+            candidate,
+            weighting_mode=placement_weighting_mode,
+        ),
         "combined_dominance": _combined_dominance_similarity(query, candidate),
         "nakshatra_placement": _nakshatra_similarity(query, candidate),
         "nakshatra_dominance": _nakshatra_dominance_similarity(query, candidate),
@@ -723,7 +755,11 @@ def chart_similarity_score(
         weighting_mode=placement_weighting_mode,
     )
     aspect_score = _aspect_similarity(query, candidate)
-    distribution_score = _distribution_similarity(query, candidate)
+    distribution_score = _distribution_similarity(
+        query,
+        candidate,
+        weighting_mode=placement_weighting_mode,
+    )
     dominance_score = _combined_dominance_similarity(query, candidate)
     final_score = (
         (placement_score * 0.38)
