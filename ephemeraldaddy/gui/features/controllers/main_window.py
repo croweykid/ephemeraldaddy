@@ -293,7 +293,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Bodies", "dominant_planets"),
                 ("Dominant Bodies (by nakshatra)", "sidereal_planet_prevalence"),
             ],
-            footer_text="Chart Ruler: Unknown",
+            footer_text="<b>Chart Ruler:</b> Unknown",
             expanded=False,
         )
         self.add_section(
