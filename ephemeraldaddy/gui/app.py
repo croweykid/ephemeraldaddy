@@ -333,6 +333,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
+    build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
     chart_similarity_score,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
@@ -547,7 +548,6 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     planet_sign_weight as _planet_sign_weight,
     planet_weight as _planet_weight,
 )
-
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
@@ -21201,47 +21201,11 @@ class MainWindow(QMainWindow):
             lines.append("<ul><li>This body is unavailable in the current chart.</li></ul>")
             return "".join(lines)
 
-        use_houses = _chart_uses_houses(chart)
-        houses = getattr(chart, "houses", None) if use_houses else None
-        sign = _sign_for_longitude(lon)
-        house_num = _house_for_longitude(houses, lon)
-        _weighted_sign, sign_weight = _planet_sign_weight(body_name, lon, houses, house_num)
-        total_weight = _planet_weight(body_name, lon, houses, house_num)
-        bullets = [
-            f"{html.escape(_display_body_name(body_name))} in {html.escape(sign)}"
-            + (f", House {house_num}" if house_num else "")
-            + f" (base {sign_weight:.2f}, with natural-house/body additions {total_weight:.2f})"
-        ]
-
-        if house_num and houses:
-            membership = _house_membership_weights(houses, lon)
-            blended = [f"House {h}: {share * 100:.1f}%" for h, share in sorted(membership.items())]
-            if blended:
-                bullets.append("House blend: " + ", ".join(blended))
-
-        rulerships = PLANET_RULERSHIP.get(body_name) or ()
-        if sign in rulerships:
-            bullets.append(f"In rulership in {sign} (+{RULERSHIP_WEIGHT:g}).")
-        exaltation = PLANET_EXALTATION.get(body_name)
-        if exaltation and sign == exaltation.get("sign"):
-            bullets.append(f"Exalted in {sign} (+{EXALTATION_WEIGHT:g}).")
-        detriments = PLANET_DETRIMENT.get(body_name) or ()
-        if sign in detriments:
-            bullets.append(f"In detriment in {sign} ({DETRIMENT_WEIGHT:g}).")
-        fall = PLANET_FALL.get(body_name)
-        if fall and sign == fall.get("sign"):
-            bullets.append(f"In fall in {sign} ({FALL_WEIGHT:g}).")
-
-        aspect_bullets: list[str] = []
-        for aspect in getattr(chart, "aspects", []) or []:
-            p1 = str(aspect.get("p1", ""))
-            p2 = str(aspect.get("p2", ""))
-            if body_name not in {p1, p2}:
-                continue
-            other = p2 if p1 == body_name else p1
-            aspect_type = str(aspect.get("type", "")).strip() or "aspect"
-            aspect_bullets.append(f"{html.escape(_display_body_name(body_name))} {html.escape(aspect_type)} {html.escape(_display_body_name(other))}")
-        bullets.extend(aspect_bullets[:10])
+        bullets = _build_body_dominance_explanation_bullets(
+            chart,
+            body_name,
+            _display_body_name,
+        )
         lines.append("<ul>" + "".join(f"<li>{bullet}</li>" for bullet in bullets) + "</ul>")
         return "".join(lines)
 
