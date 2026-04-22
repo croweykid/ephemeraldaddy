@@ -51,6 +51,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_score,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import DEFAULT_DROPDOWN_STYLE
 
@@ -80,6 +81,16 @@ _ASPECT_COLORS: dict[str, str] = {
 }
 _SIMILARITY_LIST_TEXT_COLOR = "#B87333"
 _SIMILARITY_PANEL_BODY_TEXT_COLOR = "#FFFFFF"
+_SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
+    "placement": "placements",
+    "aspect": "aspects",
+    "distribution": "distribution (element/mode)",
+    "combined_dominance": "dominance (sign/body/house)",
+    "nakshatra_placement": "nakshatra placement",
+    "nakshatra_dominance": "nakshatra dominance",
+    "defined_centers": "defined centers (HD)",
+    "human_design_gates": "active gates (HD)",
+}
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
 _NAKSHATRA_COLOR_MAP: dict[str, str] = {
@@ -208,6 +219,10 @@ def _house_for_longitude(houses: list[float] | None, longitude: float | None) ->
 def _safe_chart_name(chart: Any, fallback: str) -> str:
     return str(getattr(chart, "name", "") or fallback).strip() or fallback
 
+def _chart_possessive_label(chart: Any, fallback: str) -> str:
+    name = _safe_chart_name(chart, fallback)
+    suffix = "'" if name.endswith("s") else "'s"
+    return f"{name}{suffix} chart"
 
 def _common_placement_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
     subject_positions = getattr(subject_chart, "positions", None) or {}
@@ -557,6 +572,9 @@ def _common_aspect_labels_with_weight_details(subject_chart: Any, compared_chart
 
 
 def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _canonical(aspect: dict[str, Any]) -> tuple[tuple[str, str], str] | None:
         p1 = str(aspect.get("p1") or "").strip()
         p2 = str(aspect.get("p2") or "").strip()
@@ -585,12 +603,12 @@ def _differing_aspect_labels(subject_chart: Any, compared_chart: Any) -> list[st
     differences: list[str] = []
     if only_subject:
         differences.append(
-            "Only in first chart: "
+            f"Only in {subject_label}: "
             + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_subject)
         )
     if only_compared:
         differences.append(
-            "Only in second chart: "
+            f"Only in {compared_label}: "
             + "; ".join(f"{left} {_aspect_label(aspect_type).lower()} {right}" for (left, right), aspect_type in only_compared)
         )
     return differences
@@ -776,6 +794,8 @@ def _body_dominance_profile(chart: Any) -> dict[str, float]:
 
 
 def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *, analysis_mode: str) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
     q_sign = _sign_weight_profile(subject_chart)
     c_sign = _sign_weight_profile(compared_chart)
     q_house = _house_weight_profile(subject_chart)
@@ -816,20 +836,20 @@ def _combined_dominance_detail_lines(subject_chart: Any, compared_chart: Any, *,
                 f"Sign dominance mismatch: {(1.0 - sign_overlap) * 100.0:.1f}% (overlap {sign_overlap * 100.0:.1f}%).",
                 (
                     "Top sign differences: "
-                    f"first-only [{', '.join(only_subject_signs) or 'none'}]; "
-                    f"second-only [{', '.join(only_compared_signs) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(only_subject_signs) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(only_compared_signs) or 'none'}]."
                 ),
                 f"House dominance mismatch: {(1.0 - house_overlap) * 100.0:.1f}% (overlap {house_overlap * 100.0:.1f}%).",
                 (
                     "Top house differences: "
-                    f"first-only [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
-                    f"second-only [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(f'House {house}' for house in only_subject_houses) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(f'House {house}' for house in only_compared_houses) or 'none'}]."
                 ),
                 f"Planet/body dominance mismatch: {(1.0 - body_overlap) * 100.0:.1f}% (overlap {body_overlap * 100.0:.1f}%).",
                 (
                     "Top body differences: "
-                    f"first-only [{', '.join(only_subject_bodies) or 'none'}]; "
-                    f"second-only [{', '.join(only_compared_bodies) or 'none'}]."
+                    f"only in {subject_label} [{', '.join(only_subject_bodies) or 'none'}]; "
+                    f"only in {compared_label} [{', '.join(only_compared_bodies) or 'none'}]."
                 ),
             ]
         )
@@ -875,22 +895,12 @@ def _nakshatra_difference_lines(subject_chart: Any, compared_chart: Any) -> list
             differences.append(f"{body}: {subject_nak} vs {compared_nak}")
     return sorted(differences)
 
-
 def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> list[str]:
-    def _profile(chart: Any) -> dict[str, int]:
-        positions = getattr(chart, "positions", None) or {}
-        counts: dict[str, int] = {}
-        for body in _PLACEMENT_BODIES:
-            if body in {"AS", "MC"}:
-                continue
-            longitude = positions.get(body)
-            if longitude is None:
-                continue
-            nakshatra = get_nakshatra(longitude)
-            if not nakshatra:
-                continue
-            counts[nakshatra] = counts.get(nakshatra, 0) + 1
-        return counts
+    def _profile(chart: Any) -> dict[str, float]:
+        return {
+            str(name): max(0.0, float(value or 0.0))
+            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+        }
 
     subject_profile = _profile(subject_chart)
     compared_profile = _profile(compared_chart)
@@ -905,20 +915,15 @@ def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> lis
 
 
 def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _top3(chart: Any) -> list[str]:
-        positions = getattr(chart, "positions", None) or {}
-        counts: dict[str, int] = {}
-        for body in _PLACEMENT_BODIES:
-            if body in {"AS", "MC"}:
-                continue
-            longitude = positions.get(body)
-            if longitude is None:
-                continue
-            nakshatra = get_nakshatra(longitude)
-            if not nakshatra:
-                continue
-            counts[nakshatra] = counts.get(nakshatra, 0) + 1
-        return [name for name, _count in sorted(counts.items(), key=lambda item: item[1], reverse=True)[:3]]
+        weights = {
+            str(name): max(0.0, float(value or 0.0))
+            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+        }
+        return [name for name, _count in sorted(weights.items(), key=lambda item: item[1], reverse=True)[:3]]
 
     subject_top = _top3(subject_chart)
     compared_top = _top3(compared_chart)
@@ -926,15 +931,18 @@ def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) ->
     compared_only = [nak for nak in compared_top if nak not in set(subject_top)]
     differences: list[str] = []
     if subject_only:
-        differences.append("Top nakshatras only in first chart: " + ", ".join(subject_only))
+        differences.append(f"Top nakshatras only in {subject_label}: " + ", ".join(subject_only))
     if compared_only:
-        differences.append("Top nakshatras only in second chart: " + ", ".join(compared_only))
+        differences.append(f"Top nakshatras only in {compared_label}: " + ", ".join(compared_only))
     if not differences:
-        differences.append("Top nakshatra dominance profiles are closely aligned.")
+        differences.append("Top nakshatra dominance profiles essentially the same.")
     return differences
 
 
 def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _centers(chart: Any) -> set[str]:
         existing = {
             str(center).strip()
@@ -958,6 +966,9 @@ def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> li
 
 
 def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     def _centers(chart: Any) -> set[str]:
         existing = {
             str(center).strip()
@@ -982,9 +993,9 @@ def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) ->
     compared_only = sorted(compared_centers - subject_centers)
     differences: list[str] = []
     if subject_only:
-        differences.append("Only in first chart: " + ", ".join(subject_only))
+        differences.append(f"Only in {subject_label}: " + ", ".join(subject_only))
     if compared_only:
-        differences.append("Only in second chart: " + ", ".join(compared_only))
+        differences.append(f"Only in {compared_label}: " + ", ".join(compared_only))
     return differences
 
 
@@ -1011,6 +1022,9 @@ def _human_design_gate_set(chart: Any) -> set[int]:
 
 
 def _human_design_gate_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     subject_gates = _human_design_gate_set(subject_chart)
     compared_gates = _human_design_gate_set(compared_chart)
     shared = sorted(subject_gates & compared_gates)
@@ -1031,9 +1045,9 @@ def _human_design_gate_difference_lines(subject_chart: Any, compared_chart: Any)
     compared_only = sorted(compared_gates - subject_gates)
     differences: list[str] = []
     if subject_only:
-        differences.append("Only in first chart: " + ", ".join(f"Gate {gate}" for gate in subject_only))
+        differences.append(f"Only in {subject_label}: " + ", ".join(f"Gate {gate}" for gate in subject_only))
     if compared_only:
-        differences.append("Only in second chart: " + ", ".join(f"Gate {gate}" for gate in compared_only))
+        differences.append(f"Only in {compared_label}: " + ", ".join(f"Gate {gate}" for gate in compared_only))
     if not differences:
         differences.append("Human Design gate sets are identical.")
     return differences
@@ -1069,6 +1083,46 @@ def _resolve_component_weight_percents(
         key: int(round((weight / total_weight) * 100.0))
         for key, weight in included_weights.items()
     }
+
+
+def resolve_similarity_component_keys_for_display(
+    *,
+    algorithm_mode: str,
+    similarity_settings: SimilarityCalculatorSettings | None,
+) -> list[str]:
+    component_weight_percents = _resolve_component_weight_percents(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=similarity_settings,
+    )
+    return [key for key in component_weight_percents if key in _SIMILARITY_COMPONENT_LABELS]
+
+
+def format_similarity_component_summary(
+    *,
+    match: Any,
+    component_keys: list[str] | None = None,
+) -> str:
+    keys = component_keys or ["placement", "aspect", "distribution", "combined_dominance"]
+    values_by_component = {
+        "placement": getattr(match, "placement_score", None),
+        "aspect": getattr(match, "aspect_score", None),
+        "distribution": getattr(match, "distribution_score", None),
+        "combined_dominance": getattr(match, "dominance_score", None),
+        "nakshatra_placement": getattr(match, "nakshatra_score", None),
+        "nakshatra_dominance": getattr(match, "nakshatra_dominance_score", None),
+        "defined_centers": getattr(match, "hd_centers_score", None),
+        "human_design_gates": getattr(match, "human_design_gates_score", None),
+    }
+    bits: list[str] = []
+    for key in keys:
+        score = values_by_component.get(key)
+        if score is None:
+            continue
+        label = _SIMILARITY_COMPONENT_LABELS.get(key)
+        if not label:
+            continue
+        bits.append(f"{label} {float(score) * 100.0:.0f}%")
+    return ", ".join(bits) if bits else "no enabled criteria"
 
 
 def _section_title_with_weight(title: str, component_key: str, component_weight_percents: dict[str, int]) -> str:
@@ -1849,22 +1903,24 @@ def render_similar_match_blocks(
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     info_link_prefix: str = "sim-info",
+    algorithm_mode: str = "default",
+    similarity_settings: SimilarityCalculatorSettings | None = None,
 ) -> str:
     if not matches:
         return "No charts found."
+    component_keys = resolve_similarity_component_keys_for_display(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=similarity_settings,
+    )
     blocks: list[str] = []
     for rank, match in enumerate(matches, start=1):
         safe_name = html.escape(str(match.chart_name))
         similarity_percent = float(match.score) * 100.0
         band_label, band_color = resolve_similarity_band(similarity_percent)
-        extra_bits: list[str] = []
-        if getattr(match, "nakshatra_score", None) is not None:
-            extra_bits.append(f"nakshatra placement {float(match.nakshatra_score) * 100.0:.0f}%")
-        if getattr(match, "hd_centers_score", None) is not None:
-            extra_bits.append(f"defined centers {float(match.hd_centers_score) * 100.0:.0f}%")
-        if getattr(match, "dominance_score", None) is not None:
-            extra_bits.insert(0, f"dominance {float(match.dominance_score) * 100.0:.0f}%")
-        extra_suffix = f", {', '.join(extra_bits)}" if extra_bits else ""
+        component_summary = format_similarity_component_summary(
+            match=match,
+            component_keys=component_keys,
+        )
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
@@ -1873,9 +1929,7 @@ def render_similar_match_blocks(
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
-                f"(placements {match.placement_score * 100.0:.0f}%, "
-                f"aspects {match.aspect_score * 100.0:.0f}%, "
-                f"distribution {match.distribution_score * 100.0:.0f}%{extra_suffix})"
+                f"({component_summary})"
                 "</span>"
             )
         )
@@ -1894,6 +1948,8 @@ def build_similar_charts_popout_dialog(
     info_output_style: str | None = None,
     highlight_color: str,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    algorithm_mode: str = "default",
+    similarity_settings: SimilarityCalculatorSettings | None = None,
     info_link_prefix: str = "sim-info",
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
@@ -2009,6 +2065,8 @@ def build_similar_charts_popout_dialog(
                 highlight_color=highlight_color,
                 resolve_similarity_band=resolve_similarity_band,
                 info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                algorithm_mode=algorithm_mode,
+                similarity_settings=similarity_settings,
             )
         )
 

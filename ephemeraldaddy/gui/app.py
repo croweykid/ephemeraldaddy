@@ -326,7 +326,7 @@ from ephemeraldaddy.gui.window_placement import (
     capture_window_placement,
     clear_fullscreen_and_minimized,
 )
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -653,10 +653,12 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    format_similarity_component_summary,
     is_similar_info_target,
     load_similar_chart_candidates,
     make_similar_info_target,
     map_similar_info_targets,
+    resolve_similarity_component_keys_for_display,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import (
     DBInfoPanel,
@@ -680,6 +682,8 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     build_chart_view_left_panel,
     build_chart_view_middle_header_controls,
     build_chart_view_right_panel,
+    draw_weight_distribution_reference_lines,
+    format_weight_distribution_html,
     format_unknown_positions_summary_html,
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
@@ -10585,37 +10589,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if _should_refresh_database_metric_section("birthplace"):
                 self._clear_layout(self.birthplace_chart_layout)
                 if birthplace_mode == "countries":
-                    country_labels = [
-                        item[0]
-                        for item in sorted(
-                            selection_country_counts.items() if loaded_charts else database_country_counts.items(),
-                            key=lambda item: (-item[1], item[0]),
-                        )
-                    ]
-                    if country_labels:
-                        country_canvas = self._build_count_distribution_chart(
-                            labels=country_labels,
-                            selection_counts=[selection_country_counts.get(label, 0) for label in country_labels],
-                            database_counts=[database_country_counts.get(label, 0) for label in country_labels],
-                            loaded_charts=loaded_charts,
-                            auto_height=True,
-                            use_earthtone_cycle=True,
-                        )
-                        self.birthplace_chart_layout.addWidget(country_canvas, 0)
-                    else:
-                        self.birthplace_chart_layout.addWidget(self._build_text_analysis_widget(["None available"]), 0, Qt.AlignTop)
+                    source_counts = selection_country_counts if loaded_charts else database_country_counts
                 else:
                     if birthplace_mode == "towns":
                         source_counts = selection_city_counts if loaded_charts else database_city_counts
                     else:
                         source_counts = selection_state_counts if loaded_charts else database_state_counts
-                    top_items = sorted(source_counts.items(), key=lambda item: (-item[1], item[0]))
-                    lines: list[str] = []
-                    if top_items:
-                        lines.extend([f"• {label} ({count})" for label, count in top_items])
-                    else:
-                        lines.append("None available")
-                    self.birthplace_chart_layout.addWidget(self._build_text_analysis_widget(lines), 0, Qt.AlignTop)
+                top_items = sorted(source_counts.items(), key=lambda item: (-item[1], item[0]))
+                lines: list[str] = []
+                if top_items:
+                    for label, count in top_items:
+                        if birthplace_mode == "countries":
+                            database_count = int(database_country_counts.get(label, 0))
+                        elif birthplace_mode == "towns":
+                            database_count = int(database_city_counts.get(label, 0))
+                        else:
+                            database_count = int(database_state_counts.get(label, 0))
+                        lines.append(
+                            self._format_birthplace_comparison_line(
+                                label=label,
+                                selection_count=int(count),
+                                database_count=database_count,
+                                selection_total=int(loaded_charts),
+                                database_total=int(database_loaded_charts),
+                            )
+                        )
+                else:
+                    lines.append("None available")
+                self.birthplace_chart_layout.addWidget(
+                    self._build_birthplace_comparison_text_widget(lines),
+                    0,
+                    Qt.AlignTop,
+                )
 
             if birthplace_mode == "countries":
                 country_labels = [
@@ -10963,6 +10968,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.biography = str(profile_data.get("biography", "") or "")
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         chart.is_placeholder = False
 
         try:
@@ -12325,6 +12331,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.sentiments = sentiments
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12406,6 +12413,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.relationship_types = relationship_types
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12477,6 +12485,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart.familiarity = familiarity_value
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     update_chart(
                         chart_id,
                         chart,
@@ -12551,6 +12560,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 setattr(chart, metric_attr, value)
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12656,6 +12666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.alignment_score = alignment_value
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12776,6 +12787,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.source = source
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12830,6 +12842,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.gender = resolved_gender
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -12882,6 +12895,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 chart.birthtime_unknown = checked
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                 update_chart(
                     chart_id,
                     chart,
@@ -14457,6 +14471,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart.name = new_name
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             update_chart(
                 int(chart_id),
                 chart,
@@ -14665,6 +14680,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         continue
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart_id = save_chart(
                         chart,
                         birth_place=birth_place,
@@ -14802,6 +14818,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart.source = SOURCE_PUBLIC_DB
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart_id = save_chart(
                         chart,
                         birth_place=birth_place,
@@ -14910,6 +14927,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if chart is not None and not getattr(chart, "is_placeholder", False):
                         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                         update_chart(
                             chart_id,
                             chart,
@@ -14991,6 +15009,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if chart is not None and not getattr(chart, "is_placeholder", False):
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                    chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
                     chart.dominant_element_weights = _calculate_dominant_element_weights(chart)
                     mode_weights = _calculate_mode_weights(chart)
                     chart.modal_distribution = dict(mode_weights)
@@ -20085,10 +20104,18 @@ class MainWindow(QMainWindow):
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(True)
         match_blocks: list[str] = []
+        component_keys = resolve_similarity_component_keys_for_display(
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
         for rank, match in enumerate(matches, start=1):
             safe_name = html.escape(match.chart_name)
             similarity_percent = match.score * 100.0
             band_label, band_color = self._similarity_band_for_percent(similarity_percent)
+            component_summary = format_similarity_component_summary(
+                match=match,
+                component_keys=component_keys,
+            )
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -20101,12 +20128,7 @@ class MainWindow(QMainWindow):
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
-                    f" (placements {match.placement_score * 100.0:.0f}%,"
-                    f" aspects {match.aspect_score * 100.0:.0f}%,"
-                    f" distribution {match.distribution_score * 100.0:.0f}%"
-                    f"{', dominance ' + str(round((match.dominance_score or 0.0) * 100.0)) + '%' if match.dominance_score is not None else ''}"
-                    f"{', nakshatra placement ' + str(round((match.nakshatra_score or 0.0) * 100.0)) + '%' if match.nakshatra_score is not None else ''}"
-                    f"{', defined centers ' + str(round((match.hd_centers_score or 0.0) * 100.0)) + '%' if match.hd_centers_score is not None else ''})"
+                    f" ({component_summary})"
                 )
             )
             self._similar_charts_export_rows.append(
@@ -20284,6 +20306,8 @@ class MainWindow(QMainWindow):
             info_output_style="font-weight: 400; color: #f5f5f5;",
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
             resolve_similarity_band=self._similarity_band_for_percent,
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
             on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
@@ -20731,7 +20755,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(popout_canvas, STANDARD_NCV_POPOUT_LAYOUT["chart_stretch"])
         layout.addWidget(info_panel, STANDARD_NCV_POPOUT_LAYOUT["info_stretch"])
 
-        if title == "Nakshatra Prevalence":
+        if title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
             info_panel.setPlaceholderText(
                 "Click a nakshatra label or bar to view its description."
             )
@@ -20816,6 +20840,7 @@ class MainWindow(QMainWindow):
             "Houses": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
+            "Dominant Nakshatras": (9.0, 6.6),
             "Modes": (8.0, 5.4),
             "Dominant Modes": (8.0, 5.4),
             "Modal Prevalence": (8.0, 5.4),
@@ -20835,7 +20860,7 @@ class MainWindow(QMainWindow):
             self._draw_house_tally(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
-        elif title == "Nakshatra Prevalence":
+        elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
             self._draw_nakshatra_wordcloud(ax, chart)
         elif title in {"Modes", "Dominant Modes", "Modal Prevalence"}:
             self._draw_modal_distribution(ax, chart)
@@ -21416,6 +21441,7 @@ class MainWindow(QMainWindow):
         for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
             tick_label.set_gid(f"body:{body}")
             tick_label.set_picker(5)
+        draw_weight_distribution_reference_lines(ax, values)
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -24161,6 +24187,7 @@ class MainWindow(QMainWindow):
         placeholder.source = placeholder.chart_type
         placeholder.dominant_sign_weights = {}
         placeholder.dominant_planet_weights = {}
+        placeholder.dominant_nakshatra_weights = {}
         placeholder.is_placeholder = True
         placeholder.is_deceased = self.deceased_checkbox.isChecked()
         placeholder.birth_month = month
@@ -24326,6 +24353,7 @@ class MainWindow(QMainWindow):
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
         chart.retcon_hour = self.retcon_time_edit.time().hour()
         chart.retcon_minute = self.retcon_time_edit.time().minute()
+        apply_time_specific_metadata_policy(chart)
         chart.birth_place = place
         chart.birth_month = qdate.month()
         chart.birth_day = qdate.day()
@@ -24645,6 +24673,7 @@ class MainWindow(QMainWindow):
             chart, place, location_msg, tz_override = chart_result
             chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
             chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
             chart.is_placeholder = False
 
         #chart, place, location_msg, tz_override = chart_result
@@ -24668,6 +24697,7 @@ class MainWindow(QMainWindow):
 
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         save_kwargs = dict(
             birth_place=place,
             retcon_time_used=getattr(chart, "retcon_time_used", False),
@@ -25388,6 +25418,7 @@ class MainWindow(QMainWindow):
         chart, _place, _location_msg, _tz_override = chart_result
         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+        chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         self._update_unknown_positions_summary(chart)
         self._schedule_chart_render(chart)
 
@@ -25882,18 +25913,35 @@ class MainWindow(QMainWindow):
         chart_ruler_label = self._chart_analysis_footer_labels.get("dominant_planets")
         if chart_ruler_label is None:
             return
+        distribution_html = format_weight_distribution_html(
+            self._dominant_body_distribution_weights(chart)
+        )
         if chart is None:
-            chart_ruler_label.setText("Chart Ruler: Unknown")
+            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
         rulers = self._chart_ruler_planets(chart)
         if not rulers:
-            chart_ruler_label.setText("Chart Ruler: Unknown")
+            chart_ruler_label.setText(f"Chart Ruler: Unknown<br>{distribution_html}")
             return
         ruler_html = " &amp; ".join(
             f'<span style="color: {PLANET_COLORS.get(ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))};">{html.escape(ruler)}</span>'
             for ruler in rulers
         )
-        chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}")
+        chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}<br>{distribution_html}")
+
+    def _dominant_body_distribution_weights(self, chart: Chart | None) -> list[float]:
+        if chart is None:
+            return []
+        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
+        if mode == "sidereal_planet_prevalence":
+            weighted_counts = _calculate_sidereal_planet_prevalence_counts(chart)
+        else:
+            weighted_counts = _calculate_dominant_planet_weights(chart)
+        return [
+            float(weight)
+            for weight in weighted_counts.values()
+            if isinstance(weight, (int, float))
+        ]
 
     def _render_house_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -25916,11 +25964,15 @@ class MainWindow(QMainWindow):
         )
 
     def _render_nakshatra_wordcloud(self, chart: Chart) -> None:
+        selected_mode = self._chart_analysis_selected_mode(
+            "nakshatra_prevalence",
+            "nakshatra_prevalence",
+        )
         self._render_metric_panel(
             canvas_attr="nakshatra_wordcloud_canvas",
             container_layout=self.nakshatra_wordcloud_container_layout,
             figsize=(5.5, 5.1),
-            title="Nakshatra Prevalence",
+            title="Dominant Nakshatras" if selected_mode == "dominant_nakshatras" else "Nakshatra Prevalence",
             draw_fn=self._draw_nakshatra_wordcloud,
             chart=chart,
         )

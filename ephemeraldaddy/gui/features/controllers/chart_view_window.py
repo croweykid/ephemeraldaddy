@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime
 import html
+import statistics
+from collections import Counter
 from typing import Callable
 
 from PySide6.QtCore import Qt
@@ -281,6 +283,61 @@ def refresh_chart_info_panel_toggle_button_styles(owner: QWidget) -> None:
         button.setChecked(mode_is_active)
         button.blockSignals(False)
         button.setStyleSheet(style)
+
+
+def resolve_weight_distribution_stats(values: list[float]) -> tuple[float | None, float, float] | None:
+    numeric_values = [float(value) for value in values if isinstance(value, (int, float))]
+    if not numeric_values:
+        return None
+    frequency_by_value = Counter(numeric_values)
+    max_frequency = max(frequency_by_value.values(), default=0)
+    modal_values = [
+        value
+        for value, frequency in frequency_by_value.items()
+        if frequency == max_frequency
+    ]
+    mode_value: float | None = None
+    if len(modal_values) == 1 and max_frequency > 1:
+        mode_value = float(modal_values[0])
+    avg_value = statistics.fmean(numeric_values)
+    median_value = statistics.median(numeric_values)
+    return (mode_value, avg_value, median_value)
+
+
+def draw_weight_distribution_reference_lines(ax, values: list[float]) -> None:
+    stats = resolve_weight_distribution_stats(values)
+    if stats is None:
+        return
+    mode_value, avg_value, median_value = stats
+    reference_lines: list[tuple[float, str]] = [
+        (avg_value, "#ff4d4d"),
+        (median_value, "#b22222"),
+    ]
+    if mode_value is not None:
+        reference_lines.append((mode_value, "#ff7f7f"))
+    for line_value, line_color in reference_lines:
+        ax.axhline(
+            y=line_value,
+            color=line_color,
+            linestyle="--",
+            linewidth=1.1,
+            alpha=0.95,
+            zorder=1.5,
+        )
+
+
+def format_weight_distribution_html(values: list[float]) -> str:
+    stats = resolve_weight_distribution_stats(values)
+    if stats is None:
+        return "Weight Distribution - <b>Mode:</b> 0, <b>Avg:</b> 0, <b>Median:</b> 0"
+    mode_value, avg_value, median_value = stats
+    mode_text = f"{mode_value:.2f}" if mode_value is not None else "N/A"
+    return (
+        "Weight Distribution - "
+        f"<b>Mode:</b> {mode_text}, "
+        f"<b>Avg:</b> {avg_value:.2f}, "
+        f"<b>Median:</b> {median_value:.2f}"
+    )
 
 
 def _require_owner_attrs(owner: QWidget, attrs: tuple[str, ...], *, context: str) -> None:

@@ -5,7 +5,7 @@ import heapq
 from math import sqrt
 from typing import Iterable
 
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
@@ -16,6 +16,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_pair_weight,
     aspect_score,
 )
+from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -90,7 +91,9 @@ class AstroTwinMatch:
     distribution_score: float
     dominance_score: float | None = None
     nakshatra_score: float | None = None
+    nakshatra_dominance_score: float | None = None
     hd_centers_score: float | None = None
+    human_design_gates_score: float | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
 
 
@@ -188,6 +191,8 @@ def _nakshatra_index(lon: float | None) -> int | None:
 
 
 def _house_for_body(chart: Chart, body: str) -> int | None:
+    if not chart_uses_houses(chart):
+        return None
     houses = getattr(chart, "houses", None)
     positions = getattr(chart, "positions", None) or {}
     lon = positions.get(body)
@@ -278,7 +283,12 @@ def _placement_similarity(
 
     total = 0.0
     possible = 0.0
-    use_houses = bool(getattr(query, "houses", None)) and bool(getattr(candidate, "houses", None))
+    use_houses = (
+        chart_uses_houses(query)
+        and chart_uses_houses(candidate)
+        and bool(getattr(query, "houses", None))
+        and bool(getattr(candidate, "houses", None))
+    )
 
     for body in CORE_BODIES:
         q_lon = q_positions.get(body)
@@ -342,11 +352,14 @@ def _is_tautological_node_opposition(body_a: str, body_b: str, aspect_type: str)
 
 def _aspect_map(chart: Chart) -> dict[tuple[tuple[str, str], str], list[float]]:
     aspect_map: dict[tuple[tuple[str, str], str], list[float]] = {}
+    include_angle_aspects = chart_uses_houses(chart)
     for aspect in getattr(chart, "aspects", None) or []:
         key = _canonical_aspect_key(aspect)
         if key is None:
             continue
         (a, b), aspect_type = key
+        if not include_angle_aspects and (a in NATAL_ANGLES or b in NATAL_ANGLES):
+            continue
         if _is_tautological_angle_aspect(a, b):
             continue
         if _is_tautological_node_opposition(a, b, aspect_type):
@@ -517,21 +530,25 @@ def _body_dominance_profile(chart: Chart) -> dict[str, float]:
 
     positions = getattr(chart, "positions", None) or {}
     profile: dict[str, float] = {}
+    include_houses = chart_uses_houses(chart)
     for body in CORE_BODIES:
         longitude = positions.get(body)
         if longitude is None:
             continue
         weight = BODY_WEIGHTS.get(body, 0.8)
-        house = _house_for_body(chart, body)
-        if house in {1, 4, 7, 10}:
-            weight *= 1.30
-        elif house in {2, 5, 8, 11}:
-            weight *= 1.12
+        if include_houses:
+            house = _house_for_body(chart, body)
+            if house in {1, 4, 7, 10}:
+                weight *= 1.30
+            elif house in {2, 5, 8, 11}:
+                weight *= 1.12
         profile[body] = weight
     return profile
 
 
 def _house_weight_profile(chart: Chart) -> dict[int, float]:
+    if not chart_uses_houses(chart):
+        return {house: 0.0 for house in range(1, 13)}
     positions = getattr(chart, "positions", None) or {}
     profile = {house: 0.0 for house in range(1, 13)}
     for body in CORE_BODIES:
@@ -584,23 +601,30 @@ def _dominance_similarity(query: Chart, candidate: Chart) -> float:
     c_body = _body_dominance_profile(candidate)
 
     sign_overlap = _weighted_overlap_similarity(q_sign, c_sign)
-    house_overlap = _weighted_overlap_similarity(q_house, c_house)
+    use_house_component = chart_uses_houses(query) and chart_uses_houses(candidate)
+    house_overlap = _weighted_overlap_similarity(q_house, c_house) if use_house_component else 0.0
     body_overlap = _weighted_overlap_similarity(q_body, c_body)
 
     sign_top3_overlap = len(_top_keys(q_sign, count=3) & _top_keys(c_sign, count=3)) / 3.0
-    house_top3_overlap = len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+    house_top3_overlap = (
+        len(_top_keys(q_house, count=3) & _top_keys(c_house, count=3)) / 3.0
+        if use_house_component
+        else 0.0
+    )
     body_top3_overlap = len(_top_keys(q_body, count=3) & _top_keys(c_body, count=3)) / 3.0
 
     sign_component = (sign_overlap * 0.72) + (sign_top3_overlap * 0.28)
     house_component = (house_overlap * 0.68) + (house_top3_overlap * 0.32)
     body_component = (body_overlap * 0.66) + (body_top3_overlap * 0.34)
+    house_weight = 0.30 if use_house_component else 0.0
+    body_weight = 0.30 if use_house_component else 0.60
     return max(
         0.0,
         min(
             1.0,
             (sign_component * 0.40)
-            + (house_component * 0.30)
-            + (body_component * 0.30),
+            + (house_component * house_weight)
+            + (body_component * body_weight),
         ),
     )
 
@@ -637,13 +661,30 @@ def _nakshatra_similarity(query: Chart, candidate: Chart) -> float:
 
 
 def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
-    q_profile = _nakshatra_weight_profile(query)
-    c_profile = _nakshatra_weight_profile(candidate)
+    q_profile = _dominant_nakshatra_weight_profile(query)
+    c_profile = _dominant_nakshatra_weight_profile(candidate)
     overlap = _weighted_overlap_similarity(q_profile, c_profile)
     q_top3 = _top_keys(q_profile, count=3)
     c_top3 = _top_keys(c_profile, count=3)
     top3_overlap = len(q_top3 & c_top3) / 3.0
     return max(0.0, min(1.0, (overlap * 0.75) + (top3_overlap * 0.25)))
+
+
+def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
+    raw_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
+    if not raw_weights:
+        raw_weights = calculate_dominant_nakshatra_weights(chart)
+        chart.dominant_nakshatra_weights = dict(raw_weights)
+    normalized: dict[str, float] = {}
+    for nakshatra_name, raw_value in raw_weights.items():
+        normalized[str(nakshatra_name)] = max(0.0, float(raw_value or 0.0))
+    total = sum(normalized.values())
+    if total <= 0:
+        return normalized
+    return {
+        nakshatra_name: (value / total)
+        for nakshatra_name, value in normalized.items()
+    }
 
 
 def _human_design_gates(chart: Chart) -> set[int]:
@@ -918,7 +959,9 @@ def find_astro_twins(
                 aspect_score = component_scores["aspect"]
                 distribution_score = component_scores["distribution"]
                 nakshatra_score = component_scores["nakshatra_placement"]
+                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
+                human_design_gates_score = component_scores["human_design_gates"]
             elif use_comprehensive:
                 (
                     rank_score,
@@ -933,6 +976,13 @@ def find_astro_twins(
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
+                comprehensive_component_scores = _similarity_component_scores(
+                    query_chart,
+                    candidate,
+                    placement_weighting_mode=placement_weighting_mode,
+                )
+                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
+                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
             else:
                 rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
                     query_chart,
@@ -941,6 +991,8 @@ def find_astro_twins(
                 )
                 nakshatra_score = None
                 hd_centers_score = None
+                nakshatra_dominance_score = None
+                human_design_gates_score = None
         else:
             if use_custom:
                 final_score, component_scores = chart_similarity_score_custom(
@@ -952,7 +1004,9 @@ def find_astro_twins(
                 aspect_score = component_scores["aspect"]
                 distribution_score = component_scores["distribution"]
                 nakshatra_score = component_scores["nakshatra_placement"]
+                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
+                human_design_gates_score = component_scores["human_design_gates"]
             elif use_comprehensive:
                 (
                     final_score,
@@ -966,6 +1020,13 @@ def find_astro_twins(
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
+                comprehensive_component_scores = _similarity_component_scores(
+                    query_chart,
+                    candidate,
+                    placement_weighting_mode=placement_weighting_mode,
+                )
+                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
+                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
             else:
                 final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
                     query_chart,
@@ -974,6 +1035,8 @@ def find_astro_twins(
                 )
                 nakshatra_score = None
                 hd_centers_score = None
+                nakshatra_dominance_score = None
+                human_design_gates_score = None
             rank_score = final_score
 
         dominance_score = _combined_dominance_similarity(query_chart, candidate)
@@ -986,7 +1049,9 @@ def find_astro_twins(
             distribution_score=distribution_score,
             dominance_score=dominance_score,
             nakshatra_score=nakshatra_score,
+            nakshatra_dominance_score=nakshatra_dominance_score,
             hd_centers_score=hd_centers_score,
+            human_design_gates_score=human_design_gates_score,
             algorithm_mode=normalized_mode,
         )
         destination_heap = scored_matches

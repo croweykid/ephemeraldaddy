@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
@@ -299,13 +300,6 @@ def house_for_longitude(
         if start <= check_lon < end:
             return i + 1
     return None
-
-def chart_uses_houses(chart: Chart) -> bool:
-    return not getattr(chart, "birthtime_unknown", False) or getattr(
-        chart,
-        "retcon_time_used",
-        False,
-    )
 
 def planet_sign_weight(
     body: str,
