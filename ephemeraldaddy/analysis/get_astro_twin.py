@@ -773,9 +773,14 @@ def _distribution_similarity(
             if q_mode == c_mode:
                 mode_total += body_weight
 
-    element_similarity = _safe_divide(element_total, element_possible)
-    mode_similarity = _safe_divide(mode_total, mode_possible)
-    return (element_similarity + mode_similarity) / 2.0
+    available_components: list[float] = []
+    if element_possible > 0.0:
+        available_components.append(_safe_divide(element_total, element_possible))
+    if mode_possible > 0.0:
+        available_components.append(_safe_divide(mode_total, mode_possible))
+    if not available_components:
+        return 1.0
+    return sum(available_components) / len(available_components)
 
 
 def _sign_weight_profile(chart: Chart) -> dict[int, float]:
