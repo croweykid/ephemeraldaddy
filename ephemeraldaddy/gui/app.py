@@ -25273,6 +25273,17 @@ class MainWindow(QMainWindow):
         for chart_id in chart_ids:
             self._chart_view_navigation_cache.pop(int(chart_id), None)
 
+    @staticmethod
+    def _matched_expectations_value_for_chart(chart: Chart | None) -> int:
+        if chart is None:
+            return 0
+        raw_value = getattr(chart, "matched_expectations", 0)
+        try:
+            parsed_value = int(raw_value) if raw_value is not None else 0
+        except (TypeError, ValueError):
+            parsed_value = 0
+        return max(0, min(9, parsed_value))
+
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
