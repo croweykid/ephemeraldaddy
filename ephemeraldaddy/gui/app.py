@@ -654,6 +654,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    format_similar_chart_name_html,
     format_similarity_component_summary,
     is_similar_info_target,
     load_similar_chart_candidates,
@@ -20388,7 +20389,11 @@ class MainWindow(QMainWindow):
             similarity_settings=getattr(self, "_similarity_calculator_settings", None),
         )
         for rank, match in enumerate(matches, start=1):
-            safe_name = html.escape(match.chart_name)
+            display_name = format_similar_chart_name_html(
+                chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
+                subject_uses_houses=_chart_uses_houses(chart),
+                compared_uses_houses=bool(getattr(match, "chart_uses_houses", True)),
+            )
             similarity_percent = match.score * 100.0
             band_label, band_color = self._similarity_band_for_percent(similarity_percent)
             component_summary = format_similarity_component_summary(
@@ -20402,7 +20407,7 @@ class MainWindow(QMainWindow):
             )
             match_blocks.append(
                 (
-                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
+                    f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
                     f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a><br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
@@ -20577,6 +20582,7 @@ class MainWindow(QMainWindow):
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
+            subject_uses_houses=_chart_uses_houses(chart),
             most_similar_matches=most_similar_matches,
             least_similar_matches=least_similar_matches,
             on_link_activated=self._on_similar_chart_popout_link_activated,

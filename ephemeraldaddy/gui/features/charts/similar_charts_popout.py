@@ -140,6 +140,7 @@ def build_similar_charts_export_rows_from_matches(
     *,
     matches: list[Any],
     resolve_similarity_band: Callable[[float], tuple[str, str]],
+    subject_uses_houses: bool = True,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for rank, match in enumerate(matches, start=1):
@@ -1963,10 +1964,35 @@ def load_similar_chart_candidates(
     return candidates
 
 
+
+
+def format_similar_chart_name_html(
+    *,
+    chart_name: str,
+    subject_uses_houses: bool,
+    compared_uses_houses: bool,
+) -> str:
+    safe_name = html.escape(str(chart_name))
+    note_html = ""
+    if subject_uses_houses:
+        if not compared_uses_houses:
+            note_html = (
+                ' <span style="font-size: 10px; color: #ffffff; font-variant: small-caps;">'
+                "(houses unknown)</span>"
+            )
+    else:
+        note_html = (
+            ' <span style="font-size: 10px; color: #ffffff; font-variant: small-caps;">'
+            "(no houses compared)</span>"
+        )
+    return f"{safe_name}{note_html}"
+
+
 def render_similar_match_blocks(
     *,
     matches: list[Any],
     highlight_color: str,
+    subject_uses_houses: bool = True,
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     info_link_prefix: str = "sim-info",
     algorithm_mode: str = "default",
@@ -1980,7 +2006,11 @@ def render_similar_match_blocks(
     )
     blocks: list[str] = []
     for rank, match in enumerate(matches, start=1):
-        safe_name = html.escape(str(match.chart_name))
+        display_name = format_similar_chart_name_html(
+            chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
+            subject_uses_houses=subject_uses_houses,
+            compared_uses_houses=bool(getattr(match, "chart_uses_houses", True)),
+        )
         similarity_percent = float(match.score) * 100.0
         band_label, band_color = resolve_similarity_band(similarity_percent)
         component_summary = format_similarity_component_summary(
@@ -1990,7 +2020,7 @@ def render_similar_match_blocks(
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
-                f'#{match.chart_id} — <a href="{match.chart_id}">{safe_name}</a> '
+                f'#{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
                 f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
@@ -2006,6 +2036,7 @@ def build_similar_charts_popout_dialog(
     *,
     parent: QWidget,
     subject_name: str,
+    subject_uses_houses: bool = True,
     most_similar_matches: list[Any],
     least_similar_matches: list[Any],
     on_link_activated: Callable[[QDialog, str], None],
@@ -2130,6 +2161,7 @@ def build_similar_charts_popout_dialog(
                 matches=matches,
                 highlight_color=highlight_color,
                 resolve_similarity_band=resolve_similarity_band,
+                subject_uses_houses=subject_uses_houses,
                 info_link_prefix=f"{info_link_prefix}:{panel_key}",
                 algorithm_mode=algorithm_mode,
                 similarity_settings=similarity_settings,
