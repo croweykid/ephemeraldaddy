@@ -1090,6 +1090,29 @@ def build_dbv_search_panel(window) -> "QWidget":
     chart_type_group_layout.addLayout(chart_type_layout)
     layout.addWidget(chart_type_section)
 
+    predictability_section, predictability_group_layout = add_collapsible_section(
+        "💭Predictability"
+    )
+    predictability_range_layout = QGridLayout()
+    predictability_range_layout.setContentsMargins(0, 0, 0, 0)
+    predictability_range_layout.addWidget(QLabel("Min"), 0, 0)
+    window._matched_expectations_min_input = QLineEdit()
+    window._matched_expectations_min_input.setPlaceholderText("0")
+    window._matched_expectations_min_input.setValidator(QIntValidator(0, 9, window))
+    window._matched_expectations_min_input.textChanged.connect(window._on_filter_changed)
+    predictability_range_layout.addWidget(window._matched_expectations_min_input, 0, 1)
+    predictability_range_layout.addWidget(QLabel("Max"), 1, 0)
+    window._matched_expectations_max_input = QLineEdit()
+    window._matched_expectations_max_input.setPlaceholderText("9")
+    window._matched_expectations_max_input.setValidator(QIntValidator(0, 9, window))
+    window._matched_expectations_max_input.textChanged.connect(window._on_filter_changed)
+    predictability_range_layout.addWidget(window._matched_expectations_max_input, 1, 1)
+    predictability_group_layout.addLayout(predictability_range_layout)
+    window._matched_expectations_blank_checkbox = QCheckBox("include blank")
+    window._matched_expectations_blank_checkbox.toggled.connect(window._on_filter_changed)
+    predictability_group_layout.addWidget(window._matched_expectations_blank_checkbox)
+    layout.addWidget(predictability_section)
+
     #Search: Notes section
     notes_section, notes_group_layout = add_collapsible_section("Notes")
 
