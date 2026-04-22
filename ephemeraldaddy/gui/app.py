@@ -20423,7 +20423,9 @@ class MainWindow(QMainWindow):
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                     f"{similarity_percent:.1f}% ({band_label})"
                     f"</span>"
-                    f" ({component_summary})"
+                    f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
+                    f"({component_summary})"
+                    "</span>"
                 )
             )
             self._similar_charts_export_rows.append(
