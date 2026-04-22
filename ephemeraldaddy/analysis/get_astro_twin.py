@@ -10,13 +10,18 @@ from ephemeraldaddy.core.human_design_system import calculate_human_design
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
+    CHART_RULER_BONUS,
     DETRIMENT_WEIGHT,
+    DISPOSITOR_PLANET_ATTENUATION,
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
     HOUSE_WEIGHTS,
+    HOUSE_CUSP_BLEND_DEGREES,
     MODES,
     NATAL_WEIGHT,
+    NATURAL_HOUSE_PLANET_BONUS,
     NATURAL_HOUSE_PLANETS,
+    NATURAL_HOUSE_SIGN_BONUS,
     NATURAL_HOUSE_SIGNS,
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
@@ -24,6 +29,9 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_ORDER,
     PLANET_RULERSHIP,
     RULERSHIP_WEIGHT,
+    TIGHT_ASPECT_INTENSITY_MAX,
+    TIGHT_ASPECT_INTENSITY_MIN,
+    TIGHT_ASPECT_ORB_DEGREES,
     SIGN_ELEMENTS,
     ZODIAC_SIGNS,
     aspect_orb_allowance,
@@ -94,16 +102,6 @@ MODE_BY_SIGN_NAME: dict[str, str] = {
     for mode_name, signs in MODES.items()
     for sign in signs
 }
-
-HOUSE_CUSP_BLEND_DEGREES = 8.0
-NATURAL_HOUSE_SIGN_BONUS = 6.0
-NATURAL_HOUSE_PLANET_BONUS = 6.0
-DISPOSITOR_PLANET_ATTENUATION = 0.35
-CHART_RULER_BONUS = 4.0
-TIGHT_ASPECT_ORB_DEGREES = 1.0
-TIGHT_ASPECT_INTENSITY_MIN = 1.2
-TIGHT_ASPECT_INTENSITY_MAX = 1.4
-
 
 def _sign_for_longitude(lon: float) -> str:
     return str(ZODIAC_SIGNS[int(float(lon) % 360.0 // 30)])
