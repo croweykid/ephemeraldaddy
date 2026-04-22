@@ -11474,7 +11474,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         predictability_section, predictability_section_layout = add_collapsible_section("💭Predictability")
         predictability_row = QHBoxLayout()
-        predictability_row.addWidget(QLabel("Chart matches user's expectations (0-9):"))
+        predictability_row.addWidget(QLabel("Chart matches expectations (0-9):"))
         self.batch_matched_expectations_spin = QSpinBox()
         self.batch_matched_expectations_spin.setRange(0, 9)
         self.batch_matched_expectations_spin.setValue(0)
@@ -19275,7 +19275,7 @@ class MainWindow(QMainWindow):
         predictability_content_layout.setSpacing(6)
         predictability_content_widget.setLayout(predictability_content_layout)
         predictability_content_layout.addWidget(
-            QLabel("Chart matches user's expectations (0-9):")
+            QLabel("Chart matches expectations (0-9):")
         )
         self.matched_expectations_spin = QSpinBox()
         self.matched_expectations_spin.setRange(0, 9)
