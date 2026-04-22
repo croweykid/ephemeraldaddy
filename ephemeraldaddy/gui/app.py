@@ -4988,7 +4988,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             canvas.draw_idle()
 
         transit_ranges: dict[tuple[str, str, str, str], dict[str, object]] = {}
-        transit_workers: dict[tuple[str, str, str, str], tuple[QThread, TransitAspectWindowWorker]] = {}
+        transit_workers: dict[
+            tuple[str, str, str, str],
+            tuple[QThread, TransitAspectWindowWorker, TransitAspectWindowRelay],
+        ] = {}
         calendar_info_map: dict[int, dict[str, object]] = {}
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
@@ -5096,6 +5099,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _transit_shutdown_in_progress = False
         _transit_shutdown_callbacks: list[Callable[[], None]] = []
 
+        def _drop_transit_worker_entry(
+            key: tuple[str, str, str, str],
+        ) -> tuple[QThread, TransitAspectWindowWorker, TransitAspectWindowRelay] | None:
+            worker_entry = transit_workers.pop(key, None)
+            if worker_entry is None:
+                return None
+            _thread, _worker, relay = worker_entry
+            try:
+                relay.deleteLater()
+            except RuntimeError:
+                pass
+            return worker_entry
+
         def _finalize_transit_worker_shutdown() -> None:
             nonlocal _transit_shutdown_in_progress
             pending_keys = list(transit_workers.keys())
@@ -5103,10 +5119,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 worker_entry = transit_workers.get(key)
                 if worker_entry is None:
                     continue
-                thread, _worker = worker_entry
+                thread, _worker, _relay = worker_entry
                 if thread.isRunning():
                     return
-                transit_workers.pop(key, None)
+                _drop_transit_worker_entry(key)
 
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
@@ -5129,22 +5145,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 len(transit_workers),
             )
 
-            for key, (thread, _worker) in list(transit_workers.items()):
+            for key, (thread, _worker, _relay) in list(transit_workers.items()):
                 try:
-                    thread.finished.connect(_finalize_transit_worker_shutdown)
+                    thread.finished.connect(
+                        _finalize_transit_worker_shutdown,
+                        Qt.QueuedConnection,
+                    )
                     thread.requestInterruption()
                     thread.quit()
                     if thread.isRunning():
                         thread.wait(3000)
                     if not thread.isRunning():
-                        transit_workers.pop(key, None)
+                        _drop_transit_worker_entry(key)
                 except RuntimeError:
                     logger.exception(
                         "Transit worker shutdown runtime error (id=%s worker_key=%s).",
                         debug_id,
                         key,
                     )
-                    transit_workers.pop(key, None)
+                    _drop_transit_worker_entry(key)
                     continue
             _finalize_transit_worker_shutdown()
             logger.debug("Transit worker shutdown finished (id=%s).", debug_id)
@@ -5241,19 +5260,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             QTimer.singleShot(0, _restore_scroll_positions)
         def _on_window_thread_finished(key: tuple[str, str, str, str]) -> None:
-            transit_workers.pop(key, None)
+            _drop_transit_worker_entry(key)
             _finalize_transit_worker_shutdown()
             _drain_preload_queue()
 
         def _stop_window_worker(key: tuple[str, str, str, str]) -> None:
             worker_entry = transit_workers.get(key)
             if worker_entry is not None:
-                thread, _worker = worker_entry
+                thread, _worker, _relay = worker_entry
                 try:
                     thread.requestInterruption()
                     thread.quit()
                 except RuntimeError:
-                    transit_workers.pop(key, None)
+                    _drop_transit_worker_entry(key)
 
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
             debug_id = _new_debug_action_id("transit_window_ready")
@@ -5357,9 +5376,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 step_hours=scan_config.scan_step_hours,
                 precision_minutes=scan_config.scan_precision_minutes,
             )
+            relay = TransitAspectWindowRelay()
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
-            worker.finished.connect(
+            worker.finished.connect(relay.forward_ready, Qt.QueuedConnection)
+            worker.failed.connect(relay.forward_failed, Qt.QueuedConnection)
+            relay.ready.connect(
                 lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
                     (str(mode), str(a), str(b), str(c)),
                     start_dt,
@@ -5367,7 +5389,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     metadata,
                 )
             )
-            worker.failed.connect(
+            relay.failed.connect(
                 lambda a, b, c, error_text, mode=mode: _on_window_failed(
                     (str(mode), str(a), str(b), str(c)),
                     error_text,
@@ -5375,10 +5397,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             worker.finished.connect(thread.quit)
             worker.failed.connect(thread.quit)
+            thread.finished.connect(
+                relay.forward_worker_thread_finished,
+                Qt.QueuedConnection,
+            )
+            relay.worker_thread_finished.connect(
+                lambda key=key: _on_window_thread_finished(key)
+            )
+            thread.finished.connect(relay.deleteLater)
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
-            thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
-            transit_workers[key] = (thread, worker)
+            transit_workers[key] = (thread, worker, relay)
             thread.start()
 
         def _drain_preload_queue() -> None:
