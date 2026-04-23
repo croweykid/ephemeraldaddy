@@ -898,6 +898,13 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
+    build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
+    calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
+    connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
+    draw_enneagram_predictions as _draw_enneagram_predictions_chart,
+    tritype_text_for_scores as _tritype_text_for_scores,
+)
 
 
 class SegmentedTimeEdit(QLineEdit):
@@ -21308,6 +21315,15 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
+        elif title == "Enneagram":
+            info_panel.setPlaceholderText(
+                "Click an Enneagram bar to view type motivation and interpretation details."
+            )
+            _connect_enneagram_popout_pick_handler(
+                popout_canvas,
+                info_panel,
+                build_info_html=self._build_enneagram_popout_info,
+            )
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -21335,6 +21351,7 @@ class MainWindow(QMainWindow):
             "Signs": (8.5, 4.2),
             "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
+            "Enneagram": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Dominant Nakshatras": (9.0, 6.6),
@@ -21355,6 +21372,8 @@ class MainWindow(QMainWindow):
             self._draw_planet_tally(ax, chart)
         elif title == "Houses":
             self._draw_house_tally(ax, chart)
+        elif title == "Enneagram":
+            self._draw_enneagram_predictions(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
         elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
@@ -26353,6 +26372,8 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
+            self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
@@ -26560,66 +26581,41 @@ class MainWindow(QMainWindow):
         )
 
     def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
-        scores = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
-        sign_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
-        body_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
-        use_houses = _chart_uses_houses(chart)
-        house_weights = _calculate_dominant_house_weights(chart) if use_houses else {}
-
-        for enneagram_type, factors in ENNEAGRAM.items():
-            signs = {str(sign).strip() for sign in factors.get("signs", set()) if str(sign).strip()}
-            bodies = {str(body).strip() for body in factors.get("bodies", set()) if str(body).strip()}
-            houses = {
-                int(house_num)
-                for house_num in factors.get("houses", set())
-                if isinstance(house_num, int) and 1 <= int(house_num) <= 12
-            }
-
-            scores[enneagram_type] += sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
-            scores[enneagram_type] += sum(float(body_weights.get(body, 0.0)) for body in bodies)
-            if use_houses:
-                scores[enneagram_type] += sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
-
-        return scores
+        return _calculate_enneagram_type_weights(
+            chart,
+            enneagram=ENNEAGRAM,
+            calculate_sign_weights=_calculate_dominant_sign_weights,
+            calculate_body_weights=_calculate_dominant_planet_weights,
+            calculate_house_weights=_calculate_dominant_house_weights,
+            chart_uses_houses=_chart_uses_houses,
+        )
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
-        type_labels = [str(num) for num in range(1, 10)]
-        type_scores = self._calculate_enneagram_type_weights(chart)
-        values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
-        max_value = max(values) if values else 0.0
+        _draw_enneagram_predictions_chart(
+            ax,
+            chart=chart,
+            enneagram=ENNEAGRAM,
+            calculate_type_weights=self._calculate_enneagram_type_weights,
+            chart_theme_colors=CHART_THEME_COLORS,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+            standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
+        )
 
-        bars = ax.bar(type_labels, values, color="#6fa8dc")
-        self._apply_standard_ncv_bar_chart_axes(ax, type_labels)
-        ax.set_ylim(0, max(1.0, max_value + 1.0))
-        ax.set_anchor("W")
-        label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
-        for bar, type_label in zip(bars, type_labels, strict=True):
-            bar.set_gid(f"enneagram:{type_label}")
-            bar.set_picker(True)
-            score = bar.get_height()
-            ax.text(
-                bar.get_x() + (bar.get_width() / 2.0),
-                max(score, 0.0) + label_offset,
-                f"{score:.0f}",
-                ha="center",
-                va="bottom",
-                color=CHART_THEME_COLORS["text"],
-                fontsize=7.5,
-            )
-        for spine in ax.spines.values():
-            spine.set_color(CHART_THEME_COLORS["spine"])
-        ax.figure.tight_layout()
-        ax.figure.subplots_adjust(
-            left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
-            right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
+    def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
+        return _build_enneagram_popout_info_html(
+            enneagram_type,
+            enneagram=ENNEAGRAM,
+            chart_theme_colors=CHART_THEME_COLORS,
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
         )
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
+        tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
         if chart is None:
             self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
             self.enneagram_prediction_canvas = None
+            if tritype_label is not None:
+                tritype_label.setText("<b>Predicted Tritype:</b> —")
             return
         self._render_metric_panel(
             canvas_attr="enneagram_prediction_canvas",
@@ -26629,6 +26625,11 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_enneagram_predictions,
             chart=chart,
         )
+        if tritype_label is not None:
+            scores = self._calculate_enneagram_type_weights(chart)
+            tritype_label.setText(
+                f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
+            )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
