@@ -25,7 +25,7 @@ def create_human_design_synastry_dialog(
     dialog = QDialog(parent)
     dialog.setAttribute(Qt.WA_DeleteOnClose)
     dialog.setWindowTitle(f"🪷 Human Design Synastry: {chart_a.name} + {chart_b.name}")
-    dialog.setMinimumSize(600, 600)
+    dialog.setMinimumSize(400, 400)
 
     layout = QHBoxLayout(dialog)
     layout.setContentsMargins(12, 12, 12, 12)
