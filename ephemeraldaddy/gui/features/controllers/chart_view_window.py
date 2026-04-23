@@ -667,6 +667,11 @@ def build_chart_view_right_panel(
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
+    owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
+    owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
+    owner.enneagram_prediction_tritype_label.setWordWrap(True)
+    owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5;")
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
     predictions_layout.addStretch(1)
 
     chart_right_panel = build_chart_right_panel_stack(

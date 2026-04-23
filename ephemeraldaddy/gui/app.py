@@ -21308,6 +21308,26 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
+        elif title == "Enneagram":
+            info_panel.setPlaceholderText(
+                "Click an Enneagram bar to view type motivation and interpretation details."
+            )
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or ":" not in artist_gid:
+                    return
+                chart_key, raw_value = artist_gid.split(":", 1)
+                if chart_key != "enneagram":
+                    return
+                try:
+                    enneagram_type = int(raw_value)
+                except ValueError:
+                    return
+                info_panel.setHtml(self._build_enneagram_popout_info(enneagram_type))
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -21335,6 +21355,7 @@ class MainWindow(QMainWindow):
             "Signs": (8.5, 4.2),
             "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
+            "Enneagram": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Dominant Nakshatras": (9.0, 6.6),
@@ -21355,6 +21376,8 @@ class MainWindow(QMainWindow):
             self._draw_planet_tally(ax, chart)
         elif title == "Houses":
             self._draw_house_tally(ax, chart)
+        elif title == "Enneagram":
+            self._draw_enneagram_predictions(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
         elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
@@ -26353,6 +26376,8 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
+            self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
@@ -26588,7 +26613,11 @@ class MainWindow(QMainWindow):
         values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
         max_value = max(values) if values else 0.0
 
-        bars = ax.bar(type_labels, values, color="#6fa8dc")
+        enneagram_colors = [
+            str(ENNEAGRAM.get(num, {}).get("color", CHART_THEME_COLORS["highlight"]))
+            for num in range(1, 10)
+        ]
+        bars = ax.bar(type_labels, values, color=enneagram_colors)
         self._apply_standard_ncv_bar_chart_axes(ax, type_labels)
         ax.set_ylim(0, max(1.0, max_value + 1.0))
         ax.set_anchor("W")
@@ -26616,10 +26645,37 @@ class MainWindow(QMainWindow):
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
+    def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
+        type_data = ENNEAGRAM.get(int(enneagram_type), {})
+        type_color = str(type_data.get("color") or CHART_THEME_COLORS["text"]).strip() or CHART_THEME_COLORS["text"]
+        motivation = str(type_data.get("motivation", "No motivation data available.")).strip()
+        description = str(type_data.get("description", "No description data available.")).strip()
+        quotes = type_data.get("quotes", [])
+        quote_list = [str(quote).strip() for quote in quotes if str(quote).strip()]
+        selected_quote = random.choice(quote_list) if quote_list else "No quote available."
+
+        return (
+            f"<div style='font-size:18px;font-weight:700;color:{html.escape(type_color)};'>"
+            f"Enneagram Type {enneagram_type}"
+            "</div>"
+            f"<div style='margin-top:8px;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>"
+            "Motivation:"
+            f"</span> {html.escape(motivation)}</div>"
+            f"<div style='margin-top:8px;font-size:12px;color:{CHART_THEME_COLORS['text']};font-style:italic;'>"
+            f"{html.escape(selected_quote)}"
+            "</div>"
+            f"<div style='margin-top:8px;color:{CHART_THEME_COLORS['text']};'>"
+            f"{html.escape(description)}"
+            "</div>"
+        )
+
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
+        tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
         if chart is None:
             self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
             self.enneagram_prediction_canvas = None
+            if tritype_label is not None:
+                tritype_label.setText("<b>Predicted Tritype:</b> —")
             return
         self._render_metric_panel(
             canvas_attr="enneagram_prediction_canvas",
@@ -26629,6 +26685,16 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_enneagram_predictions,
             chart=chart,
         )
+        if tritype_label is not None:
+            scores = self._calculate_enneagram_type_weights(chart)
+            ranked_types = sorted(
+                range(1, 10),
+                key=lambda type_num: (float(scores.get(type_num, 0.0)), -type_num),
+                reverse=True,
+            )[:3]
+            tritype_label.setText(
+                f"<b>Predicted Tritype:</b> {'-'.join(str(type_num) for type_num in ranked_types)}"
+            )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
