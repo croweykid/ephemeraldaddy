@@ -51,13 +51,19 @@ def draw_enneagram_predictions(
     standard_chart_layout: dict[str, float],
 ) -> None:
     """Draw the Enneagram prediction bar chart on the provided Matplotlib axis."""
+    fallback_bar_color = str(
+        chart_theme_colors.get("accent", chart_theme_colors.get("text", "#f5f5f5"))
+    )
+    text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
+    spine_color = str(chart_theme_colors.get("spine", "#444444"))
+
     type_labels = [str(num) for num in range(1, 10)]
     type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
 
     enneagram_colors = [
-        str(enneagram.get(num, {}).get("color", chart_theme_colors["highlight"]))
+        str(enneagram.get(num, {}).get("color", fallback_bar_color))
         for num in range(1, 10)
     ]
     bars = ax.bar(type_labels, values, color=enneagram_colors)
@@ -75,11 +81,11 @@ def draw_enneagram_predictions(
             f"{score:.0f}",
             ha="center",
             va="bottom",
-            color=chart_theme_colors["text"],
+            color=text_color,
             fontsize=7.5,
         )
     for spine in ax.spines.values():
-        spine.set_color(chart_theme_colors["spine"])
+        spine.set_color(spine_color)
     ax.figure.tight_layout()
     ax.figure.subplots_adjust(
         left=standard_chart_layout["left"],
@@ -97,8 +103,9 @@ def build_enneagram_popout_info_html(
     highlight_color: str,
 ) -> str:
     """Build HTML for the Enneagram popout info panel selection."""
+    text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
     type_data = enneagram.get(int(enneagram_type), {})
-    type_color = str(type_data.get("color") or chart_theme_colors["text"]).strip() or chart_theme_colors["text"]
+    type_color = str(type_data.get("color") or text_color).strip() or text_color
     motivation = str(type_data.get("motivation", "No motivation data available.")).strip()
     description = str(type_data.get("description", "No description data available.")).strip()
     quotes = type_data.get("quotes", [])
@@ -112,10 +119,10 @@ def build_enneagram_popout_info_html(
         f"<div style='margin-top:8px;'><span style='font-weight:700;color:{highlight_color};'>"
         "Motivation:"
         f"</span> {html.escape(motivation)}</div>"
-        f"<div style='margin-top:8px;font-size:12px;color:{chart_theme_colors['text']};font-style:italic;'>"
+        f"<div style='margin-top:8px;font-size:12px;color:{text_color};font-style:italic;'>"
         f"{html.escape(selected_quote)}"
         "</div>"
-        f"<div style='margin-top:8px;color:{chart_theme_colors['text']};'>"
+        f"<div style='margin-top:8px;color:{text_color};'>"
         f"{html.escape(description)}"
         "</div>"
     )
