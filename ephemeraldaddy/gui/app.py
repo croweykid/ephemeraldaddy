@@ -646,6 +646,9 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_top_splitter,
 )
+from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
+    create_human_design_synastry_dialog,
+)
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     collect_anagram_words,
@@ -4234,9 +4237,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         default_first_chart_id: int | None = None,
         focus_second_input: bool = False,
+        dialog_title: str = "Generate Composite Chart",
+        submit_button_label: str = "Synastrize!",
+        disallow_placeholder_charts: bool = False,
     ) -> tuple[int, int] | None:
         dialog = QDialog(self)
-        dialog.setWindowTitle("Generate Composite Chart")
+        dialog.setWindowTitle(dialog_title)
         dialog.setModal(True)
 
         layout = QVBoxLayout(dialog)
@@ -4247,12 +4253,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         labels: list[str] = []
         for row in list_charts():
             chart_id, name, alias, *_rest = row
+            chart_id = int(chart_id)
+            if disallow_placeholder_charts and self._is_placeholder_chart_id(chart_id):
+                continue
             display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             if alias:
                 display_name = f"{display_name} ({alias})"
             label = f"{display_name}  [#{chart_id}]"
             labels.append(label)
-            chart_lookup[label] = int(chart_id)
+            chart_lookup[label] = chart_id
 
         first_chart_input = QLineEdit(dialog)
         first_chart_input.setPlaceholderText("Select first chart")
@@ -4281,7 +4290,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         second_chart_input.setCompleter(second_completer)
         layout.addWidget(second_chart_input)
 
-        synastrize_button = QPushButton("Synastrize!", dialog)
+        synastrize_button = QPushButton(submit_button_label, dialog)
         layout.addWidget(synastrize_button)
 
         selected_chart_ids: tuple[int, int] | None = None
@@ -4305,14 +4314,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if base_chart_id is None or overlay_chart_id is None:
                 QMessageBox.warning(
                     dialog,
-                    "Generate Composite Chart",
+                    dialog_title,
                     "Select two saved charts from autocomplete before generating.",
                 )
                 return
             if base_chart_id == overlay_chart_id:
                 QMessageBox.warning(
                     dialog,
-                    "Generate Composite Chart",
+                    dialog_title,
                     "Select two different charts.",
                 )
                 return
@@ -13543,6 +13552,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
+    def _on_menu_get_human_design_synastry_chart(self) -> None:
+        self._run_main_window_chart_action("get_human_design_synastry_chart")
+
     def _on_menu_open_chart_predictor_quiz(self) -> None:
         dialog = create_chart_predictor_quiz_dialog(self)
         self._register_popout_shortcuts(dialog)
@@ -22627,6 +22639,10 @@ class MainWindow(QMainWindow):
         action_name: str,
         requester: QWidget | None = None,
     ) -> None:
+        if action_name == "get_human_design_synastry_chart":
+            self.on_get_human_design_synastry_chart()
+            return
+
         chart, chart_id = self._resolve_chart_for_active_action(requester=requester)
         if chart is None:
             QMessageBox.information(self, "No chart selected", "Please select a chart first.")
@@ -27166,6 +27182,39 @@ class MainWindow(QMainWindow):
         if chart_ids is None:
             return
         manage_dialog._generate_composite_chart_for_ids(*chart_ids)
+
+    def on_get_human_design_synastry_chart(self) -> None:
+        manage_dialog = self._get_or_create_manage_charts_dialog()
+        default_first_chart_id = self.current_chart_id
+        if default_first_chart_id is not None and manage_dialog._is_placeholder_chart_id(default_first_chart_id):
+            default_first_chart_id = None
+        chart_ids = manage_dialog._prompt_composite_chart_selection(
+            default_first_chart_id=default_first_chart_id,
+            focus_second_input=True,
+            dialog_title="Human Design Synastry Chart",
+            submit_button_label="Open Human Design Synastry Chart",
+            disallow_placeholder_charts=True,
+        )
+        if chart_ids is None:
+            return
+        try:
+            first_chart = load_chart(chart_ids[0])
+            second_chart = load_chart(chart_ids[1])
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Human Design Synastry Chart",
+                f"Unable to load selected charts.\n\n{exc}",
+            )
+            return
+        dialog = create_human_design_synastry_dialog(
+            self,
+            first_chart,
+            second_chart,
+            chart_theme_colors=CHART_THEME_COLORS,
+        )
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
 
     def closeEvent(self, event) -> None:
         if not self._allow_app_exit_close:
