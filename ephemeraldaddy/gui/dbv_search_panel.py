@@ -518,13 +518,32 @@ def build_dbv_search_panel(window) -> "QWidget":
     mode_combo.addItem("Cardinal", "cardinal")
     mode_combo.addItem("Mutable", "mutable")
     mode_combo.addItem("Fixed", "fixed")
+    narrow_dropdown_for_not_option(mode_combo)
     mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
+    filter_and = QRadioButton("AND")
+    filter_or = QRadioButton("OR")
+    filter_not = QRadioButton("NOT")
+    filter_group = QButtonGroup(dominant_mode_row)
+    filter_group.setExclusive(True)
+    filter_group.addButton(filter_and)
+    filter_group.addButton(filter_or)
+    filter_group.addButton(filter_not)
+    filter_and.setChecked(True)
+    filter_group.buttonClicked.connect(window._on_filter_changed)
+
     dominant_mode_row_layout.addWidget(QLabel("⚙️"))
-    dominant_mode_row_layout.addWidget(mode_combo, 1)
+    dominant_mode_row_layout.addWidget(mode_combo)
+    dominant_mode_row_layout.addWidget(filter_and)
+    dominant_mode_row_layout.addWidget(filter_or)
+    dominant_mode_row_layout.addWidget(filter_not)
+    dominant_mode_row_layout.addStretch(1)
 
     window._dominant_mode_filters.append({
         "mode": mode_combo,
+        "and": filter_and,
+        "or": filter_or,
+        "not": filter_not,
     })
     dominant_mode_layout.addRow(dominant_mode_row)
 
@@ -600,26 +619,32 @@ def build_dbv_search_panel(window) -> "QWidget":
         element_combo.addItem("Any", "Any")
         for element in ("Fire", "Earth", "Air", "Water"):
             element_combo.addItem(element, element)
+        narrow_dropdown_for_not_option(element_combo)
         element_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         filter_and = QRadioButton("AND")
         filter_or = QRadioButton("OR")
+        filter_not = QRadioButton("NOT")
         filter_group = QButtonGroup(dominant_element_row)
         filter_group.setExclusive(True)
         filter_group.addButton(filter_and)
         filter_group.addButton(filter_or)
+        filter_group.addButton(filter_not)
         filter_and.setChecked(True)
         filter_group.buttonClicked.connect(window._on_filter_changed)
 
         dominant_element_row_layout.addWidget(QLabel("🧪"))
-        dominant_element_row_layout.addWidget(element_combo, 1)
+        dominant_element_row_layout.addWidget(element_combo)
         dominant_element_row_layout.addWidget(filter_and)
         dominant_element_row_layout.addWidget(filter_or)
+        dominant_element_row_layout.addWidget(filter_not)
+        dominant_element_row_layout.addStretch(1)
 
         window._dominant_element_filters.append({
             "element": element_combo,
             "and": filter_and,
             "or": filter_or,
+            "not": filter_not,
         })
         dominant_element_layout.addRow(dominant_element_row)
 
