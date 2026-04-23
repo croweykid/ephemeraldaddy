@@ -20,7 +20,6 @@ CHART_DATA_KEYS: dict[str, bool] = {
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
     "database_metrics_visibility.species_distribution": False,
     "database_metrics_visibility.bazi": False,
-    "database_metrics_visibility.enneagram": True,
 }
 
 DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
@@ -33,7 +32,6 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.dominant_signs": False,
     "database_metrics.subordinant_factors": False,
     "database_metrics.species_distribution": False,
-    "database_metrics.enneagram": False,
     "database_metrics.birth_time": False,
     "database_metrics.age": False,
     "database_metrics.birth_month": False,
