@@ -4232,7 +4232,7 @@ ENNEAGRAM = {
     3:{"signs":{"Leo","Capricorn","Libra"},"houses":{1,10},"bodies":{"Sun","Jupiter","Venus"},"nakshatras":{""},"positions":{},"aspects":{},},
     4:{"signs":{"Pisces","Aquarius","Scorpio"},"houses":{1},"bodies":{"Uranus"},"nakshatras":{""},"positions":{},"aspects":{},},
     5:{"signs":{"Gemini","Virgo","Aries","Taurus"},"houses":{3,9},"bodies":{"Mercury","Pluto"},"nakshatras":{""},"positions":{},"aspects":{},},
-    6:{"signs":{"Taurus","Libra"},"houses":{6,2,4},"bodies":{""},"nakshatras":{"Moon","Saturn"},"positions":{},"aspects":{},},
+    6:{"signs":{"Taurus","Libra"},"houses":{6,2,4},"bodies":{"Moon","Saturn"},"nakshatras":{},"positions":{},"aspects":{},},
     7:{"signs":{"Gemini","Sagittarius","Pisces"},"houses":{5},"bodies":{"Jupiter","Sun"},"nakshatras":{""},"positions":{},"aspects":{},},
     8:{"signs":{"Aries","Sagittarius","Leo","Scorpio"},"houses":{8},"bodies":{"Mars","Pluto"},"nakshatras":{""},"positions":{},"aspects":{},},
     9:{"signs":{"Pisces","Libra"},"houses":{12},"bodies":{"Neptune"},"nakshatras":{""},"positions":{},"aspects":{},},
