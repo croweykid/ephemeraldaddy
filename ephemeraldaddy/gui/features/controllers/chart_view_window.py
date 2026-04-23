@@ -6,8 +6,8 @@ import statistics
 from collections import Counter
 from typing import Callable
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont, QKeySequence, QLinearGradient, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -19,8 +19,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSlider,
     QStackedWidget,
     QSizePolicy,
+    QSpinBox,
+    QStyle,
+    QStyleOptionSlider,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -57,6 +61,202 @@ CHART_INFO_PANEL_CONTENT_ATTRS: dict[str, str] = {
     "biography": "biography_edit",
     "source": "source_edit",
 }
+
+
+class _SentimentEdgeSlider(QSlider):
+    """One-sided sentiment handle for chart-view relevance spectrum."""
+
+    committed = Signal()
+
+    def __init__(self, side: str, emoji: str, parent: QWidget | None = None) -> None:
+        super().__init__(Qt.Horizontal, parent)
+        self._side = side
+        self.setRange(-10, 10)
+        self.setSingleStep(1)
+        self.setPageStep(1)
+        self.setTickInterval(5)
+        self.setValue(1 if side == "positive" else -1)
+        self.setMinimumHeight(34)
+        self.setStyleSheet(
+            "QSlider::groove:horizontal {"
+            "height: 12px;"
+            "border-radius: 6px;"
+            "background: transparent;"
+            "}"
+            "QSlider::handle:horizontal {"
+            "background: transparent;"
+            "border: none;"
+            "width: 20px;"
+            "margin: -8px 0px;"
+            "}"
+        )
+        self._emoji_marker = QLabel(self)
+        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._emoji_marker.setAlignment(Qt.AlignCenter)
+        self._emoji_marker.setFixedSize(24, 24)
+        self._emoji_marker.setText(emoji)
+        self.valueChanged.connect(self._constrain_to_side)
+        self.valueChanged.connect(self._position_emoji_marker)
+        self.sliderReleased.connect(self.committed.emit)
+        self._position_emoji_marker()
+
+    def intensity(self) -> int:
+        return abs(int(self.value()))
+
+    def set_intensity(self, value: int) -> None:
+        normalized = max(1, min(10, int(value)))
+        signed_value = normalized if self._side == "positive" else -normalized
+        self.setValue(signed_value)
+
+    def _constrain_to_side(self, value: int) -> None:
+        constrained = value
+        if self._side == "positive" and value < 1:
+            constrained = 1
+        elif self._side == "negative" and value > -1:
+            constrained = -1
+        if constrained != value:
+            blocker = self.blockSignals(True)
+            self.setValue(constrained)
+            self.blockSignals(blocker)
+        self._position_emoji_marker()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._position_emoji_marker()
+
+    def _position_emoji_marker(self) -> None:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        handle_rect = self.style().subControlRect(
+            QStyle.CC_Slider,
+            opt,
+            QStyle.SC_SliderHandle,
+            self,
+        )
+        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
+        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
+        self._emoji_marker.move(x, y)
+
+
+class _SentimentIntensitySpectrum(QWidget):
+    """Dual-handle sentiment spectrum visualization for Chart View."""
+
+    valuesCommitted = Signal(int, int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMinimumHeight(52)
+        self._positive_slider = _SentimentEdgeSlider("positive", "💖", self)
+        self._negative_slider = _SentimentEdgeSlider("negative", "💔", self)
+        self._positive_slider.valueChanged.connect(self.update)
+        self._negative_slider.valueChanged.connect(self.update)
+        self._positive_slider.committed.connect(self._emit_committed_values)
+        self._negative_slider.committed.connect(self._emit_committed_values)
+
+    def positive_intensity(self) -> int:
+        return self._positive_slider.intensity()
+
+    def negative_intensity(self) -> int:
+        return self._negative_slider.intensity()
+
+    def set_values(self, positive_value: int, negative_value: int) -> None:
+        self._positive_slider.blockSignals(True)
+        self._negative_slider.blockSignals(True)
+        self._positive_slider.set_intensity(positive_value)
+        self._negative_slider.set_intensity(negative_value)
+        self._positive_slider.blockSignals(False)
+        self._negative_slider.blockSignals(False)
+        self.update()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._positive_slider.setGeometry(self.rect())
+        self._negative_slider.setGeometry(self.rect())
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        mid_y = self.height() // 2
+        groove_rect = self.rect().adjusted(10, mid_y - 6, -10, -(mid_y - 6))
+        gradient = QLinearGradient(groove_rect.topLeft(), groove_rect.topRight())
+        gradient.setColorAt(0.0, QColor("#c62828"))
+        gradient.setColorAt(0.5, QColor("#6f6f6f"))
+        gradient.setColorAt(1.0, QColor("#1565c0"))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(gradient)
+        painter.drawRoundedRect(groove_rect, 6, 6)
+        average_x = self._average_x_position()
+        painter.setPen(QColor("#ffd54f"))
+        painter.drawLine(average_x, groove_rect.top(), average_x, groove_rect.bottom())
+        painter.setPen(QColor("#ef9a9a"))
+        painter.drawText(groove_rect.left() - 2, groove_rect.top() - 4, "🤬")
+        painter.setPen(QColor("#90caf9"))
+        painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
+
+    def _average_x_position(self) -> int:
+        signed_positive = int(self._positive_slider.value())
+        signed_negative = int(self._negative_slider.value())
+        average_value = (signed_positive + signed_negative) / 2.0
+        groove_width = max(1, self.width() - 20)
+        normalized = (average_value - (-10.0)) / 20.0
+        x_value = 10 + int(round(normalized * groove_width))
+        return max(10, min(self.width() - 10, x_value))
+
+    def _emit_committed_values(self) -> None:
+        self.valuesCommitted.emit(self.positive_intensity(), self.negative_intensity())
+
+
+def _install_chart_view_sentiment_relevance_spectrum(owner: QWidget) -> None:
+    """Replace chart-view relevance sentiment spinbox rows with spectrum control."""
+    positive_spinbox = getattr(owner, "positive_sentiment_intensity_spin", None)
+    negative_spinbox = getattr(owner, "negative_sentiment_intensity_spin", None)
+    on_sentiment_changed = getattr(owner, "_on_sentiment_metric_changed", None)
+    if not isinstance(positive_spinbox, QSpinBox) or not isinstance(negative_spinbox, QSpinBox):
+        return
+    if not callable(on_sentiment_changed):
+        return
+
+    parent_widget = positive_spinbox.parentWidget()
+    if parent_widget is None:
+        return
+    grid_layout = parent_widget.layout()
+    if not isinstance(grid_layout, QGridLayout):
+        return
+    if hasattr(owner, "sentiment_intensity_spectrum"):
+        return
+
+    for row in (0, 1):
+        for col in (0, 1):
+            item = grid_layout.itemAtPosition(row, col)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.setVisible(False)
+
+    spectrum_label = QLabel("Sentiment Intensity Spectrum:")
+    spectrum = _SentimentIntensitySpectrum(parent_widget)
+    spectrum.setToolTip(
+        "Drag 💖 and 💔. Values save when you release a handle."
+    )
+    spectrum.set_values(positive_spinbox.value(), negative_spinbox.value())
+
+    def _sync_from_spinboxes(_value: int) -> None:
+        spectrum.set_values(positive_spinbox.value(), negative_spinbox.value())
+
+    def _commit_to_spinboxes(positive_value: int, negative_value: int) -> None:
+        positive_spinbox.setValue(int(positive_value))
+        negative_spinbox.setValue(int(negative_value))
+        on_sentiment_changed(0)
+
+    positive_spinbox.valueChanged.connect(_sync_from_spinboxes)
+    negative_spinbox.valueChanged.connect(_sync_from_spinboxes)
+    spectrum.valuesCommitted.connect(_commit_to_spinboxes)
+
+    owner.sentiment_intensity_spectrum = spectrum
+    grid_layout.addWidget(spectrum_label, 0, 0, 1, 2)
+    grid_layout.addWidget(spectrum, 1, 0, 1, 2)
 
 def format_unknown_positions_summary_html(
     chart: Chart | None,
@@ -612,6 +812,7 @@ def build_chart_view_right_panel(
     get_share_icon_path: Callable[[], str | None],
 ) -> None:
     """Build Chart View's right-side analytics/subjective notes stack."""
+    _install_chart_view_sentiment_relevance_spectrum(owner)
     _require_owner_attrs(
         owner,
         (

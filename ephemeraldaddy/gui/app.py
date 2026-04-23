@@ -171,7 +171,6 @@ from PySide6.QtGui import (
     QTextCharFormat,
     QTextCursor,
     QColor,
-    QLinearGradient,
     QPalette,
     QFont,
     QFontMetrics,
@@ -1184,159 +1183,6 @@ class AlignmentEmojiSlider(QSlider):
         x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
         y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
         self._emoji_marker.move(x, y)
-
-
-class SentimentEdgeSlider(QSlider):
-    """Constrained slider that can only live on one side of zero."""
-
-    committed = Signal()
-
-    def __init__(self, side: str, emoji: str, parent: QWidget | None = None) -> None:
-        super().__init__(Qt.Horizontal, parent)
-        self._side = side
-        self._emoji = emoji
-        self.setRange(-10, 10)
-        self.setSingleStep(1)
-        self.setPageStep(1)
-        self.setTickInterval(5)
-        self.setValue(1 if side == "positive" else -1)
-        self.setMinimumHeight(34)
-        self.setStyleSheet(
-            "QSlider::groove:horizontal {"
-            "height: 12px;"
-            "border-radius: 6px;"
-            "background: transparent;"
-            "}"
-            "QSlider::handle:horizontal {"
-            "background: transparent;"
-            "border: none;"
-            "width: 20px;"
-            "margin: -8px 0px;"
-            "}"
-        )
-        self._emoji_marker = QLabel(self)
-        self._emoji_marker.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._emoji_marker.setAlignment(Qt.AlignCenter)
-        self._emoji_marker.setFixedSize(24, 24)
-        self._emoji_marker.setText(self._emoji)
-        self.valueChanged.connect(self._enforce_side_constraint)
-        self.valueChanged.connect(self._position_emoji_marker)
-        self.sliderReleased.connect(self.committed.emit)
-        self._position_emoji_marker()
-
-    def intensity(self) -> int:
-        return abs(int(self.value()))
-
-    def set_intensity(self, value: int) -> None:
-        normalized = max(1, min(10, int(value)))
-        self.setValue(normalized if self._side == "positive" else -normalized)
-
-    def _enforce_side_constraint(self, value: int) -> None:
-        if self._side == "positive" and value < 1:
-            self.blockSignals(True)
-            self.setValue(1)
-            self.blockSignals(False)
-            value = 1
-        elif self._side == "negative" and value > -1:
-            self.blockSignals(True)
-            self.setValue(-1)
-            self.blockSignals(False)
-            value = -1
-        self._position_emoji_marker()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        self._position_emoji_marker()
-
-    def _position_emoji_marker(self) -> None:
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        handle_rect = self.style().subControlRect(
-            QStyle.CC_Slider,
-            opt,
-            QStyle.SC_SliderHandle,
-            self,
-        )
-        x = handle_rect.center().x() - (self._emoji_marker.width() // 2)
-        y = handle_rect.center().y() - (self._emoji_marker.height() // 2)
-        self._emoji_marker.move(x, y)
-
-
-class SentimentIntensitySpectrum(QWidget):
-    """Dual-handle sentiment intensity spectrum with averaged center marker."""
-
-    committed = Signal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setMinimumHeight(52)
-        self._positive_slider = SentimentEdgeSlider("positive", "💖", self)
-        self._negative_slider = SentimentEdgeSlider("negative", "💔", self)
-        self._positive_slider.valueChanged.connect(self.update)
-        self._negative_slider.valueChanged.connect(self.update)
-        self._positive_slider.committed.connect(self.committed.emit)
-        self._negative_slider.committed.connect(self.committed.emit)
-
-    def positive_intensity(self) -> int:
-        return self._positive_slider.intensity()
-
-    def negative_intensity(self) -> int:
-        return self._negative_slider.intensity()
-
-    def set_positive_intensity(self, value: int) -> None:
-        self._positive_slider.set_intensity(value)
-        self.update()
-
-    def set_negative_intensity(self, value: int) -> None:
-        self._negative_slider.set_intensity(value)
-        self.update()
-
-    def set_values(self, positive_value: int, negative_value: int) -> None:
-        self._positive_slider.blockSignals(True)
-        self._negative_slider.blockSignals(True)
-        self._positive_slider.set_intensity(positive_value)
-        self._negative_slider.set_intensity(negative_value)
-        self._positive_slider.blockSignals(False)
-        self._negative_slider.blockSignals(False)
-        self.update()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        rect = self.rect()
-        self._negative_slider.setGeometry(rect)
-        self._positive_slider.setGeometry(rect)
-
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        mid_y = self.height() // 2
-        groove_rect = self.rect().adjusted(10, mid_y - 6, -10, -(mid_y - 6))
-        gradient = QLinearGradient(groove_rect.topLeft(), groove_rect.topRight())
-        gradient.setColorAt(0.0, QColor("#c62828"))
-        gradient.setColorAt(0.5, QColor("#6f6f6f"))
-        gradient.setColorAt(1.0, QColor("#1565c0"))
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(gradient)
-        painter.drawRoundedRect(groove_rect, 6, 6)
-
-        average_x = self._average_x_position()
-        painter.setPen(QColor("#ffd54f"))
-        painter.drawLine(average_x, groove_rect.top(), average_x, groove_rect.bottom())
-
-        painter.setPen(QColor("#ef9a9a"))
-        painter.drawText(groove_rect.left() - 2, groove_rect.top() - 4, "🤬")
-        painter.setPen(QColor("#90caf9"))
-        painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
-
-    def _average_x_position(self) -> int:
-        positive_signed = int(self._positive_slider.value())
-        negative_signed = int(self._negative_slider.value())
-        average_value = (positive_signed + negative_signed) / 2.0
-        groove_width = max(1, self.width() - 20)
-        normalized = (average_value - (-10.0)) / 20.0
-        x_value = 10 + int(round(normalized * groove_width))
-        return max(10, min(self.width() - 10, x_value))
 
 
 SEARCH_SENTIMENT_OPTIONS = ["none", *SENTIMENT_OPTIONS]
@@ -19771,12 +19617,17 @@ class MainWindow(QMainWindow):
         relevance_content_widget.setVisible(True)
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
-        self.sentiment_intensity_spectrum = SentimentIntensitySpectrum()
-        self.sentiment_intensity_spectrum.setToolTip(
-            "Drag 💖 and 💔 handles; save is triggered when you release either slider."
+        self.positive_sentiment_intensity_spin = QSpinBox()
+        self.positive_sentiment_intensity_spin.setRange(1, 10)
+        self.positive_sentiment_intensity_spin.setValue(1)
+        self.positive_sentiment_intensity_spin.valueChanged.connect(
+            self._on_sentiment_metric_changed
         )
-        self.sentiment_intensity_spectrum.committed.connect(
-            lambda: self._on_sentiment_metric_changed(0)
+        self.negative_sentiment_intensity_spin = QSpinBox()
+        self.negative_sentiment_intensity_spin.setRange(1, 10)
+        self.negative_sentiment_intensity_spin.setValue(1)
+        self.negative_sentiment_intensity_spin.valueChanged.connect(
+            self._on_sentiment_metric_changed
         )
         self.familiarity_spin = QSpinBox()
         self.familiarity_spin.setRange(1, 10)
@@ -19788,22 +19639,32 @@ class MainWindow(QMainWindow):
         self.alignment_slider.valueChanged.connect(self._on_alignment_changed)
         self.alignment_score_label = QLabel()
         self._update_alignment_score_label(self.alignment_slider.value())
-        for spinbox in (self.familiarity_spin,):
+        for spinbox in (
+            self.positive_sentiment_intensity_spin,
+            self.negative_sentiment_intensity_spin,
+            self.familiarity_spin,
+        ):
             spinbox.setFixedWidth(max(53, spinbox.sizeHint().width()))
-
+        
         sentiment_metrics_layout.addWidget(
-            QLabel("Sentiment Intensity Spectrum:"),
+            QLabel("💖 Positive Sentiment Intensity:"),
             0,
             0,
-            1,
-            2,
         )
         sentiment_metrics_layout.addWidget(
-            self.sentiment_intensity_spectrum,
-            1,
+            self.positive_sentiment_intensity_spin,
             0,
             1,
-            2,
+        )
+        sentiment_metrics_layout.addWidget(
+            QLabel("💔 Negative Sentiment Intensity:"),
+            1,
+            0,
+        )
+        sentiment_metrics_layout.addWidget(
+            self.negative_sentiment_intensity_spin,
+            1,
+            1,
         )
         familiarity_label_widget = QWidget()
         familiarity_label_layout = QHBoxLayout()
@@ -19918,7 +19779,8 @@ class MainWindow(QMainWindow):
             self.retcon_time_edit,
             self.chart_tags_input,
             self.matched_expectations_spin,
-            self.sentiment_intensity_spectrum,
+            self.positive_sentiment_intensity_spin,
+            self.negative_sentiment_intensity_spin,
             self.familiarity_spin,
             self.alignment_slider,
             self.year_first_encountered_edit,
@@ -24177,7 +24039,8 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self.chart_tags_input.setText("")
-        self.sentiment_intensity_spectrum.set_values(1, 1)
+        self.positive_sentiment_intensity_spin.setValue(1)
+        self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
         self.matched_expectations_spin.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
@@ -24751,8 +24614,8 @@ class MainWindow(QMainWindow):
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
         placeholder.chart_data_source = self.source_edit.toPlainText().strip()
-        placeholder.positive_sentiment_intensity = self.sentiment_intensity_spectrum.positive_intensity()
-        placeholder.negative_sentiment_intensity = self.sentiment_intensity_spectrum.negative_intensity()
+        placeholder.positive_sentiment_intensity = self.positive_sentiment_intensity_spin.value()
+        placeholder.negative_sentiment_intensity = self.negative_sentiment_intensity_spin.value()
         placeholder.familiarity = self.familiarity_spin.value()
         placeholder.matched_expectations = self.matched_expectations_spin.value()
         placeholder.alignment_score = self.alignment_slider.value()
@@ -24903,9 +24766,9 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
-            chart.positive_sentiment_intensity = 1 if is_event_chart else self.sentiment_intensity_spectrum.positive_intensity()
+            chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
-            chart.negative_sentiment_intensity = 1 if is_event_chart else self.sentiment_intensity_spectrum.negative_intensity()
+            chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
@@ -25171,8 +25034,8 @@ class MainWindow(QMainWindow):
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
                 chart.chart_data_source = self.source_edit.toPlainText().strip()
-                chart.positive_sentiment_intensity = 1 if is_event_chart else self.sentiment_intensity_spectrum.positive_intensity()
-                chart.negative_sentiment_intensity = 1 if is_event_chart else self.sentiment_intensity_spectrum.negative_intensity()
+                chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
+                chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
                 chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_spin.value()
                 chart.alignment_score = (
@@ -25391,7 +25254,8 @@ class MainWindow(QMainWindow):
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
         self._update_time_input_text_colors()
-        self.sentiment_intensity_spectrum.set_values(1, 1)
+        self.positive_sentiment_intensity_spin.setValue(1)
+        self.negative_sentiment_intensity_spin.setValue(1)
         self.familiarity_spin.setValue(1)
         self.matched_expectations_spin.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
@@ -25682,9 +25546,11 @@ class MainWindow(QMainWindow):
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
-        self.sentiment_intensity_spectrum.set_values(
-            getattr(chart, "positive_sentiment_intensity", 1) or 1,
-            getattr(chart, "negative_sentiment_intensity", 1) or 1,
+        self.positive_sentiment_intensity_spin.setValue(
+            getattr(chart, "positive_sentiment_intensity", 1) or 1
+        )
+        self.negative_sentiment_intensity_spin.setValue(
+            getattr(chart, "negative_sentiment_intensity", 1) or 1
         )
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
