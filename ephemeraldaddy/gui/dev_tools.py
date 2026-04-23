@@ -553,6 +553,82 @@ class _MergeLabelsDialog(QDialog):
         return consolidate, into
 
 
+TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("Occupation", "occupation"),
+    ("Trait", "trait"),
+    ("Reputation", "reputation"),
+    ("Political/Group Affiliation or Subculture", "affiliation"),
+    ("Crime", "Crime"),
+)
+TAG_CATEGORY_PREFIXES = {prefix.casefold() for _name, prefix in TAG_CATEGORY_OPTIONS}
+
+
+def _split_tag_category(value: str) -> tuple[str, str]:
+    normalized = str(value or "").strip()
+    if "." not in normalized:
+        return "", normalized
+    prefix, tag_name = normalized.split(".", 1)
+    if prefix.casefold() not in TAG_CATEGORY_PREFIXES:
+        return "", normalized
+    return prefix, tag_name
+
+
+def _compose_tag_category(prefix: str, tag_name: str) -> str:
+    clean_tag = str(tag_name or "").strip()
+    clean_prefix = str(prefix or "").strip()
+    if not clean_tag:
+        return ""
+    if clean_prefix:
+        return f"{clean_prefix}.{clean_tag}"
+    return clean_tag
+
+
+class _TagCategoryDropList(QListWidget):
+    def __init__(self, parent: QWidget, on_drop_labels: Callable[[str, list[str]], None]) -> None:
+        super().__init__(parent)
+        self._on_drop_labels = on_drop_labels
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragEnabled(False)
+
+    def dragEnterEvent(self, event) -> None:  # type: ignore[override]
+        source = event.source()
+        if isinstance(source, QListWidget):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # type: ignore[override]
+        source = event.source()
+        if isinstance(source, QListWidget):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dropEvent(self, event) -> None:  # type: ignore[override]
+        target_item = self.itemAt(event.position().toPoint())
+        if target_item is None:
+            event.ignore()
+            return
+        source = event.source()
+        labels: list[str] = []
+        if isinstance(source, QListWidget):
+            for item in source.selectedItems():
+                label = str(item.data(Qt.UserRole + 2) or item.data(Qt.UserRole) or "").strip()
+                if label:
+                    labels.append(label)
+        labels = list(dict.fromkeys(labels))
+        if not labels:
+            event.ignore()
+            return
+        category_prefix = str(target_item.data(Qt.UserRole) or "").strip()
+        if category_prefix:
+            self._on_drop_labels(category_prefix, labels)
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+
 class ManageMetadataLabelsDialog(QDialog):
     FIELD_TAGS = "tags"
     FIELD_COLLECTIONS = "collections"
@@ -624,6 +700,21 @@ QComboBox QAbstractItemView {
         intro_label.setStyleSheet("font-style: italic;")
         layout.addWidget(intro_label)
 
+        self._tag_category_frame = QFrame(self)
+        tag_category_layout = QVBoxLayout(self._tag_category_frame)
+        tag_category_layout.setContentsMargins(0, 0, 0, 0)
+        tag_category_layout.setSpacing(4)
+        tag_category_layout.addWidget(QLabel("Tag Category"))
+        self._tag_category_list = _TagCategoryDropList(self, self._assign_tags_to_category)
+        self._tag_category_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._tag_category_list.setMaximumHeight(148)
+        for category_name, category_prefix in TAG_CATEGORY_OPTIONS:
+            item = QListWidgetItem(f"{category_name}  ({category_prefix}.*)")
+            item.setData(Qt.UserRole, category_prefix)
+            self._tag_category_list.addItem(item)
+        tag_category_layout.addWidget(self._tag_category_list)
+        layout.addWidget(self._tag_category_frame)
+
         sort_row = QHBoxLayout()
         sort_row.addStretch(1)
         sort_row.addWidget(QLabel("Sort:"))
@@ -638,6 +729,7 @@ QComboBox QAbstractItemView {
         split_layout = QHBoxLayout()
         self._list_widget = QListWidget(self)
         self._list_widget.setSelectionMode(QListWidget.ExtendedSelection)
+        self._list_widget.setDragEnabled(True)
         self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         split_layout.addWidget(self._list_widget, 2)
 
@@ -733,6 +825,7 @@ QComboBox QAbstractItemView {
         if not hasattr(self, "_merge_button"):
             return
         is_tags = self._active_field() == self.FIELD_TAGS
+        self._tag_category_frame.setVisible(is_tags)
         self._merge_button.setVisible(is_tags)
         self._merge_button.setEnabled(is_tags and len(self._active_rows()) >= 2)
         self._new_button.setVisible(is_collections)
@@ -769,9 +862,14 @@ QComboBox QAbstractItemView {
         for row in rows:
             label = str(row.get("label", "")).strip()
             count = int(row.get("count", 0) or 0)
-            item = QListWidgetItem(f"{label}  ({count} charts)")
-            item.setData(Qt.UserRole, label)
+            display_label = label
+            if self._active_field() == self.FIELD_TAGS:
+                _prefix, base_tag = _split_tag_category(label)
+                display_label = base_tag or label
+            item = QListWidgetItem(f"{display_label}  ({count} charts)")
+            item.setData(Qt.UserRole, display_label)
             item.setData(Qt.UserRole + 1, str(row.get("key", label)))
+            item.setData(Qt.UserRole + 2, label)
             red, green, blue = similarity_gradient_rgb_for_range(
                 count,
                 minimum_count,
@@ -788,7 +886,7 @@ QComboBox QAbstractItemView {
     def _selected_labels(self) -> list[str]:
         labels: list[str] = []
         for item in self._list_widget.selectedItems():
-            label = str(item.data(Qt.UserRole) or "").strip()
+            label = str(item.data(Qt.UserRole + 2) or item.data(Qt.UserRole) or "").strip()
             if label:
                 labels.append(label)
         return labels
@@ -798,6 +896,62 @@ QComboBox QAbstractItemView {
         if item is None:
             return ""
         return str(item.data(Qt.UserRole + 1) or "").strip()
+
+    def _assign_tags_to_category(self, category_prefix: str, labels: list[str]) -> None:
+        if self._active_field() != self.FIELD_TAGS:
+            return
+        cleaned_prefix = str(category_prefix or "").strip()
+        if not cleaned_prefix:
+            return
+        cleaned_labels = [str(label or "").strip() for label in labels if str(label or "").strip()]
+        if not cleaned_labels:
+            return
+
+        category_name = next(
+            (name for name, prefix in TAG_CATEGORY_OPTIONS if prefix == cleaned_prefix),
+            cleaned_prefix,
+        )
+        confirm = QMessageBox.question(
+            self,
+            "Assign tag category",
+            f"Add {len(cleaned_labels)} tags to '{category_name}' category?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        total_occurrences = 0
+        total_rows = 0
+        changed_count = 0
+        for index, label in enumerate(cleaned_labels):
+            _old_prefix, bare_tag = _split_tag_category(label)
+            updated_label = _compose_tag_category(cleaned_prefix, bare_tag)
+            if not bare_tag or updated_label == label:
+                continue
+            summary = self._apply_change(
+                field=self.FIELD_TAGS,
+                old_label=label,
+                new_label=updated_label,
+                create_backup=index == 0,
+            )
+            changed_count += 1
+            total_occurrences += int(summary.get("occurrences_updated", 0) or 0)
+            total_rows += int(summary.get("rows_updated", 0) or 0)
+        if changed_count == 0:
+            QMessageBox.information(
+                self,
+                "Assign tag category",
+                "No tag category changes were needed.",
+            )
+            return
+        QMessageBox.information(
+            self,
+            "Assign tag category",
+            f"Updated {changed_count} tags across {total_rows} chart(s), "
+            f"touching {total_occurrences} tag occurrence(s).",
+        )
+        self._reload_usage()
 
     def _row_for_key(self, key: str) -> dict[str, int | str] | None:
         for row in self._active_rows():
