@@ -587,27 +587,52 @@ class _TagCategoryDropList(QListWidget):
     def __init__(self, parent: QWidget, on_drop_labels: Callable[[str, list[str]], None]) -> None:
         super().__init__(parent)
         self._on_drop_labels = on_drop_labels
+        self._current_drop_target_row = -1
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
         self.setDragEnabled(False)
+
+    def _set_drop_target_item(self, target_item: QListWidgetItem | None) -> None:
+        target_row = self.row(target_item) if target_item is not None else -1
+        if target_row == self._current_drop_target_row:
+            return
+        self._current_drop_target_row = target_row
+        default_color = self.palette().text().color()
+        for index in range(self.count()):
+            item = self.item(index)
+            if item is None:
+                continue
+            item.setForeground(QColor("#9B59FF") if index == target_row else default_color)
+
+    def _clear_drop_target_highlight(self) -> None:
+        self._set_drop_target_item(None)
 
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
         source = event.source()
         if isinstance(source, QListWidget):
             event.acceptProposedAction()
             return
+        self._clear_drop_target_highlight()
         event.ignore()
 
     def dragMoveEvent(self, event) -> None:  # type: ignore[override]
         source = event.source()
         if isinstance(source, QListWidget):
+            self._set_drop_target_item(self.itemAt(event.position().toPoint()))
             event.acceptProposedAction()
             return
+        self._clear_drop_target_highlight()
         event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # type: ignore[override]
+        self._clear_drop_target_highlight()
+        super().dragLeaveEvent(event)
 
     def dropEvent(self, event) -> None:  # type: ignore[override]
         target_item = self.itemAt(event.position().toPoint())
+        self._set_drop_target_item(target_item)
         if target_item is None:
+            self._clear_drop_target_highlight()
             event.ignore()
             return
         source = event.source()
@@ -619,13 +644,16 @@ class _TagCategoryDropList(QListWidget):
                     labels.append(label)
         labels = list(dict.fromkeys(labels))
         if not labels:
+            self._clear_drop_target_highlight()
             event.ignore()
             return
         category_prefix = str(target_item.data(Qt.UserRole) or "").strip()
         if category_prefix:
             self._on_drop_labels(category_prefix, labels)
+            self._clear_drop_target_highlight()
             event.acceptProposedAction()
             return
+        self._clear_drop_target_highlight()
         event.ignore()
 
 
