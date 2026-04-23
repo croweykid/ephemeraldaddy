@@ -25,7 +25,7 @@ def create_human_design_synastry_dialog(
     dialog = QDialog(parent)
     dialog.setAttribute(Qt.WA_DeleteOnClose)
     dialog.setWindowTitle(f"🪷 Human Design Synastry: {chart_a.name} + {chart_b.name}")
-    dialog.setMinimumSize(900, 900)
+    dialog.setMinimumSize(600, 600)
 
     layout = QHBoxLayout(dialog)
     layout.setContentsMargins(12, 12, 12, 12)
@@ -47,9 +47,9 @@ def create_human_design_synastry_dialog(
         "\n".join(
             [
                 "🪷 Human Design Synastry",
-                f"Chart 1 (orange): {chart_a.name}",
-                f"Chart 2 (blue):    {chart_b.name}",
-                "Shared gates draw as striped segments.",
+                f"Orange: {chart_a.name}",
+                f"Blue:    {chart_b.name}",
+                "Shared gates are drawn as striped segments.",
             ]
         )
     )
