@@ -245,6 +245,19 @@ def _predictions_line_html(label: str, value_html: str) -> str:
     )
 
 
+def _set_widget_rich_or_plain_text(*, output_widget: Any, html_text: str, plain_text: str) -> None:
+    if hasattr(output_widget, "setHtml"):
+        output_widget.setHtml(html_text)
+        return
+    if hasattr(output_widget, "setTextFormat"):
+        output_widget.setTextFormat(Qt.RichText)
+    if hasattr(output_widget, "setText"):
+        output_widget.setText(html_text)
+        return
+    if hasattr(output_widget, "setPlainText"):
+        output_widget.setPlainText(plain_text)
+
+
 def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text: str, compared_chart: Any | None) -> tuple[str, str]:
     prediction_rows = [
         ("Social score", getattr(compared_chart, "social_score", None) if compared_chart is not None else None),
@@ -2267,23 +2280,16 @@ def build_predictions_panel_content(
 
     alignment_median_numeric = float(statistics.median(alignment_values))
     alignment_avg_numeric = float(statistics.fmean(alignment_values))
-    alignment_median_pos = max(0.0, min(100.0, ((alignment_median_numeric + 10.0) / 20.0) * 100.0))
-    alignment_avg_pos = max(0.0, min(100.0, ((alignment_avg_numeric + 10.0) / 20.0) * 100.0))
-    alignment_spectrum_html = (
-        "<div style='position:relative;margin-top:8px;height:16px;border-radius:8px;"
-        "background:linear-gradient(90deg,#8b0000 0%,#cf3a3a 38%,#777777 50%,#2f6cd6 62%,#0b3d91 100%);"
-        "border:1px solid rgba(245,245,245,0.35);'>"
-        f"<div style='position:absolute;left:{alignment_median_pos:.2f}%;top:-3px;width:2px;height:22px;"
-        "background:#f5f5f5;opacity:0.95;' title='Median'></div>"
-        f"<div style='position:absolute;left:{alignment_avg_pos:.2f}%;top:2px;width:8px;height:8px;"
-        "border-radius:50%;background:#f4d35e;border:1px solid #1a1a1a;' title='Average'></div>"
-        "</div>"
-        "<div style='margin-top:4px;color:#f5f5f5;font-size:10px;'>"
-        "Median marker: <span style='font-weight:600;'>|</span> &nbsp; Avg marker: "
-        "<span style='display:inline-block;width:8px;height:8px;border-radius:50%;"
-        "background:#f4d35e;border:1px solid #1a1a1a;vertical-align:middle;'></span>"
-        "</div>"
-    )
+
+    def _alignment_metric_row(label: str, numeric_value: float, display_value: str) -> str:
+        return _predictions_line_html(
+            label,
+            (
+                f"<span style='color:#f5f5f5'>{html.escape(display_value)}</span>"
+                f"{_alignment_spectrum_html(numeric_value)}"
+            ),
+        )
+
     alignment_skip_footnote_html = ""
     alignment_skip_footnote_text = ""
     if skipped_alignment_count > 0 and not default_alignment_to_zero_when_unassigned:
@@ -2297,19 +2303,33 @@ def build_predictions_panel_content(
 
     html_text = (
         f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>PREDICTIONS</div>"
-        "<div style='margin-top:8px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User's Positive Sentiment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {positive_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {positive_avg}<br><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User's Negative Sentiment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {negative_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {negative_avg}<br><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>User-Assessed Alignment Likelihood (based on similar charts):</span><br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By median:</span> {alignment_median}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>By avg:</span> {alignment_avg}"
-        f"{alignment_spectrum_html}"
-        f"{alignment_skip_footnote_html}"
-        "</div>"
+        + _predictions_line_html(
+            "User's Positive Sentiment Likelihood (based on similar charts) — median",
+            f"<span style='color:#f5f5f5'>{html.escape(positive_median)}</span>",
+        )
+        + _predictions_line_html(
+            "User's Positive Sentiment Likelihood (based on similar charts) — avg",
+            f"<span style='color:#f5f5f5'>{html.escape(positive_avg)}</span>",
+        )
+        + _predictions_line_html(
+            "User's Negative Sentiment Likelihood (based on similar charts) — median",
+            f"<span style='color:#f5f5f5'>{html.escape(negative_median)}</span>",
+        )
+        + _predictions_line_html(
+            "User's Negative Sentiment Likelihood (based on similar charts) — avg",
+            f"<span style='color:#f5f5f5'>{html.escape(negative_avg)}</span>",
+        )
+        + _alignment_metric_row(
+            "User-Assessed Alignment Likelihood (based on similar charts) — median",
+            alignment_median_numeric,
+            alignment_median,
+        )
+        + _alignment_metric_row(
+            "User-Assessed Alignment Likelihood (based on similar charts) — avg",
+            alignment_avg_numeric,
+            alignment_avg,
+        )
+        + alignment_skip_footnote_html
     )
     plain_text = (
         "PREDICTIONS\n\n"
@@ -2339,10 +2359,7 @@ def render_predictions_panel_content(
         load_chart_by_id=load_chart_by_id,
         default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
     )
-    if hasattr(output_widget, "setHtml"):
-        output_widget.setHtml(html_text)
-    else:
-        output_widget.setText(plain_text)
+    _set_widget_rich_or_plain_text(output_widget=output_widget, html_text=html_text, plain_text=plain_text)
 
 
 def build_similar_charts_popout_dialog(
@@ -2424,6 +2441,7 @@ def build_similar_charts_popout_dialog(
     info_layout.addWidget(analysis_dropdown, 0)
 
     info_output = QLabel("Click ⓘ next to a chart to view similarities analysis.")
+    info_output.setTextFormat(Qt.RichText)
     info_output.setWordWrap(True)
     info_output.setAlignment(Qt.AlignTop | Qt.AlignLeft)
     info_output.setTextInteractionFlags(Qt.TextBrowserInteraction)
