@@ -764,6 +764,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "sign_prevalence",
         "dominant_signs",
         "cumulativedom_factors",
+        "enneagram",
         "species_distribution",
         "birth_time",
         "age",
@@ -2393,6 +2394,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             "dominant_signs",
             "cumulativedom_factors",
+            "enneagram",
             "species_distribution",
             "birth_time",
             "age",
@@ -3004,6 +3006,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_visible["bazi"] = self._visibility.get(
             "database_metrics_visibility.bazi"
         )
+        self._database_metrics_section_visible["enneagram"] = self._visibility.get(
+            "database_metrics_visibility.enneagram"
+        )
 
     def _update_sort_button_label(self) -> None:
         mode = self._sort_mode
@@ -3468,6 +3473,39 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.matched_expectations_summary_chart_layout
         )
         predictability_section_layout.addWidget(self.matched_expectations_summary_chart_container)
+
+        enneagram_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🎭Enneagram",
+            section_key="enneagram",
+            expanded=self._is_database_metrics_section_expanded("enneagram"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "enneagram",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["enneagram"] = self._is_database_metrics_section_expanded("enneagram")
+        self._database_metrics_section_visible["enneagram"] = self._is_database_metrics_section_visible("enneagram")
+        self._create_analysis_chart_header(
+            enneagram_section_layout,
+            "🎭Enneagram",
+            "enneagram",
+            "enneagram",
+            show_title=False,
+        )
+        enneagram_subheader = add_database_subheader(
+            "Dominant Enneagram type distribution from chart-level predictions."
+        )
+        enneagram_section_layout.addWidget(enneagram_subheader)
+        (
+            self.enneagram_distribution_chart_container,
+            self.enneagram_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["enneagram"] = (
+            self.enneagram_distribution_chart_layout
+        )
+        enneagram_section_layout.addWidget(self.enneagram_distribution_chart_container)
 
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
@@ -8021,6 +8059,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             },
             "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
             "dnd_stat_count": 0,
+            "enneagram_totals": {enneagram_type: 0 for enneagram_type in range(1, 10)},
+            "enneagram_total_count": 0,
             "human_design_gate_totals": {gate: 0.0 for gate in range(1, 65)},
             "human_design_line_totals": {line: 0.0 for line in range(1, 7)},
             "human_design_channel_totals": {},
@@ -8070,6 +8110,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         compute_relationship_metrics = "relationship_prevalence" in sections
         compute_alignment_metrics = "alignment_summary" in sections
         compute_species_metrics = "species_distribution" in sections
+        compute_enneagram_metrics = "enneagram" in sections
         compute_human_design_metrics = "human_design" in sections
         compute_bazi_metrics = "bazi" in sections
         snapshot["loaded"] = 0
@@ -8301,6 +8342,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for stat_key in snapshot["dnd_stat_totals"]:
                     snapshot["dnd_stat_totals"][stat_key] += float(statblock.scores.get(stat_key, 0.0))
                 snapshot["dnd_stat_count"] += 1
+        if compute_enneagram_metrics:
+            type_scores = self._calculate_enneagram_type_weights(chart)
+            ranked_types = sorted(
+                (
+                    (int(enneagram_type), float(score))
+                    for enneagram_type, score in type_scores.items()
+                ),
+                key=lambda item: (-item[1], item[0]),
+            )
+            if ranked_types and ranked_types[0][1] > 0:
+                dominant_type = ranked_types[0][0]
+                if dominant_type in snapshot["enneagram_totals"]:
+                    snapshot["enneagram_totals"][dominant_type] += 1
+                    snapshot["enneagram_total_count"] += 1
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -8323,6 +8378,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
+        totals["enneagram_total_count"] += direction * int(snapshot.get("enneagram_total_count", 0))
         totals["human_design_gate_total_count"] += direction * float(
             snapshot.get("human_design_gate_total_count", 0.0)
         )
@@ -8423,6 +8479,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             stat_snapshot = snapshot.get("dnd_stat_totals", {})
             stat_value = stat_snapshot.get(stat_key, 0.0) if isinstance(stat_snapshot, dict) else 0.0
             totals["dnd_stat_totals"][stat_key] += direction * float(stat_value)
+        for enneagram_type in range(1, 10):
+            enneagram_snapshot = snapshot.get("enneagram_totals", {})
+            enneagram_value = (
+                enneagram_snapshot.get(enneagram_type, 0)
+                if isinstance(enneagram_snapshot, dict)
+                else 0
+            )
+            totals["enneagram_totals"][enneagram_type] += direction * int(enneagram_value)
         for gate in range(1, 65):
             gate_snapshot = snapshot.get("human_design_gate_totals", {})
             totals["human_design_gate_totals"][gate] += direction * float(
@@ -9826,6 +9890,57 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_counts=matched_expectations_database_counts,
                     loaded_charts=selected_chart_count,
                 )
+            )
+
+            enneagram_labels = [f"Type {enneagram_type}" for enneagram_type in range(1, 10)]
+            selection_enneagram_counts = {
+                f"Type {enneagram_type}": int(selection_cache["enneagram_totals"].get(enneagram_type, 0))
+                for enneagram_type in range(1, 10)
+            }
+            database_enneagram_counts = {
+                f"Type {enneagram_type}": int(database_cache["enneagram_totals"].get(enneagram_type, 0))
+                for enneagram_type in range(1, 10)
+            }
+            selection_enneagram_total = int(selection_cache.get("enneagram_total_count", 0))
+            database_enneagram_total = int(database_cache.get("enneagram_total_count", 0))
+            selection_enneagram_values = {
+                label: (
+                    float(selection_enneagram_counts[label]) / float(selection_enneagram_total)
+                    if selection_enneagram_total
+                    else 0.0
+                )
+                for label in enneagram_labels
+            }
+            database_enneagram_values = {
+                label: (
+                    float(database_enneagram_counts[label]) / float(database_enneagram_total)
+                    if database_enneagram_total
+                    else 0.0
+                )
+                for label in enneagram_labels
+            }
+            if _should_refresh_database_metric_section("enneagram"):
+                enneagram_canvas = self._build_dominant_planet_chart(
+                    selection_planets=selection_enneagram_values,
+                    database_planets=database_enneagram_values,
+                    selection_planet_counts=selection_enneagram_counts,
+                    database_planet_counts=database_enneagram_counts,
+                    loaded_charts=loaded_charts,
+                    labels=enneagram_labels,
+                    force_value_fallback_colors=True,
+                )
+                self._clear_layout(self.enneagram_distribution_chart_layout)
+                self.enneagram_distribution_chart_layout.addWidget(
+                    enneagram_canvas,
+                    0,
+                )
+            self._analysis_chart_export_rows["enneagram"] = self._build_analysis_export_rows(
+                labels=enneagram_labels,
+                selection_values=[selection_enneagram_values[label] for label in enneagram_labels],
+                database_values=[database_enneagram_values[label] for label in enneagram_labels],
+                selection_counts=[selection_enneagram_counts[label] for label in enneagram_labels],
+                database_counts=[database_enneagram_counts[label] for label in enneagram_labels],
+                loaded_charts=loaded_charts,
             )
 
             if _should_refresh_database_metric_section("planetary_sign_prevalence"):
