@@ -495,6 +495,7 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
+    ENNEAGRAM,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -19911,6 +19912,7 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
+        self.enneagram_prediction_canvas = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
@@ -22402,6 +22404,7 @@ class MainWindow(QMainWindow):
         self._position_info_map = position_info_map
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
+        self._render_enneagram_predictions(chart)
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -24177,24 +24180,32 @@ class MainWindow(QMainWindow):
             panel_key = "subjective_notes"
         if panel_key == "subjective_notes":
             panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
+        elif panel_key == "predictions":
+            panel_stack.setCurrentWidget(self.predictions_panel_scroll)
         else:
             panel_key = "analytics"
             panel_stack.setCurrentWidget(self.chart_analytics_panel_scroll)
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
+        self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
         if panel_key == "analytics" and self._latest_chart is not None:
             self._schedule_chart_render(self._latest_chart)
+        if panel_key == "predictions" and self._latest_chart is not None:
+            self._render_enneagram_predictions(self._latest_chart)
 
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
         analytics_button = getattr(self, "chart_analytics_panel_button", None)
-        if analytics_button is None:
+        predictions_button = getattr(self, "predictions_panel_button", None)
+        if analytics_button is None or predictions_button is None:
             return
         is_placeholder = bool(chart is not None and getattr(chart, "is_placeholder", False))
         is_saved_chart = bool(chart is not None and self.current_chart_id is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
         analytics_button.setVisible(analytics_available)
         analytics_button.setEnabled(analytics_available)
+        predictions_button.setVisible(analytics_available)
+        predictions_button.setEnabled(analytics_available)
         if not analytics_available:
             self._set_chart_right_panel("subjective_notes")
 
@@ -26310,6 +26321,7 @@ class MainWindow(QMainWindow):
             self.modal_distribution_container_layout,
             self.gender_guesser_container_layout,
             self.planet_dynamics_container_layout,
+            self.enneagram_prediction_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -26340,6 +26352,7 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
+        self.enneagram_prediction_canvas = None
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
@@ -26543,6 +26556,77 @@ class MainWindow(QMainWindow):
             figsize=(5.5, 3.4), #width & height of "Body Dynamics" graph
             title="Body Dynamics",
             draw_fn=self._draw_planet_dynamics,
+            chart=chart,
+        )
+
+    def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
+        scores = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
+        sign_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
+        body_weights = getattr(chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(chart)
+        use_houses = _chart_uses_houses(chart)
+        house_weights = _calculate_dominant_house_weights(chart) if use_houses else {}
+
+        for enneagram_type, factors in ENNEAGRAM.items():
+            signs = {str(sign).strip() for sign in factors.get("signs", set()) if str(sign).strip()}
+            bodies = {str(body).strip() for body in factors.get("bodies", set()) if str(body).strip()}
+            houses = {
+                int(house_num)
+                for house_num in factors.get("houses", set())
+                if isinstance(house_num, int) and 1 <= int(house_num) <= 12
+            }
+
+            scores[enneagram_type] += sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
+            scores[enneagram_type] += sum(float(body_weights.get(body, 0.0)) for body in bodies)
+            if use_houses:
+                scores[enneagram_type] += sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
+
+        return scores
+
+    def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
+        type_labels = [str(num) for num in range(1, 10)]
+        type_scores = self._calculate_enneagram_type_weights(chart)
+        values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
+        max_value = max(values) if values else 0.0
+
+        bars = ax.bar(type_labels, values, color="#6fa8dc")
+        self._apply_standard_ncv_bar_chart_axes(ax, type_labels)
+        ax.set_ylim(0, max(1.0, max_value + 1.0))
+        ax.set_anchor("W")
+        label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
+        for bar, type_label in zip(bars, type_labels, strict=True):
+            bar.set_gid(f"enneagram:{type_label}")
+            bar.set_picker(True)
+            score = bar.get_height()
+            ax.text(
+                bar.get_x() + (bar.get_width() / 2.0),
+                max(score, 0.0) + label_offset,
+                f"{score:.0f}",
+                ha="center",
+                va="bottom",
+                color=CHART_THEME_COLORS["text"],
+                fontsize=7.5,
+            )
+        for spine in ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        ax.figure.tight_layout()
+        ax.figure.subplots_adjust(
+            left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
+            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
+        )
+
+    def _render_enneagram_predictions(self, chart: Chart | None) -> None:
+        if chart is None:
+            self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
+            self.enneagram_prediction_canvas = None
+            return
+        self._render_metric_panel(
+            canvas_attr="enneagram_prediction_canvas",
+            container_layout=self.enneagram_prediction_chart_layout,
+            figsize=(5.5, 3.2),
+            title="Enneagram",
+            draw_fn=self._draw_enneagram_predictions,
             chart=chart,
         )
 

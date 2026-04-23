@@ -32,6 +32,7 @@ DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "help_overlay_toggle": "Help",
     "chart_view_toggle_subjective_notes_panel_button": "Subjective Notes panel",
     "chart_view_toggle_analytics_panel_button": "Chart Analysis panel",
+    "chart_view_toggle_predictions_panel_button": "Predictions panel",
 }
 
 # IMPORTANT: these are intentionally exact-string mappings so tooltip behavior
@@ -126,4 +127,3 @@ def apply_default_text_tooltips(
         if override_text:
             widget.setToolTip(override_text)
             continue
-
