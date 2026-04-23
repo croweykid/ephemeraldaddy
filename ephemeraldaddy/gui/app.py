@@ -14517,10 +14517,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_sign_filters:
                 filters["sign"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
+                if "not" in filters and filters["not"] is not None:
+                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_planet_filters:
                 filters["planet"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
+                if "not" in filters and filters["not"] is not None:
+                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
@@ -14531,6 +14535,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_nakshatra_filters:
                 filters["nakshatra"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
+                if "not" in filters and filters["not"] is not None:
+                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             if self._year_first_encountered_earliest_input is not None:
                 self._year_first_encountered_earliest_input.setText("")
@@ -16751,6 +16757,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters for filters in active_dominant_sign_filters
                 if filters["or"].isChecked()
             ]
+            dominant_not_filters = [
+                filters for filters in active_dominant_sign_filters
+                if "not" in filters and filters["not"].isChecked()
+            ]
             for filters in dominant_and_filters:
                 if not self._chart_dominant_sign_matches(
                     chart,
@@ -16764,6 +16774,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         filters["sign"].currentText(),
                     )
                     for filters in dominant_or_filters
+                ):
+                    return False
+            for filters in dominant_not_filters:
+                if self._chart_dominant_sign_matches(
+                    chart,
+                    filters["sign"].currentText(),
                 ):
                     return False
         if active_dominant_mode_filters:
@@ -16783,6 +16799,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters for filters in active_dominant_planet_filters
                 if filters["or"].isChecked()
             ]
+            dominant_planet_not_filters = [
+                filters for filters in active_dominant_planet_filters
+                if "not" in filters and filters["not"].isChecked()
+            ]
             for filters in dominant_planet_and_filters:
                 if not self._chart_dominant_planet_matches(
                     chart,
@@ -16798,6 +16818,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for filters in dominant_planet_or_filters
                 ):
                     return False
+            for filters in dominant_planet_not_filters:
+                if self._chart_dominant_planet_matches(
+                    chart,
+                    str(filters["planet"].currentData()),
+                ):
+                    return False
 
         if active_dominant_nakshatra_filters:
             dominant_nakshatra_and_filters = [
@@ -16807,6 +16833,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dominant_nakshatra_or_filters = [
                 filters for filters in active_dominant_nakshatra_filters
                 if filters["or"].isChecked()
+            ]
+            dominant_nakshatra_not_filters = [
+                filters for filters in active_dominant_nakshatra_filters
+                if "not" in filters and filters["not"].isChecked()
             ]
             for filters in dominant_nakshatra_and_filters:
                 if not self._chart_dominant_nakshatra_matches(
@@ -16821,6 +16851,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         str(filters["nakshatra"].currentData()),
                     )
                     for filters in dominant_nakshatra_or_filters
+                ):
+                    return False
+            for filters in dominant_nakshatra_not_filters:
+                if self._chart_dominant_nakshatra_matches(
+                    chart,
+                    str(filters["nakshatra"].currentData()),
                 ):
                     return False
 
