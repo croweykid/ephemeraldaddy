@@ -4227,15 +4227,15 @@ SOCIAL_ROLE = [
 ENNEAGRAM = {
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
-    1:{"signs":{"Virgo","Capricorn"},"houses":{10},"bodies":{"Saturn","Venus"},"nakshatras":{"Purva Ashadha","Mrigashira","Mula"},"positions":{},"aspects":{},},
-    2:{"signs":{"Cancer","Pisces"},"houses":{7,12,4},"bodies":{"Moon"},"nakshatras":{"Dhanishta","Punarvasu"},"positions":{},"aspects":{},},
-    3:{"signs":{"Leo","Capricorn","Libra"},"houses":{1,10},"bodies":{"Sun","Jupiter","Venus"},"nakshatras":{"Jyestha","Ashlesha","Magha"},"positions":{},"aspects":{},},
-    4:{"signs":{"Pisces","Aquarius","Scorpio"},"houses":{1},"bodies":{"Uranus"},"nakshatras":{"Ardra","Purva Bhadrapada"},"positions":{},"aspects":{},},
-    5:{"signs":{"Gemini","Virgo","Aries"},"houses":{3,9},"bodies":{"Mercury","Pluto"},"nakshatras":{"Anuradha","Shatabhisha"},"positions":{},"aspects":{},},
-    6:{"signs":{"Taurus","Libra","Cancer"},"houses":{6,2,4},"bodies":{"Moon","Saturn"},"nakshatras":{"Uttara Ashadha","Chitra"},"positions":{},"aspects":{},},
-    7:{"signs":{"Gemini","Sagittarius","Pisces"},"houses":{5},"bodies":{"Jupiter","Sun"},"nakshatras":{"Rohini",""},"positions":{},"aspects":{},},
-    8:{"signs":{"Aries","Sagittarius","Leo"},"houses":{8},"bodies":{"Mars","Pluto"},"nakshatras":{"Jyestha","Purva Bhadrapada"},"positions":{},"aspects":{},},
-    9:{"signs":{"Pisces","Libra","Scorpio"},"houses":{12},"bodies":{"Neptune"},"nakshatras":{"Dhanishta"},"positions":{},"aspects":{},},
+    1:{"signs":{"Virgo","Capricorn"},"houses":{10},"bodies":{"Saturn","Venus"},"nakshatras":{"Purva Ashadha","Mrigashira","Mula"},"positions":{},"aspects":{},"color":"#f5f5f5",},
+    2:{"signs":{"Cancer","Pisces"},"houses":{7,12,4},"bodies":{"Moon"},"nakshatras":{"Dhanishta","Punarvasu"},"positions":{},"aspects":{},"color":"#cc9900",},
+    3:{"signs":{"Leo","Capricorn","Libra"},"houses":{1,10},"bodies":{"Sun","Jupiter","Venus"},"nakshatras":{"Jyestha","Ashlesha","Magha"},"positions":{},"aspects":{},"color":"#ffff00",},
+    4:{"signs":{"Pisces","Aquarius","Scorpio"},"houses":{1},"bodies":{"Uranus"},"nakshatras":{"Ardra","Purva Bhadrapada"},"positions":{},"aspects":{},"color":"#cc66ff",},
+    5:{"signs":{"Gemini","Virgo","Aries"},"houses":{3,9},"bodies":{"Mercury","Pluto"},"nakshatras":{"Anuradha","Shatabhisha"},"positions":{},"aspects":{},"color":"#669900",},
+    6:{"signs":{"Taurus","Libra","Cancer"},"houses":{6,2,4},"bodies":{"Moon","Saturn"},"nakshatras":{"Uttara Ashadha","Chitra"},"positions":{},"aspects":{},"color":"#0099cc",},
+    7:{"signs":{"Gemini","Sagittarius","Pisces"},"houses":{5},"bodies":{"Jupiter","Sun"},"nakshatras":{"Rohini",""},"positions":{},"aspects":{},"color":"#ff33cc",},
+    8:{"signs":{"Aries","Sagittarius","Leo"},"houses":{8},"bodies":{"Mars","Pluto"},"nakshatras":{"Jyestha","Purva Bhadrapada"},"positions":{},"aspects":{},"color":"#ff0000",},
+    9:{"signs":{"Pisces","Libra","Scorpio"},"houses":{12},"bodies":{"Neptune"},"nakshatras":{"Dhanishta"},"positions":{},"aspects":{},"color":"#cc99ff",},
 }
 
 MBTI_ELEMENTS = [
