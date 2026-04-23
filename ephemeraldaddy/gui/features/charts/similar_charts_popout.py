@@ -177,8 +177,6 @@ _SIGN_SEQUENCE: tuple[str, ...] = (
 )
 _DOMINANCE_BODIES: tuple[str, ...] = tuple(body for body in CORE_BODIES if body not in {"AS", "IC", "DS", "MC"})
 
-
-<<<<<<< Updated upstream
 def _format_prediction_metric_value(value: object) -> str:
     if value is None:
         return "blank"
@@ -288,8 +286,6 @@ def build_similar_chart_bio_panel_content(*, compared_name: str, biography_text:
     return html_text, plain_text
 
 
-=======
->>>>>>> Stashed changes
 def build_similar_charts_export_rows_from_matches(
     *,
     matches: list[Any],
