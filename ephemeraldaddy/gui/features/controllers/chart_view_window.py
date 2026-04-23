@@ -6,7 +6,7 @@ import statistics
 from collections import Counter
 from typing import Callable
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence, QLinearGradient, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -71,11 +71,11 @@ class _SentimentEdgeSlider(QSlider):
     def __init__(self, side: str, emoji: str, parent: QWidget | None = None) -> None:
         super().__init__(Qt.Horizontal, parent)
         self._side = side
-        self.setRange(-10, 10)
+        self.setRange(1, 10)
         self.setSingleStep(1)
         self.setPageStep(1)
         self.setTickInterval(5)
-        self.setValue(1 if side == "positive" else -1)
+        self.setValue(1)
         self.setMinimumHeight(34)
         self.setStyleSheet(
             "QSlider::groove:horizontal {"
@@ -95,30 +95,16 @@ class _SentimentEdgeSlider(QSlider):
         self._emoji_marker.setAlignment(Qt.AlignCenter)
         self._emoji_marker.setFixedSize(24, 24)
         self._emoji_marker.setText(emoji)
-        self.valueChanged.connect(self._constrain_to_side)
         self.valueChanged.connect(self._position_emoji_marker)
         self.sliderReleased.connect(self.committed.emit)
         self._position_emoji_marker()
 
     def intensity(self) -> int:
-        return abs(int(self.value()))
+        return int(self.value())
 
     def set_intensity(self, value: int) -> None:
         normalized = max(1, min(10, int(value)))
-        signed_value = normalized if self._side == "positive" else -normalized
-        self.setValue(signed_value)
-
-    def _constrain_to_side(self, value: int) -> None:
-        constrained = value
-        if self._side == "positive" and value < 1:
-            constrained = 1
-        elif self._side == "negative" and value > -1:
-            constrained = -1
-        if constrained != value:
-            blocker = self.blockSignals(True)
-            self.setValue(constrained)
-            self.blockSignals(blocker)
-        self._position_emoji_marker()
+        self.setValue(normalized)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -170,8 +156,11 @@ class _SentimentIntensitySpectrum(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._positive_slider.setGeometry(self.rect())
-        self._negative_slider.setGeometry(self.rect())
+        half_width = max(1, self.width() // 2)
+        self._negative_slider.setGeometry(QRect(0, 0, half_width, self.height()))
+        self._positive_slider.setGeometry(
+            QRect(half_width, 0, max(1, self.width() - half_width), self.height())
+        )
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
@@ -195,8 +184,8 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
 
     def _average_x_position(self) -> int:
-        signed_positive = int(self._positive_slider.value())
-        signed_negative = int(self._negative_slider.value())
+        signed_positive = self._positive_slider.intensity()
+        signed_negative = -self._negative_slider.intensity()
         average_value = (signed_positive + signed_negative) / 2.0
         groove_width = max(1, self.width() - 20)
         normalized = (average_value - (-10.0)) / 20.0
