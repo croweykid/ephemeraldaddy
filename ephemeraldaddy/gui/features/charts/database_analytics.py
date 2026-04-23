@@ -2437,6 +2437,112 @@ class DatabaseAnalyticsChartsMixin:
             "us_state_counts": dict(us_state_counts),
         }
 
+    def _create_enneagram_database_analytics_section(self, panel: Any, layout: Any) -> None:
+        enneagram_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🎭Enneagram",
+            section_key="enneagram",
+            expanded=self._is_database_metrics_section_expanded("enneagram"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "enneagram",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["enneagram"] = self._is_database_metrics_section_expanded("enneagram")
+        self._database_metrics_section_visible["enneagram"] = self._is_database_metrics_section_visible("enneagram")
+        self._create_analysis_chart_header(
+            enneagram_section_layout,
+            "🎭Enneagram",
+            "enneagram",
+            "enneagram",
+            show_title=False,
+        )
+        enneagram_subheader = self._build_database_subheader_label(
+            "Dominant Enneagram type distribution from chart-level predictions."
+        )
+        enneagram_section_layout.addWidget(enneagram_subheader)
+        (
+            self.enneagram_distribution_chart_container,
+            self.enneagram_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["enneagram"] = self.enneagram_distribution_chart_layout
+        enneagram_section_layout.addWidget(self.enneagram_distribution_chart_container)
+
+    def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
+        type_scores = self._calculate_enneagram_type_weights(chart)
+        ranked_types = sorted(
+            (
+                (int(enneagram_type), float(score))
+                for enneagram_type, score in type_scores.items()
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )
+        if ranked_types and ranked_types[0][1] > 0:
+            dominant_type = ranked_types[0][0]
+            if dominant_type in snapshot["enneagram_totals"]:
+                snapshot["enneagram_totals"][dominant_type] += 1
+                snapshot["enneagram_total_count"] += 1
+
+    def _render_enneagram_database_analytics(
+        self,
+        *,
+        selection_cache: dict[str, Any],
+        database_cache: dict[str, Any],
+        loaded_charts: int,
+        should_refresh: Callable[[str], bool],
+    ) -> None:
+        enneagram_labels = [f"Type {enneagram_type}" for enneagram_type in range(1, 10)]
+        selection_enneagram_counts = {
+            f"Type {enneagram_type}": int(selection_cache["enneagram_totals"].get(enneagram_type, 0))
+            for enneagram_type in range(1, 10)
+        }
+        database_enneagram_counts = {
+            f"Type {enneagram_type}": int(database_cache["enneagram_totals"].get(enneagram_type, 0))
+            for enneagram_type in range(1, 10)
+        }
+        selection_enneagram_total = int(selection_cache.get("enneagram_total_count", 0))
+        database_enneagram_total = int(database_cache.get("enneagram_total_count", 0))
+        selection_enneagram_values = {
+            label: (
+                float(selection_enneagram_counts[label]) / float(selection_enneagram_total)
+                if selection_enneagram_total
+                else 0.0
+            )
+            for label in enneagram_labels
+        }
+        database_enneagram_values = {
+            label: (
+                float(database_enneagram_counts[label]) / float(database_enneagram_total)
+                if database_enneagram_total
+                else 0.0
+            )
+            for label in enneagram_labels
+        }
+        if should_refresh("enneagram"):
+            enneagram_canvas = self._build_dominant_planet_chart(
+                selection_planets=selection_enneagram_values,
+                database_planets=database_enneagram_values,
+                selection_planet_counts=selection_enneagram_counts,
+                database_planet_counts=database_enneagram_counts,
+                loaded_charts=loaded_charts,
+                labels=enneagram_labels,
+                force_value_fallback_colors=True,
+            )
+            self._clear_layout(self.enneagram_distribution_chart_layout)
+            self.enneagram_distribution_chart_layout.addWidget(
+                enneagram_canvas,
+                0,
+            )
+        self._analysis_chart_export_rows["enneagram"] = self._build_analysis_export_rows(
+            labels=enneagram_labels,
+            selection_values=[selection_enneagram_values[label] for label in enneagram_labels],
+            database_values=[database_enneagram_values[label] for label in enneagram_labels],
+            selection_counts=[selection_enneagram_counts[label] for label in enneagram_labels],
+            database_counts=[database_enneagram_counts[label] for label in enneagram_labels],
+            loaded_charts=loaded_charts,
+        )
+
     def _create_bazi_database_analytics_section(self, panel: Any, layout: Any) -> None:
         bazi_section_layout = self._add_left_panel_collapsible_section(
             panel,
