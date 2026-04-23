@@ -647,7 +647,10 @@ from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_top_splitter,
 )
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
-    create_human_design_synastry_dialog,
+    SYNASTRY_PRIMARY_COLOR,
+    SYNASTRY_SECONDARY_COLOR,
+    build_combined_human_design_result,
+    build_synastry_chart_data_output,
 )
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
@@ -27199,12 +27202,226 @@ class MainWindow(QMainWindow):
                 f"Unable to load selected charts.\n\n{exc}",
             )
             return
-        dialog = create_human_design_synastry_dialog(
-            self,
+        combined_result, first_gate_set, second_gate_set, combined_crosses = build_combined_human_design_result(
             first_chart,
             second_chart,
-            chart_theme_colors=CHART_THEME_COLORS,
         )
+        awareness_stream_entries = build_awareness_stream_completion(set(combined_result.active_gates))
+        circuit_entries = build_circuit_group_completion(set(combined_result.active_gates))
+
+        dialog = QDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowTitle(f"🪷 Human Design Synastry: {first_chart.name} + {second_chart.name}")
+        dialog.setMinimumSize(600, 600)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        dialog.setLayout(layout)
+
+        chart_info_output = self._build_popout_left_panel(
+            layout,
+            chart_info_placeholder="Click a center, gate, line, or channel to see details here.",
+            aspect_entries=[],
+            export_file_stem=(
+                f"{_sanitize_export_token(first_chart.name)}_x_{_sanitize_export_token(second_chart.name)}-hd_synastry"
+            ),
+            weighted_score_for_entry=lambda _entry: 0.0,
+            show_aspect_distribution=False,
+            awareness_stream_entries=awareness_stream_entries,
+            circuit_entries=circuit_entries,
+        )
+
+        right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+        layout.addLayout(right_layout, 3)
+
+        header_label = QLabel(
+            "\n".join(
+                [
+                    "🪷 Human Design Synastry",
+                    f"Chart 1 (orange): {first_chart.name}",
+                    f"Chart 2 (blue):    {second_chart.name}",
+                    "Shared gates draw as striped segments.",
+                ]
+            )
+        )
+        header_label.setStyleSheet(f"{CHART_DATA_POPOUT_HEADER_STYLE} background: transparent;")
+        header_font = header_label.font()
+        header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
+        header_font.setBold(True)
+        if header_font.pointSizeF() > 0:
+            header_font.setPointSizeF(max(1.0, header_font.pointSizeF() * 0.65))
+        header_label.setFont(header_font)
+
+        figure = Figure(figsize=(7.9, 10.9))
+        canvas = FigureCanvas(figure)
+        draw_human_design_chart(
+            figure,
+            combined_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            personality_gate_set_override=first_gate_set,
+            design_gate_set_override=second_gate_set,
+            personality_active_color=SYNASTRY_PRIMARY_COLOR,
+            design_active_color=SYNASTRY_SECONDARY_COLOR,
+        )
+
+        center_reference_by_name = {
+            str(center_data.get("center", "")).strip(): center_data
+            for center_data in HD_CENTERS.values()
+            if str(center_data.get("center", "")).strip()
+        }
+
+        def _show_center_info(center_name: str) -> None:
+            center_meta = center_reference_by_name.get(center_name, {})
+            description = str(center_meta.get("description", "No center description available.")).strip()
+            is_defined = center_name in combined_result.defined_centers
+            state_label = "Defined" if is_defined else "Undefined"
+            state_detail_key = "defined" if is_defined else "undefined"
+            state_detail = str(center_meta.get(state_detail_key, "No details available.")).strip()
+            chart_info_output.setPlainText("\n".join([center_name, description, "", state_label, state_detail]))
+
+        def _show_popout_gate_info(gate: int) -> None:
+            self._run_with_chart_info_output(
+                chart_info_output,
+                lambda: self._show_human_design_gate_line_info(int(gate), None),
+            )
+
+        def _on_bodygraph_click(event: Any) -> None:
+            if event.inaxes is None or event.xdata is None or event.ydata is None:
+                return
+            if not figure.axes or event.inaxes is not figure.axes[0]:
+                return
+            for line in event.inaxes.lines:
+                gate_segment_id = str(getattr(line, "get_gid", lambda: "")() or "")
+                if not gate_segment_id.startswith("gate-segment:"):
+                    continue
+                contains, _info = line.contains(event)
+                if not contains:
+                    continue
+                gate_text = gate_segment_id.split(":", 1)[1]
+                if gate_text.isdigit():
+                    _show_popout_gate_info(int(gate_text))
+                    return
+            click_x = float(event.xdata)
+            click_y = float(event.ydata)
+            for center_name, (center_x, center_y) in CENTER_POSITIONS.items():
+                center_y += BODYGRAPH_VERTICAL_OFFSET
+                if (
+                    abs(click_x - center_x) <= CENTER_HALF_WIDTH
+                    and abs(click_y - center_y) <= CENTER_HALF_HEIGHT
+                ):
+                    _show_center_info(center_name)
+                    return
+
+        canvas.mpl_connect("button_press_event", _on_bodygraph_click)
+
+        hovered_gate_text: str | None = None
+
+        def _on_bodygraph_hover(event: Any) -> None:
+            nonlocal hovered_gate_text
+            if event.inaxes is None or event.x is None or event.y is None:
+                if hovered_gate_text is not None:
+                    QToolTip.hideText()
+                    hovered_gate_text = None
+                return
+            if not figure.axes or event.inaxes is not figure.axes[0]:
+                if hovered_gate_text is not None:
+                    QToolTip.hideText()
+                    hovered_gate_text = None
+                return
+            for line in event.inaxes.lines:
+                gate_segment_id = str(getattr(line, "get_gid", lambda: "")() or "")
+                if not gate_segment_id.startswith("gate-segment:"):
+                    continue
+                contains, _info = line.contains(event)
+                if not contains:
+                    continue
+                gate_text = gate_segment_id.split(":", 1)[1]
+                if not gate_text:
+                    continue
+                if hovered_gate_text == gate_text:
+                    return
+                tooltip_text = (
+                    "<div style='background-color:#000000;color:#ffffff;font-size:18px;font-weight:700;"
+                    "padding:6px 10px;border:1px solid #ffffff;border-radius:4px;'>"
+                    f"Gate {gate_text}</div>"
+                )
+                QToolTip.showText(canvas.mapToGlobal(QPoint(int(event.x), int(event.y))), tooltip_text, canvas)
+                hovered_gate_text = gate_text
+                return
+            if hovered_gate_text is not None:
+                QToolTip.hideText()
+                hovered_gate_text = None
+
+        canvas.mpl_connect("motion_notify_event", _on_bodygraph_hover)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        canvas.draw_idle()
+
+        chart_container = QWidget()
+        chart_container_layout = QGridLayout(chart_container)
+        chart_container_layout.setContentsMargins(0, 0, 0, 0)
+        chart_container_layout.setSpacing(0)
+        chart_container_layout.addWidget(canvas, 0, 0)
+        chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
+
+        top_splitter = build_human_design_top_splitter(
+            chart_container=chart_container,
+            hd_result=combined_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+        )
+
+        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.setChildrenCollapsible(False)
+        right_splitter.addWidget(top_splitter)
+
+        summary_output = ChartDataTableOutput()
+        summary_output.setReadOnly(True)
+        summary_output.setFont(summary_output.font())
+        summary_output.setTabStopDistance(6)
+        apply_chart_data_highlighter(summary_output)
+        summary_output.setPlainText("")
+        summary_output.setMinimumHeight(220)
+        summary_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        summary_output.viewport().installEventFilter(self)
+        right_splitter.addWidget(summary_output)
+        right_splitter.setStretchFactor(0, 7)
+        right_splitter.setStretchFactor(1, 3)
+        right_layout.addWidget(right_splitter, 1)
+
+        popout_context_key = summary_output.viewport()
+        popout_context: dict[str, object] = {
+            "output_widget": summary_output,
+            "chart_info_output": chart_info_output,
+            "position_info_map": {},
+            "aspect_info_map": {},
+            "species_info_map": {},
+            "summary_block_offset": 0,
+        }
+        hd_file_stem = (
+            f"ephemeraldaddy_{self._sanitize_export_token(first_chart.name)}_x_"
+            f"{self._sanitize_export_token(second_chart.name)}_hd_synastry"
+        )
+        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
+        popout_context["share_button"] = summary_share_button
+        self._popout_summary_contexts[popout_context_key] = popout_context
+        dialog.destroyed.connect(
+            lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
+        )
+
+        chart_data_text, position_info_map, summary_block_offset = build_synastry_chart_data_output(
+            combined_result,
+            first_gate_set,
+            second_gate_set,
+            combined_crosses,
+        )
+        summary_output.setPlainText(chart_data_text)
+        popout_context["position_info_map"] = position_info_map
+        popout_context["summary_block_offset"] = summary_block_offset
+
+        dialog.resize(600, 600)
         self._register_popout_shortcuts(dialog)
         dialog.show()
 
