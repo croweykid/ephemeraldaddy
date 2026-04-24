@@ -26731,8 +26731,20 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_enneagram_predictions,
             chart=chart,
         )
+        scores = self._calculate_enneagram_type_weights(chart)
+        ranked_scores = sorted(
+            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+            key=lambda item: (-item[1], item[0]),
+        )
+        if ranked_scores and ranked_scores[0][1] > 0:
+            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
+            chart.dominant_enneagram_type = ranked_scores[0][0]
+            chart.top_three_enneagram_types = [
+                enneagram_type
+                for enneagram_type, score in ranked_scores[:3]
+                if score > 0
+            ]
         if tritype_label is not None:
-            scores = self._calculate_enneagram_type_weights(chart)
             tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
             )
