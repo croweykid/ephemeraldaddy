@@ -25299,6 +25299,12 @@ class MainWindow(QMainWindow):
                 chart.relationship_types = relationship_types
                 self._set_relationship_type_selection(relationship_types)
 
+        if not is_placeholder:
+            try:
+                self._cache_enneagram_prediction_metadata(chart)
+            except Exception:
+                logger.exception("Failed to cache enneagram metadata before chart save.")
+
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         #chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -26715,6 +26721,26 @@ class MainWindow(QMainWindow):
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
         )
 
+    def _cache_enneagram_prediction_metadata(self, chart: Chart) -> dict[int, float]:
+        scores = self._calculate_enneagram_type_weights(chart)
+        ranked_scores = sorted(
+            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+            key=lambda item: (-item[1], item[0]),
+        )
+        if ranked_scores and ranked_scores[0][1] > 0:
+            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
+            chart.dominant_enneagram_type = ranked_scores[0][0]
+            chart.top_three_enneagram_types = [
+                enneagram_type
+                for enneagram_type, score in ranked_scores[:3]
+                if score > 0
+            ]
+        else:
+            chart.enneagram_type_weights = {}
+            chart.dominant_enneagram_type = None
+            chart.top_three_enneagram_types = []
+        return scores
+
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
         if chart is None:
@@ -26731,19 +26757,7 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_enneagram_predictions,
             chart=chart,
         )
-        scores = self._calculate_enneagram_type_weights(chart)
-        ranked_scores = sorted(
-            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
-            key=lambda item: (-item[1], item[0]),
-        )
-        if ranked_scores and ranked_scores[0][1] > 0:
-            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
-            chart.dominant_enneagram_type = ranked_scores[0][0]
-            chart.top_three_enneagram_types = [
-                enneagram_type
-                for enneagram_type, score in ranked_scores[:3]
-                if score > 0
-            ]
+        scores = self._cache_enneagram_prediction_metadata(chart)
         if tritype_label is not None:
             tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
