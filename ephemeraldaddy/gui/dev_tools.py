@@ -560,7 +560,13 @@ TAG_CATEGORY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Trait", "trait"),
     ("Reputation", "reputation"),
     ("Political/Group Affiliation or Subculture", "affiliation"),
-    ("Crime", "Crime"),
+    ("Crime", "crime"),
+    ("Life Events","life_events"),
+    ("Characters Played", "character"),
+    ("Hobbies", "hobbies"),
+    ("Personality Types", "personality_types"),
+    ("Genres", "genres"),
+    ("Place Type", "place"),
 )
 TAG_CATEGORY_PREFIXES = {prefix.casefold() for _name, prefix in TAG_CATEGORY_OPTIONS}
 
