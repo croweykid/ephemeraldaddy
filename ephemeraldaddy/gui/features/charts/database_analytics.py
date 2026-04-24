@@ -2479,6 +2479,16 @@ class DatabaseAnalyticsChartsMixin:
             return type_num
         return None
 
+    @staticmethod
+    def _normalize_enneagram_score(value: Any) -> float | None:
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(score):
+            return None
+        return score
+
     def _extract_dominant_enneagram_type_from_chart_metadata(self, chart: Any) -> int | None:
         direct_type = self._normalize_enneagram_type(
             getattr(chart, "dominant_enneagram_type", None)
@@ -2509,18 +2519,14 @@ class DatabaseAnalyticsChartsMixin:
         for candidate in weight_candidates:
             if not isinstance(candidate, dict):
                 continue
-            ranked = sorted(
-                (
-                    (
-                        normalized_type,
-                        float(weight),
-                    )
-                    for raw_type, weight in candidate.items()
-                    for normalized_type in [self._normalize_enneagram_type(raw_type)]
-                    if normalized_type is not None
-                ),
-                key=lambda item: (-item[1], item[0]),
-            )
+            ranked: list[tuple[int, float]] = []
+            for raw_type, raw_weight in candidate.items():
+                normalized_type = self._normalize_enneagram_type(raw_type)
+                normalized_score = self._normalize_enneagram_score(raw_weight)
+                if normalized_type is None or normalized_score is None:
+                    continue
+                ranked.append((normalized_type, normalized_score))
+            ranked.sort(key=lambda item: (-item[1], item[0]))
             if ranked and ranked[0][1] > 0:
                 return ranked[0][0]
         return None
@@ -2528,7 +2534,10 @@ class DatabaseAnalyticsChartsMixin:
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
         dominant_type = self._extract_dominant_enneagram_type_from_chart_metadata(chart)
         if dominant_type is None:
-            type_scores = self._calculate_enneagram_type_weights(chart)
+            try:
+                type_scores = self._calculate_enneagram_type_weights(chart)
+            except Exception:
+                type_scores = {}
             ranked_types = sorted(
                 (
                     (int(enneagram_type), float(score))
