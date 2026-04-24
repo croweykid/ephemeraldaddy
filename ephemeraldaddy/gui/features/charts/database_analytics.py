@@ -2505,11 +2505,18 @@ class DatabaseAnalyticsChartsMixin:
             if not isinstance(candidate, (list, tuple)):
                 continue
             for entry in candidate:
+                score_is_present = False
+                normalized_score: float | None = None
                 if isinstance(entry, (list, tuple)) and entry:
                     normalized = self._normalize_enneagram_type(entry[0])
+                    if len(entry) > 1:
+                        score_is_present = True
+                        normalized_score = self._normalize_enneagram_score(entry[1])
                 else:
                     normalized = self._normalize_enneagram_type(entry)
                 if normalized is not None:
+                    if score_is_present and (normalized_score is None or normalized_score <= 0):
+                        continue
                     return normalized
 
         weight_candidates = (
