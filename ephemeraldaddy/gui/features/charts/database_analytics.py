@@ -2469,20 +2469,85 @@ class DatabaseAnalyticsChartsMixin:
         self._database_metrics_chart_layouts["enneagram"] = self.enneagram_distribution_chart_layout
         enneagram_section_layout.addWidget(self.enneagram_distribution_chart_container)
 
-    def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
-        type_scores = self._calculate_enneagram_type_weights(chart)
-        ranked_types = sorted(
-            (
-                (int(enneagram_type), float(score))
-                for enneagram_type, score in type_scores.items()
-            ),
-            key=lambda item: (-item[1], item[0]),
+    @staticmethod
+    def _normalize_enneagram_type(value: Any) -> int | None:
+        try:
+            type_num = int(value)
+        except (TypeError, ValueError):
+            return None
+        if 1 <= type_num <= 9:
+            return type_num
+        return None
+
+    def _extract_dominant_enneagram_type_from_chart_metadata(self, chart: Any) -> int | None:
+        direct_type = self._normalize_enneagram_type(
+            getattr(chart, "dominant_enneagram_type", None)
         )
-        if ranked_types and ranked_types[0][1] > 0:
-            dominant_type = ranked_types[0][0]
-            if dominant_type in snapshot["enneagram_totals"]:
-                snapshot["enneagram_totals"][dominant_type] += 1
-                snapshot["enneagram_total_count"] += 1
+        if direct_type is not None:
+            return direct_type
+
+        top_three_candidates = (
+            getattr(chart, "top_three_enneagram_types", None),
+            getattr(chart, "top_3_enneagram_types", None),
+            getattr(chart, "enneagram_top_three", None),
+        )
+        for candidate in top_three_candidates:
+            if not isinstance(candidate, (list, tuple)):
+                continue
+            for entry in candidate:
+                if isinstance(entry, (list, tuple)) and entry:
+                    normalized = self._normalize_enneagram_type(entry[0])
+                else:
+                    normalized = self._normalize_enneagram_type(entry)
+                if normalized is not None:
+                    return normalized
+
+        weight_candidates = (
+            getattr(chart, "enneagram_type_weights", None),
+            getattr(chart, "enneagram_scores", None),
+        )
+        for candidate in weight_candidates:
+            if not isinstance(candidate, dict):
+                continue
+            ranked = sorted(
+                (
+                    (
+                        normalized_type,
+                        float(weight),
+                    )
+                    for raw_type, weight in candidate.items()
+                    for normalized_type in [self._normalize_enneagram_type(raw_type)]
+                    if normalized_type is not None
+                ),
+                key=lambda item: (-item[1], item[0]),
+            )
+            if ranked and ranked[0][1] > 0:
+                return ranked[0][0]
+        return None
+
+    def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
+        dominant_type = self._extract_dominant_enneagram_type_from_chart_metadata(chart)
+        if dominant_type is None:
+            type_scores = self._calculate_enneagram_type_weights(chart)
+            ranked_types = sorted(
+                (
+                    (int(enneagram_type), float(score))
+                    for enneagram_type, score in type_scores.items()
+                ),
+                key=lambda item: (-item[1], item[0]),
+            )
+            if ranked_types and ranked_types[0][1] > 0:
+                dominant_type = ranked_types[0][0]
+                chart.enneagram_type_weights = dict(type_scores)
+                chart.dominant_enneagram_type = dominant_type
+                chart.top_three_enneagram_types = [
+                    enneagram_type
+                    for enneagram_type, score in ranked_types[:3]
+                    if score > 0
+                ]
+        if dominant_type in snapshot["enneagram_totals"]:
+            snapshot["enneagram_totals"][dominant_type] += 1
+            snapshot["enneagram_total_count"] += 1
 
     def _render_enneagram_database_analytics(
         self,
