@@ -2540,27 +2540,6 @@ class DatabaseAnalyticsChartsMixin:
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
         dominant_type = self._extract_dominant_enneagram_type_from_chart_metadata(chart)
-        if dominant_type is None:
-            try:
-                type_scores = self._calculate_enneagram_type_weights(chart)
-            except Exception:
-                type_scores = {}
-            ranked_types = sorted(
-                (
-                    (int(enneagram_type), float(score))
-                    for enneagram_type, score in type_scores.items()
-                ),
-                key=lambda item: (-item[1], item[0]),
-            )
-            if ranked_types and ranked_types[0][1] > 0:
-                dominant_type = ranked_types[0][0]
-                chart.enneagram_type_weights = dict(type_scores)
-                chart.dominant_enneagram_type = dominant_type
-                chart.top_three_enneagram_types = [
-                    enneagram_type
-                    for enneagram_type, score in ranked_types[:3]
-                    if score > 0
-                ]
         if dominant_type in snapshot["enneagram_totals"]:
             snapshot["enneagram_totals"][dominant_type] += 1
             snapshot["enneagram_total_count"] += 1
