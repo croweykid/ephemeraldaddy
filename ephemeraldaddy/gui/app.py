@@ -5265,6 +5265,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
 
         def _refresh_summary() -> None:
+            def _canonical_interpretation_house(body_name: str, fallback_house: int | None) -> int | None:
+                angle_houses = {
+                    "AS": 1,
+                    "IC": 4,
+                    "DS": 7,
+                    "MC": 10,
+                }
+                return angle_houses.get(str(body_name), fallback_house)
+
             vertical_scrollbar = summary_output.verticalScrollBar()
             horizontal_scrollbar = summary_output.horizontalScrollBar()
             previous_vertical_position = vertical_scrollbar.value()
@@ -5332,8 +5341,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                             "delta": float(hit.orb_deg),
                             "sign1": hit.a.sign,
                             "sign2": hit.b.sign,
-                            "house1": hit.a.house,
-                            "house2": hit.b.house,
+                            "house1": _canonical_interpretation_house(hit.a.name, hit.a.house),
+                            "house2": _canonical_interpretation_house(hit.b.name, hit.b.house),
                         }
                         icon_index = line.rfind("📆")
                         if icon_index >= 0:
