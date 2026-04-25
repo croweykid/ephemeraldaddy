@@ -24,6 +24,7 @@ from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.core.interpretations import (
     AGE_BRACKETS,
     BAZI_ZODIAC,
+    ENNEAGRAM,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_RANGES,
@@ -1540,6 +1541,7 @@ class DatabaseAnalyticsChartsMixin:
         labels: list[str] | None = None,
         height_scale: float = 1.0,
         force_value_fallback_colors: bool = False,
+        label_colors: dict[str, str] | None = None,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
         # Keep bottom margin visually consistent in pixels when chart height is scaled up.
@@ -1592,7 +1594,8 @@ class DatabaseAnalyticsChartsMixin:
         value_max = max(displayed_value_by_label.values(), default=1.0)
         colors = []
         for label in labels:
-            resolved_color = _resolve_distribution_color(label)
+            custom_color = str((label_colors or {}).get(label, "")).strip()
+            resolved_color = custom_color or _resolve_distribution_color(label)
             use_value_fallback = force_value_fallback_colors or resolved_color == "#6fa8dc"
             if use_value_fallback:
                 colors.append(
@@ -2456,6 +2459,7 @@ class DatabaseAnalyticsChartsMixin:
             "🎭Enneagram",
             "enneagram",
             "enneagram",
+            dropdown_options=[("Enneagram Predictions", "enneagram")],
             show_title=False,
         )
         enneagram_subheader = self._build_database_subheader_label(
@@ -2490,11 +2494,24 @@ class DatabaseAnalyticsChartsMixin:
         return score
 
     def _extract_dominant_enneagram_type_from_chart_metadata(self, chart: Any) -> int | None:
+        top_types = self._extract_top_enneagram_types_from_chart_metadata(chart, limit=1)
+        if top_types:
+            return top_types[0]
+        return None
+
+    def _extract_top_enneagram_types_from_chart_metadata(
+        self,
+        chart: Any,
+        *,
+        limit: int = 3,
+    ) -> list[int]:
+        normalized_limit = max(1, int(limit))
         direct_type = self._normalize_enneagram_type(
             getattr(chart, "dominant_enneagram_type", None)
         )
+        top_types: list[int] = []
         if direct_type is not None:
-            return direct_type
+            top_types.append(direct_type)
 
         top_three_candidates = (
             getattr(chart, "top_three_enneagram_types", None),
@@ -2517,7 +2534,10 @@ class DatabaseAnalyticsChartsMixin:
                 if normalized is not None:
                     if score_is_present and (normalized_score is None or normalized_score <= 0):
                         continue
-                    return normalized
+                    if normalized not in top_types:
+                        top_types.append(normalized)
+                    if len(top_types) >= normalized_limit:
+                        return top_types[:normalized_limit]
 
         weight_candidates = (
             getattr(chart, "enneagram_type_weights", None),
@@ -2534,15 +2554,44 @@ class DatabaseAnalyticsChartsMixin:
                     continue
                 ranked.append((normalized_type, normalized_score))
             ranked.sort(key=lambda item: (-item[1], item[0]))
-            if ranked and ranked[0][1] > 0:
-                return ranked[0][0]
-        return None
+            for normalized_type, normalized_score in ranked:
+                if normalized_score <= 0:
+                    continue
+                if normalized_type not in top_types:
+                    top_types.append(normalized_type)
+                if len(top_types) >= normalized_limit:
+                    return top_types[:normalized_limit]
+
+        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
+        if callable(calculate_type_weights):
+            try:
+                computed_scores = calculate_type_weights(chart)
+            except Exception:
+                computed_scores = {}
+            if isinstance(computed_scores, dict):
+                ranked_computed = []
+                for raw_type, raw_score in computed_scores.items():
+                    normalized_type = self._normalize_enneagram_type(raw_type)
+                    normalized_score = self._normalize_enneagram_score(raw_score)
+                    if normalized_type is None or normalized_score is None:
+                        continue
+                    ranked_computed.append((normalized_type, normalized_score))
+                ranked_computed.sort(key=lambda item: (-item[1], item[0]))
+                for normalized_type, normalized_score in ranked_computed:
+                    if normalized_score <= 0:
+                        continue
+                    if normalized_type not in top_types:
+                        top_types.append(normalized_type)
+                    if len(top_types) >= normalized_limit:
+                        return top_types[:normalized_limit]
+        return top_types[:normalized_limit]
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
-        dominant_type = self._extract_dominant_enneagram_type_from_chart_metadata(chart)
-        if dominant_type in snapshot["enneagram_totals"]:
-            snapshot["enneagram_totals"][dominant_type] += 1
-            snapshot["enneagram_total_count"] += 1
+        top_types = self._extract_top_enneagram_types_from_chart_metadata(chart, limit=3)
+        for enneagram_type in top_types:
+            if enneagram_type in snapshot["enneagram_totals"]:
+                snapshot["enneagram_totals"][enneagram_type] += 1
+                snapshot["enneagram_total_count"] += 1
 
     def _render_enneagram_database_analytics(
         self,
@@ -2579,6 +2628,12 @@ class DatabaseAnalyticsChartsMixin:
             )
             for label in enneagram_labels
         }
+        enneagram_label_colors = {
+            f"Type {enneagram_type}": str(
+                ENNEAGRAM.get(enneagram_type, {}).get("color", CHART_THEME_COLORS["text"])
+            ).strip() or CHART_THEME_COLORS["text"]
+            for enneagram_type in range(1, 10)
+        }
         if should_refresh("enneagram"):
             enneagram_canvas = self._build_dominant_planet_chart(
                 selection_planets=selection_enneagram_values,
@@ -2587,7 +2642,8 @@ class DatabaseAnalyticsChartsMixin:
                 database_planet_counts=database_enneagram_counts,
                 loaded_charts=loaded_charts,
                 labels=enneagram_labels,
-                force_value_fallback_colors=True,
+                force_value_fallback_colors=False,
+                label_colors=enneagram_label_colors,
             )
             self._clear_layout(self.enneagram_distribution_chart_layout)
             self.enneagram_distribution_chart_layout.addWidget(
