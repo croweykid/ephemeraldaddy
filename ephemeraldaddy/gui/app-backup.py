@@ -495,7 +495,6 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_FRICTION,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
-    ENNEAGRAM,
 )
 
 from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
@@ -647,9 +646,6 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_top_splitter,
 )
-from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
-    create_human_design_synastry_dialog,
-)
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
     collect_anagram_words,
@@ -678,7 +674,11 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     resolve_similarity_pair_targets,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+<<<<<<< Updated upstream
     build_similar_chart_bio_panel_content,
+=======
+    build_predictions_panel_content,
+>>>>>>> Stashed changes
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -764,7 +764,6 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "sign_prevalence",
         "dominant_signs",
         "cumulativedom_factors",
-        "enneagram",
         "species_distribution",
         "birth_time",
         "age",
@@ -898,13 +897,6 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 )
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
-)
-from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
-    build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
-    calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
-    connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
-    draw_enneagram_predictions as _draw_enneagram_predictions_chart,
-    tritype_text_for_scores as _tritype_text_for_scores,
 )
 
 
@@ -2394,7 +2386,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             "dominant_signs",
             "cumulativedom_factors",
-            "enneagram",
             "species_distribution",
             "birth_time",
             "age",
@@ -3006,9 +2997,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metrics_section_visible["bazi"] = self._visibility.get(
             "database_metrics_visibility.bazi"
         )
-        self._database_metrics_section_visible["enneagram"] = self._visibility.get(
-            "database_metrics_visibility.enneagram"
-        )
 
     def _update_sort_button_label(self) -> None:
         mode = self._sort_mode
@@ -3473,8 +3461,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.matched_expectations_summary_chart_layout
         )
         predictability_section_layout.addWidget(self.matched_expectations_summary_chart_container)
-
-        self._create_enneagram_database_analytics_section(panel, layout)
 
         #D&D TYPING SECTION
         species_section_layout = self._add_left_panel_collapsible_section(
@@ -4252,12 +4238,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self,
         default_first_chart_id: int | None = None,
         focus_second_input: bool = False,
-        dialog_title: str = "Generate Composite Chart",
-        submit_button_label: str = "Synastrize!",
-        disallow_placeholder_charts: bool = False,
     ) -> tuple[int, int] | None:
         dialog = QDialog(self)
-        dialog.setWindowTitle(dialog_title)
+        dialog.setWindowTitle("Generate Composite Chart")
         dialog.setModal(True)
 
         layout = QVBoxLayout(dialog)
@@ -4268,15 +4251,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         labels: list[str] = []
         for row in list_charts():
             chart_id, name, alias, *_rest = row
-            chart_id = int(chart_id)
-            if disallow_placeholder_charts and self._is_placeholder_chart_id(chart_id):
-                continue
             display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
             if alias:
                 display_name = f"{display_name} ({alias})"
             label = f"{display_name}  [#{chart_id}]"
             labels.append(label)
-            chart_lookup[label] = chart_id
+            chart_lookup[label] = int(chart_id)
 
         first_chart_input = QLineEdit(dialog)
         first_chart_input.setPlaceholderText("Select first chart")
@@ -4305,7 +4285,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         second_chart_input.setCompleter(second_completer)
         layout.addWidget(second_chart_input)
 
-        synastrize_button = QPushButton(submit_button_label, dialog)
+        synastrize_button = QPushButton("Synastrize!", dialog)
         layout.addWidget(synastrize_button)
 
         selected_chart_ids: tuple[int, int] | None = None
@@ -4329,14 +4309,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if base_chart_id is None or overlay_chart_id is None:
                 QMessageBox.warning(
                     dialog,
-                    dialog_title,
+                    "Generate Composite Chart",
                     "Select two saved charts from autocomplete before generating.",
                 )
                 return
             if base_chart_id == overlay_chart_id:
                 QMessageBox.warning(
                     dialog,
-                    dialog_title,
+                    "Generate Composite Chart",
                     "Select two different charts.",
                 )
                 return
@@ -8028,8 +8008,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             },
             "dnd_stat_totals": {stat_key: 0.0 for stat_key in self.DND_STAT_KEYS},
             "dnd_stat_count": 0,
-            "enneagram_totals": {enneagram_type: 0 for enneagram_type in range(1, 10)},
-            "enneagram_total_count": 0,
             "human_design_gate_totals": {gate: 0.0 for gate in range(1, 65)},
             "human_design_line_totals": {line: 0.0 for line in range(1, 7)},
             "human_design_channel_totals": {},
@@ -8079,7 +8057,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         compute_relationship_metrics = "relationship_prevalence" in sections
         compute_alignment_metrics = "alignment_summary" in sections
         compute_species_metrics = "species_distribution" in sections
-        compute_enneagram_metrics = "enneagram" in sections
         compute_human_design_metrics = "human_design" in sections
         compute_bazi_metrics = "bazi" in sections
         snapshot["loaded"] = 0
@@ -8311,8 +8288,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for stat_key in snapshot["dnd_stat_totals"]:
                     snapshot["dnd_stat_totals"][stat_key] += float(statblock.scores.get(stat_key, 0.0))
                 snapshot["dnd_stat_count"] += 1
-        if compute_enneagram_metrics:
-            self._populate_enneagram_snapshot(snapshot, chart)
         return snapshot
 
     def _apply_snapshot_delta(self, totals: dict[str, Any], snapshot: dict[str, Any], direction: int) -> None:
@@ -8335,7 +8310,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["dominant_element_total_weight"] += direction * float(snapshot.get("dominant_element_total_weight", 0.0))
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
-        totals["enneagram_total_count"] += direction * int(snapshot.get("enneagram_total_count", 0))
         totals["human_design_gate_total_count"] += direction * float(
             snapshot.get("human_design_gate_total_count", 0.0)
         )
@@ -8436,14 +8410,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             stat_snapshot = snapshot.get("dnd_stat_totals", {})
             stat_value = stat_snapshot.get(stat_key, 0.0) if isinstance(stat_snapshot, dict) else 0.0
             totals["dnd_stat_totals"][stat_key] += direction * float(stat_value)
-        for enneagram_type in range(1, 10):
-            enneagram_snapshot = snapshot.get("enneagram_totals", {})
-            enneagram_value = (
-                enneagram_snapshot.get(enneagram_type, 0)
-                if isinstance(enneagram_snapshot, dict)
-                else 0
-            )
-            totals["enneagram_totals"][enneagram_type] += direction * int(enneagram_value)
         for gate in range(1, 65):
             gate_snapshot = snapshot.get("human_design_gate_totals", {})
             totals["human_design_gate_totals"][gate] += direction * float(
@@ -9847,13 +9813,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_counts=matched_expectations_database_counts,
                     loaded_charts=selected_chart_count,
                 )
-            )
-
-            self._render_enneagram_database_analytics(
-                selection_cache=selection_cache,
-                database_cache=database_cache,
-                loaded_charts=loaded_charts,
-                should_refresh=_should_refresh_database_metric_section,
             )
 
             if _should_refresh_database_metric_section("planetary_sign_prevalence"):
@@ -13588,9 +13547,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_menu_get_human_design_info(self) -> None:
         self._run_main_window_chart_action("get_human_design_info")
 
-    def _on_menu_get_human_design_synastry_chart(self) -> None:
-        self._run_main_window_chart_action("get_human_design_synastry_chart")
-
     def _on_menu_open_chart_predictor_quiz(self) -> None:
         dialog = create_chart_predictor_quiz_dialog(self)
         self._register_popout_shortcuts(dialog)
@@ -14552,28 +14508,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_sign_filters:
                 filters["sign"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
-                if "not" in filters and filters["not"] is not None:
-                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_planet_filters:
                 filters["planet"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
-                if "not" in filters and filters["not"] is not None:
-                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
                 if "or" in filters and filters["or"] is not None:
                     filters["or"].setChecked(False)
-                if "not" in filters and filters["not"] is not None:
-                    filters["not"].setChecked(False)
                 if "and" in filters and filters["and"] is not None:
                     filters["and"].setChecked(True)
             for filters in self._dominant_nakshatra_filters:
                 filters["nakshatra"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
-                if "not" in filters and filters["not"] is not None:
-                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             if self._year_first_encountered_earliest_input is not None:
                 self._year_first_encountered_earliest_input.setText("")
@@ -14584,8 +14532,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_element_filters:
                 filters["element"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
-                if "not" in filters and filters["not"] is not None:
-                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
         finally:
             self._suppress_filter_refresh = False
@@ -16796,10 +16742,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters for filters in active_dominant_sign_filters
                 if filters["or"].isChecked()
             ]
-            dominant_not_filters = [
-                filters for filters in active_dominant_sign_filters
-                if "not" in filters and filters["not"].isChecked()
-            ]
             for filters in dominant_and_filters:
                 if not self._chart_dominant_sign_matches(
                     chart,
@@ -16815,42 +16757,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for filters in dominant_or_filters
                 ):
                     return False
-            for filters in dominant_not_filters:
-                if self._chart_dominant_sign_matches(
-                    chart,
-                    filters["sign"].currentText(),
-                ):
-                    return False
         if active_dominant_mode_filters:
-            dominant_mode_and_filters = [
-                filters for filters in active_dominant_mode_filters
-                if "and" in filters and filters["and"].isChecked()
-            ]
-            dominant_mode_or_filters = [
-                filters for filters in active_dominant_mode_filters
-                if "or" in filters and filters["or"].isChecked()
-            ]
-            dominant_mode_not_filters = [
-                filters for filters in active_dominant_mode_filters
-                if "not" in filters and filters["not"].isChecked()
-            ]
-            for filters in dominant_mode_and_filters:
+            for filters in active_dominant_mode_filters:
                 if not self._chart_dominant_mode_matches(
-                    chart,
-                    str(filters["mode"].currentData()),
-                ):
-                    return False
-            if dominant_mode_or_filters:
-                if not any(
-                    self._chart_dominant_mode_matches(
-                        chart,
-                        str(filters["mode"].currentData()),
-                    )
-                    for filters in dominant_mode_or_filters
-                ):
-                    return False
-            for filters in dominant_mode_not_filters:
-                if self._chart_dominant_mode_matches(
                     chart,
                     str(filters["mode"].currentData()),
                 ):
@@ -16864,10 +16773,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dominant_planet_or_filters = [
                 filters for filters in active_dominant_planet_filters
                 if filters["or"].isChecked()
-            ]
-            dominant_planet_not_filters = [
-                filters for filters in active_dominant_planet_filters
-                if "not" in filters and filters["not"].isChecked()
             ]
             for filters in dominant_planet_and_filters:
                 if not self._chart_dominant_planet_matches(
@@ -16884,12 +16789,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for filters in dominant_planet_or_filters
                 ):
                     return False
-            for filters in dominant_planet_not_filters:
-                if self._chart_dominant_planet_matches(
-                    chart,
-                    str(filters["planet"].currentData()),
-                ):
-                    return False
 
         if active_dominant_nakshatra_filters:
             dominant_nakshatra_and_filters = [
@@ -16899,10 +16798,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dominant_nakshatra_or_filters = [
                 filters for filters in active_dominant_nakshatra_filters
                 if filters["or"].isChecked()
-            ]
-            dominant_nakshatra_not_filters = [
-                filters for filters in active_dominant_nakshatra_filters
-                if "not" in filters and filters["not"].isChecked()
             ]
             for filters in dominant_nakshatra_and_filters:
                 if not self._chart_dominant_nakshatra_matches(
@@ -16917,12 +16812,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         str(filters["nakshatra"].currentData()),
                     )
                     for filters in dominant_nakshatra_or_filters
-                ):
-                    return False
-            for filters in dominant_nakshatra_not_filters:
-                if self._chart_dominant_nakshatra_matches(
-                    chart,
-                    str(filters["nakshatra"].currentData()),
                 ):
                     return False
 
@@ -16972,11 +16861,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for filters in active_dominant_element_filters
                 if filters["or"].isChecked()
             ]
-            dominant_element_not_filters = [
-                filters
-                for filters in active_dominant_element_filters
-                if "not" in filters and filters["not"].isChecked()
-            ]
             for filters in dominant_element_and_filters:
                 if not self._chart_dominant_element_matches(
                     chart,
@@ -16990,12 +16874,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         str(filters["element"].currentData()),
                     )
                     for filters in dominant_element_or_filters
-                ):
-                    return False
-            for filters in dominant_element_not_filters:
-                if self._chart_dominant_element_matches(
-                    chart,
-                    str(filters["element"].currentData()),
                 ):
                     return False
 
@@ -20025,7 +19903,6 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
-        self.enneagram_prediction_canvas = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
@@ -20327,7 +20204,7 @@ class MainWindow(QMainWindow):
         if popout_info_output is None:
             return
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
-        
+
         render_predictions_panel_content(
             output_widget=popout_info_output,
             matches=matches,
@@ -21421,15 +21298,6 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title == "Enneagram":
-            info_panel.setPlaceholderText(
-                "Click an Enneagram bar to view type motivation and interpretation details."
-            )
-            _connect_enneagram_popout_pick_handler(
-                popout_canvas,
-                info_panel,
-                build_info_html=self._build_enneagram_popout_info,
-            )
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -21457,7 +21325,6 @@ class MainWindow(QMainWindow):
             "Signs": (8.5, 4.2),
             "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
-            "Enneagram": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Dominant Nakshatras": (9.0, 6.6),
@@ -21478,8 +21345,6 @@ class MainWindow(QMainWindow):
             self._draw_planet_tally(ax, chart)
         elif title == "Houses":
             self._draw_house_tally(ax, chart)
-        elif title == "Enneagram":
-            self._draw_enneagram_predictions(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
         elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
@@ -22529,7 +22394,6 @@ class MainWindow(QMainWindow):
         self._position_info_map = position_info_map
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
-        self._render_enneagram_predictions(chart)
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -22767,10 +22631,6 @@ class MainWindow(QMainWindow):
         action_name: str,
         requester: QWidget | None = None,
     ) -> None:
-        if action_name == "get_human_design_synastry_chart":
-            self.on_get_human_design_synastry_chart()
-            return
-
         chart, chart_id = self._resolve_chart_for_active_action(requester=requester)
         if chart is None:
             QMessageBox.information(self, "No chart selected", "Please select a chart first.")
@@ -24305,32 +24165,24 @@ class MainWindow(QMainWindow):
             panel_key = "subjective_notes"
         if panel_key == "subjective_notes":
             panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
-        elif panel_key == "predictions":
-            panel_stack.setCurrentWidget(self.predictions_panel_scroll)
         else:
             panel_key = "analytics"
             panel_stack.setCurrentWidget(self.chart_analytics_panel_scroll)
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
-        self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
         if panel_key == "analytics" and self._latest_chart is not None:
             self._schedule_chart_render(self._latest_chart)
-        if panel_key == "predictions" and self._latest_chart is not None:
-            self._render_enneagram_predictions(self._latest_chart)
 
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
         analytics_button = getattr(self, "chart_analytics_panel_button", None)
-        predictions_button = getattr(self, "predictions_panel_button", None)
-        if analytics_button is None or predictions_button is None:
+        if analytics_button is None:
             return
         is_placeholder = bool(chart is not None and getattr(chart, "is_placeholder", False))
         is_saved_chart = bool(chart is not None and self.current_chart_id is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
         analytics_button.setVisible(analytics_available)
         analytics_button.setEnabled(analytics_available)
-        predictions_button.setVisible(analytics_available)
-        predictions_button.setEnabled(analytics_available)
         if not analytics_available:
             self._set_chart_right_panel("subjective_notes")
 
@@ -25298,12 +25150,6 @@ class MainWindow(QMainWindow):
                 ]
                 chart.relationship_types = relationship_types
                 self._set_relationship_type_selection(relationship_types)
-
-        if not is_placeholder:
-            try:
-                self._cache_enneagram_prediction_metadata(chart)
-            except Exception:
-                logger.exception("Failed to cache enneagram metadata before chart save.")
 
         #chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
         #chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
@@ -26452,7 +26298,6 @@ class MainWindow(QMainWindow):
             self.modal_distribution_container_layout,
             self.gender_guesser_container_layout,
             self.planet_dynamics_container_layout,
-            self.enneagram_prediction_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -26483,9 +26328,6 @@ class MainWindow(QMainWindow):
         self.modal_distribution_canvas = None
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
-        self.enneagram_prediction_canvas = None
-        if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
-            self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
         if self._similar_charts_list_label is not None:
             self._similar_charts_list_label.setText(
                 "Generate or load a chart to search for matches."
@@ -26691,77 +26533,6 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
         )
-
-    def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
-        return _calculate_enneagram_type_weights(
-            chart,
-            enneagram=ENNEAGRAM,
-            calculate_sign_weights=_calculate_dominant_sign_weights,
-            calculate_body_weights=_calculate_dominant_planet_weights,
-            calculate_house_weights=_calculate_dominant_house_weights,
-            chart_uses_houses=_chart_uses_houses,
-        )
-
-    def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
-        _draw_enneagram_predictions_chart(
-            ax,
-            chart=chart,
-            enneagram=ENNEAGRAM,
-            calculate_type_weights=self._calculate_enneagram_type_weights,
-            chart_theme_colors=CHART_THEME_COLORS,
-            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
-            standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
-        )
-
-    def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
-        return _build_enneagram_popout_info_html(
-            enneagram_type,
-            enneagram=ENNEAGRAM,
-            chart_theme_colors=CHART_THEME_COLORS,
-            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
-        )
-
-    def _cache_enneagram_prediction_metadata(self, chart: Chart) -> dict[int, float]:
-        scores = self._calculate_enneagram_type_weights(chart)
-        ranked_scores = sorted(
-            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
-            key=lambda item: (-item[1], item[0]),
-        )
-        if ranked_scores and ranked_scores[0][1] > 0:
-            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
-            chart.dominant_enneagram_type = ranked_scores[0][0]
-            chart.top_three_enneagram_types = [
-                enneagram_type
-                for enneagram_type, score in ranked_scores[:3]
-                if score > 0
-            ]
-        else:
-            chart.enneagram_type_weights = {}
-            chart.dominant_enneagram_type = None
-            chart.top_three_enneagram_types = []
-        return scores
-
-    def _render_enneagram_predictions(self, chart: Chart | None) -> None:
-        tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
-        if chart is None:
-            self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
-            self.enneagram_prediction_canvas = None
-            if tritype_label is not None:
-                tritype_label.setText("<b>Predicted Tritype:</b> —")
-            return
-        self._render_metric_panel(
-            canvas_attr="enneagram_prediction_canvas",
-            container_layout=self.enneagram_prediction_chart_layout,
-            figsize=(5.5, 3.2),
-            title="Enneagram",
-            draw_fn=self._draw_enneagram_predictions,
-            chart=chart,
-        )
-        scores = self._cache_enneagram_prediction_metadata(chart)
-        if tritype_label is not None:
-            tritype_label.setText(
-                f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
-            )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
@@ -27399,39 +27170,6 @@ class MainWindow(QMainWindow):
         if chart_ids is None:
             return
         manage_dialog._generate_composite_chart_for_ids(*chart_ids)
-
-    def on_get_human_design_synastry_chart(self) -> None:
-        manage_dialog = self._get_or_create_manage_charts_dialog()
-        default_first_chart_id = self.current_chart_id
-        if default_first_chart_id is not None and manage_dialog._is_placeholder_chart_id(default_first_chart_id):
-            default_first_chart_id = None
-        chart_ids = manage_dialog._prompt_composite_chart_selection(
-            default_first_chart_id=default_first_chart_id,
-            focus_second_input=True,
-            dialog_title="Human Design Synastry Chart",
-            submit_button_label="Open Human Design Synastry Chart",
-            disallow_placeholder_charts=True,
-        )
-        if chart_ids is None:
-            return
-        try:
-            first_chart = load_chart(chart_ids[0])
-            second_chart = load_chart(chart_ids[1])
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Human Design Synastry Chart",
-                f"Unable to load selected charts.\n\n{exc}",
-            )
-            return
-        dialog = create_human_design_synastry_dialog(
-            self,
-            first_chart,
-            second_chart,
-            chart_theme_colors=CHART_THEME_COLORS,
-        )
-        self._register_popout_shortcuts(dialog)
-        dialog.show()
 
     def closeEvent(self, event) -> None:
         if not self._allow_app_exit_close:
