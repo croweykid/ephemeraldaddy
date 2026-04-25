@@ -19764,14 +19764,14 @@ class MainWindow(QMainWindow):
         relevance_box_layout.addWidget(relevance_content_widget)
         sentiment_metrics_container_layout.addWidget(relevance_box)
         self.positive_sentiment_intensity_spin = QSpinBox()
-        self.positive_sentiment_intensity_spin.setRange(1, 10)
-        self.positive_sentiment_intensity_spin.setValue(1)
+        self.positive_sentiment_intensity_spin.setRange(0, 10)
+        self.positive_sentiment_intensity_spin.setValue(0)
         self.positive_sentiment_intensity_spin.valueChanged.connect(
             self._on_sentiment_metric_changed
         )
         self.negative_sentiment_intensity_spin = QSpinBox()
-        self.negative_sentiment_intensity_spin.setRange(1, 10)
-        self.negative_sentiment_intensity_spin.setValue(1)
+        self.negative_sentiment_intensity_spin.setRange(0, 10)
+        self.negative_sentiment_intensity_spin.setValue(0)
         self.negative_sentiment_intensity_spin.valueChanged.connect(
             self._on_sentiment_metric_changed
         )
@@ -24211,8 +24211,8 @@ class MainWindow(QMainWindow):
         self._set_sentiment_selection([])
         self._set_relationship_type_selection([])
         self.chart_tags_input.setText("")
-        self.positive_sentiment_intensity_spin.setValue(1)
-        self.negative_sentiment_intensity_spin.setValue(1)
+        self.positive_sentiment_intensity_spin.setValue(0)
+        self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
         self.matched_expectations_spin.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
@@ -24946,9 +24946,9 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "tags"):
             chart.tags = [] if is_event_chart else parse_tag_text(self.chart_tags_input.text())
         if hasattr(chart, "positive_sentiment_intensity"):
-            chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
+            chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
-            chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
+            chart.negative_sentiment_intensity = 0 if is_event_chart else self.negative_sentiment_intensity_spin.value()
         if hasattr(chart, "familiarity"):
             chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
             chart.familiarity_factors = [] if is_event_chart else list(getattr(self, "_chart_familiarity_factors", []))
@@ -25214,8 +25214,8 @@ class MainWindow(QMainWindow):
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
                 chart.chart_data_source = self.source_edit.toPlainText().strip()
-                chart.positive_sentiment_intensity = 1 if is_event_chart else self.positive_sentiment_intensity_spin.value()
-                chart.negative_sentiment_intensity = 1 if is_event_chart else self.negative_sentiment_intensity_spin.value()
+                chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
+                chart.negative_sentiment_intensity = 0 if is_event_chart else self.negative_sentiment_intensity_spin.value()
                 chart.familiarity = 1 if is_event_chart else self.familiarity_spin.value()
                 chart.matched_expectations = 0 if is_event_chart else self.matched_expectations_spin.value()
                 chart.alignment_score = (
@@ -25440,8 +25440,8 @@ class MainWindow(QMainWindow):
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
         self._update_time_input_text_colors()
-        self.positive_sentiment_intensity_spin.setValue(1)
-        self.negative_sentiment_intensity_spin.setValue(1)
+        self.positive_sentiment_intensity_spin.setValue(0)
+        self.negative_sentiment_intensity_spin.setValue(0)
         self.familiarity_spin.setValue(1)
         self.matched_expectations_spin.setValue(0)
         self._set_alignment_score_state(0, assigned=False)
@@ -25732,11 +25732,13 @@ class MainWindow(QMainWindow):
         self.rectification_edit.setPlainText(getattr(chart, "rectification_notes", "") or "")
         self.biography_edit.setPlainText(getattr(chart, "biography", "") or "")
         self.source_edit.setPlainText(getattr(chart, "chart_data_source", "") or "")
+        loaded_positive_sentiment = getattr(chart, "positive_sentiment_intensity", 0)
+        loaded_negative_sentiment = getattr(chart, "negative_sentiment_intensity", 0)
         self.positive_sentiment_intensity_spin.setValue(
-            getattr(chart, "positive_sentiment_intensity", 1) or 1
+            int(loaded_positive_sentiment) if loaded_positive_sentiment is not None else 0
         )
         self.negative_sentiment_intensity_spin.setValue(
-            getattr(chart, "negative_sentiment_intensity", 1) or 1
+            int(loaded_negative_sentiment) if loaded_negative_sentiment is not None else 0
         )
         self.familiarity_spin.setValue(
             getattr(chart, "familiarity", 1) or 1
