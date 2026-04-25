@@ -2640,7 +2640,7 @@ class DatabaseAnalyticsChartsMixin:
                 database_planets=database_enneagram_values,
                 selection_planet_counts=selection_enneagram_counts,
                 database_planet_counts=database_enneagram_counts,
-                loaded_charts=chart_loaded_charts,
+                loaded_charts=loaded_charts,
                 labels=enneagram_labels,
                 force_value_fallback_colors=False,
                 label_colors=enneagram_label_colors,
