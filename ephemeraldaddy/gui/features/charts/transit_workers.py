@@ -2,7 +2,7 @@ import datetime
 from time import perf_counter
 from typing import Any, Callable
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import QDialog, QWidget
 
 from ephemeraldaddy.core.chart import Chart
@@ -15,6 +15,14 @@ from ephemeraldaddy.core.composite import (
 class TransitAspectWindowRelay(QObject):
     ready = Signal(str, str, str, object, object, object)
     failed = Signal(str, str, str, str)
+
+    @Slot(str, str, str, object, object, object)
+    def forward_ready(self, body_a: str, aspect: str, body_b: str, start: object, end: object, metadata: object) -> None:
+        self.ready.emit(body_a, aspect, body_b, start, end, metadata)
+
+    @Slot(str, str, str, str)
+    def forward_failed(self, body_a: str, aspect: str, body_b: str, error: str) -> None:
+        self.failed.emit(body_a, aspect, body_b, error)
 
 
 class ManagedTransitPopoutDialog(QDialog):
