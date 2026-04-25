@@ -33,6 +33,7 @@ class PropertyManagerCoordinator:
             apply_change=apply_metadata_label_change,
             label_limit=32767,
             load_chart_names=self.chart_names,
+            refresh_chart_context=lambda: self._host._refresh_charts(refresh_metrics=False),
             collection_actions={
                 "create": self._host._on_create_custom_collection,
                 "rename": self._host._on_rename_custom_collection_by_id,
