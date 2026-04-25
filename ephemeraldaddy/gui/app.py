@@ -535,7 +535,6 @@ from ephemeraldaddy.gui.features.charts.aspect_sorting import (
 )
 from ephemeraldaddy.gui.features.charts.tagging import (
     apply_tag_completer,
-    merge_display_and_input_tags,
     normalize_tag_list,
     parse_single_tag_text,
     parse_tag_text,
@@ -25154,10 +25153,7 @@ class MainWindow(QMainWindow):
         self._render_chart_selection_tag_summary()
 
     def _chart_tags_for_save(self) -> list[str]:
-        return merge_display_and_input_tags(
-            getattr(self, "_chart_tags_selection", []),
-            self.chart_tags_input.text(),
-        )
+        return normalize_tag_list(getattr(self, "_chart_tags_selection", []))
 
     def _render_chart_selection_tag_summary(self) -> None:
         render_removable_tag_chip_preview(
