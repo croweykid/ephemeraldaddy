@@ -106,6 +106,9 @@ class _SentimentEdgeSlider(QSlider):
         normalized = max(1, min(10, int(value)))
         self.setValue(normalized)
 
+    def refresh_marker_position(self) -> None:
+        self._position_emoji_marker()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._position_emoji_marker()
@@ -152,6 +155,8 @@ class _SentimentIntensitySpectrum(QWidget):
         self._negative_slider.set_intensity(negative_value)
         self._positive_slider.blockSignals(False)
         self._negative_slider.blockSignals(False)
+        self._positive_slider.refresh_marker_position()
+        self._negative_slider.refresh_marker_position()
         self.update()
 
     def resizeEvent(self, event) -> None:
