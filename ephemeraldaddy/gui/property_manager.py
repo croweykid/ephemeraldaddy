@@ -4,6 +4,7 @@ from typing import Any
 
 from ephemeraldaddy.core.db import (
     apply_metadata_label_change,
+    get_chart_names_for_metadata_label,
     get_metadata_label_usage,
     parse_relationship_types,
     parse_sentiments,
@@ -33,6 +34,7 @@ class PropertyManagerCoordinator:
             apply_change=apply_metadata_label_change,
             label_limit=32767,
             load_chart_names=self.chart_names,
+            refresh_chart_context=lambda: self._host._refresh_charts(refresh_metrics=False),
             collection_actions={
                 "create": self._host._on_create_custom_collection,
                 "rename": self._host._on_rename_custom_collection_by_id,
@@ -96,6 +98,16 @@ class PropertyManagerCoordinator:
         return collection_rows
 
     def chart_names(self, field: str, label: str, key: str) -> list[str]:
+        if field in {
+            ManageMetadataLabelsDialog.FIELD_TAGS,
+            ManageMetadataLabelsDialog.FIELD_SENTIMENTS,
+            ManageMetadataLabelsDialog.FIELD_RELATIONSHIPS,
+        }:
+            try:
+                return get_chart_names_for_metadata_label(field=field, label=label)
+            except Exception:
+                return []
+
         def _values_to_csv(values: object) -> str:
             if isinstance(values, str):
                 return values

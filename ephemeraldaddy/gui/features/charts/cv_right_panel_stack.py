@@ -33,9 +33,11 @@ class ChartRightPanelStack:
 
     container: QWidget
     analytics_button: QPushButton
+    predictions_button: QPushButton
     subjective_notes_button: QPushButton
     stack: QStackedWidget
     analytics_scroll: QScrollArea
+    predictions_scroll: QScrollArea
     subjective_notes_scroll: QScrollArea
 
 
@@ -137,8 +139,10 @@ def apply_mode_pick_metadata(
 def build_chart_right_panel_stack(
     *,
     analytics_content_widget: QWidget,
+    predictions_content_widget: QWidget,
     subjective_notes_content_widget: QWidget,
     on_show_analytics: Callable[[], None],
+    on_show_predictions: Callable[[], None],
     on_show_subjective_notes: Callable[[], None],
     scrollbar_style: str,
 ) -> ChartRightPanelStack:
@@ -153,11 +157,14 @@ def build_chart_right_panel_stack(
     analytics_button = QPushButton("📊")
     analytics_button.setObjectName("chart_view_toggle_analytics_panel_button")
     analytics_button.clicked.connect(on_show_analytics)
+    predictions_button = QPushButton("🎱")
+    predictions_button.setObjectName("chart_view_toggle_predictions_panel_button")
+    predictions_button.clicked.connect(on_show_predictions)
     subjective_notes_button = QPushButton("💭")
     subjective_notes_button.setObjectName("chart_view_toggle_subjective_notes_panel_button")
     subjective_notes_button.clicked.connect(on_show_subjective_notes)
 
-    for control_button in (analytics_button, subjective_notes_button):
+    for control_button in (analytics_button, predictions_button, subjective_notes_button):
         control_button.setCheckable(True)
         control_button.setAutoDefault(False)
         control_button.setDefault(False)
@@ -171,6 +178,7 @@ def build_chart_right_panel_stack(
     controls_layout.setSpacing(4)
     controls_row.setLayout(controls_layout)
     controls_layout.addWidget(analytics_button)
+    controls_layout.addWidget(predictions_button)
     controls_layout.addWidget(subjective_notes_button)
     controls_layout.addStretch(1)
     layout.addWidget(controls_row)
@@ -188,6 +196,15 @@ def build_chart_right_panel_stack(
     analytics_scroll.setWidget(analytics_content_widget)
     stack.addWidget(analytics_scroll)
 
+    predictions_scroll = QScrollArea()
+    predictions_scroll.setWidgetResizable(True)
+    predictions_scroll.setFrameShape(QScrollArea.NoFrame)
+    predictions_scroll.setMinimumWidth(240)
+    predictions_scroll.setStyleSheet(scrollbar_style)
+    predictions_scroll.setFocusPolicy(Qt.StrongFocus)
+    predictions_scroll.setWidget(predictions_content_widget)
+    stack.addWidget(predictions_scroll)
+
     subjective_notes_scroll = QScrollArea()
     subjective_notes_scroll.setWidgetResizable(True)
     subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
@@ -200,8 +217,10 @@ def build_chart_right_panel_stack(
     return ChartRightPanelStack(
         container=container,
         analytics_button=analytics_button,
+        predictions_button=predictions_button,
         subjective_notes_button=subjective_notes_button,
         stack=stack,
         analytics_scroll=analytics_scroll,
+        predictions_scroll=predictions_scroll,
         subjective_notes_scroll=subjective_notes_scroll,
     )

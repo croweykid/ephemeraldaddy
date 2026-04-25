@@ -303,6 +303,8 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             dominant_planet_weights TEXT,
             dominant_nakshatra_weights TEXT,
             dominant_element_weights TEXT,
+            dominant_enneagram_type INTEGER,
+            top_three_enneagram_types TEXT,
             dominant_mode TEXT,
             modal_distribution TEXT,
             human_design_gates TEXT,
@@ -652,6 +654,20 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN dominant_element_weights TEXT
+            """
+        )
+    if "dominant_enneagram_type" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN dominant_enneagram_type INTEGER
+            """
+        )
+    if "top_three_enneagram_types" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN top_three_enneagram_types TEXT
             """
         )
     if "dominant_mode" not in columns:
@@ -1476,6 +1492,49 @@ def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     }
 
 
+def get_chart_names_for_metadata_label(
+    *,
+    field: str,
+    label: str,
+) -> list[str]:
+    """Return chart display names currently matching one metadata label."""
+    normalized_label = str(label or "").strip()
+    if not normalized_label:
+        return []
+
+    if field == "sentiments":
+        parser = parse_sentiments
+        use_casefold = False
+    elif field == "relationship_types":
+        parser = parse_relationship_types
+        use_casefold = False
+    elif field == "tags":
+        parser = parse_tags
+        use_casefold = True
+    else:
+        raise ValueError(f"Unsupported metadata field: {field}")
+
+    normalized_key = normalized_label.casefold()
+    names: list[str] = []
+    with _get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT id, name, nickname, {field} FROM charts"
+        ).fetchall()
+
+    for row_id, name, nickname, raw_value in rows:
+        parsed = parser(raw_value)
+        if not parsed:
+            continue
+        if use_casefold:
+            matched = any(value.casefold() == normalized_key for value in parsed)
+        else:
+            matched = normalized_label in parsed
+        if matched:
+            chart_name = str(name or nickname or f"Chart {int(row_id)}").strip()
+            names.append(chart_name)
+    return sorted(names, key=str.casefold)
+
+
 def apply_metadata_label_change(
     *,
     field: str,
@@ -2240,7 +2299,7 @@ def save_chart(
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
-                 dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
+                 dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
                  human_design_type, human_design_authority,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2253,7 +2312,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2329,6 +2388,8 @@ def save_chart(
                     else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                getattr(chart, "dominant_enneagram_type", None),
+                _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
@@ -2495,6 +2556,8 @@ def update_chart(
                 dominant_planet_weights = ?,
                 dominant_nakshatra_weights = ?,
                 dominant_element_weights = ?,
+                dominant_enneagram_type = ?,
+                top_three_enneagram_types = ?,
                 dominant_mode = ?,
                 modal_distribution = ?,
                 human_design_gates = ?,
@@ -2593,6 +2656,8 @@ def update_chart(
                     else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                getattr(chart, "dominant_enneagram_type", None),
+                _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
@@ -2903,7 +2968,7 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
+               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2958,6 +3023,8 @@ def load_chart(chart_id: int):
         dominant_planet_weights,
         dominant_nakshatra_weights,
         dominant_element_weights,
+        dominant_enneagram_type,
+        top_three_enneagram_types,
         dominant_mode,
         modal_distribution,
         human_design_gates,
@@ -3031,6 +3098,8 @@ def load_chart(chart_id: int):
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
         placeholder.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
         placeholder.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+        placeholder.dominant_enneagram_type = int(dominant_enneagram_type) if dominant_enneagram_type is not None else None
+        placeholder.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
         placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
         placeholder.modal_distribution = _parse_weight_map(modal_distribution)
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
@@ -3103,6 +3172,8 @@ def load_chart(chart_id: int):
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
     chart.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
     chart.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+    chart.dominant_enneagram_type = int(dominant_enneagram_type) if dominant_enneagram_type is not None else None
+    chart.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
     chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
     chart.modal_distribution = _parse_weight_map(modal_distribution)
     chart.human_design_gates = _parse_int_list(human_design_gates)

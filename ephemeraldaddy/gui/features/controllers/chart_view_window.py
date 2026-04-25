@@ -195,10 +195,19 @@ class _SentimentIntensitySpectrum(QWidget):
             self.rect().adjusted(10, groove_rect.bottom() + 8, -10, 0),
             Qt.AlignHCenter | Qt.AlignTop,
             (
-                f"💖 Positive Sentiment Intensity: {self.positive_intensity()}    "
-                f"💔 Negative Sentiment Intensity: {self.negative_intensity()}"
+                f"Frustration: {self.negative_intensity()}"
+                f"Enjoyment: {self.positive_intensity()}    "
             ),
         )
+
+    def _average_x_position(self) -> int:
+        signed_positive = self._positive_slider.intensity()
+        signed_negative = -self._negative_slider.intensity()
+        average_value = (signed_positive + signed_negative) / 2.0
+        groove_width = max(1, self.width() - 20)
+        normalized = (average_value - (-10.0)) / 20.0
+        x_value = 10 + int(round(normalized * groove_width))
+        return max(10, min(self.width() - 10, x_value))
 
     def _emit_committed_values(self) -> None:
         self.valuesCommitted.emit(self.positive_intensity(), self.negative_intensity())
@@ -850,18 +859,46 @@ def build_chart_view_right_panel(
     subjective_notes_layout.addWidget(owner.sentiment_relation_row_widget)
     subjective_notes_layout.addStretch(1)
 
+    predictions_panel = QWidget()
+    predictions_layout = QVBoxLayout()
+    predictions_layout.setContentsMargins(6, 6, 6, 6)
+    predictions_layout.setSpacing(6)
+    predictions_panel.setLayout(predictions_layout)
+
+    enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=predictions_panel,
+        layout=predictions_layout,
+        title="Enneagram",
+        expanded=True,
+    )
+    owner.enneagram_prediction_chart_panel = QWidget()
+    owner.enneagram_prediction_chart_layout = QVBoxLayout()
+    owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
+    owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
+    owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
+    owner.enneagram_prediction_tritype_label.setWordWrap(True)
+    owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5;")
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
+    predictions_layout.addStretch(1)
+
     chart_right_panel = build_chart_right_panel_stack(
         analytics_content_widget=metrics_content,
+        predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
         on_show_analytics=lambda: owner._set_chart_right_panel("analytics"),
+        on_show_predictions=lambda: owner._set_chart_right_panel("predictions"),
         on_show_subjective_notes=lambda: owner._set_chart_right_panel("subjective_notes"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
     owner.chart_analytics_panel_button = chart_right_panel.analytics_button
+    owner.predictions_panel_button = chart_right_panel.predictions_button
     owner.subjective_notes_panel_button = chart_right_panel.subjective_notes_button
     owner.chart_right_panel_stack = chart_right_panel.stack
     owner.chart_analytics_panel_scroll = chart_right_panel.analytics_scroll
+    owner.predictions_panel_scroll = chart_right_panel.predictions_scroll
     owner.subjective_notes_panel_scroll = chart_right_panel.subjective_notes_scroll
 
     owner._main_splitter.addWidget(owner.metrics_panel)

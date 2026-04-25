@@ -6,7 +6,13 @@ from typing import Any
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.human_design_system import (
+    CHANNELS,
+    INCARNATION_CROSS_LOOKUP,
     HumanDesignResult,
+    _resolve_authority,
+    _resolve_strategy,
+    _resolve_type,
+    _split_definition,
     calculate_human_design,
 )
 from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS
@@ -460,3 +466,142 @@ def build_human_design_chart_data_output(
         {},
         positions_start_index,
     )
+
+
+def build_human_design_synastry_data_output(
+    hd_a: HumanDesignResult,
+    hd_b: HumanDesignResult,
+) -> tuple[str, dict[int, Any], int]:
+    """Build synastry HD output treating two charts as one aggregate chart."""
+    active_lines = {
+        (activation.gate, activation.line)
+        for activation in (
+            *hd_a.personality_activations,
+            *hd_a.design_activations,
+            *hd_b.personality_activations,
+            *hd_b.design_activations,
+        )
+    }
+    active_gates = {gate for gate, _line in active_lines}
+    chart_a_active_gates = {
+        activation.gate for activation in (*hd_a.personality_activations, *hd_a.design_activations)
+    }
+    chart_b_active_gates = {
+        activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)
+    }
+    chart_a_channels = sorted(
+        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        for gate_a, gate_b, _center_a, _center_b in CHANNELS
+        if gate_a in chart_a_active_gates and gate_b in chart_a_active_gates
+    )
+    chart_b_channels = sorted(
+        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+        for gate_a, gate_b, _center_a, _center_b in CHANNELS
+        if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
+    )
+    defined_channels = tuple(
+        (gate_a, gate_b, center_a, center_b)
+        for gate_a, gate_b, center_a, center_b in CHANNELS
+        if gate_a in active_gates and gate_b in active_gates
+    )
+    defined_centers = {
+        center
+        for _gate_a, _gate_b, center_a, center_b in defined_channels
+        for center in (center_a, center_b)
+    }
+    combined_type = _resolve_type(defined_centers, defined_channels)
+    combined_authority = _resolve_authority(combined_type, defined_centers, defined_channels)
+    combined_definition = _split_definition(defined_channels)
+    combined_strategy = _resolve_strategy(combined_type)
+
+    combined_crosses: list[str] = []
+    for hd_result in (hd_a, hd_b):
+        sun_personality = next((a for a in hd_result.personality_activations if a.body == "Sun"), None)
+        earth_personality = next((a for a in hd_result.personality_activations if a.body == "Earth"), None)
+        sun_design = next((a for a in hd_result.design_activations if a.body == "Sun"), None)
+        earth_design = next((a for a in hd_result.design_activations if a.body == "Earth"), None)
+        if not all((sun_personality, earth_personality, sun_design, earth_design)):
+            continue
+        cross_key = (
+            int(sun_personality.gate),
+            int(earth_personality.gate),
+            int(sun_design.gate),
+            int(earth_design.gate),
+        )
+        cross_name = INCARNATION_CROSS_LOOKUP.get(cross_key)
+        if cross_name and cross_name not in combined_crosses:
+            combined_crosses.append(cross_name)
+
+    type_line, type_entry = _render_clickable_property("Combined Type", combined_type, "type")
+    auth_line, auth_entry = _render_clickable_property("Combined Authority", combined_authority, "authority")
+    definition_line, definition_entry = _render_clickable_property(
+        "Combined Definition",
+        _format_split_definition(combined_definition),
+        "definition",
+        lookup_value=combined_definition,
+    )
+    strategy_line, strategy_entry = _render_clickable_property(
+        "Combined Strategy",
+        combined_strategy,
+        "strategy",
+    )
+
+    channel_lines, channel_info_map = _render_channel_lines(defined_channels)
+    gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_lines)
+    awareness_lines = [
+        f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
+        for stream_entry in build_awareness_stream_completion(active_gates)
+    ]
+
+    rendered_lines = [
+        CHART_DATA_DIVIDER,
+        "CORE DESIGNATION",
+        CHART_DATA_DIVIDER,
+        type_line,
+        auth_line,
+        definition_line,
+        strategy_line,
+        f"Combined Defined Centers: {_format_defined_centers(defined_centers)}",
+        f"Combined Incarnation Cross(es): {', '.join(combined_crosses) if combined_crosses else 'Unknown'}",
+        "",
+        "🟧 Active Gates (Chart A): "
+        + (", ".join(str(gate) for gate in sorted(chart_a_active_gates)) if chart_a_active_gates else "None"),
+        "🟦 Active Gates (Chart B): "
+        + (", ".join(str(gate) for gate in sorted(chart_b_active_gates)) if chart_b_active_gates else "None"),
+        "🟧 Active Channels (Chart A): " + (", ".join(chart_a_channels) if chart_a_channels else "None"),
+        "🟦 Active Channels (Chart B): " + (", ".join(chart_b_channels) if chart_b_channels else "None"),
+        "",
+        CHART_DATA_DIVIDER,
+        "GATES & LINES",
+        CHART_DATA_DIVIDER,
+        *gate_line_lines,
+        "",
+        CHART_DATA_DIVIDER,
+        "CHANNELS",
+        CHART_DATA_DIVIDER,
+        *channel_lines,
+        "",
+        CHART_DATA_DIVIDER,
+        "AWARENESS STREAMS",
+        CHART_DATA_DIVIDER,
+        *awareness_lines,
+    ]
+
+    position_info_map: dict[int, Any] = {}
+    for line_text, entry in (
+        (type_line, type_entry),
+        (auth_line, auth_entry),
+        (definition_line, definition_entry),
+        (strategy_line, strategy_entry),
+    ):
+        position_info_map.setdefault(rendered_lines.index(line_text), []).append(entry)
+
+    gates_header_index = rendered_lines.index("GATES & LINES")
+    for relative_line_index, entries in gate_line_info_map.items():
+        position_info_map.setdefault(gates_header_index + 2 + relative_line_index, []).extend(entries)
+
+    channels_header_index = rendered_lines.index("CHANNELS")
+    for relative_line_index, entries in channel_info_map.items():
+        position_info_map.setdefault(channels_header_index + 2 + relative_line_index, []).extend(entries)
+
+    return "\n".join(rendered_lines), position_info_map, 0
