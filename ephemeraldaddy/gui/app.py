@@ -5472,8 +5472,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             relay = TransitAspectWindowRelay(dialog)
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
-            worker.finished.connect(relay.ready)
-            worker.failed.connect(relay.failed)
+            worker.finished.connect(relay.forward_ready, Qt.QueuedConnection)
+            worker.failed.connect(relay.forward_failed, Qt.QueuedConnection)
             relay.ready.connect(
                 lambda a, b, c, start_dt, end_dt, metadata, mode=mode: _on_window_ready(
                     (str(mode), str(a), str(b), str(c)),
