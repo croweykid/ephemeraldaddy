@@ -2463,7 +2463,7 @@ class DatabaseAnalyticsChartsMixin:
             show_title=False,
         )
         enneagram_subheader = self._build_database_subheader_label(
-            "Dominant Enneagram type distribution from chart-level predictions."
+            "Average Enneagram type weight distribution from chart-level predictions."
         )
         enneagram_section_layout.addWidget(enneagram_subheader)
         (
@@ -2574,6 +2574,22 @@ class DatabaseAnalyticsChartsMixin:
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
         self._refresh_chart_enneagram_prediction_metadata(chart)
+        weight_map = getattr(chart, "enneagram_type_weights", None)
+        if isinstance(weight_map, dict):
+            normalized_weights: dict[int, float] = {}
+            weight_total = 0.0
+            for raw_type, raw_weight in weight_map.items():
+                normalized_type = self._normalize_enneagram_type(raw_type)
+                normalized_score = self._normalize_enneagram_score(raw_weight)
+                if normalized_type is None or normalized_score is None or normalized_score <= 0:
+                    continue
+                normalized_weights[normalized_type] = normalized_score
+                weight_total += normalized_score
+            if weight_total > 0:
+                for enneagram_type in range(1, 10):
+                    normalized_weight = float(normalized_weights.get(enneagram_type, 0.0)) / float(weight_total)
+                    snapshot["enneagram_weight_totals"][enneagram_type] += normalized_weight
+                snapshot["enneagram_weight_chart_count"] += 1
         top_types = self._extract_top_enneagram_types_from_chart_metadata(chart, limit=3)
         for enneagram_type in top_types:
             if enneagram_type in snapshot["enneagram_totals"]:
@@ -2589,31 +2605,33 @@ class DatabaseAnalyticsChartsMixin:
         should_refresh: Callable[[str], bool],
     ) -> None:
         enneagram_labels = [f"Type {enneagram_type}" for enneagram_type in range(1, 10)]
+        selection_weight_chart_count = max(0, int(selection_cache.get("enneagram_weight_chart_count", 0)))
+        database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
         selection_enneagram_counts = {
-            f"Type {enneagram_type}": int(selection_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": selection_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         database_enneagram_counts = {
-            f"Type {enneagram_type}": int(database_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": database_weight_chart_count
             for enneagram_type in range(1, 10)
         }
-        selection_enneagram_total = int(selection_cache.get("enneagram_total_count", 0))
-        database_enneagram_total = int(database_cache.get("enneagram_total_count", 0))
         selection_enneagram_values = {
-            label: (
-                float(selection_enneagram_counts[label]) / float(selection_enneagram_total)
-                if selection_enneagram_total
+            f"Type {enneagram_type}": (
+                float(selection_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
+                / float(selection_weight_chart_count)
+                if selection_weight_chart_count
                 else 0.0
             )
-            for label in enneagram_labels
+            for enneagram_type in range(1, 10)
         }
         database_enneagram_values = {
-            label: (
-                float(database_enneagram_counts[label]) / float(database_enneagram_total)
-                if database_enneagram_total
+            f"Type {enneagram_type}": (
+                float(database_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
+                / float(database_weight_chart_count)
+                if database_weight_chart_count
                 else 0.0
             )
-            for label in enneagram_labels
+            for enneagram_type in range(1, 10)
         }
         enneagram_label_colors = {
             f"Type {enneagram_type}": str(
