@@ -2598,13 +2598,22 @@ class DatabaseAnalyticsChartsMixin:
             )
             for label in enneagram_labels
         }
+        selection_matches_database_distribution = all(
+            abs(selection_enneagram_values[label] - database_enneagram_values[label]) <= 1e-12
+            for label in enneagram_labels
+        )
+        chart_loaded_charts = (
+            0
+            if loaded_charts > 0 and selection_matches_database_distribution
+            else loaded_charts
+        )
         if should_refresh("enneagram"):
             enneagram_canvas = self._build_dominant_planet_chart(
                 selection_planets=selection_enneagram_values,
                 database_planets=database_enneagram_values,
                 selection_planet_counts=selection_enneagram_counts,
                 database_planet_counts=database_enneagram_counts,
-                loaded_charts=loaded_charts,
+                loaded_charts=chart_loaded_charts,
                 labels=enneagram_labels,
                 force_value_fallback_colors=True,
             )
