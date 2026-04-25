@@ -535,8 +535,12 @@ from ephemeraldaddy.gui.features.charts.aspect_sorting import (
 )
 from ephemeraldaddy.gui.features.charts.tagging import (
     apply_tag_completer,
+    merge_display_and_input_tags,
     normalize_tag_list,
+    parse_single_tag_text,
     parse_tag_text,
+    remove_tag_casefold,
+    render_removable_tag_chip_preview,
     render_tag_chip_preview,
 )
 from ephemeraldaddy.gui.features.charts.tag_search import (
@@ -25150,47 +25154,32 @@ class MainWindow(QMainWindow):
         self._render_chart_selection_tag_summary()
 
     def _chart_tags_for_save(self) -> list[str]:
-        existing_tags = list(getattr(self, "_chart_tags_selection", []))
-        typed_tags = parse_tag_text(self.chart_tags_input.text())
-        return normalize_tag_list([*existing_tags, *typed_tags])
+        return merge_display_and_input_tags(
+            getattr(self, "_chart_tags_selection", []),
+            self.chart_tags_input.text(),
+        )
 
     def _render_chart_selection_tag_summary(self) -> None:
-        if not hasattr(self, "chart_tags_preview_label"):
-            return
-        selected_tags = list(getattr(self, "_chart_tags_selection", []))
-        if not selected_tags:
-            self.chart_tags_preview_label.setText(
-                "<span style='color:#8d8d8d;'>No tags yet.</span>"
-            )
-            return
-        chips: list[str] = []
-        for tag in sorted(selected_tags, key=lambda value: value.casefold()):
-            encoded_tag = urllib.parse.quote(tag, safe="")
-            chips.append(
-                "<span style='display:inline-block;"
-                "padding:2px 8px;"
-                "margin:0 6px 6px 0;"
-                "border:1px solid #3a3a3a;"
-                "border-radius:999px;"
-                "background-color:#222;'>"
-                f"{html.escape(tag)}"
-                f"<a href='remove_tag:{encoded_tag}' style='color:#ff6f6f;text-decoration:none;font-weight:700;'> ✕</a>"
-                "</span>"
-            )
-        self.chart_tags_preview_label.setText("".join(chips))
+        render_removable_tag_chip_preview(
+            getattr(self, "chart_tags_preview_label", None),
+            list(getattr(self, "_chart_tags_selection", [])),
+            empty_text="No tags yet.",
+            remove_link_prefix="remove_tag:",
+        )
 
     def _on_chart_tags_add_clicked(self) -> None:
-        parsed_tags = parse_tag_text(self.chart_tags_input.text())
-        if not parsed_tags:
+        tag_to_add, validation_error = parse_single_tag_text(self.chart_tags_input.text())
+        if not tag_to_add and not validation_error:
             return
-        if len(parsed_tags) > 1:
+        if validation_error:
             QMessageBox.information(
                 self,
                 "One tag at a time",
-                "Please enter only one tag in this field.",
+                validation_error,
             )
             return
-        tag_to_add = parsed_tags[0]
+        if not tag_to_add:
+            return
         merged_tags = normalize_tag_list(
             [*getattr(self, "_chart_tags_selection", []), tag_to_add]
         )
@@ -25206,12 +25195,10 @@ class MainWindow(QMainWindow):
         tag_to_remove = urllib.parse.unquote(encoded_tag).strip()
         if not tag_to_remove:
             return
-        normalized_remove_key = tag_to_remove.casefold()
-        updated_tags = [
-            tag
-            for tag in getattr(self, "_chart_tags_selection", [])
-            if tag.casefold() != normalized_remove_key
-        ]
+        updated_tags = remove_tag_casefold(
+            getattr(self, "_chart_tags_selection", []),
+            tag_to_remove,
+        )
         self._set_chart_tags_state(updated_tags)
         self._mark_lucygoosey()
 
