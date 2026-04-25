@@ -2499,6 +2499,14 @@ class DatabaseAnalyticsChartsMixin:
             return top_types[0]
         return None
 
+    def _refresh_chart_enneagram_prediction_metadata(self, chart: Any) -> None:
+        cache_metadata = getattr(self, "_cache_enneagram_prediction_metadata", None)
+        if callable(cache_metadata):
+            try:
+                cache_metadata(chart)
+            except Exception:
+                pass
+
     def _extract_top_enneagram_types_from_chart_metadata(
         self,
         chart: Any,
@@ -2506,28 +2514,6 @@ class DatabaseAnalyticsChartsMixin:
         limit: int = 3,
     ) -> list[int]:
         normalized_limit = max(1, int(limit))
-        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
-        if callable(calculate_type_weights):
-            try:
-                computed_scores = calculate_type_weights(chart)
-            except Exception:
-                computed_scores = {}
-            if isinstance(computed_scores, dict):
-                ranked_computed: list[tuple[int, float]] = []
-                for raw_type, raw_score in computed_scores.items():
-                    normalized_type = self._normalize_enneagram_type(raw_type)
-                    normalized_score = self._normalize_enneagram_score(raw_score)
-                    if normalized_type is None or normalized_score is None:
-                        continue
-                    ranked_computed.append((normalized_type, normalized_score))
-                ranked_computed.sort(key=lambda item: (-item[1], item[0]))
-                computed_top_types = [
-                    normalized_type
-                    for normalized_type, normalized_score in ranked_computed
-                    if normalized_score > 0
-                ][:normalized_limit]
-                if computed_top_types:
-                    return computed_top_types
 
         direct_type = self._normalize_enneagram_type(
             getattr(chart, "dominant_enneagram_type", None)
@@ -2587,6 +2573,7 @@ class DatabaseAnalyticsChartsMixin:
         return top_types[:normalized_limit]
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
+        self._refresh_chart_enneagram_prediction_metadata(chart)
         top_types = self._extract_top_enneagram_types_from_chart_metadata(chart, limit=3)
         for enneagram_type in top_types:
             if enneagram_type in snapshot["enneagram_totals"]:
