@@ -2456,6 +2456,7 @@ class DatabaseAnalyticsChartsMixin:
             "🎭Enneagram",
             "enneagram",
             "enneagram",
+            dropdown_options=[("Enneagram Predictions", "enneagram")],
             show_title=False,
         )
         enneagram_subheader = self._build_database_subheader_label(
@@ -2536,6 +2537,24 @@ class DatabaseAnalyticsChartsMixin:
             ranked.sort(key=lambda item: (-item[1], item[0]))
             if ranked and ranked[0][1] > 0:
                 return ranked[0][0]
+
+        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
+        if callable(calculate_type_weights):
+            try:
+                computed_scores = calculate_type_weights(chart)
+            except Exception:
+                computed_scores = {}
+            if isinstance(computed_scores, dict):
+                ranked_computed = []
+                for raw_type, raw_score in computed_scores.items():
+                    normalized_type = self._normalize_enneagram_type(raw_type)
+                    normalized_score = self._normalize_enneagram_score(raw_score)
+                    if normalized_type is None or normalized_score is None:
+                        continue
+                    ranked_computed.append((normalized_type, normalized_score))
+                ranked_computed.sort(key=lambda item: (-item[1], item[0]))
+                if ranked_computed and ranked_computed[0][1] > 0:
+                    return ranked_computed[0][0]
         return None
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
