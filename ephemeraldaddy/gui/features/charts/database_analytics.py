@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import csv
 import html
+import logging
 import math
 import re
 import statistics
@@ -70,6 +71,8 @@ from ephemeraldaddy.gui.style import (
     get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseAnalyticsChartsMixin:
@@ -2463,7 +2466,7 @@ class DatabaseAnalyticsChartsMixin:
             show_title=False,
         )
         enneagram_subheader = self._build_database_subheader_label(
-            "Dominant Enneagram type distribution from chart-level predictions."
+            "Average Enneagram type weight distribution from chart-level predictions."
         )
         enneagram_section_layout.addWidget(enneagram_subheader)
         (
@@ -2499,13 +2502,60 @@ class DatabaseAnalyticsChartsMixin:
             return top_types[0]
         return None
 
-    def _refresh_chart_enneagram_prediction_metadata(self, chart: Any) -> None:
+    @staticmethod
+    def _debug_chart_label(chart: Any) -> str:
+        chart_id = getattr(chart, "id", None)
+        chart_name = str(getattr(chart, "name", "") or "").strip()
+        if chart_name:
+            return f"{chart_name} (id={chart_id})"
+        return f"id={chart_id}"
+
+    def _refresh_chart_enneagram_prediction_metadata(self, chart: Any) -> bool:
         cache_metadata = getattr(self, "_cache_enneagram_prediction_metadata", None)
         if callable(cache_metadata):
             try:
                 cache_metadata(chart)
+                return True
             except Exception:
-                pass
+                logger.exception(
+                    "Failed to cache Enneagram metadata for chart %s during database analytics refresh.",
+                    self._debug_chart_label(chart),
+                )
+                return False
+        logger.warning(
+            "Enneagram metadata cache hook is unavailable while refreshing chart %s.",
+            self._debug_chart_label(chart),
+        )
+        return False
+
+    def _resolve_chart_enneagram_weight_map(
+        self,
+        chart: Any,
+    ) -> dict[int, float]:
+        weight_map = getattr(chart, "enneagram_type_weights", None)
+        if isinstance(weight_map, dict) and weight_map:
+            return weight_map
+        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
+        if callable(calculate_type_weights):
+            try:
+                calculated = calculate_type_weights(chart)
+            except Exception:
+                logger.exception(
+                    "Direct Enneagram weight calculation failed for chart %s.",
+                    self._debug_chart_label(chart),
+                )
+                return {}
+            if isinstance(calculated, dict) and calculated:
+                try:
+                    chart.enneagram_type_weights = {
+                        int(enneagram_type): float(score)
+                        for enneagram_type, score in calculated.items()
+                    }
+                except Exception:
+                    # Keep analytics resilient even if chart attributes are not writable.
+                    pass
+                return chart.enneagram_type_weights
+        return {}
 
     def _extract_top_enneagram_types_from_chart_metadata(
         self,
@@ -2573,8 +2623,49 @@ class DatabaseAnalyticsChartsMixin:
         return top_types[:normalized_limit]
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
-        self._refresh_chart_enneagram_prediction_metadata(chart)
+        refresh_ok = self._refresh_chart_enneagram_prediction_metadata(chart)
+        weight_map = self._resolve_chart_enneagram_weight_map(chart)
+        weight_snapshot_populated = False
+        if isinstance(weight_map, dict):
+            normalized_weights: dict[int, float] = {}
+            weight_total = 0.0
+            for raw_type, raw_weight in weight_map.items():
+                normalized_type = self._normalize_enneagram_type(raw_type)
+                normalized_score = self._normalize_enneagram_score(raw_weight)
+                if normalized_type is None or normalized_score is None or normalized_score <= 0:
+                    continue
+                normalized_weights[normalized_type] = normalized_score
+                weight_total += normalized_score
+            if weight_total > 0:
+                for enneagram_type in range(1, 10):
+                    normalized_weight = float(normalized_weights.get(enneagram_type, 0.0)) / float(weight_total)
+                    snapshot["enneagram_weight_totals"][enneagram_type] += normalized_weight
+                snapshot["enneagram_weight_chart_count"] += 1
+                weight_snapshot_populated = True
         top_types = self._extract_top_enneagram_types_from_chart_metadata(chart, limit=3)
+        if not weight_snapshot_populated and top_types:
+            fallback_weight = 1.0 / float(len(top_types))
+            for enneagram_type in top_types:
+                if enneagram_type in snapshot["enneagram_weight_totals"]:
+                    snapshot["enneagram_weight_totals"][enneagram_type] += fallback_weight
+            snapshot["enneagram_weight_chart_count"] += 1
+            warned_labels = getattr(self, "_enneagram_weight_fallback_warned_labels", set())
+            chart_label = self._debug_chart_label(chart)
+            if chart_label not in warned_labels:
+                logger.warning(
+                    "Enneagram weight map missing/empty for chart %s; using top-type fallback weights %s "
+                    "(refresh_ok=%s).",
+                    chart_label,
+                    top_types,
+                    refresh_ok,
+                )
+                warned_labels.add(chart_label)
+                self._enneagram_weight_fallback_warned_labels = warned_labels
+        elif not weight_snapshot_populated and not top_types and refresh_ok:
+            logger.warning(
+                "Enneagram metadata produced no usable weights or top types for chart %s.",
+                self._debug_chart_label(chart),
+            )
         for enneagram_type in top_types:
             if enneagram_type in snapshot["enneagram_totals"]:
                 snapshot["enneagram_totals"][enneagram_type] += 1
@@ -2589,32 +2680,58 @@ class DatabaseAnalyticsChartsMixin:
         should_refresh: Callable[[str], bool],
     ) -> None:
         enneagram_labels = [f"Type {enneagram_type}" for enneagram_type in range(1, 10)]
+        selection_weight_chart_count = max(0, int(selection_cache.get("enneagram_weight_chart_count", 0)))
+        database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
         selection_enneagram_counts = {
-            f"Type {enneagram_type}": int(selection_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": selection_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         database_enneagram_counts = {
-            f"Type {enneagram_type}": int(database_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": database_weight_chart_count
+            for enneagram_type in range(1, 10)
+        }
+        selection_enneagram_values = {
+            f"Type {enneagram_type}": (
+                float(selection_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
+                / float(selection_weight_chart_count)
+                if selection_weight_chart_count
+                else 0.0
+            )
+            for enneagram_type in range(1, 10)
+        }
+        database_enneagram_values = {
+            f"Type {enneagram_type}": (
+                float(database_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
+                / float(database_weight_chart_count)
+                if database_weight_chart_count
+                else 0.0
+            )
             for enneagram_type in range(1, 10)
         }
         selection_enneagram_total = int(selection_cache.get("enneagram_total_count", 0))
         database_enneagram_total = int(database_cache.get("enneagram_total_count", 0))
-        selection_enneagram_values = {
-            label: (
-                float(selection_enneagram_counts[label]) / float(selection_enneagram_total)
-                if selection_enneagram_total
-                else 0.0
+        if selection_weight_chart_count <= 0 and selection_enneagram_total > 0:
+            logger.warning(
+                "Selection Enneagram weighted chart count is zero; falling back to top-type frequency distribution."
             )
-            for label in enneagram_labels
-        }
-        database_enneagram_values = {
-            label: (
-                float(database_enneagram_counts[label]) / float(database_enneagram_total)
-                if database_enneagram_total
-                else 0.0
+            selection_enneagram_values = {
+                f"Type {enneagram_type}": (
+                    float(selection_cache["enneagram_totals"].get(enneagram_type, 0.0))
+                    / float(selection_enneagram_total)
+                )
+                for enneagram_type in range(1, 10)
+            }
+        if database_weight_chart_count <= 0 and database_enneagram_total > 0:
+            logger.warning(
+                "Database Enneagram weighted chart count is zero; falling back to top-type frequency distribution."
             )
-            for label in enneagram_labels
-        }
+            database_enneagram_values = {
+                f"Type {enneagram_type}": (
+                    float(database_cache["enneagram_totals"].get(enneagram_type, 0.0))
+                    / float(database_enneagram_total)
+                )
+                for enneagram_type in range(1, 10)
+            }
         enneagram_label_colors = {
             f"Type {enneagram_type}": str(
                 ENNEAGRAM.get(enneagram_type, {}).get("color", CHART_THEME_COLORS["text"])
