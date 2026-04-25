@@ -71,6 +71,7 @@ class _SentimentEdgeSlider(QSlider):
     def __init__(self, side: str, emoji: str, parent: QWidget | None = None) -> None:
         super().__init__(Qt.Horizontal, parent)
         self._side = side
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setRange(1, 10)
         self.setSingleStep(1)
         self.setPageStep(1)
@@ -78,6 +79,9 @@ class _SentimentEdgeSlider(QSlider):
         self.setValue(1)
         self.setMinimumHeight(34)
         self.setStyleSheet(
+            "QSlider {"
+            "background: transparent;"
+            "}"
             "QSlider::groove:horizontal {"
             "height: 12px;"
             "border-radius: 6px;"
@@ -134,7 +138,7 @@ class _SentimentIntensitySpectrum(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(52)
+        self.setMinimumHeight(72)
         self._positive_slider = _SentimentEdgeSlider("positive", "💖", self)
         self._negative_slider = _SentimentEdgeSlider("negative", "💔", self)
         self._positive_slider.valueChanged.connect(self.update)
@@ -171,8 +175,7 @@ class _SentimentIntensitySpectrum(QWidget):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        mid_y = self.height() // 2
-        groove_rect = self.rect().adjusted(10, mid_y - 6, -10, -(mid_y - 6))
+        groove_rect = self.rect().adjusted(10, 18, -10, -(self.height() - 30))
         gradient = QLinearGradient(groove_rect.topLeft(), groove_rect.topRight())
         gradient.setColorAt(0.0, QColor("#c62828"))
         gradient.setColorAt(0.5, QColor("#6f6f6f"))
@@ -187,6 +190,15 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.drawText(groove_rect.left() - 2, groove_rect.top() - 4, "🤬")
         painter.setPen(QColor("#90caf9"))
         painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
+        painter.setPen(QColor("#d9d9d9"))
+        painter.drawText(
+            self.rect().adjusted(10, groove_rect.bottom() + 8, -10, 0),
+            Qt.AlignHCenter | Qt.AlignTop,
+            (
+                f"Love quotient: {self.positive_intensity()}    "
+                f"Hate quotient: {self.negative_intensity()}"
+            ),
+        )
 
     def _average_x_position(self) -> int:
         signed_positive = self._positive_slider.intensity()
