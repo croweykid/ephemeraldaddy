@@ -195,8 +195,8 @@ class _SentimentIntensitySpectrum(QWidget):
             self.rect().adjusted(10, groove_rect.bottom() + 8, -10, 0),
             Qt.AlignHCenter | Qt.AlignTop,
             (
-                f"Love quotient: {self.positive_intensity()}    "
-                f"Hate quotient: {self.negative_intensity()}"
+                f"Frustration: {self.negative_intensity()}"
+                f"Enjoyment: {self.positive_intensity()}    "
             ),
         )
 
