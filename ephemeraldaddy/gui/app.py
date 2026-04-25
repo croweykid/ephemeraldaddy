@@ -13393,7 +13393,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._content_splitter.setSizes([left_size, middle_size, right_size])
 
     def _set_right_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
-        if self._right_panel_visible == visible and not restore_default_size:
+        should_restore_from_collapse = visible and self._is_right_panel_collapsed()
+        if (
+            self._right_panel_visible == visible
+            and not restore_default_size
+            and not should_restore_from_collapse
+        ):
             return
 
         if not visible:
@@ -13420,7 +13425,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return len(sizes) >= 3 and sizes[0] <= 0
 
     def _set_left_panel_visible(self, visible: bool, *, restore_default_size: bool = False) -> None:
-        if self._left_panel_visible == visible and not restore_default_size:
+        should_restore_from_collapse = visible and self._is_left_panel_collapsed()
+        if (
+            self._left_panel_visible == visible
+            and not restore_default_size
+            and not should_restore_from_collapse
+        ):
             return
 
         if not visible:
