@@ -2506,6 +2506,29 @@ class DatabaseAnalyticsChartsMixin:
         limit: int = 3,
     ) -> list[int]:
         normalized_limit = max(1, int(limit))
+        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
+        if callable(calculate_type_weights):
+            try:
+                computed_scores = calculate_type_weights(chart)
+            except Exception:
+                computed_scores = {}
+            if isinstance(computed_scores, dict):
+                ranked_computed: list[tuple[int, float]] = []
+                for raw_type, raw_score in computed_scores.items():
+                    normalized_type = self._normalize_enneagram_type(raw_type)
+                    normalized_score = self._normalize_enneagram_score(raw_score)
+                    if normalized_type is None or normalized_score is None:
+                        continue
+                    ranked_computed.append((normalized_type, normalized_score))
+                ranked_computed.sort(key=lambda item: (-item[1], item[0]))
+                computed_top_types = [
+                    normalized_type
+                    for normalized_type, normalized_score in ranked_computed
+                    if normalized_score > 0
+                ][:normalized_limit]
+                if computed_top_types:
+                    return computed_top_types
+
         direct_type = self._normalize_enneagram_type(
             getattr(chart, "dominant_enneagram_type", None)
         )
@@ -2561,29 +2584,6 @@ class DatabaseAnalyticsChartsMixin:
                     top_types.append(normalized_type)
                 if len(top_types) >= normalized_limit:
                     return top_types[:normalized_limit]
-
-        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
-        if callable(calculate_type_weights):
-            try:
-                computed_scores = calculate_type_weights(chart)
-            except Exception:
-                computed_scores = {}
-            if isinstance(computed_scores, dict):
-                ranked_computed = []
-                for raw_type, raw_score in computed_scores.items():
-                    normalized_type = self._normalize_enneagram_type(raw_type)
-                    normalized_score = self._normalize_enneagram_score(raw_score)
-                    if normalized_type is None or normalized_score is None:
-                        continue
-                    ranked_computed.append((normalized_type, normalized_score))
-                ranked_computed.sort(key=lambda item: (-item[1], item[0]))
-                for normalized_type, normalized_score in ranked_computed:
-                    if normalized_score <= 0:
-                        continue
-                    if normalized_type not in top_types:
-                        top_types.append(normalized_type)
-                    if len(top_types) >= normalized_limit:
-                        return top_types[:normalized_limit]
         return top_types[:normalized_limit]
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
