@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTextEdit,
     QTreeWidget,
+    QTreeWidgetItemIterator,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -676,6 +677,7 @@ class _TagHierarchyTree(QTreeWidget):
         super().__init__(parent)
         self._get_active_field = get_active_field
         self._on_drop_labels = on_drop_labels
+        self._highlighted_category_item: QTreeWidgetItem | None = None
         self.setHeaderHidden(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setDragEnabled(True)
@@ -687,26 +689,57 @@ class _TagHierarchyTree(QTreeWidget):
     def _is_tags_mode(self) -> bool:
         return self._get_active_field() == ManageMetadataLabelsDialog.FIELD_TAGS
 
+    def _is_category_node(self, item: QTreeWidgetItem | None) -> bool:
+        if item is None:
+            return False
+        return item.childCount() > 0 and bool(str(item.data(0, Qt.UserRole + 10) or "").strip())
+
+    def _set_category_highlight(self, item: QTreeWidgetItem | None) -> None:
+        highlighted_item = item if self._is_category_node(item) else None
+        if highlighted_item is self._highlighted_category_item:
+            return
+        default_color = self.palette().text().color()
+        if self._highlighted_category_item is not None:
+            self._highlighted_category_item.setForeground(0, default_color)
+        if highlighted_item is not None:
+            highlighted_item.setForeground(0, QColor("#9B59FF"))
+        self._highlighted_category_item = highlighted_item
+
+    def _clear_category_highlight(self) -> None:
+        self._set_category_highlight(None)
+
     def dragEnterEvent(self, event) -> None:  # type: ignore[override]
         if self._is_tags_mode():
+            self._set_category_highlight(self.itemAt(event.position().toPoint()))
             event.acceptProposedAction()
             return
+        self._clear_category_highlight()
         event.ignore()
 
     def dragMoveEvent(self, event) -> None:  # type: ignore[override]
         if self._is_tags_mode():
             target_item = self.itemAt(event.position().toPoint())
-            if target_item is not None and str(target_item.data(0, Qt.UserRole + 10) or "").strip():
+            self._set_category_highlight(target_item)
+            if self._is_category_node(target_item):
                 event.acceptProposedAction()
                 return
+            self._clear_category_highlight()
+            event.ignore()
+            return
+        self._clear_category_highlight()
         event.ignore()
 
+    def dragLeaveEvent(self, event) -> None:  # type: ignore[override]
+        self._clear_category_highlight()
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event) -> None:  # type: ignore[override]
+        self._clear_category_highlight()
         if not self._is_tags_mode():
             event.ignore()
             return
         target_item = self.itemAt(event.position().toPoint())
-        if target_item is None:
+        if not self._is_category_node(target_item):
             event.ignore()
             return
         category_prefix = str(target_item.data(0, Qt.UserRole + 10) or "").strip()
@@ -745,6 +778,7 @@ class ManageMetadataLabelsDialog(QDialog):
         apply_change,
         label_limit: int,
         load_chart_names=None,
+        refresh_chart_context: Callable[[], None] | None = None,
         collection_actions: dict[str, object] | None = None,
         initial_field: str | None = None,
         lock_field: bool = False,
@@ -757,6 +791,7 @@ class ManageMetadataLabelsDialog(QDialog):
         self._load_usage = load_usage
         self._apply_change = apply_change
         self._load_chart_names = load_chart_names
+        self._refresh_chart_context = refresh_chart_context
         self._collection_actions = collection_actions or {}
         self._label_limit = max(1, label_limit)
         self._usage_data: dict[str, list[dict[str, int | str]]] = {}
@@ -945,7 +980,17 @@ QComboBox QAbstractItemView {
         self._add_selected_button.setStyleSheet("" if can_modify_collection else INACTIVE_ACTION_BUTTON_STYLE)
         self._remove_selected_button.setStyleSheet("" if can_modify_collection else INACTIVE_ACTION_BUTTON_STYLE)
 
-    def _reload_usage(self) -> None:
+    def _reload_usage(
+        self,
+        *,
+        refresh_chart_context: bool = False,
+        keep_selection_label: str = "",
+    ) -> None:
+        if refresh_chart_context and callable(self._refresh_chart_context):
+            try:
+                self._refresh_chart_context()
+            except Exception:
+                pass
         try:
             self._usage_data = self._load_usage()
         except Exception as exc:
@@ -957,6 +1002,25 @@ QComboBox QAbstractItemView {
                 self.FIELD_COLLECTIONS: [],
             }
         self._refresh_list()
+        if keep_selection_label:
+            self._select_label_by_value(keep_selection_label)
+
+    def _select_label_by_value(self, label: str) -> None:
+        target_label = str(label or "").strip()
+        if not target_label:
+            return
+        iterator = QTreeWidgetItemIterator(self._list_widget)
+        while iterator.value() is not None:
+            item = iterator.value()
+            if item is not None and item.childCount() == 0:
+                item_label = str(item.data(0, Qt.UserRole + 2) or item.data(0, Qt.UserRole) or "").strip()
+                if item_label == target_label:
+                    self._list_widget.clearSelection()
+                    self._list_widget.setCurrentItem(item)
+                    item.setSelected(True)
+                    self._list_widget.scrollToItem(item)
+                    return
+            iterator += 1
 
     def _refresh_list(self) -> None:
         rows = self._active_rows()
@@ -1106,7 +1170,7 @@ QComboBox QAbstractItemView {
             f"Updated {changed_count} tags across {total_rows} chart(s), "
             f"touching {total_occurrences} tag occurrence(s).",
         )
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _row_for_key(self, key: str) -> dict[str, int | str] | None:
         for row in self._active_rows():
@@ -1187,7 +1251,7 @@ QComboBox QAbstractItemView {
             "Delete complete",
             f"Removed {total_occurrences} occurrences across {total_rows} chart updates.",
         )
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _rename_selected(self) -> None:
         if self._active_field() == self.FIELD_COLLECTIONS:
@@ -1234,7 +1298,7 @@ QComboBox QAbstractItemView {
             f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True, keep_selection_label=new_label)
 
     def _rename_selected_tag_category(self, old_prefix: str) -> None:
         cleaned_old_prefix = str(old_prefix or "").strip()
@@ -1308,14 +1372,14 @@ QComboBox QAbstractItemView {
             f"Updated {len(affected_labels)} tags across {total_rows} chart(s), "
             f"touching {total_occurrences} tag occurrence(s).",
         )
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _create_collection(self) -> None:
         action = self._collection_actions.get("create")
         if not callable(action):
             return
         action()
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _rename_selected_collection(self) -> None:
         key = self._selected_key()
@@ -1323,7 +1387,7 @@ QComboBox QAbstractItemView {
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _delete_selected_collection(self) -> None:
         key = self._selected_key()
@@ -1331,7 +1395,7 @@ QComboBox QAbstractItemView {
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _add_selected_to_collection(self) -> None:
         key = self._selected_key()
@@ -1339,7 +1403,7 @@ QComboBox QAbstractItemView {
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     def _remove_selected_from_collection(self) -> None:
         key = self._selected_key()
@@ -1347,7 +1411,7 @@ QComboBox QAbstractItemView {
         if not key or not callable(action):
             return
         action(key)
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True)
 
     # def _delete_selected(self) -> None:
     #     old_label = self._selected_label()
@@ -1426,4 +1490,4 @@ QComboBox QAbstractItemView {
             f"Updated {summary.get('occurrences_updated', 0)} occurrences across "
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
-        self._reload_usage()
+        self._reload_usage(refresh_chart_context=True, keep_selection_label=into_label)
