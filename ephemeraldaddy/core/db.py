@@ -1492,49 +1492,6 @@ def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
     }
 
 
-def get_chart_names_for_metadata_label(
-    *,
-    field: str,
-    label: str,
-) -> list[str]:
-    """Return chart display names currently matching one metadata label."""
-    normalized_label = str(label or "").strip()
-    if not normalized_label:
-        return []
-
-    if field == "sentiments":
-        parser = parse_sentiments
-        use_casefold = False
-    elif field == "relationship_types":
-        parser = parse_relationship_types
-        use_casefold = False
-    elif field == "tags":
-        parser = parse_tags
-        use_casefold = True
-    else:
-        raise ValueError(f"Unsupported metadata field: {field}")
-
-    normalized_key = normalized_label.casefold()
-    names: list[str] = []
-    with _get_conn() as conn:
-        rows = conn.execute(
-            f"SELECT id, name, nickname, {field} FROM charts"
-        ).fetchall()
-
-    for row_id, name, nickname, raw_value in rows:
-        parsed = parser(raw_value)
-        if not parsed:
-            continue
-        if use_casefold:
-            matched = any(value.casefold() == normalized_key for value in parsed)
-        else:
-            matched = normalized_label in parsed
-        if matched:
-            chart_name = str(name or nickname or f"Chart {int(row_id)}").strip()
-            names.append(chart_name)
-    return sorted(names, key=str.casefold)
-
-
 def apply_metadata_label_change(
     *,
     field: str,
