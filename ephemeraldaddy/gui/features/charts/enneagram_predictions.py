@@ -7,7 +7,12 @@ import random
 import re
 from typing import Any, Callable
 
-from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS, ZODIAC_NAMES, normalize_body_name
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_WEIGHTS,
+    PLANET_ORDER,
+    ZODIAC_NAMES,
+    normalize_body_name,
+)
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights, house_for_longitude
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 
@@ -19,6 +24,8 @@ BODY_ALIASES = {
     "true lilith": "Lilith",
     "lilith": "Lilith",
 }
+CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
+CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
 
 
 def _debug_log(message: str) -> None:
@@ -31,9 +38,15 @@ def _normalize_factor_value(value: str) -> str:
     canonical_alias = BODY_ALIASES.get(token.lower())
     if canonical_alias:
         return canonical_alias
+    canonical_from_lookup = CANONICAL_FACTOR_LOOKUP.get(token.casefold())
+    if canonical_from_lookup:
+        return canonical_from_lookup
     normalized = normalize_body_name(token)
     if normalized:
-        return normalized
+        normalized_lookup = CANONICAL_FACTOR_LOOKUP.get(str(normalized).casefold())
+        if normalized_lookup:
+            return normalized_lookup
+        return str(normalized)
     return token
 
 
