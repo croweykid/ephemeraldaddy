@@ -4,7 +4,115 @@ from __future__ import annotations
 
 import html
 import random
+import re
 from typing import Any, Callable
+
+from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS, ZODIAC_NAMES, normalize_body_name
+from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights, house_for_longitude
+from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+
+
+ENNEAGRAM_DEBUG_LOGGING = False
+ASPECT_KEYWORDS = {
+    "conjunction",
+    "opposition",
+    "trine",
+    "square",
+    "sextile",
+    "quincunx",
+    "semisextile",
+    "semisquare",
+    "sesquiquadrate",
+    "quintile",
+    "biquintile",
+}
+BODY_ALIASES = {
+    "fortune": "Part of Fortune",
+    "part of fortune": "Part of Fortune",
+    "true lilith": "Lilith",
+    "lilith": "Lilith",
+}
+
+
+def _debug_log(message: str) -> None:
+    if ENNEAGRAM_DEBUG_LOGGING:
+        print(message)
+
+
+def _normalize_factor_value(value: str) -> str:
+    token = str(value or "").strip()
+    canonical_alias = BODY_ALIASES.get(token.lower())
+    if canonical_alias:
+        return canonical_alias
+    normalized = normalize_body_name(token)
+    if normalized:
+        return normalized
+    return token
+
+
+def _normalize_string_set(values: Any) -> set[str]:
+    return {
+        _normalize_factor_value(str(value).strip())
+        for value in values or set()
+        if str(value).strip()
+    }
+
+
+def _normalize_house_set(values: Any) -> set[int]:
+    return {
+        int(house_num)
+        for house_num in values or set()
+        if str(house_num).strip().isdigit() and 1 <= int(house_num) <= 12
+    }
+
+
+def _normalize_gate_set(values: Any) -> set[int]:
+    return {
+        int(gate_num)
+        for gate_num in values or set()
+        if str(gate_num).strip().isdigit() and 1 <= int(gate_num) <= 64
+    }
+
+
+def _parse_house_token(token: str) -> int | None:
+    match = re.fullmatch(r"H\s*(\d{1,2})", token.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    house_num = int(match.group(1))
+    return house_num if 1 <= house_num <= 12 else None
+
+
+def _parse_position_spec(raw_spec: str) -> tuple[str, str | int, str] | None:
+    parts = [part.strip() for part in str(raw_spec).split(" in ")]
+    if len(parts) != 2:
+        return None
+    left, right = parts
+    if not left or not right:
+        return None
+    right_house = _parse_house_token(right)
+    if right_house is not None:
+        if left in ZODIAC_NAMES:
+            return ("sign_in_house", right_house, left)
+        return ("body_in_house", right_house, _normalize_factor_value(left))
+    if right in ZODIAC_NAMES:
+        return ("body_in_sign", right, _normalize_factor_value(left))
+    return None
+
+
+def _parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
+    text = str(raw_spec).strip()
+    if not text:
+        return None
+    aspect_pattern = "|".join(sorted(ASPECT_KEYWORDS, key=len, reverse=True))
+    match = re.fullmatch(rf"(.+?)\s+({aspect_pattern})\s+(.+)", text, re.IGNORECASE)
+    if not match:
+        return None
+    left = _normalize_factor_value(match.group(1).strip())
+    aspect_type = match.group(2).strip().lower()
+    right = _normalize_factor_value(match.group(3).strip())
+    if not left or not right:
+        return None
+    return (left, aspect_type, right)
 
 
 def calculate_enneagram_type_weights(
@@ -22,20 +130,183 @@ def calculate_enneagram_type_weights(
     body_weights = getattr(chart, "dominant_planet_weights", None) or calculate_body_weights(chart)
     use_houses = chart_uses_houses(chart)
     house_weights = calculate_house_weights(chart) if use_houses else {}
+    nakshatra_weights = getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
+    chart_name = str(getattr(chart, "name", "Unnamed Chart"))
+    body_house_lookup: dict[str, int] = {}
+    if use_houses:
+        for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+            body = _normalize_factor_value(str(raw_body))
+            try:
+                house_num = house_for_longitude(getattr(chart, "houses", None), float(lon))
+            except (TypeError, ValueError):
+                continue
+            if house_num is not None:
+                body_house_lookup[body] = house_num
+
+    active_gates = {
+        int(gate)
+        for gate in (getattr(chart, "human_design_gates", None) or [])
+        if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
+    }
 
     for enneagram_type, factors in enneagram.items():
-        signs = {str(sign).strip() for sign in factors.get("signs", set()) if str(sign).strip()}
-        bodies = {str(body).strip() for body in factors.get("bodies", set()) if str(body).strip()}
-        houses = {
-            int(house_num)
-            for house_num in factors.get("houses", set())
-            if isinstance(house_num, int) and 1 <= int(house_num) <= 12
-        }
+        signs = _normalize_string_set(factors.get("signs", set()))
+        antisigns = _normalize_string_set(factors.get("antisigns", set()))
+        bodies = _normalize_string_set(factors.get("bodies", set()))
+        antibodies = _normalize_string_set(factors.get("antibodies", set()))
+        nakshatras = _normalize_string_set(factors.get("nakshatras", set()))
+        antinakshatras = _normalize_string_set(factors.get("antinakshatras", set()))
+        houses = _normalize_house_set(factors.get("houses", set()))
+        antihouses = _normalize_house_set(factors.get("antihouses", set()))
+        gates = _normalize_gate_set(factors.get("gates", set()))
+        antigates = _normalize_gate_set(factors.get("antigates", set()))
+        positions = {str(value).strip() for value in factors.get("positions", set()) if str(value).strip()}
+        antipositions = {str(value).strip() for value in factors.get("antipositions", set()) if str(value).strip()}
+        aspects = {str(value).strip() for value in factors.get("aspects", set()) if str(value).strip()}
+        antiaspects = {str(value).strip() for value in factors.get("antiaspects", set()) if str(value).strip()}
 
         scores[enneagram_type] += sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
+        scores[enneagram_type] -= sum(float(sign_weights.get(sign, 0.0)) for sign in antisigns)
         scores[enneagram_type] += sum(float(body_weights.get(body, 0.0)) for body in bodies)
+        scores[enneagram_type] -= sum(float(body_weights.get(body, 0.0)) for body in antibodies)
+        scores[enneagram_type] += sum(float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in nakshatras)
+        scores[enneagram_type] -= sum(
+            float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in antinakshatras
+        )
         if use_houses:
             scores[enneagram_type] += sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
+            scores[enneagram_type] -= sum(float(house_weights.get(house_num, 0.0)) for house_num in antihouses)
+
+        for gate in gates:
+            if gate in active_gates:
+                scores[enneagram_type] += 6.0
+        for gate in antigates:
+            if gate in active_gates:
+                scores[enneagram_type] -= 6.0
+
+        for raw_position in positions:
+            parsed = _parse_position_spec(raw_position)
+            if parsed is None:
+                continue
+            category, container, subject = parsed
+            bonus = 0.0
+            if category == "body_in_house" and isinstance(container, int) and use_houses:
+                body_house = body_house_lookup.get(subject)
+                if body_house == container:
+                    bonus = float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+            elif category == "sign_in_house" and isinstance(container, int) and use_houses:
+                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                    body = _normalize_factor_value(str(raw_body))
+                    if body not in body_house_lookup or body_house_lookup[body] != container:
+                        continue
+                    try:
+                        lon_value = float(lon)
+                    except (TypeError, ValueError):
+                        continue
+                    if sign_for_longitude(lon_value) == subject:
+                        bonus = float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+                        break
+            elif category == "body_in_sign" and isinstance(container, str):
+                body_lon = (getattr(chart, "positions", None) or {}).get(subject)
+                try:
+                    lon_value = float(body_lon)
+                except (TypeError, ValueError):
+                    lon_value = None
+                if lon_value is not None and sign_for_longitude(lon_value) == container:
+                    bonus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
+            if bonus > 0:
+                scores[enneagram_type] += bonus
+                _debug_log(
+                    f"[Enneagram Debug] {chart_name}: type {enneagram_type} position TRUE -> "
+                    f"'{raw_position}' (+{bonus:.2f})"
+                )
+
+        for raw_position in antipositions:
+            parsed = _parse_position_spec(raw_position)
+            if parsed is None:
+                continue
+            category, container, subject = parsed
+            malus = 0.0
+            if category == "body_in_house" and isinstance(container, int) and use_houses:
+                body_house = body_house_lookup.get(subject)
+                if body_house == container:
+                    malus = float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+            elif category == "sign_in_house" and isinstance(container, int) and use_houses:
+                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                    body = _normalize_factor_value(str(raw_body))
+                    if body not in body_house_lookup or body_house_lookup[body] != container:
+                        continue
+                    try:
+                        lon_value = float(lon)
+                    except (TypeError, ValueError):
+                        continue
+                    if sign_for_longitude(lon_value) == subject:
+                        malus = float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+                        break
+            elif category == "body_in_sign" and isinstance(container, str):
+                body_lon = (getattr(chart, "positions", None) or {}).get(subject)
+                try:
+                    lon_value = float(body_lon)
+                except (TypeError, ValueError):
+                    lon_value = None
+                if lon_value is not None and sign_for_longitude(lon_value) == container:
+                    malus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
+            if malus > 0:
+                scores[enneagram_type] -= malus
+
+        for raw_aspect in aspects:
+            parsed = _parse_aspect_spec(raw_aspect)
+            if parsed is None:
+                print(
+                    f"[Enneagram Parse Error] {chart_name}: could not parse aspect spec '{raw_aspect}'"
+                )
+                continue
+            left_body, aspect_type, right_body = parsed
+            for aspect in getattr(chart, "aspects", []) or []:
+                p1 = _normalize_factor_value(str(aspect.get("p1", "")))
+                p2 = _normalize_factor_value(str(aspect.get("p2", "")))
+                current_type = str(aspect.get("type", "")).strip().lower()
+                if current_type != aspect_type:
+                    continue
+                if {p1, p2} != {left_body, right_body}:
+                    continue
+                aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
+                bonus = (
+                    float(body_weights.get(left_body, 0.0))
+                    + aspect_weight
+                    + float(body_weights.get(right_body, 0.0))
+                )
+                scores[enneagram_type] += bonus
+                _debug_log(
+                    f"[Enneagram Debug] {chart_name}: type {enneagram_type} aspect TRUE -> "
+                    f"'{raw_aspect}' (+{bonus:.2f})"
+                )
+                break
+
+        for raw_aspect in antiaspects:
+            parsed = _parse_aspect_spec(raw_aspect)
+            if parsed is None:
+                print(
+                    f"[Enneagram Parse Error] {chart_name}: could not parse antiaspect spec '{raw_aspect}'"
+                )
+                continue
+            left_body, aspect_type, right_body = parsed
+            for aspect in getattr(chart, "aspects", []) or []:
+                p1 = _normalize_factor_value(str(aspect.get("p1", "")))
+                p2 = _normalize_factor_value(str(aspect.get("p2", "")))
+                current_type = str(aspect.get("type", "")).strip().lower()
+                if current_type != aspect_type:
+                    continue
+                if {p1, p2} != {left_body, right_body}:
+                    continue
+                aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
+                malus = (
+                    float(body_weights.get(left_body, 0.0))
+                    + aspect_weight
+                    + float(body_weights.get(right_body, 0.0))
+                )
+                scores[enneagram_type] -= malus
+                break
 
     return scores
 
