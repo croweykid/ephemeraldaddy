@@ -24359,6 +24359,16 @@ class MainWindow(QMainWindow):
         if panel_key == "predictions" and self._latest_chart is not None:
             self._render_enneagram_predictions(self._latest_chart)
 
+    def _is_placeholder_chart(self, chart: Chart | None) -> bool:
+        if chart is None:
+            return False
+        if bool(getattr(chart, "is_placeholder", False)):
+            return True
+        chart_type = str(
+            getattr(chart, "chart_type", None) or getattr(chart, "source", None) or ""
+        ).strip().lower()
+        return chart_type == "placeholder"
+
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
         analytics_button = getattr(self, "chart_analytics_panel_button", None)
         predictions_button = getattr(self, "predictions_panel_button", None)
