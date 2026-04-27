@@ -2690,11 +2690,11 @@ class DatabaseAnalyticsChartsMixin:
         selection_weight_chart_count = max(0, int(selection_cache.get("enneagram_weight_chart_count", 0)))
         database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
         selection_enneagram_counts = {
-            f"Type {enneagram_type}": int(selection_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": selection_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         database_enneagram_counts = {
-            f"Type {enneagram_type}": int(database_cache["enneagram_totals"].get(enneagram_type, 0))
+            f"Type {enneagram_type}": database_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         selection_enneagram_values = {

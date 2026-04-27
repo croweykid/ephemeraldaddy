@@ -72,7 +72,7 @@ class _SentimentEdgeSlider(QSlider):
         super().__init__(Qt.Horizontal, parent)
         self._side = side
         self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setRange(1, 10)
+        self.setRange(0, 10)
         self.setSingleStep(1)
         self.setPageStep(1)
         self.setTickInterval(5)
@@ -107,7 +107,7 @@ class _SentimentEdgeSlider(QSlider):
         return int(self.value())
 
     def set_intensity(self, value: int) -> None:
-        normalized = max(1, min(10, int(value)))
+        normalized = max(0, min(10, int(value)))
         self.setValue(normalized)
 
     def refresh_marker_position(self) -> None:
@@ -183,9 +183,9 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.setPen(Qt.NoPen)
         painter.setBrush(gradient)
         painter.drawRoundedRect(groove_rect, 6, 6)
-        average_x = self._average_x_position()
         painter.setPen(QColor("#ffd54f"))
-        painter.drawLine(average_x, groove_rect.top(), average_x, groove_rect.bottom())
+        zero_x = self.width() // 2
+        painter.drawLine(zero_x, groove_rect.top(), zero_x, groove_rect.bottom())
         painter.setPen(QColor("#ef9a9a"))
         painter.drawText(groove_rect.left() - 2, groove_rect.top() - 4, "🤬")
         painter.setPen(QColor("#90caf9"))
@@ -195,8 +195,8 @@ class _SentimentIntensitySpectrum(QWidget):
             self.rect().adjusted(10, groove_rect.bottom() + 8, -10, 0),
             Qt.AlignHCenter | Qt.AlignTop,
             (
-                f"Love quotient: {self.positive_intensity()}    "
-                f"Hate quotient: {self.negative_intensity()}"
+                f"Frustration: {self.negative_intensity()} // "
+                f"Enjoyment: {self.positive_intensity()}    "
             ),
         )
 
@@ -222,6 +222,8 @@ def _install_chart_view_sentiment_relevance_spectrum(owner: QWidget) -> None:
         return
     if not callable(on_sentiment_changed):
         return
+    positive_spinbox.setRange(0, 10)
+    negative_spinbox.setRange(0, 10)
 
     parent_widget = positive_spinbox.parentWidget()
     if parent_widget is None:
@@ -252,6 +254,11 @@ def _install_chart_view_sentiment_relevance_spectrum(owner: QWidget) -> None:
         spectrum.set_values(positive_spinbox.value(), negative_spinbox.value())
 
     def _commit_to_spinboxes(positive_value: int, negative_value: int) -> None:
+        if (
+            positive_spinbox.value() == int(positive_value)
+            and negative_spinbox.value() == int(negative_value)
+        ):
+            return
         positive_spinbox.setValue(int(positive_value))
         negative_spinbox.setValue(int(negative_value))
         on_sentiment_changed(0)

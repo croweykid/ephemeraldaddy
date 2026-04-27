@@ -2337,7 +2337,7 @@ PLANET_KEYWORDS = {
     },
     "Mercury": {
         "nouns": [
-            "thoughst","mental processes","words", "questions", "data", "messages", "information","language",
+            "thoughts","mental processes","words", "questions", "data", "messages", "information","language",
             "writing", "reading", "notes", "details","communication", "curiosity", "interpretation",
         ],
         "verbs": [
