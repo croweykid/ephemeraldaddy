@@ -99,6 +99,8 @@ class _SentimentEdgeSlider(QSlider):
         self._emoji_marker.setAlignment(Qt.AlignCenter)
         self._emoji_marker.setFixedSize(24, 24)
         self._emoji_marker.setText(emoji)
+        if self._side == "negative":
+            self.setInvertedAppearance(True)
         self.valueChanged.connect(self._position_emoji_marker)
         self.sliderReleased.connect(self.committed.emit)
         self._position_emoji_marker()
@@ -138,7 +140,7 @@ class _SentimentIntensitySpectrum(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(72)
+        self.setMinimumHeight(102)
         self._positive_slider = _SentimentEdgeSlider("positive", "💖", self)
         self._negative_slider = _SentimentEdgeSlider("negative", "💔", self)
         self._positive_slider.valueChanged.connect(self.update)
@@ -166,16 +168,17 @@ class _SentimentIntensitySpectrum(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         half_width = max(1, self.width() // 2)
-        self._negative_slider.setGeometry(QRect(0, 0, half_width, self.height()))
+        slider_height = min(44, max(34, self.height() - 58))
+        self._negative_slider.setGeometry(QRect(0, 0, half_width, slider_height))
         self._positive_slider.setGeometry(
-            QRect(half_width, 0, max(1, self.width() - half_width), self.height())
+            QRect(half_width, 0, max(1, self.width() - half_width), slider_height)
         )
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        groove_rect = self.rect().adjusted(10, 18, -10, -(self.height() - 30))
+        groove_rect = QRect(10, 22, max(1, self.width() - 20), 12)
         gradient = QLinearGradient(groove_rect.topLeft(), groove_rect.topRight())
         gradient.setColorAt(0.0, QColor("#c62828"))
         gradient.setColorAt(0.5, QColor("#6f6f6f"))
@@ -190,15 +193,24 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.drawText(groove_rect.left() - 2, groove_rect.top() - 4, "🤬")
         painter.setPen(QColor("#90caf9"))
         painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
+        # Leave a visible line break below the graph before drawing values.
+        text_y = groove_rect.bottom() + 34
+        frustration_text = f"Frustration: {self.negative_intensity()}"
+        separator_text = " // "
+        enjoyment_text = f"Enjoyment: {self.positive_intensity()}"
+        metrics = painter.fontMetrics()
+        frustration_width = metrics.horizontalAdvance(frustration_text)
+        separator_width = metrics.horizontalAdvance(separator_text)
+        enjoyment_width = metrics.horizontalAdvance(enjoyment_text)
+        total_width = frustration_width + separator_width + enjoyment_width
+        start_x = max(10, (self.width() - total_width) // 2)
+
+        painter.setPen(QColor("#ef5350"))
+        painter.drawText(start_x, text_y, frustration_text)
         painter.setPen(QColor("#d9d9d9"))
-        painter.drawText(
-            self.rect().adjusted(10, groove_rect.bottom() + 8, -10, 0),
-            Qt.AlignHCenter | Qt.AlignTop,
-            (
-                f"Frustration: {self.negative_intensity()} // "
-                f"Enjoyment: {self.positive_intensity()}    "
-            ),
-        )
+        painter.drawText(start_x + frustration_width, text_y, separator_text)
+        painter.setPen(QColor("#42a5f5"))
+        painter.drawText(start_x + frustration_width + separator_width, text_y, enjoyment_text)
 
     def _average_x_position(self) -> int:
         signed_positive = self._positive_slider.intensity()
