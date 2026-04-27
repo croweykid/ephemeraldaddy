@@ -8030,6 +8030,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "dnd_stat_count": 0,
             "enneagram_totals": {enneagram_type: 0 for enneagram_type in range(1, 10)},
             "enneagram_total_count": 0,
+            "enneagram_weight_totals": {enneagram_type: 0.0 for enneagram_type in range(1, 10)},
+            "enneagram_weight_chart_count": 0,
             "human_design_gate_totals": {gate: 0.0 for gate in range(1, 65)},
             "human_design_line_totals": {line: 0.0 for line in range(1, 7)},
             "human_design_channel_totals": {},
@@ -8336,6 +8338,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["relationship_total_count"] += direction * float(snapshot.get("relationship_total_count", 0.0))
         totals["dnd_stat_count"] += direction * int(snapshot.get("dnd_stat_count", 0))
         totals["enneagram_total_count"] += direction * int(snapshot.get("enneagram_total_count", 0))
+        totals["enneagram_weight_chart_count"] += direction * int(snapshot.get("enneagram_weight_chart_count", 0))
         totals["human_design_gate_total_count"] += direction * float(
             snapshot.get("human_design_gate_total_count", 0.0)
         )
@@ -8444,6 +8447,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 else 0
             )
             totals["enneagram_totals"][enneagram_type] += direction * int(enneagram_value)
+            enneagram_weight_snapshot = snapshot.get("enneagram_weight_totals", {})
+            enneagram_weight_value = (
+                enneagram_weight_snapshot.get(enneagram_type, 0.0)
+                if isinstance(enneagram_weight_snapshot, dict)
+                else 0.0
+            )
+            totals["enneagram_weight_totals"][enneagram_type] += direction * float(enneagram_weight_value)
         for gate in range(1, 65):
             gate_snapshot = snapshot.get("human_design_gate_totals", {})
             totals["human_design_gate_totals"][gate] += direction * float(
