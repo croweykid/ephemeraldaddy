@@ -2546,15 +2546,22 @@ class DatabaseAnalyticsChartsMixin:
                 )
                 return {}
             if isinstance(calculated, dict) and calculated:
+                normalized_calculated: dict[int, float] = {}
+                for raw_type, raw_score in calculated.items():
+                    normalized_type = self._normalize_enneagram_type(raw_type)
+                    normalized_score = self._normalize_enneagram_score(raw_score)
+                    if normalized_type is None or normalized_score is None:
+                        continue
+                    normalized_calculated[normalized_type] = normalized_score
                 try:
                     chart.enneagram_type_weights = {
                         int(enneagram_type): float(score)
-                        for enneagram_type, score in calculated.items()
+                        for enneagram_type, score in normalized_calculated.items()
                     }
                 except Exception:
                     # Keep analytics resilient even if chart attributes are not writable.
                     pass
-                return chart.enneagram_type_weights
+                return normalized_calculated
         return {}
 
     def _extract_top_enneagram_types_from_chart_metadata(
