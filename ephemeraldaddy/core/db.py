@@ -303,6 +303,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             dominant_planet_weights TEXT,
             dominant_nakshatra_weights TEXT,
             dominant_element_weights TEXT,
+            enneagram_type_weights TEXT,
             dominant_enneagram_type INTEGER,
             top_three_enneagram_types TEXT,
             dominant_mode TEXT,
@@ -654,6 +655,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN dominant_element_weights TEXT
+            """
+        )
+    if "enneagram_type_weights" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN enneagram_type_weights TEXT
             """
         )
     if "dominant_enneagram_type" not in columns:
@@ -2256,7 +2264,7 @@ def save_chart(
                  birthtime_unknown,
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
-                 dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
+                 dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, enneagram_type_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                  human_design_gates, human_design_lines, human_design_channels,
                  human_design_type, human_design_authority,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2269,7 +2277,7 @@ def save_chart(
                  birth_day,
                  birth_year,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2345,6 +2353,7 @@ def save_chart(
                     else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                _serialize_weight_map(getattr(chart, "enneagram_type_weights", None)),
                 getattr(chart, "dominant_enneagram_type", None),
                 _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
@@ -2513,6 +2522,7 @@ def update_chart(
                 dominant_planet_weights = ?,
                 dominant_nakshatra_weights = ?,
                 dominant_element_weights = ?,
+                enneagram_type_weights = ?,
                 dominant_enneagram_type = ?,
                 top_three_enneagram_types = ?,
                 dominant_mode = ?,
@@ -2613,6 +2623,7 @@ def update_chart(
                     else getattr(chart, "dominant_nakshatra_weights", None)
                 ),
                 _serialize_weight_map(getattr(chart, "dominant_element_weights", None)),
+                _serialize_weight_map(getattr(chart, "enneagram_type_weights", None)),
                 getattr(chart, "dominant_enneagram_type", None),
                 _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
@@ -2917,6 +2928,11 @@ def load_chart(chart_id: int):
         if "familiarity_factors" in columns
         else "NULL AS familiarity_factors"
     )
+    enneagram_type_weights_projection = (
+        "enneagram_type_weights"
+        if "enneagram_type_weights" in columns
+        else "NULL AS enneagram_type_weights"
+    )
     cur = conn.execute(
         f"""
         SELECT name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
@@ -2925,7 +2941,7 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
+               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2980,6 +2996,7 @@ def load_chart(chart_id: int):
         dominant_planet_weights,
         dominant_nakshatra_weights,
         dominant_element_weights,
+        enneagram_type_weights,
         dominant_enneagram_type,
         top_three_enneagram_types,
         dominant_mode,
@@ -3055,6 +3072,7 @@ def load_chart(chart_id: int):
         placeholder.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
         placeholder.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
         placeholder.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+        placeholder.enneagram_type_weights = _parse_weight_map(enneagram_type_weights)
         placeholder.dominant_enneagram_type = int(dominant_enneagram_type) if dominant_enneagram_type is not None else None
         placeholder.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
         placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
@@ -3129,6 +3147,7 @@ def load_chart(chart_id: int):
     chart.dominant_planet_weights = _parse_weight_map(dominant_planet_weights)
     chart.dominant_nakshatra_weights = _parse_weight_map(dominant_nakshatra_weights)
     chart.dominant_element_weights = _parse_weight_map(dominant_element_weights)
+    chart.enneagram_type_weights = _parse_weight_map(enneagram_type_weights)
     chart.dominant_enneagram_type = int(dominant_enneagram_type) if dominant_enneagram_type is not None else None
     chart.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
     chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
