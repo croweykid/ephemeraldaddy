@@ -4430,6 +4430,12 @@ ENNEAGRAM = {
         },
 } #no one knows wtf Hasta wants. lol Bharani is hunger, but not in a chill or fun way. Uttara Phalguni for e2 is experimental. P. Phal is experimental for e7 but seems to fit.
 
+ENNEAGRAM_REALMS = {
+    "heart" : {"signs":{"Pisces","Cancer","Scorpio"}},
+    "head" : {"signs":{"Aries","Virgo","Aquarius","Libra","Gemini"}},
+    "body" : {"signs":{"Capricorn","Taurus","Leo","Sagittarius"}},
+}
+
 ENNEAGRAM_VARIANTS = { #the scale/scope of one's focus. Gemini has no evident preference, as far as I can tell. Capricorns technically operate at any scope, but their bottom line is always sp, I think.
     "sp":{"signs":{"Taurus","Capricorn","Aries","Sagittarius","Scorpio","Virgo"},"houses":{1,2,12},"bodies":{"Moon"},"nakshatras":{},"positions":{},"aspects":{},"color":"","description":"",},
     "sx":{"signs":{"Scorpio","Pisces","Cancer","Aries","Leo","Virgo",},"houses":{4,7,8},"bodies":{},"nakshatras":{},"positions":{},"aspects":{},"color":"","description":"",},
