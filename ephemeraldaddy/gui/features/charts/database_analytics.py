@@ -2427,12 +2427,12 @@ class DatabaseAnalyticsChartsMixin:
                 selection_counts,
                 database_counts,
             ):
+                displayed_selection_value = selection_value if loaded_charts else database_value
                 relative_percent = (
-                    (selection_value / database_value)
+                    (displayed_selection_value / database_value)
                     if database_value > 0
                     else 0.0
                 )
-                displayed_selection_value = selection_value if loaded_charts else database_value
                 tag_export_rows.append(
                     (
                         f"{category_name}: {tag_label}",
