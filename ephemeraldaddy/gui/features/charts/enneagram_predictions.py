@@ -13,19 +13,6 @@ from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
-ASPECT_KEYWORDS = {
-    "conjunction",
-    "opposition",
-    "trine",
-    "square",
-    "sextile",
-    "quincunx",
-    "semisextile",
-    "semisquare",
-    "sesquiquadrate",
-    "quintile",
-    "biquintile",
-}
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",
@@ -103,7 +90,7 @@ def _parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
     text = str(raw_spec).strip()
     if not text:
         return None
-    aspect_pattern = "|".join(sorted(ASPECT_KEYWORDS, key=len, reverse=True))
+    aspect_pattern = "|".join(sorted(ASPECT_SCORE_WEIGHTS.keys(), key=len, reverse=True))
     match = re.fullmatch(rf"(.+?)\s+({aspect_pattern})\s+(.+)", text, re.IGNORECASE)
     if not match:
         return None
