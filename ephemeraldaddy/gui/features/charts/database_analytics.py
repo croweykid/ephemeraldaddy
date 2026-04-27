@@ -411,7 +411,7 @@ class DatabaseAnalyticsChartsMixin:
         }
 
     def _extract_bazi_metadata_for_analytics(self, chart: Any) -> dict[str, Any] | None:
-        if chart is None or bool(getattr(chart, "is_placeholder", False)):
+        if chart is None or self._is_placeholder_chart(chart):
             return None
         if validate_chart_for_bazi(chart) is not None:
             return None
@@ -2664,6 +2664,8 @@ class DatabaseAnalyticsChartsMixin:
         return top_types[:normalized_limit]
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
+        if self._is_placeholder_chart(chart):
+            return
         refresh_ok = self._refresh_chart_enneagram_prediction_metadata(chart)
         weight_map = self._resolve_chart_enneagram_weight_map(chart)
         weight_snapshot_populated = False
@@ -2711,6 +2713,17 @@ class DatabaseAnalyticsChartsMixin:
             if enneagram_type in snapshot["enneagram_totals"]:
                 snapshot["enneagram_totals"][enneagram_type] += 1
                 snapshot["enneagram_total_count"] += 1
+
+    @staticmethod
+    def _is_placeholder_chart(chart: Any) -> bool:
+        if chart is None:
+            return False
+        if bool(getattr(chart, "is_placeholder", False)):
+            return True
+        chart_type = str(
+            getattr(chart, "chart_type", None) or getattr(chart, "source", None) or ""
+        ).strip().lower()
+        return chart_type == "placeholder"
 
     def _render_enneagram_database_analytics(
         self,
