@@ -12323,13 +12323,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             cached_chart.tags = existing_tags + [tag_value]
             self._chart_cache[chart_id] = cached_chart
-        self._update_tag_completers()
-        self._update_sentiment_tally(
-            show_progress=True,
-            changed_ids=changed_ids,
-        )
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
+        self._finalize_batch_tag_updates(changed_ids)
 
     @staticmethod
     def _parse_integer_filter_text(raw_value: str | None) -> int | None:
@@ -12488,13 +12482,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._batch_tags_lucygoosey = False
         changed_ids = set(chart_ids)
-        self._update_tag_completers()
-        self._update_sentiment_tally(
-            show_progress=True,
-            changed_ids=changed_ids,
-        )
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
+        self._finalize_batch_tag_updates(changed_ids)
+
+    def _finalize_batch_tag_updates(self, changed_ids: set[int]) -> None:
+        try:
+            self._update_tag_completers()
+            self._update_sentiment_tally(
+                show_progress=True,
+                changed_ids=changed_ids,
+            )
+            self._update_batch_edit_state()
+            self._refresh_filters_after_batch_edit(changed_ids)
+        except Exception as exc:
+            traceback.print_exc()
+            QMessageBox.critical(
+                self,
+                "Batch tag refresh error",
+                f"Tags were saved, but UI refresh failed:\n{exc}",
+            )
 
     @staticmethod
     def _bind_batch_enter_apply(widget: QWidget, callback: Callable[[], None]) -> None:
@@ -12980,13 +12985,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 continue
             cached_chart.tags = existing_tags + [tag_to_add]
             self._chart_cache[chart_id] = cached_chart
-        self._update_tag_completers()
-        self._update_sentiment_tally(
-            show_progress=True,
-            changed_ids=changed_ids,
-        )
-        self._update_batch_edit_state()
-        self._refresh_filters_after_batch_edit(changed_ids)
+        self._finalize_batch_tag_updates(changed_ids)
 
     def _update_batch_alignment_score_label(self, value: int) -> None:
         self.batch_alignment_score_label.setText(f"Alignment score: {int(value)}")
