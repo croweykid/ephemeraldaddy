@@ -7952,45 +7952,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return canonical_country, canonical_city, canonical_state
 
     @staticmethod
-    def _split_tag_category(tag_value: str) -> tuple[str, str]:
-        cleaned = str(tag_value or "").strip()
-        if not cleaned:
-            return "Uncategorized", ""
-        for delimiter in (":", "/", "|"):
-            if delimiter not in cleaned:
-                continue
-            category, tag = cleaned.split(delimiter, 1)
-            normalized_category = str(category).strip()
-            normalized_tag = str(tag).strip()
-            if normalized_category and normalized_tag:
-                return normalized_category.title(), normalized_tag
-        return "Uncategorized", cleaned
-
-    def _collect_tag_distribution_analytics(
-        self,
-        chart_ids: list[int] | set[int],
-    ) -> dict[str, Any]:
-        category_to_counts: dict[str, Counter[str]] = {}
-        for chart_id in chart_ids:
-            chart = self._get_chart_for_filter(int(chart_id))
-            if chart is None:
-                continue
-            deduped_tags = normalize_tag_list(getattr(chart, "tags", []))
-            for tag in deduped_tags:
-                category, normalized_tag = self._split_tag_category(tag)
-                if not normalized_tag:
-                    continue
-                category_counter = category_to_counts.setdefault(category, Counter())
-                category_counter[normalized_tag] += 1
-        return {
-            "total_charts": len(chart_ids),
-            "category_counts": {
-                category: dict(counter)
-                for category, counter in category_to_counts.items()
-            },
-        }
-
-    @staticmethod
     def _bucket_age_value(age_value: int) -> str | None:
         for label, min_age, max_age in AGE_BRACKETS:
             if min_age is None:
@@ -11031,115 +10992,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     loaded_charts=loaded_charts,
                 )
 
-            selection_tag_analytics = self._collect_tag_distribution_analytics(chart_ids)
-            database_tag_analytics = self._collect_tag_distribution_analytics(
-                database_cache["chart_ids"]
+            self._analysis_chart_export_rows["tag_distribution"] = self._render_tag_distribution_section(
+                chart_ids=chart_ids,
+                database_chart_ids=database_cache["chart_ids"],
+                loaded_charts=loaded_charts,
+                should_refresh=_should_refresh_database_metric_section,
             )
-            selection_tag_categories = selection_tag_analytics.get("category_counts", {})
-            database_tag_categories = database_tag_analytics.get("category_counts", {})
-            category_names = sorted(
-                set(selection_tag_categories.keys()) | set(database_tag_categories.keys()),
-                key=lambda value: value.casefold(),
-            )
-            tag_dropdown = self._analysis_chart_dropdowns.get("tag_distribution")
-            if tag_dropdown is not None:
-                options: list[tuple[str, str]] = [("All", "all")]
-                options.extend((category, category) for category in category_names)
-                selected_mode = self._tag_distribution_mode
-                allowed_modes = {option_value for _option_label, option_value in options}
-                if selected_mode not in allowed_modes:
-                    selected_mode = "all"
-                tag_dropdown.blockSignals(True)
-                tag_dropdown.clear()
-                for option_label, option_value in options:
-                    tag_dropdown.addItem(option_label.upper(), option_value)
-                selected_index = tag_dropdown.findData(selected_mode)
-                if selected_index < 0 and tag_dropdown.count() > 0:
-                    selected_index = 0
-                if selected_index >= 0:
-                    tag_dropdown.setCurrentIndex(selected_index)
-                    current_mode = tag_dropdown.currentData()
-                    if isinstance(current_mode, str):
-                        self._tag_distribution_mode = current_mode
-                tag_dropdown.blockSignals(False)
-
-            categories_to_render: list[str]
-            if self._tag_distribution_mode == "all":
-                categories_to_render = category_names
-            elif self._tag_distribution_mode in category_names:
-                categories_to_render = [self._tag_distribution_mode]
-            else:
-                categories_to_render = []
-
-            tag_export_rows: list[tuple[str, float, float, float, int, int, float]] = []
-            if _should_refresh_database_metric_section("tag_distribution"):
-                self._clear_layout(self.tag_distribution_chart_layout)
-            for category_name in categories_to_render:
-                selection_counts_raw = selection_tag_categories.get(category_name, {})
-                database_counts_raw = database_tag_categories.get(category_name, {})
-                source_counts = selection_counts_raw if loaded_charts else database_counts_raw
-                filtered_tags = [
-                    tag
-                    for tag, count in source_counts.items()
-                    if int(count) > 1
-                ]
-                filtered_tags.sort(
-                    key=lambda tag: (
-                        -int(source_counts.get(tag, 0)),
-                        tag.casefold(),
-                    )
-                )
-                if not filtered_tags:
-                    continue
-                selection_counts = [int(selection_counts_raw.get(tag, 0)) for tag in filtered_tags]
-                database_counts = [int(database_counts_raw.get(tag, 0)) for tag in filtered_tags]
-                selection_total = max(1, int(selection_tag_analytics.get("total_charts", 0)))
-                database_total = max(1, int(database_tag_analytics.get("total_charts", 0)))
-                selection_values = [count / selection_total for count in selection_counts]
-                database_values = [count / database_total for count in database_counts]
-                for tag_label, selection_value, database_value, selection_count, database_count in zip(
-                    filtered_tags,
-                    selection_values,
-                    database_values,
-                    selection_counts,
-                    database_counts,
-                ):
-                    relative_percent = (
-                        (selection_value / database_value)
-                        if database_value > 0
-                        else 0.0
-                    )
-                    displayed_selection_value = selection_value if loaded_charts else database_value
-                    tag_export_rows.append(
-                        (
-                            f"{category_name}: {tag_label}",
-                            displayed_selection_value,
-                            database_value,
-                            displayed_selection_value - database_value,
-                            selection_count if loaded_charts else database_count,
-                            database_count,
-                            relative_percent,
-                        )
-                    )
-                if _should_refresh_database_metric_section("tag_distribution"):
-                    tag_canvas = self._build_tag_distribution_chart(
-                        category_label=category_name,
-                        labels=filtered_tags,
-                        selection_values=selection_values,
-                        database_values=database_values,
-                        selection_counts=selection_counts,
-                        database_counts=database_counts,
-                        loaded_charts=loaded_charts,
-                    )
-                    self.tag_distribution_chart_layout.addWidget(tag_canvas, 0)
-
-            if _should_refresh_database_metric_section("tag_distribution") and not tag_export_rows:
-                self.tag_distribution_chart_layout.addWidget(
-                    self._build_text_analysis_widget(["No repeated tags available for this scope."]),
-                    0,
-                    Qt.AlignTop,
-                )
-            self._analysis_chart_export_rows["tag_distribution"] = tag_export_rows
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)
