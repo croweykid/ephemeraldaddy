@@ -3147,6 +3147,76 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    def _build_tag_distribution_chart(
+        self,
+        *,
+        category_label: str,
+        labels: list[str],
+        selection_values: list[float],
+        database_values: list[float],
+        selection_counts: list[int],
+        database_counts: list[int],
+        loaded_charts: int,
+    ) -> FigureCanvas:
+        chart_height = max(2.9, min(14.0, (len(labels) * 0.38) + 1.0))
+        figure = Figure(figsize=(1.5, chart_height))
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
+        ax = figure.add_subplot(111)
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
+
+        display_labels = [
+            self._format_selection_database_count_label(
+                label,
+                int(database_count),
+                int(selection_count),
+                loaded_charts > 0,
+            )
+            for label, selection_count, database_count in zip(labels, selection_counts, database_counts)
+        ]
+        positions = list(range(len(labels)))
+        display_values = selection_values if loaded_charts else database_values
+        colors = [
+            self._value_length_color(float(value), 0.0, max(display_values, default=0.01))
+            for value in display_values
+        ]
+        bars = ax.barh(positions, display_values, color=colors, height=0.55, zorder=2)
+        max_value = max(display_values, default=0.0)
+        self._set_x_limits_with_padding(ax, 0.0, max(0.03, float(max_value)))
+        ax.set_xticks([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+        ax.set_xticklabels([_format_percent(value) for value in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]])
+        for bar, selection_value, database_value in zip(bars, selection_values, database_values):
+            value = bar.get_width()
+            relative_text = "n/a"
+            if loaded_charts > 0:
+                if database_value > 0:
+                    relative_text = f"{(selection_value / database_value) * 100:.0f}% of DB"
+                elif selection_value > 0:
+                    relative_text = "new vs DB"
+            ax.text(
+                value + max(max_value * 0.015, 0.003),
+                bar.get_y() + (bar.get_height() / 2),
+                relative_text if loaded_charts > 0 else _format_percent(value),
+                va="center",
+                ha="left",
+                color=CHART_THEME_COLORS["text"],
+                fontsize=7.2,
+            )
+        ax.set_yticks(positions, labels=display_labels)
+        ax.tick_params(axis="y", labelsize=7.2, colors=CHART_THEME_COLORS["text"], pad=6)
+        ax.tick_params(axis="x", labelsize=7.2, colors=CHART_THEME_COLORS["muted_text"])
+        ax.set_title(str(category_label), color=CHART_THEME_COLORS["text"], fontsize=8, pad=6)
+        ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], linewidth=0.6, alpha=0.35, zorder=0)
+        for spine in ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        self._apply_tight_layout(figure)
+        figure.subplots_adjust(left=0.50, bottom=0.08, right=0.97, top=0.92)
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
     @staticmethod
     def _database_analytics_figure_facecolor() -> str:
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
