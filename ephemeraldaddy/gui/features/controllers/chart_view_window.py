@@ -193,7 +193,7 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.setPen(QColor("#90caf9"))
         painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
         # Leave a visible line break below the graph before drawing values.
-        text_y = groove_rect.bottom() + 20
+        text_y = groove_rect.bottom() + 30
         frustration_text = f"Frustration: {self.negative_intensity()}"
         separator_text = " // "
         enjoyment_text = f"Enjoyment: {self.positive_intensity()}"
