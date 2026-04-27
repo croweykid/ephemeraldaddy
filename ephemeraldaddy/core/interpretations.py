@@ -4433,7 +4433,7 @@ ENNEAGRAM = {
 ENNEAGRAM_REALMS = {
     "heart" : {"signs":{"Pisces","Cancer","Scorpio","Leo"},"houses":{4,5,7,10,}},
     "head" : {"signs":{"Aries","Virgo","Aquarius","Libra","Gemini"},"houses":{1,3,9,11}},
-    "body" : {"signs":{"Capricorn","Taurus","Leo","Sagittarius"},"houses":{2,6,8,12}},
+    "body" : {"signs":{"Capricorn","Taurus","Leo","Sagittarius","Virgo"},"houses":{2,6,8,12}},
 }
 
 ENNEAGRAM_VARIANTS = { #the scale/scope of one's focus. Gemini has no evident preference, as far as I can tell. Capricorns technically operate at any scope, but their bottom line is always sp, I think.
