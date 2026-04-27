@@ -18,6 +18,16 @@ from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
+ENNEAGRAM_ANTI_FACTOR = 1.0
+ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
+    "signs": 1.0,
+    "bodies": 1.0,
+    "nakshatras": 1.0,
+    "houses": 1.0,
+    "gates": 1.0,
+    "positions": 1.0,
+    "aspects": 1.0,
+}
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",
@@ -115,6 +125,18 @@ def _parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
     return (left, aspect_type, right)
 
 
+def _normalize_category_delta(
+    positive_delta: float,
+    negative_delta: float,
+    *,
+    criteria_count: int,
+    anti_factor: float = ENNEAGRAM_ANTI_FACTOR,
+) -> float:
+    if criteria_count <= 0:
+        return 0.0
+    return (positive_delta - (anti_factor * negative_delta)) / float(criteria_count)
+
+
 def calculate_enneagram_type_weights(
     chart: Any,
     *,
@@ -165,25 +187,30 @@ def calculate_enneagram_type_weights(
         aspects = {str(value).strip() for value in factors.get("aspects", set()) if str(value).strip()}
         antiaspects = {str(value).strip() for value in factors.get("antiaspects", set()) if str(value).strip()}
 
-        scores[enneagram_type] += sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
-        scores[enneagram_type] -= sum(float(sign_weights.get(sign, 0.0)) for sign in antisigns)
-        scores[enneagram_type] += sum(float(body_weights.get(body, 0.0)) for body in bodies)
-        scores[enneagram_type] -= sum(float(body_weights.get(body, 0.0)) for body in antibodies)
-        scores[enneagram_type] += sum(float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in nakshatras)
-        scores[enneagram_type] -= sum(
+        sign_positive = sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
+        sign_negative = sum(float(sign_weights.get(sign, 0.0)) for sign in antisigns)
+        body_positive = sum(float(body_weights.get(body, 0.0)) for body in bodies)
+        body_negative = sum(float(body_weights.get(body, 0.0)) for body in antibodies)
+        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in nakshatras)
+        nakshatra_negative = sum(
             float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in antinakshatras
         )
+        house_positive = 0.0
+        house_negative = 0.0
         if use_houses:
-            scores[enneagram_type] += sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
-            scores[enneagram_type] -= sum(float(house_weights.get(house_num, 0.0)) for house_num in antihouses)
+            house_positive = sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
+            house_negative = sum(float(house_weights.get(house_num, 0.0)) for house_num in antihouses)
 
+        gates_positive = 0.0
+        gates_negative = 0.0
         for gate in gates:
             if gate in active_gates:
-                scores[enneagram_type] += 6.0
+                gates_positive += 6.0
         for gate in antigates:
             if gate in active_gates:
-                scores[enneagram_type] -= 6.0
+                gates_negative += 6.0
 
+        positions_positive = 0.0
         for raw_position in positions:
             parsed = _parse_position_spec(raw_position)
             if parsed is None:
@@ -215,12 +242,13 @@ def calculate_enneagram_type_weights(
                 if lon_value is not None and sign_for_longitude(lon_value) == container:
                     bonus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
             if bonus > 0:
-                scores[enneagram_type] += bonus
+                positions_positive += bonus
                 _debug_log(
                     f"[Enneagram Debug] {chart_name}: type {enneagram_type} position TRUE -> "
                     f"'{raw_position}' (+{bonus:.2f})"
                 )
 
+        positions_negative = 0.0
         for raw_position in antipositions:
             parsed = _parse_position_spec(raw_position)
             if parsed is None:
@@ -252,8 +280,9 @@ def calculate_enneagram_type_weights(
                 if lon_value is not None and sign_for_longitude(lon_value) == container:
                     malus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
             if malus > 0:
-                scores[enneagram_type] -= malus
+                positions_negative += malus
 
+        aspects_positive = 0.0
         for raw_aspect in aspects:
             parsed = _parse_aspect_spec(raw_aspect)
             if parsed is None:
@@ -276,13 +305,14 @@ def calculate_enneagram_type_weights(
                     + aspect_weight
                     + float(body_weights.get(right_body, 0.0))
                 )
-                scores[enneagram_type] += bonus
+                aspects_positive += bonus
                 _debug_log(
                     f"[Enneagram Debug] {chart_name}: type {enneagram_type} aspect TRUE -> "
                     f"'{raw_aspect}' (+{bonus:.2f})"
                 )
                 break
 
+        aspects_negative = 0.0
         for raw_aspect in antiaspects:
             parsed = _parse_aspect_spec(raw_aspect)
             if parsed is None:
@@ -305,8 +335,44 @@ def calculate_enneagram_type_weights(
                     + aspect_weight
                     + float(body_weights.get(right_body, 0.0))
                 )
-                scores[enneagram_type] -= malus
+                aspects_negative += malus
                 break
+
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["signs"] * _normalize_category_delta(
+            sign_positive,
+            sign_negative,
+            criteria_count=len(signs) + len(antisigns),
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["bodies"] * _normalize_category_delta(
+            body_positive,
+            body_negative,
+            criteria_count=len(bodies) + len(antibodies),
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["nakshatras"] * _normalize_category_delta(
+            nakshatra_positive,
+            nakshatra_negative,
+            criteria_count=len(nakshatras) + len(antinakshatras),
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["houses"] * _normalize_category_delta(
+            house_positive,
+            house_negative,
+            criteria_count=(len(houses) + len(antihouses)) if use_houses else 0,
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["gates"] * _normalize_category_delta(
+            gates_positive,
+            gates_negative,
+            criteria_count=len(gates) + len(antigates),
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["positions"] * _normalize_category_delta(
+            positions_positive,
+            positions_negative,
+            criteria_count=len(positions) + len(antipositions),
+        )
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["aspects"] * _normalize_category_delta(
+            aspects_positive,
+            aspects_negative,
+            criteria_count=len(aspects) + len(antiaspects),
+        )
 
     return scores
 
