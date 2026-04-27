@@ -6376,9 +6376,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
         if row is not None and len(row) > 15:
-            return bool(row[15])
+            if bool(row[15]):
+                return True
         chart = self._get_chart_for_filter(int(chart_id))
-        return bool(chart is not None and getattr(chart, "is_placeholder", False))
+        return self._is_placeholder_chart(chart)
+
+    def _is_placeholder_chart(self, chart: Any | None) -> bool:
+        if chart is None:
+            return False
+        if bool(getattr(chart, "is_placeholder", False)):
+            return True
+        chart_type = str(
+            getattr(chart, "chart_type", None) or getattr(chart, "source", None) or ""
+        ).strip().lower()
+        return chart_type == "placeholder"
 
     def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
         return [
@@ -8098,7 +8109,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if chart is None:
             return snapshot
         snapshot["loaded"] = 1
-        snapshot["is_placeholder"] = bool(getattr(chart, "is_placeholder", False))
+        snapshot["is_placeholder"] = self._is_placeholder_chart(chart)
         if compute_alignment_metrics:
             snapshot["social_score"] = float(getattr(chart, "social_score", 0) or 0)
             snapshot["alignment_score"] = float(getattr(chart, "alignment_score", 0) or 0)
@@ -8322,7 +8333,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for stat_key in snapshot["dnd_stat_totals"]:
                     snapshot["dnd_stat_totals"][stat_key] += float(statblock.scores.get(stat_key, 0.0))
                 snapshot["dnd_stat_count"] += 1
-        if compute_enneagram_metrics:
+        if compute_enneagram_metrics and not snapshot["is_placeholder"]:
             self._populate_enneagram_snapshot(snapshot, chart)
         return snapshot
 
@@ -24353,7 +24364,7 @@ class MainWindow(QMainWindow):
         predictions_button = getattr(self, "predictions_panel_button", None)
         if analytics_button is None or predictions_button is None:
             return
-        is_placeholder = bool(chart is not None and getattr(chart, "is_placeholder", False))
+        is_placeholder = self._is_placeholder_chart(chart)
         is_saved_chart = bool(chart is not None and self.current_chart_id is not None)
         analytics_available = bool(is_saved_chart and not is_placeholder)
         analytics_button.setVisible(analytics_available)
@@ -24437,7 +24448,7 @@ class MainWindow(QMainWindow):
         )
         self.raise_()
         self.activateWindow()
-        if self._latest_chart is not None and not getattr(self._latest_chart, "is_placeholder", False):
+        if self._latest_chart is not None and not self._is_placeholder_chart(self._latest_chart):
             # If chart rendering was queued while Chart View was hidden, analytics
             # sections that require visible widgets (like Similar Charts) may have
             # been skipped. Re-schedule now that the window is visible.
@@ -26779,6 +26790,34 @@ class MainWindow(QMainWindow):
             self.enneagram_prediction_canvas = None
             if tritype_label is not None:
                 tritype_label.setText("<b>Predicted Tritype:</b> —")
+            return
+        if self._is_placeholder_chart(chart):
+            def _draw_no_data(ax, _chart: Chart) -> None:
+                ax.clear()
+                ax.set_facecolor(CHART_THEME_COLORS["panel"])
+                ax.set_axis_off()
+                ax.text(
+                    0.5,
+                    0.5,
+                    "No data",
+                    transform=ax.transAxes,
+                    ha="center",
+                    va="center",
+                    color=CHART_THEME_COLORS["text"],
+                    fontsize=11,
+                    fontweight="bold",
+                )
+
+            self._render_metric_panel(
+                canvas_attr="enneagram_prediction_canvas",
+                container_layout=self.enneagram_prediction_chart_layout,
+                figsize=(5.5, 3.2),
+                title="Enneagram",
+                draw_fn=_draw_no_data,
+                chart=chart,
+            )
+            if tritype_label is not None:
+                tritype_label.setText("<b>Predicted Tritype:</b> No data")
             return
         self._render_metric_panel(
             canvas_attr="enneagram_prediction_canvas",
