@@ -140,7 +140,7 @@ class _SentimentIntensitySpectrum(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(72)
+        self.setMinimumHeight(102)
         self._positive_slider = _SentimentEdgeSlider("positive", "💖", self)
         self._negative_slider = _SentimentEdgeSlider("negative", "💔", self)
         self._positive_slider.valueChanged.connect(self.update)
@@ -168,16 +168,17 @@ class _SentimentIntensitySpectrum(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         half_width = max(1, self.width() // 2)
-        self._negative_slider.setGeometry(QRect(0, 0, half_width, self.height()))
+        slider_height = min(44, max(34, self.height() - 58))
+        self._negative_slider.setGeometry(QRect(0, 0, half_width, slider_height))
         self._positive_slider.setGeometry(
-            QRect(half_width, 0, max(1, self.width() - half_width), self.height())
+            QRect(half_width, 0, max(1, self.width() - half_width), slider_height)
         )
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        groove_rect = self.rect().adjusted(10, 18, -10, -(self.height() - 30))
+        groove_rect = QRect(10, 22, max(1, self.width() - 20), 12)
         gradient = QLinearGradient(groove_rect.topLeft(), groove_rect.topRight())
         gradient.setColorAt(0.0, QColor("#c62828"))
         gradient.setColorAt(0.5, QColor("#6f6f6f"))
@@ -193,7 +194,7 @@ class _SentimentIntensitySpectrum(QWidget):
         painter.setPen(QColor("#90caf9"))
         painter.drawText(groove_rect.right() - 14, groove_rect.top() - 4, "🫂")
         # Leave a visible line break below the graph before drawing values.
-        text_y = groove_rect.bottom() + 20
+        text_y = groove_rect.bottom() + 34
         frustration_text = f"Frustration: {self.negative_intensity()}"
         separator_text = " // "
         enjoyment_text = f"Enjoyment: {self.positive_intensity()}"
