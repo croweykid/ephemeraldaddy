@@ -1003,13 +1003,14 @@ def render_chart_view_tag_selection(owner: QWidget) -> None:
         encoded_tag = urllib.parse.quote(tag, safe="")
         chips.append(
             "<span style='display:inline-block;"
+            "white-space:nowrap;"
             "background:#d9d9d9;color:#222;border:1px solid #bdbdbd;"
             "border-radius:8px;padding:1px 6px;margin:2px 4px 2px 0;'>"
             f"{html.escape(tag)}"
-            f"<a href='remove_chart_tag:{encoded_tag}' style='color:#ff6f6f;text-decoration:none;font-weight:700;'> ✕</a>"
+            f"<a href='remove_chart_tag:{encoded_tag}' style='display:inline-block;margin-left:4px;color:#ff6f6f;text-decoration:none;font-weight:700;'>&times;</a>"
             "</span>"
         )
-    owner.chart_tags_selection_label.setText("".join(chips))
+    owner.chart_tags_selection_label.setText(" ".join(chips))
 
 
 def set_chart_view_tag_state(owner: QWidget, tags: list[str]) -> None:
