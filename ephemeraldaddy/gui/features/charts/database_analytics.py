@@ -52,6 +52,14 @@ from ephemeraldaddy.analysis.human_design_reference import (
     normalize_hd_authority_key,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
+    calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
+)
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_house_weights as _calculate_dominant_house_weights,
+    calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
+)
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     resolve_bazi_birth_datetime,
     validate_chart_for_bazi,
@@ -2502,6 +2510,45 @@ class DatabaseAnalyticsChartsMixin:
             return top_types[0]
         return None
 
+    def _calculate_enneagram_type_weights(self, chart: Any) -> dict[int, float]:
+        scores = _calculate_enneagram_type_weights(
+            chart,
+            enneagram=ENNEAGRAM,
+            calculate_sign_weights=_calculate_dominant_sign_weights,
+            calculate_body_weights=_calculate_dominant_planet_weights,
+            calculate_house_weights=_calculate_dominant_house_weights,
+            chart_uses_houses=chart_uses_houses,
+        )
+        normalized_scores: dict[int, float] = {}
+        if isinstance(scores, dict):
+            for raw_type, raw_score in scores.items():
+                normalized_type = self._normalize_enneagram_type(raw_type)
+                normalized_score = self._normalize_enneagram_score(raw_score)
+                if normalized_type is None or normalized_score is None:
+                    continue
+                normalized_scores[normalized_type] = normalized_score
+        return normalized_scores
+
+    def _cache_enneagram_prediction_metadata(self, chart: Any) -> dict[int, float]:
+        scores = self._calculate_enneagram_type_weights(chart)
+        ranked_scores = sorted(
+            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+            key=lambda item: (-item[1], item[0]),
+        )
+        if ranked_scores and ranked_scores[0][1] > 0:
+            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
+            chart.dominant_enneagram_type = ranked_scores[0][0]
+            chart.top_three_enneagram_types = [
+                enneagram_type
+                for enneagram_type, score in ranked_scores[:3]
+                if score > 0
+            ]
+        else:
+            chart.enneagram_type_weights = {}
+            chart.dominant_enneagram_type = None
+            chart.top_three_enneagram_types = []
+        return scores
+
     @staticmethod
     def _debug_chart_label(chart: Any) -> str:
         chart_id = getattr(chart, "id", None)
@@ -2511,22 +2558,25 @@ class DatabaseAnalyticsChartsMixin:
         return f"id={chart_id}"
 
     def _refresh_chart_enneagram_prediction_metadata(self, chart: Any) -> bool:
-        cache_metadata = getattr(self, "_cache_enneagram_prediction_metadata", None)
-        if callable(cache_metadata):
-            try:
-                cache_metadata(chart)
-                return True
-            except Exception:
-                logger.exception(
-                    "Failed to cache Enneagram metadata for chart %s during database analytics refresh.",
-                    self._debug_chart_label(chart),
-                )
-                return False
-        logger.warning(
-            "Enneagram metadata cache hook is unavailable while refreshing chart %s.",
-            self._debug_chart_label(chart),
-        )
-        return False
+        try:
+            self._cache_enneagram_prediction_metadata(chart)
+            return True
+        except Exception:
+            logger.exception(
+                "Failed to cache Enneagram metadata for chart %s during database analytics refresh.",
+                self._debug_chart_label(chart),
+            )
+            return False
+
+    def _calculate_chart_enneagram_type_weights(self, chart: Any) -> dict[int, float]:
+        try:
+            return self._calculate_enneagram_type_weights(chart)
+        except Exception:
+            logger.exception(
+                "Enneagram weight calculation failed for chart %s.",
+                self._debug_chart_label(chart),
+            )
+            return {}
 
     def _resolve_chart_enneagram_weight_map(
         self,
@@ -2535,33 +2585,17 @@ class DatabaseAnalyticsChartsMixin:
         weight_map = getattr(chart, "enneagram_type_weights", None)
         if isinstance(weight_map, dict) and weight_map:
             return weight_map
-        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
-        if callable(calculate_type_weights):
+        calculated = self._calculate_chart_enneagram_type_weights(chart)
+        if calculated:
             try:
-                calculated = calculate_type_weights(chart)
+                chart.enneagram_type_weights = {
+                    int(enneagram_type): float(score)
+                    for enneagram_type, score in calculated.items()
+                }
             except Exception:
-                logger.exception(
-                    "Direct Enneagram weight calculation failed for chart %s.",
-                    self._debug_chart_label(chart),
-                )
-                return {}
-            if isinstance(calculated, dict) and calculated:
-                normalized_calculated: dict[int, float] = {}
-                for raw_type, raw_score in calculated.items():
-                    normalized_type = self._normalize_enneagram_type(raw_type)
-                    normalized_score = self._normalize_enneagram_score(raw_score)
-                    if normalized_type is None or normalized_score is None:
-                        continue
-                    normalized_calculated[normalized_type] = normalized_score
-                try:
-                    chart.enneagram_type_weights = {
-                        int(enneagram_type): float(score)
-                        for enneagram_type, score in normalized_calculated.items()
-                    }
-                except Exception:
-                    # Keep analytics resilient even if chart attributes are not writable.
-                    pass
-                return normalized_calculated
+                # Keep analytics resilient even if chart attributes are not writable.
+                pass
+            return calculated
         return {}
 
     def _extract_top_enneagram_types_from_chart_metadata(
