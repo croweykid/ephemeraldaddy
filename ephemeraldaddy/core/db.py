@@ -1433,13 +1433,16 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
     if not normalized_ids:
         return set()
 
-    placeholders = ", ".join("?" for _ in normalized_ids)
     changed_ids: set[int] = set()
     normalized_key = normalized_tag.casefold()
-    with _get_conn() as conn:
+
+    def _apply_for_ids(conn: sqlite3.Connection, target_ids: list[int]) -> None:
+        if not target_ids:
+            return
+        placeholders = ", ".join("?" for _ in target_ids)
         rows = conn.execute(
             f"SELECT id, tags FROM charts WHERE id IN ({placeholders})",
-            tuple(normalized_ids),
+            tuple(target_ids),
         ).fetchall()
         for row_id, raw_tags in rows:
             existing_tags = parse_tags(raw_tags)
@@ -1451,6 +1454,15 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
                 (_serialize_tags(existing_tags), int(row_id)),
             )
             changed_ids.add(int(row_id))
+
+    sqlite_variable_limit = 900
+    with _get_conn() as conn:
+        if len(normalized_ids) <= sqlite_variable_limit:
+            _apply_for_ids(conn, normalized_ids)
+            return changed_ids
+
+        for start in range(0, len(normalized_ids), sqlite_variable_limit):
+            _apply_for_ids(conn, normalized_ids[start:start + sqlite_variable_limit])
     return changed_ids
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
