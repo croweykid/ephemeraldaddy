@@ -1436,33 +1436,33 @@ def add_tag_to_charts(chart_ids: Iterable[int], tag_value: str) -> set[int]:
     changed_ids: set[int] = set()
     normalized_key = normalized_tag.casefold()
 
-    def _apply_for_ids(target_ids: list[int]) -> None:
+    def _apply_for_ids(conn: sqlite3.Connection, target_ids: list[int]) -> None:
         if not target_ids:
             return
         placeholders = ", ".join("?" for _ in target_ids)
-        with _get_conn() as conn:
-            rows = conn.execute(
-                f"SELECT id, tags FROM charts WHERE id IN ({placeholders})",
-                tuple(target_ids),
-            ).fetchall()
-            for row_id, raw_tags in rows:
-                existing_tags = parse_tags(raw_tags)
-                if any(tag.casefold() == normalized_key for tag in existing_tags):
-                    continue
-                existing_tags.append(normalized_tag)
-                conn.execute(
-                    "UPDATE charts SET tags = ? WHERE id = ?",
-                    (_serialize_tags(existing_tags), int(row_id)),
-                )
-                changed_ids.add(int(row_id))
+        rows = conn.execute(
+            f"SELECT id, tags FROM charts WHERE id IN ({placeholders})",
+            tuple(target_ids),
+        ).fetchall()
+        for row_id, raw_tags in rows:
+            existing_tags = parse_tags(raw_tags)
+            if any(tag.casefold() == normalized_key for tag in existing_tags):
+                continue
+            existing_tags.append(normalized_tag)
+            conn.execute(
+                "UPDATE charts SET tags = ? WHERE id = ?",
+                (_serialize_tags(existing_tags), int(row_id)),
+            )
+            changed_ids.add(int(row_id))
 
     sqlite_variable_limit = 900
-    if len(normalized_ids) <= sqlite_variable_limit:
-        _apply_for_ids(normalized_ids)
-        return changed_ids
+    with _get_conn() as conn:
+        if len(normalized_ids) <= sqlite_variable_limit:
+            _apply_for_ids(conn, normalized_ids)
+            return changed_ids
 
-    for start in range(0, len(normalized_ids), sqlite_variable_limit):
-        _apply_for_ids(normalized_ids[start:start + sqlite_variable_limit])
+        for start in range(0, len(normalized_ids), sqlite_variable_limit):
+            _apply_for_ids(conn, normalized_ids[start:start + sqlite_variable_limit])
     return changed_ids
 
 def get_metadata_label_usage() -> dict[str, list[dict[str, int | str]]]:
