@@ -4237,7 +4237,7 @@ ENNEAGRAM = {
         "nakshatras":{"Purva Phalguni","Swati","Bharani",}, #I thought Purva Ashadha would be positively represented, but it was the strongest negative correlation! Maybe this is a flaw in my qualitative data ranking...
         "antinakshatras":{}, #not including Purva Ashadha yet because I feel like maybe I made a mistake...
         "positions":{"Juno in Scorpio","Moon in H8","Moon in H1","Mercury in H3","Aquarius in H4","Sagittarius in H12","Capricorn in H1"}, #Neptune square Uranus was included, too, but since that's generational, I didn't want to  include it. Was it a fluke or not? Don't know...might imply some generations are more idealistic?
-        "antipositions":{"Neptune sextile Pluto"},
+        "antipositions":{},
         "aspects":{"Moon square Pallas","Mars trine Pallas","DS trine Mars","AS sextile Pluto","AS square Sun","DS trine Pluto","Jupiter sextile MC","Chiron sextile IC","DS square Juno","DS conjunction moon","Ketu square Mercury","Mercury trine Saturn","Moon trine Vesta","Juno sextile Mercury","Mars sextile Pallas",},
         "antiaspects":{"Neptune sextile Pluto"},
         "gates":{7,62,4,12,42,61,37,3},
