@@ -254,6 +254,11 @@ def _install_chart_view_sentiment_relevance_spectrum(owner: QWidget) -> None:
         spectrum.set_values(positive_spinbox.value(), negative_spinbox.value())
 
     def _commit_to_spinboxes(positive_value: int, negative_value: int) -> None:
+        if (
+            positive_spinbox.value() == int(positive_value)
+            and negative_spinbox.value() == int(negative_value)
+        ):
+            return
         positive_spinbox.setValue(int(positive_value))
         negative_spinbox.setValue(int(negative_value))
         on_sentiment_changed(0)

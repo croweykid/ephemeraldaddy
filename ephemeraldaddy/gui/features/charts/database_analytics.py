@@ -2522,7 +2522,40 @@ class DatabaseAnalyticsChartsMixin:
                     self._debug_chart_label(chart),
                 )
                 return False
+        logger.warning(
+            "Enneagram metadata cache hook is unavailable while refreshing chart %s.",
+            self._debug_chart_label(chart),
+        )
         return False
+
+    def _resolve_chart_enneagram_weight_map(
+        self,
+        chart: Any,
+    ) -> dict[int, float]:
+        weight_map = getattr(chart, "enneagram_type_weights", None)
+        if isinstance(weight_map, dict) and weight_map:
+            return weight_map
+        calculate_type_weights = getattr(self, "_calculate_enneagram_type_weights", None)
+        if callable(calculate_type_weights):
+            try:
+                calculated = calculate_type_weights(chart)
+            except Exception:
+                logger.exception(
+                    "Direct Enneagram weight calculation failed for chart %s.",
+                    self._debug_chart_label(chart),
+                )
+                return {}
+            if isinstance(calculated, dict) and calculated:
+                try:
+                    chart.enneagram_type_weights = {
+                        int(enneagram_type): float(score)
+                        for enneagram_type, score in calculated.items()
+                    }
+                except Exception:
+                    # Keep analytics resilient even if chart attributes are not writable.
+                    pass
+                return chart.enneagram_type_weights
+        return {}
 
     def _extract_top_enneagram_types_from_chart_metadata(
         self,
@@ -2591,7 +2624,7 @@ class DatabaseAnalyticsChartsMixin:
 
     def _populate_enneagram_snapshot(self, snapshot: dict[str, Any], chart: Any) -> None:
         refresh_ok = self._refresh_chart_enneagram_prediction_metadata(chart)
-        weight_map = getattr(chart, "enneagram_type_weights", None)
+        weight_map = self._resolve_chart_enneagram_weight_map(chart)
         weight_snapshot_populated = False
         if isinstance(weight_map, dict):
             normalized_weights: dict[int, float] = {}
@@ -2616,11 +2649,18 @@ class DatabaseAnalyticsChartsMixin:
                 if enneagram_type in snapshot["enneagram_weight_totals"]:
                     snapshot["enneagram_weight_totals"][enneagram_type] += fallback_weight
             snapshot["enneagram_weight_chart_count"] += 1
-            logger.warning(
-                "Enneagram weight map missing/empty for chart %s; using top-type fallback weights %s.",
-                self._debug_chart_label(chart),
-                top_types,
-            )
+            warned_labels = getattr(self, "_enneagram_weight_fallback_warned_labels", set())
+            chart_label = self._debug_chart_label(chart)
+            if chart_label not in warned_labels:
+                logger.warning(
+                    "Enneagram weight map missing/empty for chart %s; using top-type fallback weights %s "
+                    "(refresh_ok=%s).",
+                    chart_label,
+                    top_types,
+                    refresh_ok,
+                )
+                warned_labels.add(chart_label)
+                self._enneagram_weight_fallback_warned_labels = warned_labels
         elif not weight_snapshot_populated and not top_types and refresh_ok:
             logger.warning(
                 "Enneagram metadata produced no usable weights or top types for chart %s.",
