@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import html
 import statistics
+import urllib.parse
 from collections import Counter
 from typing import Callable
 
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSlider,
@@ -45,6 +47,11 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.anagrams import build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
+from ephemeraldaddy.gui.features.charts.tagging import (
+    normalize_tag_list,
+    parse_tag_text,
+    render_tag_chip_preview,
+)
 
 CHART_INFO_PANEL_BUTTON_ATTRS: dict[str, str] = {
     "chart_info": "chart_info_toggle_button",
@@ -946,3 +953,111 @@ def build_chart_view_right_panel(
     owner.metrics_layout.addStretch(1)
     owner._active_chart_right_panel = "subjective_notes"
     owner._set_chart_right_panel("subjective_notes")
+
+
+def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxLayout) -> None:
+    """Build Chart View Subjective Notes tag input + current-tag chips UI."""
+    owner.chart_tags_input.setPlaceholderText("add one tag")
+    owner.chart_tags_input.textChanged.connect(lambda *_: on_chart_view_tags_changed(owner))
+    chart_tagging_row = QHBoxLayout()
+    chart_tagging_row.setContentsMargins(0, 0, 0, 0)
+    chart_tagging_row.setSpacing(6)
+    chart_tagging_row.addWidget(owner.chart_tags_input, 1)
+    owner.chart_tags_add_button = QPushButton("Add")
+    owner.chart_tags_add_button.clicked.connect(lambda: on_chart_view_tag_add(owner))
+    chart_tagging_row.addWidget(owner.chart_tags_add_button, 0)
+    tags_content_layout.addLayout(chart_tagging_row)
+
+    owner.chart_tags_preview_label = QLabel()
+    owner.chart_tags_preview_label.setWordWrap(True)
+    owner.chart_tags_preview_label.setTextFormat(Qt.RichText)
+    tags_content_layout.addWidget(owner.chart_tags_preview_label)
+
+    owner.chart_tags_selection_label = QLabel()
+    owner.chart_tags_selection_label.setWordWrap(True)
+    owner.chart_tags_selection_label.setTextFormat(Qt.RichText)
+    owner.chart_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    owner.chart_tags_selection_label.setCursor(Qt.PointingHandCursor)
+    owner.chart_tags_selection_label.linkActivated.connect(
+        lambda link: on_chart_view_tag_remove_link(owner, link)
+    )
+    tags_content_layout.addWidget(owner.chart_tags_selection_label)
+    owner._chart_tags_current = []
+    render_chart_view_tag_selection(owner)
+
+
+def on_chart_view_tags_changed(owner: QWidget) -> None:
+    tags = parse_tag_text(owner.chart_tags_input.text())
+    render_tag_chip_preview(owner.chart_tags_preview_label, tags)
+    owner._mark_lucygoosey()
+
+
+def render_chart_view_tag_selection(owner: QWidget) -> None:
+    if not hasattr(owner, "chart_tags_selection_label"):
+        return
+    if not getattr(owner, "_chart_tags_current", []):
+        owner.chart_tags_selection_label.setText("<span style='color:#8d8d8d;'>No tags yet.</span>")
+        return
+    chips: list[str] = []
+    for tag in sorted(owner._chart_tags_current, key=lambda value: value.casefold()):
+        encoded_tag = urllib.parse.quote(tag, safe="")
+        chips.append(
+            "<span style='display:inline-block;"
+            "background:#d9d9d9;color:#222;border:1px solid #bdbdbd;"
+            "border-radius:8px;padding:1px 6px;margin:2px 4px 2px 0;'>"
+            f"{html.escape(tag)}"
+            f"<a href='remove_chart_tag:{encoded_tag}' style='color:#ff6f6f;text-decoration:none;font-weight:700;'> ✕</a>"
+            "</span>"
+        )
+    owner.chart_tags_selection_label.setText("".join(chips))
+
+
+def set_chart_view_tag_state(owner: QWidget, tags: list[str]) -> None:
+    owner._chart_tags_current = normalize_tag_list(tags)
+    owner.chart_tags_input.blockSignals(True)
+    owner.chart_tags_input.setText("")
+    owner.chart_tags_input.blockSignals(False)
+    render_tag_chip_preview(owner.chart_tags_preview_label, [])
+    render_chart_view_tag_selection(owner)
+
+
+def on_chart_view_tag_add(owner: QWidget) -> None:
+    parsed_tags = parse_tag_text(owner.chart_tags_input.text())
+    if not parsed_tags:
+        return
+    if len(parsed_tags) > 1:
+        QMessageBox.information(
+            owner,
+            "One tag at a time",
+            "Please enter only one tag in this field.",
+        )
+        return
+    tag_to_add = parsed_tags[0]
+    if any(tag.casefold() == tag_to_add.casefold() for tag in owner._chart_tags_current):
+        owner.chart_tags_input.setText("")
+        render_tag_chip_preview(owner.chart_tags_preview_label, [])
+        return
+    owner._chart_tags_current = [*owner._chart_tags_current, tag_to_add]
+    owner.chart_tags_input.setText("")
+    render_tag_chip_preview(owner.chart_tags_preview_label, [])
+    render_chart_view_tag_selection(owner)
+    owner._mark_lucygoosey()
+
+
+def on_chart_view_tag_remove_link(owner: QWidget, link: str) -> None:
+    prefix = "remove_chart_tag:"
+    if not link.startswith(prefix):
+        return
+    tag_to_remove = urllib.parse.unquote(link[len(prefix):]).strip()
+    if not tag_to_remove:
+        return
+    normalized_remove_key = tag_to_remove.casefold()
+    owner._chart_tags_current = [
+        tag for tag in owner._chart_tags_current if tag.casefold() != normalized_remove_key
+    ]
+    render_chart_view_tag_selection(owner)
+    owner._mark_lucygoosey()
+
+
+def get_chart_view_tags(owner: QWidget) -> list[str]:
+    return list(getattr(owner, "_chart_tags_current", []))

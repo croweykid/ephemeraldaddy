@@ -718,9 +718,16 @@ from ephemeraldaddy.gui.features.controllers.chart_view_window import (
     draw_weight_distribution_reference_lines,
     format_weight_distribution_html,
     format_unknown_positions_summary_html,
+    get_chart_view_tags,
     install_chart_info_panel_content_observers,
     install_chart_view_undo_shortcuts,
+    on_chart_view_tag_add,
+    on_chart_view_tag_remove_link,
+    on_chart_view_tags_changed,
     refresh_chart_info_panel_toggle_button_styles,
+    render_chart_view_tag_selection,
+    set_chart_view_tag_state,
+    setup_chart_view_tags_section,
 )
 from ephemeraldaddy.gui.visibility import (
     CHART_DATA_KEYS,
@@ -19643,27 +19650,10 @@ class MainWindow(QMainWindow):
         tags_content_layout.setSpacing(4)
         tags_content_widget.setLayout(tags_content_layout)
         self.chart_tags_input = QLineEdit()
-        self.chart_tags_input.setPlaceholderText("add one tag")
-        self.chart_tags_input.textChanged.connect(self._on_chart_tags_changed)
-        chart_tagging_row = QHBoxLayout()
-        chart_tagging_row.setContentsMargins(0, 0, 0, 0)
-        chart_tagging_row.setSpacing(6)
-        chart_tagging_row.addWidget(self.chart_tags_input, 1)
-        self.chart_tags_add_button = QPushButton("Add")
-        self.chart_tags_add_button.clicked.connect(self._on_chart_tags_add)
-        chart_tagging_row.addWidget(self.chart_tags_add_button, 0)
-        tags_content_layout.addLayout(chart_tagging_row)
-        self.chart_tags_preview_label = QLabel()
-        self.chart_tags_preview_label.setWordWrap(True)
-        self.chart_tags_preview_label.setTextFormat(Qt.RichText)
-        tags_content_layout.addWidget(self.chart_tags_preview_label)
-        self.chart_tags_selection_label = QLabel()
-        self.chart_tags_selection_label.setWordWrap(True)
-        self.chart_tags_selection_label.setTextFormat(Qt.RichText)
-        self.chart_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.chart_tags_selection_label.setCursor(Qt.PointingHandCursor)
-        self.chart_tags_selection_label.linkActivated.connect(self._on_chart_tag_remove_link_clicked)
-        tags_content_layout.addWidget(self.chart_tags_selection_label)
+        setup_chart_view_tags_section(
+            owner=self,
+            tags_content_layout=tags_content_layout,
+        )
         self.tags_panel_toggle.toggled.connect(
             lambda expanded: self._toggle_chart_panel_content(
                 self.tags_panel_toggle,
@@ -19674,8 +19664,6 @@ class MainWindow(QMainWindow):
         tags_content_widget.setVisible(False)
         tags_box_layout.addWidget(tags_content_widget)
         sentiment_relation_layout.addWidget(tags_box)
-        self._chart_tags_current: list[str] = []
-        self._render_chart_tag_selection()
         self._update_tag_completers()
 
         sentiment_metrics_row = QWidget()
@@ -19957,7 +19945,7 @@ class MainWindow(QMainWindow):
             self.chart_source_combo,
         ):
             self._bind_enter_update(widget, self.update_button.click)
-        self.chart_tags_input.returnPressed.connect(self._on_chart_tags_add)
+        self.chart_tags_input.returnPressed.connect(lambda: on_chart_view_tag_add(self))
         self.place_edit.returnPressed.connect(self.place_search_button.click)
 
         middle_layout.addLayout(self.inputs_layout)
@@ -24814,7 +24802,7 @@ class MainWindow(QMainWindow):
         placeholder.birth_place = self.place_edit.text().strip() or ""
         placeholder.sentiments = list(self._selected_sentiments()) if hasattr(self, "_selected_sentiments") else []
         placeholder.relationship_types = list(self._selected_relationship_types()) if hasattr(self, "_selected_relationship_types") else []
-        placeholder.tags = list(self._chart_tags_current)
+        placeholder.tags = get_chart_view_tags(self)
         placeholder.comments = self.comments_edit.toPlainText().strip()
         placeholder.rectification_notes = self.rectification_edit.toPlainText().strip()
         placeholder.biography = self.biography_edit.toPlainText().strip()
@@ -24969,7 +24957,7 @@ class MainWindow(QMainWindow):
         if hasattr(chart, "chart_data_source"):
             chart.chart_data_source = self.source_edit.toPlainText().strip()
         if hasattr(chart, "tags"):
-            chart.tags = [] if is_event_chart else list(self._chart_tags_current)
+            chart.tags = [] if is_event_chart else get_chart_view_tags(self)
         if hasattr(chart, "positive_sentiment_intensity"):
             chart.positive_sentiment_intensity = 0 if is_event_chart else self.positive_sentiment_intensity_spin.value()
         if hasattr(chart, "negative_sentiment_intensity"):
@@ -25173,76 +25161,19 @@ class MainWindow(QMainWindow):
             refresh_search_tags_list(sorted_tags)
 
     def _on_chart_tags_changed(self, *_: object) -> None:
-        tags = parse_tag_text(self.chart_tags_input.text())
-        render_tag_chip_preview(self.chart_tags_preview_label, tags)
-        self._mark_lucygoosey()
+        on_chart_view_tags_changed(self)
 
     def _render_chart_tag_selection(self) -> None:
-        if not hasattr(self, "chart_tags_selection_label"):
-            return
-        if not self._chart_tags_current:
-            self.chart_tags_selection_label.setText(
-                "<span style='color:#8d8d8d;'>No tags yet.</span>"
-            )
-            return
-        chips: list[str] = []
-        for tag in sorted(self._chart_tags_current, key=lambda value: value.casefold()):
-            encoded_tag = urllib.parse.quote(tag, safe="")
-            chips.append(
-                "<span style='display:inline-block;"
-                "background:#d9d9d9;color:#222;border:1px solid #bdbdbd;"
-                "border-radius:8px;padding:1px 6px;margin:2px 4px 2px 0;'>"
-                f"{html.escape(tag)}"
-                f"<a href='remove_chart_tag:{encoded_tag}' style='color:#ff6f6f;text-decoration:none;font-weight:700;'> ✕</a>"
-                "</span>"
-            )
-        self.chart_tags_selection_label.setText("".join(chips))
+        render_chart_view_tag_selection(self)
 
     def _set_chart_tags_state(self, tags: list[str]) -> None:
-        normalized_tags = normalize_tag_list(tags)
-        self._chart_tags_current = normalized_tags
-        self.chart_tags_input.blockSignals(True)
-        self.chart_tags_input.setText("")
-        self.chart_tags_input.blockSignals(False)
-        render_tag_chip_preview(self.chart_tags_preview_label, [])
-        self._render_chart_tag_selection()
+        set_chart_view_tag_state(self, tags)
 
     def _on_chart_tags_add(self) -> None:
-        parsed_tags = parse_tag_text(self.chart_tags_input.text())
-        if not parsed_tags:
-            return
-        if len(parsed_tags) > 1:
-            QMessageBox.information(
-                self,
-                "One tag at a time",
-                "Please enter only one tag in this field.",
-            )
-            return
-        tag_to_add = parsed_tags[0]
-        if any(tag.casefold() == tag_to_add.casefold() for tag in self._chart_tags_current):
-            self.chart_tags_input.setText("")
-            render_tag_chip_preview(self.chart_tags_preview_label, [])
-            return
-        self._chart_tags_current = [*self._chart_tags_current, tag_to_add]
-        self.chart_tags_input.setText("")
-        render_tag_chip_preview(self.chart_tags_preview_label, [])
-        self._render_chart_tag_selection()
-        self._mark_lucygoosey()
+        on_chart_view_tag_add(self)
 
     def _on_chart_tag_remove_link_clicked(self, link: str) -> None:
-        prefix = "remove_chart_tag:"
-        if not link.startswith(prefix):
-            return
-        encoded_tag = link[len(prefix):]
-        tag_to_remove = urllib.parse.unquote(encoded_tag).strip()
-        if not tag_to_remove:
-            return
-        normalized_remove_key = tag_to_remove.casefold()
-        self._chart_tags_current = [
-            tag for tag in self._chart_tags_current if tag.casefold() != normalized_remove_key
-        ]
-        self._render_chart_tag_selection()
-        self._mark_lucygoosey()
+        on_chart_view_tag_remove_link(self, link)
 
     def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
         month = getattr(chart, "birth_month", None)
@@ -25301,7 +25232,7 @@ class MainWindow(QMainWindow):
                 is_event_chart = chart_type_value == SOURCE_EVENT
                 chart.sentiments = [] if is_event_chart else list(self._selected_sentiments())
                 chart.relationship_types = [] if is_event_chart else list(self._selected_relationship_types())
-                chart.tags = [] if is_event_chart else list(self._chart_tags_current)
+                chart.tags = [] if is_event_chart else get_chart_view_tags(self)
                 chart.comments = self.comments_edit.toPlainText().strip()
                 chart.rectification_notes = self.rectification_edit.toPlainText().strip()
                 chart.biography = self.biography_edit.toPlainText().strip()
