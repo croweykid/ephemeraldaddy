@@ -2608,7 +2608,7 @@ class DatabaseAnalyticsChartsMixin:
         enneagram_section_layout = self._add_left_panel_collapsible_section(
             panel,
             layout,
-            "🎭Enneagram",
+            "Enneagram",
             section_key="enneagram",
             expanded=self._is_database_metrics_section_expanded("enneagram"),
             on_toggled=lambda checked: self._set_database_metrics_section_expanded(
@@ -2620,7 +2620,7 @@ class DatabaseAnalyticsChartsMixin:
         self._database_metrics_section_visible["enneagram"] = self._is_database_metrics_section_visible("enneagram")
         self._create_analysis_chart_header(
             enneagram_section_layout,
-            "🎭Enneagram",
+            "Enneagram", #🎭Enneagram
             "enneagram",
             "enneagram",
             dropdown_options=[("Enneagram Predictions", "enneagram")],
