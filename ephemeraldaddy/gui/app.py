@@ -38,6 +38,8 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
+SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
+BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -169,6 +171,21 @@ def _load_predictions_alignment_default_zero_when_unassigned(
 
 def _load_wikipedia_backup_search_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def _load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -1703,9 +1720,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
         )
+        self._batch_tagging_terminal_debug = _load_batch_tagging_terminal_debug_enabled(
+            self._settings,
+            fallback=BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+            int(self._batch_tagging_terminal_debug),
+        )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
+        self._is_closing = False
 
         # Database View sorting state.
         self._sort_mode = "alpha" #default sorting mode 1/2 of "manage charts" DB windows
@@ -12706,16 +12732,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._finalize_batch_tag_updates(changed_ids)
 
     def _finalize_batch_tag_updates(self, changed_ids: set[int]) -> None:
+        self._batch_tagging_debug_log(
+            "phase1_saved changed_ids=%s selection_count=%s",
+            sorted(changed_ids),
+            len(self._selected_chart_ids()),
+        )
         try:
             self._update_tag_completers()
+            self._batch_tagging_debug_log("phase2a_tag_completers_updated")
             self._update_sentiment_tally(
                 show_progress=True,
                 changed_ids=changed_ids,
             )
+            self._batch_tagging_debug_log("phase2b_sentiment_tally_updated")
             self._update_batch_edit_state()
+            self._batch_tagging_debug_log("phase2c_batch_state_updated")
             self._refresh_filters_after_batch_edit(changed_ids)
+            self._batch_tagging_debug_log("phase2d_filter_refresh_scheduled")
         except Exception as exc:
             traceback.print_exc()
+            self._batch_tagging_debug_log("phase2_failed error=%s", exc)
             QMessageBox.critical(
                 self,
                 "Batch tag refresh error",
@@ -12764,6 +12800,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             spinbox.setToolTip("")
 
     def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
+        if getattr(self, "_is_closing", False):
+            self._batch_tagging_debug_log("phase2_skipped_dialog_closing")
+            return
         selected_chart_ids = set(chart_ids or self._selected_chart_ids())
         if not hasattr(self, "_pending_batch_refresh_ids"):
             self._pending_batch_refresh_ids: set[int] = set()
@@ -12772,6 +12811,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._pending_batch_refresh_ids.update(selected_chart_ids)
         pending_ids = set(self._pending_batch_refresh_ids)
+        self._batch_tagging_debug_log(
+            "phase2_queue pending_ids=%s in_progress=%s",
+            sorted(pending_ids),
+            self._batch_refresh_in_progress,
+        )
         if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
             self._mark_chart_analytics_sections_dirty()
             if self._latest_chart is not None:
@@ -12779,29 +12823,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _refresh_and_restore_selection() -> None:
             if self._batch_refresh_in_progress:
+                self._batch_tagging_debug_log("phase2_timer_skip_already_running")
+                return
+            if getattr(self, "_is_closing", False):
+                self._pending_batch_refresh_ids.clear()
+                self._batch_tagging_debug_log("phase2_timer_abort_dialog_closing")
                 return
             if not self.isVisible():
                 self._pending_batch_refresh_ids.clear()
+                self._batch_tagging_debug_log("phase2_timer_abort_dialog_hidden")
                 return
 
             changed_ids = set(self._pending_batch_refresh_ids)
             if not changed_ids:
+                self._batch_tagging_debug_log("phase2_timer_no_pending_ids")
                 return
             self._pending_batch_refresh_ids.clear()
             self._batch_refresh_in_progress = True
             try:
+                self._batch_tagging_debug_log("phase2_timer_refresh_start changed_ids=%s", sorted(changed_ids))
                 self._refresh_charts(
                     selected_ids=changed_ids,
                     changed_ids=changed_ids,
                 )
                 self._flash_batch_updated_rows(changed_ids)
                 self._on_selection_changed()
+                self._batch_tagging_debug_log("phase2_timer_refresh_complete")
             except RuntimeError:
                 # Dialog widgets may be gone if the user navigated away before
                 # this deferred callback runs.
+                self._batch_tagging_debug_log("phase2_timer_runtimeerror_dialog_teardown")
                 return
             except Exception as exc:
                 traceback.print_exc()
+                self._batch_tagging_debug_log("phase2_timer_failed error=%s", exc)
                 QMessageBox.critical(
                     self,
                     "Filter error",
@@ -12810,6 +12865,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             finally:
                 self._batch_refresh_in_progress = False
                 if self._pending_batch_refresh_ids and hasattr(self, "_batch_refresh_timer"):
+                    self._batch_tagging_debug_log(
+                        "phase2_timer_reschedule pending_ids=%s",
+                        sorted(self._pending_batch_refresh_ids),
+                    )
                     self._batch_refresh_timer.start()
 
         if not hasattr(self, "_batch_refresh_timer"):
@@ -14497,6 +14556,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         #     self._rebuild_help_markers()
 
     def closeEvent(self, event) -> None:
+        self._is_closing = True
+        if hasattr(self, "_batch_refresh_timer"):
+            self._batch_refresh_timer.stop()
         if self._help_overlay_active:
             self._disable_help_overlay()
         if self._size_checker_popup is not None:
@@ -17908,6 +17970,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         wikipedia_backup_search_checkbox.toggled.connect(self._on_wikipedia_backup_search_toggled)
         dev_tools_section.addWidget(wikipedia_backup_search_checkbox)
 
+        batch_tagging_debug_checkbox = QCheckBox(
+            "Batch tagging: terminal debug logging"
+        )
+        batch_tagging_debug_checkbox.setChecked(
+            bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
+        )
+        batch_tagging_debug_checkbox.setToolTip(
+            "When enabled, batch-tagging phase logs are emitted to the terminal to help debug post-update crashes."
+        )
+        batch_tagging_debug_checkbox.toggled.connect(self._on_batch_tagging_terminal_debug_toggled)
+        dev_tools_section.addWidget(batch_tagging_debug_checkbox)
+
         #should this be here or no?
         add_database_info_settings_section(self, content_layout)
 
@@ -18149,6 +18223,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
                 int(self._wikipedia_backup_search_enabled),
             )
+
+    def _on_batch_tagging_terminal_debug_toggled(self, checked: bool) -> None:
+        self._batch_tagging_terminal_debug = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+            int(self._batch_tagging_terminal_debug),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._batch_tagging_terminal_debug = self._batch_tagging_terminal_debug
+            parent._settings.setValue(
+                SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+                int(self._batch_tagging_terminal_debug),
+            )
+        logger.info(
+            "Batch tagging terminal debug logging set to %s.",
+            self._batch_tagging_terminal_debug,
+        )
+
+    def _batch_tagging_debug_log(self, message: str, *args: object) -> None:
+        if not bool(getattr(self, "_batch_tagging_terminal_debug", False)):
+            return
+        logger.info("[batch-tagging-debug] " + message, *args)
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
