@@ -37,6 +37,7 @@ SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular
 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
 )
+SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -153,6 +154,21 @@ def _load_predictions_alignment_default_zero_when_unassigned(
     fallback: bool = True,
 ) -> bool:
     value = settings.value(SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def _load_wikipedia_backup_search_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH, int(fallback))
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -299,6 +315,10 @@ from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, sea
 from ephemeraldaddy.gui.astrotheme_search import (
     parse_astrotheme_profile,
     search_astrotheme_profile_url,
+)
+from ephemeraldaddy.gui.wikipedia_search import (
+    parse_wikipedia_birth_data,
+    resolve_wikipedia_page_options,
 )
 from ephemeraldaddy.gui.dev_tools import (
     ManageMetadataLabelsDialog,
@@ -1674,6 +1694,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
             int(self._similar_predictions_default_zero_for_unassigned_alignment),
+        )
+        self._wikipedia_backup_search_enabled = _load_wikipedia_backup_search_enabled(
+            self._settings,
+            fallback=False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
+            int(self._wikipedia_backup_search_enabled),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -11237,6 +11265,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         query = raw_query
+        profile_data: dict[str, Any] | None = None
         try:
             if raw_query.lower().startswith(("http://", "https://")):
                 query = raw_query
@@ -11245,16 +11274,123 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if not resolved_url:
                     raise ValueError("No matching Astrotheme profile was found.")
                 query = resolved_url
-
             profile_data = parse_astrotheme_profile(query)
         except Exception as exc:
-            logger.exception(
-                "Astrotheme import failed during lookup/parse (id=%s query=%r): %s",
-                debug_id,
-                raw_query,
-                exc,
+            if not self._wikipedia_backup_search_enabled:
+                logger.exception(
+                    "Astrotheme import failed during lookup/parse (id=%s query=%r): %s",
+                    debug_id,
+                    raw_query,
+                    exc,
+                )
+                QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
+                return
+
+            QMessageBox.information(
+                self,
+                "Astrotheme import",
+                f"{raw_query} cannot be found on Astrotheme - trying Wikipedia...",
             )
-            QMessageBox.warning(self, "Astrotheme import", f"Could not load Astrotheme profile:\n{exc}")
+            try:
+                resolution = resolve_wikipedia_page_options(raw_query)
+            except Exception as wikipedia_exc:
+                logger.exception(
+                    "Astrotheme import Wikipedia resolution failed (id=%s query=%r): %s",
+                    debug_id,
+                    raw_query,
+                    wikipedia_exc,
+                )
+                QMessageBox.warning(
+                    self,
+                    "Astrotheme import",
+                    f"Could not load backup Wikipedia lookup:\n{wikipedia_exc}",
+                )
+                return
+
+            status = str(resolution.get("status", "") or "")
+            selected_title = ""
+            if status == "not_found":
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{raw_query} not found on Wikipedia. :(",
+                )
+                return
+            if status == "multiple":
+                options = [str(item).strip() for item in resolution.get("options", []) if str(item).strip()]
+                if not options:
+                    QMessageBox.information(
+                        self,
+                        "Astrotheme import",
+                        f"{raw_query} not found on Wikipedia. :(",
+                    )
+                    return
+                selected_title, confirmed = QInputDialog.getItem(
+                    self,
+                    "Wikipedia backup search",
+                    "Multiple Wikipedia pages found. Pick one:",
+                    options,
+                    0,
+                    False,
+                )
+                if not confirmed or not selected_title:
+                    return
+            else:
+                selected_title = str(resolution.get("title", "")).strip()
+
+            if not selected_title:
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{raw_query} not found on Wikipedia. :(",
+                )
+                return
+
+            try:
+                wiki_data = parse_wikipedia_birth_data(selected_title)
+            except Exception as wikipedia_exc:
+                logger.exception(
+                    "Astrotheme import Wikipedia parse failed (id=%s title=%r): %s",
+                    debug_id,
+                    selected_title,
+                    wikipedia_exc,
+                )
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{selected_title} found on Wikipedia, but no birthdate info is available; search abandoned.",
+                )
+                return
+
+            birth_place = str(wiki_data.get("birth_place", "")).strip()
+            if not birth_place:
+                QMessageBox.information(
+                    self,
+                    "Astrotheme import",
+                    f"{selected_title} found on Wikipedia, but no birth place info is available; search abandoned.",
+                )
+                return
+
+            profile_data = {
+                "name": str(wiki_data.get("name") or selected_title),
+                "birth_year": int(wiki_data["birth_year"]),
+                "birth_month": int(wiki_data["birth_month"]),
+                "birth_day": int(wiki_data["birth_day"]),
+                "birth_hour": 12,
+                "birth_minute": 0,
+                "time_unknown": True,
+                "birth_place": birth_place,
+                "data_rating": "XX",
+                "biography": str(wiki_data.get("biography", "") or ""),
+                "profile_url": str(wiki_data.get("source_url", "")),
+            }
+
+        if profile_data is None:
+            QMessageBox.warning(
+                self,
+                "Astrotheme import",
+                "Astrotheme import failed: no profile data could be loaded.",
+            )
             return
 
         parent._reset_new_chart_form()
@@ -17760,6 +17896,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         predictions_default_zero_checkbox.toggled.connect(self._on_predictions_default_zero_toggled)
         dev_tools_section.addWidget(predictions_default_zero_checkbox)
 
+        wikipedia_backup_search_checkbox = QCheckBox(
+            "Astrotheme Import: enable Wikipedia backup search"
+        )
+        wikipedia_backup_search_checkbox.setChecked(
+            bool(getattr(self, "_wikipedia_backup_search_enabled", False))
+        )
+        wikipedia_backup_search_checkbox.setToolTip(
+            "When enabled, failed Astrotheme imports will try a Wikipedia lookup for birth data."
+        )
+        wikipedia_backup_search_checkbox.toggled.connect(self._on_wikipedia_backup_search_toggled)
+        dev_tools_section.addWidget(wikipedia_backup_search_checkbox)
+
         #should this be here or no?
         add_database_info_settings_section(self, content_layout)
 
@@ -17986,6 +18134,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._settings.setValue(
                 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
                 int(self._similar_predictions_default_zero_for_unassigned_alignment),
+            )
+
+    def _on_wikipedia_backup_search_toggled(self, checked: bool) -> None:
+        self._wikipedia_backup_search_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
+            int(self._wikipedia_backup_search_enabled),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._wikipedia_backup_search_enabled = self._wikipedia_backup_search_enabled
+            parent._settings.setValue(
+                SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
+                int(self._wikipedia_backup_search_enabled),
             )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
@@ -19102,6 +19264,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO,
             int(self._similar_predictions_default_zero_for_unassigned_alignment),
+        )
+        self._wikipedia_backup_search_enabled = _load_wikipedia_backup_search_enabled(
+            self._settings,
+            fallback=False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
+            int(self._wikipedia_backup_search_enabled),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
