@@ -220,6 +220,41 @@ class DatabaseAnalyticsChartsMixin:
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
     }
+    TAG_DISTRIBUTION_CATEGORY_ORDER: tuple[str, ...] = (
+        "Occupation",
+        "Uncategorized",
+        "Trait",
+        "Reputation",
+        "Affiliation",
+        "Crime",
+        "Life Events",
+        "Characters",
+        "Hobbies",
+        "Personality",
+        "Genres",
+        "Places",
+    )
+    TAG_DISTRIBUTION_CATEGORY_ALIASES: dict[str, str] = {
+        "occupation": "Occupation",
+        "trait": "Trait",
+        "reputation": "Reputation",
+        "affiliation": "Affiliation",
+        "crime": "Crime",
+        "life events": "Life Events",
+        "life_events": "Life Events",
+        "life-events": "Life Events",
+        "characters": "Characters",
+        "character": "Characters",
+        "hobbies": "Hobbies",
+        "hobby": "Hobbies",
+        "personality": "Personality",
+        "genres": "Genres",
+        "genre": "Genres",
+        "places": "Places",
+        "place": "Places",
+        "uncategorized": "Uncategorized",
+        "unknown": "Uncategorized",
+    }
     DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Top 3)", "top3_signs"),
         ("Dominant Bodies (Top 3)", "top3_planets"),
@@ -2317,14 +2352,16 @@ class DatabaseAnalyticsChartsMixin:
         cleaned = str(tag_value or "").strip()
         if not cleaned:
             return "Uncategorized", ""
-        for delimiter in (":", "/", "|"):
-            if delimiter not in cleaned:
-                continue
-            category, tag = cleaned.split(delimiter, 1)
-            normalized_category = str(category).strip()
-            normalized_tag = str(tag).strip()
-            if normalized_category and normalized_tag:
-                return normalized_category.title(), normalized_tag
+        if "." in cleaned:
+            parts = [part.strip() for part in cleaned.split(".") if part.strip()]
+            if len(parts) >= 2:
+                category_key = parts[0].casefold()
+                category_label = DatabaseAnalyticsChartsMixin.TAG_DISTRIBUTION_CATEGORY_ALIASES.get(
+                    category_key,
+                    "Uncategorized",
+                )
+                child_label = ".".join(parts[1:]).strip()
+                return category_label, child_label
         return "Uncategorized", cleaned
 
     def _collect_tag_distribution_analytics(
@@ -2363,10 +2400,7 @@ class DatabaseAnalyticsChartsMixin:
         database_tag_analytics = self._collect_tag_distribution_analytics(database_chart_ids)
         selection_tag_categories = selection_tag_analytics.get("category_counts", {})
         database_tag_categories = database_tag_analytics.get("category_counts", {})
-        category_names = sorted(
-            set(selection_tag_categories.keys()) | set(database_tag_categories.keys()),
-            key=lambda value: value.casefold(),
-        )
+        category_names = list(self.TAG_DISTRIBUTION_CATEGORY_ORDER)
 
         tag_dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get("tag_distribution")
         if tag_dropdown is not None:
@@ -3337,19 +3371,19 @@ class DatabaseAnalyticsChartsMixin:
         max_value = max(display_values, default=0.0)
         self._set_x_limits_with_padding(ax, 0.0, max(0.03, float(max_value)))
         ax.set_xticks([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
-        ax.set_xticklabels([_format_percent(value) for value in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]])
+        ax.set_xticklabels([f"{value * 100:.2f}%" for value in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]])
         for bar, selection_value, database_value in zip(bars, selection_values, database_values):
             value = bar.get_width()
             relative_text = "n/a"
             if loaded_charts > 0:
                 if database_value > 0:
-                    relative_text = f"{(selection_value / database_value) * 100:.0f}% of DB"
+                    relative_text = f"{(selection_value / database_value) * 100:.2f}% of DB"
                 elif selection_value > 0:
                     relative_text = "new vs DB"
             ax.text(
                 value + max(max_value * 0.015, 0.003),
                 bar.get_y() + (bar.get_height() / 2),
-                relative_text if loaded_charts > 0 else _format_percent(value),
+                relative_text if loaded_charts > 0 else f"{value * 100:.2f}%",
                 va="center",
                 ha="left",
                 color=CHART_THEME_COLORS["text"],
