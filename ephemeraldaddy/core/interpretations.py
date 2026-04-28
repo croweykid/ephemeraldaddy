@@ -4315,17 +4315,17 @@ ENNEAGRAM = {
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
     4:{
-        "signs":{}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius"
-        "antisigns":{},
+        "signs":{"Aquarius","Pisces"}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
+        "antisigns":{"Leo",},
         "houses":{1},
         "antihouses":{},
         "bodies":{}, #theoretically: "Uranus","Lilith"
         "antibodies":{},
-        "nakshatras":{}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
+        "nakshatras":{"Purva Bhadrapada","Shatabhisha",}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
         "antinakshatras":{}, 
-        "positions":{}, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
+        "positions":{"Sun in Pisces","Rahu in Pisces","Cancer in H4","Chiron in H5","Jupiter in H6","Venus in H1","Mercury in H2","","Pallas in Pisces","Pallas in Aquarius","Ceres in Pisces","Mercury in Pisces",""}, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
         "antipositions":{},
-        "aspects":{},
+        "aspects":{"Ketu sextile Vesta","Jupiter square Pallas","Moon conjunction Rahu","MC square Sun",""},
         "antiaspects":{},
         "gates":{59,36,22,46,53,55,16,25,24},
         "antigates":{1,60,8,13,57,43,48,64,3,56,63,},

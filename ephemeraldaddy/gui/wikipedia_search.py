@@ -107,11 +107,37 @@ def parse_wikipedia_birth_data(page_title: str) -> dict[str, Any]:
         birth_place = re.sub(r"<[^>]+>", " ", raw_place)
         birth_place = re.sub(r"\s+", " ", birth_place).strip(" ,")
 
+
+    biography = ""
+    content_match = re.search(
+        r'<div[^>]*class=["\'][^"\']*\bmw-parser-output\b[^"\']*["\'][^>]*>(.*?)</div>',
+        html_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    content_html = content_match.group(1) if content_match else html_text
+    for paragraph_html in re.findall(
+        r"<p[^>]*>(.*?)</p>",
+        content_html,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        cleaned = re.sub(
+            r"<sup[^>]*class=[\"'][^\"']*reference[^\"']*[\"'][^>]*>.*?</sup>",
+            " ",
+            paragraph_html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if cleaned:
+            biography = cleaned
+            break
+
     return {
         "name": page_title,
         "birth_year": year,
         "birth_month": month,
         "birth_day": day,
         "birth_place": birth_place,
+        "biography": biography,
         "source_url": page_url,
     }

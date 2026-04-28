@@ -11381,7 +11381,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "time_unknown": True,
                 "birth_place": birth_place,
                 "data_rating": "XX",
-                "biography": "",
+                "biography": str(wiki_data.get("biography", "") or ""),
                 "profile_url": str(wiki_data.get("source_url", "")),
             }
 
