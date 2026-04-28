@@ -38,8 +38,6 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
-SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
-BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 
 
 def _new_debug_action_id(prefix: str) -> str:
@@ -171,21 +169,6 @@ def _load_predictions_alignment_default_zero_when_unassigned(
 
 def _load_wikipedia_backup_search_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH, int(fallback))
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return bool(fallback)
-
-
-def _load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
-    value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -338,10 +321,14 @@ from ephemeraldaddy.gui.wikipedia_search import (
     resolve_wikipedia_page_options,
 )
 from ephemeraldaddy.gui.dev_tools import (
+    BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+    SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
+    add_batch_tagging_terminal_debug_setting,
     build_similarity_calculator_settings_section,
+    load_batch_tagging_terminal_debug_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
@@ -1720,7 +1707,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
         )
-        self._batch_tagging_terminal_debug = _load_batch_tagging_terminal_debug_enabled(
+        self._batch_tagging_terminal_debug = load_batch_tagging_terminal_debug_enabled(
             self._settings,
             fallback=BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
         )
@@ -17970,17 +17957,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         wikipedia_backup_search_checkbox.toggled.connect(self._on_wikipedia_backup_search_toggled)
         dev_tools_section.addWidget(wikipedia_backup_search_checkbox)
 
-        batch_tagging_debug_checkbox = QCheckBox(
-            "Batch tagging: terminal debug logging"
+        add_batch_tagging_terminal_debug_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
+            on_toggled=self._on_batch_tagging_terminal_debug_toggled,
         )
-        batch_tagging_debug_checkbox.setChecked(
-            bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
-        )
-        batch_tagging_debug_checkbox.setToolTip(
-            "When enabled, batch-tagging phase logs are emitted to the terminal to help debug post-update crashes."
-        )
-        batch_tagging_debug_checkbox.toggled.connect(self._on_batch_tagging_terminal_debug_toggled)
-        dev_tools_section.addWidget(batch_tagging_debug_checkbox)
 
         #should this be here or no?
         add_database_info_settings_section(self, content_layout)
