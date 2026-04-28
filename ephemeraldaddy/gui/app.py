@@ -777,6 +777,7 @@ GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
         "age",
         "birth_month",
         "birthplace",
+        "tag_distribution",
         "human_design",
     }
 )
@@ -1791,6 +1792,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._age_mode = "age_distribution"
         self._birth_month_mode = "month_distribution"
         self._birthplace_mode = "towns"
+        self._tag_distribution_mode = "all"
         self._gender_mode = "actual_gender"
         self._human_design_mode = "hd_gates"
         self._bazi_mode = "all"
@@ -2177,6 +2179,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age": self._age_mode,
             "birth_month": self._birth_month_mode,
             "birthplace": self._birthplace_mode,
+            "tag_distribution": self._tag_distribution_mode,
             "gender": self._gender_mode,
             "human_design": self._human_design_mode,
             "bazi": self._bazi_mode,
@@ -2407,6 +2410,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "age",
             "birth_month",
             "birthplace",
+            "tag_distribution",
             "gender",
             "human_design",
             "bazi",
@@ -2683,6 +2687,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "tag_distribution":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._tag_distribution_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/tag_distribution_mode",
+                        self._tag_distribution_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "human_design":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -2902,6 +2923,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_birthplace_mode, str):
             self._birthplace_mode = stored_birthplace_mode
+
+        stored_tag_distribution_mode = self._settings.value(
+            "manage_charts/tag_distribution_mode",
+            self._tag_distribution_mode,
+        )
+        if isinstance(stored_tag_distribution_mode, str):
+            self._tag_distribution_mode = stored_tag_distribution_mode
 
         stored_gender_mode = self._settings.value(
             "manage_charts/gender_mode",
@@ -3696,6 +3724,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["birthplace"] = self.birthplace_chart_layout
         birth_place_section_layout.addWidget(self.birthplace_chart_container)
+
+        # TAG DISTRIBUTION SECTION
+        tag_distribution_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🏷️Tags",
+            section_key="tag_distribution",
+            expanded=self._is_database_metrics_section_expanded("tag_distribution"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "tag_distribution",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["tag_distribution"] = self._is_database_metrics_section_expanded("tag_distribution")
+        self._create_analysis_chart_header(
+            tag_distribution_section_layout,
+            "🏷️Tags",
+            "tag_distribution",
+            "tag_distribution",
+            dropdown_options=[("All", "all")],
+            show_title=False,
+        )
+        tag_subheader = add_database_subheader(
+            "Repeated tags by category. With selection, rows show selection % relative to DB %."
+        )
+        tag_distribution_section_layout.addWidget(tag_subheader)
+        (
+            self.tag_distribution_chart_container,
+            self.tag_distribution_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["tag_distribution"] = self.tag_distribution_chart_layout
+        tag_distribution_section_layout.addWidget(self.tag_distribution_chart_container)
 
 #end of lefthand Database Analytics panel, it closes below:
         return panel
@@ -10931,6 +10991,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     database_counts=[int(database_state_counts.get(label, 0)) for label in state_labels],
                     loaded_charts=loaded_charts,
                 )
+
+            self._analysis_chart_export_rows["tag_distribution"] = self._render_tag_distribution_section(
+                chart_ids=chart_ids,
+                database_chart_ids=database_cache["chart_ids"],
+                loaded_charts=loaded_charts,
+                should_refresh=_should_refresh_database_metric_section,
+            )
 
         if update_similarities:
             self._update_similarities_analysis(chart_ids)

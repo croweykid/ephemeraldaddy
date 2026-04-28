@@ -52,6 +52,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     normalize_hd_authority_key,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
 )
@@ -218,6 +219,41 @@ class DatabaseAnalyticsChartsMixin:
         "土": "Earth", #🗿⛰️
         "金": "Metal", #🪓🪡
         "水": "Water", #🌊💧
+    }
+    TAG_DISTRIBUTION_CATEGORY_ORDER: tuple[str, ...] = (
+        "Occupation",
+        "Uncategorized",
+        "Trait",
+        "Reputation",
+        "Affiliation",
+        "Crime",
+        "Life Events",
+        "Characters",
+        "Hobbies",
+        "Personality",
+        "Genres",
+        "Places",
+    )
+    TAG_DISTRIBUTION_CATEGORY_ALIASES: dict[str, str] = {
+        "occupation": "Occupation",
+        "trait": "Trait",
+        "reputation": "Reputation",
+        "affiliation": "Affiliation",
+        "crime": "Crime",
+        "life events": "Life Events",
+        "life_events": "Life Events",
+        "life-events": "Life Events",
+        "characters": "Characters",
+        "character": "Characters",
+        "hobbies": "Hobbies",
+        "hobby": "Hobbies",
+        "personality": "Personality",
+        "genres": "Genres",
+        "genre": "Genres",
+        "places": "Places",
+        "place": "Places",
+        "uncategorized": "Uncategorized",
+        "unknown": "Uncategorized",
     }
     DOMINANT_FACTORS_TOP3_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
         ("Dominant Signs (Top 3)", "top3_signs"),
@@ -2312,6 +2348,157 @@ class DatabaseAnalyticsChartsMixin:
         return widget
 
     @staticmethod
+    def _split_tag_category(tag_value: str) -> tuple[str, str]:
+        cleaned = str(tag_value or "").strip()
+        if not cleaned:
+            return "Uncategorized", ""
+        if "." in cleaned:
+            parts = [part.strip() for part in cleaned.split(".") if part.strip()]
+            if len(parts) >= 2:
+                category_key = parts[0].casefold()
+                category_label = DatabaseAnalyticsChartsMixin.TAG_DISTRIBUTION_CATEGORY_ALIASES.get(
+                    category_key,
+                    "Uncategorized",
+                )
+                child_label = ".".join(parts[1:]).strip()
+                return category_label, child_label
+        return "Uncategorized", cleaned
+
+    def _collect_tag_distribution_analytics(
+        self,
+        chart_ids: list[int] | set[int],
+    ) -> dict[str, Any]:
+        category_to_counts: dict[str, Counter[str]] = {}
+        for chart_id in chart_ids:
+            chart = self._get_chart_for_filter(int(chart_id))
+            if chart is None:
+                continue
+            deduped_tags = normalize_tag_list(getattr(chart, "tags", []))
+            for tag in deduped_tags:
+                category, normalized_tag = self._split_tag_category(tag)
+                if not normalized_tag:
+                    continue
+                category_counter = category_to_counts.setdefault(category, Counter())
+                category_counter[normalized_tag] += 1
+        return {
+            "total_charts": len(chart_ids),
+            "category_counts": {
+                category: dict(counter)
+                for category, counter in category_to_counts.items()
+            },
+        }
+
+    def _render_tag_distribution_section(
+        self,
+        *,
+        chart_ids: list[int],
+        database_chart_ids: set[int],
+        loaded_charts: int,
+        should_refresh: Callable[[str], bool],
+    ) -> list[tuple[str, float, float, float, int, int, float]]:
+        selection_tag_analytics = self._collect_tag_distribution_analytics(chart_ids)
+        database_tag_analytics = self._collect_tag_distribution_analytics(database_chart_ids)
+        selection_tag_categories = selection_tag_analytics.get("category_counts", {})
+        database_tag_categories = database_tag_analytics.get("category_counts", {})
+        category_names = list(self.TAG_DISTRIBUTION_CATEGORY_ORDER)
+
+        tag_dropdown = getattr(self, "_analysis_chart_dropdowns", {}).get("tag_distribution")
+        if tag_dropdown is not None:
+            options: list[tuple[str, str]] = [("All", "all")]
+            options.extend((category, category) for category in category_names)
+            selected_mode = getattr(self, "_tag_distribution_mode", "all")
+            allowed_modes = {option_value for _option_label, option_value in options}
+            if selected_mode not in allowed_modes:
+                selected_mode = "all"
+            tag_dropdown.blockSignals(True)
+            tag_dropdown.clear()
+            for option_label, option_value in options:
+                tag_dropdown.addItem(option_label.upper(), option_value)
+            selected_index = tag_dropdown.findData(selected_mode)
+            if selected_index < 0 and tag_dropdown.count() > 0:
+                selected_index = 0
+            if selected_index >= 0:
+                tag_dropdown.setCurrentIndex(selected_index)
+                current_mode = tag_dropdown.currentData()
+                if isinstance(current_mode, str):
+                    self._tag_distribution_mode = current_mode
+            tag_dropdown.blockSignals(False)
+
+        selected_mode = getattr(self, "_tag_distribution_mode", "all")
+        if selected_mode == "all":
+            categories_to_render = category_names
+        elif selected_mode in category_names:
+            categories_to_render = [selected_mode]
+        else:
+            categories_to_render = []
+
+        tag_export_rows: list[tuple[str, float, float, float, int, int, float]] = []
+        if should_refresh("tag_distribution"):
+            self._clear_layout(self.tag_distribution_chart_layout)
+        for category_name in categories_to_render:
+            selection_counts_raw = selection_tag_categories.get(category_name, {})
+            database_counts_raw = database_tag_categories.get(category_name, {})
+            source_counts = selection_counts_raw if loaded_charts else database_counts_raw
+            filtered_tags = [tag for tag, count in source_counts.items() if int(count) > 1]
+            filtered_tags.sort(
+                key=lambda tag: (
+                    -int(source_counts.get(tag, 0)),
+                    tag.casefold(),
+                )
+            )
+            if not filtered_tags:
+                continue
+            selection_counts = [int(selection_counts_raw.get(tag, 0)) for tag in filtered_tags]
+            database_counts = [int(database_counts_raw.get(tag, 0)) for tag in filtered_tags]
+            selection_total = max(1, int(selection_tag_analytics.get("total_charts", 0)))
+            database_total = max(1, int(database_tag_analytics.get("total_charts", 0)))
+            selection_values = [count / selection_total for count in selection_counts]
+            database_values = [count / database_total for count in database_counts]
+            for tag_label, selection_value, database_value, selection_count, database_count in zip(
+                filtered_tags,
+                selection_values,
+                database_values,
+                selection_counts,
+                database_counts,
+            ):
+                displayed_selection_value = selection_value if loaded_charts else database_value
+                relative_percent = (
+                    (displayed_selection_value / database_value)
+                    if database_value > 0
+                    else 0.0
+                )
+                tag_export_rows.append(
+                    (
+                        f"{category_name}: {tag_label}",
+                        displayed_selection_value,
+                        database_value,
+                        displayed_selection_value - database_value,
+                        selection_count if loaded_charts else database_count,
+                        database_count,
+                        relative_percent,
+                    )
+                )
+            if should_refresh("tag_distribution"):
+                tag_canvas = self._build_tag_distribution_chart(
+                    category_label=category_name,
+                    labels=filtered_tags,
+                    selection_values=selection_values,
+                    database_values=database_values,
+                    selection_counts=selection_counts,
+                    database_counts=database_counts,
+                    loaded_charts=loaded_charts,
+                )
+                self.tag_distribution_chart_layout.addWidget(tag_canvas, 0)
+
+        if should_refresh("tag_distribution") and not tag_export_rows:
+            self.tag_distribution_chart_layout.addWidget(
+                self._build_text_analysis_widget(["No repeated tags available for this scope."]),
+                0,
+                Qt.AlignTop,
+            )
+        return tag_export_rows
+
+    @staticmethod
     def _extract_birthplace_components(raw_place: str) -> tuple[str | None, str | None, str | None]:
         parts = [part.strip() for part in (raw_place or "").split(",") if part.strip()]
         if not parts:
@@ -3143,6 +3330,76 @@ class DatabaseAnalyticsChartsMixin:
 
         self._apply_tight_layout(figure)
         figure.subplots_adjust(left=0.36, bottom=0.10, right=0.97, top=0.97)
+        canvas = FigureCanvas(figure)
+        self._configure_left_panel_canvas(canvas, figure)
+        canvas.draw_idle()
+        return canvas
+
+    def _build_tag_distribution_chart(
+        self,
+        *,
+        category_label: str,
+        labels: list[str],
+        selection_values: list[float],
+        database_values: list[float],
+        selection_counts: list[int],
+        database_counts: list[int],
+        loaded_charts: int,
+    ) -> FigureCanvas:
+        chart_height = max(2.9, min(14.0, (len(labels) * 0.38) + 1.0))
+        figure = Figure(figsize=(1.5, chart_height))
+        figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
+        ax = figure.add_subplot(111)
+        ax.set_facecolor(self._database_analytics_axes_facecolor())
+
+        display_labels = [
+            self._format_selection_database_count_label(
+                label,
+                int(database_count),
+                int(selection_count),
+                loaded_charts > 0,
+            )
+            for label, selection_count, database_count in zip(labels, selection_counts, database_counts)
+        ]
+        positions = list(range(len(labels)))
+        display_values = selection_values if loaded_charts else database_values
+        colors = [
+            self._value_length_color(float(value), 0.0, max(display_values, default=0.01))
+            for value in display_values
+        ]
+        bars = ax.barh(positions, display_values, color=colors, height=0.55, zorder=2)
+        max_value = max(display_values, default=0.0)
+        self._set_x_limits_with_padding(ax, 0.0, max(0.03, float(max_value)))
+        ax.set_xticks([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+        ax.set_xticklabels([f"{value * 100:.2f}%" for value in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]])
+        for bar, selection_value, database_value in zip(bars, selection_values, database_values):
+            value = bar.get_width()
+            relative_text = "n/a"
+            if loaded_charts > 0:
+                if database_value > 0:
+                    relative_text = f"{(selection_value / database_value) * 100:.2f}% of DB"
+                elif selection_value > 0:
+                    relative_text = "new vs DB"
+            ax.text(
+                value + max(max_value * 0.015, 0.003),
+                bar.get_y() + (bar.get_height() / 2),
+                relative_text if loaded_charts > 0 else f"{value * 100:.2f}%",
+                va="center",
+                ha="left",
+                color=CHART_THEME_COLORS["text"],
+                fontsize=7.2,
+            )
+        ax.set_yticks(positions, labels=display_labels)
+        ax.tick_params(axis="y", labelsize=7.2, colors=CHART_THEME_COLORS["text"], pad=6)
+        ax.tick_params(axis="x", labelsize=7.2, colors=CHART_THEME_COLORS["muted_text"])
+        ax.set_title(str(category_label), color=CHART_THEME_COLORS["text"], fontsize=8, pad=6)
+        ax.grid(axis="x", color=CHART_THEME_COLORS["spine"], linewidth=0.6, alpha=0.35, zorder=0)
+        for spine in ax.spines.values():
+            spine.set_color(CHART_THEME_COLORS["spine"])
+        for tick_label in ax.get_yticklabels():
+            tick_label.set_ha("right")
+        self._apply_tight_layout(figure)
+        figure.subplots_adjust(left=0.50, bottom=0.08, right=0.97, top=0.92)
         canvas = FigureCanvas(figure)
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
