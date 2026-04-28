@@ -20917,6 +20917,16 @@ class MainWindow(QMainWindow):
             )
             return
 
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(False)
+        self._similar_charts_list_label.setText(
+            (
+                f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};'>⏳</span> "
+                "Calculating similar charts…"
+            )
+        )
+        QApplication.processEvents()
+
         try:
             candidates = self._load_similar_chart_candidates()
         except Exception as exc:
