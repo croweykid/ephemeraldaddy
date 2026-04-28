@@ -39,6 +39,41 @@ from ephemeraldaddy.gui.style import (
     similarity_gradient_rgb_for_range,
 )
 
+SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG = "dev_tools/batch_tagging_terminal_debug"
+BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
+
+
+def load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
+    value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def add_batch_tagging_terminal_debug_setting(
+    *,
+    section_layout: QVBoxLayout,
+    is_enabled: bool,
+    on_toggled: Callable[[bool], None],
+) -> QCheckBox:
+    checkbox = QCheckBox("Batch tagging: terminal debug logging")
+    checkbox.setChecked(bool(is_enabled))
+    checkbox.setToolTip(
+        "When enabled, batch-tagging phase logs are emitted to the terminal to help debug post-update crashes."
+    )
+    checkbox.toggled.connect(on_toggled)
+    section_layout.addWidget(checkbox)
+    return checkbox
+
+
 SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("placement", "Placement score"),
     ("aspect", "Aspect score"),
