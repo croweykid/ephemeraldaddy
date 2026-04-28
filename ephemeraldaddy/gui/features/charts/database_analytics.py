@@ -248,6 +248,7 @@ class DatabaseAnalyticsChartsMixin:
         "hobbies": "Hobbies",
         "hobby": "Hobbies",
         "personality": "Personality",
+        "personality_types": "Personality",
         "genres": "Genres",
         "genre": "Genres",
         "places": "Places",
@@ -2358,8 +2359,9 @@ class DatabaseAnalyticsChartsMixin:
                 category_key = parts[0].casefold()
                 category_label = DatabaseAnalyticsChartsMixin.TAG_DISTRIBUTION_CATEGORY_ALIASES.get(
                     category_key,
-                    "Uncategorized",
                 )
+                if category_label is None:
+                    return "Uncategorized", cleaned
                 child_label = ".".join(parts[1:]).strip()
                 return category_label, child_label
         return "Uncategorized", cleaned
