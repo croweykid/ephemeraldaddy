@@ -56,6 +56,48 @@ def _search_wikipedia_titles(search_query: str, limit: int = 10) -> list[str]:
             titles.append(title)
     return titles
 
+def _fetch_wikipedia_intro_text(title: str) -> str:
+    url = (
+        f"{WIKIPEDIA_API_URL}?action=query&format=json&redirects=1&prop=extracts&"
+        f"exintro=1&explaintext=1&titles={quote(title)}"
+    )
+    data = _wikipedia_http_get_json(url)
+    pages = data.get("query", {}).get("pages", {})
+    if not isinstance(pages, dict):
+        return ""
+    for page in pages.values():
+        if not isinstance(page, dict):
+            continue
+        extract = str(page.get("extract", "") or "").strip()
+        if extract:
+            return extract.split("\n", 1)[0].strip()
+    return ""
+
+
+def _fetch_wikipedia_page_html(title: str) -> str:
+    url = f"{WIKIPEDIA_API_URL}?action=parse&format=json&prop=text&page={quote(title)}"
+    data = _wikipedia_http_get_json(url)
+    parse_node = data.get("parse", {})
+    if not isinstance(parse_node, dict):
+        return ""
+    text_node = parse_node.get("text", {})
+    if not isinstance(text_node, dict):
+        return ""
+    return str(text_node.get("*", "") or "")
+
+
+def _strip_html(fragment: str) -> str:
+    cleaned = re.sub(
+        r"<sup[^>]*class=[\"'][^\"']*reference[^\"']*[\"'][^>]*>.*?</sup>",
+        " ",
+        fragment,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+    cleaned = re.sub(r"\s+\[\d+\]\s*", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
 
 def resolve_wikipedia_page_options(search_query: str) -> dict[str, Any]:
     pages = _query_pages_for_title(search_query)

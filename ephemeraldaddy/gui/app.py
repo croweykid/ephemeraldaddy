@@ -1866,6 +1866,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_overlay_active = False
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
+        self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
         self._settings_db_info_label: QLabel | None = None
         self._database_weight_norms: dict[str, Any] = {}
@@ -17723,6 +17724,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _ensure_settings_dialog(self) -> QDialog:
         if self._settings_dialog is not None:
+            if isinstance(self._batch_tagging_terminal_debug_checkbox, QCheckBox):
+                blocker = QSignalBlocker(self._batch_tagging_terminal_debug_checkbox)
+                self._batch_tagging_terminal_debug_checkbox.setChecked(
+                    bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
+                )
+                del blocker
             self._resize_and_center_settings_dialog(self._settings_dialog)
             return self._settings_dialog
 
