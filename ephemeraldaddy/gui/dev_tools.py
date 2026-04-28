@@ -51,6 +51,39 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
 )
 
 
+SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
+    "placement": (
+        "Compares where each core body lands (sign, and house when houses are available) "
+        "between the two charts, using body-specific weights."
+    ),
+    "aspect": (
+        "Compares inter-body aspect patterns (planet pair + aspect type), and rewards close "
+        "orb agreement while penalizing one-sided/extra-only aspect sets."
+    ),
+    "distribution": (
+        "Compares elemental (fire/earth/air/water) and modality (cardinal/fixed/mutable) "
+        "balance across core-body placements in both charts."
+    ),
+    "combined_dominance": (
+        "Compares overall dominance profiles: which signs, houses (if used), and bodies carry "
+        "the most weighted influence in each chart."
+    ),
+    "nakshatra_placement": (
+        "Compares the body-weighted nakshatra distribution profile (27 nakshatras) between charts; "
+        "it measures profile-shape overlap, not strict body-to-body nakshatra matches."
+    ),
+    "nakshatra_dominance": (
+        "Compares dominant nakshatra emphasis (weighted key nakshatras and top-nakshatra overlap) "
+        "between the two charts."
+    ),
+    "defined_centers": (
+        "Compares Human Design defined centers by set overlap (shared centers vs total unique centers)."
+    ),
+    "human_design_gates": (
+        "Compares Human Design active gates by set overlap (shared gates vs total unique gates)."
+    ),
+}
+
 def build_similarity_calculator_settings_section(
     *,
     dialog: QDialog,
@@ -114,7 +147,15 @@ def build_similarity_calculator_settings_section(
         alignment=Qt.AlignRight | Qt.AlignTop,
     )
     for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
-        calculator_grid.addWidget(QLabel(label_text), row_index, 1)
+        criterion_label = QLabel(f"{label_text} Ⓘ")
+        criterion_label.setToolTip(
+            SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS.get(
+                key,
+                "Explains what this similarity criterion measures between two charts.",
+            )
+        )
+        criterion_label.setCursor(Qt.WhatsThisCursor)
+        calculator_grid.addWidget(criterion_label, row_index, 1)
         enabled_checkbox = QCheckBox()
         enabled_checkbox.setChecked(True)
         enabled_checkbox.stateChanged.connect(
