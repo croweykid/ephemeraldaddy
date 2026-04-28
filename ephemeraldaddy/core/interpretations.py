@@ -4287,22 +4287,22 @@ ENNEAGRAM = {
         "quotes":{"'When you're weary / Feeling small / When tears are in your eyes / I will dry them all / I'm on your side. / Oh, when times get rough, / And friends just can't be found...' - Simon & Garfunkel, Bridge Over Troubled Water"},
         },
     3:{ #no actual data formally assessed & documented; purely theoretical rn based on loose past observations
-        "signs":{"Leo","Capricorn","Taurus","Sagittarius","Libra"},
-        "antisigns":{},
-        "houses":{1,10},
-        "antihouses":{},
-        "bodies":{"Sun","Jupiter","Vesta"},
-        "antibodies":{},
-        "nakshatras":{"Vishakha","Jyestha","Ashlesha","Magha",},
-        "antinakshatras":{}, 
-        "positions":{"Ketu in Capricorn","Chiron in H2"},
-        "antipositions":{},
-        "aspects":{},
+        "signs":{"Libra","Scorpio","Aries","Sagittarius","Leo"}, #my initial guesses: "Leo","Capricorn","Taurus","Sagittarius","Libra". I checked "Leo dominant" and saw a lot of subtler probable 3s I'd missed because they were tasteful & well adjusted about it.
+        "antisigns":{"Virgo","Pisces","Gemini"},
+        "houses":{8}, #it's about power in society, I guess? Domination through community?
+        "antihouses":{1}, #1 doesn't seem to need external validation.
+        "bodies":{"Sun","Mars","Jupiter",},
+        "antibodies":{"Mercury","Venus","Moon"},
+        "nakshatras":{"Ashwini","Jyestha","Revati","Uttara Ashadha","Vishakha","Hasta"}, #original guesses: "Vishakha","Jyestha","Ashlesha","Magha",
+        "antinakshatras":{"Purva Phalguni","Krittika"}, 
+        "positions":{"Ketu in Capricorn","Chiron in H2","Mars in Aries","Ceres in Aries","Ketu in Sagittarius","Sun in Taurus","Scorpio in H4","Taurus in H10","Cancer in H1","Leo in H1","Aries in H10",}, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
+        "antipositions":{"Chiron in Pisces","Uranus in Virgo","Rahu in H1","Pluto in H12","Saturn in H3","Sun in H12","Uranus in H10","Venus in H11","Vesta in H11","Ceres in H5","Chiron in H9","Jupiter in H2","Mars in H6","Vesta in H10","Vesta in H1","Lilith in H4",},
+        "aspects":{"Jupiter sextile Sun","Mercury trine Moon","Saturn trine Sun","Ketu trine Moon","Mars sextile Mercury","Moon trine Rahu","Mars sextile Sun","Moon trine Sun","Ceres square Juno","Saturn trine Uranus","Ceres square Moon","Chiron square Lilith","Ketu square Vesta","Ketu trine Sun","Mercury semisextile Venus","Mercury square Pluto","Pallas sextile Sun","AS trine Lilith","Rahu square Vesta","Juno conjunction Fortune","Ketu trine Pallas","Lilith sextile Venus","Mars opposition Fortune","Pallas conjunction Pluto","Fortune conjunction Pluto","IC sextile Vesta","IC square Mars","IC trine Venus","MC square Mars","MC trine Vesta","AS sextile Vesta","AS square Saturn",},
         "antiaspects":{},
-        "gates":{},
-        "antigates":{},
-        "channels":{},
-        "antichannels":{},
+        "gates":{50,34,9,32,5,58,42,54,},
+        "antigates":{59,26,12,55,15,6,36,13,23,},
+        #"channels":{},
+        #"antichannels":{[23,43]},
         "centers":{},
         "anticenters":{},
         "profiles":{},
@@ -4315,15 +4315,15 @@ ENNEAGRAM = {
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
     4:{
-        "signs":{"Pisces","Aquarius","Scorpio","Sagittarius"},
+        "signs":{}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius"
         "antisigns":{},
         "houses":{1},
         "antihouses":{},
-        "bodies":{"Uranus","Lilith"},
+        "bodies":{}, #theoretically: "Uranus","Lilith"
         "antibodies":{},
-        "nakshatras":{"Ardra","Purva Bhadrapada","Revati"},
+        "nakshatras":{}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
         "antinakshatras":{}, 
-        "positions":{"Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"},
+        "positions":{}, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
         "antipositions":{},
         "aspects":{},
         "antiaspects":{},
@@ -4339,11 +4339,11 @@ ENNEAGRAM = {
         "antiauthorities":{},
         "color":"#cc66ff",
         "motivation":"Individuality, depth of experience & authenticity",
-        "description":"4s want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
+        "description":"4s don't mind if you think they're a freak. They want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. Many seek originality and ways of distinguishing themselves from the mainstream, but that may be just a reaction to the inauthenticity of the mainstream. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
     5:{
-        "signs":{"Aries","Cancer","Taurus","Gemini"}, 
+        "signs":{"Aries","Cancer","Taurus",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
         "antisigns":{"Leo","Sagittarius"},
         "houses":{3,9},
         "antihouses":{},
