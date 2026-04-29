@@ -959,14 +959,7 @@ def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxL
     """Build Chart View Subjective Notes tag input + current-tag chips UI."""
     owner.chart_tags_input.setPlaceholderText("add one tag")
     owner.chart_tags_input.textChanged.connect(lambda *_: on_chart_view_tags_changed(owner))
-    chart_tags_return_shortcut = QShortcut(QKeySequence("Return"), owner.chart_tags_input)
-    chart_tags_return_shortcut.setContext(Qt.WidgetShortcut)
-    chart_tags_return_shortcut.activated.connect(lambda: on_chart_view_tag_add(owner))
-    owner.chart_tags_input._chart_tags_return_shortcut = chart_tags_return_shortcut
-    chart_tags_enter_shortcut = QShortcut(QKeySequence("Enter"), owner.chart_tags_input)
-    chart_tags_enter_shortcut.setContext(Qt.WidgetShortcut)
-    chart_tags_enter_shortcut.activated.connect(lambda: on_chart_view_tag_add(owner))
-    owner.chart_tags_input._chart_tags_enter_shortcut = chart_tags_enter_shortcut
+    owner.chart_tags_input.returnPressed.connect(lambda: on_chart_view_tag_add(owner))
     chart_tagging_row = QHBoxLayout()
     chart_tagging_row.setContentsMargins(0, 0, 0, 0)
     chart_tagging_row.setSpacing(6)
