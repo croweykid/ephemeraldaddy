@@ -11063,6 +11063,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     @staticmethod
     def _restore_scrollbar_position(scrollbar, previous_value: int) -> None:
+        def _is_scrollbar_alive() -> bool:
+            try:
+                scrollbar.minimum()
+                return True
+            except RuntimeError:
+                return False
+
+        if not _is_scrollbar_alive():
+            return
+
         pending_handler = getattr(scrollbar, "_ephemeraldaddy_restore_handler", None)
         if pending_handler is not None:
             try:
@@ -11072,16 +11082,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         pending_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
         if pending_timer is not None:
-            pending_timer.stop()
-            pending_timer.deleteLater()
+            try:
+                pending_timer.stop()
+                pending_timer.deleteLater()
+            except RuntimeError:
+                return
 
-        target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
+        try:
+            target_value = max(scrollbar.minimum(), min(previous_value, scrollbar.maximum()))
+        except RuntimeError:
+            return
 
         def _apply_target() -> None:
-            bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
-            scrollbar.setValue(bounded_value)
+            try:
+                bounded_value = max(scrollbar.minimum(), min(target_value, scrollbar.maximum()))
+                scrollbar.setValue(bounded_value)
+            except RuntimeError:
+                return
 
         def _cleanup_handler() -> None:
+            if not _is_scrollbar_alive():
+                return
             if getattr(scrollbar, "_ephemeraldaddy_restore_handler", None) is not _on_range_changed:
                 return
             try:
@@ -11091,8 +11112,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             scrollbar._ephemeraldaddy_restore_handler = None
             cleanup_timer = getattr(scrollbar, "_ephemeraldaddy_restore_cleanup_timer", None)
             if cleanup_timer is not None:
-                cleanup_timer.stop()
-                cleanup_timer.deleteLater()
+                try:
+                    cleanup_timer.stop()
+                    cleanup_timer.deleteLater()
+                except RuntimeError:
+                    return
             scrollbar._ephemeraldaddy_restore_cleanup_timer = None
 
         cleanup_timer = QTimer(scrollbar)
@@ -11102,11 +11126,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_range_changed(*_) -> None:
             _apply_target()
-            cleanup_timer.start()
+            try:
+                cleanup_timer.start()
+            except RuntimeError:
+                return
 
         scrollbar._ephemeraldaddy_restore_handler = _on_range_changed
         scrollbar._ephemeraldaddy_restore_cleanup_timer = cleanup_timer
-        scrollbar.rangeChanged.connect(_on_range_changed)
+        try:
+            scrollbar.rangeChanged.connect(_on_range_changed)
+        except RuntimeError:
+            return
 
         _apply_target()
         QTimer.singleShot(0, _apply_target)
