@@ -11202,14 +11202,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             self._on_transit_location_submitted()
             return True
-        if (
-            hasattr(self, "chart_tags_input")
-            and obj is self.chart_tags_input
-            and event.type() == QEvent.KeyPress
-            and event.key() in (Qt.Key_Return, Qt.Key_Enter)
-        ):
-            on_chart_view_tag_add(self)
-            return True
         list_widget = getattr(self, "list_widget", None)
         if list_widget is not None and obj is list_widget and event.type() == QEvent.KeyPress:
             if self._handle_list_letter_jump(event):
@@ -20285,8 +20277,6 @@ class MainWindow(QMainWindow):
             self.chart_source_combo,
         ):
             self._bind_enter_update(widget, self.update_button.click)
-        self.chart_tags_input.returnPressed.connect(lambda: on_chart_view_tag_add(self))
-        self.chart_tags_input.installEventFilter(self)
         self.place_edit.returnPressed.connect(self.place_search_button.click)
 
         middle_layout.addLayout(self.inputs_layout)
