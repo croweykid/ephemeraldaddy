@@ -524,7 +524,7 @@ def build_enneagram_popout_info_html(
                 "<li>"
                 f"<span style='color:{html.escape(str(enneagram.get(type_num, {}).get('color', text_color)))};"
                 "font-weight:700;'>"
-                f"Type {type_num}</span>: {float(type_scores.get(type_num, 0.0)):.4f}"
+                f"Type {type_num}</span>: {float(type_scores.get(type_num, 0.0)):.1f}"
                 "</li>"
             )
             for type_num in range(1, 10)
@@ -588,19 +588,47 @@ def build_enneagram_popout_info_html(
             for body in sorted(_normalize_string_set(factors.get('antibodies', set())))
         ) or "<li>None</li>"
         gate_items = "".join(
-            f"<li>Gate {gate}: {'✓ active' if gate in active_gates else '✗ inactive'}</li>"
+            (
+                f"<li>Gate {gate}: "
+                f"<span style='color:{'#00ff66' if gate in active_gates else '#6b1d1d'};"
+                "font-weight:700;'>"
+                f"{'✓ active' if gate in active_gates else '✗ inactive'}</span></li>"
+            )
             for gate in sorted(_normalize_gate_set(factors.get('gates', set())))
         ) or "<li>None</li>"
         anti_gate_items = "".join(
-            f"<li>Gate {gate}: {'✓ active (negative hit)' if gate in active_gates else '✗ inactive'}</li>"
+            (
+                f"<li>Gate {gate}: "
+                f"<span style='color:{'#00ff66' if gate in active_gates else '#6b1d1d'};"
+                "font-weight:700;'>"
+                f"{'✓ active (negative hit)' if gate in active_gates else '✗ inactive'}</span></li>"
+            )
             for gate in sorted(_normalize_gate_set(factors.get('antigates', set())))
         ) or "<li>None</li>"
+        def _format_position_item(raw_position: str) -> str:
+            parsed_position = _parse_position_spec(raw_position)
+            if parsed_position is None:
+                return f"<li>{html.escape(raw_position)}: ✗ parse error</li>"
+            category, container, subject = parsed_position
+            if category == "body_in_house" and isinstance(container, int):
+                body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
+                house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
+                return f"<li>{body_html} in {house_html}: ✓ parsed</li>"
+            if category == "sign_in_house" and isinstance(container, int):
+                sign_html = _color_token(str(subject), SIGN_COLORS.get(str(subject), text_color))
+                house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
+                return f"<li>{sign_html} in {house_html}: ✓ parsed</li>"
+            if category == "body_in_sign" and isinstance(container, str):
+                body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
+                sign_html = _color_token(container, SIGN_COLORS.get(container, text_color))
+                return f"<li>{body_html} in {sign_html}: ✓ parsed</li>"
+            return f"<li>{html.escape(raw_position)}: ✓ parsed</li>"
         position_items = "".join(
-            f"<li>{html.escape(position)}: {'✓ parsed' if _parse_position_spec(position) is not None else '✗ parse error'}</li>"
+            _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
         ) or "<li>None</li>"
         anti_position_items = "".join(
-            f"<li>{html.escape(position)}: {'✓ parsed' if _parse_position_spec(position) is not None else '✗ parse error'}</li>"
+            _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('antipositions', set()) if str(v).strip()})
         ) or "<li>None</li>"
         formula_bits = ", ".join(
