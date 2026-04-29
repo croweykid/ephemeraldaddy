@@ -482,7 +482,16 @@ def build_enneagram_popout_info_html(
             for gate in (getattr(chart, "human_design_gates", None) or [])
             if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
         }
-        sorted_rows = "".join(f"<li>Type {type_num}: <b>{float(type_scores.get(type_num, 0.0)):.4f}</b></li>" for type_num in range(1, 10))
+        sorted_rows = "".join(
+            (
+                "<li>"
+                f"<span style='color:{html.escape(str(enneagram.get(type_num, {}).get('color', text_color)))};"
+                "font-weight:700;'>"
+                f"Type {type_num}</span>: {float(type_scores.get(type_num, 0.0)):.4f}"
+                "</li>"
+            )
+            for type_num in range(1, 10)
+        )
         def _color_token(label: str, color: str) -> str:
             return f"<span style='color:{color};font-weight:700;'>{html.escape(label)}</span>"
         sign_items = "".join(
@@ -509,14 +518,30 @@ def build_enneagram_popout_info_html(
             f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
             for nak in sorted(_normalize_string_set(factors.get('antinakshatras', set())))
         ) or "<li>None</li>"
-        aspect_items = "".join(
-            f"<li>{_color_token(aspect, ASPECT_COLORS.get(aspect.lower(), text_color))}</li>"
-            for aspect in sorted({str(v).strip() for v in factors.get('aspects', set()) if str(v).strip()})
-        ) or "<li>None</li>"
-        anti_aspect_items = "".join(
-            f"<li>{_color_token(aspect, ASPECT_COLORS.get(aspect.lower(), text_color))}</li>"
-            for aspect in sorted({str(v).strip() for v in factors.get('antiaspects', set()) if str(v).strip()})
-        ) or "<li>None</li>"
+        aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        aspect_items = "".join(aspect_items_parts) or "<li>None</li>"
+        anti_aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                anti_aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            anti_aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        anti_aspect_items = "".join(anti_aspect_items_parts) or "<li>None</li>"
         anti_sign_items = "".join(
             f"<li>{_color_token(sign, SIGN_COLORS.get(sign, text_color))}: {float(sign_weights.get(sign, 0.0)):.4f}</li>"
             for sign in sorted(_normalize_string_set(factors.get('antisigns', set())))
