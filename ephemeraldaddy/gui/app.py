@@ -1664,6 +1664,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle("Ephemeral Daddy: Astro App | Charts Manager")
         self.setWindowFlag(Qt.Window, True) #this makes the window come to the foreground
+        self.setWindowFlag(Qt.Tool, False)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
         self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
@@ -19405,6 +19406,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowFlag(Qt.Window, True)
+        self.setWindowFlag(Qt.Tool, False)
         self.setWindowFlag(Qt.WindowSystemMenuHint, True)
         self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
         self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
@@ -19454,6 +19456,14 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
+        )
+        self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
+            self._settings,
+            fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+            int(self._enneagram_predictions_debug),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
