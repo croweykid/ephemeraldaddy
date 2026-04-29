@@ -27190,8 +27190,46 @@ class MainWindow(QMainWindow):
             enneagram_type: float(chart_scores.get(enneagram_type, 0.0)) - float(database_scores.get(enneagram_type, 0.0))
             for enneagram_type in range(1, 10)
         }
-        chart.enneagram_type_weights = normalized_scores
-        self._draw_enneagram_predictions(ax, chart)
+        type_labels = [str(num) for num in range(1, 10)]
+        values = [float(normalized_scores.get(num, 0.0)) for num in range(1, 10)]
+        fallback_bar_color = str(CHART_THEME_COLORS.get("accent", CHART_THEME_COLORS.get("text", "#f5f5f5")))
+        text_color = str(CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        spine_color = str(CHART_THEME_COLORS.get("spine", "#444444"))
+        enneagram_colors = [
+            str(ENNEAGRAM.get(num, {}).get("color", fallback_bar_color))
+            for num in range(1, 10)
+        ]
+        bars = ax.bar(type_labels, values, color=enneagram_colors)
+        self._apply_standard_ncv_bar_chart_axes(ax, type_labels)
+        max_abs_value = max((abs(value) for value in values), default=0.0)
+        axis_limit = max(1.0, max_abs_value + 0.5)
+        ax.set_ylim(-axis_limit, axis_limit)
+        ax.axhline(0.0, color=spine_color, linewidth=1.0, alpha=0.8)
+        ax.set_anchor("W")
+        label_offset = max(0.12, axis_limit * 0.03)
+        for bar, type_label, score in zip(bars, type_labels, values, strict=True):
+            bar.set_gid(f"enneagram:{type_label}")
+            bar.set_picker(True)
+            label_y = score + label_offset if score >= 0 else score - label_offset
+            label_va = "bottom" if score >= 0 else "top"
+            ax.text(
+                bar.get_x() + (bar.get_width() / 2.0),
+                label_y,
+                f"{score:+.2f}",
+                ha="center",
+                va=label_va,
+                color=text_color,
+                fontsize=7.5,
+            )
+        for spine in ax.spines.values():
+            spine.set_color(spine_color)
+        ax.figure.tight_layout()
+        ax.figure.subplots_adjust(
+            left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
+            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
+        )
 
     def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
         return _build_enneagram_popout_info_html(
