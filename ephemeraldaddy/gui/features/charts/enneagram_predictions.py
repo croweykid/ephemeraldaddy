@@ -8,13 +8,19 @@ import re
 from typing import Any, Callable
 
 from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
     ASPECT_SCORE_WEIGHTS,
+    HOUSE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    PLANET_COLORS,
     PLANET_ORDER,
+    SIGN_COLORS,
     ZODIAC_NAMES,
     normalize_body_name,
 )
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights, house_for_longitude
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
@@ -456,20 +462,41 @@ def build_enneagram_popout_info_html(
     if debug_math_enabled and chart is not None and callable(calculate_type_weights):
         type_scores = calculate_type_weights(chart)
         selected_score = float(type_scores.get(int(enneagram_type), 0.0))
-        sorted_rows = "".join(
-            (
-                f"<li>Type {type_num}: "
-                f"<b>{float(type_scores.get(type_num, 0.0)):.4f}</b></li>"
-            )
-            for type_num in range(1, 10)
-        )
+        factors = enneagram.get(int(enneagram_type), {})
+        sign_weights = getattr(chart, "dominant_sign_weights", None) or {}
+        body_weights = getattr(chart, "dominant_planet_weights", None) or {}
+        nak_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
+        house_weights = getattr(chart, "dominant_house_weights", None) or {}
+        sorted_rows = "".join(f"<li>Type {type_num}: <b>{float(type_scores.get(type_num, 0.0)):.4f}</b></li>" for type_num in range(1, 10))
+        def _color_token(label: str, color: str) -> str:
+            return f"<span style='color:{color};font-weight:700;'>{html.escape(label)}</span>"
+        sign_items = "".join(
+            f"<li>{_color_token(sign, SIGN_COLORS.get(sign, text_color))}: {float(sign_weights.get(sign, 0.0)):.4f}</li>"
+            for sign in sorted(_normalize_string_set(factors.get('signs', set())))
+        ) or "<li>None</li>"
+        body_items = "".join(
+            f"<li>{_color_token(body, PLANET_COLORS.get(body, text_color))}: {float(body_weights.get(body, 0.0)):.4f}</li>"
+            for body in sorted(_normalize_string_set(factors.get('bodies', set())))
+        ) or "<li>None</li>"
+        house_items = "".join(
+            f"<li>{_color_token(f'House {house_num}', HOUSE_COLORS.get(str(house_num), text_color))}: {float(house_weights.get(house_num, 0.0)):.4f}</li>"
+            for house_num in sorted(_normalize_house_set(factors.get('houses', set())))
+        ) or "<li>None</li>"
+        nak_items = "".join(
+            f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
+            for nak in sorted(_normalize_string_set(factors.get('nakshatras', set())))
+        ) or "<li>None</li>"
+        aspect_items = "".join(
+            f"<li>{_color_token(aspect, ASPECT_COLORS.get(aspect.lower(), text_color))}</li>"
+            for aspect in sorted({str(v).strip() for v in factors.get('aspects', set()) if str(v).strip()})
+        ) or "<li>None</li>"
         formula_bits = ", ".join(
             f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
         )
         debug_html = (
             "<hr style='margin-top:12px;margin-bottom:10px;border:0;border-top:1px solid #555;'/>"
             f"<div style='font-size:13px;color:{text_color};'>"
-            "<div style='font-weight:700;'>Calculator debug details</div>"
+            f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Calculator debug details</div>"
             "<div style='margin-top:6px;'>"
             "Score model (per type): normalized contribution per criterion = "
             "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count."
@@ -479,6 +506,14 @@ def build_enneagram_popout_info_html(
             f"<div style='margin-top:6px;'>Selected type final score: <b>{selected_score:.4f}</b>.</div>"
             "<div style='margin-top:6px;'>All final type scores (so you can verify ranking math):</div>"
             f"<ol style='margin-top:4px;'>{sorted_rows}</ol>"
+            f"<div style='margin-top:8px;font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Criterion breakdown for selected type</div>"
+            "<ul style='margin-top:4px;'>"
+            f"<li><b>Signs</b><ul>{sign_items}</ul></li>"
+            f"<li><b>Bodies</b><ul>{body_items}</ul></li>"
+            f"<li><b>Houses</b><ul>{house_items}</ul></li>"
+            f"<li><b>Nakshatras</b><ul>{nak_items}</ul></li>"
+            f"<li><b>Aspects</b><ul>{aspect_items}</ul></li>"
+            "</ul>"
             "<div style='margin-top:6px;'>"
             "To verify manually with a calculator: compute each criterion's normalized value, multiply each by the criterion weight, then sum all weighted criterion values for the final type score."
             "</div>"
