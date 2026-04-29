@@ -25,6 +25,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
@@ -46,6 +47,21 @@ BODY_ALIASES = {
 }
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
+
+
+def _active_human_design_gates(chart: Any) -> set[int]:
+    cached = {
+        int(gate)
+        for gate in (getattr(chart, "human_design_gates", None) or [])
+        if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
+    }
+    if cached:
+        return cached
+    try:
+        gates, _lines, _channels, _hd_type = derive_human_design_profile(chart)
+    except Exception:
+        return set()
+    return {int(gate) for gate in gates if 1 <= int(gate) <= 64}
 
 
 def _debug_log(message: str) -> None:
@@ -175,11 +191,7 @@ def calculate_enneagram_type_weights(
             if house_num is not None:
                 body_house_lookup[body] = house_num
 
-    active_gates = {
-        int(gate)
-        for gate in (getattr(chart, "human_design_gates", None) or [])
-        if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
-    }
+    active_gates = _active_human_design_gates(chart)
 
     for enneagram_type, factors in enneagram.items():
         signs = _normalize_string_set(factors.get("signs", set()))
@@ -485,11 +497,27 @@ def build_enneagram_popout_info_html(
                     continue
                 if house_num is not None:
                     body_house_lookup[_normalize_factor_value(str(raw_body))] = house_num
-        active_gates = {
-            int(gate)
-            for gate in (getattr(chart, "human_design_gates", None) or [])
-            if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
-        }
+        active_gates = _active_human_design_gates(chart)
+        houses_pos = _normalize_house_set(factors.get("houses", set()))
+        houses_neg = _normalize_house_set(factors.get("antihouses", set()))
+        house_positive_total = (
+            sum(float(house_weights.get(house_num, 0.0)) for house_num in houses_pos) if use_houses else 0.0
+        )
+        house_negative_total = (
+            sum(float(house_weights.get(house_num, 0.0)) for house_num in houses_neg) if use_houses else 0.0
+        )
+        house_criteria_count = len(houses_pos) + len(houses_neg)
+        house_normalized_delta = _normalize_category_delta(
+            house_positive_total, house_negative_total, criteria_count=house_criteria_count if use_houses else 0
+        )
+        gates_pos = _normalize_gate_set(factors.get("gates", set()))
+        gates_neg = _normalize_gate_set(factors.get("antigates", set()))
+        gate_positive_total = sum(6.0 for gate in gates_pos if gate in active_gates)
+        gate_negative_total = sum(6.0 for gate in gates_neg if gate in active_gates)
+        gate_criteria_count = len(gates_pos) + len(gates_neg)
+        gate_normalized_delta = _normalize_category_delta(
+            gate_positive_total, gate_negative_total, criteria_count=gate_criteria_count
+        )
         sorted_rows = "".join(
             (
                 "<li>"
@@ -598,10 +626,14 @@ def build_enneagram_popout_info_html(
             f"<li><b>Bodies (-)</b><ul>{anti_body_items}</ul></li>"
             f"<li><b>Houses (+)</b><ul>{house_items}</ul></li>"
             f"<li><b>Houses (-)</b><ul>{anti_house_items}</ul></li>"
+            f"<li><b>Houses contribution</b>: +{house_positive_total:.4f} / -{house_negative_total:.4f} "
+            f"→ normalized {house_normalized_delta:.4f}</li>"
             f"<li><b>Nakshatras (+)</b><ul>{nak_items}</ul></li>"
             f"<li><b>Nakshatras (-)</b><ul>{anti_nak_items}</ul></li>"
             f"<li><b>HD Gates (+)</b><ul>{gate_items}</ul></li>"
             f"<li><b>HD Gates (-)</b><ul>{anti_gate_items}</ul></li>"
+            f"<li><b>HD Gates contribution</b>: +{gate_positive_total:.4f} / -{gate_negative_total:.4f} "
+            f"→ normalized {gate_normalized_delta:.4f}; active gates detected: {len(active_gates)}</li>"
             f"<li><b>Positions (+)</b><ul>{position_items}</ul></li>"
             f"<li><b>Positions (-)</b><ul>{anti_position_items}</ul></li>"
             f"<li><b>Aspects (+)</b><ul>{aspect_items}</ul></li>"
