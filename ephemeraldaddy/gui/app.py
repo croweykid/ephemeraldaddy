@@ -11169,6 +11169,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             active_modal = QApplication.activeModalWidget()
             if active_modal is None or active_modal is self:
                 focus_widget = QApplication.focusWidget()
+                if hasattr(self, "chart_tags_input") and focus_widget is self.chart_tags_input:
+                    return
                 if isinstance(focus_widget, QAbstractButton):
                     focus_widget.click()
                     return
@@ -20277,7 +20279,6 @@ class MainWindow(QMainWindow):
             self.chart_source_combo,
         ):
             self._bind_enter_update(widget, self.update_button.click)
-        self.chart_tags_input.returnPressed.connect(lambda: on_chart_view_tag_add(self))
         self.place_edit.returnPressed.connect(self.place_search_button.click)
 
         middle_layout.addLayout(self.inputs_layout)
