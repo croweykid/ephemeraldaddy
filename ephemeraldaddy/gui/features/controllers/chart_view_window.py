@@ -898,6 +898,19 @@ def build_chart_view_right_panel(
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
+    owner.enneagram_prediction_mode_dropdown = QComboBox()
+    owner.enneagram_prediction_mode_dropdown.addItem(
+        "Enneagram Prediction (normalized)",
+        "normalized",
+    )
+    owner.enneagram_prediction_mode_dropdown.addItem(
+        "Enneagram Prediction",
+        "raw",
+    )
+    owner.enneagram_prediction_mode_dropdown.currentIndexChanged.connect(
+        lambda _index: owner._render_enneagram_predictions(getattr(owner, "_latest_chart", None))
+    )
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_mode_dropdown)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
     owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
     owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
