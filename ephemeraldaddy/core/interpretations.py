@@ -3586,15 +3586,15 @@ ASPECT_TYPES = {
 }
 
 ASPECT_FRICTION = {
-    "harmonious": {
+    "harmonious": { #enabling
         "color": "#3333ff", #blue
         "aspects": {"sextile", "trine", "quintile", "biquintile"},
     },
-    "conflicted": {
+    "conflicted": { #antagonizing
         "color": "#ff0000", #murdery red
         "aspects": {"square", "opposition", "semisquare", "sesquiquadrate", "quincunx"},
     },
-    "neutral/variable": {
+    "neutral/variable": { #ambiguous
         "color": "#ffff66", #chill yellow
         "aspects": {"conjunction", "semisextile"},
     },
@@ -4224,7 +4224,7 @@ SOCIAL_ROLE = [
 ]
 
 #enneagram (approximated)
-ENNEAGRAM = {
+ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
     1:{ #sample size was 77, so that's ok, but could be better.
