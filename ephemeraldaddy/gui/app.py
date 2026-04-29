@@ -27173,6 +27173,26 @@ class MainWindow(QMainWindow):
             standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
         )
 
+    def _draw_enneagram_predictions_normalized(self, ax, chart: Chart) -> None:
+        chart_scores = self._calculate_enneagram_type_weights(chart)
+        database_cache = self._database_metrics_cache or self._empty_database_metrics_cache()
+        database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
+        database_scores: dict[int, float] = {}
+        for enneagram_type in range(1, 10):
+            if database_weight_chart_count > 0:
+                database_scores[enneagram_type] = (
+                    float(database_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
+                    / float(database_weight_chart_count)
+                )
+            else:
+                database_scores[enneagram_type] = 0.0
+        normalized_scores = {
+            enneagram_type: float(chart_scores.get(enneagram_type, 0.0)) - float(database_scores.get(enneagram_type, 0.0))
+            for enneagram_type in range(1, 10)
+        }
+        chart.enneagram_type_weights = normalized_scores
+        self._draw_enneagram_predictions(ax, chart)
+
     def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
         return _build_enneagram_popout_info_html(
             enneagram_type,
@@ -27237,12 +27257,22 @@ class MainWindow(QMainWindow):
             if tritype_label is not None:
                 tritype_label.setText("<b>Predicted Tritype:</b> No data")
             return
+        selected_mode = "normalized"
+        dropdown = getattr(self, "enneagram_prediction_mode_dropdown", None)
+        if dropdown is not None:
+            selected_mode = str(dropdown.currentData() or "normalized").strip().lower()
+        draw_fn = self._draw_enneagram_predictions_normalized
+        title = "Enneagram (vs Database Norms)"
+        if selected_mode == "raw":
+            draw_fn = self._draw_enneagram_predictions
+            title = "Enneagram"
+
         self._render_metric_panel(
             canvas_attr="enneagram_prediction_canvas",
             container_layout=self.enneagram_prediction_chart_layout,
             figsize=(5.5, 3.2),
-            title="Enneagram",
-            draw_fn=self._draw_enneagram_predictions,
+            title=title,
+            draw_fn=draw_fn,
             chart=chart,
         )
         scores = self._cache_enneagram_prediction_metadata(chart)
