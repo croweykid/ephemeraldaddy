@@ -26,6 +26,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
+from ephemeraldaddy.core.chart import chart_uses_houses
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
@@ -482,7 +483,7 @@ def build_enneagram_popout_info_html(
         sign_weights = getattr(chart, "dominant_sign_weights", None) or {}
         body_weights = getattr(chart, "dominant_planet_weights", None) or {}
         nak_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
-        use_houses = bool(getattr(chart, "house_system", None))
+        use_houses = chart_uses_houses(chart)
         house_weights = (
             (getattr(chart, "dominant_house_weights", None) or calculate_dominant_house_weights(chart))
             if use_houses
