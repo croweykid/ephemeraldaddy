@@ -467,7 +467,31 @@ def build_enneagram_popout_info_html(
         body_weights = getattr(chart, "dominant_planet_weights", None) or {}
         nak_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
         house_weights = getattr(chart, "dominant_house_weights", None) or {}
-        sorted_rows = "".join(f"<li>Type {type_num}: <b>{float(type_scores.get(type_num, 0.0)):.4f}</b></li>" for type_num in range(1, 10))
+        use_houses = bool(getattr(chart, "house_system", None))
+        body_house_lookup: dict[str, int] = {}
+        if use_houses:
+            for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                try:
+                    house_num = house_for_longitude(getattr(chart, "houses", None), float(lon))
+                except (TypeError, ValueError):
+                    continue
+                if house_num is not None:
+                    body_house_lookup[_normalize_factor_value(str(raw_body))] = house_num
+        active_gates = {
+            int(gate)
+            for gate in (getattr(chart, "human_design_gates", None) or [])
+            if str(gate).strip().isdigit() and 1 <= int(gate) <= 64
+        }
+        sorted_rows = "".join(
+            (
+                "<li>"
+                f"<span style='color:{html.escape(str(enneagram.get(type_num, {}).get('color', text_color)))};"
+                "font-weight:700;'>"
+                f"Type {type_num}</span>: {float(type_scores.get(type_num, 0.0)):.4f}"
+                "</li>"
+            )
+            for type_num in range(1, 10)
+        )
         def _color_token(label: str, color: str) -> str:
             return f"<span style='color:{color};font-weight:700;'>{html.escape(label)}</span>"
         sign_items = "".join(
@@ -482,13 +506,65 @@ def build_enneagram_popout_info_html(
             f"<li>{_color_token(f'House {house_num}', HOUSE_COLORS.get(str(house_num), text_color))}: {float(house_weights.get(house_num, 0.0)):.4f}</li>"
             for house_num in sorted(_normalize_house_set(factors.get('houses', set())))
         ) or "<li>None</li>"
+        anti_house_items = "".join(
+            f"<li>{_color_token(f'House {house_num}', HOUSE_COLORS.get(str(house_num), text_color))}: {float(house_weights.get(house_num, 0.0)):.4f}</li>"
+            for house_num in sorted(_normalize_house_set(factors.get('antihouses', set())))
+        ) or "<li>None</li>"
         nak_items = "".join(
             f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
             for nak in sorted(_normalize_string_set(factors.get('nakshatras', set())))
         ) or "<li>None</li>"
-        aspect_items = "".join(
-            f"<li>{_color_token(aspect, ASPECT_COLORS.get(aspect.lower(), text_color))}</li>"
-            for aspect in sorted({str(v).strip() for v in factors.get('aspects', set()) if str(v).strip()})
+        anti_nak_items = "".join(
+            f"<li>{_color_token(nak, NAKSHATRA_PLANET_COLOR.get(nak, (None, text_color))[1] or text_color)}: {float(nak_weights.get(nak, 0.0)):.4f}</li>"
+            for nak in sorted(_normalize_string_set(factors.get('antinakshatras', set())))
+        ) or "<li>None</li>"
+        aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        aspect_items = "".join(aspect_items_parts) or "<li>None</li>"
+        anti_aspect_items_parts: list[str] = []
+        for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()}):
+            parsed_aspect = _parse_aspect_spec(aspect)
+            if parsed_aspect is None:
+                anti_aspect_items_parts.append(f"<li>{html.escape(aspect)}</li>")
+                continue
+            left_body, aspect_type, right_body = parsed_aspect
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            anti_aspect_items_parts.append(f"<li>{left_html} {aspect_html} {right_html}</li>")
+        anti_aspect_items = "".join(anti_aspect_items_parts) or "<li>None</li>"
+        anti_sign_items = "".join(
+            f"<li>{_color_token(sign, SIGN_COLORS.get(sign, text_color))}: {float(sign_weights.get(sign, 0.0)):.4f}</li>"
+            for sign in sorted(_normalize_string_set(factors.get('antisigns', set())))
+        ) or "<li>None</li>"
+        anti_body_items = "".join(
+            f"<li>{_color_token(body, PLANET_COLORS.get(body, text_color))}: {float(body_weights.get(body, 0.0)):.4f}</li>"
+            for body in sorted(_normalize_string_set(factors.get('antibodies', set())))
+        ) or "<li>None</li>"
+        gate_items = "".join(
+            f"<li>Gate {gate}: {'✓ active' if gate in active_gates else '✗ inactive'}</li>"
+            for gate in sorted(_normalize_gate_set(factors.get('gates', set())))
+        ) or "<li>None</li>"
+        anti_gate_items = "".join(
+            f"<li>Gate {gate}: {'✓ active (negative hit)' if gate in active_gates else '✗ inactive'}</li>"
+            for gate in sorted(_normalize_gate_set(factors.get('antigates', set())))
+        ) or "<li>None</li>"
+        position_items = "".join(
+            f"<li>{html.escape(position)}: {'✓ parsed' if _parse_position_spec(position) is not None else '✗ parse error'}</li>"
+            for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
+        ) or "<li>None</li>"
+        anti_position_items = "".join(
+            f"<li>{html.escape(position)}: {'✓ parsed' if _parse_position_spec(position) is not None else '✗ parse error'}</li>"
+            for position in sorted({str(v).strip() for v in factors.get('antipositions', set()) if str(v).strip()})
         ) or "<li>None</li>"
         formula_bits = ", ".join(
             f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
@@ -508,11 +584,20 @@ def build_enneagram_popout_info_html(
             f"<ol style='margin-top:4px;'>{sorted_rows}</ol>"
             f"<div style='margin-top:8px;font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Criterion breakdown for selected type</div>"
             "<ul style='margin-top:4px;'>"
-            f"<li><b>Signs</b><ul>{sign_items}</ul></li>"
-            f"<li><b>Bodies</b><ul>{body_items}</ul></li>"
-            f"<li><b>Houses</b><ul>{house_items}</ul></li>"
-            f"<li><b>Nakshatras</b><ul>{nak_items}</ul></li>"
-            f"<li><b>Aspects</b><ul>{aspect_items}</ul></li>"
+            f"<li><b>Signs (+)</b><ul>{sign_items}</ul></li>"
+            f"<li><b>Signs (-)</b><ul>{anti_sign_items}</ul></li>"
+            f"<li><b>Bodies (+)</b><ul>{body_items}</ul></li>"
+            f"<li><b>Bodies (-)</b><ul>{anti_body_items}</ul></li>"
+            f"<li><b>Houses (+)</b><ul>{house_items}</ul></li>"
+            f"<li><b>Houses (-)</b><ul>{anti_house_items}</ul></li>"
+            f"<li><b>Nakshatras (+)</b><ul>{nak_items}</ul></li>"
+            f"<li><b>Nakshatras (-)</b><ul>{anti_nak_items}</ul></li>"
+            f"<li><b>HD Gates (+)</b><ul>{gate_items}</ul></li>"
+            f"<li><b>HD Gates (-)</b><ul>{anti_gate_items}</ul></li>"
+            f"<li><b>Positions (+)</b><ul>{position_items}</ul></li>"
+            f"<li><b>Positions (-)</b><ul>{anti_position_items}</ul></li>"
+            f"<li><b>Aspects (+)</b><ul>{aspect_items}</ul></li>"
+            f"<li><b>Aspects (-)</b><ul>{anti_aspect_items}</ul></li>"
             "</ul>"
             "<div style='margin-top:6px;'>"
             "To verify manually with a calculator: compute each criterion's normalized value, multiply each by the criterion weight, then sum all weighted criterion values for the final type score."
