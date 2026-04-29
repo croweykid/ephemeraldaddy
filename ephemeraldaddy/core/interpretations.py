@@ -4387,19 +4387,22 @@ ENNEAGRAM = {
         "description":"5s want to understand the world, whether through a microscope or a telescope. They generally perceive themselves as on the outside, looking in at the experiment of existence. They go to great pains to ensure that their lab is protected so that their subjects (the outside world) cannot touch them, messy their lab and disrupt their experiments.",
         "quotes":{"'I'm so glad I got burned, / think of all the things we learned / from the people who are / still alive. / And believe me I'm still alive. / I'm doing science and I'm still alive.' - Portal Soundtrack, Still Alive","'There is research to be done, / and we made a neat gun / for the people who are / still alive...' - Portal soundtrack, Still Alive","'Well they gave me medication so I feel how I imagine people of average intelligence feel all the time.' - Dr. Temperance Bones, Bones"},
         },
-    6:{
-        "signs":{"Aries","Virgo","Capricorn"},
-        "antisigns":{"Scorpio","Sagittarius"},
-        "houses":{12,6,2,},
-        "antihouses":{},
-        "bodies":{"Sun"},
-        "antibodies":{"Saturn","Jupiter"},
-        "nakshatras":{"Uttara Ashadha","Bharani","Punarvasu","Shatabhisha","Pushya",},
-        "antinakshatras":{"Chitra"}, 
-        "positions":{"Chiron in H3","Jupiter in H3","Pallas in H10","Mars in H11","Mercury in H2","Pluto in H8","Ceres in H11","Ketu in H5","Neptune in H9","Fortune in H8","Pluto in H5","Rahu in H11","Saturn in H12","Vesta in H4","Uranus in H11","Vesta in H5","Pluto in Leo","Libra in H10","Neptune in Libra","Neptune in Virgo","Juno in Capricorn","Mars in Taurus","Pallas in Pisces","Ceres in Aries","Mercury in Virgo","Lilith in Libra","Juno in Leo",},
+    6:{ 
+        "signs":{"Aries","Virgo","Capricorn","Libra"},
+        "antisigns":{"Scorpio","Sagittarius","Leo"},
+        "houses":{12,2,6}, #6 was only weakly represented
+        "antihouses":{7,9},
+        "bodies":{"Sun",}, #Mars is also 5%, but maybe just due to Aries dominance? Don't want to double count it.
+        "antibodies":{"Jupiter","Saturn"}, #Apparently Saturn isn't a joiner??? I suspect the aspects to Saturn matter tremendously, as much as how it's weighed.
+        "nakshatras":{"Chitra","Rohini","Mrigashira","Magha","Dhanishta","Shatabhisha"},
+        "antinakshatras":{"Vishakha","Bharani","Krittika","Pushya","Swati","Purva Ashadha"}, 
+        "positions":{"Juno in Capricorn","Mars in Taurus","Mercury in Virgo","Pallas in Sagittarius","Juno in Leo","Libra in H10","Chiron in H3","Jupiter in H3","Pallas in H10","Mars in H11","Mercury in H2","Pluto in H8","Ceres in H11","Ketu in H5","Neptune in H9","Fortune in H8","Pluto in H5","Rahu in H11","Saturn in H12","Vesta in H4","Uranus in H11","Vesta in H5","Pluto in Leo","Libra in H10","Neptune in Libra","Neptune in Virgo","Juno in Capricorn","Mars in Taurus","Pallas in Pisces","Ceres in Aries","Mercury in Virgo","Lilith in Libra","Juno in Leo",},
         "antipositions":{"Capricorn in H11","Aquarius in H12","Leo in H6","Pisces in H3","Virgo in H9","Chiron in Aries","Sun in H10","Neptune in Sagittarius","Pluto in Libra","Juno in Scorpio","Jupiter in Cancer"},
-        "aspects":{"Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto"},
-        "antiaspects":{"Chiron trine Neptune"},
+        "aspects":{
+            "Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto",
+            "Chiron square Saturn","Saturn trine Sun","Juno square Saturn","Saturn square Vesta","Fortune opposition Saturn","Saturn sextile Sun"
+            },
+        "antiaspects":{"Chiron trine Neptune","Saturn trine Uranus"},
         "gates":{12,32,40,3,11,42,54,},
         "antigates":{28,26,58,15,18,64,55,41,17},
         #"channels":{[12,22],[37,40]},
