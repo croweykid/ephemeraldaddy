@@ -18,7 +18,11 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_NAMES,
     normalize_body_name,
 )
-from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights, house_for_longitude
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_house_weights,
+    calculate_dominant_nakshatra_weights,
+    house_for_longitude,
+)
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
@@ -466,8 +470,12 @@ def build_enneagram_popout_info_html(
         sign_weights = getattr(chart, "dominant_sign_weights", None) or {}
         body_weights = getattr(chart, "dominant_planet_weights", None) or {}
         nak_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
-        house_weights = getattr(chart, "dominant_house_weights", None) or {}
         use_houses = bool(getattr(chart, "house_system", None))
+        house_weights = (
+            (getattr(chart, "dominant_house_weights", None) or calculate_dominant_house_weights(chart))
+            if use_houses
+            else {}
+        )
         body_house_lookup: dict[str, int] = {}
         if use_houses:
             for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
