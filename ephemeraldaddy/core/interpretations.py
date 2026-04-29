@@ -4250,6 +4250,8 @@ ENNEAGRAM = {
         "antiprofiles":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#f5f5f5",
         "motivation":"Perfection, correctness",
         "description":"1s dream of a better world, which begins with themselves. Their scope for seeking the betterness of things may occupy any scale - personal (rigorous regimen to become virtuosic and/or to obliterate one's personal flaws), intimate (seeking to correct the flaws of others), or global/collective (trying to correct perceived flaws in the world and/or its systems at large).",
@@ -4264,7 +4266,9 @@ ENNEAGRAM = {
         "antibodies":{"Mars",}, #moon dominange is just below avg in selection; busy looking out for #1, evidently
         "nakshatras":{"Purva Ashadha","Pushya","Shatabhisha","Punarvasu","Bharani","Uttara Bhadrapada"},
         "antinakshatras":{"Krittika","Purva Bhadrapada","Vishakha"}, #the 'bad' gems, and 'bad' pisces...hahaha
-        "positions":{"Chiron in H12","Juno in H5","Ketu in H1","Neptune in H6","Rahu in H7","Venus in H11","Venus in H3","Ceres in H1","Ceres in H4","Chiron in H3","Juno in H1","Neptune in H11","Rahu in H8","Virgo in H2","Libra in H3","Mars in Cancer","Vesta in Cancer","Moon in Cancer","Moon in Pisces","Neptune in Capricorn","Pluto in Scorpio","Juno in Scorpio","Jupiter in Cancer","Pallas in Aquarius","Fortune in Capricorn","Sun in Taurus","Ceres in Aquarius","Chiron in Leo","Sun in Taurus","Vesta in Taurus","Jupiter in Libra","Moon in Virgo","Rahu in Pisces","Sun in Cancer","Sun in Capricorn","AS in Cancer","AS in Capricorn","Juno in Cancer","Pallas in Scorpio","Venus in Pisces","Scorpio in H4","Taurus in H10","Juno in H1",},
+        "positions":{"Chiron in H12","Juno in H5","Ketu in H1","Neptune in H6","Rahu in H7","Venus in H11","Venus in H3","Ceres in H1","Ceres in H4","Chiron in H3","Juno in H1","Neptune in H11","Rahu in H8","Virgo in H2","Libra in H3","Mars in Cancer","Vesta in Cancer","Moon in Cancer","Moon in Pisces","Juno in Scorpio","Jupiter in Cancer","Pallas in Aquarius","Fortune in Capricorn","Sun in Taurus","Ceres in Aquarius","Chiron in Leo","Sun in Taurus","Vesta in Taurus","Jupiter in Libra","Moon in Virgo","Rahu in Pisces","Sun in Cancer","Sun in Capricorn","AS in Cancer","AS in Capricorn","Juno in Cancer","Pallas in Scorpio","Venus in Pisces","Scorpio in H4","Taurus in H10","Juno in H1",
+            #"Neptune in Capricorn","Pluto in Scorpio", #ignoring outer planets here; might be gaussian noise
+        },
         #these were true for people working in healthcare, but not my list of 'e2s': {"Rahu in Pisces","Moon in Cancer","Chiron in Pisces","Ceres in Pisces","Mars in Pisces","Vesta in H4", "Taurus in H10","Neptune in H4","Ceres in H11"},
         "antipositions":{"Chiron in Pisces","Chiron in Aries","Taurus in H1","Venus in Libra","Gemini in H1","Uranus in Aries","Sun in Pisces","Pluto in Virgo",}, 
         #have another look at aspects for e2, cos I added a bunch and now it might have changed the data:
@@ -4281,6 +4285,8 @@ ENNEAGRAM = {
         "antiprofiles":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#cc9900",
         "motivation":"To be useful & necessary to others",
         "description":"2s want to be indispensible to others. They need to be needed. They can only feel that they matter if others depend on them.",
@@ -4296,8 +4302,12 @@ ENNEAGRAM = {
         "nakshatras":{"Ashwini","Jyestha","Revati","Uttara Ashadha","Vishakha","Hasta"}, #original guesses: "Vishakha","Jyestha","Ashlesha","Magha",
         "antinakshatras":{"Purva Phalguni","Krittika"}, 
         "positions":{"Ketu in Capricorn","Chiron in H2","Mars in Aries","Ceres in Aries","Ketu in Sagittarius","Sun in Taurus","Scorpio in H4","Taurus in H10","Cancer in H1","Leo in H1","Aries in H10",}, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
-        "antipositions":{"Chiron in Pisces","Uranus in Virgo","Rahu in H1","Pluto in H12","Saturn in H3","Sun in H12","Uranus in H10","Venus in H11","Vesta in H11","Ceres in H5","Chiron in H9","Jupiter in H2","Mars in H6","Vesta in H10","Vesta in H1","Lilith in H4",},
-        "aspects":{"Jupiter sextile Sun","Mercury trine Moon","Saturn trine Sun","Ketu trine Moon","Mars sextile Mercury","Moon trine Rahu","Mars sextile Sun","Moon trine Sun","Ceres square Juno","Saturn trine Uranus","Ceres square Moon","Chiron square Lilith","Ketu square Vesta","Ketu trine Sun","Mercury semisextile Venus","Mercury square Pluto","Pallas sextile Sun","AS trine Lilith","Rahu square Vesta","Juno conjunction Fortune","Ketu trine Pallas","Lilith sextile Venus","Mars opposition Fortune","Pallas conjunction Pluto","Fortune conjunction Pluto","IC sextile Vesta","IC square Mars","IC trine Venus","MC square Mars","MC trine Vesta","AS sextile Vesta","AS square Saturn",},
+        "antipositions":{"Chiron in Pisces","Rahu in H1","Pluto in H12","Saturn in H3","Sun in H12","Uranus in H10","Venus in H11","Vesta in H11","Ceres in H5","Chiron in H9","Jupiter in H2","Mars in H6","Vesta in H10","Vesta in H1","Lilith in H4",
+            #"Uranus in Virgo", #ignoring outer planets
+        },
+        "aspects":{"Jupiter sextile Sun","Mercury trine Moon","Saturn trine Sun","Ketu trine Moon","Mars sextile Mercury","Moon trine Rahu","Mars sextile Sun","Moon trine Sun","Ceres square Juno","Ceres square Moon","Chiron square Lilith","Ketu square Vesta","Ketu trine Sun","Mercury semisextile Venus","Mercury square Pluto","Pallas sextile Sun","AS trine Lilith","Rahu square Vesta","Juno conjunction Fortune","Ketu trine Pallas","Lilith sextile Venus","Mars opposition Fortune","Pallas conjunction Pluto","Fortune conjunction Pluto","IC sextile Vesta","IC square Mars","IC trine Venus","MC square Mars","MC trine Vesta","AS sextile Vesta","AS square Saturn",
+            #"Saturn trine Uranus",
+        },
         "antiaspects":{},
         "gates":{50,34,9,32,5,58,42,54,},
         "antigates":{59,26,12,55,15,6,36,13,23,},
@@ -4309,62 +4319,69 @@ ENNEAGRAM = {
         "antiprofiles":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#ffff00",
         "motivation":"Visible recognition, status and achievement",
         "description":"3s are sort of narcissist-coded, but that doesn't have to be malignant. It can result in materialism, or it could result in extreme competence. Sometimes 3s are mistaken for 1s because they appear driven by perfectionism. But rather than pursuit of perfection/ideals (e1) or competence (e5) for their own sake, 3s are driven by the pursuit of recognition for that competence. Arguably, the easier the trophies and accolades come, the less hard 3s will need to try. The point here is not the conditions of victory, but the recognition of their superiority over others; the status and attention of being president more than the power of owning the red button. They will live and die for that gold star on their paper, and the knowledge that other people know they got it.",
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
-    4:{
+    4:{ #assessed with Similarities Analysis AND DB Analytics.
         "signs":{"Aquarius","Pisces"}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
-        "antisigns":{"Leo",},
-        "houses":{1},
-        "antihouses":{},
+        "antisigns":{"Libra","Aries","Cancer"}, #Cap was negative 3% & Leo was neg 1%, but that's because Cap trends e2 and Leo trends e3, I suspect.
+        "houses":{}, #1 & 5, but only 1-2% difference from norms
+        "antihouses":{}, #4 & 7, but only 1-2% difference from norms
         "bodies":{}, #theoretically: "Uranus","Lilith"
         "antibodies":{},
-        "nakshatras":{"Purva Bhadrapada","Shatabhisha",}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
-        "antinakshatras":{}, 
-        "positions":{"Sun in Pisces","Rahu in Pisces","Cancer in H4","Chiron in H5","Jupiter in H6","Venus in H1","Mercury in H2","Pallas in Pisces","Pallas in Aquarius","Ceres in Pisces","Mercury in Pisces",}, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
-        "antipositions":{},
+        "nakshatras":{"Shravana","Purva Bhadrapada","Shatabhisha","Dhanishta","Vishakha","Mrigashira",}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
+        "antinakshatras":{"Jyestha"}, 
+        "positions":{
+            "Sun in Pisces","Sun in Aquarius","Rahu in Pisces","Cancer in H4","Chiron in H5","Jupiter in H6","Venus in H1","Mercury in H2","Pallas in Pisces","Pallas in Aquarius","Ceres in Pisces","Mercury in Pisces","Mercury in Aquarius","Venus in Aquarius","Venus in Pisces","Venus in Gemini","Mars in Pisces","Jupiter in Pisces","Saturn in Aquarius","Saturn in Gemini","Neptune in Scorpio","Scorpio in H1","Aries in H1",
+            }, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
+        "antipositions":{"Sun in Aries","Sun in Virgo","Mercury in Scorpio","Mercury in Aries","Mercury in Virgo","Venus in Leo","Venus in Virgo","Mars in Libra","Saturn in Aries","Saturn in Scorpio","Uranus in Taurus","Neptune in Virgo","Cancer in H1","Sagittarius in H1","Aries in H10"},
         "aspects":{"Ketu sextile Vesta","Jupiter square Pallas","Moon conjunction Rahu","MC square Sun"},
         "antiaspects":{},
-        "gates":{59,36,22,46,53,55,16,25,24},
+        "gates":{55,59,36,22,46,53,16,25,24},
         "antigates":{1,60,8,13,57,43,48,64,3,56,63,},
         "channels":{},
         "antichannels":{},
         "centers":{},
         "anticenters":{},
         "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
-        "antiauthorities":{},
+        "antiprofiles":{"4/6"}, #-4%
+        "authorities":{"Emotional"},
+        "antiauthorities":{"Sacral"},
+        "bazisigns":{"Tiger"},
+        "antibazisigns":{"Dog"},
         "color":"#cc66ff",
         "motivation":"Individuality, depth of experience & authenticity",
         "description":"4s don't mind if you think they're a freak. They want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. Many seek originality and ways of distinguishing themselves from the mainstream, but that may be just a reaction to the inauthenticity of the mainstream. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
     5:{
-        "signs":{"Aries","Cancer","Taurus",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
-        "antisigns":{"Leo","Sagittarius"},
-        "houses":{3,9},
-        "antihouses":{},
-        "bodies":{"Uranus","Venus"}, #"Mercury","Pluto","Pallas"
-        "antibodies":{"Sun","Mars","Jupiter"},
-        "nakshatras":{"Bharani","Punarvasu"}, #"Swati","Anuradha","Shatabhisha","Krittika"
-        "antinakshatras":{"Swati","Jyestha"}, 
-        "positions":{"Mars in Capricorn","Mercury in Gemini","Mercury in Virgo","Mercury in Scorpio","Mercury in Aquarius"},
-        "antipositions":{},
-        "aspects":{},
-        "antiaspects":{},
-        "gates":{1,57,17,21,23,49,7,10,39,46,8,3,30,52,2,25,51,61},
-        "antigates":{5,28,29,15,34,54,20,19,63,9,44,47,56,59,50,40,12},
+        "signs":{"Gemini","Cancer",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
+        "antisigns":{"Virgo","Sagittarius","Scorpio",},
+        "houses":{3,6},
+        "antihouses":{4},
+        "bodies":{}, #"Mercury","Pluto","Pallas"
+        "antibodies":{"Jupiter"},
+        "nakshatras":{"Mrigashira","Bharani",}, #"Purva Phalguni","Krittika","Vishakha"        "antinakshatras":{"Hasta",}, #"Swati","Pushya","Purva Bhadrapada" 
+        "positions":{"Sun in Cancer","Sun in Gemini","Sun in Taurus","Moon in Aries","Mercury in Gemini","Mercury in Taurus","Mars in Capricorn","Moon in Pisces","Venus in Aries","Venus in Gemini","Venus in Scorpio","Mars in Libra","Jupiter in Gemini","Uranus in Aquarius","Uranus in Taurus","Scorpio in H1","Gemini in H1","Virgo in H10","Pallas in Aquarius","Mercury in H3","Venus in H4","Vesta in H7","Mercury in H12","Moon in H6","Venus in H3","Capricorn in H8"},
+        "antipositions":{"Sun in Leo","Sun in Libra","Sun in Sagittarius","Sun in Pisces","Moon in Scorpio","Moon in Capricorn","Venus in Capricorn","Venus in Sagittarius","Mars in Scorpio","Mars in Aquarius","Jupiter in Cancer","Jupiter in Leo","Uranus in Virgo","Leo in H1","Sagittarius in H1","Libra in H10"},
+        "aspects":{"Ceres square Jupiter","Moon trine Pallas","Fortune square Vesta","Chiron trine Mars","Uranus square Venus","Chiron square Pluto","Neptune sextile Sun","Moon square Lilith"}, #but in what signs?
+        "antiaspects":{"Chiron opposition Uranus"},
+        "gates":{57,7,23,31,12,45,46,17,27,36,8,22,25,},
+        "antigates":{43,50,29,44,5,56,54,40,59,19},
         "channels":{},
         "antichannels":{},
         "centers":{},
         "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
+        "profiles":{"2/4"},
+        "antiprofiles":{"5/1","6/2"},
+        "authorities":{"Splenic"},
         "antiauthorities":{},
+        "bazisigns":{"Horse"},
+        "antibazisigns":{"Dog"},
         "color":"#669900",
         "motivation":"Knowledge & information, personal autonomy",
         "description":"5s want to understand the world, whether through a microscope or a telescope. They generally perceive themselves as on the outside, looking in at the experiment of existence. They go to great pains to ensure that their lab is protected so that their subjects (the outside world) cannot touch them, messy their lab and disrupt their experiments.",
@@ -4381,7 +4398,7 @@ ENNEAGRAM = {
         "antinakshatras":{"Chitra"}, 
         "positions":{"Chiron in H3","Jupiter in H3","Pallas in H10","Mars in H11","Mercury in H2","Pluto in H8","Ceres in H11","Ketu in H5","Neptune in H9","Fortune in H8","Pluto in H5","Rahu in H11","Saturn in H12","Vesta in H4","Uranus in H11","Vesta in H5","Pluto in Leo","Libra in H10","Neptune in Libra","Neptune in Virgo","Juno in Capricorn","Mars in Taurus","Pallas in Pisces","Ceres in Aries","Mercury in Virgo","Lilith in Libra","Juno in Leo",},
         "antipositions":{"Capricorn in H11","Aquarius in H12","Leo in H6","Pisces in H3","Virgo in H9","Chiron in Aries","Sun in H10","Neptune in Sagittarius","Pluto in Libra","Juno in Scorpio","Jupiter in Cancer"},
-        "aspects":{"Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lillith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lillith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto"},
+        "aspects":{"Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto"},
         "antiaspects":{"Chiron trine Neptune"},
         "gates":{12,32,40,3,11,42,54,},
         "antigates":{28,26,58,15,18,64,55,41,17},
@@ -4393,6 +4410,8 @@ ENNEAGRAM = {
         "antichannels":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#0099cc",
         "motivation":"Duty, performing perceived social role & fulfilling personal responsibilities.",
         "description":"6s are generally here to maintain their view of the status quo, upholding their recognized hierarchy, and support their tribe. This can look very different depending on who they recognize as their authority figure (leader), and who/what they believe is their tribe (which can exist at varying scales from the very personal to the very global). Independent of scale, they will expect members of their perceived tribe to fulfill their responsibilities/duties/roles within the tribe as well. In the creator of this app's opinion, there is no 'counterphobic 6' as lore suggests - just one type of 6, who is always deferential to role models, even if the early Recognized Tribal Authority was Hunter S Thompson, Charlton Heston or the Unibomber. Saying e6 is about 'security' is tautological; the entire enneagram is about how individuals seek a sense of security; e6 seeks it through tribal role participation'.",
@@ -4421,6 +4440,8 @@ ENNEAGRAM = {
         "antichannels":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#ff33cc",
         "motivation":"Escaping adversity, embracing pleasure",
         "description":"Essentially, 7s are about a blend of hedonism and epicurianism. They are here to enjoy life, and avoid what detracts from that enjoyment.",
@@ -4449,6 +4470,8 @@ ENNEAGRAM = {
         "antiprofiles":{},
         "authorities":{},
         "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
         "color":"#ff0000",
         "motivation":"Personal sovereignty, dominance, asserting control",
         "description":"3s may pursue dominance through material recognition and social status. 8s will pursue it by any means necessary. Power not for social validation, not as a conditioned social response that recognizes and values the established institutions and wishes to perform within them, but potentially outside them. Whatever it takes to be in control, or at very least to avoid being controlled by others.",
