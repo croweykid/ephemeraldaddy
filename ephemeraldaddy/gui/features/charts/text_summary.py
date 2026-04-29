@@ -360,18 +360,18 @@ def format_chart_text(
     # Chart Info
     date_label = chart.dt.strftime("%m.%d.%Y") if chart.dt else "??.??.????"
     official_time_label = "unknown" if getattr(chart, "birthtime_unknown", False) else chart.dt.strftime("%H:%M")
-    retcon_time_label = chart.dt.strftime("%H:%M") if getattr(chart, "retcon_time_used", False) else "unknown"
+    use_rectified_time = bool(getattr(chart, "retcon_time_used", False))
+    rectified_time_label = chart.dt.strftime("%H:%M") if use_rectified_time else ""
     birth_place = getattr(chart, "birth_place", None) or "Unknown"
-    alias_text = getattr(chart, "alias", None) or "unknown"
-    lines.append(format_chart_header("name_alias", name=chart.name, alias=alias_text))
-    lines.append(
-        format_chart_header(
-            "date_times",
-            date=date_label,
-            official_time=official_time_label,
-            retcon_time=retcon_time_label,
-        )
-    )
+    alias_text = str(getattr(chart, "alias", None) or "").strip()
+    identity_line = f"Name: {chart.name}"
+    if alias_text:
+        identity_line += f" | Alias: {alias_text}"
+    lines.append(identity_line)
+    datetime_line = f"Date: {date_label} | Official Time: {official_time_label}"
+    if use_rectified_time:
+        datetime_line += f" | Rectified Time: {rectified_time_label}"
+    lines.append(datetime_line)
     lines.append(
         format_chart_header(
             "place",
