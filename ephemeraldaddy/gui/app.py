@@ -322,13 +322,17 @@ from ephemeraldaddy.gui.wikipedia_search import (
 )
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
+    ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
+    SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
+    add_enneagram_predictions_debug_setting,
     build_similarity_calculator_settings_section,
     load_batch_tagging_terminal_debug_enabled,
+    load_enneagram_predictions_debug_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
@@ -1716,6 +1720,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
             int(self._batch_tagging_terminal_debug),
+        )
+        self._enneagram_predictions_debug = load_enneagram_predictions_debug_enabled(
+            self._settings,
+            fallback=ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+            int(self._enneagram_predictions_debug),
         )
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
@@ -18019,6 +18031,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             is_enabled=bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT)),
             on_toggled=self._on_batch_tagging_terminal_debug_toggled,
         )
+        add_enneagram_predictions_debug_setting(
+            section_layout=dev_tools_section,
+            is_enabled=bool(getattr(self, "_enneagram_predictions_debug", ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT)),
+            on_toggled=self._on_enneagram_predictions_debug_toggled,
+        )
 
         #should this be here or no?
         add_database_info_settings_section(self, content_layout)
@@ -18298,6 +18315,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         logger.info("[batch-tagging-debug] %s", rendered_message)
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds")
         print(f"[batch-tagging-debug][{timestamp}] {rendered_message}", file=sys.stderr, flush=True)
+
+    def _on_enneagram_predictions_debug_toggled(self, checked: bool) -> None:
+        self._enneagram_predictions_debug = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+            int(self._enneagram_predictions_debug),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_predictions_debug = self._enneagram_predictions_debug
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+                int(self._enneagram_predictions_debug),
+            )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
         checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -21868,7 +21899,10 @@ class MainWindow(QMainWindow):
             _connect_enneagram_popout_pick_handler(
                 popout_canvas,
                 info_panel,
-                build_info_html=self._build_enneagram_popout_info,
+                build_info_html=lambda enneagram_type: self._build_enneagram_popout_info(
+                    enneagram_type,
+                    chart=popout_chart,
+                ),
             )
         # else:
         #     layout.addWidget(popout_canvas, 1)
@@ -27173,12 +27207,15 @@ class MainWindow(QMainWindow):
             standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
         )
 
-    def _build_enneagram_popout_info(self, enneagram_type: int) -> str:
+    def _build_enneagram_popout_info(self, enneagram_type: int, *, chart: Chart | None = None) -> str:
         return _build_enneagram_popout_info_html(
             enneagram_type,
             enneagram=ENNEAGRAM,
             chart_theme_colors=CHART_THEME_COLORS,
             highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            debug_math_enabled=bool(getattr(self, "_enneagram_predictions_debug", False)),
+            chart=chart,
+            calculate_type_weights=self._calculate_enneagram_type_weights,
         )
 
     def _cache_enneagram_prediction_metadata(self, chart: Chart) -> dict[int, float]:

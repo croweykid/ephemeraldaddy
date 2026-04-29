@@ -438,6 +438,9 @@ def build_enneagram_popout_info_html(
     enneagram: dict[int, dict[str, Any]],
     chart_theme_colors: dict[str, str],
     highlight_color: str,
+    debug_math_enabled: bool = False,
+    chart: Any | None = None,
+    calculate_type_weights: Callable[[Any], dict[int, float]] | None = None,
 ) -> str:
     """Build HTML for the Enneagram popout info panel selection."""
     text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
@@ -448,6 +451,39 @@ def build_enneagram_popout_info_html(
     quotes = type_data.get("quotes", [])
     quote_list = [str(quote).strip() for quote in quotes if str(quote).strip()]
     selected_quote = random.choice(quote_list) if quote_list else "No quote available."
+
+    debug_html = ""
+    if debug_math_enabled and chart is not None and callable(calculate_type_weights):
+        type_scores = calculate_type_weights(chart)
+        selected_score = float(type_scores.get(int(enneagram_type), 0.0))
+        sorted_rows = "".join(
+            (
+                f"<li>Type {type_num}: "
+                f"<b>{float(type_scores.get(type_num, 0.0)):.4f}</b></li>"
+            )
+            for type_num in range(1, 10)
+        )
+        formula_bits = ", ".join(
+            f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
+        )
+        debug_html = (
+            "<hr style='margin-top:12px;margin-bottom:10px;border:0;border-top:1px solid #555;'/>"
+            f"<div style='font-size:13px;color:{text_color};'>"
+            "<div style='font-weight:700;'>Calculator debug details</div>"
+            "<div style='margin-top:6px;'>"
+            "Score model (per type): normalized contribution per criterion = "
+            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count."
+            "</div>"
+            f"<div style='margin-top:6px;'>Category weights currently used: {html.escape(formula_bits)}; "
+            f"anti_factor={ENNEAGRAM_ANTI_FACTOR:.2f}.</div>"
+            f"<div style='margin-top:6px;'>Selected type final score: <b>{selected_score:.4f}</b>.</div>"
+            "<div style='margin-top:6px;'>All final type scores (so you can verify ranking math):</div>"
+            f"<ol style='margin-top:4px;'>{sorted_rows}</ol>"
+            "<div style='margin-top:6px;'>"
+            "To verify manually with a calculator: compute each criterion's normalized value, multiply each by the criterion weight, then sum all weighted criterion values for the final type score."
+            "</div>"
+            "</div>"
+        )
 
     return (
         f"<div style='font-size:18px;font-weight:700;color:{html.escape(type_color)};'>"
@@ -462,6 +498,7 @@ def build_enneagram_popout_info_html(
         f"<div style='margin-top:8px;color:{text_color};'>"
         f"{html.escape(description)}"
         "</div>"
+        f"{debug_html}"
     )
 
 
