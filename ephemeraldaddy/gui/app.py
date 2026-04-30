@@ -651,6 +651,8 @@ from ephemeraldaddy.analysis.human_design import (
     derive_human_design_profile,
     build_human_design_result,
     build_human_design_chart_data_output,
+    describe_gate_line_placements,
+    gate_lines_for_gate,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -24189,19 +24191,7 @@ class MainWindow(QMainWindow):
         activation_lines: list[str] = []
         if self._latest_chart is not None:
             try:
-                hd_result = build_human_design_result(self._latest_chart)
-                activations = tuple(hd_result.personality_activations) + tuple(hd_result.design_activations)
-                matches = [
-                    activation
-                    for activation in activations
-                    if activation.gate == gate_number and (line_number is None or activation.line == line_number)
-                ]
-                for activation in matches:
-                    side_label = "Personality" if activation.side == "personality" else "Design"
-                    sign_name = _sign_for_longitude(float(activation.longitude))
-                    activation_lines.append(
-                        f"• {side_label} {activation.body}: Line {activation.line} in {sign_name}"
-                    )
+                activation_lines = describe_gate_line_placements(self._latest_chart, gate_number, line_number)
             except Exception:
                 activation_lines = []
 
@@ -27655,11 +27645,7 @@ class MainWindow(QMainWindow):
             )
 
         def _show_popout_gate_info(gate: int) -> None:
-            matching_lines = sorted({
-                int(activation.line)
-                for activation in tuple(hd_result.personality_activations) + tuple(hd_result.design_activations)
-                if int(activation.gate) == int(gate)
-            })
+            matching_lines = gate_lines_for_gate(hd_result, int(gate))
             selected_line = matching_lines[0] if len(matching_lines) == 1 else None
             self._run_with_chart_info_output(
                 chart_info_output,

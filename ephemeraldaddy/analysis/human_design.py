@@ -259,6 +259,40 @@ def _render_clickable_gate_line_summary(
     return rendered_rows, row_info_map
 
 
+def describe_gate_line_placements(
+    chart: Chart,
+    gate: int,
+    line: int | None = None,
+) -> list[str]:
+    """Return formatted placement lines for a gate or gate/line in a chart."""
+    gate_number = int(gate)
+    line_number = int(line) if isinstance(line, int) else None
+    hd_result = calculate_human_design(chart)
+    matches: list[str] = []
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        if int(activation.gate) != gate_number:
+            continue
+        if line_number is not None and int(activation.line) != line_number:
+            continue
+        side_label = "Personality" if activation.side == "personality" else "Design"
+        sign_name = ZODIAC_NAMES[int((float(activation.longitude) % 360.0) // 30) % 12]
+        matches.append(
+            f"• {side_label} {activation.body}: Line {int(activation.line)} in {sign_name}"
+        )
+    return matches
+
+
+def gate_lines_for_gate(hd_result: HumanDesignResult, gate: int) -> list[int]:
+    """Return unique sorted active lines for a gate from an HD result."""
+    gate_number = int(gate)
+    lines = {
+        int(activation.line)
+        for activation in (*hd_result.personality_activations, *hd_result.design_activations)
+        if int(activation.gate) == gate_number
+    }
+    return sorted(lines)
+
+
 def _render_clickable_property(
     label: str,
     value: str,
