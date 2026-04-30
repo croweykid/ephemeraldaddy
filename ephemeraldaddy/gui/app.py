@@ -651,6 +651,8 @@ from ephemeraldaddy.analysis.human_design import (
     derive_human_design_profile,
     build_human_design_result,
     build_human_design_chart_data_output,
+    describe_gate_line_placements,
+    gate_lines_for_gate,
 )
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
@@ -24148,7 +24150,12 @@ class MainWindow(QMainWindow):
         lines = [f"H{house_num}", "", *(f"• {keyword}" for keyword in clean_keywords)]
         self.chart_info_output.setPlainText("\n".join(lines))
 
-    def _show_human_design_gate_line_info(self, gate: int, line: int | None) -> None:
+    def _show_human_design_gate_line_info(
+        self,
+        gate: int,
+        line: int | None,
+        chart_context: Chart | None = None,
+    ) -> None:
         line_number = int(line) if isinstance(line, int) else None
         gate_number = int(gate)
         gate_info = GATE_REFERENCE.get(
@@ -24185,6 +24192,21 @@ class MainWindow(QMainWindow):
             cursor.insertText("\n\n", plain_fmt)
             cursor.insertText(f"Line {line_number} Archetype:", header_fmt)
             cursor.insertText(f" {line_text}", plain_fmt)
+
+        activation_lines: list[str] = []
+        source_chart = chart_context if chart_context is not None else self._latest_chart
+        if source_chart is not None:
+            try:
+                activation_lines = describe_gate_line_placements(source_chart, gate_number, line_number)
+            except Exception:
+                activation_lines = []
+
+        if activation_lines:
+            cursor.insertText("\n\n", plain_fmt)
+            cursor.insertText("Active placements:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for item in activation_lines:
+                cursor.insertText(f"{item}\n", plain_fmt)
 
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
@@ -27533,6 +27555,7 @@ class MainWindow(QMainWindow):
                 "Generate or load a chart to view Human Design info.",
             )
             return
+        source_chart = self._latest_chart
         dialog = QDialog(self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.setWindowTitle("🪐Human Design")
@@ -27541,7 +27564,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         dialog.setLayout(layout)
 
-        natal_planet_weights = getattr(self._latest_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(self._latest_chart)
+        natal_planet_weights = getattr(source_chart, "dominant_planet_weights", None) or _calculate_dominant_planet_weights(source_chart)
 
         def _weighted_natal_score(entry: Any) -> float:
             if isinstance(entry, dict):
@@ -27549,7 +27572,7 @@ class MainWindow(QMainWindow):
             if hasattr(entry, "exactness") and hasattr(entry, "weight"):
                 return max(0.0, float(entry.exactness) * float(entry.weight))
             return 0.0
-        hd_result = build_human_design_result(self._latest_chart)
+        hd_result = build_human_design_result(source_chart)
         awareness_stream_entries = build_awareness_stream_completion(set(hd_result.active_gates))
         circuit_entries = build_circuit_group_completion(set(hd_result.active_gates))
 
@@ -27629,15 +27652,11 @@ class MainWindow(QMainWindow):
             )
 
         def _show_popout_gate_info(gate: int) -> None:
-            # original_chart_info_output = getattr(self, "chart_info_output", None)
-            # try:
-            #     self.chart_info_output = chart_info_output
-            #     self._show_human_design_gate_line_info(int(gate), None)
-            # finally:
-            #     self.chart_info_output = original_chart_info_output
+            matching_lines = gate_lines_for_gate(hd_result, int(gate))
+            selected_line = matching_lines[0] if len(matching_lines) == 1 else None
             self._run_with_chart_info_output(
                 chart_info_output,
-                lambda: self._show_human_design_gate_line_info(int(gate), None),
+                lambda: self._show_human_design_gate_line_info(int(gate), selected_line, chart_context=source_chart),
             )
 
         def _on_bodygraph_click(event: Any) -> None:
