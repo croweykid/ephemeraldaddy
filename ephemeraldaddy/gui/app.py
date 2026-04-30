@@ -24186,6 +24186,32 @@ class MainWindow(QMainWindow):
             cursor.insertText(f"Line {line_number} Archetype:", header_fmt)
             cursor.insertText(f" {line_text}", plain_fmt)
 
+        activation_lines: list[str] = []
+        if self._latest_chart is not None:
+            try:
+                hd_result = build_human_design_result(self._latest_chart)
+                activations = tuple(hd_result.personality_activations) + tuple(hd_result.design_activations)
+                matches = [
+                    activation
+                    for activation in activations
+                    if activation.gate == gate_number and (line_number is None or activation.line == line_number)
+                ]
+                for activation in matches:
+                    side_label = "Personality" if activation.side == "personality" else "Design"
+                    sign_name = _sign_for_longitude(float(activation.longitude))
+                    activation_lines.append(
+                        f"• {side_label} {activation.body}: Line {activation.line} in {sign_name}"
+                    )
+            except Exception:
+                activation_lines = []
+
+        if activation_lines:
+            cursor.insertText("\n\n", plain_fmt)
+            cursor.insertText("Active placements:", header_fmt)
+            cursor.insertText("\n", plain_fmt)
+            for item in activation_lines:
+                cursor.insertText(f"{item}\n", plain_fmt)
+
         self.chart_info_output.setTextCursor(cursor)
         reset_cursor = self.chart_info_output.textCursor()
         reset_cursor.movePosition(QTextCursor.Start)
@@ -27629,15 +27655,15 @@ class MainWindow(QMainWindow):
             )
 
         def _show_popout_gate_info(gate: int) -> None:
-            # original_chart_info_output = getattr(self, "chart_info_output", None)
-            # try:
-            #     self.chart_info_output = chart_info_output
-            #     self._show_human_design_gate_line_info(int(gate), None)
-            # finally:
-            #     self.chart_info_output = original_chart_info_output
+            matching_lines = sorted({
+                int(activation.line)
+                for activation in tuple(hd_result.personality_activations) + tuple(hd_result.design_activations)
+                if int(activation.gate) == int(gate)
+            })
+            selected_line = matching_lines[0] if len(matching_lines) == 1 else None
             self._run_with_chart_info_output(
                 chart_info_output,
-                lambda: self._show_human_design_gate_line_info(int(gate), None),
+                lambda: self._show_human_design_gate_line_info(int(gate), selected_line),
             )
 
         def _on_bodygraph_click(event: Any) -> None:
