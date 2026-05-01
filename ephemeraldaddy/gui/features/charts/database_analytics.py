@@ -1585,6 +1585,7 @@ class DatabaseAnalyticsChartsMixin:
         selection_planet_counts: dict[str, float],
         database_planet_counts: dict[str, float],
         loaded_charts: int,
+        include_count_prefixes: bool = True,
         bar_height: float = 0.6,
         labels: list[str] | None = None,
         height_scale: float = 1.0,
@@ -1599,15 +1600,18 @@ class DatabaseAnalyticsChartsMixin:
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
         labels = list(labels or selection_planets.keys())
-        display_labels = [
-            self._format_selection_database_count_label(
-                label,
-                database_planet_counts.get(label, 0),
-                selection_planet_counts.get(label, 0),
-                loaded_charts > 0,
-            )
-            for label in labels
-        ]
+        if include_count_prefixes:
+            display_labels = [
+                self._format_selection_database_count_label(
+                    label,
+                    database_planet_counts.get(label, 0),
+                    selection_planet_counts.get(label, 0),
+                    loaded_charts > 0,
+                )
+                for label in labels
+            ]
+        else:
+            display_labels = [str(label) for label in labels]
         def _resolve_distribution_color(label: str) -> str:
             authority_key = normalize_hd_authority_key(
                 canonicalize_hd_authority_label(str(label).strip())
@@ -2662,10 +2666,10 @@ class DatabaseAnalyticsChartsMixin:
             dropdown_options=[("Enneagram Predictions", "enneagram")],
             show_title=False,
         )
-        enneagram_subheader = self._build_database_subheader_label(
-            "Average Enneagram type weight distribution from chart-level predictions."
+        self.enneagram_subheader_label = self._build_database_subheader_label(
+            "Avg Enneagram type score predictions across the entire database of 0 (non-placeholder) charts."
         )
-        enneagram_section_layout.addWidget(enneagram_subheader)
+        enneagram_section_layout.addWidget(self.enneagram_subheader_label)
         (
             self.enneagram_distribution_chart_container,
             self.enneagram_distribution_chart_layout,
@@ -2922,7 +2926,10 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         should_refresh: Callable[[str], bool],
     ) -> None:
-        enneagram_labels = [f"Type {enneagram_type}" for enneagram_type in range(1, 10)]
+        enneagram_labels = [
+            f"Type {enneagram_type} {str(ENNEAGRAM.get(enneagram_type, {}).get('name', '')).strip()}".strip()
+            for enneagram_type in range(1, 10)
+        ]
         selection_weight_chart_count = max(0, int(selection_cache.get("enneagram_weight_chart_count", 0)))
         database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
         selection_enneagram_counts = {
@@ -2981,6 +2988,16 @@ class DatabaseAnalyticsChartsMixin:
             ).strip() or CHART_THEME_COLORS["text"]
             for enneagram_type in range(1, 10)
         }
+        selected_chart_count = max(0, int(loaded_charts))
+        if selected_chart_count > 0:
+            self.enneagram_subheader_label.setText(
+                "Predicted Enneagram type scores for selected chart(s) relative to database average."
+            )
+        else:
+            self.enneagram_subheader_label.setText(
+                "Avg Enneagram type score predictions across the entire database of "
+                f"{database_weight_chart_count:,} (non-placeholder) charts."
+            )
         if should_refresh("enneagram"):
             enneagram_canvas = self._build_dominant_planet_chart(
                 selection_planets=selection_enneagram_values,
@@ -2991,6 +3008,7 @@ class DatabaseAnalyticsChartsMixin:
                 labels=enneagram_labels,
                 force_value_fallback_colors=False,
                 label_colors=enneagram_label_colors,
+                include_count_prefixes=False,
             )
             self._clear_layout(self.enneagram_distribution_chart_layout)
             self.enneagram_distribution_chart_layout.addWidget(
