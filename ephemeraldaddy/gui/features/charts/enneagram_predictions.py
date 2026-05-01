@@ -49,6 +49,37 @@ BODY_ALIASES = {
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
 
+DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER = 1.0
+
+
+def _normalize_weight_map_by_range(raw_weights: dict[Any, float]) -> dict[Any, float]:
+    if not raw_weights:
+        return {}
+    cleaned: dict[Any, float] = {}
+    for key, raw_value in raw_weights.items():
+        try:
+            cleaned[key] = float(raw_value)
+        except (TypeError, ValueError):
+            cleaned[key] = 0.0
+    values = list(cleaned.values())
+    max_value = max(values)
+    min_value = min(values)
+    range_value = max_value - min_value
+    if range_value <= 0:
+        return {key: 0.0 for key in cleaned}
+    return {key: (value - min_value) / range_value for key, value in cleaned.items()}
+
+
+def _criterion_multiplier_for_type(factors: dict[str, Any], category: str) -> float:
+    multipliers = factors.get("criterion_multipliers", {})
+    if not isinstance(multipliers, dict):
+        return DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER
+    raw_value = multipliers.get(category, DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER)
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_ENNEAGRAM_CRITERION_MULTIPLIER
+
 
 def _active_human_design_gates(chart: Any) -> set[int]:
     cached = {
@@ -175,11 +206,16 @@ def calculate_enneagram_type_weights(
 ) -> dict[int, float]:
     """Compute Enneagram type scores from chart-level dominant weights."""
     scores = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
-    sign_weights = getattr(chart, "dominant_sign_weights", None) or calculate_sign_weights(chart)
-    body_weights = getattr(chart, "dominant_planet_weights", None) or calculate_body_weights(chart)
+    sign_weights_raw = getattr(chart, "dominant_sign_weights", None) or calculate_sign_weights(chart)
+    body_weights_raw = getattr(chart, "dominant_planet_weights", None) or calculate_body_weights(chart)
     use_houses = chart_uses_houses(chart)
-    house_weights = calculate_house_weights(chart) if use_houses else {}
-    nakshatra_weights = getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
+    house_weights_raw = calculate_house_weights(chart) if use_houses else {}
+    nakshatra_weights_raw = getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
+
+    sign_weights = _normalize_weight_map_by_range(sign_weights_raw)
+    body_weights = _normalize_weight_map_by_range(body_weights_raw)
+    house_weights = _normalize_weight_map_by_range(house_weights_raw) if use_houses else {}
+    nakshatra_weights = _normalize_weight_map_by_range(nakshatra_weights_raw)
     chart_name = str(getattr(chart, "name", "Unnamed Chart"))
     body_house_lookup: dict[str, int] = {}
     if use_houses:
@@ -361,37 +397,39 @@ def calculate_enneagram_type_weights(
                 aspects_negative += malus
                 break
 
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["signs"] * _normalize_category_delta(
+        type_multiplier = lambda category: _criterion_multiplier_for_type(factors, category)
+
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["signs"] * type_multiplier("signs") * _normalize_category_delta(
             sign_positive,
             sign_negative,
             criteria_count=len(signs) + len(antisigns),
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["bodies"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["bodies"] * type_multiplier("bodies") * _normalize_category_delta(
             body_positive,
             body_negative,
             criteria_count=len(bodies) + len(antibodies),
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["nakshatras"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["nakshatras"] * type_multiplier("nakshatras") * _normalize_category_delta(
             nakshatra_positive,
             nakshatra_negative,
             criteria_count=len(nakshatras) + len(antinakshatras),
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["houses"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["houses"] * type_multiplier("houses") * _normalize_category_delta(
             house_positive,
             house_negative,
             criteria_count=(len(houses) + len(antihouses)) if use_houses else 0,
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["gates"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["gates"] * type_multiplier("gates") * _normalize_category_delta(
             gates_positive,
             gates_negative,
             criteria_count=len(gates) + len(antigates),
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["positions"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["positions"] * type_multiplier("positions") * _normalize_category_delta(
             positions_positive,
             positions_negative,
             criteria_count=len(positions) + len(antipositions),
         )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["aspects"] * _normalize_category_delta(
+        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["aspects"] * type_multiplier("aspects") * _normalize_category_delta(
             aspects_positive,
             aspects_negative,
             criteria_count=len(aspects) + len(antiaspects),
