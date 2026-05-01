@@ -2930,18 +2930,21 @@ class DatabaseAnalyticsChartsMixin:
             f"Type {enneagram_type} {str(ENNEAGRAM.get(enneagram_type, {}).get('name', '')).strip()}".strip()
             for enneagram_type in range(1, 10)
         ]
+        enneagram_label_by_type = {
+            enneagram_type: enneagram_labels[enneagram_type - 1] for enneagram_type in range(1, 10)
+        }
         selection_weight_chart_count = max(0, int(selection_cache.get("enneagram_weight_chart_count", 0)))
         database_weight_chart_count = max(0, int(database_cache.get("enneagram_weight_chart_count", 0)))
         selection_enneagram_counts = {
-            f"Type {enneagram_type}": selection_weight_chart_count
+            enneagram_label_by_type[enneagram_type]: selection_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         database_enneagram_counts = {
-            f"Type {enneagram_type}": database_weight_chart_count
+            enneagram_label_by_type[enneagram_type]: database_weight_chart_count
             for enneagram_type in range(1, 10)
         }
         selection_enneagram_values = {
-            f"Type {enneagram_type}": (
+            enneagram_label_by_type[enneagram_type]: (
                 float(selection_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
                 / float(selection_weight_chart_count)
                 if selection_weight_chart_count
@@ -2950,7 +2953,7 @@ class DatabaseAnalyticsChartsMixin:
             for enneagram_type in range(1, 10)
         }
         database_enneagram_values = {
-            f"Type {enneagram_type}": (
+            enneagram_label_by_type[enneagram_type]: (
                 float(database_cache["enneagram_weight_totals"].get(enneagram_type, 0.0))
                 / float(database_weight_chart_count)
                 if database_weight_chart_count
@@ -2965,7 +2968,7 @@ class DatabaseAnalyticsChartsMixin:
                 "Selection Enneagram weighted chart count is zero; falling back to top-type frequency distribution."
             )
             selection_enneagram_values = {
-                f"Type {enneagram_type}": (
+                enneagram_label_by_type[enneagram_type]: (
                     float(selection_cache["enneagram_totals"].get(enneagram_type, 0.0))
                     / float(selection_enneagram_total)
                 )
@@ -2976,14 +2979,14 @@ class DatabaseAnalyticsChartsMixin:
                 "Database Enneagram weighted chart count is zero; falling back to top-type frequency distribution."
             )
             database_enneagram_values = {
-                f"Type {enneagram_type}": (
+                enneagram_label_by_type[enneagram_type]: (
                     float(database_cache["enneagram_totals"].get(enneagram_type, 0.0))
                     / float(database_enneagram_total)
                 )
                 for enneagram_type in range(1, 10)
             }
         enneagram_label_colors = {
-            f"Type {enneagram_type}": str(
+            enneagram_label_by_type[enneagram_type]: str(
                 ENNEAGRAM.get(enneagram_type, {}).get("color", CHART_THEME_COLORS["text"])
             ).strip() or CHART_THEME_COLORS["text"]
             for enneagram_type in range(1, 10)
