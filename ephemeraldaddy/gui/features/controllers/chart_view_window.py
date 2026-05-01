@@ -898,6 +898,43 @@ def build_chart_view_right_panel(
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
+    owner.enneagram_prediction_dropdown = QComboBox()
+    enneagram_dropdown_font = QFont(owner.enneagram_prediction_dropdown.font())
+    enneagram_dropdown_font.setCapitalization(QFont.AllUppercase)
+    if enneagram_dropdown_font.pointSize() > 0:
+        enneagram_dropdown_font.setPointSize(max(7, enneagram_dropdown_font.pointSize() - 2))
+    owner.enneagram_prediction_dropdown.setFont(enneagram_dropdown_font)
+    owner.enneagram_prediction_dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    owner.enneagram_prediction_dropdown.setMinimumContentsLength(22)
+    owner.enneagram_prediction_dropdown.setStyleSheet(
+        "QComboBox {"
+        "background-color: #1f1f1f;"
+        "border: 1px solid #3a3a3a;"
+        "padding: 3px 8px;"
+        "color: #f5f5f5;"
+        "}"
+    )
+    owner.enneagram_prediction_dropdown.addItem(
+        "Enneagram Prediction (normalized)".upper(),
+        "enneagram_prediction_normalized",
+    )
+    owner.enneagram_prediction_dropdown.addItem(
+        "Enneagram Prediction".upper(),
+        "enneagram_prediction",
+    )
+    owner.enneagram_prediction_dropdown.currentIndexChanged.connect(
+        lambda _index: (
+            owner._schedule_chart_render(
+                owner._latest_chart,
+                sections={"enneagram"},
+                queue_priority="interactive",
+            )
+            if getattr(owner, "_latest_chart", None) is not None
+            and hasattr(owner, "_schedule_chart_render")
+            else None
+        )
+    )
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_dropdown, alignment=Qt.AlignRight)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
     owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
     owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
