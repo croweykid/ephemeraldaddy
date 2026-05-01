@@ -515,7 +515,10 @@ def draw_enneagram_predictions(
     text_color = str(chart_theme_colors.get("text", "#f5f5f5"))
     spine_color = str(chart_theme_colors.get("spine", "#444444"))
 
-    type_labels = [str(num) for num in range(1, 10)]
+    type_labels = [
+        f"{num} {str(enneagram.get(num, {}).get('name', '')).strip()}".strip()
+        for num in range(1, 10)
+    ]
     type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
@@ -529,8 +532,8 @@ def draw_enneagram_predictions(
     ax.set_ylim(0, max(1.0, max_value + 1.0))
     ax.set_anchor("W")
     label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
-    for bar, type_label in zip(bars, type_labels, strict=True):
-        bar.set_gid(f"enneagram:{type_label}")
+    for type_num, bar, type_label in zip(range(1, 10), bars, type_labels, strict=True):
+        bar.set_gid(f"enneagram:{type_num}")
         bar.set_picker(True)
         score = bar.get_height()
         ax.text(

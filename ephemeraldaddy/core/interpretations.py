@@ -4232,6 +4232,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
 # This works for signs/bodies/houses/nakshatras/gates/positions/aspects (+ anti* variants).
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
     1:{ #sample size was 77, so that's ok, but could be better.
+        "name":"Idealist",
         "signs":{"Scorpio","Virgo","Cancer"}, #yeah, Cancer surprised me but that's what the data shows. My original guess was Virgo, Scorpio, Aquarius, Capricorn.
         "antisigns":{"Sagittarius"}, #subtract these
         "houses":{1,3,10}, #it is a h10 thing, that's legit
@@ -4262,6 +4263,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'I don't care if it hurts. / I want to have control. / I want a perfect body. / I want a perfect soul.' - Thom Yorke, Creep"}
         },
     2:{
+        "name":"Caretaker",
         "signs":{"Libra","Capricorn","Cancer"}, #Pisces dominance were average in my meager sample of 22. Need a bigger sample, but gotta listen to the data for now.
         "antisigns":{"Gemini",},
         "houses":{11,6,}, 
@@ -4297,6 +4299,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'When you're weary / Feeling small / When tears are in your eyes / I will dry them all / I'm on your side. / Oh, when times get rough, / And friends just can't be found...' - Simon & Garfunkel, Bridge Over Troubled Water"},
         },
     3:{ #no actual data formally assessed & documented; purely theoretical rn based on loose past observations
+        "name":"Status-seeker",
         "signs":{"Libra","Scorpio","Aries","Sagittarius","Leo"}, #my initial guesses: "Leo","Capricorn","Taurus","Sagittarius","Libra". I checked "Leo dominant" and saw a lot of subtler probable 3s I'd missed because they were tasteful & well adjusted about it.
         "antisigns":{"Virgo","Pisces","Gemini"},
         "houses":{8}, #it's about power in society, I guess? Domination through community?
@@ -4330,7 +4333,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"3s are sort of narcissist-coded, but that doesn't have to be malignant. It can result in materialism, or it could result in extreme competence. Sometimes 3s are mistaken for 1s because they appear driven by perfectionism. But rather than pursuit of perfection/ideals (e1) or competence (e5) for their own sake, 3s are driven by the pursuit of recognition for that competence. Arguably, the easier the trophies and accolades come, the less hard 3s will need to try. The point here is not the conditions of victory, but the recognition of their superiority over others; the status and attention of being president more than the power of owning the red button. They will live and die for that gold star on their paper, and the knowledge that other people know they got it.",
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
-    4:{ #assessed with Similarities Analysis AND DB Analytics.
+    4:{
+        "name":"Artist", #assessed with Similarities Analysis AND DB Analytics.
         "signs":{"Aquarius","Pisces"}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
         "antisigns":{"Libra","Aries","Cancer"}, #Cap was negative 3% & Leo was neg 1%, but that's because Cap trends e2 and Leo trends e3, I suspect.
         "houses":{}, #1 & 5, but only 1-2% difference from norms
@@ -4363,6 +4367,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
     5:{
+        "name":"Scholar",
         "signs":{"Gemini","Cancer",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
         "antisigns":{"Virgo","Sagittarius","Scorpio",},
         "houses":{3,6},
@@ -4391,7 +4396,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"5s want to understand the world, whether through a microscope or a telescope. They generally perceive themselves as on the outside, looking in at the experiment of existence. They go to great pains to ensure that their lab is protected so that their subjects (the outside world) cannot touch them, messy their lab and disrupt their experiments.",
         "quotes":{"'I'm so glad I got burned, / think of all the things we learned / from the people who are / still alive. / And believe me I'm still alive. / I'm doing science and I'm still alive.' - Portal Soundtrack, Still Alive","'There is research to be done, / and we made a neat gun / for the people who are / still alive...' - Portal soundtrack, Still Alive","'Well they gave me medication so I feel how I imagine people of average intelligence feel all the time.' - Dr. Temperance Bones, Bones"},
         },
-    6:{ 
+    6:{
+        "name":"Loyalist", #acolyte 
         "signs":{"Aries","Virgo","Capricorn","Libra"},
         "antisigns":{"Scorpio","Sagittarius","Leo"},
         "houses":{12,2,6}, #6 was only weakly represented
@@ -4425,6 +4431,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'If I'd said that to MY daddy, he'd have...[insert reflection on one's father's archetypal behavior, intended as a model of exemplary response to the situation]' - a phrase often invoked by nearly everyone in the American South & Bible Belt.","'Three weeks from now, I will be harvesting my crops. Imagine where you will be, and it will be so. Hold the line! Stay with me! If you find yourself alone, riding in the green fields with the sun on your face, do not be troubled. For you are in Elysium, and you're already dead! Brothers, what we do in life echoes in eternity...' - Maximus, Gladiator","'Five thousand of my men are out there in the freezing mud. Three thousand of them are bloodied and cleaved. Two thousand will never leave this place. I will not believe that they fought and died for nothing.' - Maximus, Gladiator","'Sometimes I do what I want to do. The rest of the time, I do what I have to.' - Cicero, Gladiator","'You have a great name. He must kill your name before he kills you.' - Juba, Gladiator",},
         }, #"'Elephants are not purple. This is wrong.' - Dr. Temperance Bones, Bones"
     7:{
+        "name":"Explorer",
         "signs":{"Gemini","Sagittarius","Pisces"},
         "antisigns":{"Scorpio","Libra"},
         "houses":{5},
@@ -4455,6 +4462,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'Hey, I just met you / and this is crazy / but here's my number / so call me maybe...' - Carly Rae Jepsen, Call Me Maybe","'This is the day you will always remember as the day you almost caught Captain Jack Sparrow.' - Capt. Jack Sparrow, Pirates of the Caribbean","'What’s the hassle, Schmasel?' - Bugs Bunny","'Well, like the Romans always say … E pluribus uranium.' - Bugs Bunny"},
         },
     8:{
+        "name":"Philarch", #crushinator
         "signs":{"Aries","Libra"}, #"Sagittarius","Leo"
         "antisigns":{},
         "houses":{10,4},
@@ -4485,6 +4493,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'You know the way to stop me / but you don't have the discipline. / How many nights have I prayed for this? / To let my work begin...! / First we take Manhattan... / then we take Berlin!' - Leonard Cohen, First We Take Manhattan","'They’re whispering his name across this disappearing land / But hidden in his coat is a red right hand... / You ain’t got no money? / He’ll get you some / You ain’t got no car? / He’ll get you one / You ain’t got no self-respect, you feel like an insect / Well don’t you worry buddy, cause here he comes...' - Nick Cave, Red Right Hand","'People should know when they're conquered.' - Quintus, Gladiator"},
         },
     9:{
+        "name":"Pacifist",
         "signs":{"Capricorn","Cancer","Sagittarius"}, #Aries also came up
         "antisigns":{"Gemini","Leo","Aquarius","Virgo"},
         "houses":{4,5,6},
