@@ -27237,6 +27237,41 @@ class MainWindow(QMainWindow):
             standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
         )
 
+    def _draw_enneagram_predictions_normalized(self, ax, chart: Chart) -> None:
+        scores = self._calculate_enneagram_type_weights(chart)
+        norms = getattr(self, "_database_weight_norms", None)
+        chart_norms = norms.get("chart_distribution_norms") if isinstance(norms, dict) else None
+        enneagram_norms = (
+            chart_norms.get("enneagram")
+            if isinstance(chart_norms, dict)
+            else None
+        )
+        normalized_scores: dict[int, float] = {}
+        for enneagram_type in range(1, 10):
+            chart_score = float(scores.get(enneagram_type, 0.0))
+            baseline_values = (
+                enneagram_norms.get(f"Type {enneagram_type}")
+                if isinstance(enneagram_norms, dict)
+                else None
+            )
+            numeric_baseline = [
+                float(value)
+                for value in (baseline_values or [])
+                if isinstance(value, (int, float))
+            ]
+            baseline_mean = statistics.mean(numeric_baseline) if numeric_baseline else 0.0
+            normalized_scores[enneagram_type] = chart_score - baseline_mean
+
+        _draw_enneagram_predictions_chart(
+            ax,
+            chart=chart,
+            enneagram=ENNEAGRAM,
+            calculate_type_weights=lambda _chart: normalized_scores,
+            chart_theme_colors=CHART_THEME_COLORS,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+            standard_chart_layout=STANDARD_NCV_HORIZONTAL_BAR_CHART,
+        )
+
     def _build_enneagram_popout_info(self, enneagram_type: int, *, chart: Chart | None = None) -> str:
         return _build_enneagram_popout_info_html(
             enneagram_type,
@@ -27270,6 +27305,12 @@ class MainWindow(QMainWindow):
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
+        mode_dropdown = getattr(self, "enneagram_prediction_dropdown", None)
+        selected_mode = (
+            mode_dropdown.currentData()
+            if isinstance(mode_dropdown, QComboBox) and mode_dropdown.currentData()
+            else "enneagram_prediction_normalized"
+        )
         if chart is None:
             self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
             self.enneagram_prediction_canvas = None
@@ -27297,7 +27338,7 @@ class MainWindow(QMainWindow):
                 canvas_attr="enneagram_prediction_canvas",
                 container_layout=self.enneagram_prediction_chart_layout,
                 figsize=(5.5, 3.2),
-                title="Enneagram",
+                title="Enneagram (normalized)" if selected_mode == "enneagram_prediction_normalized" else "Enneagram",
                 draw_fn=_draw_no_data,
                 chart=chart,
             )
@@ -27308,8 +27349,12 @@ class MainWindow(QMainWindow):
             canvas_attr="enneagram_prediction_canvas",
             container_layout=self.enneagram_prediction_chart_layout,
             figsize=(5.5, 3.2),
-            title="Enneagram",
-            draw_fn=self._draw_enneagram_predictions,
+            title="Enneagram (normalized)" if selected_mode == "enneagram_prediction_normalized" else "Enneagram",
+            draw_fn=(
+                self._draw_enneagram_predictions_normalized
+                if selected_mode == "enneagram_prediction_normalized"
+                else self._draw_enneagram_predictions
+            ),
             chart=chart,
         )
         scores = self._cache_enneagram_prediction_metadata(chart)
