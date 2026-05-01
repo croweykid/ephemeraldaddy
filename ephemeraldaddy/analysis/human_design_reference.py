@@ -5,12 +5,21 @@ from __future__ import annotations
 import re
 
 LINE_ARCHETYPES: dict[int, str] = {
-    1: "Investigator/Foundation: learns by building solid fundamentals.",
+    1: "Investigator: feels data-unequipped so seeks knowledge.",
     2: "Natural/Hermit: gifts emerge through natural talent and retreat.",
-    3: "Martyr/Experimenter: grows through trial, error, and adaptation.",
-    4: "Opportunist/Networker: influence and opportunities come through relationships.",
-    5: "Heretic/Universalizer: practical leadership and projection field dynamics.",
-    6: "Role Model/Visionary: perspective matures over time into exemplar wisdom.",
+    3: "Experimenter: lives experimentally; grows through trial & error, and adaptation.",
+    4: "Nepotist: influence and opportunities come through relationships.",
+    5: "Hero: people believe this person can save them through practical leadership.",
+    6: "Veterano: world weary, wizened, this isn't their first rodeo and Rambo's not sure if he wants this 'one last job'.",
+}
+
+LINE_NICKNAMES: dict[int, dict[str, str]] = {
+    1: {"name":"Seeker","color":"","emoji":""},
+    2: {"name":"Natural","color":"","emoji":""},
+    3: {"name":"Experimenter","color":"","emoji":""},
+    4: {"name":"Nepotist","color":"","emoji":""},
+    5: {"name":"Hero","color":"","emoji":""},
+    6: {"name":"Veterano","color":"","emoji":""},
 }
 
 GATE_REFERENCE: dict[int, dict[str, str]] = {
