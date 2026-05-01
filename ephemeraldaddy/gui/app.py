@@ -18493,6 +18493,72 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._similarity_calculator_settings = defaults
             _save_similarity_calculator_settings(parent._settings, defaults)
 
+    def _default_enneagram_category_weights(self) -> dict[str, float]:
+        return {"signs": 1.0, "bodies": 1.0, "nakshatras": 1.0, "houses": 1.0, "gates": 1.0, "positions": 1.0, "aspects": 1.0}
+
+    def _set_enneagram_predictor_mode(self, mode: str) -> None:
+        normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
+        self._enneagram_predictor_mode = normalized
+        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, normalized)
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_predictor_mode = normalized
+            parent._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, normalized)
+        self._apply_enneagram_predictor_weights()
+
+    def _load_enneagram_predictor_controls(self) -> None:
+        payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}
+        mode = str(self._settings.value(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default") or "default").lower()
+        self._enneagram_predictor_mode = "custom" if mode == "custom" else "default"
+        merged = self._default_enneagram_category_weights()
+        if isinstance(payload, dict):
+            for key in merged:
+                try:
+                    merged[key] = float(payload.get(key, merged[key]))
+                except (TypeError, ValueError):
+                    continue
+        self._enneagram_predictor_weights = merged
+        for key, spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).items():
+            blocker = QSignalBlocker(spin)
+            spin.setValue(float(merged.get(key, 1.0)))
+            spin.setEnabled(self._enneagram_predictor_mode == "custom")
+            del blocker
+        self._enneagram_predictor_default_radio.setChecked(self._enneagram_predictor_mode == "default")
+        self._enneagram_predictor_custom_radio.setChecked(self._enneagram_predictor_mode == "custom")
+        self._update_enneagram_predictor_total_label()
+        self._apply_enneagram_predictor_weights()
+
+    def _update_enneagram_predictor_total_label(self) -> None:
+        total = sum(float(spin.value()) for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values())
+        label = getattr(self, "_enneagram_predictor_total_label", None)
+        if label is not None:
+            label.setText(f"{total:.2f}")
+
+    def _on_enneagram_category_weight_changed(self, key: str, value: float) -> None:
+        if not hasattr(self, "_enneagram_predictor_weights"):
+            self._enneagram_predictor_weights = self._default_enneagram_category_weights()
+        self._enneagram_predictor_weights[key] = float(value)
+        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, self._enneagram_predictor_weights)
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_predictor_weights = dict(self._enneagram_predictor_weights)
+            parent._settings.setValue(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, parent._enneagram_predictor_weights)
+        self._update_enneagram_predictor_total_label()
+        if getattr(self, "_enneagram_predictor_mode", "default") == "custom":
+            self._apply_enneagram_predictor_weights()
+
+    def _apply_enneagram_predictor_weights(self) -> None:
+        use_custom = getattr(self, "_enneagram_predictor_mode", "default") == "custom"
+        weights = getattr(self, "_enneagram_predictor_weights", self._default_enneagram_category_weights())
+        applied_weights = weights if use_custom else self._default_enneagram_category_weights()
+        _set_enneagram_category_weights(applied_weights)
+        for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values():
+            spin.setEnabled(use_custom)
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_predictor_mode = getattr(self, "_enneagram_predictor_mode", "default")
+            parent._enneagram_predictor_weights = dict(weights)
+
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
             return
