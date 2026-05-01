@@ -142,6 +142,50 @@ def _normalize_gate_set(values: Any) -> set[int]:
     }
 
 
+def _coerce_weighted_entries(values: Any) -> dict[Any, float]:
+    weighted: dict[Any, float] = {}
+    if isinstance(values, dict):
+        source = values.items()
+    else:
+        source = ((value, 1.0) for value in (values or []))
+    for key, raw_weight in source:
+        if key is None:
+            continue
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 1.0
+        weighted[key] = weight
+    return weighted
+
+
+def _weighted_string_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = _normalize_factor_value(str(raw_value).strip())
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def _weighted_house_entries(values: Any) -> dict[int, float]:
+    entries: dict[int, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = str(raw_value).strip()
+        if token.isdigit() and 1 <= int(token) <= 12:
+            entries[int(token)] = weight
+    return entries
+
+
+def _weighted_gate_entries(values: Any) -> dict[int, float]:
+    entries: dict[int, float] = {}
+    for raw_value, weight in _coerce_weighted_entries(values).items():
+        token = str(raw_value).strip()
+        if token.isdigit() and 1 <= int(token) <= 64:
+            entries[int(token)] = weight
+    return entries
+
+
 def _parse_house_token(token: str) -> int | None:
     match = re.fullmatch(r"H\s*(\d{1,2})", token.strip(), re.IGNORECASE)
     if not match:
@@ -231,46 +275,44 @@ def calculate_enneagram_type_weights(
     active_gates = _active_human_design_gates(chart)
 
     for enneagram_type, factors in enneagram.items():
-        signs = _normalize_string_set(factors.get("signs", set()))
-        antisigns = _normalize_string_set(factors.get("antisigns", set()))
-        bodies = _normalize_string_set(factors.get("bodies", set()))
-        antibodies = _normalize_string_set(factors.get("antibodies", set()))
-        nakshatras = _normalize_string_set(factors.get("nakshatras", set()))
-        antinakshatras = _normalize_string_set(factors.get("antinakshatras", set()))
-        houses = _normalize_house_set(factors.get("houses", set()))
-        antihouses = _normalize_house_set(factors.get("antihouses", set()))
-        gates = _normalize_gate_set(factors.get("gates", set()))
-        antigates = _normalize_gate_set(factors.get("antigates", set()))
-        positions = {str(value).strip() for value in factors.get("positions", set()) if str(value).strip()}
-        antipositions = {str(value).strip() for value in factors.get("antipositions", set()) if str(value).strip()}
-        aspects = {str(value).strip() for value in factors.get("aspects", set()) if str(value).strip()}
-        antiaspects = {str(value).strip() for value in factors.get("antiaspects", set()) if str(value).strip()}
+        signs = _weighted_string_entries(factors.get("signs", set()))
+        antisigns = _weighted_string_entries(factors.get("antisigns", set()))
+        bodies = _weighted_string_entries(factors.get("bodies", set()))
+        antibodies = _weighted_string_entries(factors.get("antibodies", set()))
+        nakshatras = _weighted_string_entries(factors.get("nakshatras", set()))
+        antinakshatras = _weighted_string_entries(factors.get("antinakshatras", set()))
+        houses = _weighted_house_entries(factors.get("houses", set()))
+        antihouses = _weighted_house_entries(factors.get("antihouses", set()))
+        gates = _weighted_gate_entries(factors.get("gates", set()))
+        antigates = _weighted_gate_entries(factors.get("antigates", set()))
+        positions = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("positions", set())).items() if str(value).strip()}
+        antipositions = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("antipositions", set())).items() if str(value).strip()}
+        aspects = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("aspects", set())).items() if str(value).strip()}
+        antiaspects = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("antiaspects", set())).items() if str(value).strip()}
 
-        sign_positive = sum(float(sign_weights.get(sign, 0.0)) for sign in signs)
-        sign_negative = sum(float(sign_weights.get(sign, 0.0)) for sign in antisigns)
-        body_positive = sum(float(body_weights.get(body, 0.0)) for body in bodies)
-        body_negative = sum(float(body_weights.get(body, 0.0)) for body in antibodies)
-        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in nakshatras)
-        nakshatra_negative = sum(
-            float(nakshatra_weights.get(nakshatra, 0.0)) for nakshatra in antinakshatras
-        )
+        sign_positive = sum(float(sign_weights.get(sign, 0.0)) * float(weight) for sign, weight in signs.items())
+        sign_negative = sum(float(sign_weights.get(sign, 0.0)) * float(weight) for sign, weight in antisigns.items())
+        body_positive = sum(float(body_weights.get(body, 0.0)) * float(weight) for body, weight in bodies.items())
+        body_negative = sum(float(body_weights.get(body, 0.0)) * float(weight) for body, weight in antibodies.items())
+        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * float(weight) for nakshatra, weight in nakshatras.items())
+        nakshatra_negative = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * float(weight) for nakshatra, weight in antinakshatras.items())
         house_positive = 0.0
         house_negative = 0.0
         if use_houses:
-            house_positive = sum(float(house_weights.get(house_num, 0.0)) for house_num in houses)
-            house_negative = sum(float(house_weights.get(house_num, 0.0)) for house_num in antihouses)
+            house_positive = sum(float(house_weights.get(house_num, 0.0)) * float(weight) for house_num, weight in houses.items())
+            house_negative = sum(float(house_weights.get(house_num, 0.0)) * float(weight) for house_num, weight in antihouses.items())
 
         gates_positive = 0.0
         gates_negative = 0.0
-        for gate in gates:
+        for gate, weight in gates.items():
             if gate in active_gates:
-                gates_positive += 6.0
-        for gate in antigates:
+                gates_positive += 6.0 * float(weight)
+        for gate, weight in antigates.items():
             if gate in active_gates:
-                gates_negative += 6.0
+                gates_negative += 6.0 * float(weight)
 
         positions_positive = 0.0
-        for raw_position in positions:
+        for raw_position, criterion_weight in positions.items():
             parsed = _parse_position_spec(raw_position)
             if parsed is None:
                 continue
@@ -301,14 +343,14 @@ def calculate_enneagram_type_weights(
                 if lon_value is not None and sign_for_longitude(lon_value) == container:
                     bonus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
             if bonus > 0:
-                positions_positive += bonus
+                positions_positive += bonus * float(criterion_weight)
                 _debug_log(
                     f"[Enneagram Debug] {chart_name}: type {enneagram_type} position TRUE -> "
                     f"'{raw_position}' (+{bonus:.2f})"
                 )
 
         positions_negative = 0.0
-        for raw_position in antipositions:
+        for raw_position, criterion_weight in antipositions.items():
             parsed = _parse_position_spec(raw_position)
             if parsed is None:
                 continue
@@ -339,10 +381,10 @@ def calculate_enneagram_type_weights(
                 if lon_value is not None and sign_for_longitude(lon_value) == container:
                     malus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
             if malus > 0:
-                positions_negative += malus
+                positions_negative += malus * float(criterion_weight)
 
         aspects_positive = 0.0
-        for raw_aspect in aspects:
+        for raw_aspect, criterion_weight in aspects.items():
             parsed = _parse_aspect_spec(raw_aspect)
             if parsed is None:
                 print(
@@ -364,7 +406,7 @@ def calculate_enneagram_type_weights(
                     + aspect_weight
                     + float(body_weights.get(right_body, 0.0))
                 )
-                aspects_positive += bonus
+                aspects_positive += bonus * float(criterion_weight)
                 _debug_log(
                     f"[Enneagram Debug] {chart_name}: type {enneagram_type} aspect TRUE -> "
                     f"'{raw_aspect}' (+{bonus:.2f})"
@@ -372,7 +414,7 @@ def calculate_enneagram_type_weights(
                 break
 
         aspects_negative = 0.0
-        for raw_aspect in antiaspects:
+        for raw_aspect, criterion_weight in antiaspects.items():
             parsed = _parse_aspect_spec(raw_aspect)
             if parsed is None:
                 print(
@@ -394,7 +436,7 @@ def calculate_enneagram_type_weights(
                     + aspect_weight
                     + float(body_weights.get(right_body, 0.0))
                 )
-                aspects_negative += malus
+                aspects_negative += malus * float(criterion_weight)
                 break
 
         type_multiplier = lambda category: _criterion_multiplier_for_type(factors, category)

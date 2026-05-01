@@ -4228,6 +4228,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 # Optional per-type criterion multipliers can be supplied via: "criterion_multipliers": {"houses":1.25,"signs":1.0,...}.
 # Omitted multipliers default to 1.0.
+# Individual criterion entries can also be weighted by switching set -> dict, e.g. "positions": {"Moon in Scorpio": 1.4, "Moon in Cancer": 0.8}.
+# This works for signs/bodies/houses/nakshatras/gates/positions/aspects (+ anti* variants).
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
     1:{ #sample size was 77, so that's ok, but could be better.
         "signs":{"Scorpio","Virgo","Cancer"}, #yeah, Cancer surprised me but that's what the data shows. My original guess was Virgo, Scorpio, Aquarius, Capricorn.
