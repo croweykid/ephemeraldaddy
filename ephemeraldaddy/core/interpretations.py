@@ -4223,7 +4223,7 @@ SOCIAL_ROLE = [
     "plow-horse", #can endure
 ]
 
-#enneagram (approximated)
+#enneagram (approximated). One problem with this system is some thing get double counted by 'dominant' and also fulfilling the positions of certain criteria.
 ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
 # Optional per-type criterion multipliers can be supplied via: "criterion_multipliers": {"houses":1.25,"signs":1.0,...}.
@@ -4233,20 +4233,20 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
 #Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
     1:{ #sample size was 77, so that's ok, but could be better.
         "name":"Idealist",
-        "signs":{"Scorpio","Virgo","Cancer"}, #yeah, Cancer surprised me but that's what the data shows. My original guess was Virgo, Scorpio, Aquarius, Capricorn.
-        "antisigns":{"Sagittarius"}, #subtract these
-        "houses":{1,3,10}, #it is a h10 thing, that's legit
-        "antihouses":{4,9,5}, #>5% negative correlations in the dataset of 77
+        "signs":{"Scorpio":6,"Virgo":4,"Cancer":9,"Taurus":6}, #Cancer=9 or 4. Virgo is 3 o4 4. Taurus is 6 or 5.yeah, Cancer surprised me but that's what the data shows. My original guess was Virgo, Scorpio, Aquarius, Capricorn.
+        "antisigns":{"Sagittarius":4,}, #subtract these
+        "houses":{1:8}, #it is a h10 thing, that's legit. 6%-10%
+        "antihouses":{9:5}, #>5% negative correlations in the dataset of 77
         "bodies":{}, #you'd think there'd be strong saturn, but no; maybe just because maybe it's more the character of Saturn (body dynamics) than generic Saturn dominance (body weight).
         "antibodies":{},
-        "nakshatras":{"Purva Phalguni","Swati","Bharani",}, #I thought Purva Ashadha would be positively represented, but it was the strongest negative correlation! Maybe this is a flaw in my qualitative data ranking...
+        "nakshatras":{"Purva Phalguni":7,"Mrigashira":5,"Chitra":5,"Krittika":4,"Swati":3,"Bharani":1,}, #I thought Purva Ashadha would be positively represented, but it was the strongest negative correlation! Maybe this is a flaw in my qualitative data ranking...
         "antinakshatras":{}, #not including Purva Ashadha yet because I feel like maybe I made a mistake...
-        "positions":{"Juno in Scorpio","Moon in H8","Moon in H1","Mercury in H3","Aquarius in H4","Sagittarius in H12","Capricorn in H1"}, #Neptune square Uranus was included, too, but since that's generational, I didn't want to  include it. Was it a fluke or not? Don't know...might imply some generations are more idealistic?
+        "positions":{"Sun in Scorpio":6,"Sun in Virgo":3,"Sun in Capricorn":4,"Sun in Taurus":4,"Juno in Scorpio":5,"Moon in H8":1,"Chiron in Taurus":6,"Vesta in Taurus":8,"Ceres in Pisces":5,"Mars in Virgo":5,"Juno in Pisces":6,"Mars in Taurus":5,"Vesta in Aquarius":6,"Cancer in H4":7,"Moon in H1":1,"Mercury in H3":11,"Mars in H11":12,"Fortune in H2":10,"Pluto in H3":10,"Venus in H3":10,"Chiron in H3":10,"Moon in H8":9,"Sun in H1":7,"Mars in H3":7,"Neptune in H10":6,"Pallas in H12":7,"Pisces in H3":8,"Capricorn in H1":6,}, #Neptune square Uranus was included, too, but since that's generational, I didn't want to  include it. Was it a fluke or not? Don't know...might imply some generations are more idealistic?
         "antipositions":{},
-        "aspects":{"Moon square Pallas","Mars trine Pallas","DS trine Mars","AS sextile Pluto","AS square Sun","DS trine Pluto","Jupiter sextile MC","Chiron sextile IC","DS square Juno","DS conjunction Moon","Ketu square Mercury","Mercury trine Saturn","Moon trine Vesta","Juno sextile Mercury","Mars sextile Pallas",},
-        "antiaspects":{"Neptune sextile Pluto"},
-        "gates":{7,62,4,12,42,61,37,3},
-        "antigates":{34,57,20,46,58,19,60,5,56,38,19,56},
+        "aspects":{"Moon square Pallas":7,"Mars trine Pallas":7,"DS trine Mars":14,"Juno opposition Vesta":7,"Pluto opposition Vesta":6,"AS square Sun":8,"IC trine Moon":10,"Jupiter sextile Pluto":6,"Ketu square Mercury":6,"Moon trine Vesta":6,"Pallas conjunction Uranus":7,"Mercury square Rahu":6,"Fortune square Pluto":5,"AS sextile Pluto":8,"DS trine Pluto":6,"Chiron sextile IC":8}, #"Jupiter sextile MC":1,"DS square Juno":1,"DS conjunction Moon":1,"Mercury trine Saturn":1,"Juno sextile Mercury":1,
+        "antiaspects":{"Neptune sextile Pluto":13},
+        "gates":{7:13,62:12,4:9,42:8,61:6,37:8,3:6,2:7,51:6}, #12:1,
+        "antigates":{57:7,20:6,27:7,46:6,19:8,60:14,5:8,56:14,38:5,19:8,34:8,17:8},
         #"channels":{[24,61],},
         #"antichannels":{[20,34],[34,57],[20,57]},
         "centers":{},
@@ -4367,20 +4367,21 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
     5:{
-        "name":"Datahoarder", #Scholar, Permastudent
-        "signs":{"Gemini","Cancer",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
-        "antisigns":{"Virgo","Sagittarius","Scorpio",},
-        "houses":{3,6},
-        "antihouses":{4},
-        "bodies":{}, #"Mercury","Pluto","Pallas"
-        "antibodies":{"Jupiter"},
-        "nakshatras":{"Mrigashira","Bharani",}, #"Purva Phalguni","Krittika","Vishakha"        "antinakshatras":{"Hasta",}, #"Swati","Pushya","Purva Bhadrapada" 
-        "positions":{"Sun in Cancer","Sun in Gemini","Sun in Taurus","Moon in Aries","Mercury in Gemini","Mercury in Taurus","Mars in Capricorn","Moon in Pisces","Venus in Aries","Venus in Gemini","Venus in Scorpio","Mars in Libra","Jupiter in Gemini","Uranus in Aquarius","Uranus in Taurus","Scorpio in H1","Gemini in H1","Virgo in H10","Pallas in Aquarius","Mercury in H3","Venus in H4","Vesta in H7","Mercury in H12","Moon in H6","Venus in H3","Capricorn in H8"},
+        "name":"Investigator", #Scholar, Permastudent, Datahoarder, Researcher, Hermit
+        "signs":{"Gemini":14,"Cancer":5,"Libra":4,"Aries":4}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
+        "antisigns":{"Aquarius":6,"Sagittarius":6,"Scorpio":8,"Virgo":6},
+        "houses":{3:12,6:11}, #"I came here to chew work and collect data. And I'm all outta work..."
+        "antihouses":{4:8,10:6}, #Who knew. Nerdiness & public status are evidently antithetical...
+        "bodies":{"Moon":4,"Venus":4,"Neptune":6}, #"Mercury","Pluto","Pallas"
+        "antibodies":{"Jupiter":12,"Pluto":6},
+        "nakshatras":{"Mrigashira":11,"Bharani":6,"Chitra":5,"Krittika":5,"Punarvasu":4}, #"Purva Phalguni","Krittika","Vishakha"        
+        "antinakshatras":{"Purva Ashadha":5,"Hasta":6,}, #"Swati","Pushya","Purva Bhadrapada" 
+        "positions":{"Sun in Cancer":6,"Sun in Gemini":3,"Sun in Taurus":4,"Sun in Virgo":3,"Sun in Scorpio":3,"Moon in Aries":3,"Moon in Cancer":3,"Moon in Pisces":3,"Mercury in Gemini":5,"Mercury in Taurus":8,"Venus in Aries":8,"Venus in Gemini":8,"Venus in Scorpio":6,"Mars in Libra":11,"Mars in Capricorn":8,"Jupiter in Gemini":11,"Saturn in Leo":5,"Scorpio in H1":7,"Gemini in H1":4,"Virgo in H10":9,"Cancer in H2":9,"Pallas in Aquarius":1,"Mercury in H3":1,"Venus in H4":1,"Vesta in H7":1,"Mercury in H12":1,"Moon in H6":1,"Venus in H3":1,"Capricorn in H8":1},
         "antipositions":{"Sun in Leo","Sun in Libra","Sun in Sagittarius","Sun in Pisces","Moon in Scorpio","Moon in Capricorn","Venus in Capricorn","Venus in Sagittarius","Mars in Scorpio","Mars in Aquarius","Jupiter in Cancer","Jupiter in Leo","Uranus in Virgo","Leo in H1","Sagittarius in H1","Libra in H10"},
-        "aspects":{"Ceres square Jupiter","Moon trine Pallas","Fortune square Vesta","Chiron trine Mars","Uranus square Venus","Chiron square Pluto","Neptune sextile Sun","Moon square Lilith"}, #but in what signs?
-        "antiaspects":{"Chiron opposition Uranus"},
-        "gates":{57,7,23,31,12,45,46,17,27,36,8,22,25,},
-        "antigates":{43,50,29,44,5,56,54,40,59,19},
+        "aspects":{"Sun conjunction Venus":11,"Ceres square Jupiter":10,"Mercury conjunction Venus":5,"Moon trine Pallas":10,"Fortune square Vesta":9,"Chiron trine Mars":10,"Uranus square Venus":10,"Chiron square Pluto":9,"Neptune sextile Sun":7,"Moon square Lilith":8,"Juno trine Moon":7,"Juno square Ketu":7,"Jupiter square Rahu":7,"Ceres square Lilith":7,"Chiron square Fortune":7,"Ketu trine Vesta":6,"Neptune sextile Sun":7,"Saturn trine Lilith":6,"IC conjunction Venus":14,"IC square Jupiter":10,"IC square Vesta":9,"IC trine Neptune":10,}, #there are more. Also: 'but in what signs??'
+        "antiaspects":{"Chiron opposition Uranus":16},
+        "gates":{57:11,7:13,23:14,31:11,12:10,45:8,46:10,17:12,27:8,36:9,8:11,22:8,25:6,24:6},
+        "antigates":{43:8,50:10,29:11,44:17,5:10,56:8,54:8,40:12,59:28,19:12,63:8},
         "channels":{},
         "antichannels":{},
         "centers":{},
@@ -4397,7 +4398,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'I'm so glad I got burned, / think of all the things we learned / from the people who are / still alive. / And believe me I'm still alive. / I'm doing science and I'm still alive.' - Portal Soundtrack, Still Alive","'There is research to be done, / and we made a neat gun / for the people who are / still alive...' - Portal soundtrack, Still Alive","'Well they gave me medication so I feel how I imagine people of average intelligence feel all the time.' - Dr. Temperance Bones, Bones"},
         },
     6:{
-        "name":"Loyalist", #acolyte 
+        "name":"Loyalist", #Acolyte, authority
         "signs":{"Aries","Virgo","Capricorn","Libra"},
         "antisigns":{"Scorpio","Sagittarius","Leo"},
         "houses":{12,2,6}, #6 was only weakly represented
@@ -4462,7 +4463,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'Hey, I just met you / and this is crazy / but here's my number / so call me maybe...' - Carly Rae Jepsen, Call Me Maybe","'This is the day you will always remember as the day you almost caught Captain Jack Sparrow.' - Capt. Jack Sparrow, Pirates of the Caribbean","'What’s the hassle, Schmasel?' - Bugs Bunny","'Well, like the Romans always say … E pluribus uranium.' - Bugs Bunny"},
         },
     8:{
-        "name":"Philarch", #crushinator
+        "name":"Barbarian", #Philarch, crushinator, czar, dominatrix, social darwinist, The Ruler
         "signs":{"Aries","Libra"}, #"Sagittarius","Leo"
         "antisigns":{},
         "houses":{10,4},
