@@ -40,6 +40,24 @@ ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
     "positions": 1.0,
     "aspects": 1.0,
 }
+
+
+def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
+    """Override runtime category weights used by Enneagram predictions."""
+    global ENNEAGRAM_CATEGORY_WEIGHTS
+    base = {"signs": 1.0, "bodies": 1.0, "nakshatras": 1.0, "houses": 1.0, "gates": 1.0, "positions": 1.0, "aspects": 1.0}
+    if not isinstance(overrides, dict):
+        ENNEAGRAM_CATEGORY_WEIGHTS = base
+        return
+    merged = dict(base)
+    for key, value in overrides.items():
+        if key in merged:
+            try:
+                merged[key] = float(value)
+            except (TypeError, ValueError):
+                continue
+    ENNEAGRAM_CATEGORY_WEIGHTS = merged
+
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
     "part of fortune": "Part of Fortune",

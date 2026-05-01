@@ -1600,3 +1600,61 @@ QComboBox QAbstractItemView {
             f"{summary.get('rows_updated', 0)} chart(s).",
         )
         self._reload_usage(refresh_chart_context=True, keep_selection_label=into_label)
+
+ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
+    ("signs", "Signs"),
+    ("bodies", "Bodies"),
+    ("nakshatras", "Nakshatras"),
+    ("houses", "Houses"),
+    ("gates", "HD Gates"),
+    ("positions", "Positions"),
+    ("aspects", "Aspects"),
+)
+
+def build_enneagram_predictor_settings_section(
+    *,
+    dialog: QDialog,
+    section_layout: QVBoxLayout,
+    subheader_style: str,
+    on_mode_default_toggled: Callable[[bool], None],
+    on_mode_custom_toggled: Callable[[bool], None],
+    on_weight_changed: Callable[[str, float], None],
+) -> dict[str, object]:
+    label = QLabel("Enneagram Predictor")
+    label.setStyleSheet(subheader_style)
+    section_layout.addWidget(label)
+    section_layout.addWidget(QLabel("Choose default or custom category-type weighting."))
+    default_radio = QRadioButton("use default")
+    custom_radio = QRadioButton("use custom")
+    group = QButtonGroup(dialog)
+    group.setExclusive(True)
+    group.addButton(default_radio)
+    group.addButton(custom_radio)
+    default_radio.toggled.connect(on_mode_default_toggled)
+    custom_radio.toggled.connect(on_mode_custom_toggled)
+    section_layout.addWidget(default_radio)
+    section_layout.addWidget(custom_radio)
+
+    grid = QGridLayout()
+    grid.addWidget(QLabel("Criteria property"), 0, 0)
+    grid.addWidget(QLabel("Weight"), 0, 1)
+    weight_boxes: dict[str, QDoubleSpinBox] = {}
+    total_label = QLabel("0.00")
+    for idx, (key, title) in enumerate(ENNEAGRAM_CATEGORY_FACTOR_ROWS, start=1):
+        grid.addWidget(QLabel(title), idx, 0)
+        spin = QDoubleSpinBox()
+        spin.setDecimals(2)
+        spin.setRange(0.0, 5.0)
+        spin.setSingleStep(0.05)
+        spin.valueChanged.connect(lambda _v, row_key=key, box=spin: on_weight_changed(row_key, float(box.value())))
+        grid.addWidget(spin, idx, 1)
+        weight_boxes[key] = spin
+    grid.addWidget(QLabel("Selected Total"), len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 0)
+    grid.addWidget(total_label, len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 1)
+    section_layout.addLayout(grid)
+    return {
+        "default_radio": default_radio,
+        "custom_radio": custom_radio,
+        "weight_spinboxes": weight_boxes,
+        "total_label": total_label,
+    }
