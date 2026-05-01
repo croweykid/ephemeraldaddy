@@ -4333,8 +4333,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"3s are sort of narcissist-coded, but that doesn't have to be malignant. It can result in materialism, or it could result in extreme competence. Sometimes 3s are mistaken for 1s because they appear driven by perfectionism. But rather than pursuit of perfection/ideals (e1) or competence (e5) for their own sake, 3s are driven by the pursuit of recognition for that competence. Arguably, the easier the trophies and accolades come, the less hard 3s will need to try. The point here is not the conditions of victory, but the recognition of their superiority over others; the status and attention of being president more than the power of owning the red button. They will live and die for that gold star on their paper, and the knowledge that other people know they got it.",
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
-    4:{
-        "name":"Artist", #assessed with Similarities Analysis AND DB Analytics.
+    4:{ #assessed with Similarities Analysis AND DB Analytics.
+        "name":"Artist", 
         "signs":{"Aquarius","Pisces"}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
         "antisigns":{"Libra","Aries","Cancer"}, #Cap was negative 3% & Leo was neg 1%, but that's because Cap trends e2 and Leo trends e3, I suspect.
         "houses":{}, #1 & 5, but only 1-2% difference from norms
@@ -4367,7 +4367,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
     5:{
-        "name":"Scholar",
+        "name":"Datahoarder", #Scholar, Permastudent
         "signs":{"Gemini","Cancer",}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
         "antisigns":{"Virgo","Sagittarius","Scorpio",},
         "houses":{3,6},
