@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import random
 import re
+import statistics
 from typing import Any, Callable
 
 from ephemeraldaddy.core.interpretations import (
@@ -19,8 +20,10 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_planet_weights,
     calculate_dominant_house_weights,
     calculate_dominant_nakshatra_weights,
+    calculate_dominant_sign_weights,
     house_for_longitude,
 )
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
@@ -522,6 +525,8 @@ def draw_enneagram_predictions(
     type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
+    avg_value = (sum(values) / len(values)) if values else 0.0
+    median_value = float(statistics.median(values)) if values else 0.0
 
     enneagram_colors = [
         str(enneagram.get(num, {}).get("color", fallback_bar_color))
@@ -529,22 +534,28 @@ def draw_enneagram_predictions(
     ]
     bars = ax.bar(type_labels, values, color=enneagram_colors)
     apply_standard_bar_axes(ax, type_labels)
+    for index, tick_label in enumerate(ax.get_xticklabels(), start=1):
+        tick_label.set_picker(True)
+        tick_label.set_gid(f"enneagram_label:{index}")
     ax.set_ylim(0, max(1.0, max_value + 1.0))
     ax.set_anchor("W")
-    label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
+    ax.axhline(
+        avg_value,
+        color="#ff0000",
+        linestyle=(0, (3, 2)),
+        linewidth=1.1,
+        alpha=0.95,
+    )
+    ax.axhline(
+        median_value,
+        color="#8b0000",
+        linestyle=(0, (5, 3)),
+        linewidth=1.2,
+        alpha=0.95,
+    )
     for type_num, bar, type_label in zip(range(1, 10), bars, type_labels, strict=True):
         bar.set_gid(f"enneagram:{type_num}")
         bar.set_picker(True)
-        score = bar.get_height()
-        ax.text(
-            bar.get_x() + (bar.get_width() / 2.0),
-            max(score, 0.0) + label_offset,
-            f"{score:.0f}",
-            ha="center",
-            va="bottom",
-            color=text_color,
-            fontsize=7.5,
-        )
     for spine in ax.spines.values():
         spine.set_color(spine_color)
     ax.figure.tight_layout()
@@ -581,15 +592,21 @@ def build_enneagram_popout_info_html(
         type_scores = calculate_type_weights(chart)
         selected_score = float(type_scores.get(int(enneagram_type), 0.0))
         factors = enneagram.get(int(enneagram_type), {})
-        sign_weights = getattr(chart, "dominant_sign_weights", None) or {}
-        body_weights = getattr(chart, "dominant_planet_weights", None) or {}
-        nak_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
+        sign_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_sign_weights", None) or calculate_dominant_sign_weights(chart)
+        )
+        body_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_planet_weights", None) or calculate_dominant_planet_weights(chart)
+        )
+        nak_weights = _normalize_weight_map_by_range(
+            getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
+        )
         use_houses = chart_uses_houses(chart)
-        house_weights = (
+        house_weights = _normalize_weight_map_by_range((
             (getattr(chart, "dominant_house_weights", None) or calculate_dominant_house_weights(chart))
             if use_houses
             else {}
-        )
+        ))
         body_house_lookup: dict[str, int] = {}
         if use_houses:
             for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
@@ -714,16 +731,53 @@ def build_enneagram_popout_info_html(
             if category == "body_in_house" and isinstance(container, int):
                 body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
                 house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
-                return f"<li>{body_html} in {house_html}: ✓ parsed</li>"
+                score = float(body_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
+                matched = body_house_lookup.get(str(subject)) == container
+                return f"<li>{body_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
             if category == "sign_in_house" and isinstance(container, int):
                 sign_html = _color_token(str(subject), SIGN_COLORS.get(str(subject), text_color))
                 house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
-                return f"<li>{sign_html} in {house_html}: ✓ parsed</li>"
+                score = float(sign_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
+                matched = False
+                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
+                    body = _normalize_factor_value(str(raw_body))
+                    if body_house_lookup.get(body) != container:
+                        continue
+                    try:
+                        if sign_for_longitude(float(lon)) == str(subject):
+                            matched = True
+                            break
+                    except (TypeError, ValueError):
+                        continue
+                return f"<li>{sign_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
             if category == "body_in_sign" and isinstance(container, str):
                 body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
                 sign_html = _color_token(container, SIGN_COLORS.get(container, text_color))
-                return f"<li>{body_html} in {sign_html}: ✓ parsed</li>"
+                score = float(body_weights.get(str(subject), 0.0)) + float(sign_weights.get(container, 0.0))
+                body_lon = (getattr(chart, "positions", None) or {}).get(str(subject))
+                matched = False
+                try:
+                    matched = sign_for_longitude(float(body_lon)) == container
+                except (TypeError, ValueError):
+                    pass
+                return f"<li>{body_html} in {sign_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
             return f"<li>{html.escape(raw_position)}: ✓ parsed</li>"
+        def _format_aspect_item(raw_aspect: str) -> str:
+            parsed_aspect = _parse_aspect_spec(raw_aspect)
+            if parsed_aspect is None:
+                return f"<li>{html.escape(raw_aspect)}: ✗ parse error</li>"
+            left_body, aspect_type, right_body = parsed_aspect
+            score = (
+                float(body_weights.get(left_body, 0.0))
+                + float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
+                + float(body_weights.get(right_body, 0.0))
+            )
+            matched = any(
+                { _normalize_factor_value(str(a.get("p1", ""))), _normalize_factor_value(str(a.get("p2", ""))) } == {left_body, right_body}
+                and str(a.get("type", "")).strip().lower() == aspect_type
+                for a in (getattr(chart, "aspects", None) or [])
+            )
+            return f"<li>{html.escape(raw_aspect)}: {'✓' if matched else '✗'} score {score:.4f}</li>"
         position_items = "".join(
             _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
@@ -732,6 +786,8 @@ def build_enneagram_popout_info_html(
             _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('antipositions', set()) if str(v).strip()})
         ) or "<li>None</li>"
+        aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()})) or "<li>None</li>"
+        anti_aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()})) or "<li>None</li>"
         formula_bits = ", ".join(
             f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
         )
@@ -816,7 +872,7 @@ def connect_enneagram_popout_pick_handler(
         if not isinstance(artist_gid, str) or ":" not in artist_gid:
             return
         chart_key, raw_value = artist_gid.split(":", 1)
-        if chart_key != "enneagram":
+        if chart_key not in {"enneagram", "enneagram_label"}:
             return
         try:
             enneagram_type = int(raw_value)
