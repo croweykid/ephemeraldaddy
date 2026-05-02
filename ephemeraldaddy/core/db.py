@@ -124,6 +124,13 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "birth_month": 0,
     "birth_day": 0,
     "birth_year": 0,
+    "death_month": 0,
+    "death_day": 0,
+    "death_year": 0,
+    "deathtime_unknown": 0,
+    "death_hour": 0,
+    "death_minute": 0,
+    "death_place": "",
     "is_current": 0,
 }
 
@@ -328,6 +335,13 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             birth_month       INTEGER,
             birth_day         INTEGER,
             birth_year        INTEGER,
+            death_month       INTEGER,
+            death_day         INTEGER,
+            death_year        INTEGER,
+            deathtime_unknown INTEGER NOT NULL DEFAULT 0,
+            death_hour        INTEGER,
+            death_minute      INTEGER,
+            death_place       TEXT,
             created_at        TEXT NOT NULL,
             is_current        INTEGER NOT NULL DEFAULT 0
         )
@@ -795,6 +809,20 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN birth_year INTEGER
             """
         )
+    if "death_month" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_month INTEGER")
+    if "death_day" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_day INTEGER")
+    if "death_year" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_year INTEGER")
+    if "deathtime_unknown" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN deathtime_unknown INTEGER NOT NULL DEFAULT 0")
+    if "death_hour" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_hour INTEGER")
+    if "death_minute" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_minute INTEGER")
+    if "death_place" not in columns:
+        conn.execute("ALTER TABLE charts ADD COLUMN death_place TEXT")
 
 
     conn.execute(
@@ -950,7 +978,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
     _create_duplicate_exclusions_table(conn)
-    _prune_duplicate_exclusions(conn)
+    if _charts_table_exists(conn):
+        _prune_duplicate_exclusions(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
@@ -2100,8 +2129,10 @@ def append_database(source: Path) -> dict[str, Any]:
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
-                         is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_placeholder, is_deceased, birth_month, birth_day, birth_year,
+                         death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
+                         created_at, is_current)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2164,6 +2195,13 @@ def append_database(source: Path) -> dict[str, Any]:
                         int(birth_month) if birth_month is not None else None,
                         int(birth_day) if birth_day is not None else None,
                         int(birth_year) if birth_year is not None else None,
+                        int(_row_value("death_month")) if _row_value("death_month") is not None else None,
+                        int(_row_value("death_day")) if _row_value("death_day") is not None else None,
+                        int(_row_value("death_year")) if _row_value("death_year") is not None else None,
+                        int(_row_value("deathtime_unknown") or 0),
+                        int(_row_value("death_hour")) if _row_value("death_hour") is not None else None,
+                        int(_row_value("death_minute")) if _row_value("death_minute") is not None else None,
+                        _row_value("death_place"),
                         _row_value("created_at") or now_iso,
                         0,
                     ),
@@ -2220,6 +2258,13 @@ def save_chart(
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
+    death_month: Optional[int] = None,
+    death_day: Optional[int] = None,
+    death_year: Optional[int] = None,
+    deathtime_unknown: Optional[bool] = None,
+    death_hour: Optional[int] = None,
+    death_minute: Optional[int] = None,
+    death_place: Optional[str] = None,
     retcon_hour: Optional[int] = None,
     retcon_minute: Optional[int] = None,
 ) -> int:
@@ -2288,8 +2333,15 @@ def save_chart(
                  birth_month,
                  birth_day,
                  birth_year,
+                 death_month,
+                 death_day,
+                 death_year,
+                 deathtime_unknown,
+                 death_hour,
+                 death_minute,
+                 death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2398,6 +2450,13 @@ def save_chart(
                 birth_month,
                 birth_day,
                 birth_year,
+                death_month if death_month is not None else getattr(chart, "death_month", None),
+                death_day if death_day is not None else getattr(chart, "death_day", None),
+                death_year if death_year is not None else getattr(chart, "death_year", None),
+                int(deathtime_unknown if deathtime_unknown is not None else bool(getattr(chart, "deathtime_unknown", False))),
+                death_hour if death_hour is not None else getattr(chart, "death_hour", None),
+                death_minute if death_minute is not None else getattr(chart, "death_minute", None),
+                death_place if death_place is not None else getattr(chart, "death_place", None),
                 datetime.utcnow().isoformat(timespec="seconds"),
             ),
         )
@@ -2451,6 +2510,13 @@ def update_chart(
     birth_month: Optional[int] = None,
     birth_day: Optional[int] = None,
     birth_year: Optional[int] = None,
+    death_month: Optional[int] = None,
+    death_day: Optional[int] = None,
+    death_year: Optional[int] = None,
+    deathtime_unknown: Optional[bool] = None,
+    death_hour: Optional[int] = None,
+    death_minute: Optional[int] = None,
+    death_place: Optional[str] = None,
     retcon_hour: Optional[int] = None,
     retcon_minute: Optional[int] = None,
 ) -> None:
@@ -2558,7 +2624,14 @@ def update_chart(
                 is_deceased = ?,
                 birth_month = ?,
                 birth_day = ?,
-                birth_year = ?
+                birth_year = ?,
+                death_month = ?,
+                death_day = ?,
+                death_year = ?,
+                deathtime_unknown = ?,
+                death_hour = ?,
+                death_minute = ?,
+                death_place = ?
             WHERE id = ?
             """,
             (
@@ -2668,6 +2741,13 @@ def update_chart(
                 birth_month,
                 birth_day,
                 birth_year,
+                death_month if death_month is not None else getattr(chart, "death_month", None),
+                death_day if death_day is not None else getattr(chart, "death_day", None),
+                death_year if death_year is not None else getattr(chart, "death_year", None),
+                int(deathtime_unknown if deathtime_unknown is not None else bool(getattr(chart, "deathtime_unknown", False))),
+                death_hour if death_hour is not None else getattr(chart, "death_hour", None),
+                death_minute if death_minute is not None else getattr(chart, "death_minute", None),
+                death_place if death_place is not None else getattr(chart, "death_place", None),
                 chart_id,
             ),
         )
@@ -2959,7 +3039,8 @@ def load_chart(chart_id: int):
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                COALESCE(chart_type, source),
-               is_placeholder, is_deceased, birth_month, birth_day, birth_year
+               is_placeholder, is_deceased, birth_month, birth_day, birth_year,
+               death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place
         FROM charts
         WHERE id = ?
         """,
@@ -3032,6 +3113,13 @@ def load_chart(chart_id: int):
         birth_month,
         birth_day,
         birth_year,
+        death_month,
+        death_day,
+        death_year,
+        deathtime_unknown,
+        death_hour,
+        death_minute,
+        death_place,
     ) = row
 
     from ephemeraldaddy.core.chart import Chart  # avoid circular import
@@ -3110,6 +3198,13 @@ def load_chart(chart_id: int):
         placeholder.birth_month = birth_month
         placeholder.birth_day = birth_day
         placeholder.birth_year = birth_year
+        placeholder.death_month = death_month
+        placeholder.death_day = death_day
+        placeholder.death_year = death_year
+        placeholder.deathtime_unknown = bool(deathtime_unknown)
+        placeholder.death_hour = death_hour
+        placeholder.death_minute = death_minute
+        placeholder.death_place = death_place or ""
         placeholder.positions = {}
         placeholder.retrogrades = {}
         placeholder.houses = []
@@ -3185,6 +3280,13 @@ def load_chart(chart_id: int):
     chart.birth_month = birth_month
     chart.birth_day = birth_day
     chart.birth_year = birth_year
+    chart.death_month = death_month
+    chart.death_day = death_day
+    chart.death_year = death_year
+    chart.deathtime_unknown = bool(deathtime_unknown)
+    chart.death_hour = death_hour
+    chart.death_minute = death_minute
+    chart.death_place = death_place or ""
     apply_time_specific_metadata_policy(chart)
     chart.use_birth_time_data = chart_uses_houses(chart)
     return chart

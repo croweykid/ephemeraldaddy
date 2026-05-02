@@ -172,6 +172,13 @@ class Chart:
         self.retcon_minute = None
         self.use_birth_time_data = True
         self.is_deceased = False
+        self.death_month = None
+        self.death_day = None
+        self.death_year = None
+        self.deathtime_unknown = False
+        self.death_hour = None
+        self.death_minute = None
+        self.death_place = ""
         self._explicit_tz = tz
         self.used_utc_fallback = False  # will be set if tz inference falls back to UTC
         # # Now self.dt is guaranteed tz-aware:
