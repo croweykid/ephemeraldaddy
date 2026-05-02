@@ -274,6 +274,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Signs", "dominant_signs"),
                 ("Sign Prevalence", "sign_prevalence"),
             ],
+            footer_text="<b>Avg Weight:</b> 0, <b>Median:</b> 0<br><b>Min:</b> 0, <b>Max:</b> 0, <b>Range:</b> 0, <b>Total:</b> 0",
             expanded=False,
         )
         self.add_section(
@@ -324,6 +325,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Houses", "dominant_houses"),
                 ("House Prevalence", "house_prevalence"),
             ],
+            footer_text="<b>Avg Weight:</b> 0, <b>Median:</b> 0<br><b>Min:</b> 0, <b>Max:</b> 0, <b>Range:</b> 0, <b>Total:</b> 0",
             expanded=False,
         )
         self.add_section(
@@ -362,6 +364,7 @@ class ChartAnalysisSectionsController:
                 ("Dominant Nakshatras", "dominant_nakshatras"),
                 ("Nakshatra Prevalence", "nakshatra_prevalence"),
             ],
+            footer_text="<b>Avg Weight:</b> 0, <b>Median:</b> 0<br><b>Min:</b> 0, <b>Max:</b> 0, <b>Range:</b> 0, <b>Total:</b> 0",
             expanded=False,
         )
         self.add_section(

@@ -22573,6 +22573,7 @@ class MainWindow(QMainWindow):
         for tick_label, sign in zip(ax.get_xticklabels(), signs, strict=True):
             tick_label.set_gid(f"sign:{sign}")
             tick_label.set_picker(True)
+        draw_weight_distribution_reference_lines(ax, values)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         ax.set_ylim(0, max(1, max_value + 1))
         # ax.margins(x=0.03)
@@ -22714,6 +22715,7 @@ class MainWindow(QMainWindow):
         for bar, house_num in zip(bars, house_numbers, strict=True):
             bar.set_gid(f"house:{house_num}")
             bar.set_picker(True)
+        draw_weight_distribution_reference_lines(ax, values)
         ax.set_ylim(0, max(1, max_value + 1))
         ax.margins(x=0.03)
         ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5") #white-ish
@@ -22828,6 +22830,7 @@ class MainWindow(QMainWindow):
         for bar, nakshatra_name in zip(bars, nakshatras, strict=True):
             bar.set_picker(True)
             bar.set_gid(nakshatra_name)
+        draw_weight_distribution_reference_lines(ax, values)
         _apply_nakshatra_tick_info_markers(ax, nakshatras)
 
         ax.set_ylim(0, max(1, max_value + 1))
@@ -27214,6 +27217,11 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_sign_tally,
             chart=chart,
         )
+        self._update_distribution_footer(
+            "dominant_signs",
+            self._dominant_sign_distribution_weights(chart),
+            total_title="the sum of all this chart's sign weights",
+        )
 
     def _render_planet_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -27269,6 +27277,23 @@ class MainWindow(QMainWindow):
         )
         chart_ruler_label.setText(f"<b>Chart Ruler:</b> {ruler_html}<br>{distribution_html}")
 
+    def _update_distribution_footer(self, section_key: str, values: list[float], *, total_title: str) -> None:
+        footer_label = self._chart_analysis_footer_labels.get(section_key)
+        if footer_label is None:
+            return
+        footer_label.setText(format_weight_distribution_html(values, total_title=total_title))
+
+    def _dominant_sign_distribution_weights(self, chart: Chart | None) -> list[float]:
+        if chart is None:
+            return []
+        mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
+        weighted_counts = (
+            _calculate_sign_prevalence_counts(chart)
+            if mode == "sign_prevalence"
+            else _calculate_dominant_sign_weights(chart)
+        )
+        return [float(weight) for weight in weighted_counts.values() if isinstance(weight, (int, float))]
+
     def _dominant_body_distribution_weights(self, chart: Chart | None) -> list[float]:
         if chart is None:
             return []
@@ -27282,6 +27307,28 @@ class MainWindow(QMainWindow):
             for weight in weighted_counts.values()
             if isinstance(weight, (int, float))
         ]
+
+    def _dominant_house_distribution_weights(self, chart: Chart | None) -> list[float]:
+        if chart is None:
+            return []
+        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
+        weighted_counts = (
+            _calculate_house_prevalence_counts(chart)
+            if mode == "house_prevalence"
+            else _calculate_dominant_house_weights(chart)
+        )
+        return [float(weight) for weight in weighted_counts.values() if isinstance(weight, (int, float))]
+
+    def _dominant_nakshatra_distribution_weights(self, chart: Chart | None) -> list[float]:
+        if chart is None:
+            return []
+        mode = self._chart_analysis_selected_mode("nakshatra_prevalence", "nakshatra_prevalence")
+        weighted_counts = (
+            _calculate_nakshatra_prevalence_counts(chart)
+            if mode == "nakshatra_prevalence"
+            else _calculate_dominant_nakshatra_weights(chart)
+        )
+        return [float(weight) for weight in weighted_counts.values() if isinstance(weight, (int, float))]
 
     def _dominant_body_distribution_metric_color(self, metric_key: str, metric_value: float) -> str | None:
         norms = getattr(self, "_database_weight_norms", None)
@@ -27311,6 +27358,11 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_house_tally,
             chart=chart,
         )
+        self._update_distribution_footer(
+            "dominant_houses",
+            self._dominant_house_distribution_weights(chart),
+            total_title="the sum of all this chart's house weights",
+        )
 
     def _render_element_tally(self, chart: Chart) -> None:
         self._render_metric_panel(
@@ -27334,6 +27386,11 @@ class MainWindow(QMainWindow):
             title="Dominant Nakshatras" if selected_mode == "dominant_nakshatras" else "Nakshatra Prevalence",
             draw_fn=self._draw_nakshatra_wordcloud,
             chart=chart,
+        )
+        self._update_distribution_footer(
+            "nakshatra_prevalence",
+            self._dominant_nakshatra_distribution_weights(chart),
+            total_title="the sum of all this chart's nakshatra weights",
         )
 
     def _render_modal_distribution(self, chart: Chart) -> None:
