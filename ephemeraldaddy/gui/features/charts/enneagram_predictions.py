@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import random
 import re
+import statistics
 from typing import Any, Callable
 
 from ephemeraldaddy.core.interpretations import (
@@ -522,6 +523,8 @@ def draw_enneagram_predictions(
     type_scores = calculate_type_weights(chart)
     values = [float(type_scores.get(num, 0.0)) for num in range(1, 10)]
     max_value = max(values) if values else 0.0
+    avg_value = (sum(values) / len(values)) if values else 0.0
+    median_value = float(statistics.median(values)) if values else 0.0
 
     enneagram_colors = [
         str(enneagram.get(num, {}).get("color", fallback_bar_color))
@@ -531,20 +534,23 @@ def draw_enneagram_predictions(
     apply_standard_bar_axes(ax, type_labels)
     ax.set_ylim(0, max(1.0, max_value + 1.0))
     ax.set_anchor("W")
-    label_offset = max(0.15, (max_value * 0.02) if max_value else 0.15)
+    ax.axhline(
+        avg_value,
+        color="#ff0000",
+        linestyle=(0, (3, 2)),
+        linewidth=1.1,
+        alpha=0.95,
+    )
+    ax.axhline(
+        median_value,
+        color="#8b0000",
+        linestyle=(0, (5, 3)),
+        linewidth=1.2,
+        alpha=0.95,
+    )
     for type_num, bar, type_label in zip(range(1, 10), bars, type_labels, strict=True):
         bar.set_gid(f"enneagram:{type_num}")
         bar.set_picker(True)
-        score = bar.get_height()
-        ax.text(
-            bar.get_x() + (bar.get_width() / 2.0),
-            max(score, 0.0) + label_offset,
-            f"{score:.0f}",
-            ha="center",
-            va="bottom",
-            color=text_color,
-            fontsize=7.5,
-        )
     for spine in ax.spines.values():
         spine.set_color(spine_color)
     ax.figure.tight_layout()
