@@ -19941,6 +19941,7 @@ class MainWindow(QMainWindow):
 
         self.deceased_checkbox = QCheckBox("💀")
         self.deceased_checkbox.setToolTip("Mark this chart as deceased")
+        self.deceased_checkbox.toggled.connect(self._on_deceased_toggled)
         self.deceased_checkbox.toggled.connect(self._mark_lucygoosey)
 
         birth_time_row = QHBoxLayout()
@@ -19964,6 +19965,44 @@ class MainWindow(QMainWindow):
         birth_time_row.addWidget(self.retcon_time_edit, 0)
         birth_time_row.addStretch(1)
         form.addRow("", birth_time_row)
+        self.death_row_widget = QWidget()
+        death_row = QHBoxLayout()
+        death_row.setContentsMargins(8, 0, 0, 0)
+        death_row.setSpacing(8)
+        self.death_month_edit = QLineEdit()
+        self.death_month_edit.setMaxLength(2)
+        self.death_month_edit.setFixedWidth(32)
+        self.death_day_edit = QLineEdit()
+        self.death_day_edit.setMaxLength(2)
+        self.death_day_edit.setFixedWidth(32)
+        self.death_year_edit = QLineEdit()
+        self.death_year_edit.setMaxLength(4)
+        self.death_year_edit.setFixedWidth(56)
+        self.death_time_unknown_checkbox = QCheckBox("Unknown")
+        self.death_time_edit = SegmentedTimeEdit()
+        self.death_time_edit.setDisplayFormat(CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT)
+        self.death_time_edit.setTime(QTime(12, 0))
+        self.death_time_edit.setFixedWidth(CHART_VIEW_TIME_INPUT_WIDTH)
+        self.death_place_edit = QLineEdit()
+        self.death_place_edit.setPlaceholderText("Place")
+        self.death_show_chart_button = QPushButton("show 💀Chart")
+        self.death_show_chart_button.clicked.connect(self._show_death_chart_popout)
+        self.death_time_unknown_checkbox.toggled.connect(self.death_time_edit.setDisabled)
+        death_row.addWidget(QLabel("💀Date"), 0)
+        death_row.addWidget(self.death_month_edit, 0)
+        death_row.addWidget(self.death_day_edit, 0)
+        death_row.addWidget(self.death_year_edit, 0)
+        death_row.addSpacing(14)
+        death_row.addWidget(QLabel("💀Time:"), 0)
+        death_row.addWidget(self.death_time_unknown_checkbox, 0)
+        death_row.addWidget(self.death_time_edit, 0)
+        death_row.addSpacing(10)
+        death_row.addWidget(QLabel("Place:"), 0)
+        death_row.addWidget(self.death_place_edit, 1)
+        death_row.addWidget(self.death_show_chart_button, 0)
+        self.death_row_widget.setLayout(death_row)
+        self.death_row_widget.setVisible(False)
+        form.addRow("", self.death_row_widget)
         # Conditional indicators for unknown birth time: these remain factual and
         # should be shown whenever birth time is marked unknown, even if rectified time is enabled.
         # self.unknown_birthtime_indicators_label = QLabel("Conditional indicators for unknown birth time ⓘ")
@@ -25390,6 +25429,13 @@ class MainWindow(QMainWindow):
         placeholder.dominant_nakshatra_weights = {}
         placeholder.is_placeholder = True
         placeholder.is_deceased = self.deceased_checkbox.isChecked()
+        placeholder.death_month = int(self.death_month_edit.text()) if self.death_month_edit.text().isdigit() else None
+        placeholder.death_day = int(self.death_day_edit.text()) if self.death_day_edit.text().isdigit() else None
+        placeholder.death_year = int(self.death_year_edit.text()) if self.death_year_edit.text().isdigit() else None
+        placeholder.deathtime_unknown = self.death_time_unknown_checkbox.isChecked()
+        placeholder.death_hour = self.death_time_edit.time().hour()
+        placeholder.death_minute = self.death_time_edit.time().minute()
+        placeholder.death_place = self.death_place_edit.text().strip() or ""
         placeholder.birth_month = month
         placeholder.birth_day = day
         placeholder.birth_year = year
@@ -25562,6 +25608,13 @@ class MainWindow(QMainWindow):
         chart.birth_year = qdate.year()
         chart.is_placeholder = False
         chart.is_deceased = self.deceased_checkbox.isChecked()
+        chart.death_month = int(self.death_month_edit.text()) if self.death_month_edit.text().isdigit() else None
+        chart.death_day = int(self.death_day_edit.text()) if self.death_day_edit.text().isdigit() else None
+        chart.death_year = int(self.death_year_edit.text()) if self.death_year_edit.text().isdigit() else None
+        chart.deathtime_unknown = self.death_time_unknown_checkbox.isChecked()
+        chart.death_hour = self.death_time_edit.time().hour()
+        chart.death_minute = self.death_time_edit.time().minute()
+        chart.death_place = self.death_place_edit.text().strip() or ""
         return chart, place, location_msg, tz_override
 
     def on_generate(self):
@@ -25635,6 +25688,14 @@ class MainWindow(QMainWindow):
         if value.isdigit():
             return int(value)
         return None
+
+    def _on_deceased_toggled(self, checked: bool) -> None:
+        if hasattr(self, "death_row_widget"):
+            self.death_row_widget.setVisible(bool(checked))
+
+    def _show_death_chart_popout(self) -> None:
+        from ephemeraldaddy.gui.features.charts.death_chart_window import show_death_chart_window
+        show_death_chart_window(self)
 
     def _apply_location_completer(self, line_edit: QLineEdit | None, choices: list[str]) -> None:
         if not isinstance(line_edit, QLineEdit):
@@ -25831,6 +25892,13 @@ class MainWindow(QMainWindow):
                 chart.retcon_minute = self.retcon_time_edit.time().minute()
                 chart.is_placeholder = self.placeholder_chart_checkbox.isChecked()
                 chart.is_deceased = self.deceased_checkbox.isChecked()
+                chart.death_month = int(self.death_month_edit.text()) if self.death_month_edit.text().isdigit() else None
+                chart.death_day = int(self.death_day_edit.text()) if self.death_day_edit.text().isdigit() else None
+                chart.death_year = int(self.death_year_edit.text()) if self.death_year_edit.text().isdigit() else None
+                chart.deathtime_unknown = self.death_time_unknown_checkbox.isChecked()
+                chart.death_hour = self.death_time_edit.time().hour()
+                chart.death_minute = self.death_time_edit.time().minute()
+                chart.death_place = self.death_place_edit.text().strip() or ""
                 is_placeholder = chart.is_placeholder
                 chart.birth_month = getattr(chart, "birth_month", None)
                 chart.birth_day = getattr(chart, "birth_day", None)
@@ -26025,6 +26093,12 @@ class MainWindow(QMainWindow):
         self.time_unknown_checkbox.setChecked(False)
         self.retcon_time_checkbox.setChecked(False)
         self.deceased_checkbox.setChecked(False)
+        self.death_month_edit.clear()
+        self.death_day_edit.clear()
+        self.death_year_edit.clear()
+        self.death_time_unknown_checkbox.setChecked(False)
+        self.death_time_edit.setTime(QTime(12, 0))
+        self.death_place_edit.clear()
         self.retcon_time_edit.setTime(QTime(12, 0))
         self._birth_time_user_overridden = False
         self._retcon_time_user_overridden = False
@@ -26377,6 +26451,12 @@ class MainWindow(QMainWindow):
             self.time_edit.setTime(default_noon)
         self.retcon_time_checkbox.setChecked(chart.retcon_time_used)
         self.deceased_checkbox.setChecked(bool(getattr(chart, "is_deceased", False)))
+        self.death_month_edit.setText(str(getattr(chart, "death_month", "") or ""))
+        self.death_day_edit.setText(str(getattr(chart, "death_day", "") or ""))
+        self.death_year_edit.setText(str(getattr(chart, "death_year", "") or ""))
+        self.death_time_unknown_checkbox.setChecked(bool(getattr(chart, "deathtime_unknown", False)))
+        self.death_time_edit.setTime(QTime(int(getattr(chart, "death_hour", 12) or 12), int(getattr(chart, "death_minute", 0) or 0)))
+        self.death_place_edit.setText(str(getattr(chart, "death_place", "") or ""))
         stored_retcon_hour = getattr(chart, "retcon_hour", None)
         stored_retcon_minute = getattr(chart, "retcon_minute", None)
         if stored_retcon_hour is not None and stored_retcon_minute is not None:
