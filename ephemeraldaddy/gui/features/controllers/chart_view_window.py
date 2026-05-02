@@ -563,6 +563,7 @@ def format_weight_distribution_html(
     values: list[float],
     *,
     metric_color_resolver: Callable[[str, float], str | None] | None = None,
+    total_title: str = "the sum of all this chart's body weights",
 ) -> str:
     def _colored_metric(label: str, metric_key: str, value: float, value_text: str) -> str:
         color = metric_color_resolver(metric_key, value) if metric_color_resolver is not None else None
@@ -577,7 +578,7 @@ def format_weight_distribution_html(
             f"{_colored_metric('Median', 'median', 0.0, '0')}"
             "<br><b>Min:</b> 0, <b>Max:</b> 0, "
             f"{_colored_metric('Range', 'range', 0.0, '0')}, "
-            f'<span title="the sum of all this chart\'s body weights">{_colored_metric("Total", "total", 0.0, "0")}</span>'
+            f'<span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", 0.0, "0")}</span>'
         )
     _mode_value, avg_value, median_value, min_value, max_value = stats
     total_value = sum(float(value) for value in values if isinstance(value, (int, float)))
@@ -589,7 +590,7 @@ def format_weight_distribution_html(
         f"<br><b>Min:</b> {min_value:.2f}, "
         f"<b>Max:</b> {max_value:.2f}, "
         f"{_colored_metric('Range', 'range', range_value, f'{range_value:.2f}')}, "
-        f'<span title="the sum of all this chart\'s body weights">{_colored_metric("Total", "total", total_value, f"{total_value_rounded:,}")}</span>'
+        f'<span title="{html.escape(total_title, quote=True)}">{_colored_metric("Total", "total", total_value, f"{total_value_rounded:,}")}</span>'
     )
 
 
