@@ -19802,7 +19802,8 @@ class MainWindow(QMainWindow):
         self.gender_combo.addItem("Gender", "")
         for gender_option in GENDER_OPTIONS:
             self.gender_combo.addItem(gender_option, gender_option)
-        self.gender_combo.setFixedWidth(120)
+        gender_char_width = self.gender_combo.fontMetrics().horizontalAdvance("0")
+        self.gender_combo.setFixedWidth(max(80, 120 - (3 * gender_char_width)))
         self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
         self.data_rating_combo = QComboBox()
         self.data_rating_combo.addItem("RR", "blank")
@@ -19811,7 +19812,8 @@ class MainWindow(QMainWindow):
             if not grade:
                 continue
             self.data_rating_combo.addItem(grade, grade)
-        self.data_rating_combo.setFixedWidth(70)
+        rating_char_width = self.data_rating_combo.fontMetrics().horizontalAdvance("0")
+        self.data_rating_combo.setFixedWidth(max(48, 70 - (3 * rating_char_width)))
         self.data_rating_combo.setToolTip("Rodden Rating")
         self.data_rating_combo.currentIndexChanged.connect(self._on_sentiment_metric_changed)
         self.chart_source_combo = QComboBox()
@@ -19832,7 +19834,7 @@ class MainWindow(QMainWindow):
         name_row_widget.setLayout(name_row)
         form.addRow(name_row_widget)
 
-        self.placeholder_chart_checkbox = QCheckBox("Placeholder chart?")
+        self.placeholder_chart_checkbox = QCheckBox("no data")
         self.placeholder_chart_checkbox.toggled.connect(self._on_placeholder_toggled)
         self.placeholder_chart_checkbox.toggled.connect(self._mark_lucygoosey)
         placeholder_row = QHBoxLayout()
