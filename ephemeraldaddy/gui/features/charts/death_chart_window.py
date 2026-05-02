@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import datetime
-from zoneinfo import ZoneInfo
 
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout
+from PySide6.QtCore import QDate, QTime
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QVBoxLayout
 
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.io.geocode import LocationLookupError, geocode_location
@@ -17,15 +17,33 @@ def show_death_chart_window(parent) -> None:
     year = int(parent.death_year_edit.text()) if parent.death_year_edit.text().isdigit() else None
     place = parent.death_place_edit.text().strip()
     if not (month and day and year and place):
+        QMessageBox.warning(parent, "Invalid 💀Date/Place", "Please enter a valid death date and place.")
+        return
+    qdate = QDate(year, month, day)
+    if not qdate.isValid():
+        QMessageBox.warning(parent, "Invalid 💀Date", "Death date must be a real calendar date in MM/DD/YYYY format.")
         return
     hour = 12 if parent.death_time_unknown_checkbox.isChecked() else parent.death_time_edit.time().hour()
     minute = 0 if parent.death_time_unknown_checkbox.isChecked() else parent.death_time_edit.time().minute()
+    qtime = QTime(hour, minute)
+    if not qtime.isValid():
+        QMessageBox.warning(parent, "Invalid 💀Time", "Death time must be a valid 24-hour time.")
+        return
+
     try:
         lat, lon, resolved = geocode_location(place)
+        tz_override = None
     except LocationLookupError:
-        lat, lon, resolved = 0.0, 0.0, place
-    dt_local = datetime.datetime(year, month, day, hour, minute)
-    chart = Chart(f"{parent.name_edit.text().strip() or 'Anonymous'} 💀", dt_local, lat, lon, tz=ZoneInfo("UTC"))
+        (
+            lat,
+            lon,
+            _location_msg,
+            tz_override,
+            _used_saved_coordinates,
+        ) = parent._resolve_location(place)
+        resolved = place
+    dt_local = datetime.datetime(qdate.year(), qdate.month(), qdate.day(), qtime.hour(), qtime.minute())
+    chart = Chart(f"{parent.name_edit.text().strip() or 'Anonymous'} 💀", dt_local, lat, lon, tz=tz_override)
 
     dialog = QDialog(parent)
     dialog.setWindowTitle("💀 Death Chart")
