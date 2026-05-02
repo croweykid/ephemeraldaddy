@@ -19827,14 +19827,20 @@ class MainWindow(QMainWindow):
         name_row_widget.setLayout(name_row)
         form.addRow(name_row_widget)
 
-        self.placeholder_chart_checkbox = QCheckBox(
-            "placeholder (check if birth date/year is unknown)" #🐣
-        )
+        self.placeholder_chart_checkbox = QCheckBox("Placeholder chart?")
         self.placeholder_chart_checkbox.toggled.connect(self._on_placeholder_toggled)
         self.placeholder_chart_checkbox.toggled.connect(self._mark_lucygoosey)
         placeholder_row = QHBoxLayout()
         placeholder_row.setContentsMargins(8, 0, 0, 0)
+        placeholder_row.setSpacing(8)
+        placeholder_row.addWidget(QLabel("Gender:"), 0, Qt.AlignLeft)
+        placeholder_row.addWidget(self.gender_combo, 0, Qt.AlignLeft)
+        placeholder_row.addWidget(QLabel("Chart type:"), 0, Qt.AlignLeft)
+        placeholder_row.addWidget(self.chart_source_combo, 0, Qt.AlignLeft)
         placeholder_row.addWidget(self.placeholder_chart_checkbox, 0, Qt.AlignLeft)
+        self.data_quality_label = QLabel("Data quality:")
+        placeholder_row.addWidget(self.data_quality_label, 0, Qt.AlignLeft)
+        placeholder_row.addWidget(self.data_rating_combo, 0, Qt.AlignLeft)
         self.unknown_positions_summary_label = QLabel("")
         self.unknown_positions_summary_label.setTextFormat(Qt.RichText)
         self.unknown_positions_summary_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -20245,16 +20251,6 @@ class MainWindow(QMainWindow):
         source_controls_layout = QHBoxLayout()
         source_controls_layout.setContentsMargins(0, 0, 0, 0)
         source_controls_layout.setSpacing(6)
-        source_controls_layout.addWidget(QLabel("Chart Type:"))
-        source_controls_layout.addWidget(self.chart_source_combo)
-        source_controls_layout.addWidget(QLabel("Gender:"))
-        source_controls_layout.addWidget(self.gender_combo)
-        rr_label = QLabel("RR:")
-        rr_label.setToolTip("Rodden Rating")
-        source_controls_layout.addWidget(rr_label)
-        source_controls_layout.addWidget(self.data_rating_combo)
-        source_controls_layout.addWidget(QLabel("1st Encounter:"))
-        source_controls_layout.addWidget(self.year_first_encountered_edit)
         source_controls_layout.addStretch(1)
         source_controls_widget.setLayout(source_controls_layout)
 
@@ -20410,6 +20406,16 @@ class MainWindow(QMainWindow):
         sentiment_metrics_layout.addWidget(
             self.familiarity_spin,
             2,
+            1,
+        )
+        sentiment_metrics_layout.addWidget(
+            QLabel("1st Encounter:"),
+            3,
+            0,
+        )
+        sentiment_metrics_layout.addWidget(
+            self.year_first_encountered_edit,
+            3,
             1,
         )
         alignment_box = QFrame()
@@ -25327,6 +25333,9 @@ class MainWindow(QMainWindow):
         rating_index = self.data_rating_combo.findData(target_data_rating)
         if rating_index >= 0 and self.data_rating_combo.currentIndex() != rating_index:
             self.data_rating_combo.setCurrentIndex(rating_index)
+        self.data_rating_combo.setVisible(not checked)
+        if hasattr(self, "data_quality_label"):
+            self.data_quality_label.setVisible(not checked)
 
     def _clear_required_field_highlights(self) -> None:
         for widget in (
