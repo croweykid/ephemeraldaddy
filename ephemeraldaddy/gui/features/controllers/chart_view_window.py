@@ -911,9 +911,9 @@ def build_chart_view_right_panel(
         analytics_content_widget=metrics_content,
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
-        on_show_analytics=lambda: owner._toggle_chart_right_panel("analytics"),
-        on_show_predictions=lambda: owner._toggle_chart_right_panel("predictions"),
-        on_show_subjective_notes=lambda: owner._toggle_chart_right_panel("subjective_notes"),
+        on_show_analytics=lambda: owner._set_chart_right_panel("analytics"),
+        on_show_predictions=lambda: owner._set_chart_right_panel("predictions"),
+        on_show_subjective_notes=lambda: owner._set_chart_right_panel("subjective_notes"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container
