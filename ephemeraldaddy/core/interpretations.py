@@ -4399,16 +4399,16 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     6:{
         "name":"Loyalist", #Acolyte, authority
-        "signs":{"Aries","Virgo","Capricorn","Libra"},
-        "antisigns":{"Scorpio","Sagittarius","Leo"},
-        "houses":{12,2,6}, #6 was only weakly represented
-        "antihouses":{7,9},
-        "bodies":{"Sun",}, #Mars is also 5%, but maybe just due to Aries dominance? Don't want to double count it.
-        "antibodies":{"Jupiter","Saturn"}, #Apparently Saturn isn't a joiner??? I suspect the aspects to Saturn matter tremendously, as much as how it's weighed.
-        "nakshatras":{"Chitra","Rohini","Mrigashira","Magha","Dhanishta","Shatabhisha"},
-        "antinakshatras":{"Vishakha","Bharani","Krittika","Pushya","Swati","Purva Ashadha"}, 
-        "positions":{"Juno in Capricorn","Mars in Taurus","Mercury in Virgo","Pallas in Sagittarius","Juno in Leo","Libra in H10","Chiron in H3","Jupiter in H3","Pallas in H10","Mars in H11","Mercury in H2","Pluto in H8","Ceres in H11","Ketu in H5","Neptune in H9","Fortune in H8","Pluto in H5","Rahu in H11","Saturn in H12","Vesta in H4","Uranus in H11","Vesta in H5","Pluto in Leo","Libra in H10","Neptune in Libra","Neptune in Virgo","Juno in Capricorn","Mars in Taurus","Pallas in Pisces","Ceres in Aries","Mercury in Virgo","Lilith in Libra","Juno in Leo",},
-        "antipositions":{"Capricorn in H11","Aquarius in H12","Leo in H6","Pisces in H3","Virgo in H9","Chiron in Aries","Sun in H10","Neptune in Sagittarius","Pluto in Libra","Juno in Scorpio","Jupiter in Cancer"},
+        "signs":{"Aries":10,"Virgo":12,"Capricorn":9,"Pisces":5},
+        "antisigns":{"Scorpio":12,"Sagittarius":6,"Aquarius":5},
+        "houses":{12:3,2:4,}, #6 was only weakly represented
+        "antihouses":{7:4},
+        "bodies":{"Sun":9,}, #Mars is also 5%, but maybe just due to Aries dominance? Don't want to double count it.
+        "antibodies":{"Jupiter":5,"Saturn":3}, #Apparently Saturn isn't a joiner??? I suspect the aspects to Saturn matter tremendously, as much as how it's weighed.
+        "nakshatras":{"Anuradha":4,"Rohini":4,"Mrigashira":9,"Magha":9,"Dhanishta":3,"Shatabhisha":7,"Purva Phalguni":4,"Uttara Phalguni":6,"Mula":4,"Uttara Bhadrapada":3},
+        "antinakshatras":{"Vishakha":9,"Ashwini":5,"Bharani":7,"Krittika":8,"Pushya":5,"Swati":6,"Purva Ashadha":3,}, 
+        "positions":{"Sun in Leo":8,"Sun in Capricorn":6,"Sun in Pisces":6,"Saturn in Sagittarius":7,"Saturn in Scorpio":5,"Saturn in Pisces":3,"Moon in Taurus":4,"Mercury in Virgo":10,"Mercury in Pisces":10,"Mercury in Capricorn":4,"Venus in Virgo":5,"Venus in Pisces":7,"Venus in Gemini":4,"Mars in Taurus":8,"Mars in Gemini":8,"Mars in Scorpio":4,"Jupiter in Gemini":7,"Aries in H1":4,"Cancer in H1":1,"Pisces in H1":7,}, #i might ignore venus in gem & thought about ignoring venus in pisces - don't buy it! "Juno in Capricorn":1,"Mars in Taurus":1,"Mercury in Virgo":1,"Pallas in Sagittarius":1,"Juno in Leo":1,"Libra in H10":1,"Chiron in H3":1,"Jupiter in H3":1,"Pallas in H10":1,"Mars in H11":1,"Mercury in H2":1,"Pluto in H8":1,"Ceres in H11":1,"Ketu in H5":1,"Neptune in H9":1,"Fortune in H8":1,"Pluto in H5":1,"Rahu in H11":1,"Saturn in H12":1,"Vesta in H4":1,"Uranus in H11":1,"Vesta in H5":1,"Pluto in Leo":1,"Libra in H10":1,"Neptune in Libra":1,"Neptune in Virgo":1,"Juno in Capricorn":1,"Mars in Taurus":1,"Pallas in Pisces":1,"Ceres in Aries":1,"Mercury in Virgo":1,"Lilith in Libra":1,"Juno in Leo":1,},
+        "antipositions":{"Sun in Sagittarius":7,"Sun in Aquarius":5,"Sun in Gemini":4,"Sun in Scorpio":3,"Moon in Leo":6,"Saturn in Capricorn":9,"Saturn in Libra":6,"Mercury in Gemini":5,"Mercury in Libra":5,"Mercury in Scorpio":5,"Mercury in Sagittarius":4,"Mercury in Aquarius":5,"Venus in Aries":1,"Venus in Scorpio":1,"Venus in Sagittarius":3,"Mars in Aquarius":6,"Mars in Capricorn":6,"Mars in Leo":5,"Jupiter in Cancer":6,"Virgo in H1":11,"Gemini in H1":4,}, #"Capricorn in H11":1,"Aquarius in H12":1,"Leo in H6":1,"Pisces in H3":1,"Virgo in H9":1,"Chiron in Aries":1,"Sun in H10":1,"Neptune in Sagittarius":1,"Pluto in Libra":1,"Juno in Scorpio":1,"Jupiter in Cancer":1,
         "aspects":{
             "Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto",
             "Chiron square Saturn","Saturn trine Sun","Juno square Saturn","Saturn square Vesta","Fortune opposition Saturn","Saturn sextile Sun"
