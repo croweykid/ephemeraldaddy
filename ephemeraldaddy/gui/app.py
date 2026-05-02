@@ -24908,16 +24908,26 @@ class MainWindow(QMainWindow):
         """Backward-compatible alias for _set_chart_right_panel_container_visible."""
         self._set_chart_right_panel_container_visible(visible)
 
-    def _set_chart_right_panel(self, panel_key: str) -> None:
+    def _set_chart_right_panel(self, panel_key: str | None) -> None:
         panel_stack = getattr(self, "chart_right_panel_stack", None)
         if panel_stack is None:
             return
+        if panel_key is None:
+            panel_stack.setVisible(False)
+            self._active_chart_right_panel = None
+            self.chart_analytics_panel_button.setChecked(False)
+            self.predictions_panel_button.setChecked(False)
+            self.subjective_notes_panel_button.setChecked(False)
+            return
+
         analytics_enabled = bool(
             getattr(self, "chart_analytics_panel_button", None)
             and self.chart_analytics_panel_button.isEnabled()
         )
         if panel_key == "analytics" and not analytics_enabled:
             panel_key = "subjective_notes"
+
+        panel_stack.setVisible(True)
         if panel_key == "subjective_notes":
             panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
         elif panel_key == "predictions":
@@ -24933,6 +24943,13 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(self._latest_chart)
         if panel_key == "predictions" and self._latest_chart is not None:
             self._render_enneagram_predictions(self._latest_chart)
+
+    def _toggle_chart_right_panel(self, panel_key: str) -> None:
+        current_panel = getattr(self, "_active_chart_right_panel", None)
+        if current_panel == panel_key:
+            self._set_chart_right_panel(None)
+            return
+        self._set_chart_right_panel(panel_key)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
