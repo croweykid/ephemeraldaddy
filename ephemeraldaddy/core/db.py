@@ -978,7 +978,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _migrate_charts_columns(conn)
         _backfill_non_placeholder_birth_date_parts(conn)
     _create_duplicate_exclusions_table(conn)
-    _prune_duplicate_exclusions(conn)
+    if _charts_table_exists(conn):
+        _prune_duplicate_exclusions(conn)
 
     if user_version == 0:
         if not _charts_table_exists(conn):
@@ -2128,8 +2129,10 @@ def append_database(source: Path) -> dict[str, Any]:
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
                          chart_type, source,
-                         is_placeholder, is_deceased, birth_month, birth_day, birth_year, created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_placeholder, is_deceased, birth_month, birth_day, birth_year,
+                         death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
+                         created_at, is_current)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2192,6 +2195,13 @@ def append_database(source: Path) -> dict[str, Any]:
                         int(birth_month) if birth_month is not None else None,
                         int(birth_day) if birth_day is not None else None,
                         int(birth_year) if birth_year is not None else None,
+                        int(_row_value("death_month")) if _row_value("death_month") is not None else None,
+                        int(_row_value("death_day")) if _row_value("death_day") is not None else None,
+                        int(_row_value("death_year")) if _row_value("death_year") is not None else None,
+                        int(_row_value("deathtime_unknown") or 0),
+                        int(_row_value("death_hour")) if _row_value("death_hour") is not None else None,
+                        int(_row_value("death_minute")) if _row_value("death_minute") is not None else None,
+                        _row_value("death_place"),
                         _row_value("created_at") or now_iso,
                         0,
                     ),
@@ -2331,7 +2341,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
