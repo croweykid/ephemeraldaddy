@@ -25995,6 +25995,13 @@ class MainWindow(QMainWindow):
             birth_month=getattr(chart, "birth_month", None),
             birth_day=getattr(chart, "birth_day", None),
             birth_year=getattr(chart, "birth_year", None),
+            death_month=getattr(chart, "death_month", None),
+            death_day=getattr(chart, "death_day", None),
+            death_year=getattr(chart, "death_year", None),
+            deathtime_unknown=bool(getattr(chart, "deathtime_unknown", False)),
+            death_hour=getattr(chart, "death_hour", None),
+            death_minute=getattr(chart, "death_minute", None),
+            death_place=getattr(chart, "death_place", None),
         )
 
         if is_new_chart:
