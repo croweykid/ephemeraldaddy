@@ -2041,7 +2041,7 @@ SIGN_KEYWORDS = {
             "elegant", "competent", "composed", "organized", "intelligent", "intentional",
             "stable", "strategic", "aesthetically controlled", "dependable", "discerning",
             "polished", "aesthetic", "assertive", "curated", "responsible", "stylized",
-            "balanced", "executive", "deliberate",
+            "balanced", "executive", "deliberate",#"cherubic","sparkling","gigglebunny","charming","flirtatious",
         ],
         "worst": [
             "cold", "distant", "calculating", "uptight", "emotionally flat", "overmanaged",
@@ -2061,7 +2061,7 @@ SIGN_KEYWORDS = {
             "inauthentically", "perfectionistically", "rigidly",
         ],
         "profile":"kesmet",
-        "verbs": ["controling", "formating", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
+        "verbs": ["controlling", "formating", "refining", "directing", "calculating", "curating", "stylizing", "asserting", "maneuvering", "correcting", "modulating", "maintaining",],
         "core":"Identity through structure. Adult-in-the-room energy. Controls reality by refining it. Overmanaged persona. Rejects mess. Enforces systems that may no longer serve.",
         "strategy":"Orchestrates style, tone, and consequence with sharp calibration.",
         "function":"Keeps the room functional. Enforces standards. Aesthetic is justice in disguise.",
@@ -4300,16 +4300,16 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     3:{ #no actual data formally assessed & documented; purely theoretical rn based on loose past observations
         "name":"Status-seeker",
-        "signs":{"Libra","Scorpio","Aries","Sagittarius","Leo"}, #my initial guesses: "Leo","Capricorn","Taurus","Sagittarius","Libra". I checked "Leo dominant" and saw a lot of subtler probable 3s I'd missed because they were tasteful & well adjusted about it.
-        "antisigns":{"Virgo","Pisces","Gemini"},
-        "houses":{8}, #it's about power in society, I guess? Domination through community?
+        "signs":{"Libra":6,"Scorpio":7,"Aries":12,"Sagittarius":6,"Leo":5,"Taurus":5,"Aquarius":6}, #my initial guesses: "Leo","Capricorn","Taurus","Sagittarius","Libra". I checked "Leo dominant" and saw a lot of subtler probable 3s I'd missed because they were tasteful & well adjusted about it.
+        "antisigns":{"Virgo":12,"Pisces":9,"Gemini":9}, #cancer was -1% & cap was -2% but I think they're just subtler about it.
+        "houses":{8:3}, #it's about power in society, I guess? Domination through community?
         "antihouses":{1}, #1 doesn't seem to need external validation.
-        "bodies":{"Sun","Mars","Jupiter",},
-        "antibodies":{"Mercury","Venus","Moon"},
-        "nakshatras":{"Ashwini","Jyestha","Revati","Uttara Ashadha","Vishakha","Hasta"}, #original guesses: "Vishakha","Jyestha","Ashlesha","Magha",
-        "antinakshatras":{"Purva Phalguni","Krittika"}, 
-        "positions":{"Ketu in Capricorn","Chiron in H2","Mars in Aries","Ceres in Aries","Ketu in Sagittarius","Sun in Taurus","Scorpio in H4","Taurus in H10","Cancer in H1","Leo in H1","Aries in H10",}, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
-        "antipositions":{"Chiron in Pisces","Rahu in H1","Pluto in H12","Saturn in H3","Sun in H12","Uranus in H10","Venus in H11","Vesta in H11","Ceres in H5","Chiron in H9","Jupiter in H2","Mars in H6","Vesta in H10","Vesta in H1","Lilith in H4",
+        "bodies":{"Sun":4,"Mars":5,"Jupiter":3,},
+        "antibodies":{"Mercury":3,"Venus":4,"Neptune":3},
+        "nakshatras":{"Ashwini":8,"Jyestha":8,"Revati":6,"Ashlesha":2,"Vishakha":9,"Hasta":7,"Purva Ashadha":4}, #original guesses: "Vishakha","Jyestha","Ashlesha","Magha",
+        "antinakshatras":{"Purva Phalguni":9,"Krittika":9,"Shatabhisha":6,"Shravana":6,"Mula":3,"Uttara Phalguni":5,"Ardra":7,}, 
+        "positions":{"Vesta in Cancer":10,"Mars in Aries":12,"Mercury in Aries":8,"Lilith in Pisces":7,"Venus in Pisces":7,"Ceres in Aries":9,"Sun in Taurus":6,"Sun in Aries":6,"Scorpio in H4":9,"Taurus in H10":9,"Cancer in H1":14,"Leo in H2":9,"Aries in H10":9,"Pluto in Scorpio":11,}, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
+        "antipositions":{"Chiron in Pisces":1,"Rahu in H1":1,"Pluto in H12":1,"Saturn in H3":1,"Sun in H12":1,"Uranus in H10":1,"Venus in H11":1,"Vesta in H11":1,"Ceres in H5":1,"Chiron in H9":1,"Jupiter in H2":1,"Mars in H6":1,"Vesta in H10":1,"Vesta in H1":1,"Lilith in H4":1,
             #"Uranus in Virgo", #ignoring outer planets
         },
         "aspects":{"Jupiter sextile Sun","Mercury trine Moon","Saturn trine Sun","Ketu trine Moon","Mars sextile Mercury","Moon trine Rahu","Mars sextile Sun","Moon trine Sun","Ceres square Juno","Ceres square Moon","Chiron square Lilith","Ketu square Vesta","Ketu trine Sun","Mercury semisextile Venus","Mercury square Pluto","Pallas sextile Sun","AS trine Lilith","Rahu square Vesta","Juno conjunction Fortune","Ketu trine Pallas","Lilith sextile Venus","Mars opposition Fortune","Pallas conjunction Pluto","Fortune conjunction Pluto","IC sextile Vesta","IC square Mars","IC trine Venus","MC square Mars","MC trine Vesta","AS sextile Vesta","AS square Saturn",
@@ -4368,7 +4368,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     5:{
         "name":"Investigator", #Scholar, Permastudent, Datahoarder, Researcher, Hermit
-        "signs":{"Gemini":14,"Cancer":5,"Libra":4,"Aries":4}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
+        "signs":{"Gemini":14,"Cancer":5,"Libra":1,"Aries":1}, #I checked, and Gemini dominant people are usually e7, not e5. e5 geminis are a minority, even though I know several 'super geminis' who are e5; they're all Saturnian Geminis; it's a different thing than standard gemini. 
         "antisigns":{"Aquarius":6,"Sagittarius":6,"Scorpio":8,"Virgo":6},
         "houses":{3:12,6:11}, #"I came here to chew work and collect data. And I'm all outta work..."
         "antihouses":{4:8,10:6}, #Who knew. Nerdiness & public status are evidently antithetical...
