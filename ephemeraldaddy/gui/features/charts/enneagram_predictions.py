@@ -773,11 +773,14 @@ def build_enneagram_popout_info_html(
                 + float(body_weights.get(right_body, 0.0))
             )
             matched = any(
-                { _normalize_factor_value(str(a.get("p1", ""))), _normalize_factor_value(str(a.get("p2", ""))) } == {left_body, right_body}
+                {_normalize_factor_value(str(a.get("p1", ""))), _normalize_factor_value(str(a.get("p2", "")))} == {left_body, right_body}
                 and str(a.get("type", "")).strip().lower() == aspect_type
                 for a in (getattr(chart, "aspects", None) or [])
             )
-            return f"<li>{html.escape(raw_aspect)}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+            left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
+            aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
+            right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
+            return f"<li>{left_html} {aspect_html} {right_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
         position_items = "".join(
             _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
