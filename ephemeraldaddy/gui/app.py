@@ -19814,6 +19814,11 @@ class MainWindow(QMainWindow):
         self.data_rating_combo.setFixedWidth(70)
         self.data_rating_combo.setToolTip("Rodden Rating")
         self.data_rating_combo.currentIndexChanged.connect(self._on_sentiment_metric_changed)
+        self.chart_source_combo = QComboBox()
+        for source_label, source_value in SOURCE_OPTIONS:
+            self.chart_source_combo.addItem(source_label, source_value)
+        self._chart_type_previous_index = self.chart_source_combo.currentIndex()
+        self.chart_source_combo.currentIndexChanged.connect(self._on_chart_type_changed)
         name_row = QHBoxLayout()
         #name_row.setContentsMargins(0, 0, 0, 0)
         name_row.setSpacing(8)
@@ -20021,12 +20026,6 @@ class MainWindow(QMainWindow):
         # form.addRow("", self.unknown_birthtime_indicators_label) #conditional indicators for unknown birth time
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
-
-        self.chart_source_combo = QComboBox()
-        for source_label, source_value in SOURCE_OPTIONS:
-            self.chart_source_combo.addItem(source_label, source_value)
-        self._chart_type_previous_index = self.chart_source_combo.currentIndex()
-        self.chart_source_combo.currentIndexChanged.connect(self._on_chart_type_changed)
 
         # Sentiment selection panel (checkbox grid).
         self.sentiment_checkboxes = {}
