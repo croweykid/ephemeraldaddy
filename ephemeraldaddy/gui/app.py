@@ -5347,6 +5347,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 thread, _worker, _relay = worker_entry
                 if thread.isRunning():
+                    logger.debug(
+                        "Transit worker shutdown still waiting (active_workers=%s retired_threads=%s).",
+                        len(transit_workers),
+                        len(transit_retired_threads),
+                    )
                     return
                 transit_workers.pop(key, None)
             transit_retired_threads[:] = [thread for thread in transit_retired_threads if thread.isRunning()]
@@ -5354,6 +5359,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
             _transit_shutdown_in_progress = False
+            logger.debug(
+                "Transit worker shutdown completed (callbacks=%s retired_threads=%s).",
+                len(callbacks),
+                len(transit_retired_threads),
+            )
             for callback in callbacks:
                 callback()
 
@@ -5386,7 +5396,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     transit_workers.pop(key, None)
                     continue
             _finalize_transit_worker_shutdown()
-            logger.debug("Transit worker shutdown finished (id=%s).", debug_id)
+            logger.debug(
+                "Transit worker shutdown requests sent (id=%s active_workers=%s).",
+                debug_id,
+                len(transit_workers),
+            )
 
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
