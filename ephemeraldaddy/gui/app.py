@@ -5230,6 +5230,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             tuple[str, str, str, str],
             tuple[QThread, TransitAspectWindowWorker, TransitAspectWindowRelay],
         ] = {}
+        transit_retired_threads: list[QThread] = []
         calendar_info_map: dict[int, dict[str, object]] = {}
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
@@ -5348,6 +5349,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if thread.isRunning():
                     return
                 transit_workers.pop(key, None)
+            transit_retired_threads[:] = [thread for thread in transit_retired_threads if thread.isRunning()]
 
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
@@ -5375,10 +5377,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
                     thread.quit()
-                    if thread.isRunning():
-                        thread.wait(3000)
-                    if not thread.isRunning():
-                        transit_workers.pop(key, None)
                 except RuntimeError:
                     logger.exception(
                         "Transit worker shutdown runtime error (id=%s worker_key=%s).",
@@ -5507,7 +5505,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
             debug_id = _new_debug_action_id("transit_window_ready")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5544,7 +5541,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
             debug_id = _new_debug_action_id("transit_window_failed")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5631,7 +5627,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
+            thread.finished.connect(lambda thread=thread: transit_retired_threads.remove(thread) if thread in transit_retired_threads else None)
             transit_workers[key] = (thread, worker, relay)
+            transit_retired_threads.append(thread)
             thread.start()
 
         def _drain_preload_queue() -> None:
