@@ -49,6 +49,11 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "💖 Positive Sentiment Intensity:": "how much you love em",
     "💔 Negative Sentiment Intensity:": "how upsetting they are",
     "Familiarity:": "How well you think you know them",
+    "1st Encounter:": "first year you knowingly encountered this person/body",
+    "🐣Date": "birth date used for chart calculations",
+    "🐣Time:": "birth time used for chart calculations",
+    "Unknown": "mark time as unknown; time-sensitive bodies/houses may be approximate or conditional",
+    "😈 Most evil   ⟷   Most altruistic 😇": "alignment scale from most harmful to most altruistic",
 
     # Sentiment types (string-sensitive by checkbox text).
     "like": "friend",
@@ -93,6 +98,7 @@ EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
     "Source: where your data about this person came from": "origin of birth/biographical info",
     "Comments: your personal thoughts/observations": "your own notes or impressions about this chart",
     "Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.": "notes about uncertain birth times and possible rectifications",
+    "Year 1st Encountered": "first year you knowingly encountered this person/body",
 }
 
 

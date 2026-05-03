@@ -26635,6 +26635,10 @@ class MainWindow(QMainWindow):
                 houses_unknown_font_px=houses_unknown_px,
             )
         )
+        label.setToolTip(
+            "Shows which bodies/houses can shift when birth time is unknown; "
+            "rectified time is a hypothesis and does not remove uncertainty indicators."
+        )
 
     def _toggle_chart_panel_content(
         self,
