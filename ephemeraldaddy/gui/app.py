@@ -5230,6 +5230,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             tuple[str, str, str, str],
             tuple[QThread, TransitAspectWindowWorker, TransitAspectWindowRelay],
         ] = {}
+        transit_retired_threads: list[QThread] = []
         calendar_info_map: dict[int, dict[str, object]] = {}
         mode_labels = {
             PERSONAL_TRANSIT_MODE_LIFE_FORECAST: "Life Forecast",
@@ -5346,12 +5347,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     continue
                 thread, _worker, _relay = worker_entry
                 if thread.isRunning():
+                    logger.debug(
+                        "Transit worker shutdown still waiting (active_workers=%s retired_threads=%s).",
+                        len(transit_workers),
+                        len(transit_retired_threads),
+                    )
                     return
                 transit_workers.pop(key, None)
+            transit_retired_threads[:] = [thread for thread in transit_retired_threads if thread.isRunning()]
 
             callbacks = list(_transit_shutdown_callbacks)
             _transit_shutdown_callbacks.clear()
             _transit_shutdown_in_progress = False
+            logger.debug(
+                "Transit worker shutdown completed (callbacks=%s retired_threads=%s).",
+                len(callbacks),
+                len(transit_retired_threads),
+            )
             for callback in callbacks:
                 callback()
 
@@ -5375,10 +5387,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     thread.finished.connect(_finalize_transit_worker_shutdown)
                     thread.requestInterruption()
                     thread.quit()
-                    if thread.isRunning():
-                        thread.wait(3000)
-                    if not thread.isRunning():
-                        transit_workers.pop(key, None)
                 except RuntimeError:
                     logger.exception(
                         "Transit worker shutdown runtime error (id=%s worker_key=%s).",
@@ -5388,7 +5396,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     transit_workers.pop(key, None)
                     continue
             _finalize_transit_worker_shutdown()
-            logger.debug("Transit worker shutdown finished (id=%s).", debug_id)
+            logger.debug(
+                "Transit worker shutdown requests sent (id=%s active_workers=%s).",
+                debug_id,
+                len(transit_workers),
+            )
 
         dialog.destroyed.connect(lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None))
         dialog.set_async_shutdown(_begin_transit_worker_shutdown)
@@ -5507,7 +5519,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_window_ready(key: tuple[str, str, str, str], start_dt: object, end_dt: object, metadata: object) -> None:
             debug_id = _new_debug_action_id("transit_window_ready")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5544,7 +5555,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         def _on_window_failed(key: tuple[str, str, str, str], error_text: str) -> None:
             debug_id = _new_debug_action_id("transit_window_failed")
-            _stop_window_worker(key)
             state = transit_ranges.get(key)
             if state is None:
                 logger.debug(
@@ -5631,7 +5641,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             thread.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
             thread.finished.connect(lambda key=key: _on_window_thread_finished(key))
+            thread.finished.connect(lambda thread=thread: transit_retired_threads.remove(thread) if thread in transit_retired_threads else None)
             transit_workers[key] = (thread, worker, relay)
+            transit_retired_threads.append(thread)
             thread.start()
 
         def _drain_preload_queue() -> None:
