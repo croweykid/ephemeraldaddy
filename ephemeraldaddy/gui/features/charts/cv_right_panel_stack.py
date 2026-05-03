@@ -32,6 +32,7 @@ class ChartRightPanelStack:
     """Container + controls used by Chart View's right-side panel stack."""
 
     container: QWidget
+    controls_row: QWidget
     analytics_button: QPushButton
     predictions_button: QPushButton
     subjective_notes_button: QPushButton
@@ -152,7 +153,7 @@ def build_chart_right_panel_stack(
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(4)
     container.setLayout(layout)
-    container.setMinimumWidth(200)
+    container.setMinimumWidth(0)
 
     analytics_button = QPushButton("📊")
     analytics_button.setObjectName("chart_view_toggle_analytics_panel_button")
@@ -190,7 +191,7 @@ def build_chart_right_panel_stack(
     analytics_scroll = QScrollArea()
     analytics_scroll.setWidgetResizable(True)
     analytics_scroll.setFrameShape(QScrollArea.NoFrame)
-    analytics_scroll.setMinimumWidth(240)
+    analytics_scroll.setMinimumWidth(0)
     analytics_scroll.setStyleSheet(scrollbar_style)
     analytics_scroll.setFocusPolicy(Qt.StrongFocus)
     analytics_scroll.setWidget(analytics_content_widget)
@@ -199,7 +200,7 @@ def build_chart_right_panel_stack(
     predictions_scroll = QScrollArea()
     predictions_scroll.setWidgetResizable(True)
     predictions_scroll.setFrameShape(QScrollArea.NoFrame)
-    predictions_scroll.setMinimumWidth(240)
+    predictions_scroll.setMinimumWidth(0)
     predictions_scroll.setStyleSheet(scrollbar_style)
     predictions_scroll.setFocusPolicy(Qt.StrongFocus)
     predictions_scroll.setWidget(predictions_content_widget)
@@ -208,7 +209,7 @@ def build_chart_right_panel_stack(
     subjective_notes_scroll = QScrollArea()
     subjective_notes_scroll.setWidgetResizable(True)
     subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
-    subjective_notes_scroll.setMinimumWidth(240)
+    subjective_notes_scroll.setMinimumWidth(0)
     subjective_notes_scroll.setStyleSheet(scrollbar_style)
     subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
     subjective_notes_scroll.setWidget(subjective_notes_content_widget)
@@ -216,6 +217,7 @@ def build_chart_right_panel_stack(
 
     return ChartRightPanelStack(
         container=container,
+        controls_row=controls_row,
         analytics_button=analytics_button,
         predictions_button=predictions_button,
         subjective_notes_button=subjective_notes_button,
