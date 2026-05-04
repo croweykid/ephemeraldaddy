@@ -3614,9 +3614,9 @@ ASPECT_BASE = {
 
 ASPECT_KEYWORDS = {
     "conjunction": [
-        "working together with", "happening at the same time as", "stacking up with", "doubling down with",
-        "sharing the same space as", "overlapping with", "teaming up with", "combining forces with",
-        "running as one with", "showing up together with", "feeding into", "moving in lockstep with",
+        "working together with", "happening at the same time as", "stacking up with", "doubling down with","magnifying","intensifying","indistinguishable from",
+        "sharing the same space as", "overlapping with", #"teaming up with", "combining forces with",
+        "feeding into", "moving in lockstep with", #compression, contamination, cooperation, obsession,
     ],
     "opposition": [
         "pulling against", "going back and forth with", "arguing against", "competing against",
