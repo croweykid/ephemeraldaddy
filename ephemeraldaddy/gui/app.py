@@ -600,6 +600,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_modal_prevalence_counts as _calculate_modal_prevalence_counts,
     calculate_mode_weights as _calculate_mode_weights,
     calculate_planet_dynamics_scores as _calculate_planet_dynamics_scores,
+    calculate_planet_condition_weights as _calculate_planet_condition_weights,
     calculate_nakshatra_prevalence_counts as _calculate_nakshatra_prevalence_counts,
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
     calculate_sign_prevalence_counts as _calculate_sign_prevalence_counts,
