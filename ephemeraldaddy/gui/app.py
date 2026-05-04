@@ -609,6 +609,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     house_for_longitude as _house_for_longitude,
     house_membership_weights as _house_membership_weights,
     house_span_signs as _house_span_signs,
+    normalize_body_name as normalize_body_name,
     planet_sign_weight as _planet_sign_weight,
     planet_weight as _planet_weight,
 )
