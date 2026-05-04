@@ -46,13 +46,16 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "Source:": "origin of birth/biographical info",
     "💭Alignment": "What's your impression of their morality, you judgy bastard?",
     "Alignment": "What's your impression of their morality, you judgy bastard?",
-    "💖 Positive Sentiment Intensity:": "how much you love em",
-    "💔 Negative Sentiment Intensity:": "how upsetting they are",
+    "💖": "how much you love em",
+    "💔": "how upsetting they are",
     "Familiarity:": "How well you think you know them",
     "1st Encounter:": "first year you knowingly encountered this person/body",
-    "🐣Date": "birth date used for chart calculations",
-    "🐣Time:": "birth time used for chart calculations",
-    "Unknown": "mark time as unknown; time-sensitive bodies/houses may be approximate or conditional",
+    "🐣Date": "birth date",
+    "🐣Time:": "birth time (some features won't work without specific time, others will default to 'noon')",
+    "💀Date": "death date",
+    "💀Time:": "death time (some features won't work without specific time, others will default to 'noon')",
+    "Unknown": "tick if birth time is unknown", #; time-sensitive bodies/houses may be approximate or conditional
+    "Use Rectified Time" : "tick if you have a guess about birth time, but are unsure",
     "😈 Most evil   ⟷   Most altruistic 😇": "alignment scale from most harmful to most altruistic",
 
     # Sentiment types (string-sensitive by checkbox text).
@@ -95,10 +98,12 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
 }
 
 EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
-    "Source: where your data about this person came from": "origin of birth/biographical info",
-    "Comments: your personal thoughts/observations": "your own notes or impressions about this chart",
-    "Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.": "notes about uncertain birth times and possible rectifications",
-    "Year 1st Encountered": "first year you knowingly encountered this person/body",
+    "🌐": "origin of birth/biographical info (citations & whatnot)",
+    "💭": "your own notes or impressions about this chart",
+    "👤" : "biographical description: who/what is this??",
+    "🛈" : "click the 🛈s around the chart/app & its details will appear here",
+    "⏳💬": "if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here",
+    "Year 1st Encountered": "The year you first knowingly encountered this entity",
 }
 
 

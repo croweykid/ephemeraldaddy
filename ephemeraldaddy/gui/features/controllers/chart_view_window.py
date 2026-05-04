@@ -264,7 +264,7 @@ def _install_chart_view_sentiment_relevance_spectrum(owner: QWidget) -> None:
     spectrum_label = QLabel("Sentiment Intensity Spectrum:")
     spectrum = _SentimentIntensitySpectrum(parent_widget)
     spectrum.setToolTip(
-        "Drag 💖 and 💔. Values save when you release a handle."
+        "Drag 💖 and 💔 to indicate positive & negative sentiment toward this entity. Values save automatically."
     )
     spectrum.set_values(positive_spinbox.value(), negative_spinbox.value())
 

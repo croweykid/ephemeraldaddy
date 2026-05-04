@@ -312,6 +312,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import Patch
+from PIL import Image as PILImage
+from imojify import imojify as imojify_emoji
 
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
@@ -1368,15 +1370,15 @@ def _configure_matplotlib_info_marker_font() -> None:
 
 def _apply_emoji_tick_images(ax, emojis: list[str]) -> bool:
     """Render emoji x-axis labels as images via imojify when available."""
-    try:
-        from imojify import imojify as _imojify
-    except Exception:
-        return False
-    try:
-        import numpy as _np
-        from PIL import Image as _Image
-    except Exception:
-        return False
+    # try:
+    #     from imojify import imojify as _imojify
+    # except Exception:
+    #     return False
+    # try:
+    #     import numpy as _np
+    #     from PIL import Image as _Image
+    # except Exception:
+    #     return False
 
     xticks = list(ax.get_xticks())
     if len(xticks) != len(emojis):
@@ -1386,9 +1388,12 @@ def _apply_emoji_tick_images(ax, emojis: list[str]) -> bool:
     y_pos = y_min - (0.10 * y_span)
     for xpos, emoji in zip(xticks, emojis, strict=True):
         try:
-            image_path = _imojify(emoji)
-            with _Image.open(image_path) as image_obj:
-                rgba = _np.array(image_obj.convert("RGBA"))
+            # image_path = _imojify(emoji)
+            # with _Image.open(image_path) as image_obj:
+            #     rgba = _np.array(image_obj.convert("RGBA"))
+            image_path = imojify_emoji(emoji)
+            with PILImage.open(image_path) as image_obj:
+                rgba = np.array(image_obj.convert("RGBA"))
             image_box = OffsetImage(rgba, zoom=0.23)
             annotation = AnnotationBbox(
                 image_box,
@@ -23115,6 +23120,7 @@ class MainWindow(QMainWindow):
             "escalating",
         ]
         metric_labels = ["⚔️", "🧸", "🧨"]
+        fallback_tick_labels = ["-", "+", "!"]
         tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
         dominant_weights = _calculate_dominant_planet_weights(chart)
         total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
@@ -23152,16 +23158,16 @@ class MainWindow(QMainWindow):
                 )
                 cumulative_bottom += segment_values
             bars = ax.bar(x_positions, values, width=bar_width, color="none", edgecolor="none")
-            ax.set_xticks(x_positions, metric_labels)
+            ax.set_xticks(x_positions, fallback_tick_labels)
             title = "Body Dynamics (All Bodies)"
         else:
             values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
             bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
-            bars = ax.bar(metric_labels, values, color=bar_colors)
+            bars = ax.bar(fallback_tick, values, color=bar_colors)
             selected_weight = float(dominant_weights.get(selected_planet, 0.0))
             dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
             title = f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)"
-        self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        self._apply_standard_ncv_bar_chart_axes(ax, fallback_tick_labels)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(1.0, max_value + 0.8))
