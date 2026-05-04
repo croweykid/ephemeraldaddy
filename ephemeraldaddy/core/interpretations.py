@@ -3968,17 +3968,17 @@ RELATION_TYPE = [
 ]
 
 SENTIMENT_SCALE = {
-    "fatwa":{"min":-10,"max":-9,"emoji":"","description":"not opposed to putting a hit out on this mofo"},
-    "blood feud":{"min":-9,"max":-7,"emoji":"","description":"you feel like the world would be better without them, honestly"},
-    "seething enmity":{"min":-7,"max":-5,"emoji":"","description":"nah"},
-    "not a fan":{"min":-5,"max":-3,"emoji":"","description":"nah"},
-    "slight disdain":{"min":-3,"max":-1,"emoji":"","description":"kinda sus"},
-    "pretty neutral":{"min":-1,"max":1,"emoji":"","description":""},
-    "sympathy":{"min":1,"max":3,"emoji":"","description":"they aight"},
-    "rapport":{"min":3,"max":5,"emoji":"","description":"they cool"},
-    "abiding fondness":{"min":5,"max":7,"emoji":"","description":"they cool"},
-    "deathless affection":{"min":7,"max":9,"emoji":"","description":""},
-    "exultation":{"min":9,"max":10,"emoji":"","description":"this is one of your favorite entities in existence"},
+    "archnemesis":{"min":-10,"max":-9,"emoji":"⚰️☠️","description":"a fatwa on this mofo"},
+    "fiend":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"you feel like the world would be better without them, honestly"},
+    "enemy":{"min":-7,"max":-5,"emoji":"🤬","description":"nah"},
+    "scalawag":{"min":-5,"max":-3,"emoji":"🌵","description":"nah"},
+    "creep":{"min":-3,"max":-1,"emoji":"👎","description":"kinda sus"},
+    "whatever":{"min":-1,"max":1,"emoji":"🤷","description":"who knows"},
+    "potentially worthwhile entity":{"min":1,"max":3,"emoji":"👍","description":"they prolly aight"},
+    "valuable part of the world":{"min":3,"max":5,"emoji":"🙂","description":"you feel rapport"},
+    "contributor to life's excellence":{"min":5,"max":7,"emoji":"😊","description":"you feel an abiding fondness for this entity"},
+    "bosom comrade":{"min":7,"max":9,"emoji":"🥰","description":"this entity is beloved to you"},
+    "ride or die":{"min":9,"max":10,"emoji":"🌞🫂","description":"this is one of your favorite entities in existence"},
 }
 
 
