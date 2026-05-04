@@ -5,6 +5,7 @@ import copy
 import ctypes
 import datetime
 import html
+import imojify
 import json
 import math
 import logging
