@@ -22750,7 +22750,8 @@ class MainWindow(QMainWindow):
             tick_label.set_picker(True)
         draw_weight_distribution_reference_lines(ax, values)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
-        ax.set_ylim(0, max(1, max_value + 1))
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
         # ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
@@ -22812,7 +22813,8 @@ class MainWindow(QMainWindow):
             tick_label.set_gid(f"body:{body}")
             tick_label.set_picker(5)
         draw_weight_distribution_reference_lines(ax, values)
-        ax.set_ylim(0, max(1, max_value + 1))
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
         # ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5")
@@ -22870,7 +22872,8 @@ class MainWindow(QMainWindow):
             bar.set_gid(f"house:{house_num}")
             bar.set_picker(True)
         draw_weight_distribution_reference_lines(ax, values)
-        ax.set_ylim(0, max(1, max_value + 1))
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         ax.margins(x=0.03)
         ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5") #white-ish
         ax.tick_params(axis="y", labelsize=8, colors="#f5f5f5") #white-ish
@@ -22987,7 +22990,8 @@ class MainWindow(QMainWindow):
         draw_weight_distribution_reference_lines(ax, values)
         _apply_nakshatra_tick_info_markers(ax, nakshatras)
 
-        ax.set_ylim(0, max(1, max_value + 1))
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"]) #ax.margins(x=0.01)
         ax.tick_params(
             axis="x",
@@ -23103,6 +23107,13 @@ class MainWindow(QMainWindow):
         # the pie plot area when controls (like retcon) trigger chart refreshes.
         # ax.figure.subplots_adjust(left=0.12, right=0.88, bottom=0.26, top=0.92)
         ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"])
+
+    @staticmethod
+    def _chart_bar_top_padding_in_data_units(ax, *, pixels: float = 10.0) -> float:
+        y0_display = ax.transData.transform((0.0, 0.0))[1]
+        y1_display = y0_display + max(0.0, float(pixels))
+        y1_data = ax.transData.inverted().transform((0.0, y1_display))[1]
+        return max(0.0, y1_data)
 
     def _apply_standard_ncv_bar_chart_axes(self, ax, labels: list[str]) -> None:
         ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"])
@@ -23268,7 +23279,7 @@ class MainWindow(QMainWindow):
                 bar.set_picker(True)
                 bar.set_gid(f"dynamics:{metric_name}:all")
             ax.set_xticks(x_positions, fallback_tick_labels)
-            title = "Body Dynamics (All Bodies)"
+            title = ""
         else:
             values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
             bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
@@ -23282,7 +23293,8 @@ class MainWindow(QMainWindow):
         self._apply_standard_ncv_bar_chart_axes(ax, fallback_tick_labels)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
-        ax.set_ylim(0, max(1.0, max_value + 0.8))
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        ax.set_ylim(0, max(1.0, max_value + 0.8) + top_padding)
         ax.set_anchor("W")
 
         label_offset = max(0.12, (max_value * 0.02) if max_value else 0.12)
@@ -23302,12 +23314,13 @@ class MainWindow(QMainWindow):
         emoji_images_applied = _apply_emoji_tick_images(ax, metric_labels)
         if emoji_images_applied:
             ax.set_xticklabels(["", "", ""])
-        ax.set_title(
-            title,
-            color="#f5f5f5", #white-ish
-            fontsize=10,
-            pad=8,
-        )
+        if title:
+            ax.set_title(
+                title,
+                color="#f5f5f5", #white-ish
+                fontsize=10,
+                pad=8,
+            )
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
