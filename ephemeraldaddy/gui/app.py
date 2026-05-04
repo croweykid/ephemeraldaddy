@@ -310,7 +310,10 @@ from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import Patch
+from PIL import Image as PILImage
+from imojify import imojify as imojify_emoji
 
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
@@ -1363,6 +1366,34 @@ def _configure_matplotlib_info_marker_font() -> None:
         sans.insert(0, name)
     _mpl.rcParams["font.family"] = "sans-serif"
     _mpl.rcParams["font.sans-serif"] = sans
+
+
+def _apply_emoji_tick_images(ax, emojis: list[str]) -> bool:
+    """Render emoji x-axis labels as images via imojify when available."""
+    xticks = list(ax.get_xticks())
+    if len(xticks) != len(emojis):
+        return False
+    y_min, y_max = ax.get_ylim()
+    y_span = max(1e-6, (y_max - y_min))
+    y_pos = y_min - (0.10 * y_span)
+    for xpos, emoji in zip(xticks, emojis, strict=True):
+        try:
+            image_path = imojify_emoji(emoji)
+            with PILImage.open(image_path) as image_obj:
+                rgba = np.array(image_obj.convert("RGBA"))
+            image_box = OffsetImage(rgba, zoom=0.23)
+            annotation = AnnotationBbox(
+                image_box,
+                (xpos, y_pos),
+                frameon=False,
+                box_alignment=(0.5, 1.0),
+                xycoords="data",
+                annotation_clip=False,
+            )
+            ax.add_artist(annotation)
+        except Exception:
+            return False
+    return True
 
 
 def _maybe_reexec_with_macos_app_name() -> None:
@@ -21839,28 +21870,37 @@ class MainWindow(QMainWindow):
         if chart_key == "planet_dynamics":
             selected_planet = self._chart_analysis_selected_mode(chart_key, "")
             scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-            if not selected_planet or selected_planet not in scores:
+            if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
                 selected_planet = next(iter(scores), "")
             if not selected_planet:
                 return []
-            metric_scores = scores.get(selected_planet, {})
             dominant_weights = _calculate_dominant_planet_weights(chart)
             tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
             total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
-            dominance_percent = (
-                (float(dominant_weights.get(selected_planet, 0.0)) / total_tracked_weight) * 100.0
-                if total_tracked_weight > 0
-                else 0.0
-            )
             metric_label_map = {
-                "antagonizing": "Antagonizing",
-                "enabling": "Enabling",
-                "escalating": "Escalating",
+                "antagonizing": "⚔️",
+                "enabling": "🧸",
+                "escalating": "🧨",
             }
             metric_order = (
                 "antagonizing",
                 "enabling",
                 "escalating",
+            )
+            if selected_planet == "all":
+                metric_scores = {
+                    metric: sum(float((scores.get(body) or {}).get(metric, 0.0)) for body in tracked_bodies)
+                    for metric in metric_order
+                }
+                return [["planet", "all"], ["dominance", 100.0 if total_tracked_weight > 0 else 0.0]] + [
+                    [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
+                    for metric in metric_order
+                ]
+            metric_scores = scores.get(selected_planet, {})
+            dominance_percent = (
+                (float(dominant_weights.get(selected_planet, 0.0)) / total_tracked_weight) * 100.0
+                if total_tracked_weight > 0
+                else 0.0
             )
             return [["planet", selected_planet], ["dominance", round(dominance_percent, 1)]] + [
                 [metric_label_map.get(metric, metric), metric_scores.get(metric, 0.0)]
@@ -23053,7 +23093,7 @@ class MainWindow(QMainWindow):
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
         scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
         selected_planet = self._chart_analysis_selected_mode("planet_dynamics", "")
-        if not selected_planet or selected_planet not in scores:
+        if selected_planet != "all" and (not selected_planet or selected_planet not in scores):
             selected_planet = next(iter(scores), "")
 
         if not selected_planet:
@@ -23066,17 +23106,55 @@ class MainWindow(QMainWindow):
             "enabling",
             "escalating",
         ]
-        metric_labels = ["Antagonizing", "Enabling", "Escalating"]
-        values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
-        bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
-        dominant_weights = _calculate_dominant_planet_weights(chart)
+        metric_labels = ["⚔️", "🧸", "🧨"]
+        fallback_tick_labels = ["A", "E", "Esc"]
         tracked_bodies = [body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS)]
+        dominant_weights = _calculate_dominant_planet_weights(chart)
         total_tracked_weight = sum(float(dominant_weights.get(body, 0.0)) for body in tracked_bodies)
-        selected_weight = float(dominant_weights.get(selected_planet, 0.0))
-        dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
 
-        bars = ax.bar(metric_labels, values, color=bar_colors)
-        self._apply_standard_ncv_bar_chart_axes(ax, metric_labels)
+        if selected_planet == "all":
+            per_body_metric_scores: dict[str, dict[str, float]] = {
+                body: {
+                    metric: float((scores.get(body) or {}).get(metric, 0.0))
+                    for metric in metric_order
+                }
+                for body in tracked_bodies
+                if body in scores
+            }
+            values = [
+                sum(metric_scores.get(metric, 0.0) for metric_scores in per_body_metric_scores.values())
+                for metric in metric_order
+            ]
+            bar_width = 0.62
+            x_positions = np.arange(len(metric_order))
+            cumulative_bottom = np.zeros(len(metric_order), dtype=float)
+            for body in tracked_bodies:
+                metric_scores = per_body_metric_scores.get(body)
+                if not metric_scores:
+                    continue
+                segment_values = np.array([metric_scores.get(metric, 0.0) for metric in metric_order], dtype=float)
+                if np.all(segment_values <= 0.0):
+                    continue
+                ax.bar(
+                    x_positions,
+                    segment_values,
+                    width=bar_width,
+                    bottom=cumulative_bottom,
+                    color=PLANET_COLORS.get(body, "#6fa8dc"),
+                    edgecolor="none",
+                )
+                cumulative_bottom += segment_values
+            bars = ax.bar(x_positions, values, width=bar_width, color="none", edgecolor="none")
+            ax.set_xticks(x_positions, fallback_tick_labels)
+            title = "Body Dynamics (All Bodies)"
+        else:
+            values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
+            bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
+            bars = ax.bar(fallback_tick_labels, values, color=bar_colors)
+            selected_weight = float(dominant_weights.get(selected_planet, 0.0))
+            dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
+            title = f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)"
+        self._apply_standard_ncv_bar_chart_axes(ax, fallback_tick_labels)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
         ax.set_ylim(0, max(1.0, max_value + 0.8))
@@ -23096,8 +23174,11 @@ class MainWindow(QMainWindow):
 
         for spine in ax.spines.values():
             spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
+        emoji_images_applied = _apply_emoji_tick_images(ax, metric_labels)
+        if emoji_images_applied:
+            ax.set_xticklabels(["", "", ""])
         ax.set_title(
-            f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)",
+            title,
             color="#f5f5f5", #white-ish
             fontsize=10,
             pad=8,
@@ -23105,7 +23186,7 @@ class MainWindow(QMainWindow):
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            bottom=max(STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"], 0.24 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"]),
             top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
@@ -27446,6 +27527,7 @@ class MainWindow(QMainWindow):
             current = dropdown.currentData()
             dropdown.blockSignals(True)
             dropdown.clear()
+            dropdown.addItem("ALL", "all")
             for body in dynamics_bodies:
                 dropdown.addItem(_display_body_name(body).upper(), body)
             if dropdown.count() > 0:
