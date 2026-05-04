@@ -2484,10 +2484,11 @@ def build_similar_charts_popout_dialog(
     # info_header.setStyleSheet(header_style)
     # info_layout.addWidget(info_header)
     analysis_dropdown = QComboBox()
+    analysis_dropdown.addItem("ⓘPREDICTIONS", "predictions")
     analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
     analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
     analysis_dropdown.addItem("ⓘBIO", "bio")
-    analysis_dropdown.addItem("ⓘPREDICTIONS", "predictions")
+    analysis_dropdown.setCurrentIndex(0)
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 
