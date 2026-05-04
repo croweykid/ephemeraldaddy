@@ -22751,7 +22751,7 @@ class MainWindow(QMainWindow):
             tick_label.set_picker(True)
         draw_weight_distribution_reference_lines(ax, values)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
-        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -22814,7 +22814,7 @@ class MainWindow(QMainWindow):
             tick_label.set_gid(f"body:{body}")
             tick_label.set_picker(5)
         draw_weight_distribution_reference_lines(ax, values)
-        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         # ax.margins(x=0.03)
         # ax.tick_params(axis="x", labelbottom=False, bottom=False)
@@ -22873,7 +22873,7 @@ class MainWindow(QMainWindow):
             bar.set_gid(f"house:{house_num}")
             bar.set_picker(True)
         draw_weight_distribution_reference_lines(ax, values)
-        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         ax.margins(x=0.03)
         ax.tick_params(axis="x", labelsize=9, colors="#f5f5f5") #white-ish
@@ -22991,7 +22991,7 @@ class MainWindow(QMainWindow):
         draw_weight_distribution_reference_lines(ax, values)
         _apply_nakshatra_tick_info_markers(ax, nakshatras)
 
-        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
         ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"]) #ax.margins(x=0.01)
         ax.tick_params(
@@ -23110,7 +23110,7 @@ class MainWindow(QMainWindow):
         ax.figure.subplots_adjust(**STANDARD_NCV_PIE_CHART["subplots_adjust"])
 
     @staticmethod
-    def _chart_bar_top_padding_in_data_units(ax, *, pixels: float = 10.0) -> float:
+    def _chart_bar_top_padding_in_data_units(ax, *, pixels: float = 15.0) -> float:
         y0_display = ax.transData.transform((0.0, 0.0))[1]
         y1_display = y0_display + max(0.0, float(pixels))
         y1_data = ax.transData.inverted().transform((0.0, y1_display))[1]
@@ -23294,7 +23294,7 @@ class MainWindow(QMainWindow):
         self._apply_standard_ncv_bar_chart_axes(ax, fallback_tick_labels)
         ax.tick_params(axis="x", colors=CHART_THEME_COLORS["text"])
         max_value = max(values) if values else 0.0
-        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=10.0)
+        top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1.0, max_value + 0.8) + top_padding)
         ax.set_anchor("W")
 
