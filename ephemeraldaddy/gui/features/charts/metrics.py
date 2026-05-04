@@ -53,8 +53,31 @@ PLANET_DYNAMICS_METRICS = (
     "escalating",
 )
 
+_PLANET_DYNAMICS_BODY_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
+_PLANET_DYNAMICS_PAIR_TONES = {
+    ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair",
+    ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair",
+    ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair",
+    ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair",
+    ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair",
+    ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair", ("Mercury", "Venus"): "enabling_pair",
+    ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair",
+    ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair",
+    ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair",
+    ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair",
+    ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair",
+    ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair", ("Jupiter", "Saturn"): "volatile_pair",
+    ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair",
+    ("Saturn", "Uranus"): "antagonizing_pair", ("Saturn", "Neptune"): "antagonizing_pair", ("Saturn", "Pluto"): "antagonizing_pair",
+    ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair", ("Neptune", "Pluto"): "volatile_pair",
+}
+
+
+def _planet_dynamics_pair_key(a: str, b: str) -> tuple[str, str]:
+    return tuple(sorted((a, b), key=_PLANET_DYNAMICS_BODY_INDEX.__getitem__))
+
 def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]]:
-    """Count per-body aspect categories for Body Dynamics analytics."""
+    """Compute per-body dynamics scores from aspect type + pair-character weighting."""
     tracked_bodies = tuple(
         body
         for body in PLANET_ORDER
@@ -79,21 +102,35 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
         for body in tracked_bodies
     }
+    dominant_weights = calculate_dominant_planet_weights(chart)
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
         p2 = normalize_body_name(str(aspect.get("p2", "")))
         if p1 not in dynamics or p2 not in dynamics:
             continue
         aspect_type = str(aspect.get("type", "")).replace(" ", "_").lower()
+        pair = _planet_dynamics_pair_key(p1, p2)
+        pair_tone = _PLANET_DYNAMICS_PAIR_TONES.get(pair)
+        pair_polarity_sign = {"enabling_pair": 1.0, "antagonizing_pair": -1.0, "volatile_pair": 1.0}.get(pair_tone, 1.0)
+        orb_weight = _aspect_orb_factor(aspect)
+        aspect_base_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
+        if orb_weight <= 0.0 or aspect_base_weight <= 0.0:
+            continue
+        dom_a = max(float(dominant_weights.get(p1, 0.0)), 0.0)
+        dom_b = max(float(dominant_weights.get(p2, 0.0)), 0.0)
+        aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
+        score_magnitude = abs(aspect_score)
         if aspect_type in antagonizing_types:
-            dynamics[p1]["antagonizing"] += 1.0
-            dynamics[p2]["antagonizing"] += 1.0
+            dynamics[p1]["antagonizing"] += score_magnitude
+            dynamics[p2]["antagonizing"] += score_magnitude
         if aspect_type in enabling_types:
-            dynamics[p1]["enabling"] += 1.0
-            dynamics[p2]["enabling"] += 1.0
+            dynamics[p1]["enabling"] += score_magnitude
+            dynamics[p2]["enabling"] += score_magnitude
         if aspect_type in escalating_types:
-            dynamics[p1]["escalating"] += 1.0
-            dynamics[p2]["escalating"] += 1.0
+            if pair_tone == "volatile_pair":
+                score_magnitude *= 1.15
+            dynamics[p1]["escalating"] += score_magnitude
+            dynamics[p2]["escalating"] += score_magnitude
 
     return dynamics
 
