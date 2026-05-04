@@ -64,14 +64,15 @@ from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOW
 
 
 
-def _sentiment_scale_bucket(value: float) -> tuple[str, str]:
+def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
     for label, scale in SENTIMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
         maximum = float(scale.get("max", 0))
         if minimum <= value <= maximum:
-            return str(scale.get("emoji", "")), label
+            return str(scale.get("emoji", "")), label, str(scale.get("color", "#f5f5f5"))
     closest_label = ""
     closest_emoji = ""
+    closest_color = "#f5f5f5"
     closest_distance: float | None = None
     for label, scale in SENTIMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
@@ -82,30 +83,32 @@ def _sentiment_scale_bucket(value: float) -> tuple[str, str]:
             closest_distance = distance
             closest_label = label
             closest_emoji = str(scale.get("emoji", ""))
-    return closest_emoji, closest_label
+            closest_color = str(scale.get("color", "#f5f5f5"))
+    return closest_emoji, closest_label, closest_color
 
 
 def _sentiment_estimate_html(label: str, average: float, median: float) -> str:
-    avg_emoji, avg_label = _sentiment_scale_bucket(average)
-    median_emoji, median_label = _sentiment_scale_bucket(median)
+    avg_emoji, avg_label, avg_color = _sentiment_scale_bucket(average)
+    median_emoji, median_label, median_color = _sentiment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} avg:</span> "
-        f"{html.escape(avg_emoji)} {html.escape(avg_label)}, "
+        f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
-        f"{html.escape(median_emoji)} {html.escape(median_label)}"
+        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
         "</div>"
     )
 
 
-def _alignment_scale_bucket(value: float) -> tuple[str, str]:
+def _alignment_scale_bucket(value: float) -> tuple[str, str, str]:
     for label, scale in ALIGNMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
         maximum = float(scale.get("max", 0))
         if minimum <= value <= maximum:
-            return str(scale.get("emoji", "")), label
+            return str(scale.get("emoji", "")), label, str(scale.get("color", "#f5f5f5"))
     closest_label = ""
     closest_emoji = ""
+    closest_color = "#f5f5f5"
     closest_distance: float | None = None
     for label, scale in ALIGNMENT_SCALE.items():
         minimum = float(scale.get("min", 0))
@@ -116,18 +119,19 @@ def _alignment_scale_bucket(value: float) -> tuple[str, str]:
             closest_distance = distance
             closest_label = label
             closest_emoji = str(scale.get("emoji", ""))
-    return closest_emoji, closest_label
+            closest_color = str(scale.get("color", "#f5f5f5"))
+    return closest_emoji, closest_label, closest_color
 
 
 def _alignment_estimate_html(average: float, median: float) -> str:
-    avg_emoji, avg_label = _alignment_scale_bucket(average)
-    median_emoji, median_label = _alignment_scale_bucket(median)
+    avg_emoji, avg_label, avg_color = _alignment_scale_bucket(average)
+    median_emoji, median_label, median_color = _alignment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️ avg:</span> "
-        f"{html.escape(avg_emoji)} {html.escape(avg_label)}, "
+        f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
-        f"{html.escape(median_emoji)} {html.escape(median_label)}"
+        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
         "</div>"
     )
 
@@ -2374,7 +2378,7 @@ def build_predictions_panel_content(
         "Predictions for this chart based on user-submitted sentiment & alignment scores for similar charts."
         "</div>"
         + _sentiment_estimate_html("💖", positive_avg_numeric, positive_median_numeric)
-        + _sentiment_estimate_html("💔", negative_avg_numeric, negative_median_numeric)
+        + _sentiment_estimate_html("💔", -negative_avg_numeric, -negative_median_numeric)
         + _alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)
         + alignment_skip_footnote_html
     )
@@ -2480,10 +2484,11 @@ def build_similar_charts_popout_dialog(
     # info_header.setStyleSheet(header_style)
     # info_layout.addWidget(info_header)
     analysis_dropdown = QComboBox()
+    analysis_dropdown.addItem("ⓘPREDICTIONS", "predictions")
     analysis_dropdown.addItem("ⓘSIMILARITIES ANALYSIS", "similarities")
     analysis_dropdown.addItem("ⓘDISSIMILARITIES ANALYSIS", "dissimilarities")
     analysis_dropdown.addItem("ⓘBIO", "bio")
-    analysis_dropdown.addItem("ⓘPREDICTIONS", "predictions")
+    analysis_dropdown.setCurrentIndex(0)
     analysis_dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
     info_layout.addWidget(analysis_dropdown, 0)
 
