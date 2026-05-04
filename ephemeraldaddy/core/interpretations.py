@@ -3968,31 +3968,31 @@ RELATION_TYPE = [
 ]
 
 SENTIMENT_SCALE = { #you likely see them as a(n)...
-    "archnemesis":{"min":-10,"max":-9,"emoji":"⚰️☠️","description":"a fatwa on this mofo"},
-    "fiend":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"you feel like the world would be better without them, honestly"},
-    "enemy":{"min":-7,"max":-5,"emoji":"🤬","description":"hell nah"},
-    "scalawag":{"min":-5,"max":-3,"emoji":"🌵","description":"nah"},
-    "creep":{"min":-3,"max":-1,"emoji":"👎","description":"kinda sus"},
-    "whatever":{"min":-1,"max":1,"emoji":"🤷","description":"who knows"},
-    "potentially worthwhile entity":{"min":1,"max":3,"emoji":"👍","description":"they prolly aight"},
-    "valuable part of the world":{"min":3,"max":5,"emoji":"🙂","description":"you feel rapport"},
-    "contributor to life's excellence":{"min":5,"max":7,"emoji":"😊","description":"you feel an abiding fondness for this entity"},
-    "bosom comrade":{"min":7,"max":9,"emoji":"🥰","description":"this entity is beloved to you"},
-    "ride or die":{"min":9,"max":10,"emoji":"🌞🫂","description":"this is one of your favorite entities in existence"},
+    "archnemesis":{"min":-10,"max":-9,"emoji":"⚰️☠️","description":"a fatwa on this mofo","color":"#990033"},
+    "fiend":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"you feel like the world would be better without them, honestly","color":"#cc0000"},
+    "enemy":{"min":-7,"max":-5,"emoji":"🤬","description":"hell nah","color":"#ff3300"},
+    "scalawag":{"min":-5,"max":-3,"emoji":"🌵","description":"nah","color":"#ff6600"},
+    "creep":{"min":-3,"max":-1,"emoji":"👎","description":"kinda sus","color":"#ff9933"},
+    "whatever":{"min":-1,"max":1,"emoji":"🤷","description":"who knows","color":"#ffcc00"},
+    "potentially worthwhile entity":{"min":1,"max":3,"emoji":"👍","description":"they prolly aight","color":"#ffff00"},
+    "valuable part of the world":{"min":3,"max":5,"emoji":"🙂","description":"you feel rapport","color":"#cccc00"},
+    "contributor to life's excellence":{"min":5,"max":7,"emoji":"😊","description":"you feel an abiding fondness for this entity","color":"#99cc00"},
+    "bosom comrade":{"min":7,"max":9,"emoji":"🥰","description":"this entity is beloved to you","color":"#33cc33"},
+    "ride or die":{"min":9,"max":10,"emoji":"🌞🫂","description":"this is one of your favorite entities in existence","color":"#00ff00"},
 }
 
 ALIGNMENT_SCALE = { #this entity would probably be deemed _ by the user...
-    "source material for Satan in mythology":{"min":-10,"max":-9,"emoji":"😈","description":"gleeful evil incarnate"},
-    "heinously rapacious":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"consciously insidious; probably irredeemable"},
-    "defined by predatory selfishness":{"min":-7,"max":-5,"emoji":"⚔️","description":"an opportunistic parasite or confused lunatic whose soul got sold for something or another"},
-    "rather mercenary or just pretty bad":{"min":-5,"max":-3,"emoji":"🌵","description":"cheats at cards, scares pregnant women and/or swears aggressively at random frail elders"},
-    "vaguely dickish":{"min":-3,"max":-1,"emoji":"😏","description":"a lil sketchy, smokes in the no smoking zone"},
-    "neutral":{"min":-1,"max":1,"emoji":"🤷","description":"who knows"},
-    "more good than bad":{"min":1,"max":3,"emoji":"❤️‍🩹","description":"remembers birthdays, sometimes recycles fwiw"},
-    "generally considerate":{"min":3,"max":5,"emoji":"🤍","description":"campaigns against perceived evil...maybe a little hypocritically"},
-    "suffused with empathy":{"min":5,"max":7,"emoji":"⛑️","description":"campaigns against perceived evil in a humble & self-aware way"},
-    "deeply invested of the greater good as a modus operundi":{"min":7,"max":9,"emoji":"⚕️","description":"pretty sainty"},
-    "altruism incarnate":{"min":9,"max":10,"emoji":"👼","description":"somehow the world hasn't ruined this one"},
+    "source material for Satan in mythology":{"min":-10,"max":-9,"emoji":"😈","description":"gleeful evil incarnate","color":"#990033"},
+    "heinously rapacious":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"consciously insidious; probably irredeemable","color":"#cc0000"},
+    "defined by predatory selfishness":{"min":-7,"max":-5,"emoji":"⚔️","description":"an opportunistic parasite or confused lunatic whose soul got sold for something or another","color":"#cc3399"},
+    "rather mercenary or just pretty bad":{"min":-5,"max":-3,"emoji":"🌵","description":"cheats at cards, scares pregnant women and/or swears aggressively at random frail elders","color":"#cc0099"},
+    "vaguely dickish":{"min":-3,"max":-1,"emoji":"😏","description":"a lil sketchy, smokes in the no smoking zone","color":"#cc33ff"},
+    "neutral":{"min":-1,"max":1,"emoji":"🤷","description":"who knows","color":"#9966ff"},
+    "more good than bad":{"min":1,"max":3,"emoji":"❤️‍🩹","description":"remembers birthdays, sometimes recycles fwiw","color":"#6666ff"},
+    "generally considerate":{"min":3,"max":5,"emoji":"🤍","description":"campaigns against perceived evil...maybe a little hypocritically","color":"#0066ff"},
+    "suffused with empathy":{"min":5,"max":7,"emoji":"⛑️","description":"campaigns against perceived evil in a humble & self-aware way","color":"#0099ff"},
+    "deeply invested of the greater good as a modus operundi":{"min":7,"max":9,"emoji":"⚕️","description":"pretty sainty","color":"#00ccff"},
+    "altruism incarnate":{"min":9,"max":10,"emoji":"👼","description":"somehow the world hasn't ruined this one","color":"#00ffff"},
 }
 
 
