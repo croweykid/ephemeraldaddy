@@ -23164,7 +23164,7 @@ class MainWindow(QMainWindow):
         else:
             values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
             bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
-            bars = ax.bar(fallback_tick, values, color=bar_colors)
+            bars = ax.bar(fallback_tick_labels, values, color=bar_colors)
             selected_weight = float(dominant_weights.get(selected_planet, 0.0))
             dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
             title = f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)"
