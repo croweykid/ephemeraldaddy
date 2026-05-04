@@ -361,6 +361,7 @@ from ephemeraldaddy.gui.window_chrome import (
     configure_main_window_chrome,
     configure_manage_dialog_chrome,
     configure_splitter_handle_resize_cursor,
+    update_main_window_title,
 )
 from ephemeraldaddy.gui.features.controllers.window_lifecycle import (
     configure_initial_window_state,
@@ -26917,6 +26918,7 @@ class MainWindow(QMainWindow):
         queue_priority: RenderQueuePriority = "interactive",
     ) -> None:
         self._latest_chart = chart
+        update_main_window_title(self)
         if self._pending_render_chart is not None and self._pending_render_chart is not chart:
             self._chart_render_queue_state.clear()
         self._pending_render_chart = chart

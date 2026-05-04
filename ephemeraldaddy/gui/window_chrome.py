@@ -18,6 +18,27 @@ if TYPE_CHECKING:
 APP_DISPLAY_NAME = "Ephemeral Daddy"
 
 
+def _resolve_current_chart_name(window: "QWidget") -> str:
+    latest_chart = getattr(window, "_latest_chart", None)
+    latest_name = getattr(latest_chart, "name", None)
+    if isinstance(latest_name, str) and latest_name.strip():
+        return latest_name.strip()
+
+    name_edit = getattr(window, "name_edit", None)
+    if name_edit is not None:
+        text = getattr(name_edit, "text", None)
+        if callable(text):
+            value = text()
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return "No chart selected"
+
+
+def update_main_window_title(window: "QMainWindow") -> None:
+    chart_name = _resolve_current_chart_name(window)
+    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of {chart_name}")
+
+
 def _bind_menu_action(menu, label: str, window: "QWidget", *handler_names: str) -> None:
     """Attach a menu action to the first available window handler.
 
@@ -155,7 +176,7 @@ def configure_application_identity(app: "QApplication") -> None:
 
 def configure_main_window_chrome(window: "QMainWindow") -> None:
     """Attach a top-level menu bar and app title for the main window."""
-    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of ") #Chart View window
+    update_main_window_title(window)
 
     menu_bar = window.menuBar()
     _configure_menu_bar_visibility(menu_bar)
