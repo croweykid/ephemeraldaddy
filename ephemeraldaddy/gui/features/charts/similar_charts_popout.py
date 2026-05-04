@@ -41,6 +41,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
 )
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
+    ALIGNMENT_SCALE,
     ASPECT_SCORE_WEIGHTS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -90,6 +91,40 @@ def _sentiment_estimate_html(label: str, average: float, median: float) -> str:
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} avg:</span> "
+        f"{html.escape(avg_emoji)} {html.escape(avg_label)}, "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
+        f"{html.escape(median_emoji)} {html.escape(median_label)}"
+        "</div>"
+    )
+
+
+def _alignment_scale_bucket(value: float) -> tuple[str, str]:
+    for label, scale in ALIGNMENT_SCALE.items():
+        minimum = float(scale.get("min", 0))
+        maximum = float(scale.get("max", 0))
+        if minimum <= value <= maximum:
+            return str(scale.get("emoji", "")), label
+    closest_label = ""
+    closest_emoji = ""
+    closest_distance: float | None = None
+    for label, scale in ALIGNMENT_SCALE.items():
+        minimum = float(scale.get("min", 0))
+        maximum = float(scale.get("max", 0))
+        midpoint = (minimum + maximum) / 2
+        distance = abs(value - midpoint)
+        if closest_distance is None or distance < closest_distance:
+            closest_distance = distance
+            closest_label = label
+            closest_emoji = str(scale.get("emoji", ""))
+    return closest_emoji, closest_label
+
+
+def _alignment_estimate_html(average: float, median: float) -> str:
+    avg_emoji, avg_label = _alignment_scale_bucket(average)
+    median_emoji, median_label = _alignment_scale_bucket(median)
+    return (
+        f"<div style='margin-top:6px;color:#f5f5f5'>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️ avg:</span> "
         f"{html.escape(avg_emoji)} {html.escape(avg_label)}, "
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
         f"{html.escape(median_emoji)} {html.escape(median_label)}"
@@ -2322,15 +2357,6 @@ def build_predictions_panel_content(
     alignment_median_numeric = float(statistics.median(alignment_values))
     alignment_avg_numeric = float(statistics.fmean(alignment_values))
 
-    def _alignment_metric_row(label: str, numeric_value: float, display_value: str) -> str:
-        return _predictions_line_html(
-            label,
-            (
-                f"<span style='color:#f5f5f5'>{html.escape(display_value)}</span>"
-                f"{_alignment_spectrum_html(numeric_value)}"
-            ),
-        )
-
     alignment_skip_footnote_html = ""
     alignment_skip_footnote_text = ""
     if skipped_alignment_count > 0 and not default_alignment_to_zero_when_unassigned:
@@ -2349,16 +2375,7 @@ def build_predictions_panel_content(
         "</div>"
         + _sentiment_estimate_html("💖", positive_avg_numeric, positive_median_numeric)
         + _sentiment_estimate_html("💔", negative_avg_numeric, negative_median_numeric)
-        + _alignment_metric_row(
-            "User-Assessed Alignment Likelihood (based on similar charts) — median",
-            alignment_median_numeric,
-            alignment_median,
-        )
-        + _alignment_metric_row(
-            "User-Assessed Alignment Likelihood (based on similar charts) — avg",
-            alignment_avg_numeric,
-            alignment_avg,
-        )
+        + _alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)
         + alignment_skip_footnote_html
     )
     plain_text = (

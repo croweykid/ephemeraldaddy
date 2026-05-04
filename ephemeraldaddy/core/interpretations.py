@@ -3981,6 +3981,20 @@ SENTIMENT_SCALE = { #you likely see them as a(n)...
     "ride or die":{"min":9,"max":10,"emoji":"🌞🫂","description":"this is one of your favorite entities in existence"},
 }
 
+ALIGNMENT_SCALE = { #this entity would probably be deemed _ by the user...
+    "source material for Satan in mythology":{"min":-10,"max":-9,"emoji":"😈","description":"gleeful evil incarnate"},
+    "heinously rapacious":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"consciously insidious; probably irredeemable"},
+    "defined by predatory selfishness":{"min":-7,"max":-5,"emoji":"⚔️","description":"an opportunistic parasite or confused lunatic whose soul got sold for something or another"},
+    "rather mercenary or just pretty bad":{"min":-5,"max":-3,"emoji":"🌵","description":"cheats at cards, scares pregnant women and/or swears aggressively at random frail elders"},
+    "vaguely dickish":{"min":-3,"max":-1,"emoji":"😏","description":"a lil sketchy, smokes in the no smoking zone"},
+    "neutral":{"min":-1,"max":1,"emoji":"🤷","description":"who knows"},
+    "more good than bad":{"min":1,"max":3,"emoji":"❤️‍🩹","description":"remembers birthdays, sometimes recycles fwiw"},
+    "generally considerate":{"min":3,"max":5,"emoji":"🤍","description":"campaigns against perceived evil...maybe a little hypocritically"},
+    "suffused with empathy":{"min":5,"max":7,"emoji":"⛑️","description":"campaigns against perceived evil in a humble & self-aware way"},
+    "deeply invested of the greater good as a modus operundi":{"min":7,"max":9,"emoji":"⚕️","description":"pretty sainty"},
+    "altruism incarnate":{"min":9,"max":10,"emoji":"👼","description":"somehow the world hasn't ruined this one"},
+}
+
 
 
 
