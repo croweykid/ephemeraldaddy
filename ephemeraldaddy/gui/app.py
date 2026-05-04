@@ -20958,6 +20958,18 @@ class MainWindow(QMainWindow):
 
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
+        if normalized_target.startswith("sim-popout:"):
+            try:
+                target_chart_id = int(normalized_target.split(":", 1)[1])
+            except (TypeError, ValueError):
+                return
+            if target_chart_id <= 0:
+                return
+            if dialog in self._similar_charts_popout_dialogs:
+                self._similar_charts_popout_dialogs.remove(dialog)
+            dialog.close()
+            self._show_similar_charts_popout(subject_chart_id_override=target_chart_id)
+            return
         if is_similar_info_target(normalized_target):
             popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
             if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData"):
@@ -21447,7 +21459,7 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
+    def _show_similar_charts_popout(self, requester: QWidget | None = None, *, subject_chart_id_override: int | None = None) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
             requester is manage_dialog
@@ -21486,8 +21498,20 @@ class MainWindow(QMainWindow):
                 )
                 return
         else:
-            chart = self._latest_chart
-            subject_chart_id = self.current_chart_id
+            if subject_chart_id_override is not None:
+                subject_chart_id = int(subject_chart_id_override)
+                try:
+                    chart = load_chart(subject_chart_id)
+                except Exception as exc:
+                    QMessageBox.warning(
+                        self,
+                        "Similar Charts",
+                        f"Could not load the selected chart:\n{exc}",
+                    )
+                    return
+            else:
+                chart = self._latest_chart
+                subject_chart_id = self.current_chart_id
             
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")

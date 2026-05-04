@@ -2281,7 +2281,8 @@ def render_similar_match_blocks(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
                 f'#{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
-                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
+                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a>'
+                f' <a href="sim-popout:{int(match.chart_id)}">👯</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
