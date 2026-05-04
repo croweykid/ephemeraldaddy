@@ -3967,7 +3967,19 @@ RELATION_TYPE = [
     "event", #aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak
 ]
 
-
+SENTIMENT_SCALE = {
+    "fatwa":{"min":-10,"max":-9,"emoji":"","description":"not opposed to putting a hit out on this mofo"},
+    "blood feud":{"min":-9,"max":-7,"emoji":"","description":"you feel like the world would be better without them, honestly"},
+    "seething enmity":{"min":-7,"max":-5,"emoji":"","description":"nah"},
+    "not a fan":{"min":-5,"max":-3,"emoji":"","description":"nah"},
+    "slight disdain":{"min":-3,"max":-1,"emoji":"","description":"kinda sus"},
+    "pretty neutral":{"min":-1,"max":1,"emoji":"","description":""},
+    "sympathy":{"min":1,"max":3,"emoji":"","description":"they aight"},
+    "rapport":{"min":3,"max":5,"emoji":"","description":"they cool"},
+    "abiding fondness":{"min":5,"max":7,"emoji":"","description":"they cool"},
+    "deathless affection":{"min":7,"max":9,"emoji":"","description":""},
+    "exultation":{"min":9,"max":10,"emoji":"","description":"this is one of your favorite entities in existence"},
+}
 
 
 # --------------------------------------------------
