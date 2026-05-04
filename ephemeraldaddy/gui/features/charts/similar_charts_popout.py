@@ -2427,6 +2427,7 @@ def build_similar_charts_popout_dialog(
     *,
     parent: QWidget,
     subject_name: str,
+    subject_chart_id: int | None = None,
     subject_uses_houses: bool = True,
     most_similar_matches: list[Any],
     least_similar_matches: list[Any],
@@ -2453,6 +2454,19 @@ def build_similar_charts_popout_dialog(
 
     top_row = QHBoxLayout()
     top_row.setContentsMargins(0, 0, 0, 0)
+    subject_chart_link = QLabel()
+    subject_chart_link.setTextFormat(Qt.RichText)
+    subject_chart_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    subject_chart_link.setOpenExternalLinks(False)
+    subject_chart_link.setCursor(Qt.PointingHandCursor)
+    subject_chart_link.setStyleSheet(header_style)
+    if subject_chart_id is not None:
+        subject_chart_link.setText(f'<a href="{int(subject_chart_id)}">{subject_name}</a>')
+        subject_chart_link.linkActivated.connect(lambda target: on_link_activated(dialog, target))
+    else:
+        subject_chart_link.setText(subject_name)
+        subject_chart_link.setCursor(Qt.ArrowCursor)
+    top_row.addWidget(subject_chart_link, 0, Qt.AlignLeft)
     top_row.addStretch(1)
     make_collection_button = QPushButton("Make collection from similar charts")
     make_collection_button.setCursor(Qt.PointingHandCursor)
@@ -2526,6 +2540,7 @@ def build_similar_charts_popout_dialog(
     dialog._similar_chart_popout_info_output = info_output
     dialog._similar_chart_popout_make_collection_button = make_collection_button
     dialog._similar_chart_popout_export_button = export_button
+    dialog._similar_chart_popout_subject_link = subject_chart_link
     splitter.addWidget(info_panel)
 
     list_splitter = QSplitter(Qt.Horizontal)
