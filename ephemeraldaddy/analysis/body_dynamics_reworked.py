@@ -14,7 +14,7 @@ def normalize_body_pair(a: str, b: str) -> tuple[str, str]:
 # - volatile_pair: conjunction / semisextile remain escalating
 #
 # This is an opinionated prior, not sacred scripture. It is meant to drive scoring.
-MAJOR_BODY_PAIR_TONE = {
+BODY_PAIR_DYNAMICS = {
     # Sun
     ("Sun", "Moon"): "enabling_pair",
     ("Sun", "Mercury"): "enabling_pair",
@@ -81,10 +81,10 @@ MAJOR_BODY_PAIR_TONE = {
 
 
 EXPECTED_UNORDERED_PAIR_COUNT = len(PLANET_ORDER) * (len(PLANET_ORDER) - 1) // 2
-assert len(MAJOR_BODY_PAIR_TONE) == EXPECTED_UNORDERED_PAIR_COUNT == 45
+assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
 
-MAJOR_BODY_PAIR_ASPECT_POLARITY = {
+BODYPAIR_ASPECT_POLARITY = {
     pair: {
         "enabling": (
             ASPECT_FRICTION["harmonious"]["aspects"]
@@ -98,7 +98,7 @@ MAJOR_BODY_PAIR_ASPECT_POLARITY = {
             ASPECT_FRICTION["neutral/variable"]["aspects"] if tone == "volatile_pair" else frozenset()
         ),
     }
-    for pair, tone in MAJOR_BODY_PAIR_TONE.items()
+    for pair, tone in BODY_PAIR_DYNAMICS.items()
 }
 
 #to add:
