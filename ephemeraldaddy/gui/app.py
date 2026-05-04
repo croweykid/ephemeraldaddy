@@ -20997,6 +20997,11 @@ class MainWindow(QMainWindow):
 
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         dialog.setWindowTitle(f"Similar Charts — {subject_name}")
+        subject_link = getattr(dialog, "_similar_chart_popout_subject_link", None)
+        if subject_link is not None and hasattr(subject_link, "setText"):
+            subject_link.setText(f'<a href="{int(target_chart_id)}">{html.escape(subject_name)}</a>')
+            if hasattr(subject_link, "setCursor"):
+                subject_link.setCursor(Qt.PointingHandCursor)
         popout_reasoning_by_target = {}
         popout_reasoning_by_target.update(map_similar_info_targets(matches=most_similar_matches, info_link_prefix="sim-info:popout:most"))
         popout_reasoning_by_target.update(map_similar_info_targets(matches=least_similar_matches, info_link_prefix="sim-info:popout:least"))
@@ -21649,6 +21654,7 @@ class MainWindow(QMainWindow):
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
+            subject_chart_id=int(getattr(chart, "id", 0) or 0) or None,
             subject_uses_houses=_chart_uses_houses(chart),
             most_similar_matches=most_similar_matches,
             least_similar_matches=least_similar_matches,
