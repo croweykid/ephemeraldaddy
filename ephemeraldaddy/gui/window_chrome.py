@@ -155,7 +155,7 @@ def configure_application_identity(app: "QApplication") -> None:
 
 def configure_main_window_chrome(window: "QMainWindow") -> None:
     """Attach a top-level menu bar and app title for the main window."""
-    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart Viewer")
+    window.setWindowTitle(f"{APP_DISPLAY_NAME} | Natal Chart of ") #Chart View window
 
     menu_bar = window.menuBar()
     _configure_menu_bar_visibility(menu_bar)
