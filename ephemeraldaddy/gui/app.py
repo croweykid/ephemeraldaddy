@@ -310,6 +310,7 @@ from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import Patch
 
 from ephemeraldaddy.core.deps import ensure_all_deps
@@ -1363,6 +1364,44 @@ def _configure_matplotlib_info_marker_font() -> None:
         sans.insert(0, name)
     _mpl.rcParams["font.family"] = "sans-serif"
     _mpl.rcParams["font.sans-serif"] = sans
+
+
+def _apply_emoji_tick_images(ax, emojis: list[str]) -> bool:
+    """Render emoji x-axis labels as images via imojify when available."""
+    try:
+        from imojify import imojify as _imojify
+    except Exception:
+        return False
+    try:
+        import numpy as _np
+        from PIL import Image as _Image
+    except Exception:
+        return False
+
+    xticks = list(ax.get_xticks())
+    if len(xticks) != len(emojis):
+        return False
+    y_min, y_max = ax.get_ylim()
+    y_span = max(1e-6, (y_max - y_min))
+    y_pos = y_min - (0.10 * y_span)
+    for xpos, emoji in zip(xticks, emojis, strict=True):
+        try:
+            image_path = _imojify(emoji)
+            with _Image.open(image_path) as image_obj:
+                rgba = _np.array(image_obj.convert("RGBA"))
+            image_box = OffsetImage(rgba, zoom=0.23)
+            annotation = AnnotationBbox(
+                image_box,
+                (xpos, y_pos),
+                frameon=False,
+                box_alignment=(0.5, 1.0),
+                xycoords="data",
+                annotation_clip=False,
+            )
+            ax.add_artist(annotation)
+        except Exception:
+            return False
+    return True
 
 
 def _maybe_reexec_with_macos_app_name() -> None:
@@ -23142,6 +23181,9 @@ class MainWindow(QMainWindow):
 
         for spine in ax.spines.values():
             spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
+        emoji_images_applied = _apply_emoji_tick_images(ax, metric_labels)
+        if emoji_images_applied:
+            ax.set_xticklabels(["", "", ""])
         ax.set_title(
             title,
             color="#f5f5f5", #white-ish
@@ -23151,7 +23193,7 @@ class MainWindow(QMainWindow):
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            bottom=max(STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"], 0.24 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"]),
             top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
