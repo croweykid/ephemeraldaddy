@@ -22111,6 +22111,20 @@ class MainWindow(QMainWindow):
                     chart=popout_chart,
                 ),
             )
+        elif title == "Body Dynamics":
+            info_panel.setPlaceholderText(
+                "Click a Body Dynamics bar segment to view score-calculation details."
+            )
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or not artist_gid.startswith("dynamics:"):
+                    return
+                _key, metric_key, body_key = artist_gid.split(":", 2)
+                info_panel.setHtml(self._build_body_dynamics_popout_info(popout_chart, metric_key, body_key))
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
@@ -22485,6 +22499,108 @@ class MainWindow(QMainWindow):
             html_parts.append(f"<div>{html.escape(reaction)}</div>")
         html_parts.append(self._build_body_dominance_section(chart, body_name))
         return "".join(html_parts)
+
+    def _build_body_dynamics_popout_info(self, chart: Chart, metric: str, target_body: str) -> str:
+        metric_key = str(metric or "").strip().lower()
+        target_key = str(target_body or "").strip()
+        metric_label = {
+            "antagonizing": "Antagonizing",
+            "enabling": "Enabling",
+            "escalating": "Escalating",
+        }.get(metric_key, metric_key.title() or "Dynamics")
+        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
+        condition_weights = _calculate_planet_condition_weights(chart)
+        section_header_style = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        metric_color = PLANET_DYNAMICS_BAR_COLORS.get(metric_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        target_label = "ALL BODIES" if target_key == "all" else _display_body_name(target_key).upper()
+        total = (
+            sum(float((scores.get(body) or {}).get(metric_key, 0.0)) for body in scores)
+            if target_key == "all"
+            else float((scores.get(target_key) or {}).get(metric_key, 0.0))
+        )
+
+        body_lines = []
+        if target_key == "all":
+            for body_name in PLANET_ORDER:
+                if body_name not in scores:
+                    continue
+                value = float((scores.get(body_name) or {}).get(metric_key, 0.0))
+                if value <= 0:
+                    continue
+                body_color = PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+                body_lines.append(
+                    f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(body_name))}</span>: {value:.3f}</li>"
+                )
+        elif target_key in scores:
+            body_color = PLANET_COLORS.get(target_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            body_lines.append(
+                f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(target_key))}</span>: "
+                f"{float((scores.get(target_key) or {}).get(metric_key, 0.0)):.3f}</li>"
+            )
+
+        cw_lines = []
+        tracked_condition_keys = [k for k in PLANET_ORDER if k in condition_weights]
+        for body_name in sorted(tracked_condition_keys, key=lambda k: float(condition_weights.get(k, 0.0)), reverse=True)[:8]:
+            body_color = PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            cw_lines.append(
+                f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(body_name))}</span>: "
+                f"{float(condition_weights.get(body_name, 0.0)):.3f}</li>"
+            )
+
+        aspect_lines: list[str] = []
+        houses = getattr(chart, "houses", None)
+        for aspect in getattr(chart, "aspects", []) or []:
+            p1 = normalize_body_name(str(aspect.get("p1", "")))
+            p2 = normalize_body_name(str(aspect.get("p2", "")))
+            if target_key != "all" and target_key not in {p1, p2}:
+                continue
+            if p1 not in chart.positions or p2 not in chart.positions:
+                continue
+            sign1 = _sign_for_longitude(chart.positions[p1])
+            sign2 = _sign_for_longitude(chart.positions[p2])
+            house1 = _house_for_longitude(houses, chart.positions[p1])
+            house2 = _house_for_longitude(houses, chart.positions[p2])
+            aspect_type = str(aspect.get("type", "")).strip() or "Aspect"
+            aspect_color = ASPECT_COLORS.get(aspect_type, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            sign1_color = SIGN_COLORS.get(sign1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            sign2_color = SIGN_COLORS.get(sign2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            aspect_lines.append(
+                "<li>"
+                f"<span style='color:{html.escape(p1_color)};'>{html.escape(_display_body_name(p1))}</span>"
+                f" (<span style='color:{html.escape(sign1_color)};'>{html.escape(sign1)}</span>"
+                + (f", <span style='color:{html.escape(house1_color)};'>H{house1}</span>" if house1 else "")
+                + ") "
+                f"<span style='color:{html.escape(aspect_color)};'>{html.escape(aspect_type)}</span> "
+                f"<span style='color:{html.escape(p2_color)};'>{html.escape(_display_body_name(p2))}</span>"
+                f" (<span style='color:{html.escape(sign2_color)};'>{html.escape(sign2)}</span>"
+                + (f", <span style='color:{html.escape(house2_color)};'>H{house2}</span>" if house2 else "")
+                + ")"
+                "</li>"
+            )
+            if len(aspect_lines) >= 8:
+                break
+
+        return (
+            f'<div style="{section_header_style}">Body Dynamics • {html.escape(metric_label)} • {html.escape(target_label)}</div>'
+            f"<div><b>Total:</b> <span style='color:{html.escape(metric_color)};'>{total:.3f}</span></div><br>"
+            f'<div style="{section_header_style}">Score Breakdown:</div>'
+            "<ol>"
+            "<li>Classify the aspect into antagonizing / enabling / escalating using aspect family.</li>"
+            "<li>Compute weighted interaction: pair polarity × orb weight × aspect base weight × sqrt(cond A × cond B).</li>"
+            "<li>Route signed result into the appropriate dynamics bucket for each involved body.</li>"
+            "<li>For volatile pairs, escalating contributions receive an extra multiplier.</li>"
+            "</ol>"
+            f'<div style="{section_header_style}">Selected Score Contributions:</div>'
+            f"<ul>{''.join(body_lines) if body_lines else '<li>No contributions for this selection.</li>'}</ul>"
+            f'<div style="{section_header_style}">Top Condition Weights Used:</div>'
+            f"<ul>{''.join(cw_lines) if cw_lines else '<li>No condition-weight data available.</li>'}</ul>"
+            f'<div style="{section_header_style}">Relevant Aspect Samples:</div>'
+            f"<ul>{''.join(aspect_lines) if aspect_lines else '<li>No matching aspects to display.</li>'}</ul>"
+        )
 
     def _build_body_dominance_section(self, chart: Chart, body_name: str) -> str:
         mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
@@ -23149,7 +23265,7 @@ class MainWindow(QMainWindow):
                 segment_values = np.array([metric_scores.get(metric, 0.0) for metric in metric_order], dtype=float)
                 if np.all(segment_values <= 0.0):
                     continue
-                ax.bar(
+                segment_bars = ax.bar(
                     x_positions,
                     segment_values,
                     width=bar_width,
@@ -23157,14 +23273,23 @@ class MainWindow(QMainWindow):
                     color=PLANET_COLORS.get(body, "#6fa8dc"),
                     edgecolor="none",
                 )
+                for metric_name, segment_bar in zip(metric_order, segment_bars, strict=True):
+                    segment_bar.set_picker(True)
+                    segment_bar.set_gid(f"dynamics:{metric_name}:{body}")
                 cumulative_bottom += segment_values
             bars = ax.bar(x_positions, values, width=bar_width, color="none", edgecolor="none")
+            for metric_name, bar in zip(metric_order, bars, strict=True):
+                bar.set_picker(True)
+                bar.set_gid(f"dynamics:{metric_name}:all")
             ax.set_xticks(x_positions, fallback_tick_labels)
             title = "Body Dynamics (All Bodies)"
         else:
             values = [float(scores[selected_planet].get(metric, 0.0)) for metric in metric_order]
             bar_colors = [PLANET_DYNAMICS_BAR_COLORS.get(metric, "#6fa8dc") for metric in metric_order] #cornflower blue
             bars = ax.bar(fallback_tick, values, color=bar_colors)
+            for metric_name, bar in zip(metric_order, bars, strict=True):
+                bar.set_picker(True)
+                bar.set_gid(f"dynamics:{metric_name}:{selected_planet}")
             selected_weight = float(dominant_weights.get(selected_planet, 0.0))
             dominance_percent = (selected_weight / total_tracked_weight) * 100.0 if total_tracked_weight > 0 else 0.0
             title = f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)"
