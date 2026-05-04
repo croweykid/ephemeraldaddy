@@ -165,7 +165,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     app_menu = menu_bar.addMenu(APP_DISPLAY_NAME)
     _add_preferences_submenu(app_menu, window)
     app_menu.addAction("About", lambda: _show_about_from_onboarding(window))
-    #app_menu.addAction("Minimize", lambda: _minimize_window(window))
+    app_menu.addAction("Minimize", lambda: _minimize_window(window))
     app_menu.addSeparator()
     app_menu.addAction(f"Exit", _quit_application)
 

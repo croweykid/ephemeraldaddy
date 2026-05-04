@@ -23097,7 +23097,7 @@ class MainWindow(QMainWindow):
         for spine in ax.spines.values():
             spine.set_color(STANDARD_NCV_HORIZONTAL_BAR_CHART["spine_color"])
         ax.set_title(
-            f"{_display_body_name(selected_planet)} Dynamics ({dominance_percent:.1f}% dominant)",
+            f"{_display_body_name(selected_planet)}: ({dominance_percent:.1f}% dominant)",
             color="#f5f5f5", #white-ish
             fontsize=10,
             pad=8,
