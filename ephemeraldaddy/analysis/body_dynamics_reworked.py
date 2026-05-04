@@ -101,4 +101,5 @@ MAJOR_BODY_PAIR_ASPECT_POLARITY = {
     for pair, tone in MAJOR_BODY_PAIR_TONE.items()
 }
 
+#to add:
 #the scoring gist is something like: aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * sqrt(dom_a * dom_b)
