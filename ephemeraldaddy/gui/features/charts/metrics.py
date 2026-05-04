@@ -102,6 +102,22 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
         for body in tracked_bodies
     }
+
+    def _accumulate_metric(body_a: str, body_b: str, metric: str, signed_value: float) -> None:
+        if signed_value >= 0:
+            dynamics[body_a][metric] += signed_value
+            dynamics[body_b][metric] += signed_value
+            return
+        flipped_magnitude = abs(signed_value)
+        if metric == "antagonizing":
+            target_metric = "enabling"
+        elif metric == "enabling":
+            target_metric = "antagonizing"
+        else:
+            target_metric = "antagonizing"
+        dynamics[body_a][target_metric] += flipped_magnitude
+        dynamics[body_b][target_metric] += flipped_magnitude
+
     condition_weights = calculate_planet_condition_weights(chart)
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
@@ -119,18 +135,15 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         dom_a = max(float(condition_weights.get(p1, 0.0)), 0.0)
         dom_b = max(float(condition_weights.get(p2, 0.0)), 0.0)
         aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
-        score_magnitude = abs(aspect_score)
         if aspect_type in antagonizing_types:
-            dynamics[p1]["antagonizing"] += score_magnitude
-            dynamics[p2]["antagonizing"] += score_magnitude
+            _accumulate_metric(p1, p2, "antagonizing", aspect_score)
         if aspect_type in enabling_types:
-            dynamics[p1]["enabling"] += score_magnitude
-            dynamics[p2]["enabling"] += score_magnitude
+            _accumulate_metric(p1, p2, "enabling", aspect_score)
         if aspect_type in escalating_types:
+            escalating_score = aspect_score
             if pair_tone == "volatile_pair":
-                score_magnitude *= 1.15
-            dynamics[p1]["escalating"] += score_magnitude
-            dynamics[p2]["escalating"] += score_magnitude
+                escalating_score *= 1.15
+            _accumulate_metric(p1, p2, "escalating", escalating_score)
 
     return dynamics
 
