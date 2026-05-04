@@ -3967,10 +3967,10 @@ RELATION_TYPE = [
     "event", #aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak
 ]
 
-SENTIMENT_SCALE = {
+SENTIMENT_SCALE = { #you likely see them as a(n)...
     "archnemesis":{"min":-10,"max":-9,"emoji":"⚰️☠️","description":"a fatwa on this mofo"},
     "fiend":{"min":-9,"max":-7,"emoji":"🤺🔥","description":"you feel like the world would be better without them, honestly"},
-    "enemy":{"min":-7,"max":-5,"emoji":"🤬","description":"nah"},
+    "enemy":{"min":-7,"max":-5,"emoji":"🤬","description":"hell nah"},
     "scalawag":{"min":-5,"max":-3,"emoji":"🌵","description":"nah"},
     "creep":{"min":-3,"max":-1,"emoji":"👎","description":"kinda sus"},
     "whatever":{"min":-1,"max":1,"emoji":"🤷","description":"who knows"},
@@ -3980,6 +3980,8 @@ SENTIMENT_SCALE = {
     "bosom comrade":{"min":7,"max":9,"emoji":"🥰","description":"this entity is beloved to you"},
     "ride or die":{"min":9,"max":10,"emoji":"🌞🫂","description":"this is one of your favorite entities in existence"},
 }
+
+
 
 
 # --------------------------------------------------
