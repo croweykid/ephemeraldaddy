@@ -2378,7 +2378,7 @@ def build_predictions_panel_content(
         "Predictions for this chart based on user-submitted sentiment & alignment scores for similar charts."
         "</div>"
         + _sentiment_estimate_html("💖", positive_avg_numeric, positive_median_numeric)
-        + _sentiment_estimate_html("💔", negative_avg_numeric, negative_median_numeric)
+        + _sentiment_estimate_html("💔", -negative_avg_numeric, -negative_median_numeric)
         + _alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)
         + alignment_skip_footnote_html
     )
