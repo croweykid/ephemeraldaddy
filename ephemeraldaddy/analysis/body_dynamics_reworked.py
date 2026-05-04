@@ -84,7 +84,7 @@ EXPECTED_UNORDERED_PAIR_COUNT = len(PLANET_ORDER) * (len(PLANET_ORDER) - 1) // 2
 assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
 
-BODYPAIR_ASPECT_POLARITY = {
+BODY_PAIR_ASPECT_POLARITY = {
     pair: {
         "enabling": (
             ASPECT_FRICTION["harmonious"]["aspects"]
