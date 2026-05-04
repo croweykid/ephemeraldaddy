@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape as _escape_html
+
 import html
 import re
 import statistics
@@ -2460,11 +2462,12 @@ def build_similar_charts_popout_dialog(
     subject_chart_link.setOpenExternalLinks(False)
     subject_chart_link.setCursor(Qt.PointingHandCursor)
     subject_chart_link.setStyleSheet(header_style)
+    safe_subject_name = _escape_html(str(subject_name or "Current chart"))
     if subject_chart_id is not None:
-        subject_chart_link.setText(f'<a href="{int(subject_chart_id)}">{subject_name}</a>')
+        subject_chart_link.setText(f'<a href="{int(subject_chart_id)}">{safe_subject_name}</a>')
         subject_chart_link.linkActivated.connect(lambda target: on_link_activated(dialog, target))
     else:
-        subject_chart_link.setText(subject_name)
+        subject_chart_link.setText(safe_subject_name)
         subject_chart_link.setCursor(Qt.ArrowCursor)
     top_row.addWidget(subject_chart_link, 0, Qt.AlignLeft)
     top_row.addStretch(1)
