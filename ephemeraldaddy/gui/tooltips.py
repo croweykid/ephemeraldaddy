@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Mapping
 
-from PySide6.QtWidgets import QAbstractButton, QLabel, QWidget
+from PySide6.QtWidgets import QAbstractButton, QLabel, QLineEdit, QTextEdit, QWidget
 
 DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     # Database View controls
@@ -43,10 +43,17 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "Use Rectified Time:": "birthtime is unknown or possibly incorrect; use speculated correct time",
     "?": "birthtime unknown?",
     "Source": "origin of birth/biographical info",
+    "Source:": "origin of birth/biographical info",
+    "💭Alignment": "What's your impression of their morality, you judgy bastard?",
     "Alignment": "What's your impression of their morality, you judgy bastard?",
     "💖 Positive Sentiment Intensity:": "how much you love em",
     "💔 Negative Sentiment Intensity:": "how upsetting they are",
     "Familiarity:": "How well you think you know them",
+    "1st Encounter:": "first year you knowingly encountered this person/body",
+    "🐣Date": "birth date used for chart calculations",
+    "🐣Time:": "birth time used for chart calculations",
+    "Unknown": "mark time as unknown; time-sensitive bodies/houses may be approximate or conditional",
+    "😈 Most evil   ⟷   Most altruistic 😇": "alignment scale from most harmful to most altruistic",
 
     # Sentiment types (string-sensitive by checkbox text).
     "like": "friend",
@@ -85,6 +92,13 @@ EXACT_TEXT_TOOLTIP_OVERRIDES: dict[str, str] = {
     "public figure": "icon, subject to projections",
     "place": "why does this require explanation? don't get philosophical on me.",
     "event": "aren't we all an event, in a sense? NO. EVENTS ARE EVENTS. jk do whatever you're gonna, ya freak",
+}
+
+EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES: dict[str, str] = {
+    "Source: where your data about this person came from": "origin of birth/biographical info",
+    "Comments: your personal thoughts/observations": "your own notes or impressions about this chart",
+    "Rectification Notes: if birth data/time is unknown, any notes about what dates/time(s) it might be & why can go here.": "notes about uncertain birth times and possible rectifications",
+    "Year 1st Encountered": "first year you knowingly encountered this person/body",
 }
 
 
@@ -127,3 +141,15 @@ def apply_default_text_tooltips(
         if override_text:
             widget.setToolTip(override_text)
             continue
+
+    text_inputs = [
+        *container.findChildren(QLineEdit),
+        *container.findChildren(QTextEdit),
+    ]
+    for input_widget in text_inputs:
+        if input_widget.toolTip().strip():
+            continue
+        placeholder = input_widget.placeholderText().strip()
+        placeholder_tooltip = EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES.get(placeholder, "").strip()
+        if placeholder_tooltip:
+            input_widget.setToolTip(_format_tooltip_text(placeholder_tooltip))
