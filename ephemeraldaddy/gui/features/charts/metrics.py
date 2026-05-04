@@ -102,7 +102,7 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
         for body in tracked_bodies
     }
-    dominant_weights = calculate_dominant_planet_weights(chart)
+    condition_weights = calculate_planet_condition_weights(chart)
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
         p2 = normalize_body_name(str(aspect.get("p2", "")))
@@ -116,8 +116,8 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         aspect_base_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
         if orb_weight <= 0.0 or aspect_base_weight <= 0.0:
             continue
-        dom_a = max(float(dominant_weights.get(p1, 0.0)), 0.0)
-        dom_b = max(float(dominant_weights.get(p2, 0.0)), 0.0)
+        dom_a = max(float(condition_weights.get(p1, 0.0)), 0.0)
+        dom_b = max(float(condition_weights.get(p2, 0.0)), 0.0)
         aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
         score_magnitude = abs(aspect_score)
         if aspect_type in antagonizing_types:
@@ -416,10 +416,12 @@ def _chart_ruler_planets(chart: Chart) -> set[str]:
         if ascendant_sign in ruled_signs
     }
 
-def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
+
+def calculate_planet_condition_weights(chart: Chart) -> dict[str, float]:
+    """Body condition weights used by Body Dynamics multipliers (without aspect gain loop)."""
     use_houses = chart_uses_houses(chart)
     planets = dominant_planet_keys(chart)
-    subtotal_weights = {body: 0.0 for body in planets}
+    condition_weights = {body: 0.0 for body in planets}
     houses = getattr(chart, "houses", None) if use_houses else None
     for body in planets:
         if body not in chart.positions:
@@ -427,27 +429,33 @@ def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
         lon = chart.positions[body]
         house_num = house_for_longitude(houses, lon)
         weight = float(planet_weight(body, lon, houses, house_num))
-        subtotal_weights[body] += weight
+        condition_weights[body] += weight
 
-    for chart_ruler in _chart_ruler_planets(chart):
-        if chart_ruler in subtotal_weights:
-            subtotal_weights[chart_ruler] += CHART_RULER_BONUS
+    if use_houses:
+        for chart_ruler in _chart_ruler_planets(chart):
+            if chart_ruler in condition_weights:
+                condition_weights[chart_ruler] += CHART_RULER_BONUS
 
-    snapshot_weights = dict(subtotal_weights)
-    dispositor_transfers = {body: 0.0 for body in subtotal_weights}
-    for body, body_weight in snapshot_weights.items():
-        if body not in chart.positions:
-            continue
-        sign = sign_for_longitude(chart.positions[body])
-        rulers = [r for r in _sign_rulers(sign) if r in subtotal_weights]
-        if not rulers:
-            continue
-        transfer = body_weight * (DISPOSITOR_PLANET_ATTENUATION / len(rulers))
-        for ruler in rulers:
-            dispositor_transfers[ruler] += transfer
+        snapshot_weights = dict(condition_weights)
+        dispositor_transfers = {body: 0.0 for body in condition_weights}
+        for body, body_weight in snapshot_weights.items():
+            if body not in chart.positions:
+                continue
+            sign = sign_for_longitude(chart.positions[body])
+            rulers = [r for r in _sign_rulers(sign) if r in condition_weights]
+            if not rulers:
+                continue
+            transfer = body_weight * (DISPOSITOR_PLANET_ATTENUATION / len(rulers))
+            for ruler in rulers:
+                dispositor_transfers[ruler] += transfer
 
-    for body, transfer in dispositor_transfers.items():
-        subtotal_weights[body] += transfer
+        for body, transfer in dispositor_transfers.items():
+            condition_weights[body] += transfer
+
+    return condition_weights
+
+def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
+    subtotal_weights = calculate_planet_condition_weights(chart)
 
     # Aspect interactions increase per-chart dominant planet weights here.
     final_weights = dict(subtotal_weights)
