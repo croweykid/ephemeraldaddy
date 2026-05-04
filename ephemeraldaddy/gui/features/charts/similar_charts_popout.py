@@ -94,10 +94,10 @@ def _sentiment_estimate_html(label: str, average: float, median: float) -> str:
     median_emoji, median_label, median_color = _sentiment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} avg:</span> "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} user is probably inclined to see {subject_name} as a(n) </span> "
         f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
-        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or a(n)</span> "
+        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>."
         "</div>"
     )
 
@@ -130,9 +130,9 @@ def _alignment_estimate_html(average: float, median: float) -> str:
     median_emoji, median_label, median_color = _alignment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️ avg:</span> "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️In ethical terms, user probably thinks {subject_name} is </span> "
         f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>median:</span> "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or </span> "
         f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
         "</div>"
     )
