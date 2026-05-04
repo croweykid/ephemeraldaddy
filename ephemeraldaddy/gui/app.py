@@ -22112,6 +22112,22 @@ class MainWindow(QMainWindow):
                     chart=popout_chart,
                 ),
             )
+        elif title == "Body Dynamics":
+            info_panel.setPlaceholderText(
+                "Click a bar section to view a plain-English score breakdown."
+            )
+
+            def _on_pick(event) -> None:
+                artist = getattr(event, "artist", None)
+                artist_gid = artist.get_gid() if artist is not None else None
+                if not isinstance(artist_gid, str) or not artist_gid.startswith("dynamics:"):
+                    return
+                _, metric, target = artist_gid.split(":", 2)
+                info_panel.setHtml(
+                    self._build_body_dynamics_popout_info(popout_chart, metric, target)
+                )
+
+            popout_canvas.mpl_connect("pick_event", _on_pick)
         # else:
         #     layout.addWidget(popout_canvas, 1)
 
