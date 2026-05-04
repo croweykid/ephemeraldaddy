@@ -20959,6 +20959,11 @@ class MainWindow(QMainWindow):
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
+            popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
+            if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData"):
+                similarities_index = int(popout_analysis_dropdown.findData("similarities"))
+                if similarities_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
+                    popout_analysis_dropdown.setCurrentIndex(similarities_index)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(normalized_target)
@@ -21598,6 +21603,7 @@ class MainWindow(QMainWindow):
         dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
         self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
         self._register_popout_shortcuts(dialog)
+        self._show_similar_chart_popout_predictions(dialog)
         self._similar_charts_popout_dialogs.append(dialog)
         dialog.destroyed.connect(
             lambda _=None, popout=dialog: self._similar_charts_popout_dialogs.remove(popout)
