@@ -1,0 +1,12 @@
+skyfield>=1.49
+pandas>=2.2
+matplotlib>=3.9
+numpy>=1.26
+Pillow>=10.0
+rich>=13.7
+timezonefinder>=6.0
+geopy>=2.0
+pyswisseph>=2.10
+requests>=2.32
+lunar_python>=1.4.8
+emoji>=2
