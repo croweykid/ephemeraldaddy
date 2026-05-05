@@ -20688,6 +20688,7 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.planet_dynamics_summary_label = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
@@ -27341,6 +27342,7 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
             self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
         if self._similar_charts_list_label is not None:
@@ -27620,7 +27622,13 @@ class MainWindow(QMainWindow):
             chart=chart,
         )
         summary_label = getattr(self, "planet_dynamics_summary_label", None)
-        if summary_label is None:
+        summary_label_is_usable = False
+        if summary_label is not None:
+            try:
+                summary_label_is_usable = summary_label.parent() is not None
+            except RuntimeError:
+                summary_label_is_usable = False
+        if not summary_label_is_usable:
             summary_label = QLabel()
             summary_label.setWordWrap(True)
             summary_label.setTextFormat(Qt.RichText)
