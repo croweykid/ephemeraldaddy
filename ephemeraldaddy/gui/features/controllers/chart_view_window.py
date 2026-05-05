@@ -862,6 +862,7 @@ def build_chart_view_right_panel(
             "_sync_chart_analysis_section_visibility",
             "_set_chart_right_panel",
             "_chart_analysis_section_expanded",
+            "_render_dndification_predictions",
         ),
         context="build_chart_view_right_panel",
     )
@@ -905,6 +906,19 @@ def build_chart_view_right_panel(
     owner.enneagram_prediction_tritype_label.setWordWrap(True)
     owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
     enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
+
+    dnd_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=predictions_panel,
+        layout=predictions_layout,
+        title="D&&D-ification",
+        expanded=True,
+    )
+    owner.dnd_predictions_chart_panel = QWidget()
+    owner.dnd_predictions_chart_layout = QVBoxLayout()
+    owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.dnd_predictions_chart_layout.setSpacing(6)
+    owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
+    dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
     predictions_layout.addStretch(1)
 
     chart_right_panel = build_chart_right_panel_stack(
