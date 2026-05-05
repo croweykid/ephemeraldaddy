@@ -475,6 +475,7 @@ from ephemeraldaddy.core.interpretations import (
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
     HOUSE_WEIGHTS,
+    JONES_SHAPES,
     DETRIMENT_WEIGHT,
     ANGULAR_AMPLIFICATION,
     NATURAL_HOUSE_PLANETS,
@@ -482,6 +483,7 @@ from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_RANGES,
     MODES,
+    ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
     ANGLE_WEIGHT,
@@ -938,7 +940,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.chart_type_identifier import chart_type_summary
-from ephemeraldaddy.core.interpretations import ASPECT_PATTERN_DEFS, JONES_SHAPES
+#from ephemeraldaddy.core.interpretations import ASPECT_PATTERN_DEFS, JONES_SHAPES
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
@@ -27288,7 +27290,10 @@ class MainWindow(QMainWindow):
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
-        canvas.draw()
+        try:
+            canvas.draw()
+        except RuntimeError:
+            return
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -27321,7 +27326,10 @@ class MainWindow(QMainWindow):
             symbol_scale=0.7,
             wheel_scale=1.3,
         )
-        canvas.draw()
+        try:
+            canvas.draw()
+        except RuntimeError:
+            return
         
         self.chart_canvas = canvas
 
@@ -27870,7 +27878,8 @@ class MainWindow(QMainWindow):
         for rank, species in enumerate(species_top_three[:3], start=1):
             family = species[0]
             subtype = species[1] if len(species) > 1 else ""
-            species_lines.append(f"{rank}) {family}{_format_species_variant(subtype)}")
+            species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
+            species_lines.append(f"{rank}) {family}{species_variant}")
 
         try:
             axis_scores = score_class_axes(chart)
