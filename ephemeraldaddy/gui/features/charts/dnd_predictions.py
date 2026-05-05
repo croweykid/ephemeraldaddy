@@ -28,9 +28,10 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
 
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
-    top = SpeciesAssigner().assign(chart).ranked[:10]
-    labels = [family for family, _card in top]
-    values = [float(card.score) for _family, card in top]
+    pick = SpeciesAssigner().assign(chart)
+    top = pick.top_three[:10]
+    labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
+    values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
     bars = ax.barh(labels, values)
     for idx, bar in enumerate(bars):
