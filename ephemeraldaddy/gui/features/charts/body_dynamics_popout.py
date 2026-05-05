@@ -15,7 +15,12 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_ORDER,
     aspect_orb_allowance,
 )
-from ephemeraldaddy.gui.features.charts.metrics import calculate_planet_condition_weights, calculate_planet_dynamics_scores, normalize_body_name
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_planet_condition_weights,
+    calculate_planet_dynamics_scores,
+    classify_body_dynamics,
+    normalize_body_name,
+)
 from ephemeraldaddy.gui.features.charts.text_summary import _display_body_name
 
 
@@ -123,10 +128,13 @@ def build_body_dynamics_popout_info_html(
         )
     chart_name = html.escape(str(getattr(chart, "name", "This chart") or "This chart"))
     target_display = html.escape(_display_body_name(target_key).upper())
+    body_label = classify_body_dynamics(body_scores)
+    body_name = html.escape(_display_body_name(target_key))
+    label_sentence = f"{body_name} is an {html.escape(body_label)} in {chart_name}'s chart."
     return (
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Body Dynamics • {html.escape(metric_label)} • {target_display}</div>"
         f"<div><b>{chart_name}'s {target_display}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> <span style='color:{classification_color};'>{html.escape(metric_label)}</span>; <span style='color:{classification_color};'>{influence_share:.2f}%</span> of total <span style='color:{classification_color};'>{html.escape(metric_label)}</span> influences in chart.</div>"
-        f"<div><b>Total:</b> <span style='color:{html.escape(color)};'>{metric_total:.3f}</span></div><br>"
+        f"<div><b>{label_sentence}</b> <span style='color:{html.escape(color)};'>({metric_total:.3f})</span></div><br>"
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Score Breakdown:</div>"
         f"<ul>{''.join(detail_items) if detail_items else '<li>No matching aspect contributions for this selection.</li>'}</ul>"
     )

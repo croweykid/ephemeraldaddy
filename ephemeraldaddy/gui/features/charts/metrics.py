@@ -52,6 +52,7 @@ PLANET_DYNAMICS_METRICS = (
     "enabling",
     "escalating",
 )
+BODY_DYNAMICS_LABELS = ("enabler", "antagonizer", "escalating enabler", "escalating antagonizer")
 
 _PLANET_DYNAMICS_BODY_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
 _PLANET_DYNAMICS_PAIR_TONES = {
@@ -146,6 +147,21 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
             _accumulate_metric(p1, p2, "escalating", escalating_score)
 
     return dynamics
+
+
+def classify_body_dynamics(body_scores: dict[str, float] | None) -> str:
+    """Classify a body's dynamics balance for reuse across UI/features."""
+    scores = body_scores or {}
+    enabling = float(scores.get("enabling", 0.0))
+    antagonizing = float(scores.get("antagonizing", 0.0))
+    escalating = float(scores.get("escalating", 0.0))
+    if escalating > enabling and escalating > antagonizing:
+        return "escalating enabler" if enabling >= antagonizing else "escalating antagonizer"
+    if enabling > antagonizing:
+        return "enabler"
+    if antagonizing > enabling:
+        return "antagonizer"
+    return "enabler"
 
 
 def house_membership_weights(
