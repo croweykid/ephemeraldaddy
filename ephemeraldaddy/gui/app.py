@@ -958,6 +958,11 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
 )
+from ephemeraldaddy.gui.features.charts.dnd_predictions import (
+    draw_dnd_classes_predictions as _draw_dnd_classes_predictions_chart,
+    draw_dnd_species_predictions as _draw_dnd_species_predictions_chart,
+    draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
+)
 
 
 class SegmentedTimeEdit(QLineEdit):
@@ -2499,7 +2504,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
+            "show_dnd_output": False,
         }
     def _expanded_database_metric_sections(self) -> list[str]:
         section_order = [
@@ -23270,7 +23275,7 @@ class MainWindow(QMainWindow):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
+            "show_dnd_output": False,
         }
 
     def _refresh_chart_summary(self, chart: Chart | None = None) -> None:
@@ -23288,6 +23293,7 @@ class MainWindow(QMainWindow):
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
         self._render_enneagram_predictions(chart)
+        self._render_dndification_predictions(chart)
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -25096,6 +25102,7 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(self._latest_chart)
         if panel_key == "predictions" and self._latest_chart is not None:
             self._render_enneagram_predictions(self._latest_chart)
+            self._render_dndification_predictions(self._latest_chart)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
@@ -27771,6 +27778,60 @@ class MainWindow(QMainWindow):
             tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
             )
+
+    def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
+        _draw_dnd_statblock_predictions_chart(
+            ax,
+            chart,
+            dnd_stat_keys=self.DND_STAT_KEYS,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
+
+    def _draw_dnd_species_predictions(self, ax, chart: Chart) -> None:
+        _draw_dnd_species_predictions_chart(
+            ax,
+            chart,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
+
+    def _draw_dnd_classes_predictions(self, ax, chart: Chart) -> None:
+        _draw_dnd_classes_predictions_chart(
+            ax,
+            chart,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
+
+    def _render_dndification_predictions(self, chart: Chart | None) -> None:
+        chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
+        if chart_layout is None:
+            return
+        if chart is None or self._is_placeholder_chart(chart):
+            self._clear_layout_widgets(chart_layout)
+            return
+        self._render_metric_panel(
+            canvas_attr="dnd_prediction_statblock_canvas",
+            container_layout=chart_layout,
+            figsize=(5.5, 2.8),
+            title="D&D Statblock",
+            draw_fn=self._draw_dnd_statblock_predictions,
+            chart=chart,
+        )
+        self._render_metric_panel(
+            canvas_attr="dnd_prediction_species_canvas",
+            container_layout=chart_layout,
+            figsize=(5.5, 2.8),
+            title="Top 10 Species",
+            draw_fn=self._draw_dnd_species_predictions,
+            chart=chart,
+        )
+        self._render_metric_panel(
+            canvas_attr="dnd_prediction_classes_canvas",
+            container_layout=chart_layout,
+            figsize=(5.5, 2.8),
+            title="Top 10 Classes",
+            draw_fn=self._draw_dnd_classes_predictions,
+            chart=chart,
+        )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)

@@ -40,6 +40,8 @@ def build_body_dynamics_popout_info_html(
     metric_total = float(body_scores.get(metric_key, 0.0))
     body_total = sum(float(body_scores.get(k, 0.0)) for k in ("antagonizing", "enabling", "escalating"))
     share = (metric_total / body_total * 100.0) if body_total > 0 else 0.0
+    metric_chart_total = sum(float((scores.get(body) or {}).get(metric_key, 0.0)) for body in scores)
+    influence_share = (metric_total / metric_chart_total * 100.0) if metric_chart_total > 0 else 0.0
     condition_weights = calculate_planet_condition_weights(chart)
 
     antagonizing_types = {str(a).replace(" ", "_").lower() for a in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())}
@@ -123,7 +125,7 @@ def build_body_dynamics_popout_info_html(
     target_display = html.escape(_display_body_name(target_key).upper())
     return (
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Body Dynamics • {html.escape(metric_label)} • {target_display}</div>"
-        f"<div><b>{chart_name}'s {target_display}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> <span style='color:{classification_color};'>{html.escape(metric_label)}</span>.</div>"
+        f"<div><b>{chart_name}'s {target_display}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> <span style='color:{classification_color};'>{html.escape(metric_label)}</span>; <span style='color:{classification_color};'>{influence_share:.2f}%</span> of total <span style='color:{classification_color};'>{html.escape(metric_label)}</span> influences in chart.</div>"
         f"<div><b>Total:</b> <span style='color:{html.escape(color)};'>{metric_total:.3f}</span></div><br>"
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Score Breakdown:</div>"
         f"<ul>{''.join(detail_items) if detail_items else '<li>No matching aspect contributions for this selection.</li>'}</ul>"
