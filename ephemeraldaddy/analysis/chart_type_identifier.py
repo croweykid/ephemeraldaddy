@@ -47,11 +47,18 @@ def classify_jones_shape(positions: dict[str, float]) -> tuple[str, dict[str, st
 
 def detect_aspect_patterns(aspects: list[dict]) -> list[str]:
     pair_types: dict[frozenset[str], str] = {}
+    allowed_bodies = set(JONES_PLANETS)
     for aspect in aspects or []:
         p1 = str(aspect.get("p1", "")).strip()
         p2 = str(aspect.get("p2", "")).strip()
         typ = str(aspect.get("type", "")).strip().lower().replace(" ", "_")
-        if not p1 or not p2 or p1 == p2:
+        if (
+            not p1
+            or not p2
+            or p1 == p2
+            or p1 not in allowed_bodies
+            or p2 not in allowed_bodies
+        ):
             continue
         pair_types[frozenset((p1, p2))] = typ
 
