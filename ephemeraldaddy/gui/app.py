@@ -20994,6 +20994,7 @@ class MainWindow(QMainWindow):
         
         render_predictions_panel_content(
             output_widget=popout_info_output,
+            subject_name=str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip() or "Current chart",
             matches=matches,
             load_chart_by_id=load_chart,
             default_alignment_to_zero_when_unassigned=bool(

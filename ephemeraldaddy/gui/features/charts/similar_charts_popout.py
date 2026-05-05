@@ -2293,6 +2293,7 @@ def render_similar_match_blocks(
 
 def build_predictions_panel_content(
     *,
+    subject_name: str,
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
@@ -2405,11 +2406,13 @@ def build_predictions_panel_content(
 def render_predictions_panel_content(
     *,
     output_widget: Any,
+    subject_name: str,
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
 ) -> None:
     html_text, plain_text = build_predictions_panel_content(
+        subject_name=subject_name,
         matches=matches,
         load_chart_by_id=load_chart_by_id,
         default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
