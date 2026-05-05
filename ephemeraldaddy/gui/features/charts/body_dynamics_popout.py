@@ -6,8 +6,10 @@ import html
 from typing import Any
 
 from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
     ASPECT_SCORE_WEIGHTS,
     ASPECT_TYPES,
+    PLANET_COLORS,
     INNER_PLANETS,
     OUTER_PLANETS,
     PLANET_ORDER,
@@ -91,15 +93,37 @@ def build_body_dynamics_popout_info_html(
     rows.sort(key=lambda x: x[0], reverse=True)
     color = planet_dynamics_bar_colors.get(metric_key, chart_theme_colors.get("text", "#f5f5f5"))
     classification_color = {"antagonizing": "#ff6b6b", "enabling": "#6be39d", "escalating": "#ffbd59"}.get(metric_key, color)
-    detail_items = [
-        f"<li>{html.escape(_display_body_name(p1))} {html.escape(aname)} {html.escape(_display_body_name(p2))}: <span style='color:{classification_color};'><b>{html.escape(metric_label.lower())}</b></span> because {html.escape(_display_body_name(p1))} ({cw1:.3f}) and {html.escape(_display_body_name(p2))} ({cw2:.3f}) are a {html.escape(tone)} pair with orb weight {orbw:.3f}, contributing {value:.3f} to the {html.escape(metric_label)} score.</li>"
-        for value, p1, p2, aname, tone, orbw, cw1, cw2 in rows
-    ]
+    classification_word_color = {
+        "antagonizing": "#ff6b6b",
+        "enabling": "#6be39d",
+        "escalating": "#ffbd59",
+    }
+
+    def _tone_label(raw_tone: str) -> str:
+        cleaned = str(raw_tone or "neutral_pair").replace("_pair", "")
+        tone_color = "#ffbd59" if cleaned == "volatile" else classification_word_color.get(cleaned, chart_theme_colors.get("text", "#f5f5f5"))
+        return f"<span style='color:{tone_color};'>{html.escape(cleaned)}</span>"
+
+    detail_items = []
+    for value, p1, p2, aname, tone, orbw, cw1, cw2 in rows:
+        p1_color = PLANET_COLORS.get(p1, chart_theme_colors.get("text", "#f5f5f5"))
+        p2_color = PLANET_COLORS.get(p2, chart_theme_colors.get("text", "#f5f5f5"))
+        aspect_color = ASPECT_COLORS.get(aname, chart_theme_colors.get("text", "#f5f5f5"))
+        p1_html = f"<span style='color:{html.escape(str(p1_color))};'>{html.escape(_display_body_name(p1))}</span>"
+        p2_html = f"<span style='color:{html.escape(str(p2_color))};'>{html.escape(_display_body_name(p2))}</span>"
+        aspect_html = f"<span style='color:{html.escape(str(aspect_color))};'>{html.escape(aname)}</span>"
+        class_word = metric_label.lower()
+        class_word_color = classification_word_color.get(metric_key, classification_color)
+        class_html = f"<span style='color:{class_word_color};'><b>{html.escape(class_word)}</b></span>"
+        metric_name_html = f"<span style='color:{class_word_color};'>{html.escape(metric_label)}</span>"
+        detail_items.append(
+            f"<li>{p1_html} {aspect_html} {p2_html}: {class_html} because {p1_html} ({cw1:.3f}) and {p2_html} ({cw2:.3f}) are a {_tone_label(tone)} pair with orb weight {orbw:.3f}, contributing {value:.3f} to the {metric_name_html} score.</li>"
+        )
     chart_name = html.escape(str(getattr(chart, "name", "This chart") or "This chart"))
     target_display = html.escape(_display_body_name(target_key).upper())
     return (
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Body Dynamics • {html.escape(metric_label)} • {target_display}</div>"
-        f"<div><b>{chart_name}'s {target_display}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> {html.escape(metric_label)}.</div>"
+        f"<div><b>{chart_name}'s {target_display}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> <span style='color:{classification_color};'>{html.escape(metric_label)}</span>.</div>"
         f"<div><b>Total:</b> <span style='color:{html.escape(color)};'>{metric_total:.3f}</span></div><br>"
         f"<div style='font-weight:bold; color:{chart_data_highlight_color};'>Score Breakdown:</div>"
         f"<ul>{''.join(detail_items) if detail_items else '<li>No matching aspect contributions for this selection.</li>'}</ul>"
