@@ -25,6 +25,7 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
         bar.set_alpha(0.95)
     ax.set_title("D&D Statblock")
     apply_standard_bar_axes(ax, labels)
+    ax.tick_params(axis="x", labelbottom=False)
 
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
