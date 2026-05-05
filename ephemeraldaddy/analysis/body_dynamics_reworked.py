@@ -83,7 +83,7 @@ BODY_PAIR_DYNAMICS = {
 EXPECTED_UNORDERED_PAIR_COUNT = len(PLANET_ORDER) * (len(PLANET_ORDER) - 1) // 2
 assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
-PAIR_TONE_DISTRIBUTION = {
+PAIR_TYPE_DISTRIBUTION = {
     "supportive_pair": {
         "enabling_aspect":     {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
         "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},

@@ -886,6 +886,7 @@ def build_chart_view_right_panel(
 
     predictions_panel = QWidget()
     predictions_layout = QVBoxLayout()
+    predictions_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
     predictions_layout.setContentsMargins(6, 6, 6, 6)
     predictions_layout.setSpacing(6)
     predictions_panel.setLayout(predictions_layout)
