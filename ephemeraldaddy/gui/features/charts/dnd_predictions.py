@@ -18,7 +18,7 @@ from ephemeraldaddy.gui.style import DND_STAT_EARTHTONE_COLORS, get_cycled_earth
 def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[str, ...], apply_standard_bar_axes: Any) -> None:
     statblock = score_dnd_statblock(chart)
     labels = list(dnd_stat_keys)
-    values = [float(statblock.stats.get(label, 0.0)) for label in labels]
+    values = [float(statblock.scores.get(label, 0.0)) for label in labels]
     bars = ax.barh(labels, values)
     for idx, bar in enumerate(bars):
         bar.set_facecolor(DND_STAT_EARTHTONE_COLORS.get(labels[idx], "#6fa8dc"))
