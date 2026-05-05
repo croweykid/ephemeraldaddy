@@ -25070,16 +25070,41 @@ class MainWindow(QMainWindow):
         """Backward-compatible alias for _set_chart_right_panel_container_visible."""
         self._set_chart_right_panel_container_visible(visible)
 
-    def _set_chart_right_panel(self, panel_key: str) -> None:
+    def _set_chart_right_panel(self, panel_key: str | None) -> None:
         panel_stack = getattr(self, "chart_right_panel_stack", None)
         if panel_stack is None:
             return
+        splitter_sizes = self._main_splitter.sizes()
+        can_resize_splitter = len(splitter_sizes) >= 3
+        controls_row = getattr(self, "chart_right_panel_controls_row", None)
+        controls_width = (
+            max(int(controls_row.sizeHint().width()), 76)
+            if controls_row is not None
+            else 76
+        )
+        if panel_key is None:
+            panel_stack.setVisible(False)
+            panel_stack.setMaximumWidth(0)
+            self._active_chart_right_panel = None
+            self.chart_analytics_panel_button.setChecked(False)
+            self.predictions_panel_button.setChecked(False)
+            self.subjective_notes_panel_button.setChecked(False)
+            if can_resize_splitter:
+                left, middle, right = splitter_sizes[:3]
+                collapsed_right = min(controls_width, right)
+                middle += max(0, right - collapsed_right)
+                self._main_splitter.setSizes([left, middle, collapsed_right])
+            return
+
         analytics_enabled = bool(
             getattr(self, "chart_analytics_panel_button", None)
             and self.chart_analytics_panel_button.isEnabled()
         )
         if panel_key == "analytics" and not analytics_enabled:
             panel_key = "subjective_notes"
+
+        panel_stack.setMaximumWidth(16777215)
+        panel_stack.setVisible(True)
         if panel_key == "subjective_notes":
             panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
         elif panel_key == "predictions":
@@ -25095,6 +25120,18 @@ class MainWindow(QMainWindow):
             self._schedule_chart_render(self._latest_chart)
         if panel_key == "predictions" and self._latest_chart is not None:
             self._render_enneagram_predictions(self._latest_chart)
+        if can_resize_splitter:
+            left, middle, right = splitter_sizes[:3]
+            expanded_right = max(right, 240)
+            middle = max(200, middle - (expanded_right - right))
+            self._main_splitter.setSizes([left, middle, expanded_right])
+
+    def _toggle_chart_right_panel(self, panel_key: str) -> None:
+        current_panel = getattr(self, "_active_chart_right_panel", None)
+        if current_panel == panel_key:
+            self._set_chart_right_panel(None)
+            return
+        self._set_chart_right_panel(panel_key)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
