@@ -21486,32 +21486,8 @@ class MainWindow(QMainWindow):
                 )
                 return
         else:
-            if subject_chart_id_override is not None:
-                subject_chart_id = int(subject_chart_id_override)
-                try:
-                    chart = load_chart(subject_chart_id)
-                except Exception as exc:
-                    QMessageBox.warning(
-                        self,
-                        "Similar Charts",
-                        f"Could not load the selected chart:\n{exc}",
-                    )
-                    return
-            else:
-                if subject_chart_id_override is not None:
-                    subject_chart_id = int(subject_chart_id_override)
-                    try:
-                        chart = load_chart(subject_chart_id)
-                    except Exception as exc:
-                        QMessageBox.warning(
-                            self,
-                            "Similar Charts",
-                            f"Could not load the selected chart:\n{exc}",
-                        )
-                        return
-                else:
-                    chart = self._latest_chart
-                    subject_chart_id = self.current_chart_id
+            chart = self._latest_chart
+            subject_chart_id = self.current_chart_id
 
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
