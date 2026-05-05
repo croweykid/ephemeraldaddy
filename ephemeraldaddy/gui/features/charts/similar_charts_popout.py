@@ -89,17 +89,16 @@ def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
     return closest_emoji, closest_label, closest_color
 
 
-def _sentiment_estimate_html(label: str, average: float, median: float) -> str:
+def _sentiment_estimate_html(average: float, median: float) -> str:
     avg_emoji, avg_label, avg_color = _sentiment_scale_bucket(average)
     median_emoji, median_label, median_color = _sentiment_scale_bucket(median)
-    return (
-        f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} user is probably inclined to see him/her as a(n) </span> "
-        f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or a(n)</span> "
-        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>."
-        "</div>"
+    avg_phrase = f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>"
+    if avg_label == median_label:
+        return avg_phrase
+    median_phrase = (
+        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
     )
+    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>or a(n)</span> {median_phrase}"
 
 
 def _alignment_scale_bucket(value: float) -> tuple[str, str, str]:
@@ -128,14 +127,13 @@ def _alignment_scale_bucket(value: float) -> tuple[str, str, str]:
 def _alignment_estimate_html(average: float, median: float) -> str:
     avg_emoji, avg_label, avg_color = _alignment_scale_bucket(average)
     median_emoji, median_label, median_color = _alignment_scale_bucket(median)
-    return (
-        f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️In ethical terms, user probably thinks s/he is </span> "
-        f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or </span> "
+    avg_phrase = f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>"
+    if avg_label == median_label:
+        return avg_phrase
+    median_phrase = (
         f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
-        "</div>"
     )
+    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>or</span> {median_phrase}"
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
 SIMILARITY_SECTION_HEADER_COLOR = "#B87333"
@@ -2295,6 +2293,7 @@ def render_similar_match_blocks(
 
 def build_predictions_panel_content(
     *,
+    subject_name: str,
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
@@ -2378,9 +2377,14 @@ def build_predictions_panel_content(
         f"<div style='margin-top:4px;color:#f5f5f5;font-style:italic'>"
         "Predictions for this chart based on user-submitted sentiment & alignment scores for similar charts."
         "</div>"
-        + _sentiment_estimate_html("💖", positive_avg_numeric, positive_median_numeric)
-        + _sentiment_estimate_html("💔", -negative_avg_numeric, -negative_median_numeric)
-        + _alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)
+        f"<div style='margin-top:6px;color:#f5f5f5'>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Based on similar charts, the user is probably inclined to see {html.escape(subject_name)} as a(n)</span> "
+        f"{_sentiment_estimate_html(positive_avg_numeric, positive_median_numeric)}"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>, at best. At worst, a(n)</span> "
+        f"{_sentiment_estimate_html(-negative_avg_numeric, -negative_median_numeric)}"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>. Ethically, the chart is probably perceived as</span> "
+        f"{_alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)}."
+        "</div>"
         + alignment_skip_footnote_html
     )
     plain_text = (
@@ -2402,11 +2406,13 @@ def build_predictions_panel_content(
 def render_predictions_panel_content(
     *,
     output_widget: Any,
+    subject_name: str,
     matches: list[Any],
     load_chart_by_id: Callable[[int], Any],
     default_alignment_to_zero_when_unassigned: bool = True,
 ) -> None:
     html_text, plain_text = build_predictions_panel_content(
+        subject_name=subject_name,
         matches=matches,
         load_chart_by_id=load_chart_by_id,
         default_alignment_to_zero_when_unassigned=default_alignment_to_zero_when_unassigned,
