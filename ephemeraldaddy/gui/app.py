@@ -616,6 +616,9 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 from ephemeraldaddy.gui.features.charts.body_dynamics_popout import (
     build_body_dynamics_popout_info_html as _build_body_dynamics_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
+    build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
+)
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
@@ -20696,6 +20699,7 @@ class MainWindow(QMainWindow):
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_species_canvas = None
         self.dnd_prediction_classes_canvas = None
+        self.planet_dynamics_summary_label = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
@@ -27351,6 +27355,7 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
             self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
         if self._similar_charts_list_label is not None:
@@ -27628,6 +27633,25 @@ class MainWindow(QMainWindow):
             title="Body Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
+        )
+        summary_label = getattr(self, "planet_dynamics_summary_label", None)
+        summary_label_is_usable = False
+        if summary_label is not None:
+            try:
+                summary_label_is_usable = summary_label.parent() is not None
+            except RuntimeError:
+                summary_label_is_usable = False
+        if not summary_label_is_usable:
+            summary_label = QLabel()
+            summary_label.setWordWrap(True)
+            summary_label.setTextFormat(Qt.RichText)
+            self.planet_dynamics_summary_label = summary_label
+            self.planet_dynamics_container_layout.addWidget(summary_label)
+        summary_label.setText(
+            _build_body_dynamics_summary_html(
+                scores,
+                fallback_text_color=CHART_THEME_COLORS["text"],
+            )
         )
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
