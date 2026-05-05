@@ -938,6 +938,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
 from ephemeraldaddy.analysis.chart_type_identifier import chart_type_summary
+from ephemeraldaddy.core.interpretations import JONES_SHAPES
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
