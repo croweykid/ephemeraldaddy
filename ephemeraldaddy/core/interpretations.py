@@ -370,6 +370,204 @@ SIGN_GENDERS = [ #higher number = more femme. Average a chart by prevalence & al
     ("Aries", 0), #0 #literally god of war, ruled by mars
 ]
 
+JONES_PLANETS = ( #just the basic modern planets/bodies.
+    "Sun", "Moon", "Mercury", "Venus", "Mars",
+    "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+)
+
+JONES_SHAPES = {
+    "bundle": {
+        "kind": "distribution",
+        "definition": "All 10 planets fall within a span of about 120° (4 signs).",
+        "occupied_span_max": 120,
+        "meaning_brief": (
+            "Extreme concentration. Specialist temperament. Depth over breadth. "
+            "Strong focus, weak distribution."
+        ),
+    },
+    "bowl": {
+        "kind": "distribution",
+        "definition": "All 10 planets fall within a span of about 180° (one hemisphere).",
+        "occupied_span_max": 180,
+        "meaning_brief": (
+            "Self-contained and purposeful. Feels the missing half and often moves through life "
+            "as if trying to complete or answer it."
+        ),
+    },
+    "bucket": {
+        "kind": "distribution",
+        "definition": (
+            "9 planets form a bowl, with 1 singleton planet acting as the handle in the opposite hemisphere."
+        ),
+        "core_cluster_span_max": 180,
+        "handle_count": 1,
+        "meaning_brief": (
+            "The handle becomes a focal outlet. The life often swings around that planet's agenda."
+        ),
+    },
+    "locomotive": {
+        "kind": "distribution",
+        "definition": (
+            "All 10 planets fall within about 240°, leaving an empty 120° trine sector."
+        ),
+        "occupied_span_max": 240,
+        "empty_span_min": 120,
+        "meaning_brief": (
+            "Driven, propulsive, effortful. Strong forward thrust. The leading planet matters a lot."
+        ),
+    },
+    "seesaw": {
+        "kind": "distribution",
+        "definition": (
+            "Two opposing groups of planets, with the groups separated and balancing across the wheel."
+        ),
+        "cluster_count": 2,
+        "min_cluster_separation": 60,   # degrees / ~2 signs
+        "meaning_brief": (
+            "Life organized around duality, contrast, negotiation, and recurrent balancing acts."
+        ),
+    },
+    "splash": {
+        "kind": "distribution",
+        "definition": (
+            "Planets are broadly and fairly evenly distributed around the wheel, with no major empty run."
+        ),
+        "max_consecutive_empty_houses": 2,
+        "meaning_brief": (
+            "Breadth, versatility, diffusion, many interests. Strong range, weaker concentration."
+        ),
+    },
+    "splay": {
+        "kind": "distribution",
+        "definition": (
+            "Three or more distinct clusters/segments, irregularly spaced, usually with at least one empty sign between segments."
+        ),
+        "min_segments": 3,
+        "min_empty_signs_between_segments": 1,
+        "meaning_brief": (
+            "Purposeful irregularity. Distinct pockets of intensity. Highly individual, less unified."
+        ),
+    },
+}
+
+ASPECT_PATTERN_DEFS = {
+    "t_square": {
+        "bodies": 3,
+        "required_edges": {
+            "opposition": 1,
+            "square": 2,
+        },
+        "shape_rule": "A opposite B; both square C (C is the apex).",
+        "meaning_brief": (
+            "Pressure engine. Conflict creates motion. Often productive, not restful."
+        ),
+    },
+    "grand_trine": {
+        "bodies": 3,
+        "required_edges": {
+            "trine": 3,
+        },
+        "shape_rule": "A trine B, B trine C, C trine A.",
+        "meaning_brief": (
+            "Ease, coherence, self-reinforcing flow. Talent and stability, but also inertia."
+        ),
+    },
+    "kite": {
+        "bodies": 4,
+        "required_edges": {
+            "grand_trine": 1,
+            "opposition": 1,
+            "sextile": 2,
+        },
+        "shape_rule": (
+            "Grand trine + extra body D opposite one trine vertex and sextile to the other two."
+        ),
+        "meaning_brief": (
+            "Grand trine with teeth. Flow gets direction, pressure, and output."
+        ),
+    },
+    "yod": {
+        "bodies": 3,
+        "required_edges": {
+            "sextile": 1,
+            "quincunx": 2,
+        },
+        "shape_rule": "A sextile B; both quincunx C (C is the apex).",
+        "meaning_brief": (
+            "Adjustment pattern. Strange fit, repeated recalibration, hard-to-integrate apex."
+        ),
+    },
+    "boomerang_yod": {
+        "bodies": 4,
+        "required_edges": {
+            "yod": 1,
+            "opposition": 1,
+        },
+        "shape_rule": "Yod + one body opposite the apex.",
+        "meaning_brief": (
+            "Yod made explicit. The issue stops lurking and starts demanding attention."
+        ),
+    },
+    "grand_cross": {
+        "bodies": 4,
+        "required_edges": {
+            "opposition": 2,
+            "square": 4,
+        },
+        "shape_rule": "Two oppositions woven together by four squares.",
+        "meaning_brief": (
+            "Sustained tension system. High drive, repeated friction, strong structural stress."
+        ),
+    },
+    "grand_square": {
+        "bodies": 4,
+        "required_edges": {
+            "square": 4,
+        },
+        "shape_rule": (
+            "Four bodies linked by square relationships; grand cross is the special full-opposition case."
+        ),
+        "meaning_brief": (
+            "Constraint and effort pattern. More force than comfort."
+        ),
+    },
+    "mystic_rectangle": {
+        "bodies": 4,
+        "required_edges": {
+            "opposition": 2,
+            "trine": 2,
+            "sextile": 2,
+        },
+        "shape_rule": "Two oppositions tied together by two trines and two sextiles.",
+        "meaning_brief": (
+            "Tension with exits. Contradictions can become synthesis instead of stalemate."
+        ),
+    },
+    "cradle": {
+        "bodies": 4,
+        "required_edges": {
+            "opposition": 1,
+            "trine": 2,
+            "sextile": 2,
+        },
+        "shape_rule": "One opposition held within a net of two trines and two sextiles.",
+        "meaning_brief": (
+            "Protective-softening frame around a polarity. Less brutal than a cross, less lazy than a trine."
+        ),
+    },
+    "star_of_david": {
+        "bodies": 6,
+        "required_edges": {
+            "grand_trine": 2,
+            "sextile": 6,
+        },
+        "shape_rule": "Two interlocking grand trines, ideally forming a hexagon.",
+        "meaning_brief": (
+            "Rare high-symmetry pattern. Large flow field; can over-diffuse unless harnessed."
+        ),
+    },
+}
+
 PLANET_ORDER = [
     "Sun",
     "Moon",
