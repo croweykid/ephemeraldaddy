@@ -937,6 +937,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
+from ephemeraldaddy.analysis.chart_type_identifier import chart_type_summary
 from ephemeraldaddy.analysis.country_lookup import normalize_country, resolve_country
 from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
@@ -19553,6 +19554,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 #Main Window Begins
 class MainWindow(QMainWindow):
+    DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
+
     def __init__(self):
         super().__init__()
 
@@ -19662,6 +19665,7 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
+            "chart_type",
             "similar_charts",
             "anagrams",
         }
@@ -20700,6 +20704,7 @@ class MainWindow(QMainWindow):
         self.dnd_prediction_species_canvas = None
         self.dnd_prediction_classes_canvas = None
         self.planet_dynamics_summary_label = None
+        self.chart_type_label = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
@@ -27003,6 +27008,7 @@ class MainWindow(QMainWindow):
                 "modal",
                 "gender",
                 "planet_dynamics",
+                "chart_type",
                 "similar_charts",
                 "wheel",
             }
@@ -27025,6 +27031,7 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
+            "chart_type",
             "wheel",
             "similar_charts",
             "anagrams",
@@ -27069,6 +27076,8 @@ class MainWindow(QMainWindow):
             self._render_gender_guesser(chart)
         elif section == "planet_dynamics":
             self._render_planet_dynamics(chart)
+        elif section == "chart_type":
+            self._render_chart_type(chart)
         elif section == "wheel":
             self._render_chart(chart)
         elif section == "similar_charts":
@@ -27106,6 +27115,7 @@ class MainWindow(QMainWindow):
             "modal_distribution": "modal",
             "gender_guesser": "gender",
             "planet_dynamics": "planet_dynamics",
+            "chart_type": "chart_type",
             "similar_charts": "similar_charts",
             "anagrams": "anagrams",
         }.get(section_key)
@@ -27120,6 +27130,7 @@ class MainWindow(QMainWindow):
             "modal": "modal_distribution",
             "gender": "gender_guesser",
             "planet_dynamics": "planet_dynamics",
+            "chart_type": "chart_type",
             "similar_charts": "similar_charts",
             "anagrams": "anagrams",
         }.get(render_key)
@@ -27135,6 +27146,7 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
+            "chart_type",
             "similar_charts",
             "anagrams",
         }
@@ -27161,6 +27173,7 @@ class MainWindow(QMainWindow):
                 "modal",
                 "gender",
                 "planet_dynamics",
+                "chart_type",
                 "similar_charts",
                 "anagrams",
             }
@@ -27235,6 +27248,7 @@ class MainWindow(QMainWindow):
             "modal",
             "gender",
             "planet_dynamics",
+            "chart_type",
         }
         if self._is_chart_analysis_section_visible("anagrams"):
             passive_sections.add("anagrams")
@@ -27323,6 +27337,7 @@ class MainWindow(QMainWindow):
             self.modal_distribution_container_layout,
             self.gender_guesser_container_layout,
             self.planet_dynamics_container_layout,
+            self.chart_type_container_layout,
             self.enneagram_prediction_chart_layout,
         ):
             self._clear_layout_widgets(layout)
@@ -27355,6 +27370,7 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
             self.enneagram_prediction_tritype_label.setText("<b>Predicted Tritype:</b> —")
@@ -27653,6 +27669,35 @@ class MainWindow(QMainWindow):
                 fallback_text_color=CHART_THEME_COLORS["text"],
             )
         )
+
+    def _render_chart_type(self, chart: Chart) -> None:
+        self._clear_layout_widgets(self.chart_type_container_layout)
+        summary = chart_type_summary(chart)
+        shape_key = str(summary.get("shape", "unknown"))
+        shape_def = JONES_SHAPES.get(shape_key, {})
+        shape_title = shape_key.replace("_", " ").title()
+        shape_blurb = str(shape_def.get("meaning_brief", "No definition available."))
+
+        pattern_keys = [key for key in summary.get("patterns", []) if key in ASPECT_PATTERN_DEFS]
+        pattern_lines = []
+        for key in pattern_keys:
+            meta = ASPECT_PATTERN_DEFS.get(key, {})
+            pattern_lines.append(
+                f"• <b>{key.replace('_', ' ').title()}</b>: {html.escape(str(meta.get('meaning_brief', '')))}"
+            )
+        if not pattern_lines:
+            pattern_lines.append("• No major aspect pattern detected.")
+
+        label = QLabel()
+        label.setWordWrap(True)
+        label.setTextFormat(Qt.RichText)
+        label.setText(
+            f"<b>Jones Shape:</b> {html.escape(shape_title)}<br>"
+            f"{html.escape(shape_blurb)}<br><br>"
+            "<b>Aspect Patterns:</b><br>" + "<br>".join(pattern_lines)
+        )
+        self.chart_type_container_layout.addWidget(label)
+        self.chart_type_label = label
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
         normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
