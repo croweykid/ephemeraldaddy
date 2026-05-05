@@ -388,6 +388,17 @@ class ChartAnalysisSectionsController:
         )
         self.add_section(
             panel=panel,
+            section_key="chart_type",
+            section_title="Chart Type",
+            header_title="Chart Type",
+            subtitle_text="Jones distribution type + detected aspect pattern motifs.",
+            default_filename="ephemeraldaddy_chart_type",
+            chart_container_attr="chart_type_container",
+            chart_layout_attr="chart_type_container_layout",
+            expanded=False,
+        )
+        self.add_section(
+            panel=panel,
             section_key="gender_guesser",
             section_title="Gender Guesser",
             header_title="Gender Guesser",
