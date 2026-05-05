@@ -910,7 +910,7 @@ def build_chart_view_right_panel(
     dnd_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=predictions_panel,
         layout=predictions_layout,
-        title="D&D-ification",
+        title="D&&D-ification",
         expanded=True,
     )
     owner.dnd_predictions_chart_panel = QWidget()

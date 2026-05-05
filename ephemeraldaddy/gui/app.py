@@ -20690,6 +20690,12 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_species_canvas = None
+        self.dnd_prediction_classes_canvas = None
+        self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_species_canvas = None
+        self.dnd_prediction_classes_canvas = None
         self._update_chart_ruler_footer(None)
         self._manage_charts_dialog = None
         self._handle_database_health()
