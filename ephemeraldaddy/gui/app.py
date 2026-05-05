@@ -966,6 +966,8 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     set_enneagram_category_weights as _set_enneagram_category_weights,
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
+    build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
+    connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
 )
 
@@ -22140,6 +22142,18 @@ class MainWindow(QMainWindow):
                     chart=popout_chart,
                 ),
             )
+        elif title == "D&D Statblock":
+            info_panel.setPlaceholderText(
+                "Click a stat bar to view what that D&D ability score suggests."
+            )
+            _connect_dnd_statblock_popout_pick_handler(
+                popout_canvas,
+                info_panel,
+                build_info_html=lambda stat_key: self._build_dnd_statblock_popout_info(
+                    stat_key,
+                    chart=popout_chart,
+                ),
+            )
         elif title == "Body Dynamics":
             info_panel.setPlaceholderText(
                 "Click a bar section to view a plain-English score breakdown."
@@ -22184,6 +22198,7 @@ class MainWindow(QMainWindow):
             "Bodies": (8.5, 4.2),
             "Houses": (8.5, 4.2),
             "Enneagram": (8.5, 4.2),
+            "D&D Statblock": (8.5, 4.2),
             "Dominant Elements": (8.0, 5.4),
             "Nakshatra Prevalence": (9.0, 6.6),
             "Dominant Nakshatras": (9.0, 6.6),
@@ -22206,6 +22221,8 @@ class MainWindow(QMainWindow):
             self._draw_house_tally(ax, chart)
         elif title == "Enneagram":
             self._draw_enneagram_predictions(ax, chart)
+        elif title == "D&D Statblock":
+            self._draw_dnd_statblock_predictions(ax, chart)
         elif title == "Elements":
             self._draw_element_tally(ax, chart)
         elif title in {"Nakshatra Prevalence", "Dominant Nakshatras"}:
@@ -27880,6 +27897,10 @@ class MainWindow(QMainWindow):
             dnd_stat_keys=self.DND_STAT_KEYS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
         )
+
+    def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
+        return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
+        
     def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
         species_lines: list[str] = []
         class_lines: list[str] = []
