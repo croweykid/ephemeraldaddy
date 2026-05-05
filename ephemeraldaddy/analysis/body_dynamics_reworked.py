@@ -83,7 +83,24 @@ BODY_PAIR_DYNAMICS = {
 EXPECTED_UNORDERED_PAIR_COUNT = len(PLANET_ORDER) * (len(PLANET_ORDER) - 1) // 2
 assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
-
+PAIR_TONE_DISTRIBUTION = {
+    "supportive_pair": {
+        "enabling_aspect":     {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
+        "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},
+        "escalating_aspect":   {"Enabling": 0.60, "Antagonizing": 0.00, "Escalating": 0.40},
+    },
+    "difficult_pair": {
+        "enabling_aspect":     {"Enabling": 0.55, "Antagonizing": 0.20, "Escalating": 0.25},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.80, "Escalating": 0.20},
+        "escalating_aspect":   {"Enabling": 0.10, "Antagonizing": 0.45, "Escalating": 0.45},
+    },
+    "volatile_pair": {
+        "enabling_aspect":     {"Enabling": 0.65, "Antagonizing": 0.00, "Escalating": 0.35},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.55, "Escalating": 0.45},
+        "escalating_aspect":   {"Enabling": 0.25, "Antagonizing": 0.25, "Escalating": 0.50},
+    },
+}
+#algorithmically replace the BODY_PAIR_ASPECT_COMBOS logic below with the PAIR_TONE_DISTRIBUTION above to produce distributed results rather than all-or-nothing bucketed results.
 BODY_PAIR_ASPECT_COMBOS = {
     pair: {
         "enabling": (
