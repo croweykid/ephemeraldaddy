@@ -566,7 +566,7 @@ ASPECT_PATTERN_DEFS = {
             "Rare high-symmetry pattern. Large flow field; can over-diffuse unless harnessed."
         ),
     },
-}
+} 
 
 PLANET_ORDER = [
     "Sun",
@@ -2510,7 +2510,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"", #just use SIGN_KEYWORDS_CANONICAL's "talents"
         "definition2":"living", #append SIGN_KEYWORDS_CANONICAL's "adverbs" property for the sign, separated by commas in sentence form & throw in an & for the last one in the list
-        "explanation":[""],
+        "explanation": [
+            "Strong drive for identity, purpose, and self-expression",
+            "Desire to lead, create, and be recognized",
+            "Motivated by personal significance and vitality",
+            "Focus on developing confidence and a clear sense of self"
+        ],
         "archetypes":[
         ],
     },
@@ -2529,7 +2534,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"scared of", #append SIGN_KEYWORDS_CANONICAL's "greatest_fears" for the moon sign
         "definition2":"comforted by", #append SIGN_KEYWORDS_CANONICAL's "talents"
-        "explanation":[""],
+        "explanation": [
+            "Emotional needs and instincts guide actions",
+            "Strong drive for security, comfort, and belonging",
+            "Responsive, adaptive, and sensitive to environment",
+            "Motivated by feelings, memory, and inner rhythms"
+        ],
         "archetypes":[
         ],
     },
@@ -2548,7 +2558,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"a lot of thought given to ", #append SIGN_KEYWORDS_CANONICAL's "motivations" property
         "definition2":"thinking", #append SIGN_KEYWORDS_CANONICAL's "adverbs"
-        "explanation":[""],
+        "explanation": [
+            "Driven by curiosity, learning, and communication",
+            "Desire to analyze, understand, and exchange ideas",
+            "Quick-thinking, adaptable, and mentally active",
+            "Focus on gathering information and making connections"
+        ],
         "archetypes":[
             "Hermes",
         ],
@@ -2570,7 +2585,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"enamoured with people", #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "definition2":"attracted to", #append SIGN_KEYWORDS_CANONICAL's "motivations" 
-        "explanation":[""],
+        "explanation": [
+            "Motivated by harmony, relationships, and values",
+            "Desire to attract, connect, and create beauty",
+            "Focus on pleasure, aesthetics, and social bonds",
+            "Driven to establish balance and mutual appreciation"
+        ],
         "archetypes":[
         ],
     },
@@ -2591,7 +2611,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"most compelled by", #get SIGN_KEYWORDS_CANONICAL's "motivations"
         "definition1":"made vital by", #get SIGN_KEYWORDS_CANONICAL's "motivations"
-        "explanation":[""],
+        "explanation": [
+            "Strong drive for action, assertion, and initiative",
+            "Desire to compete, pursue goals, and overcome obstacles",
+            "Energetic, direct, and sometimes confrontational",
+            "Motivated by challenge, urgency, and physical expression"
+        ],
         "archetypes":[
         ],
     },
@@ -2610,7 +2635,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"fortunate in", #append SIGN_KEYWORDS_CANONICAL's "motivations" 
         "definition2":"great at", #append SIGN_KEYWORDS_CANONICAL's "talents" 
-        "explanation":[""],
+        "explanation": [
+            "Driven by growth, expansion, and opportunity",
+            "Desire to explore, learn, and seek meaning",
+            "Optimistic, future-oriented, and belief-driven",
+            "Focus on wisdom, philosophy, and broad perspectives"
+        ],
         "archetypes":[
             "Santa Clause",
         ],
@@ -2631,6 +2661,10 @@ PLANET_KEYWORDS = {
         "definition1":"burdened by",  #append SIGN_KEYWORDS_CANONICAL's "challenges" 
         "definition2":"responsible for",  #append SIGN_KEYWORDS_CANONICAL's "talents" 
         "explanation": [
+            "Motivated by structure, responsibility, and discipline",
+            "Desire to build stability and long-term achievement",
+            "Cautious, persistent, and reality-oriented",
+            "Focus on mastery, boundaries, and accountability",
             "the condition under which order hardens, persists, decays and must be re-won","Saturn builds canyons and monuments, Saturn also ossifies, leaves residue and wears down. Saturn slowly moves mountains and erodes them. It's just time, bro.","The neutral reckoning of what persists, for better or worse.",
         ],
         "archetypes": [ #previously associated with Cronus (as was Saturn's structural opposite - Uranus!) but there is so much narrative drift there that the affiliation starts to collapse. Modern lore translates it essentially to Anachronism/Conservativism vs Meliorism/Progressivism (as NOTABLY distinct from "Right wing vs Left wing" - because a lot of neocon post-9/11 pundits are both Saturn & Uranus-ruled or Capricorn/Aquarius dominant).
@@ -2656,7 +2690,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"",
         "definition2":"",
-        "explanation":[""],
+         "explanation": [
+            "Driven by innovation, change, and individuality",
+            "Desire to break norms and pursue freedom",
+            "Unpredictable, original, and future-focused",
+            "Motivated to disrupt, awaken, and reform systems"
+        ],
         "archetypes":[
             "a live wire",
         ],
@@ -2679,8 +2718,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"dreaming of",  #append SIGN_KEYWORDS_CANONICAL's "motivations" 
         "definition2":"believing in", #append SIGN_KEYWORDS_CANONICAL's "talents" 
-        "explanation":[
-            "the beautiful lie and the beautiful possibility, often in the same bottle",
+         "explanation": [
+            "Motivated by structure, responsibility, and discipline",
+            "Desire to build stability and long-term achievement",
+            "Cautious, persistent, and reality-oriented",
+            "Focus on mastery, boundaries, and accountability",
+            "The beautiful lie & the beautiful possibility, often in the same bottle"
         ],
         "archetypes":[
             "fog bank","deep uncharted ocean","being lost in the depths of space",
@@ -2702,7 +2745,12 @@ PLANET_KEYWORDS = {
         ],
         "definition1":"maintaining control by",  #append SIGN_KEYWORDS_CANONICAL's "challenges" 
         "definition2":"achieving power by",  #append SIGN_KEYWORDS_CANONICAL's "talents" 
-        "explanation":[""],
+        "explanation":[
+            "Intensity, transformation, deep change",
+            "Desire to expose, reform, or rebuild systems",
+            "Strong instinct to confront what’s hidden or dysfunctional",
+            "Psychological depth, sometimes compulsion or all-or-nothing focus"
+        ],
         "archetypes":[
             "Kafka plots", #lol
         ],

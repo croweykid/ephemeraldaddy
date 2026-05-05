@@ -27681,6 +27681,7 @@ class MainWindow(QMainWindow):
         self._clear_layout_widgets(self.chart_type_container_layout)
         summary = chart_type_summary(chart)
         shape_key = str(summary.get("shape", "unknown"))
+        shape_meta = summary.get("shape_meta", {}) or {}
         shape_def = JONES_SHAPES.get(shape_key, {})
         shape_title = shape_key.replace("_", " ").title()
         shape_blurb = str(shape_def.get("meaning_brief", "No definition available."))
@@ -27695,13 +27696,24 @@ class MainWindow(QMainWindow):
         if not pattern_lines:
             pattern_lines.append("• No major aspect pattern detected.")
 
+        leader_line = ""
+        if shape_key == "locomotive":
+            leader = str(shape_meta.get("leader", "")).strip()
+            if leader:
+                leader_color = PLANET_COLORS.get(leader, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+                leader_line = (
+                    "<br><br>"
+                    f"<b>Leader:</b> "
+                    f'<span style="color: {leader_color};">{html.escape(leader)}</span>'
+                )
+
         label = QLabel()
         label.setWordWrap(True)
         label.setTextFormat(Qt.RichText)
         label.setText(
             f"<b>Jones Shape:</b> {html.escape(shape_title)}<br>"
             f"{html.escape(shape_blurb)}<br><br>"
-            "<b>Aspect Patterns:</b><br>" + "<br>".join(pattern_lines)
+            "<b>Aspect Patterns:</b><br>" + "<br>".join(pattern_lines) + leader_line
         )
         self.chart_type_container_layout.addWidget(label)
         self.chart_type_label = label
