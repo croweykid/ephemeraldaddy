@@ -23,7 +23,8 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
     for idx, bar in enumerate(bars):
         bar.set_facecolor(DND_STAT_EARTHTONE_COLORS.get(labels[idx], "#6fa8dc"))
         bar.set_alpha(0.95)
-    apply_standard_bar_axes(ax, labels, values, title="D&D Statblock")
+    ax.set_title("D&D Statblock")
+    apply_standard_bar_axes(ax, labels)
 
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
@@ -35,7 +36,8 @@ def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)
-    apply_standard_bar_axes(ax, labels, values, title="Top 10 Species")
+    ax.set_title("Top 10 Species")
+    apply_standard_bar_axes(ax, labels)
 
 
 def draw_dnd_classes_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
@@ -50,4 +52,5 @@ def draw_dnd_classes_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)
-    apply_standard_bar_axes(ax, labels, values, title="Top 10 Classes")
+    ax.set_title("Top 10 Classes")
+    apply_standard_bar_axes(ax, labels)
