@@ -615,6 +615,8 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.features.charts.body_dynamics_popout import (
     build_body_dynamics_popout_info_html as _build_body_dynamics_popout_info_html,
+)
+from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
     build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
 )
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
