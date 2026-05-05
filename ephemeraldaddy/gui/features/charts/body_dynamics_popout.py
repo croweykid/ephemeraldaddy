@@ -5,7 +5,14 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from ephemeraldaddy.core.interpretations import ASPECT_SCORE_WEIGHTS, ASPECT_TYPES, PLANET_ORDER
+from ephemeraldaddy.core.interpretations import (
+    ASPECT_SCORE_WEIGHTS,
+    ASPECT_TYPES,
+    INNER_PLANETS,
+    OUTER_PLANETS,
+    PLANET_ORDER,
+    aspect_orb_allowance,
+)
 from ephemeraldaddy.gui.features.charts.metrics import calculate_planet_condition_weights, calculate_planet_dynamics_scores, normalize_body_name
 from ephemeraldaddy.gui.features.charts.text_summary import _display_body_name
 
@@ -50,19 +57,24 @@ def build_body_dynamics_popout_info_html(
             return (("escalating", signed) if signed >= 0 else ("antagonizing", abs(signed)))
         return None
 
+    tracked_bodies = {body for body in PLANET_ORDER if body in (INNER_PLANETS | OUTER_PLANETS) and body in chart.positions}
     rows = []
     for aspect in getattr(chart, "aspects", []) or []:
         p1 = normalize_body_name(str(aspect.get("p1", "")))
         p2 = normalize_body_name(str(aspect.get("p2", "")))
-        if target_key not in {p1, p2} or p1 not in chart.positions or p2 not in chart.positions:
+        if (
+            target_key not in {p1, p2}
+            or p1 not in tracked_bodies
+            or p2 not in tracked_bodies
+        ):
             continue
         key = tuple(sorted((p1, p2), key=lambda x: body_index.get(x, 999)))
         tone = pair_tones.get(key)
         polarity = {"enabling_pair": 1.0, "antagonizing_pair": -1.0, "volatile_pair": 1.0}.get(tone, 1.0)
         aspect_type = str(aspect.get("type", "")).replace(" ", "_").lower()
-        orb = float(aspect.get("orb", 0.0))
-        allowance = float(aspect.get("allowance", 0.0))
-        orb_weight = max(0.0, 1.0 - (orb / allowance)) if allowance > 0 else 0.0
+        allowance = aspect_orb_allowance(str(aspect.get("type", "")), p1, p2)
+        orb = abs(float(aspect.get("delta", 0.0)))
+        orb_weight = max(0.0, 1.0 - ((orb / allowance) ** 2)) if allowance > 0 else 0.0
         base = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
         if orb_weight <= 0 or base <= 0:
             continue
