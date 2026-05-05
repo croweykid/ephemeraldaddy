@@ -22533,104 +22533,60 @@ class MainWindow(QMainWindow):
     def _build_body_dynamics_popout_info(self, chart: Chart, metric: str, target_body: str) -> str:
         metric_key = str(metric or "").strip().lower()
         target_key = str(target_body or "").strip()
-        metric_label = {
-            "antagonizing": "Antagonizing",
-            "enabling": "Enabling",
-            "escalating": "Escalating",
-        }.get(metric_key, metric_key.title() or "Dynamics")
+        metric_label_map = {"antagonizing": "Antagonizing", "enabling": "Enabling", "escalating": "Escalating"}
+        metric_label = metric_label_map.get(metric_key, metric_key.title() or "Dynamics")
         scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-        condition_weights = _calculate_planet_condition_weights(chart)
-        section_header_style = f"font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};"
-        metric_color = PLANET_DYNAMICS_BAR_COLORS.get(metric_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-        target_label = "ALL BODIES" if target_key == "all" else _display_body_name(target_key).upper()
-        total = (
-            sum(float((scores.get(body) or {}).get(metric_key, 0.0)) for body in scores)
-            if target_key == "all"
-            else float((scores.get(target_key) or {}).get(metric_key, 0.0))
-        )
-
-        body_lines = []
         if target_key == "all":
-            for body_name in PLANET_ORDER:
-                if body_name not in scores:
-                    continue
-                value = float((scores.get(body_name) or {}).get(metric_key, 0.0))
-                if value <= 0:
-                    continue
-                body_color = PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-                body_lines.append(
-                    f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(body_name))}</span>: {value:.3f}</li>"
-                )
-        elif target_key in scores:
-            body_color = PLANET_COLORS.get(target_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            body_lines.append(
-                f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(target_key))}</span>: "
-                f"{float((scores.get(target_key) or {}).get(metric_key, 0.0)):.3f}</li>"
-            )
+            return "Click a colored planet segment to view that body's score breakdown."
+        body_scores = scores.get(target_key) or {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
+        metric_total = float(body_scores.get(metric_key, 0.0))
+        body_total = sum(float(body_scores.get(k, 0.0)) for k in ("antagonizing", "enabling", "escalating"))
+        share = (metric_total / body_total * 100.0) if body_total > 0 else 0.0
+        condition_weights = _calculate_planet_condition_weights(chart)
 
-        cw_lines = []
-        tracked_condition_keys = [k for k in PLANET_ORDER if k in condition_weights]
-        for body_name in sorted(tracked_condition_keys, key=lambda k: float(condition_weights.get(k, 0.0)), reverse=True)[:8]:
-            body_color = PLANET_COLORS.get(body_name, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            cw_lines.append(
-                f"<li><span style='color:{html.escape(body_color)};'>{html.escape(_display_body_name(body_name))}</span>: "
-                f"{float(condition_weights.get(body_name, 0.0)):.3f}</li>"
-            )
+        antagonizing_types = {str(a).replace(" ", "_").lower() for a in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())}
+        enabling_types = {str(a).replace(" ", "_").lower() for g in ("chill vibes", "creative/technical") for a in ASPECT_TYPES.get(g, {}).get("aspects", set())}
+        escalating_types = {str(a).replace(" ", "_").lower() for a in ASPECT_TYPES.get("amplifying", {}).get("aspects", set())}
+        pair_tones = {
+            ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair", ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair", ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair", ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair", ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair", ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair", ("Mercury", "Venus"): "enabling_pair", ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair", ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair", ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair", ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair", ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair", ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair", ("Jupiter", "Saturn"): "volatile_pair", ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair", ("Saturn", "Uranus"): "antagonizing_pair", ("Saturn", "Neptune"): "antagonizing_pair", ("Saturn", "Pluto"): "antagonizing_pair", ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair", ("Neptune", "Pluto"): "volatile_pair",
+        }
+        body_index = {b: i for i, b in enumerate(PLANET_ORDER)}
 
-        aspect_lines: list[str] = []
-        houses = getattr(chart, "houses", None)
+        def _metric_for(aspect_type: str, signed: float) -> tuple[str, float] | None:
+            if aspect_type in antagonizing_types:
+                return (("antagonizing", signed) if signed >= 0 else ("enabling", abs(signed)))
+            if aspect_type in enabling_types:
+                return (("enabling", signed) if signed >= 0 else ("antagonizing", abs(signed)))
+            if aspect_type in escalating_types:
+                return (("escalating", signed) if signed >= 0 else ("antagonizing", abs(signed)))
+            return None
+
+        rows=[]
         for aspect in getattr(chart, "aspects", []) or []:
-            p1 = normalize_body_name(str(aspect.get("p1", "")))
-            p2 = normalize_body_name(str(aspect.get("p2", "")))
-            if target_key != "all" and target_key not in {p1, p2}:
-                continue
-            if p1 not in chart.positions or p2 not in chart.positions:
-                continue
-            sign1 = _sign_for_longitude(chart.positions[p1])
-            sign2 = _sign_for_longitude(chart.positions[p2])
-            house1 = _house_for_longitude(houses, chart.positions[p1])
-            house2 = _house_for_longitude(houses, chart.positions[p2])
-            aspect_type = str(aspect.get("type", "")).strip() or "Aspect"
-            aspect_color = ASPECT_COLORS.get(aspect_type, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            p1_color = PLANET_COLORS.get(p1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            p2_color = PLANET_COLORS.get(p2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            sign1_color = SIGN_COLORS.get(sign1, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            sign2_color = SIGN_COLORS.get(sign2, CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            house1_color = HOUSE_COLORS.get(str(house1), CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            house2_color = HOUSE_COLORS.get(str(house2), CHART_THEME_COLORS.get("text", "#f5f5f5"))
-            aspect_lines.append(
-                "<li>"
-                f"<span style='color:{html.escape(p1_color)};'>{html.escape(_display_body_name(p1))}</span>"
-                f" (<span style='color:{html.escape(sign1_color)};'>{html.escape(sign1)}</span>"
-                + (f", <span style='color:{html.escape(house1_color)};'>H{house1}</span>" if house1 else "")
-                + ") "
-                f"<span style='color:{html.escape(aspect_color)};'>{html.escape(aspect_type)}</span> "
-                f"<span style='color:{html.escape(p2_color)};'>{html.escape(_display_body_name(p2))}</span>"
-                f" (<span style='color:{html.escape(sign2_color)};'>{html.escape(sign2)}</span>"
-                + (f", <span style='color:{html.escape(house2_color)};'>H{house2}</span>" if house2 else "")
-                + ")"
-                "</li>"
-            )
-            if len(aspect_lines) >= 8:
-                break
-
-        return (
-            f'<div style="{section_header_style}">Body Dynamics • {html.escape(metric_label)} • {html.escape(target_label)}</div>'
-            f"<div><b>Total:</b> <span style='color:{html.escape(metric_color)};'>{total:.3f}</span></div><br>"
-            f'<div style="{section_header_style}">Score Breakdown:</div>'
-            "<ol>"
-            "<li>Classify the aspect into antagonizing / enabling / escalating using aspect family.</li>"
-            "<li>Compute weighted interaction: pair polarity × orb weight × aspect base weight × sqrt(cond A × cond B).</li>"
-            "<li>Route signed result into the appropriate dynamics bucket for each involved body.</li>"
-            "<li>For volatile pairs, escalating contributions receive an extra multiplier.</li>"
-            "</ol>"
-            f'<div style="{section_header_style}">Selected Score Contributions:</div>'
-            f"<ul>{''.join(body_lines) if body_lines else '<li>No contributions for this selection.</li>'}</ul>"
-            f'<div style="{section_header_style}">Top Condition Weights Used:</div>'
-            f"<ul>{''.join(cw_lines) if cw_lines else '<li>No condition-weight data available.</li>'}</ul>"
-            f'<div style="{section_header_style}">Relevant Aspect Samples:</div>'
-            f"<ul>{''.join(aspect_lines) if aspect_lines else '<li>No matching aspects to display.</li>'}</ul>"
-        )
+            p1=normalize_body_name(str(aspect.get("p1",""))); p2=normalize_body_name(str(aspect.get("p2","")));
+            if target_key not in {p1,p2}: continue
+            if p1 not in chart.positions or p2 not in chart.positions: continue
+            key=tuple(sorted((p1,p2), key=lambda x: body_index.get(x,999)))
+            tone=pair_tones.get(key)
+            pol={"enabling_pair":1.0,"antagonizing_pair":-1.0,"volatile_pair":1.0}.get(tone,1.0)
+            aspect_type=str(aspect.get("type","")).replace(" ","_").lower()
+            orb=float(aspect.get("orb",0.0)); allowance=float(aspect.get("allowance",0.0))
+            orb_weight=max(0.0,1.0-(orb/allowance)) if allowance>0 else 0.0
+            base=float(ASPECT_SCORE_WEIGHTS.get(aspect_type,0.0))
+            if orb_weight<=0 or base<=0: continue
+            cw1=max(float(condition_weights.get(p1,0.0)),0.0); cw2=max(float(condition_weights.get(p2,0.0)),0.0)
+            score=pol*orb_weight*base*((cw1*cw2)**0.5)
+            if aspect_type in escalating_types and tone=="volatile_pair": score*=1.15
+            routed=_metric_for(aspect_type,score)
+            if not routed or routed[0]!=metric_key: continue
+            rows.append((abs(routed[1]), p1, p2, aspect_type.replace("_"," "), tone or "neutral_pair", orb_weight, cw1, cw2))
+        rows.sort(key=lambda x:x[0], reverse=True)
+        color=PLANET_DYNAMICS_BAR_COLORS.get(metric_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        classification_color={"antagonizing":"#ff6b6b","enabling":"#6be39d","escalating":"#ffbd59"}.get(metric_key,color)
+        detail_items=[]
+        for value,p1,p2,aname,tone,orbw,cw1,cw2 in rows:
+            detail_items.append(f"<li>{html.escape(_display_body_name(p1))} {html.escape(aname)} {html.escape(_display_body_name(p2))}: <span style='color:{classification_color};'><b>{html.escape(metric_label.lower())}</b></span> because {html.escape(_display_body_name(p1))} ({cw1:.3f}) and {html.escape(_display_body_name(p2))} ({cw2:.3f}) are a {html.escape(tone)} pair with orb weight {orbw:.3f}, contributing {value:.3f} to the {html.escape(metric_label)} score.</li>")
+        return f"<div style='font-weight:bold; color:{CHART_DATA_HIGHLIGHT_COLOR};'>Body Dynamics • {html.escape(metric_label)} • {html.escape(_display_body_name(target_key).upper())}</div><div><b>{html.escape(str(getattr(chart,'name','This chart') or 'This chart'))}'s {html.escape(_display_body_name(target_key).upper())}</b> is <span style='color:{classification_color};'>{share:.2f}%</span> {html.escape(metric_label)}.</div><div><b>Total:</b> <span style='color:{html.escape(color)};'>{metric_total:.3f}</span></div><br><div style='font-weight:bold; color:{CHART_DATA_HIGHLIGHT_COLOR};'>Score Breakdown:</div><ul>{''.join(detail_items) if detail_items else '<li>No matching aspect contributions for this selection.</li>'}</ul>"
 
     def _build_body_dominance_section(self, chart: Chart, body_name: str) -> str:
         mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
@@ -23319,9 +23275,6 @@ class MainWindow(QMainWindow):
                     segment_bar.set_gid(f"dynamics:{metric_name}:{body}")
                 cumulative_bottom += segment_values
             bars = ax.bar(x_positions, values, width=bar_width, color="none", edgecolor="none")
-            for metric_name, bar in zip(metric_order, bars, strict=True):
-                bar.set_picker(True)
-                bar.set_gid(f"dynamics:{metric_name}:all")
             ax.set_xticks(x_positions, fallback_tick_labels)
             title = ""
         else:
