@@ -916,7 +916,6 @@ from ephemeraldaddy.gui.style import (
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
-    SpeciesAssigner,
     SPECIES_FAMILIES,
     assign_top_three_species,
     assign_top_three_species_with_evidence,
@@ -932,8 +931,6 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
     resolve_class_key,
     score_class_axes,
-    score_class_families,
-    score_dnd_classes,
     score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.get_astro_age import chart_age_from_positions
@@ -960,6 +957,11 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     draw_enneagram_predictions as _draw_enneagram_predictions_chart,
     tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
+)
+from ephemeraldaddy.gui.features.charts.dnd_predictions import (
+    draw_dnd_classes_predictions as _draw_dnd_classes_predictions_chart,
+    draw_dnd_species_predictions as _draw_dnd_species_predictions_chart,
+    draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
 )
 
 
@@ -27777,37 +27779,26 @@ class MainWindow(QMainWindow):
             )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
-        statblock = score_dnd_statblock(chart)
-        labels = list(self.DND_STAT_KEYS)
-        values = [float(statblock.stats.get(label, 0.0)) for label in labels]
-        bars = ax.barh(labels, values)
-        for idx, bar in enumerate(bars):
-            bar.set_facecolor(DND_STAT_EARTHTONE_COLORS.get(labels[idx], "#6fa8dc"))
-            bar.set_alpha(0.95)
-        self._apply_standard_ncv_bar_chart_axes(ax, labels, values, title="D&D Statblock")
+        _draw_dnd_statblock_predictions_chart(
+            ax,
+            chart,
+            dnd_stat_keys=self.DND_STAT_KEYS,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
 
     def _draw_dnd_species_predictions(self, ax, chart: Chart) -> None:
-        top = SpeciesAssigner().assign(chart).ranked[:10]
-        labels = [family for family, _card in top]
-        values = [float(card.score) for _family, card in top]
-        bars = ax.barh(labels, values)
-        for idx, bar in enumerate(bars):
-            bar.set_facecolor(get_cycled_earthtone_colors(len(labels))[idx])
-            bar.set_alpha(0.95)
-        self._apply_standard_ncv_bar_chart_axes(ax, labels, values, title="Top 10 Species")
+        _draw_dnd_species_predictions_chart(
+            ax,
+            chart,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
 
     def _draw_dnd_classes_predictions(self, ax, chart: Chart) -> None:
-        axis_scores = score_class_axes(chart)
-        family_scores = score_class_families(axis_scores)
-        class_scores = score_dnd_classes(axis_scores, family_scores)
-        ranked = sorted(class_scores.items(), key=lambda item: item[1], reverse=True)[:10]
-        labels = [DND_CLASSES[key].display_name if key in DND_CLASSES else key for key, _ in ranked]
-        values = [float(score) for _key, score in ranked]
-        bars = ax.barh(labels, values)
-        for idx, bar in enumerate(bars):
-            bar.set_facecolor(get_cycled_earthtone_colors(len(labels))[idx])
-            bar.set_alpha(0.95)
-        self._apply_standard_ncv_bar_chart_axes(ax, labels, values, title="Top 10 Classes")
+        _draw_dnd_classes_predictions_chart(
+            ax,
+            chart,
+            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        )
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
