@@ -484,6 +484,7 @@ from ephemeraldaddy.core.interpretations import (
     MODES,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
+    ASPECT_PATTERN_DEFS,
     ANGLE_WEIGHT,
     NATAL_WEIGHT,
     TRANSIT_WEIGHT,
@@ -964,8 +965,6 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     set_enneagram_category_weights as _set_enneagram_category_weights,
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
-    draw_dnd_classes_predictions as _draw_dnd_classes_predictions_chart,
-    draw_dnd_species_predictions as _draw_dnd_species_predictions_chart,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
 )
 
@@ -27290,7 +27289,10 @@ class MainWindow(QMainWindow):
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
-        canvas.draw()
+        try:
+            canvas.draw()
+        except RuntimeError:
+            return
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -27323,7 +27325,10 @@ class MainWindow(QMainWindow):
             symbol_scale=0.7,
             wheel_scale=1.3,
         )
-        canvas.draw()
+        try:
+            canvas.draw()
+        except RuntimeError:
+            return
         
         self.chart_canvas = canvas
 
@@ -27862,19 +27867,48 @@ class MainWindow(QMainWindow):
             dnd_stat_keys=self.DND_STAT_KEYS,
             apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
         )
+    def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
+        species_lines: list[str] = []
+        class_lines: list[str] = []
+        try:
+            species_top_three = assign_top_three_species(chart)
+        except Exception:
+            species_top_three = []
+        for rank, species in enumerate(species_top_three[:3], start=1):
+            family = species[0]
+            subtype = species[1] if len(species) > 1 else ""
+            species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
+            species_lines.append(f"{rank}) {family}{species_variant}")
 
-    def _draw_dnd_species_predictions(self, ax, chart: Chart) -> None:
-        _draw_dnd_species_predictions_chart(
-            ax,
-            chart,
-            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
-        )
+        try:
+            axis_scores = score_class_axes(chart)
+            class_scores = DnDClassScorer().score_classes(axis_scores)
+            ranked_classes = sorted(
+                class_scores.values(),
+                key=lambda scored_class: scored_class.score,
+                reverse=True,
+            )
+        except Exception:
+            ranked_classes = []
+        for rank, scored_class in enumerate(ranked_classes[:3], start=1):
+            class_definition = DND_CLASSES.get(scored_class.key)
+            class_display_name = (
+                class_definition.display_name
+                if class_definition is not None
+                else scored_class.key.replace("_", " ").title()
+            )
+            class_lines.append(f"{rank}) {class_display_name}")
 
-    def _draw_dnd_classes_predictions(self, ax, chart: Chart) -> None:
-        _draw_dnd_classes_predictions_chart(
-            ax,
-            chart,
-            apply_standard_bar_axes=self._apply_standard_ncv_bar_chart_axes,
+        if not species_lines:
+            species_lines.append("No species prediction available.")
+        if not class_lines:
+            class_lines.append("No class prediction available.")
+
+        return (
+            "<b>Top 3 Species/Subspecies</b><br>"
+            + "<br>".join(html.escape(line) for line in species_lines)
+            + "<br><br><b>Top 3 Classes</b><br>"
+            + "<br>".join(html.escape(line) for line in class_lines)
         )
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
@@ -27892,22 +27926,20 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_dnd_statblock_predictions,
             chart=chart,
         )
-        self._render_metric_panel(
-            canvas_attr="dnd_prediction_species_canvas",
-            container_layout=chart_layout,
-            figsize=(5.5, 2.8),
-            title="Top 10 Species",
-            draw_fn=self._draw_dnd_species_predictions,
-            chart=chart,
-        )
-        self._render_metric_panel(
-            canvas_attr="dnd_prediction_classes_canvas",
-            container_layout=chart_layout,
-            figsize=(5.5, 2.8),
-            title="Top 10 Classes",
-            draw_fn=self._draw_dnd_classes_predictions,
-            chart=chart,
-        )
+        summary_label = getattr(self, "dnd_prediction_top_three_label", None)
+        summary_label_is_usable = False
+        if summary_label is not None:
+            try:
+                summary_label_is_usable = summary_label.parent() is not None
+            except RuntimeError:
+                summary_label_is_usable = False
+        if not summary_label_is_usable:
+            summary_label = QLabel()
+            summary_label.setWordWrap(True)
+            summary_label.setTextFormat(Qt.RichText)
+            self.dnd_prediction_top_three_label = summary_label
+            chart_layout.addWidget(summary_label)
+        summary_label.setText(self._build_dnd_top_three_summary_html(chart))
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
