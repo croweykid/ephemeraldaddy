@@ -94,7 +94,7 @@ def _sentiment_estimate_html(label: str, average: float, median: float) -> str:
     median_emoji, median_label, median_color = _sentiment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} user is probably inclined to see {subject_name} as a(n) </span> "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>{html.escape(label)} user is probably inclined to see him/her as a(n) </span> "
         f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or a(n)</span> "
         f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>."
@@ -130,7 +130,7 @@ def _alignment_estimate_html(average: float, median: float) -> str:
     median_emoji, median_label, median_color = _alignment_scale_bucket(median)
     return (
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️In ethical terms, user probably thinks {subject_name} is </span> "
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>⚖️In ethical terms, user probably thinks s/he is </span> "
         f"{html.escape(avg_emoji)} <span style='color:{avg_color}'>{html.escape(avg_label)}</span>, "
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'> or </span> "
         f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
@@ -138,7 +138,6 @@ def _alignment_estimate_html(average: float, median: float) -> str:
     )
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
-SIMILAR_POPOUT_TARGET_PREFIX = "sim-popout"
 SIMILARITY_SECTION_HEADER_COLOR = "#B87333"
 _PLACEMENT_BODIES: tuple[str, ...] = (
     "Sun",
@@ -1511,15 +1510,6 @@ def is_similar_info_target(target: str) -> bool:
 def make_similar_info_target(*, info_link_prefix: str, chart_id: int) -> str:
     return f"{info_link_prefix}:{int(chart_id)}"
 
-
-def is_similar_popout_target(target: str) -> bool:
-    return str(target or "").strip().startswith(f"{SIMILAR_POPOUT_TARGET_PREFIX}:")
-
-
-def make_similar_popout_target(*, chart_id: int) -> str:
-    return f"{SIMILAR_POPOUT_TARGET_PREFIX}:{int(chart_id)}"
-
-
 def map_similar_info_targets(
     *,
     matches: list[Any],
@@ -2292,8 +2282,7 @@ def render_similar_match_blocks(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
                 f'#{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
-                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a>'
-                f' <a href="{make_similar_popout_target(chart_id=int(match.chart_id))}">👯</a><br>'
+                f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
                 f"{similarity_percent:.1f}% ({band_label})</span> "
                 f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
@@ -2590,10 +2579,6 @@ def build_similar_charts_popout_dialog(
         content_layout.addStretch(1)
         scroll.setWidget(content)
         panel_layout.addWidget(scroll, 1)
-        if panel_key == "most":
-            dialog._similar_chart_popout_most_result_label = result_label
-        elif panel_key == "least":
-            dialog._similar_chart_popout_least_result_label = result_label
         return panel_widget
 
     list_splitter.addWidget(_panel("Top 25 Most Similar charts", most_similar_matches, "most"))

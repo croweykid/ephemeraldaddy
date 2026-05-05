@@ -727,10 +727,8 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     format_similar_chart_name_html,
     format_similarity_component_summary,
     is_similar_info_target,
-    is_similar_popout_target,
     load_similar_chart_candidates,
     make_similar_info_target,
-    render_similar_match_blocks,
     map_similar_info_targets,
     render_predictions_panel_content,
     resolve_similarity_component_keys_for_display,
@@ -20958,71 +20956,8 @@ class MainWindow(QMainWindow):
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
 
-
-    def _pivot_similar_chart_popout_subject(self, dialog: QDialog, target_chart_id: int) -> None:
-        if target_chart_id <= 0:
-            return
-        try:
-            chart = load_chart(int(target_chart_id))
-        except Exception as exc:
-            QMessageBox.warning(dialog, "Similar Charts", f"Could not load the selected chart:\n{exc}")
-            return
-        if chart is None:
-            return
-        if getattr(chart, "is_placeholder", False):
-            QMessageBox.information(dialog, "Similar Charts", "Similar chart matching is disabled for placeholder charts.")
-            return
-        try:
-            candidates = self._load_similar_chart_candidates()
-        except Exception as exc:
-            QMessageBox.warning(dialog, "Similar Charts", f"Could not read saved charts:\n{exc}")
-            return
-        if not candidates:
-            QMessageBox.information(dialog, "Similar Charts", "Need at least one additional non-placeholder saved chart in the database.")
-            return
-        algorithm_mode = _normalize_similar_charts_algorithm_mode(
-            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
-        )
-        self._similar_charts_algorithm_mode = algorithm_mode
-        most_similar_matches = find_astro_twins(chart, candidates, top_k=25, exclude_chart_id=int(target_chart_id), least_similar=False, algorithm_mode=algorithm_mode, custom_settings=getattr(self, "_similarity_calculator_settings", None))
-        least_similar_matches = find_astro_twins(chart, candidates, top_k=25, exclude_chart_id=int(target_chart_id), least_similar=True, algorithm_mode=algorithm_mode, custom_settings=getattr(self, "_similarity_calculator_settings", None))
-        least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-
-        most_label = getattr(dialog, "_similar_chart_popout_most_result_label", None)
-        least_label = getattr(dialog, "_similar_chart_popout_least_result_label", None)
-        if most_label is not None:
-            most_label.setText(render_similar_match_blocks(matches=most_similar_matches, highlight_color=CHART_DATA_HIGHLIGHT_COLOR, resolve_similarity_band=self._similarity_band_for_percent, subject_uses_houses=_chart_uses_houses(chart), info_link_prefix="sim-info:popout:most", algorithm_mode=algorithm_mode, similarity_settings=getattr(self, "_similarity_calculator_settings", None)))
-        if least_label is not None:
-            least_label.setText(render_similar_match_blocks(matches=least_similar_matches, highlight_color=CHART_DATA_HIGHLIGHT_COLOR, resolve_similarity_band=self._similarity_band_for_percent, subject_uses_houses=_chart_uses_houses(chart), info_link_prefix="sim-info:popout:least", algorithm_mode=algorithm_mode, similarity_settings=getattr(self, "_similarity_calculator_settings", None)))
-
-        subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
-        dialog.setWindowTitle(f"Similar Charts — {subject_name}")
-        subject_link = getattr(dialog, "_similar_chart_popout_subject_link", None)
-        if subject_link is not None and hasattr(subject_link, "setText"):
-            subject_link.setText(f'<a href="{int(target_chart_id)}">{html.escape(subject_name)}</a>')
-            if hasattr(subject_link, "setCursor"):
-                subject_link.setCursor(Qt.PointingHandCursor)
-        popout_reasoning_by_target = {}
-        popout_reasoning_by_target.update(map_similar_info_targets(matches=most_similar_matches, info_link_prefix="sim-info:popout:most"))
-        popout_reasoning_by_target.update(map_similar_info_targets(matches=least_similar_matches, info_link_prefix="sim-info:popout:least"))
-        dialog._similar_chart_popout_subject_name = subject_name
-        dialog._similar_chart_popout_subject_chart = chart
-        dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
-        dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
-        dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
-        dialog._similar_chart_popout_last_info_target = ""
-        self._similar_charts_reasoning_by_target.update(popout_reasoning_by_target)
-        self._show_similar_chart_popout_predictions(dialog)
-
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
-        if is_similar_popout_target(normalized_target):
-            try:
-                target_chart_id = int(normalized_target.split(":", 1)[1])
-            except (TypeError, ValueError):
-                return
-            self._pivot_similar_chart_popout_subject(dialog, target_chart_id)
-            return
         if is_similar_info_target(normalized_target):
             popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
             if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData"):
@@ -21512,7 +21447,7 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _show_similar_charts_popout(self, requester: QWidget | None = None, *, subject_chart_id_override: int | None = None) -> None:
+    def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
             requester is manage_dialog
@@ -21524,18 +21459,7 @@ class MainWindow(QMainWindow):
         )
         chart: Chart | None
         subject_chart_id: int | None
-        if subject_chart_id_override is not None:
-            subject_chart_id = int(subject_chart_id_override)
-            try:
-                chart = load_chart(subject_chart_id)
-            except Exception as exc:
-                QMessageBox.warning(
-                    self,
-                    "Similar Charts",
-                    f"Could not load the selected chart:\n{exc}",
-                )
-                return
-        elif database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
+        if database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
             selected_chart_ids = manage_dialog._selected_chart_ids()
             if len(selected_chart_ids) < 1:
                 QMessageBox.information(
@@ -21562,9 +21486,33 @@ class MainWindow(QMainWindow):
                 )
                 return
         else:
-            chart = self._latest_chart
-            subject_chart_id = self.current_chart_id
-            
+            if subject_chart_id_override is not None:
+                subject_chart_id = int(subject_chart_id_override)
+                try:
+                    chart = load_chart(subject_chart_id)
+                except Exception as exc:
+                    QMessageBox.warning(
+                        self,
+                        "Similar Charts",
+                        f"Could not load the selected chart:\n{exc}",
+                    )
+                    return
+            else:
+                if subject_chart_id_override is not None:
+                    subject_chart_id = int(subject_chart_id_override)
+                    try:
+                        chart = load_chart(subject_chart_id)
+                    except Exception as exc:
+                        QMessageBox.warning(
+                            self,
+                            "Similar Charts",
+                            f"Could not load the selected chart:\n{exc}",
+                        )
+                        return
+                else:
+                    chart = self._latest_chart
+                    subject_chart_id = self.current_chart_id
+
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
             return
