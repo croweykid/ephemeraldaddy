@@ -187,6 +187,7 @@ def build_popout_left_panel(
     show_aspect_distribution: bool = True,
     awareness_stream_entries: list[dict[str, Any]] | None = None,
     circuit_entries: list[dict[str, Any]] | None = None,
+    hd_placement_contexts: list[tuple[str, Any]] | None = None,
 ) -> QPlainTextEdit:
     left_panel_layout = QVBoxLayout()
 
@@ -505,7 +506,7 @@ def build_popout_left_panel(
         original_chart_info_output = getattr(parent, "chart_info_output", None)
         try:
             parent.chart_info_output = chart_info_output
-            show_gate_info(int(gate), None)
+            show_gate_info(int(gate), None, placement_contexts=hd_placement_contexts)
         finally:
             parent.chart_info_output = original_chart_info_output
 

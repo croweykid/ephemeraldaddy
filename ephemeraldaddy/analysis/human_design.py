@@ -283,6 +283,21 @@ def describe_gate_line_placements(
     return matches
 
 
+def describe_synastry_gate_line_placements(
+    chart_contexts: list[tuple[str, Chart]],
+    gate: int,
+    line: int | None = None,
+) -> list[str]:
+    """Return placement lines for a gate or gate/line across a synastry pair."""
+    matches: list[str] = []
+    for fallback_index, (chart_label, chart) in enumerate(chart_contexts, start=1):
+        label = str(chart_label or f"Chart {fallback_index}").strip() or f"Chart {fallback_index}"
+        for placement_line in describe_gate_line_placements(chart, gate, line):
+            placement_text = placement_line[2:] if placement_line.startswith("• ") else placement_line
+            matches.append(f"• {label}'s {placement_text}")
+    return matches
+
+
 def gate_lines_for_gate(hd_result: HumanDesignResult, gate: int) -> list[int]:
     """Return unique sorted active lines for a gate from an HD result."""
     gate_number = int(gate)

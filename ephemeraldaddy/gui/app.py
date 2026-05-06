@@ -670,6 +670,7 @@ from ephemeraldaddy.analysis.human_design import (
     build_human_design_result,
     build_human_design_chart_data_output,
     describe_gate_line_placements,
+    describe_synastry_gate_line_placements,
     gate_lines_for_gate,
 )
 from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
@@ -4866,6 +4867,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         show_aspect_distribution: bool = True,
         awareness_stream_entries: list[dict[str, Any]] | None = None,
         circuit_entries: list[dict[str, Any]] | None = None,
+        hd_placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -4884,6 +4886,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
+            hd_placement_contexts=hd_placement_contexts,
         )
 
     def _sort_popout_aspects(
@@ -24212,6 +24215,7 @@ class MainWindow(QMainWindow):
         species_info_map: dict[int, list[dict[str, object]]],
         target_info_widget: QPlainTextEdit,
         block_offset: int = 0,
+        hd_placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> bool:
         # block = cursor.block()
         # block_number = block.blockNumber() + block_offset
@@ -24291,6 +24295,7 @@ class MainWindow(QMainWindow):
                             self._show_human_design_gate_line_info(
                                 int(entry.get("gate", 0)),
                                 entry.get("line"),
+                                placement_contexts=hd_placement_contexts,
                             )
                             return True
                         if entry.get("kind") == "hd_property":
@@ -24323,6 +24328,7 @@ class MainWindow(QMainWindow):
                         self._show_human_design_gate_line_info(
                             int(selected_entry.get("gate", 0)),
                             selected_entry.get("line"),
+                            placement_contexts=hd_placement_contexts,
                         )
                         return True
                     if selected_entry.get("kind") == "hd_property":
@@ -24403,6 +24409,7 @@ class MainWindow(QMainWindow):
                     popout_context["species_info_map"],
                     popout_context["chart_info_output"],
                     popout_context.get("summary_block_offset", 0),
+                    popout_context.get("hd_placement_contexts"),
                 )
             return False
         if obj is self.output_text.viewport():
@@ -24655,6 +24662,7 @@ class MainWindow(QMainWindow):
         gate: int,
         line: int | None,
         chart_context: Chart | None = None,
+        placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> None:
         line_number = int(line) if isinstance(line, int) else None
         gate_number = int(gate)
@@ -24694,12 +24702,22 @@ class MainWindow(QMainWindow):
             cursor.insertText(f" {line_text}", plain_fmt)
 
         activation_lines: list[str] = []
-        source_chart = chart_context if chart_context is not None else self._latest_chart
-        if source_chart is not None:
+        if placement_contexts:
             try:
-                activation_lines = describe_gate_line_placements(source_chart, gate_number, line_number)
+                activation_lines = describe_synastry_gate_line_placements(
+                    placement_contexts,
+                    gate_number,
+                    line_number,
+                )
             except Exception:
                 activation_lines = []
+        else:
+            source_chart = chart_context if chart_context is not None else self._latest_chart
+            if source_chart is not None:
+                try:
+                    activation_lines = describe_gate_line_placements(source_chart, gate_number, line_number)
+                except Exception:
+                    activation_lines = []
 
         if activation_lines:
             cursor.insertText("\n\n", plain_fmt)
@@ -28249,6 +28267,7 @@ class MainWindow(QMainWindow):
         show_aspect_distribution: bool = True,
         awareness_stream_entries: list[dict[str, Any]] | None = None,
         circuit_entries: list[dict[str, Any]] | None = None,
+        hd_placement_contexts: list[tuple[str, Chart]] | None = None,
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
@@ -28267,6 +28286,7 @@ class MainWindow(QMainWindow):
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
+            hd_placement_contexts=hd_placement_contexts,
         )
 
     def on_popout_chart(self) -> None:

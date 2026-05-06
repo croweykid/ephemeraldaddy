@@ -92,6 +92,11 @@ def create_human_design_synastry_dialog(
         chart_b_gate_set=chart_b_gate_set,
     )
 
+    hd_placement_contexts = [
+        (str(chart_a.name or "Chart A"), chart_a),
+        (str(chart_b.name or "Chart B"), chart_b),
+    ]
+
     chart_info_output = parent._build_popout_left_panel(
         layout,
         chart_info_placeholder="Click a gate or center on the bodygraph to see details here.",
@@ -100,7 +105,8 @@ def create_human_design_synastry_dialog(
         weighted_score_for_entry=lambda _entry: 0.0,
         show_aspect_distribution=False,
         awareness_stream_entries=awareness_stream_entries,
-        circuit_entries=circuit_entries,
+        circuit_entries=[],
+        hd_placement_contexts=hd_placement_contexts,
     )
 
     right_layout = QVBoxLayout()
@@ -167,7 +173,11 @@ def create_human_design_synastry_dialog(
     def _show_gate_info(gate: int) -> None:
         parent._run_with_chart_info_output(
             chart_info_output,
-            lambda: parent._show_human_design_gate_line_info(int(gate), None),
+            lambda: parent._show_human_design_gate_line_info(
+                int(gate),
+                None,
+                placement_contexts=hd_placement_contexts,
+            ),
         )
 
     def _on_bodygraph_click(event: Any) -> None:
@@ -287,6 +297,7 @@ def create_human_design_synastry_dialog(
         "aspect_info_map": {},
         "species_info_map": {},
         "summary_block_offset": summary_block_offset,
+        "hd_placement_contexts": hd_placement_contexts,
     }
     synastry_file_stem = f"ephemeraldaddy_{parent._sanitize_export_token(chart_a.name)}_{parent._sanitize_export_token(chart_b.name)}_hd_synastry"
     summary_share_button = parent._attach_popout_share_button(summary_output, synastry_file_stem)
