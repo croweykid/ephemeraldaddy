@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.patches import Polygon
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -348,25 +349,75 @@ def build_popout_left_panel(
                 y_padding = 0.35 if is_circuits_mode else 0.5
                 analytics_ax.set_ylim(-y_padding, max(0.0, current_row - row_step + y_padding))
                 analytics_ax.invert_yaxis()
-                for row_index, _entry, gate_row, present_gates, completion_level in row_layouts:
+                synastry_chart_1_color = "#4ea5ff"
+                synastry_chart_2_color = "#ff9f1c"
+                for row_index, entry, gate_row, present_gates, completion_level in row_layouts:
                     segment_color = color_by_completion.get(completion_level, color_by_completion[0])
+                    chart_1_present_gates = set(int(gate) for gate in entry.get("chart_1_present_gates", []))
+                    chart_2_present_gates = set(int(gate) for gate in entry.get("chart_2_present_gates", []))
+                    use_synastry_gate_colors = bool(chart_1_present_gates or chart_2_present_gates)
                     for segment_index, gate in enumerate(gate_row):
                         gate_present = gate in present_gates
-                        face_color = segment_color if gate_present else "#4f4f4f"
-                        label_color = "#ffffff" if gate_present else "#b8b8b8"
-                        bar_container = analytics_ax.barh(
-                            row_index,
-                            1.0,
-                            left=segment_index,
-                            color=face_color,
-                            edgecolor=chart_theme_colors["spine"],
-                            height=gate_box_height,
-                            linewidth=0.8,
-                        )
                         gate_gid = f"awareness_gate:{gate}"
-                        for patch in getattr(bar_container, "patches", []):
-                            patch.set_gid(gate_gid)
-                            patch.set_picker(True)
+                        if use_synastry_gate_colors:
+                            present_in_chart_1 = gate in chart_1_present_gates
+                            present_in_chart_2 = gate in chart_2_present_gates
+                            if present_in_chart_1 and present_in_chart_2:
+                                left = float(segment_index)
+                                right = left + 1.0
+                                top = float(row_index) - (gate_box_height / 2.0)
+                                bottom = float(row_index) + (gate_box_height / 2.0)
+                                triangle_specs = (
+                                    ([(left, top), (right, top), (left, bottom)], synastry_chart_1_color),
+                                    ([(right, top), (right, bottom), (left, bottom)], synastry_chart_2_color),
+                                )
+                                for vertices, triangle_color in triangle_specs:
+                                    triangle = Polygon(
+                                        vertices,
+                                        closed=True,
+                                        facecolor=triangle_color,
+                                        edgecolor=chart_theme_colors["spine"],
+                                        linewidth=0.8,
+                                    )
+                                    triangle.set_gid(gate_gid)
+                                    triangle.set_picker(True)
+                                    analytics_ax.add_patch(triangle)
+                            else:
+                                face_color = (
+                                    synastry_chart_1_color
+                                    if present_in_chart_1
+                                    else synastry_chart_2_color
+                                    if present_in_chart_2
+                                    else "#4f4f4f"
+                                )
+                                bar_container = analytics_ax.barh(
+                                    row_index,
+                                    1.0,
+                                    left=segment_index,
+                                    color=face_color,
+                                    edgecolor=chart_theme_colors["spine"],
+                                    height=gate_box_height,
+                                    linewidth=0.8,
+                                )
+                                for patch in getattr(bar_container, "patches", []):
+                                    patch.set_gid(gate_gid)
+                                    patch.set_picker(True)
+                            label_color = "#ffffff" if gate_present else "#b8b8b8"
+                        else:
+                            face_color = segment_color if gate_present else "#4f4f4f"
+                            label_color = "#ffffff" if gate_present else "#b8b8b8"
+                            bar_container = analytics_ax.barh(
+                                row_index,
+                                1.0,
+                                left=segment_index,
+                                color=face_color,
+                                edgecolor=chart_theme_colors["spine"],
+                                height=gate_box_height,
+                                linewidth=0.8,
+                            )
+                            for patch in getattr(bar_container, "patches", []):
+                                patch.set_gid(gate_gid)
+                                patch.set_picker(True)
                         gate_text_artist = analytics_ax.text(
                             segment_index + 0.5,
                             row_index,
