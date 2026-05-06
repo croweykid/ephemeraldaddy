@@ -22008,6 +22008,10 @@ class MainWindow(QMainWindow):
             return
         self._metric_scroll_widgets.add(widget)
         widget.installEventFilter(self)
+        if isinstance(widget, QScrollArea):
+            viewport = widget.viewport()
+            self._metric_scroll_widgets.add(viewport)
+            viewport.installEventFilter(self)
 
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
@@ -25121,12 +25125,14 @@ class MainWindow(QMainWindow):
         if panel_key == "analytics" and not analytics_enabled:
             panel_key = "subjective_notes"
         if panel_key == "subjective_notes":
-            panel_stack.setCurrentWidget(self.subjective_notes_panel_scroll)
+            active_scroll = self.subjective_notes_panel_scroll
         elif panel_key == "predictions":
-            panel_stack.setCurrentWidget(self.predictions_panel_scroll)
+            active_scroll = self.predictions_panel_scroll
         else:
             panel_key = "analytics"
-            panel_stack.setCurrentWidget(self.chart_analytics_panel_scroll)
+            active_scroll = self.chart_analytics_panel_scroll
+        panel_stack.setCurrentWidget(active_scroll)
+        self.metrics_scroll = active_scroll
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
