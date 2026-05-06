@@ -84,12 +84,12 @@ EXPECTED_UNORDERED_PAIR_COUNT = len(PLANET_ORDER) * (len(PLANET_ORDER) - 1) // 2
 assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
 PAIR_TONE_DISTRIBUTION = {
-    "supportive_pair": {
+    "enabling_pair": {
         "enabling_aspect":     {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
         "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},
         "escalating_aspect":   {"Enabling": 0.60, "Antagonizing": 0.00, "Escalating": 0.40},
     },
-    "difficult_pair": {
+    "antagonizing_pair": {
         "enabling_aspect":     {"Enabling": 0.55, "Antagonizing": 0.20, "Escalating": 0.25},
         "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.80, "Escalating": 0.20},
         "escalating_aspect":   {"Enabling": 0.10, "Antagonizing": 0.45, "Escalating": 0.45},
@@ -100,20 +100,18 @@ PAIR_TONE_DISTRIBUTION = {
         "escalating_aspect":   {"Enabling": 0.25, "Antagonizing": 0.25, "Escalating": 0.50},
     },
 }
-#algorithmically replace the BODY_PAIR_ASPECT_COMBOS logic below with the PAIR_TONE_DISTRIBUTION above to produce distributed results rather than all-or-nothing bucketed results.
-BODY_PAIR_ASPECT_COMBOS = {
+ASPECT_BUCKET_KEYS = {
+    "harmonious": "enabling_aspect",
+    "conflicted": "antagonizing_aspect",
+    "neutral/variable": "escalating_aspect",
+}
+
+
+PAIR_TYPE_DISTRIBUTION = {
     pair: {
-        "enabling": (
-            ASPECT_FRICTION["harmonious"]["aspects"]
-            | (ASPECT_FRICTION["neutral/variable"]["aspects"] if tone == "enabling_pair" else frozenset())
-        ),
-        "antagonizing": (
-            ASPECT_FRICTION["conflicted"]["aspects"]
-            | (ASPECT_FRICTION["neutral/variable"]["aspects"] if tone == "antagonizing_pair" else frozenset())
-        ),
-        "escalating": (
-            ASPECT_FRICTION["neutral/variable"]["aspects"] if tone == "volatile_pair" else frozenset()
-        ),
+        aspect_name: PAIR_TONE_DISTRIBUTION[tone][ASPECT_BUCKET_KEYS[bucket_name]]
+        for bucket_name, bucket_data in ASPECT_FRICTION.items()
+        for aspect_name in bucket_data.get("aspects", frozenset())
     }
     for pair, tone in BODY_PAIR_DYNAMICS.items()
 }
