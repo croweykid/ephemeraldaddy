@@ -762,8 +762,8 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "description":"",
         "quotes":{""},
     },
-    "CHA" : {
-        "signs":{"Gemini":3,"Cancer":2,"Leo":3,"Scorpio":3,"Taurus":2}
+    "CHA" : { #this was tricky to nail down - because what I find charismatic differs from public opinion quite a bit. So I started with a list of who I found charismatic, found norms. Then added who I thought other people find charismatic. Found norms. Mixed the two - found nothing. Tried to pick out just the MOST charismatic from both - found nothing. Picked out who I think are most universally agreed upon as charismatic, found patterns. The criteria below represent a mix of these findings.
+        "signs":{"Gemini":3,"Cancer":2,"Leo":3,"Scorpio":3,"Taurus":2},
         "antisigns":{},
         "houses":{10:4,12:3,4:3,11:3},
         "antihouses":{},
@@ -771,8 +771,8 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{},
         "nakshatras":{"Rohini":3,"Ashlesha":2,"Uttara Bhadrapada":2,"Shravana":1,"Purva Ashadha":3}, 
         "antinakshatras":{"Hasta":2}, 
-        "positions":{"Sun in Gemini":4,"Moon in Capricorn":2,"Moon in Aquarius":2,"Mercury in Taurus":2,"Mercury in Gemini":2,"Venus in Taurus":2,"Venus in Gemini":2,"Venus in Cancer":2,"Jupiter in Aquarius":2,"Virgo in H1":2,"Sun in H2":4,"Taurus in H10":3,"Libra in H3":3},
-        "antipositions":{"Sun in Aquarius":2,"Sun in Virgo":2,"Moon in Aries":2,"Moon in Taurus":2,"Mercury in Aquarius":3,"Venus in Leo":2,"Venus in Sagittarius":2,"Jupiter in Aries":2,"Saturn in Libra":2,"Saturn in H10":4},
+        "positions":{"Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Moon in Capricorn":2,"Moon in Aquarius":2,"Mercury in Taurus":2,"Mercury in Gemini":2,"Venus in Taurus":2,"Venus in Gemini":2,"Venus in Cancer":2,"Jupiter in Aquarius":2,"Virgo in H1":2,"Sun in H2":4,"Taurus in H10":3,"Libra in H3":3},
+        "antipositions":{"Sun in Aquarius":4,"Sun in Libra":3,"Moon in Aries":2,"Moon in Taurus":2,"Mercury in Aquarius":3,"Venus in Leo":2,"Venus in Sagittarius":2,"Jupiter in Aries":2,"Saturn in Libra":2,"Saturn in H10":4},
         "aspects":{"Saturn trine Vesta":5,"Pallas square Uranus":3,},
         "antiaspects":{},
         "gates":{1:3,4:4,40:5,55:3},
