@@ -559,6 +559,22 @@ def _qt_text_span(text: str, start: int, end: int) -> tuple[int, int]:
     return _qt_text_offset(text, start), _qt_text_offset(text, end)
 
 
+def _qt_click_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """Return a forgiving QTextCursor-compatible click span for token hit testing.
+
+    QTextCursor positions represent insertion points between glyphs, so clicking the
+    right side of the final glyph in a token can produce the position immediately
+    after that token. Include that trailing insertion point and the preceding
+    whitespace separator so short gate/channel tokens are easy to click without
+    overlapping the next token's span.
+    """
+    expanded_start = start
+    if expanded_start > 0 and text[expanded_start - 1] in {" ", "\t"}:
+        expanded_start -= 1
+    span_start, span_end = _qt_text_span(text, expanded_start, end)
+    return span_start, span_end + 1
+
+
 def _find_channel_tokens(line_text: str) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
     for match in _CHANNEL_TOKEN_RE.finditer(line_text):
@@ -567,7 +583,7 @@ def _find_channel_tokens(line_text: str) -> list[dict[str, object]]:
             gate_b = int(match.group("gate_b"))
         except (TypeError, ValueError):
             continue
-        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
+        span_start, span_end = _qt_click_span(line_text, match.start(), match.end())
         entries.append(
             {
                 "kind": "hd_channel",
@@ -592,7 +608,7 @@ def _find_gate_line_tokens(line_text: str) -> list[dict[str, object]]:
             line_number = int(line_text_value) if line_text_value is not None else None
         except (TypeError, ValueError):
             continue
-        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
+        span_start, span_end = _qt_click_span(line_text, match.start(), match.end())
         entries.append(
             {
                 "kind": "hd_gate_line",

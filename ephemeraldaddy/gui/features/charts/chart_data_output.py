@@ -110,6 +110,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Defined Centers",
+        "Combined Incarnation Cross(es)",
         "Channel",
         "Body",
         "Sign",
@@ -124,9 +130,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Type",
         "Authority",
         "Defined Centers",
+        "Combined Defined Centers",
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Incarnation Cross(es)",
         "Strategy",
     )
 
@@ -358,6 +370,32 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 text_format,
             )
 
+    def _apply_defined_centers_format(self, text: str, stripped_text: str) -> None:
+        label = ""
+        if stripped_text.startswith("Combined Defined Centers:"):
+            label = "Combined Defined Centers:"
+        elif stripped_text.startswith("Defined Centers:"):
+            label = "Defined Centers:"
+        if not label:
+            return
+
+        self.setFormat(0, self._qt_len(label), self._copper_header_format)
+        centers_text = stripped_text[len(label):].strip()
+        if not centers_text or centers_text.lower() == "none":
+            return
+        for raw_center in [segment.strip() for segment in centers_text.split(",") if segment.strip()]:
+            center_key = "G" if raw_center == "G" else raw_center
+            center_format = self._defined_center_formats.get(center_key)
+            if center_format is None:
+                continue
+            center_start = text.find(raw_center)
+            if center_start != -1:
+                self.setFormat(
+                    self._qt_index(text, center_start),
+                    self._qt_len(raw_center),
+                    center_format,
+                )
+
     def highlightBlock(self, text: str) -> None:
         self.setFormat(0, self._qt_len(text), self._default_body_format)
         if self.previousBlockState() == 1:
@@ -407,7 +445,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 )
                 self.setFormat(0, self._qt_len(text), active_format)
                 return
-            return
 
         for header in CHART_DATA_SECTION_HEADERS:
             if stripped_text.upper() == header:
@@ -431,7 +468,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     if prefix in self.HD_HEADERS
                     else self._plain_bold_format
                 )
-                self.setFormat(0, self._qt_len(prefix), header_format)
+                label_text = f"{prefix}:" if stripped_text.startswith(f"{prefix}:") else prefix
+                self.setFormat(0, self._qt_len(label_text), header_format)
                 break
         for prefix in self.HD_HEADERS:
             if stripped_text.startswith(f"{prefix} "):
@@ -439,8 +477,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 break
         if stripped_text in self._hd_center_header_names:
             self.setFormat(0, self._qt_len(stripped_text), self._copper_header_format)
-        if stripped_text.startswith("Defined Centers:"):
-            label = "Defined Centers:"
+        self._apply_defined_centers_format(text, stripped_text)
+        for label in ("Defined Centers:", "Combined Defined Centers:"):
+            if not stripped_text.startswith(label):
+                continue
             self.setFormat(0, self._qt_len(label), self._copper_header_format)
             centers_text = stripped_text[len(label):].strip()
             if centers_text and centers_text.lower() != "none":
@@ -456,6 +496,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                             self._qt_len(raw_center),
                             center_format,
                         )
+            break
         if re.search(r"\bBody\b", stripped_text) and re.search(r"\bSign\b", stripped_text) and "G/L" in stripped_text:
             for header_token in ("Body", "Sign", "Longitude", "G/L", "C", "T", "B"):
                 token_start = 0
