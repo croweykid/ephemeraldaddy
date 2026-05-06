@@ -53,29 +53,56 @@ PLANET_DYNAMICS_METRICS = (
     "escalating",
 )
 BODY_DYNAMICS_LABELS = ("enabler", "antagonizer", "escalating enabler", "escalating antagonizer")
-
-_PLANET_DYNAMICS_BODY_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
-_PLANET_DYNAMICS_PAIR_TONES = {
-    ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair",
-    ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair",
-    ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair",
-    ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair",
-    ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair",
-    ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair", ("Mercury", "Venus"): "enabling_pair",
-    ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair",
-    ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair",
-    ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair",
-    ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair",
-    ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair",
-    ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair", ("Jupiter", "Saturn"): "volatile_pair",
-    ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair",
+BODY_DYNAMICS_PAIR_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
+BODY_PAIR_DYNAMICS = {
+    ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair", ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair", ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair",
+    ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair", ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair", ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair",
+    ("Mercury", "Venus"): "enabling_pair", ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair", ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair",
+    ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair", ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair",
+    ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair", ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair",
+    ("Jupiter", "Saturn"): "volatile_pair", ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair",
     ("Saturn", "Uranus"): "antagonizing_pair", ("Saturn", "Neptune"): "antagonizing_pair", ("Saturn", "Pluto"): "antagonizing_pair",
-    ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair", ("Neptune", "Pluto"): "volatile_pair",
+    ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair",
+    ("Neptune", "Pluto"): "volatile_pair",
+}
+PAIR_TONE_DISTRIBUTION = {
+    "enabling_pair": {
+        "enabling_aspect": {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
+        "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},
+        "escalating_aspect": {"Enabling": 0.60, "Antagonizing": 0.00, "Escalating": 0.40},
+    },
+    "antagonizing_pair": {
+        "enabling_aspect": {"Enabling": 0.55, "Antagonizing": 0.20, "Escalating": 0.25},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.80, "Escalating": 0.20},
+        "escalating_aspect": {"Enabling": 0.10, "Antagonizing": 0.45, "Escalating": 0.45},
+    },
+    "volatile_pair": {
+        "enabling_aspect": {"Enabling": 0.65, "Antagonizing": 0.00, "Escalating": 0.35},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.55, "Escalating": 0.45},
+        "escalating_aspect": {"Enabling": 0.25, "Antagonizing": 0.25, "Escalating": 0.50},
+    },
+}
+PAIR_TYPE_DISTRIBUTION = {
+    pair: {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["antagonizing_aspect"]
+        for aspect_name in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())
+    }
+    | {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["enabling_aspect"]
+        for group_name in ("chill vibes", "creative/technical")
+        for aspect_name in ASPECT_TYPES.get(group_name, {}).get("aspects", set())
+    }
+    | {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["escalating_aspect"]
+        for aspect_name in ASPECT_TYPES.get("amplifying", {}).get("aspects", set())
+    }
+    for pair, tone in BODY_PAIR_DYNAMICS.items()
 }
 
 
-def _planet_dynamics_pair_key(a: str, b: str) -> tuple[str, str]:
-    return tuple(sorted((a, b), key=_PLANET_DYNAMICS_BODY_INDEX.__getitem__))
+def normalize_body_pair(a: str, b: str) -> tuple[str, str]:
+    return tuple(sorted((a, b), key=BODY_DYNAMICS_PAIR_INDEX.__getitem__))
+
 
 def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]]:
     """Compute per-body dynamics scores from aspect type + pair-character weighting."""
@@ -84,20 +111,6 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         for body in PLANET_ORDER
         if body in (INNER_PLANETS | OUTER_PLANETS) and body in chart.positions
     )
-
-    antagonizing_types = {
-        str(aspect_name).replace(" ", "_").lower()
-        for aspect_name in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())
-    }
-    enabling_types = {
-        str(aspect_name).replace(" ", "_").lower()
-        for group_name in ("chill vibes", "creative/technical")
-        for aspect_name in ASPECT_TYPES.get(group_name, {}).get("aspects", set())
-    }
-    escalating_types = {
-        str(aspect_name).replace(" ", "_").lower()
-        for aspect_name in ASPECT_TYPES.get("amplifying", {}).get("aspects", set())
-    }
 
     dynamics: dict[str, dict[str, float]] = {
         body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
@@ -126,25 +139,28 @@ def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]
         if p1 not in dynamics or p2 not in dynamics:
             continue
         aspect_type = str(aspect.get("type", "")).replace(" ", "_").lower()
-        pair = _planet_dynamics_pair_key(p1, p2)
-        pair_tone = _PLANET_DYNAMICS_PAIR_TONES.get(pair)
-        pair_polarity_sign = {"enabling_pair": 1.0, "antagonizing_pair": -1.0, "volatile_pair": 1.0}.get(pair_tone, 1.0)
+        pair = normalize_body_pair(p1, p2)
+        pair_tone = BODY_PAIR_DYNAMICS.get(pair)
+        distribution = (PAIR_TYPE_DISTRIBUTION.get(pair) or {}).get(aspect_type)
+        if not distribution:
+            continue
         orb_weight = _aspect_orb_factor(aspect)
         aspect_base_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
         if orb_weight <= 0.0 or aspect_base_weight <= 0.0:
             continue
         dom_a = max(float(condition_weights.get(p1, 0.0)), 0.0)
         dom_b = max(float(condition_weights.get(p2, 0.0)), 0.0)
-        aspect_score = pair_polarity_sign * orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
-        if aspect_type in antagonizing_types:
-            _accumulate_metric(p1, p2, "antagonizing", aspect_score)
-        if aspect_type in enabling_types:
-            _accumulate_metric(p1, p2, "enabling", aspect_score)
-        if aspect_type in escalating_types:
-            escalating_score = aspect_score
-            if pair_tone == "volatile_pair":
-                escalating_score *= 1.15
-            _accumulate_metric(p1, p2, "escalating", escalating_score)
+        aspect_score = orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
+        for metric, weight in (
+            ("enabling", float(distribution.get("Enabling", 0.0))),
+            ("antagonizing", float(distribution.get("Antagonizing", 0.0))),
+            ("escalating", float(distribution.get("Escalating", 0.0))),
+        ):
+            weighted_score = aspect_score * weight
+            if metric == "escalating" and pair_tone == "volatile_pair":
+                weighted_score *= 1.15
+            if weighted_score > 0.0:
+                _accumulate_metric(p1, p2, metric, weighted_score)
 
     return dynamics
 
