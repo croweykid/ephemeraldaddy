@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_sign_weights
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    calculate_weighted_criteria_scores,
+    normalize_weight_map_by_range,
+)
+from .dnd_definitions import DND_STAT_PREDICTORS
 
 from .dnd_class_axes_v2 import (
     AxisFeatureSet,
@@ -165,27 +169,23 @@ def score_dnd_statblock(
     stat_floor: int = 5,
     stat_ceiling: int = 20,
 ) -> DnDStatBlock:
-    scorer = ClassAxisScorer()
-    features = scorer.extract_features(chart)
-    axis_scores = scorer.score_axes(features)
-    dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
-        scorer._get_chart_map(chart, "dominant_sign_weights") or {}
+    """Score D&D stats using the shared multi-criterion chart predictor model."""
+    raw_weighted_scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=DND_STAT_PREDICTORS,
     )
-    if dominant_sign_weights is None and not isinstance(chart, Mapping):
-        try:
-            dominant_sign_weights = ClassAxisScorer._normalize_numeric_map(
-                calculate_dominant_sign_weights(chart)
-            )
-        except Exception:
-            dominant_sign_weights = None
-    return score_dnd_statblock_from_features(
-        axis_scores,
-        features,
-        stat_floor=stat_floor,
-        stat_ceiling=stat_ceiling,
-        dominant_sign_weights=dominant_sign_weights,
-    )
-
+    normalized_scores = normalize_weight_map_by_range(raw_weighted_scores)
+    raw_scores = {
+        key: _clamp01(float(normalized_scores.get(key, 0.0)))
+        for key in _DND_STAT_COMPONENT_ORDER
+    }
+    raw_scores = _shape_stat_profile(raw_scores)
+    scores = {
+        key: _to_dnd_stat(raw_scores[key], floor=stat_floor, ceiling=stat_ceiling)
+        for key in _DND_STAT_COMPONENT_ORDER
+    }
+    modifiers = {key: int((value - 10) // 2) for key, value in scores.items()}
+    return DnDStatBlock(raw_scores=raw_scores, scores=scores, modifiers=modifiers)
 
 def build_dnd_statblock_profile_lines(
     statblock: DnDStatBlock,

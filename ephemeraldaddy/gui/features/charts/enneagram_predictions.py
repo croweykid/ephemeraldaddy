@@ -31,6 +31,11 @@ from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.core.chart import chart_uses_houses
 
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
+    calculate_weighted_criteria_scores,
+)
+
 
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
@@ -48,7 +53,7 @@ ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
     """Override runtime category weights used by Enneagram predictions."""
     global ENNEAGRAM_CATEGORY_WEIGHTS
-    base = {"signs": 1.0, "bodies": 1.0, "nakshatras": 1.0, "houses": 1.0, "gates": 1.0, "positions": 1.0, "aspects": 1.0}
+    base = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
     if not isinstance(overrides, dict):
         ENNEAGRAM_CATEGORY_WEIGHTS = base
         return
@@ -269,237 +274,18 @@ def calculate_enneagram_type_weights(
     calculate_house_weights: Callable[[Any], dict[int, float]],
     chart_uses_houses: Callable[[Any], bool],
 ) -> dict[int, float]:
-    """Compute Enneagram type scores from chart-level dominant weights."""
-    scores = {enneagram_type: 0.0 for enneagram_type in range(1, 10)}
-    sign_weights_raw = getattr(chart, "dominant_sign_weights", None) or calculate_sign_weights(chart)
-    body_weights_raw = getattr(chart, "dominant_planet_weights", None) or calculate_body_weights(chart)
-    use_houses = chart_uses_houses(chart)
-    house_weights_raw = calculate_house_weights(chart) if use_houses else {}
-    nakshatra_weights_raw = getattr(chart, "dominant_nakshatra_weights", None) or calculate_dominant_nakshatra_weights(chart)
-
-    sign_weights = _normalize_weight_map_by_range(sign_weights_raw)
-    body_weights = _normalize_weight_map_by_range(body_weights_raw)
-    house_weights = _normalize_weight_map_by_range(house_weights_raw) if use_houses else {}
-    nakshatra_weights = _normalize_weight_map_by_range(nakshatra_weights_raw)
-    chart_name = str(getattr(chart, "name", "Unnamed Chart"))
-    body_house_lookup: dict[str, int] = {}
-    if use_houses:
-        for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
-            body = _normalize_factor_value(str(raw_body))
-            try:
-                house_num = house_for_longitude(getattr(chart, "houses", None), float(lon))
-            except (TypeError, ValueError):
-                continue
-            if house_num is not None:
-                body_house_lookup[body] = house_num
-
-    active_gates = _active_human_design_gates(chart)
-
-    for enneagram_type, factors in enneagram.items():
-        signs = _weighted_string_entries(factors.get("signs", set()))
-        antisigns = _weighted_string_entries(factors.get("antisigns", set()))
-        bodies = _weighted_string_entries(factors.get("bodies", set()))
-        antibodies = _weighted_string_entries(factors.get("antibodies", set()))
-        nakshatras = _weighted_string_entries(factors.get("nakshatras", set()))
-        antinakshatras = _weighted_string_entries(factors.get("antinakshatras", set()))
-        houses = _weighted_house_entries(factors.get("houses", set()))
-        antihouses = _weighted_house_entries(factors.get("antihouses", set()))
-        gates = _weighted_gate_entries(factors.get("gates", set()))
-        antigates = _weighted_gate_entries(factors.get("antigates", set()))
-        positions = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("positions", set())).items() if str(value).strip()}
-        antipositions = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("antipositions", set())).items() if str(value).strip()}
-        aspects = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("aspects", set())).items() if str(value).strip()}
-        antiaspects = {str(value).strip(): float(weight) for value, weight in _coerce_weighted_entries(factors.get("antiaspects", set())).items() if str(value).strip()}
-
-        sign_positive = sum(float(sign_weights.get(sign, 0.0)) * float(weight) for sign, weight in signs.items())
-        sign_negative = sum(float(sign_weights.get(sign, 0.0)) * float(weight) for sign, weight in antisigns.items())
-        body_positive = sum(float(body_weights.get(body, 0.0)) * float(weight) for body, weight in bodies.items())
-        body_negative = sum(float(body_weights.get(body, 0.0)) * float(weight) for body, weight in antibodies.items())
-        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * float(weight) for nakshatra, weight in nakshatras.items())
-        nakshatra_negative = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * float(weight) for nakshatra, weight in antinakshatras.items())
-        house_positive = 0.0
-        house_negative = 0.0
-        if use_houses:
-            house_positive = sum(float(house_weights.get(house_num, 0.0)) * float(weight) for house_num, weight in houses.items())
-            house_negative = sum(float(house_weights.get(house_num, 0.0)) * float(weight) for house_num, weight in antihouses.items())
-
-        gates_positive = 0.0
-        gates_negative = 0.0
-        for gate, weight in gates.items():
-            if gate in active_gates:
-                gates_positive += 6.0 * float(weight)
-        for gate, weight in antigates.items():
-            if gate in active_gates:
-                gates_negative += 6.0 * float(weight)
-
-        positions_positive = 0.0
-        for raw_position, criterion_weight in positions.items():
-            parsed = _parse_position_spec(raw_position)
-            if parsed is None:
-                continue
-            category, container, subject = parsed
-            bonus = 0.0
-            if category == "body_in_house" and isinstance(container, int) and use_houses:
-                body_house = body_house_lookup.get(subject)
-                if body_house == container:
-                    bonus = float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
-            elif category == "sign_in_house" and isinstance(container, int) and use_houses:
-                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
-                    body = _normalize_factor_value(str(raw_body))
-                    if body not in body_house_lookup or body_house_lookup[body] != container:
-                        continue
-                    try:
-                        lon_value = float(lon)
-                    except (TypeError, ValueError):
-                        continue
-                    if sign_for_longitude(lon_value) == subject:
-                        bonus = float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
-                        break
-            elif category == "body_in_sign" and isinstance(container, str):
-                body_lon = (getattr(chart, "positions", None) or {}).get(subject)
-                try:
-                    lon_value = float(body_lon)
-                except (TypeError, ValueError):
-                    lon_value = None
-                if lon_value is not None and sign_for_longitude(lon_value) == container:
-                    bonus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
-            if bonus > 0:
-                positions_positive += bonus * float(criterion_weight)
-                _debug_log(
-                    f"[Enneagram Debug] {chart_name}: type {enneagram_type} position TRUE -> "
-                    f"'{raw_position}' (+{bonus:.2f})"
-                )
-
-        positions_negative = 0.0
-        for raw_position, criterion_weight in antipositions.items():
-            parsed = _parse_position_spec(raw_position)
-            if parsed is None:
-                continue
-            category, container, subject = parsed
-            malus = 0.0
-            if category == "body_in_house" and isinstance(container, int) and use_houses:
-                body_house = body_house_lookup.get(subject)
-                if body_house == container:
-                    malus = float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
-            elif category == "sign_in_house" and isinstance(container, int) and use_houses:
-                for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
-                    body = _normalize_factor_value(str(raw_body))
-                    if body not in body_house_lookup or body_house_lookup[body] != container:
-                        continue
-                    try:
-                        lon_value = float(lon)
-                    except (TypeError, ValueError):
-                        continue
-                    if sign_for_longitude(lon_value) == subject:
-                        malus = float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
-                        break
-            elif category == "body_in_sign" and isinstance(container, str):
-                body_lon = (getattr(chart, "positions", None) or {}).get(subject)
-                try:
-                    lon_value = float(body_lon)
-                except (TypeError, ValueError):
-                    lon_value = None
-                if lon_value is not None and sign_for_longitude(lon_value) == container:
-                    malus = float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
-            if malus > 0:
-                positions_negative += malus * float(criterion_weight)
-
-        aspects_positive = 0.0
-        for raw_aspect, criterion_weight in aspects.items():
-            parsed = _parse_aspect_spec(raw_aspect)
-            if parsed is None:
-                print(
-                    f"[Enneagram Parse Error] {chart_name}: could not parse aspect spec '{raw_aspect}'"
-                )
-                continue
-            left_body, aspect_type, right_body = parsed
-            for aspect in getattr(chart, "aspects", []) or []:
-                p1 = _normalize_factor_value(str(aspect.get("p1", "")))
-                p2 = _normalize_factor_value(str(aspect.get("p2", "")))
-                current_type = str(aspect.get("type", "")).strip().lower()
-                if current_type != aspect_type:
-                    continue
-                if {p1, p2} != {left_body, right_body}:
-                    continue
-                aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
-                bonus = (
-                    float(body_weights.get(left_body, 0.0))
-                    + aspect_weight
-                    + float(body_weights.get(right_body, 0.0))
-                )
-                aspects_positive += bonus * float(criterion_weight)
-                _debug_log(
-                    f"[Enneagram Debug] {chart_name}: type {enneagram_type} aspect TRUE -> "
-                    f"'{raw_aspect}' (+{bonus:.2f})"
-                )
-                break
-
-        aspects_negative = 0.0
-        for raw_aspect, criterion_weight in antiaspects.items():
-            parsed = _parse_aspect_spec(raw_aspect)
-            if parsed is None:
-                print(
-                    f"[Enneagram Parse Error] {chart_name}: could not parse antiaspect spec '{raw_aspect}'"
-                )
-                continue
-            left_body, aspect_type, right_body = parsed
-            for aspect in getattr(chart, "aspects", []) or []:
-                p1 = _normalize_factor_value(str(aspect.get("p1", "")))
-                p2 = _normalize_factor_value(str(aspect.get("p2", "")))
-                current_type = str(aspect.get("type", "")).strip().lower()
-                if current_type != aspect_type:
-                    continue
-                if {p1, p2} != {left_body, right_body}:
-                    continue
-                aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
-                malus = (
-                    float(body_weights.get(left_body, 0.0))
-                    + aspect_weight
-                    + float(body_weights.get(right_body, 0.0))
-                )
-                aspects_negative += malus * float(criterion_weight)
-                break
-
-        type_multiplier = lambda category: _criterion_multiplier_for_type(factors, category)
-
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["signs"] * type_multiplier("signs") * _normalize_category_delta(
-            sign_positive,
-            sign_negative,
-            criteria_count=len(signs) + len(antisigns),
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["bodies"] * type_multiplier("bodies") * _normalize_category_delta(
-            body_positive,
-            body_negative,
-            criteria_count=len(bodies) + len(antibodies),
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["nakshatras"] * type_multiplier("nakshatras") * _normalize_category_delta(
-            nakshatra_positive,
-            nakshatra_negative,
-            criteria_count=len(nakshatras) + len(antinakshatras),
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["houses"] * type_multiplier("houses") * _normalize_category_delta(
-            house_positive,
-            house_negative,
-            criteria_count=(len(houses) + len(antihouses)) if use_houses else 0,
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["gates"] * type_multiplier("gates") * _normalize_category_delta(
-            gates_positive,
-            gates_negative,
-            criteria_count=len(gates) + len(antigates),
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["positions"] * type_multiplier("positions") * _normalize_category_delta(
-            positions_positive,
-            positions_negative,
-            criteria_count=len(positions) + len(antipositions),
-        )
-        scores[enneagram_type] += ENNEAGRAM_CATEGORY_WEIGHTS["aspects"] * type_multiplier("aspects") * _normalize_category_delta(
-            aspects_positive,
-            aspects_negative,
-            criteria_count=len(aspects) + len(antiaspects),
-        )
-
-    return scores
-
+    """Compute Enneagram type scores from reusable weighted chart criteria."""
+    return calculate_weighted_criteria_scores(
+        chart,
+        predictors=enneagram,
+        category_weights=ENNEAGRAM_CATEGORY_WEIGHTS,
+        anti_factor=ENNEAGRAM_ANTI_FACTOR,
+        calculate_sign_weights=calculate_sign_weights,
+        calculate_body_weights=calculate_body_weights,
+        calculate_house_weights=calculate_house_weights,
+        uses_houses=chart_uses_houses,
+        debug=_debug_log if ENNEAGRAM_DEBUG_LOGGING else None,
+    )
 
 def draw_enneagram_predictions(
     ax: Any,
