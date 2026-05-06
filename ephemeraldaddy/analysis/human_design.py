@@ -549,6 +549,16 @@ _CHANNEL_TOKEN_RE = re.compile(
 )
 
 
+def _qt_text_offset(text: str, index: int) -> int:
+    """Return the QTextCursor-compatible UTF-16 code-unit offset for a Python index."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
+def _qt_text_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """Return a QTextCursor-compatible span for Python regex match indices."""
+    return _qt_text_offset(text, start), _qt_text_offset(text, end)
+
+
 def _find_channel_tokens(line_text: str) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
     for match in _CHANNEL_TOKEN_RE.finditer(line_text):
@@ -557,14 +567,15 @@ def _find_channel_tokens(line_text: str) -> list[dict[str, object]]:
             gate_b = int(match.group("gate_b"))
         except (TypeError, ValueError):
             continue
+        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
         entries.append(
             {
                 "kind": "hd_channel",
                 "gate_a": min(gate_a, gate_b),
                 "gate_b": max(gate_a, gate_b),
                 "center": "",
-                "span_start": match.start(),
-                "span_end": match.end(),
+                "span_start": span_start,
+                "span_end": span_end,
             }
         )
     return entries
@@ -581,13 +592,14 @@ def _find_gate_line_tokens(line_text: str) -> list[dict[str, object]]:
             line_number = int(line_text_value) if line_text_value is not None else None
         except (TypeError, ValueError):
             continue
+        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
         entries.append(
             {
                 "kind": "hd_gate_line",
                 "gate": gate_number,
                 "line": line_number,
-                "span_start": match.start(),
-                "span_end": match.end(),
+                "span_start": span_start,
+                "span_end": span_end,
             }
         )
     return entries
