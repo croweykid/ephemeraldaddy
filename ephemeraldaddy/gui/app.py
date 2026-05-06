@@ -11934,6 +11934,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_tags_list_widget.itemClicked.connect(self._on_batch_tag_item_clicked)
         self.batch_tags_list_widget.setVisible(False)
         self.batch_tags_toggle.toggled.connect(self.batch_tags_list_widget.setVisible)
+        self.batch_tags_toggle.toggled.connect(
+            lambda expanded: self._refresh_batch_tags_list(
+                getattr(self, "_known_chart_tags", [])
+            ) if expanded else None
+        )
         tagging_section_layout.addWidget(self.batch_tags_list_widget)
         self._bind_batch_enter_apply(self.batch_tags_input, batch_tags_apply_button.click)
         self._update_tag_completers()
@@ -12408,6 +12413,121 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._set_batch_alignment_state(resolved_items)
         self._batch_last_selection_ids = chart_id_set
 
+    def _update_batch_tag_state(self) -> None:
+        if not hasattr(self, "batch_tags_input"):
+            return
+
+        selected_items = self.list_widget.selectedItems()
+        selected_chart_ids = self._selected_chart_ids(selected_items)
+        chart_id_set = set(selected_chart_ids)
+        preserve_lucygoosey_tags = (
+            bool(chart_id_set)
+            and bool(self._batch_last_selection_ids)
+            and bool(chart_id_set.intersection(self._batch_last_selection_ids))
+        )
+
+        if not selected_chart_ids:
+            self._set_batch_tags_state([], preserve_lucygoosey=preserve_lucygoosey_tags)
+            self._render_batch_selection_tag_summary({}, 0)
+            self._batch_last_selection_ids = set()
+            return
+
+        self._update_batch_edit_action_buttons()
+        self._update_batch_selection_order(selected_chart_ids)
+
+        resolved_items: list[tuple[int, Chart]] = []
+        stale_ids: set[int] = set()
+        for chart_id in selected_chart_ids:
+            chart = self._get_chart_for_filter(chart_id)
+            if chart is None:
+                stale_ids.add(chart_id)
+                continue
+            resolved_items.append((chart_id, chart))
+
+        if stale_ids:
+            QTimer.singleShot(
+                0,
+                lambda removed_ids=set(stale_ids): self._refresh_charts(
+                    changed_ids=removed_ids,
+                    refresh_metrics=False,
+                ),
+            )
+
+        if not resolved_items:
+            self._set_batch_tags_state([], preserve_lucygoosey=preserve_lucygoosey_tags)
+            self._render_batch_selection_tag_summary({}, 0)
+            self._batch_last_selection_ids = chart_id_set
+            return
+
+        tag_values: list[str] = []
+        tag_counts: dict[str, int] = {}
+        for _chart_id, chart in resolved_items:
+            normalized_tags = normalize_tag_list(getattr(chart, "tags", []))
+            tag_values.append(", ".join(normalized_tags))
+            for tag in set(normalized_tags):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+        self._set_batch_tags_state(
+            tag_values,
+            preserve_lucygoosey=preserve_lucygoosey_tags,
+        )
+        self._render_batch_selection_tag_summary(tag_counts, len(resolved_items))
+        self._batch_last_selection_ids = chart_id_set
+
+    def _has_active_search_tag_filters(self) -> bool:
+        search_tag_text = (
+            self.search_tags_input.text().strip()
+            if hasattr(self, "search_tags_input")
+            else ""
+        )
+        if search_tag_text:
+            return True
+        if any(
+            checkbox.mode() in {QuadStateSlider.MODE_TRUE, QuadStateSlider.MODE_FALSE}
+            for checkbox in getattr(self, "search_tag_filter_checkboxes", {}).values()
+        ):
+            return True
+        search_untagged_checkbox = getattr(self, "search_untagged_checkbox", None)
+        return (
+            isinstance(search_untagged_checkbox, QuadStateSlider)
+            and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
+        )
+
+    def _should_refresh_tag_distribution_for_batch_tag_update(self) -> bool:
+        if (
+            self._database_metrics_baseline_mode == "gen_pop"
+            and "tag_distribution" in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+        ):
+            return False
+        return (
+            self._left_panel_visible
+            and self._active_left_panel == "database_metrics"
+            and self._is_database_metrics_section_visible("tag_distribution")
+            and self._is_database_metrics_section_expanded("tag_distribution")
+        )
+
+    def _refresh_tag_distribution_after_batch_tag_update(self, changed_ids: set[int]) -> None:
+        if not self._should_refresh_tag_distribution_for_batch_tag_update():
+            self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
+            return
+
+        chart_ids = self._selected_chart_ids(self.list_widget.selectedItems())
+        database_chart_ids = {
+            int(row[0])
+            for row in getattr(self, "_chart_rows", [])
+            if self._normalize_chart_row(row) is not None
+        }
+        self._analysis_chart_export_rows["tag_distribution"] = self._render_tag_distribution_section(
+            chart_ids=chart_ids,
+            database_chart_ids=database_chart_ids,
+            loaded_charts=len(chart_ids),
+            should_refresh=lambda section_key: section_key == "tag_distribution",
+        )
+        self._batch_tagging_debug_log(
+            "phase2c_tag_distribution_refreshed changed_ids=%s",
+            sorted(changed_ids),
+        )
+
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
         selected_set = set(selected_chart_ids)
         self._batch_selection_order = [
@@ -12552,7 +12672,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sorted(states),
         )
 
-    def _update_tag_completers(self) -> None:
+    def _update_tag_completers(
+        self,
+        *,
+        refresh_location_completers: bool = True,
+        refresh_tag_lists: bool = True,
+    ) -> None:
         known_tags = list_recognized_tags()
         self._known_chart_tags = known_tags
         chart_input = getattr(self, "chart_tags_input", None)
@@ -12562,9 +12687,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not isinstance(line_edit, QLineEdit):
                 continue
             apply_tag_completer(line_edit, known_tags)
-        self._update_location_completers()
-        self._refresh_search_tags_list(known_tags)
-        self._refresh_batch_tags_list(known_tags)
+        if refresh_location_completers:
+            self._update_location_completers()
+        if refresh_tag_lists:
+            self._refresh_search_tags_list(known_tags)
+            self._refresh_batch_tags_list(known_tags)
 
     def _on_search_tags_changed(self, *_: object) -> None:
         tags = parse_tag_text(self.search_tags_input.text())
@@ -12574,6 +12701,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _refresh_search_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "search_tags_list_widget"):
+            return
+        search_tags_toggle = getattr(self, "search_tags_toggle", None)
+        if isinstance(search_tags_toggle, QToolButton) and not search_tags_toggle.isChecked():
             return
         selected_tags = {
             tag.casefold()
@@ -12615,6 +12745,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _refresh_batch_tags_list(self, known_tags: list[str]) -> None:
         if not hasattr(self, "batch_tags_list_widget"):
+            return
+        batch_tags_toggle = getattr(self, "batch_tags_toggle", None)
+        if isinstance(batch_tags_toggle, QToolButton) and not batch_tags_toggle.isChecked():
             return
         selected_tags = {
             tag.casefold()
@@ -12857,17 +12990,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             len(self._selected_chart_ids()),
         )
         try:
-            self._update_tag_completers()
+            self._update_tag_completers(refresh_location_completers=False)
             self._batch_tagging_debug_log("phase2a_tag_completers_updated")
-            self._update_sentiment_tally(
-                show_progress=True,
-                changed_ids=changed_ids,
-            )
-            self._batch_tagging_debug_log("phase2b_sentiment_tally_updated")
-            self._update_batch_edit_state()
-            self._batch_tagging_debug_log("phase2c_batch_state_updated")
-            self._refresh_filters_after_batch_edit(changed_ids)
-            self._batch_tagging_debug_log("phase2d_filter_refresh_scheduled")
+            self._update_batch_tag_state()
+            self._batch_tagging_debug_log("phase2b_batch_tag_state_updated")
+            self._refresh_tag_distribution_after_batch_tag_update(changed_ids)
+            if self._has_active_search_tag_filters():
+                self._refresh_filters_after_batch_edit(
+                    changed_ids,
+                    refresh_metrics=False,
+                    refresh_selection_state=False,
+                )
+                self._batch_tagging_debug_log("phase2c_tag_filter_refresh_scheduled")
+            else:
+                self._batch_tagging_debug_log("phase2c_tag_filter_refresh_skipped")
         except Exception as exc:
             traceback.print_exc()
             self._batch_tagging_debug_log("phase2_failed error=%s", exc)
@@ -12918,7 +13054,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             spinbox.setToolTip("")
 
-    def _refresh_filters_after_batch_edit(self, chart_ids: set[int] | None = None) -> None:
+    def _refresh_filters_after_batch_edit(
+        self,
+        chart_ids: set[int] | None = None,
+        *,
+        refresh_metrics: bool = True,
+        refresh_selection_state: bool = True,
+    ) -> None:
         if getattr(self, "_is_closing", False):
             self._batch_tagging_debug_log("phase2_skipped_dialog_closing")
             return
@@ -12927,8 +13069,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._pending_batch_refresh_ids: set[int] = set()
         if not hasattr(self, "_batch_refresh_in_progress"):
             self._batch_refresh_in_progress = False
+        if not hasattr(self, "_pending_batch_refresh_metrics"):
+            self._pending_batch_refresh_metrics = False
+        if not hasattr(self, "_pending_batch_refresh_selection_state"):
+            self._pending_batch_refresh_selection_state = False
 
         self._pending_batch_refresh_ids.update(selected_chart_ids)
+        self._pending_batch_refresh_metrics = bool(
+            self._pending_batch_refresh_metrics or refresh_metrics
+        )
+        self._pending_batch_refresh_selection_state = bool(
+            self._pending_batch_refresh_selection_state or refresh_selection_state
+        )
         pending_ids = set(self._pending_batch_refresh_ids)
         self._batch_tagging_debug_log(
             "phase2_queue pending_ids=%s in_progress=%s",
@@ -12946,27 +13098,46 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return
             if getattr(self, "_is_closing", False):
                 self._pending_batch_refresh_ids.clear()
+                self._pending_batch_refresh_metrics = False
+                self._pending_batch_refresh_selection_state = False
                 self._batch_tagging_debug_log("phase2_timer_abort_dialog_closing")
                 return
             if not self.isVisible():
                 self._pending_batch_refresh_ids.clear()
+                self._pending_batch_refresh_metrics = False
+                self._pending_batch_refresh_selection_state = False
                 self._batch_tagging_debug_log("phase2_timer_abort_dialog_hidden")
                 return
 
             changed_ids = set(self._pending_batch_refresh_ids)
             if not changed_ids:
+                self._pending_batch_refresh_metrics = False
+                self._pending_batch_refresh_selection_state = False
                 self._batch_tagging_debug_log("phase2_timer_no_pending_ids")
                 return
+            refresh_metrics_for_batch = bool(
+                getattr(self, "_pending_batch_refresh_metrics", True)
+            )
+            refresh_selection_state_for_batch = bool(
+                getattr(self, "_pending_batch_refresh_selection_state", True)
+            )
             self._pending_batch_refresh_ids.clear()
+            self._pending_batch_refresh_metrics = False
+            self._pending_batch_refresh_selection_state = False
             self._batch_refresh_in_progress = True
             try:
                 self._batch_tagging_debug_log("phase2_timer_refresh_start changed_ids=%s", sorted(changed_ids))
                 self._refresh_charts(
                     selected_ids=changed_ids,
                     changed_ids=changed_ids,
+                    refresh_metrics=refresh_metrics_for_batch,
+                    refresh_tag_completers=refresh_metrics_for_batch,
                 )
                 self._flash_batch_updated_rows(changed_ids)
-                self._on_selection_changed()
+                if refresh_selection_state_for_batch:
+                    self._on_selection_changed(refresh_metrics=refresh_metrics_for_batch)
+                else:
+                    self._update_batch_tag_state()
                 self._batch_tagging_debug_log("phase2_timer_refresh_complete")
             except RuntimeError:
                 # Dialog widgets may be gone if the user navigated away before
@@ -16020,6 +16191,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         refresh_metrics: bool = True,
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
+        refresh_tag_completers: bool = True,
     ) -> None:
         try:
             self._chart_rows = list_charts()
@@ -16030,7 +16202,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"Couldn't list saved charts:\n{e}",
             )
             self._chart_rows = []
-        self._update_tag_completers()
+        if refresh_tag_completers:
+            self._update_tag_completers()
 
         malformed_rows = [row for row in self._chart_rows if self._normalize_chart_row(row) is None]
         if malformed_rows:
