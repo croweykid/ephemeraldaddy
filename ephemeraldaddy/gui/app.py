@@ -433,7 +433,6 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
-    find_chart_name_matches_by_birth_day,
     list_charts,
     load_chart,
     load_dominant_sign_weights,
@@ -11569,6 +11568,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         chart.is_placeholder = False
+
+        if not parent._confirm_duplicate_chart_save(chart):
+            return
 
         try:
             chart_id = save_chart(
@@ -26174,33 +26176,142 @@ class MainWindow(QMainWindow):
     def _on_chart_tag_remove_link_clicked(self, link: str) -> None:
         on_chart_view_tag_remove_link(self, link)
 
-    def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
-        month = getattr(chart, "birth_month", None)
-        day = getattr(chart, "birth_day", None)
-        is_placeholder = bool(getattr(chart, "is_placeholder", False))
-        if (month is None or day is None) and not is_placeholder:
-            dt = getattr(chart, "dt", None)
-            month = getattr(dt, "month", None)
-            day = getattr(dt, "day", None)
-        if month is None or day is None:
-            return True
+    @staticmethod
+    def _normalize_duplicate_match_token(value: object) -> str:
+        text = str(value or "").strip().casefold()
+        if not text:
+            return ""
+        return re.sub(r"[^a-z0-9]+", "", text)
 
-        matches = find_chart_name_matches_by_birth_day(month, day)
+    @staticmethod
+    def _duplicate_warning_display_name(
+        chart_id: int,
+        name: object,
+        alias: object,
+    ) -> str:
+        primary = str(name or "").strip()
+        secondary = str(alias or "").strip()
+        if primary and secondary:
+            return f"#{chart_id}: {primary} ({secondary})"
+        if primary:
+            return f"#{chart_id}: {primary}"
+        if secondary:
+            return f"#{chart_id}: {secondary}"
+        return f"Chart #{chart_id}"
+
+    @staticmethod
+    def _append_duplicate_warning_section(
+        lines: list[str],
+        heading: str,
+        matches: list[str],
+        *,
+        preview_limit: int = 12,
+    ) -> None:
         if not matches:
-            return True
-
-        preview_limit = 12
+            return
+        lines.extend([heading, ""])
         preview_names = matches[:preview_limit]
         extra_count = max(0, len(matches) - len(preview_names))
-        lines = [f"Found {len(matches)} chart(s) with this birthday ({int(month):02d}/{int(day):02d}):", ""]
         lines.extend(f"• {name}" for name in preview_names)
         if extra_count:
             lines.append(f"• ...and {extra_count} more")
-        lines.extend(["", "Continue and save this chart anyway?"])
+        lines.append("")
+
+    def _confirm_duplicate_chart_save(self, chart: Chart) -> bool:
+        month = getattr(chart, "birth_month", None)
+        day = getattr(chart, "birth_day", None)
+        year = getattr(chart, "birth_year", None)
+        is_placeholder = bool(getattr(chart, "is_placeholder", False))
+        if (month is None or day is None or year is None) and not is_placeholder:
+            dt = getattr(chart, "dt", None)
+            month = month if month is not None else getattr(dt, "month", None)
+            day = day if day is not None else getattr(dt, "day", None)
+            year = year if year is not None else getattr(dt, "year", None)
+
+        proposed_tokens = {
+            token
+            for token in (
+                self._normalize_duplicate_match_token(getattr(chart, "name", "")),
+                self._normalize_duplicate_match_token(getattr(chart, "alias", "")),
+            )
+            if token
+        }
+
+        exact_birth_date_matches: list[str] = []
+        birthday_matches: list[str] = []
+        name_or_alias_matches: list[str] = []
+        matched_name_ids: set[int] = set()
+
+        for row in list_charts():
+            chart_id = int(row[0])
+            existing_name = row[1]
+            existing_alias = row[2]
+            display_name = self._duplicate_warning_display_name(
+                chart_id,
+                existing_name,
+                existing_alias,
+            )
+            existing_month = row[17]
+            existing_day = row[18]
+            existing_year = row[19]
+
+            if month is not None and day is not None:
+                if existing_month == int(month) and existing_day == int(day):
+                    if year is not None and existing_year == int(year):
+                        exact_birth_date_matches.append(display_name)
+                    else:
+                        birthday_matches.append(display_name)
+
+            if proposed_tokens:
+                existing_tokens = {
+                    token
+                    for token in (
+                        self._normalize_duplicate_match_token(existing_name),
+                        self._normalize_duplicate_match_token(existing_alias),
+                    )
+                    if token
+                }
+                if proposed_tokens.intersection(existing_tokens):
+                    if chart_id not in matched_name_ids:
+                        name_or_alias_matches.append(display_name)
+                        matched_name_ids.add(chart_id)
+
+        if not exact_birth_date_matches and not birthday_matches and not name_or_alias_matches:
+            return True
+
+        lines = [
+            "This chart looks like it may already exist in your database.",
+            "",
+        ]
+        if month is not None and day is not None and year is not None:
+            self._append_duplicate_warning_section(
+                lines,
+                (
+                    f"Same birth date ({int(year):04d}-{int(month):02d}-{int(day):02d}): "
+                    f"{len(exact_birth_date_matches)} chart(s)"
+                ),
+                exact_birth_date_matches,
+            )
+        self._append_duplicate_warning_section(
+            lines,
+            (
+                f"Same birthday ({int(month):02d}/{int(day):02d}): "
+                f"{len(birthday_matches)} chart(s)"
+            )
+            if month is not None and day is not None
+            else "Same birthday:",
+            birthday_matches,
+        )
+        self._append_duplicate_warning_section(
+            lines,
+            f"Same name or alias: {len(name_or_alias_matches)} chart(s)",
+            name_or_alias_matches,
+        )
+        lines.append("Continue and save this chart anyway?")
 
         choice = QMessageBox.question(
             self,
-            "Possible duplicate birthdays",
+            "Possible duplicate chart",
             "\n".join(lines),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
@@ -26377,7 +26488,7 @@ class MainWindow(QMainWindow):
         )
 
         if is_new_chart:
-            if not self._confirm_birth_day_duplicate_save(chart):
+            if not self._confirm_duplicate_chart_save(chart):
                 return
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
