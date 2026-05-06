@@ -275,7 +275,7 @@ def calculate_enneagram_type_weights(
     chart_uses_houses: Callable[[Any], bool],
 ) -> dict[int, float]:
     """Compute Enneagram type scores from reusable weighted chart criteria."""
-    return calculate_weighted_criteria_scores(
+    weighted_scores = calculate_weighted_criteria_scores(
         chart,
         predictors=enneagram,
         category_weights=ENNEAGRAM_CATEGORY_WEIGHTS,
@@ -285,7 +285,11 @@ def calculate_enneagram_type_weights(
         calculate_house_weights=calculate_house_weights,
         uses_houses=chart_uses_houses,
         debug=_debug_log if ENNEAGRAM_DEBUG_LOGGING else None,
+        debug_prefix="[Enneagram Debug]",
+        parse_error_prefix="[Enneagram Parse Error]",
+        format_debug_target=lambda enneagram_type: f"type {enneagram_type}",
     )
+    return {enneagram_type: float(weighted_scores.get(enneagram_type, 0.0)) for enneagram_type in range(1, 10)}
 
 def draw_enneagram_predictions(
     ax: Any,

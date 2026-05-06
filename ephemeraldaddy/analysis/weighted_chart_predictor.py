@@ -304,6 +304,9 @@ def calculate_weighted_criteria_scores(
     calculate_nakshatra_weights: Callable[[Any], Mapping[str, float]] = calculate_dominant_nakshatra_weights,
     uses_houses: Callable[[Any], bool] = default_chart_uses_houses,
     debug: Callable[[str], None] | None = None,
+    debug_prefix: str = "[Weighted Predictor Debug]",
+    parse_error_prefix: str = "[Weighted Predictor Parse Error]",
+    format_debug_target: Callable[[Any], str] | None = None,
 ) -> dict[Any, float]:
     """Score predictor targets from chart criteria and per-category weights.
 
@@ -314,6 +317,7 @@ def calculate_weighted_criteria_scores(
     """
     scores = {target: 0.0 for target in predictors}
     weights_by_category = _merged_category_weights(category_weights)
+    target_label = format_debug_target or (lambda target: str(target))
 
     sign_weights_raw = getattr(chart, "dominant_sign_weights", None) or calculate_sign_weights(chart)
     body_weights_raw = getattr(chart, "dominant_planet_weights", None) or calculate_body_weights(chart)
@@ -380,14 +384,39 @@ def calculate_weighted_criteria_scores(
             if bonus > 0:
                 positions_positive += bonus * criterion_weight
                 if debug is not None:
-                    debug(f"[Weighted Predictor Debug] {chart_name}: {target} position TRUE -> '{raw_position}' (+{bonus:.2f})")
+                    debug(
+                        f"{debug_prefix} {chart_name}: {target_label(target)} position TRUE -> "
+                        f"'{raw_position}' (+{bonus:.2f})"
+                    )
         for raw_position, criterion_weight in antipositions.items():
             malus = _position_match_weight(raw_position, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights)
             if malus > 0:
                 positions_negative += malus * criterion_weight
 
-        aspects_positive = _score_aspect_specs(chart, aspects, body_weights, chart_name, target, debug, anti=False)
-        aspects_negative = _score_aspect_specs(chart, antiaspects, body_weights, chart_name, target, debug, anti=True)
+        aspects_positive = _score_aspect_specs(
+            chart,
+            aspects,
+            body_weights,
+            chart_name,
+            target,
+            debug,
+            debug_prefix=debug_prefix,
+            parse_error_prefix=parse_error_prefix,
+            target_label=target_label,
+            anti=False,
+        )
+        aspects_negative = _score_aspect_specs(
+            chart,
+            antiaspects,
+            body_weights,
+            chart_name,
+            target,
+            debug,
+            debug_prefix=debug_prefix,
+            parse_error_prefix=parse_error_prefix,
+            target_label=target_label,
+            anti=True,
+        )
 
         category_deltas = {
             "signs": normalize_category_delta(sign_positive, sign_negative, criteria_count=len(signs) + len(antisigns), anti_factor=anti_factor),
@@ -453,13 +482,16 @@ def _score_aspect_specs(
     target: Any,
     debug: Callable[[str], None] | None,
     *,
+    debug_prefix: str,
+    parse_error_prefix: str,
+    target_label: Callable[[Any], str],
     anti: bool,
 ) -> float:
     total = 0.0
     for raw_aspect, criterion_weight in aspect_specs.items():
         parsed = parse_aspect_spec(raw_aspect)
         if parsed is None:
-            print(f"[Weighted Predictor Parse Error] {chart_name}: could not parse aspect spec '{raw_aspect}'")
+            print(f"{parse_error_prefix} {chart_name}: could not parse aspect spec '{raw_aspect}'")
             continue
         left_body, aspect_type, right_body = parsed
         for aspect in getattr(chart, "aspects", []) or []:
@@ -474,6 +506,9 @@ def _score_aspect_specs(
             value = float(body_weights.get(left_body, 0.0)) + aspect_weight + float(body_weights.get(right_body, 0.0))
             total += value * float(criterion_weight)
             if debug is not None and not anti:
-                debug(f"[Weighted Predictor Debug] {chart_name}: {target} aspect TRUE -> '{raw_aspect}' (+{value:.2f})")
+                debug(
+                    f"{debug_prefix} {chart_name}: {target_label(target)} aspect TRUE -> "
+                    f"'{raw_aspect}' (+{value:.2f})"
+                )
             break
     return total
