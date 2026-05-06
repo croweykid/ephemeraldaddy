@@ -66,43 +66,12 @@ def build_dbv_search_panel(window) -> "QWidget":
     def apply_default_dropdown_style(dropdown: QComboBox) -> None:
         dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
-    def make_dropdown_fully_clickable(dropdown: QComboBox) -> None:
-        """Open a dropdown from any click target inside the combo box."""
-
-        def open_dropdown_on_click(event, target_dropdown=dropdown) -> None:
-            if event.button() == Qt.LeftButton:
-                target_dropdown.showPopup()
-                event.accept()
-                return
-            QComboBox.mousePressEvent(target_dropdown, event)
-
-        dropdown.mousePressEvent = open_dropdown_on_click
-        line_edit = dropdown.lineEdit()
-        if line_edit is not None:
-            line_edit.mousePressEvent = open_dropdown_on_click
-
     def center_dropdown_items(dropdown: QComboBox) -> None:
         dropdown.setEditable(True)
         dropdown.lineEdit().setReadOnly(True)
         dropdown.lineEdit().setAlignment(Qt.AlignCenter)
         for item_index in range(dropdown.count()):
             dropdown.setItemData(item_index, Qt.AlignCenter, Qt.TextAlignmentRole)
-        make_dropdown_fully_clickable(dropdown)
-
-    def make_human_design_label(text: str) -> QLabel:
-        label = QLabel(text)
-        label_font = label.font()
-        current_size = label_font.pointSize()
-        if current_size > 0:
-            label_font.setPointSize(max(1, current_size - 3))
-            label.setFont(label_font)
-        return label
-
-    def make_human_design_dropdown() -> QComboBox:
-        dropdown = QComboBox()
-        apply_default_dropdown_style(dropdown)
-        make_dropdown_fully_clickable(dropdown)
-        return dropdown
 
     def narrow_dropdown_for_not_option(dropdown: QComboBox) -> None:
         target_width = max(120, dropdown.sizeHint().width() - 100)
@@ -690,9 +659,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
 
     hd_channels_row = QHBoxLayout()
-    hd_channels_row.addWidget(make_human_design_label("Channels"))
+    hd_channels_row.addWidget(QLabel("Channels"))
     for _ in range(3):
-        channel_combo = make_human_design_dropdown()
+        channel_combo = QComboBox()
+        apply_default_dropdown_style(channel_combo)
         channel_combo.addItem("Any", "Any")
         channel_options = sorted(
             {
@@ -724,9 +694,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_group_layout.addLayout(hd_channels_row)
 
     hd_gates_row = QHBoxLayout()
-    hd_gates_row.addWidget(make_human_design_label("Gates"))
+    hd_gates_row.addWidget(QLabel("Gates"))
     for _ in range(3):
-        gate_combo = make_human_design_dropdown()
+        gate_combo = QComboBox()
+        apply_default_dropdown_style(gate_combo)
         gate_combo.addItem("Any", "Any")
         for gate_value in range(1, 65):
             gate_combo.addItem(str(gate_value), gate_value)
@@ -747,8 +718,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_group_layout.addLayout(hd_gates_row)
 
     hd_type_row = QHBoxLayout()
-    hd_type_row.addWidget(make_human_design_label("Type"))
-    window._human_design_type_filter_combo = make_human_design_dropdown()
+    hd_type_row.addWidget(QLabel("Type"))
+    window._human_design_type_filter_combo = QComboBox()
+    apply_default_dropdown_style(window._human_design_type_filter_combo)
     window._human_design_type_filter_combo.addItem("Any", "Any")
     window._human_design_type_filter_combo.addItem("Manifestor", "Manifestor")
     window._human_design_type_filter_combo.addItem("Generator", "Generator")
@@ -759,8 +731,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_group_layout.addLayout(hd_type_row)
 
     hd_profile_row = QHBoxLayout()
-    hd_profile_row.addWidget(make_human_design_label("Profile"))
-    window._human_design_profile_filter_combo = make_human_design_dropdown()
+    hd_profile_row.addWidget(QLabel("Profile"))
+    window._human_design_profile_filter_combo = QComboBox()
+    apply_default_dropdown_style(window._human_design_profile_filter_combo)
     window._human_design_profile_filter_combo.addItem("Any", "Any")
     for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
         window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
@@ -769,9 +742,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_group_layout.addLayout(hd_profile_row)
 
     hd_defined_centers_row = QHBoxLayout()
-    hd_defined_centers_row.addWidget(make_human_design_label("Defined Centers"))
+    hd_defined_centers_row.addWidget(QLabel("Defined Centers"))
     for _ in range(3):
-        center_combo = make_human_design_dropdown()
+        center_combo = QComboBox()
+        apply_default_dropdown_style(center_combo)
         center_combo.addItem("Any", "Any")
         for center_label in getattr(window, "HD_DEFINED_CENTER_ORDER", ()):
             center_combo.addItem(center_label, center_label)
