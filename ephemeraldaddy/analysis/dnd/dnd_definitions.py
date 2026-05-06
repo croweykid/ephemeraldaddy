@@ -627,14 +627,16 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
         "antigates":{59,29,47,27,5,26,4,22,25,36,33},
-        #"channels":{[20,34],[10,20],[10,34],[34,57].[20,57]}
-        #"antichannels":{[6,59]},
-        "centers":{},
-        "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
-        "antiauthorities":{},
+        #"channels":{[20,34]:2,[10,20]:4,[10,34]:3,[34,57]:2,[20,57]:2}
+        #"antichannels":{[6,59]:2,[47,64]:3},
+        "hdtypes":{"MF Generator":6},
+        "antihdtypes":{"Projector":7},
+        "centers":{"Spleen":3},
+        "anticenters":{"Solar Plexus":3},
+        "profiles":{"4/6":11,"5/1":9,"6/2":7},
+        "antiprofiles":{"1/3":11,"3/5":11},
+        "authorities":{"Sacral":12,"Ego Manifested":3},
+        "antiauthorities":{"Emotional":14},
         "bazisigns":{},
         "antibazisigns":{},
         "color":"#cc99ff",
@@ -642,27 +644,29 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "description":"",
         "quotes":{""},
     },
-    "DEX" : {
-        "signs":{"Libra"},
-        "antisigns":{},
-        "houses":{},
-        "antihouses":{},
-        "bodies":{},
-        "antibodies":{},
-        "nakshatras":{}, 
-        "antinakshatras":{}, 
-        "positions":{},
-        "antipositions":{},
+    "DEX" : { #sampled 28 charts, sooo tiny selection...
+        "signs":{"Taurus":8,"Gemini":6,"Virgo":12,"Sagittarius":10},
+        "antisigns":{"Pisces":11,"Leo":6,"Aries":6},
+        "houses":{1:7,11:4,12:5},
+        "antihouses":{4:6,6:8,8:4},
+        "bodies":{"Pluto":12,"Moon":6,"Saturn":8},
+        "antibodies":{"Venus":20,"Jupiter":10},
+        "nakshatras":{"Bharani":8,"Punarvasu":14,"Mrigashira":9,"Ardra":7,"Purva Ashadha":12,"Shravana":11,"Revati":8}, 
+        "antinakshatras":{"Hasta":8,"Anuradha":5,"Mula":5,"Shatabhisha":10,"Purva Bhadrapada":5,"Uttara Phalguni":4}, 
+        "positions":{"Sun in Taurus":5,"Sun in Gemini":4,"Sun in Sagittarius":4,"Moon in Gemini":10,"Mercury in Pisces":5,"Mercury in Cancer":7,"Venus in Aries":18,"Venus in Taurus":4,"Venus in Virgo":9,"Mars in Virgo":8,"Mars in Aquarius":7,"Jupiter in Virgo":5,"Saturn in Gemini":10,"Ceres in Libra":7,"Juno in Sagittarius":14,"Rahu in Capricorn":17,"Juno in Scorpio":6,"Pallas in Virgo":14,"Pluto in Scorpio":9,"Lilith in Taurus":13,"Vesta in Cancer":10,"Pallas in Scorpio":11,"Fortune in Scorpio":11,},
+        "antipositions":{"Sun in Cancer":7,"Sun in Leo":5,"Sun in Scorpio":7,"Sun in Capricorn":5,"Moon in Virgo":7,"Moon in Sagittarius":4,"Mercury in Gemini":5,"Venus in Cancer":5,"Venus in Libra":6,"Venus in Sagittarius":7,"Venus in Capricorn":8,"Venus in Aquarius":6,"Mars in Libra":5,"Jupiter in Pisces":8,"Jupiter in Libra":6,"Saturn in Cancer":6,"Saturn in Sagittarius":6},
         "aspects":{},
         "antiaspects":{},
-        "gates":{},
-        "antigates":{},
-        #"channels":{}
-        #"antichannels":{},
-        "centers":{},
+        "gates":{54:21,25:16,38:16,11:15,23:18,48:11,6:11,12:13,32:9,41:14,61:13,62:9,9:8},
+        "antigates":{16:8,33:15,40:12,51:10,15:16,15:16,55:15,10:20},
+        #"channels":{[26,44]:11,[6,59]:7,[19,49]:7,[2,14]:8}
+        #"antichannels":{[10,34]},
+        "hdtypes":{"Generator":10},
+        "antihdtypes":{"MF Generator":6},
+        "centers":{"Emotional":6},
         "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
+        "profiles":{"1/3":7,"4/6":7},
+        "antiprofiles":{"3/5":4},
         "authorities":{},
         "antiauthorities":{},
         "bazisigns":{},
@@ -673,26 +677,28 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "quotes":{""},
     },
     "CON" : {
-        "signs":{"Capricorn","Taurus","Cancer"},
-        "antisigns":{"Virgo","Pisces"},
-        "houses":{},
-        "antihouses":{},
-        "bodies":{},
-        "antibodies":{},
-        "nakshatras":{}, 
-        "antinakshatras":{}, 
-        "positions":{},
-        "antipositions":{},
-        "aspects":{},
-        "antiaspects":{},
-        "gates":{},
-        "antigates":{},
+        "signs":{"Aquarius":6,"Capricorn":6,"Pisces":5},
+        "antisigns":{"Libra":8,"Sagittarius":4,"Gemini":4},
+        "houses":{1:6,12:6,},
+        "antihouses":{11:5,9:5},
+        "bodies":{"Sun":7,"Moon":4},
+        "antibodies":{"Mars":5,"Uranus":4},
+        "nakshatras":{"Purva Ashadha":5,"Uttara Ashadha":5,}, 
+        "antinakshatras":{"Magha":7}, 
+        "positions":{"Sun in Capricorn":9,"Ceres in Pisces":6,"Venus in Capricorn":6,"Lilith in H6":6,"Rahu in H2":6,"Ketu in H1":5,"Ceres in H4":5,"Mars in H8":4,"Mercury in H5":5,},
+        "antipositions":{"Neptune in Sagittarius":8},
+        "aspects":{"Moon square Fortune":7,"Lilith trine Uranus":6,"Ceres trine Vesta":5,"Pluto sextile Vesta":5,"Uranus trine Vesta":4,"DS trine Pallas":7,"MC trine Neptune":5,"Pallas conjunction Uranus":5,"IC square Vesta":5,"MC trine Lilith":5},
+        "antiaspects":{"Sun semisquare Venus":6},
+        "gates":{44:5,47:8,46:5,12:7,29:5,56:5,28:7,25:5,63:5,},
+        "antigates":{48:5,26:5,28:8,18:6,49:5,5:6,55:4,2:5},
         #"channels":{}
-        #"antichannels":{},
-        "centers":{},
-        "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
+        #"antichannels":{[20,57]:5},
+        "hdtypes":{},
+        "antihdtypes":{},
+        "centers":{"Sacral":7},
+        "anticenters":{"Emotional":6},
+        "profiles":{"4/1":2},
+        "antiprofiles":{"5/1":3},
         "authorities":{},
         "antiauthorities":{},
         "bazisigns":{},
@@ -719,11 +725,13 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antigates":{59,44,29,5,63,37,13},
         #"channels":{[27,50],[35,36]}
         #"antichannels":{},
+        "hdtypes":{},
+        "antihdtypes":{},
         "centers":{},
         "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
+        "profiles":{"1/4":3,"3/5":4},
+        "antiprofiles":{"1/3":4,"6/2":4},
+        "authorities":{"Emotional":2},
         "antiauthorities":{},
         "bazisigns":{},
         "antibazisigns":{},
@@ -749,6 +757,8 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antigates":{},
         #"channels":{}
         #"antichannels":{},
+        "hdtypes":{},
+        "antihdtypes":{},
         "centers":{},
         "anticenters":{},
         "profiles":{},
@@ -762,29 +772,74 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "description":"",
         "quotes":{""},
     },
-    "CHA" : { #this was tricky to nail down - because what I find charismatic differs from public opinion quite a bit. So I started with a list of who I found charismatic, found norms. Then added who I thought other people find charismatic. Found norms. Mixed the two - found nothing. Tried to pick out just the MOST charismatic from both - found nothing. Picked out who I think are most universally agreed upon as charismatic, found patterns. The criteria below represent a mix of these findings.
-        "signs":{"Gemini":3,"Capricorn":3,"Leo":3,"Taurus":2},
-        "antisigns":{"Libra":4,"Sagittarius":7},
-        "houses":{10:5,12:5,4:10,3:5,2:6,11:3},
-        "antihouses":{},
-        "bodies":{"Mercury":7,"Sun":3},
-        "antibodies":{},
-        "nakshatras":{"Rohini":3,"Ashlesha":5,"Purva Ashadha":3,"Uttara Ashadha":3,"Mrigashira":1,"Bharani":3,"Revati":3}, 
-        "antinakshatras":{"Hasta":2}, 
-        "positions":{"Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Moon in Capricorn":4,"Mercury in Taurus":3,"Mercury in Leo":3,"Venus in Taurus":2,"Venus in Gemini":5,"Mars in Aries":3,"Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,"Cancer in H1":2,"Sun in H2":9,"Neptune in H6":5,"Pluto in H4":5,"Lilith in H10":4,"Jupiter in H6":4,"Juno in H4":5,"Pallas in H3":4,"Mercury in H3":4,"Fortune in H8":5,"Saturn in H11":4,"Mercury in H2":4,"Saturn in H10":4,"Uranus in H1":4,"Mars in H4":3,"Taurus in H10":4,"Gemini in H12":4,"Pluto in Cancer":7,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,"Venus in Aries":3,"Neptune in Leo":4,"Pallas in Cancer":5,"Scorpio in H4":4,"Uranus in Pisces":4},
-        "antipositions":{"Sun in Aquarius":5,"Sun in Libra":3,"Moon in Taurus":6,"Mercury in Aquarius":4,"Mercury in Libra":4,"Venus in Leo":2,"Venus in Sagittarius":3,"Venus in Scorpio":3,"Jupiter in Aries":3,"Saturn in Libra":2,"Saturn in H10":4,"Neptune in Capricorn":4,"Pluto in Scorpio":4,"Uranus in Sagittarius":5,"Fortune in Leo":4,"Chiron in Aquarius":6,"Juno in Leo":5,"Pallas in H10":7,"Fortune in H7":4}, #fortune in leo being a neg is interesting...what the heck's up with that?
+    "CHA" : { #looked at 147-400 charts. This was tricky to nail down - because what I find charismatic differs from public opinion quite a bit. So I started with a list of who I found charismatic, found norms. Then added who I thought other people find charismatic. Found norms. Mixed the two - found nothing. Tried to pick out just the MOST charismatic from both - found nothing. Picked out who I think are most universally agreed upon as charismatic, found patterns. The criteria below represent a mix of these findings.
+        "signs":{
+            "Gemini":3,"Capricorn":3,"Leo":3,"Taurus":2,
+            #noteworthy: Virgo & Taurus were LEAST represented in "Least CHA": "Virgo":7, "Taurus":8
+        },
+        "antisigns":{
+            "Libra":4,"Sagittarius":8, #absent from "Most CHA"
+            "Aquarius":13 #present in "Least CHA", along with Sag:10
+        },
+        "houses":{
+            10:5,4:10,3:5,2:6,11:4 #H10 is -4% in "Least CHA", H11 is -5%, H3 is -3%, H2 is -4% & H4 is -5%, too, so doubling down...
+            #H8 is -5% in "Least CHA", but neutral in "Most CHA". Maybe people don't like being set on fire, but there's no denying its brilliance. lol
+            #12:5 in "Most CHA", but also 12:6 in "Least CHA". All that tells us is what we expected: 12 is shifty.
+        },
+        "antihouses":{
+            #12:6 in "Least CHA" so I took it out of "most CHA"
+        },
+        "bodies":{
+            "Mercury":7,"Sun":2,"Jupiter":2, #Sun was +3% in "Most CHA" but neutral in "Least CHA". Jupiter was neutral in "Most CHA" but -3% in "Least CHA", so I split the difference.
+            #least present in "Least CHA": "Mercury":8,"Jupiter":3. Sun was neutral.
+        },
+        "antibodies":{
+            "Saturn":5,"Pluto":5,"Uranus":7 #most present in "Least CHA", neutral in "Most CHA"
+        },
+        "nakshatras":{
+            "Rohini":4,"Bharani":4,"Ashlesha":5,"Purva Ashadha":3,"Mrigashira":1,"Revati":3, #Rohini & Bharani are underrepresented in "Least CHA" as well as being overrepresented in "Most CHA"
+            "Purva Phalguni":6,"Mula":5 #may be neutral in "Most CHA", but is -6% in "Least CHA"
+            #"Uttara Ashadha":3 was also overrepresented in "Least CHA" so I removed it as 'polarizing but not definitive'.
+        }, 
+        "antinakshatras":{
+            "Hasta":2, #absent from "Most CHA"
+            "Anuradha":6,"Chitra":4,"Jyestha":4,"Shravana":4,
+            #Uttara Ashadha is also overrepresented in "Least CHA"
+        }, 
+        "positions":{"Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Moon in Capricorn":4,"Mercury in Taurus":3,"Mercury in Leo":3,"Venus in Taurus":2,"Venus in Gemini":5,"Mars in Aries":3,"Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,"Cancer in H1":2,"Sun in H2":9,"Neptune in H6":5,"Pluto in H4":5,"Lilith in H10":4,"Jupiter in H6":4,"Juno in H4":5,"Pallas in H3":4,"Mercury in H3":4,"Fortune in H8":5,"Saturn in H11":4,"Mercury in H2":4,"Saturn in H10":4,"Uranus in H1":4,"Mars in H4":3,"Taurus in H10":4,"Gemini in H12":4,"Pluto in Cancer":7,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,"Venus in Aries":3,"Neptune in Leo":4,"Pallas in Cancer":5,"Scorpio in H4":4,"Uranus in Pisces":4,
+        "Chiron in Pisces":8,"Pisces in H7":6,"Neptune in Libra":6,"Pallas in Pisces":6,"Ceres in Taurus":7,"Mars in Pisces":5, #not present in "Most CHA", but absent in "Least CHA"
+        },
+        "antipositions":{
+            "Sun in Aquarius":5,"Sun in Libra":3,"Moon in Taurus":6,"Mercury in Aquarius":4,"Mercury in Libra":4,"Venus in Leo":2,"Venus in Sagittarius":3,"Venus in Scorpio":3,"Jupiter in Aries":3,"Saturn in Libra":2,"Saturn in H10":4,"Neptune in Capricorn":4,"Uranus in Sagittarius":5,"Fortune in Leo":4,"Chiron in Aquarius":6,"Juno in Leo":5,"Pallas in H10":7,"Fortune in H7":4, #absent from "Most CHA". #fortune in leo being a neg is interesting...what the heck's up with that?
+            "Pluto in Libra":8,"Pallas in Aquarius":5,"Neptune in Capricorn":6,"Ceres in Pisces":6,"Ketu in Aries":8,"Mars in Cancer":8,"Rahu in Libra":8,"Jupiter in Gemini":6,"Mercury in Aquarius":4,"Fortune in Aquarius":5,"Cancer in H1":18,"Vesta in Leo":6,"Juno in Cancer":5,"Pluto in Sagittarius":7,"Pisces in H10":9,"Mars in H10":13,"Ketu in H7":8,"Mercury in H11":8,"Pluto in H4":9,"Rahu in H1":8,"Vesta in H12":7,"Chiron in H12":6,"Chiron in H5":8,"Neptune in H5":6,"Pallas in H8":7,"Saturn in H12":6,"Moon in H10":5,"Neptune in H7":5, #present in "Least CHA"
+            "Pluto in Scorpio":5, #both overabsent from "Most" and overpresent in "Least"
+        }, 
         "aspects":{"Saturn trine Vesta":5,"Pallas square Uranus":3,"Chiron trine Neptune":4,"Mercury trine Moon":6,"Neptune trine Fortune":4,"Lilith trine Vesta":4,"Mars conjunction Mercury":4,"Fortune trine Venus":4,"Rahu trine Venus":4,"Chiron sextile Venus":4,"Pluto sextile Vesta":4,"Ketu square Neptune":4,"Lilith sextile Uranus":5,"Jupiter square Pluto":4,"Jupiter trine Neptune":4,"Mercury square Neptune":4,"Neptune square Saturn":4,"DS square Sun":4,"IC trine Moon":4},
-        "antiaspects":{"Chiron opposition Uranus":5,"Sun semisquare Venus":6},
-        "gates":{4:12,7:7,62:7,1:6,37:6,53:5,40:4,61:4,13:4,16:4},
-        "antigates":{34:5,59:5,28:5,32:4,18:5,10:7,11:6,9:7,15:7},
+        "antiaspects":{
+            "Chiron opposition Uranus":5,"Sun semisquare Venus":6, #absent from "Most CHA"
+            "Pallas square Saturn":10,"Juno square Venus":8,"Ceres square Uranus":6,"Ketu square Fortune":6,"Mars square Neptune":5,"Lilith sextile Uranus":7,"Jupiter square Vesta":6,"Saturn sextile Uranus":7,"Sun square Vesta":6,"Ketu square Vesta":5, #overpresent in "Least CHA"
+            
+        },
+        "gates":{
+            7:7,62:7,1:6,37:6,53:5,40:4,61:4,13:4, #most present in "Most CHA"
+            50:7,52:6,56:6,55:6,42:6,49:8,54:7,27:9,36:6,39:10,60:10,24:5, #least present in "Least CHA"
+            4:21,16:12 #both most present in "Most CHA" and least present in "Least CHA": 4:12/4:9. 16:4/16:12.
+        },
+        "antigates":{
+            59:5,28:5,18:5,10:7,11:6,9:7,15:7, #absent from "Most CHA"
+            44:6,26:9,7:9,61:10,9:9,29:5,5:5,17:9,62:5,21:6,35:5,#present in "Least CHA"
+            34:11,32:10,#both least present in "Most CHA" and most present in "Least CHA": 34:5/34:6, 32:4/32:6.
+        },
         #"channels":{[2,14],[4,63]}
-        #"antichannels":{},
+        #"antichannels":{[20,34]:6,[26,44]:8,[47,64]:4},
+        "hdtypes":{},
+        "antihdtypes":{"MF Generator":4},
         "centers":{},
         "anticenters":{},
-        "profiles":{},
-        "antiprofiles":{},
-        "authorities":{},
-        "antiauthorities":{},
+        "profiles":{"6/2":5,"5/1":5},
+        "antiprofiles":{"3/5":4,"1/3":3},
+        "authorities":{"Emotional":2},
+        "antiauthorities":{"Sacral":2},
         "bazisigns":{},
         "antibazisigns":{},
         "color":"#cc99ff",

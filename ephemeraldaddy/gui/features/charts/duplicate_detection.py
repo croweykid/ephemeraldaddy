@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 import re
-from typing import Callable, Literal
+from typing import Callable, Literal, Sequence
 
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
@@ -36,6 +36,12 @@ class DuplicateDetectionResult:
     duplicate_group_by_chart_id: dict[int, int]
 
 
+@dataclass(frozen=True)
+class DuplicateSaveWarning:
+    title: str
+    message: str
+
+
 def _normalize_name(value: object) -> str:
     text = str(value or "").strip().casefold()
     if not text:
@@ -53,6 +59,137 @@ def _display_name(chart_id: int, name: object, alias: object) -> str:
     if secondary:
         return secondary
     return f"Chart #{chart_id}"
+
+
+def _display_warning_name(chart_id: int, name: object, alias: object) -> str:
+    display_name = _display_name(chart_id, name, alias)
+    if display_name == f"Chart #{chart_id}":
+        return display_name
+    return f"#{chart_id}: {display_name}"
+
+
+def _append_duplicate_warning_section(
+    lines: list[str],
+    heading: str,
+    matches: list[str],
+    *,
+    preview_limit: int = 12,
+) -> None:
+    if not matches:
+        return
+    lines.extend([heading, ""])
+    preview_names = matches[:preview_limit]
+    extra_count = max(0, len(matches) - len(preview_names))
+    lines.extend(f"• {name}" for name in preview_names)
+    if extra_count:
+        lines.append(f"• ...and {extra_count} more")
+    lines.append("")
+
+
+def _chart_birth_components(chart: Chart) -> tuple[int | None, int | None, int | None]:
+    month = getattr(chart, "birth_month", None)
+    day = getattr(chart, "birth_day", None)
+    year = getattr(chart, "birth_year", None)
+    is_placeholder = bool(getattr(chart, "is_placeholder", False))
+    if (month is None or day is None or year is None) and not is_placeholder:
+        dt = getattr(chart, "dt", None)
+        month = month if month is not None else getattr(dt, "month", None)
+        day = day if day is not None else getattr(dt, "day", None)
+        year = year if year is not None else getattr(dt, "year", None)
+    return (
+        int(month) if month is not None else None,
+        int(day) if day is not None else None,
+        int(year) if year is not None else None,
+    )
+
+
+def build_duplicate_save_warning(
+    chart: Chart,
+    rows: Sequence[Sequence[object]],
+) -> DuplicateSaveWarning | None:
+    """Build duplicate-warning dialog text for a chart before saving."""
+    month, day, year = _chart_birth_components(chart)
+    proposed_tokens = {
+        token
+        for token in (
+            _normalize_name(getattr(chart, "name", "")),
+            _normalize_name(getattr(chart, "alias", "")),
+        )
+        if token
+    }
+
+    exact_birth_date_matches: list[str] = []
+    birthday_matches: list[str] = []
+    name_or_alias_matches: list[str] = []
+    matched_name_ids: set[int] = set()
+
+    for row in rows:
+        chart_id = int(row[0])
+        existing_name = row[1] if len(row) > 1 else ""
+        existing_alias = row[2] if len(row) > 2 else ""
+        display_name = _display_warning_name(chart_id, existing_name, existing_alias)
+        existing_month = row[17] if len(row) > 17 else None
+        existing_day = row[18] if len(row) > 18 else None
+        existing_year = row[19] if len(row) > 19 else None
+
+        if month is not None and day is not None:
+            if existing_month == month and existing_day == day:
+                if year is not None and existing_year == year:
+                    exact_birth_date_matches.append(display_name)
+                else:
+                    birthday_matches.append(display_name)
+
+        if proposed_tokens:
+            existing_tokens = {
+                token
+                for token in (
+                    _normalize_name(existing_name),
+                    _normalize_name(existing_alias),
+                )
+                if token
+            }
+            if proposed_tokens.intersection(existing_tokens):
+                if chart_id not in matched_name_ids:
+                    name_or_alias_matches.append(display_name)
+                    matched_name_ids.add(chart_id)
+
+    if not exact_birth_date_matches and not birthday_matches and not name_or_alias_matches:
+        return None
+
+    lines = [
+        "This chart looks like it may already exist in your database.",
+        "",
+    ]
+    if month is not None and day is not None and year is not None:
+        _append_duplicate_warning_section(
+            lines,
+            (
+                f"Same birth date ({year:04d}-{month:02d}-{day:02d}): "
+                f"{len(exact_birth_date_matches)} chart(s)"
+            ),
+            exact_birth_date_matches,
+        )
+    _append_duplicate_warning_section(
+        lines,
+        (
+            f"Same birthday ({month:02d}/{day:02d}): "
+            f"{len(birthday_matches)} chart(s)"
+        )
+        if month is not None and day is not None
+        else "Same birthday:",
+        birthday_matches,
+    )
+    _append_duplicate_warning_section(
+        lines,
+        f"Same name or alias: {len(name_or_alias_matches)} chart(s)",
+        name_or_alias_matches,
+    )
+    lines.append("Continue and save this chart anyway?")
+
+    return DuplicateSaveWarning(
+        title="Possible duplicate chart",
+        message="\n".join(lines),
+    )
 
 
 def find_possible_duplicate_charts(
