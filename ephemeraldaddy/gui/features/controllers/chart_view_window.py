@@ -944,6 +944,10 @@ def build_chart_view_right_panel(
     owner.metrics_scroll = owner.chart_analytics_panel_scroll
     owner._register_metric_scroll_widget(owner.chart_analytics_panel_scroll)
     owner._register_metric_scroll_widget(metrics_content)
+    owner._register_metric_scroll_widget(owner.predictions_panel_scroll)
+    owner._register_metric_scroll_widget(predictions_panel)
+    owner._register_metric_scroll_widget(owner.subjective_notes_panel_scroll)
+    owner._register_metric_scroll_widget(subjective_notes_panel)
 
     owner._create_chart_analysis_sections(metrics_content)
     owner._create_similar_charts_section(metrics_content)
