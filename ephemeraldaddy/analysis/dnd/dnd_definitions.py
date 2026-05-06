@@ -619,16 +619,16 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antihouses":{3:6,9:6}, #cumulatively, only 3rd house is super neg, 9th is 2% neg
         "bodies":{"Moon":5,"Pluto":3,"Saturn":3}, #cumulatively, no relevance shown
         "antibodies":{"Venus":6,"Jupiter":7,"Neptune":3}, #cumulatively, only Venus is negative
-        "nakshatras":{"Punarvasu":11,"Uttara Ashadha":10,"Purva Ashadha":6,"Mula":8,"Ardra":8,"Mrigashira":6,"Chitra":12,"Revati":7,"Swati":7}, #wondering if P Ash is only implicated by proximity to Ut Ash in charts... Cumulatively, only Punarvasu is 4% positive. P. Ash & Ut Ash are 2%. Everything else is 1% or less.
-        "antinakshatras":{"Bharani":6,"Rohini":4,"Pushya":8,"Ashlesha":8,"Purva Phalguni":4,"Uttara Phalguni":8,"Vishakha":11,"Uttara Bhadrapada":6}, #cumulatively, Ashwini & Jyestha are 2% neg.
+        "nakshatras":{"Punarvasu":11,"Uttara Ashadha":10,"Purva Ashadha":6,"Mula":8,"Ardra":8,"Mrigashira":6,"Chitra":12,"Revati":7,"Swati":7}, #wondering if P Ash is only implicated by proximity to Ut Ash in charts... Cumulatively, only Punarvasu is 4% positive. P. Ash & Ut Ash are 2%. Everything else is 1% or less. #Similar Charts view & Database Analytics disagree about this for some reason.
+        "antinakshatras":{"Bharani":6,"Rohini":4,"Pushya":8,"Ashlesha":8,"Purva Phalguni":4,"Uttara Phalguni":8,"Vishakha":11,"Uttara Bhadrapada":6}, #cumulatively, Ashwini & Jyestha are 2% neg. #Similar Charts view & Database Analytics disagree about this for some reason.
         "positions":{"Sun in Capricorn":10,"Sun in Sagittarius":5,"Sun in Leo":4,"Moon in Aries":4,"Moon in Cancer":4,"Moon in Libra":5,"Mercury in Capricorn":10,"Mercury in Sagittarius":5,"Mercury in Aries":4,"Venus in Capricorn":11,"Venus in Cancer":7,"Venus in Aquarius":9,"Venus in Virgo":4,"Mars in Cancer":8,"Mars in Taurus":4,"Jupiter in Gemini":8,"Jupiter in Scorpio":8,"Jupiter in Cancer":6,"Jupiter in Aries":4,"Saturn in Gemini":8,"Saturn in Libra":4,"Mercury in H5":19,"Pluto in H6":19,"Sun in H4":18,"Ceres in H1":17,"Jupiter in H5":17},
         "antipositions":{"Sun in Aries":6,"Sun in Gemini":4,"Sun in Virgo":8,"Sun in Scorpio":4,"Moon in Taurus":5,"Moon in Sagittarius":5,"Mercury in Taurus":7,"Mercury in Leo":4,"Mercury in Pisces":9,"Venus in Libra":7,"Venus in Leo":7,"Venus in Pisces":8,"Venus in Taurus":4,"Mars in Leo":6,"Mars in Virgo":7,"Mars in Pisces":4,"Jupiter in Leo":7,"Jupiter in Virgo":9,"Juptier in Sagittarius":7,"Jupiter in Pisces":8,"Jupiter in Aquarius":4,"Saturn in Taurus":4,"Saturn in Virgo":6,"Saturn in Sagittarius":7,}, #note: these are based off of who "isn't on the strong list", not off a list of "who is weak"
-        "aspects":{},
+        "aspects":{"Neptun sextile Pluto":20,"Chiron oppositon Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10},
         "antiaspects":{},
-        "gates":{},
-        "antigates":{},
-        #"channels":{}
-        #"antichannels":{},
+        "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
+        "antigates":{59,29,47,27,5,26,4,22,25,36,33},
+        #"channels":{[20,34],[10,20],[10,34],[34,57].[20,57]}
+        #"antichannels":{[6,59]},
         "centers":{},
         "anticenters":{},
         "profiles":{},
@@ -703,21 +703,21 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "quotes":{""},
     },
     "INT" : {
-        "signs":{"Aries"},
-        "antisigns":{"Sagittarius"},
-        "houses":{},
-        "antihouses":{},
-        "bodies":{},
-        "antibodies":{},
-        "nakshatras":{}, 
-        "antinakshatras":{}, 
-        "positions":{},
-        "antipositions":{},
-        "aspects":{},
+        "signs":{"Gemini":8,"Cancer":5,"Libra":5,"Aries":3}, #Gem & Aries got 1% Cumulative
+        "antisigns":{"Sagittarius":5},
+        "houses":{3:2}, #even 1% cumulative.
+        "antihouses":{}, #none
+        "bodies":{"Mars":8}, #what, you were expecting Mercury?? <_<
+        "antibodies":{"Mercury":6}, #lol yeah it got -6% in 'Similarities Analysis'
+        "nakshatras":{"Mrigashira":6,"Punarvasu":3,"Purva Phalguni":2,"Revati":2,}, 
+        "antinakshatras":{"Purva Ashadha":2}, 
+        "positions":{"Moon in Aries":3,"Mercury in Scorpio":4,"Venus in Scorpio":5,"Mars in Capricorn":4,"Saturn in Gemini":4,"Scorpio in H1":5,"Virgo in H1":4,"Pluto in Leo":5,"Saturn in Gemini":4,"MC in Leo":5,"Neptune in Libra":4,"Juno in Scorpio":4},
+        "antipositions":{"Pluto in Virgo":4,"Neptune in Scorpio":4,"Aquarius in H1":4,"Sun in Leo":4,"Saturn in Capricorn":4,},
+        "aspects":{"Chiron opposition Uranus":8,"Mars trine Fortune":5,"Fortune trine Lilith":5,"Rahu trine Sun":4,"Moon trine Uranus":5,"Juno sextile Jupiter":5,"Neptune opposition Fortune":6,"AS square Mercury":5,"Mars conjunction Moon":5,"Pallas opposition Vesta":4,"AS square Juno":5,"Fortune opposition Vesta":4,"MC sextile Fortune":5},
         "antiaspects":{},
-        "gates":{},
-        "antigates":{},
-        #"channels":{}
+        "gates":{45,62,51,12,61,36,},
+        "antigates":{59,44,29,5,63,37,13},
+        #"channels":{[27,50],[35,36]}
         #"antichannels":{},
         "centers":{},
         "anticenters":{},
