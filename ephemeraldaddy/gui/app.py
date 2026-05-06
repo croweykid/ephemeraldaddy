@@ -12494,9 +12494,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _should_refresh_tag_distribution_for_batch_tag_update(self) -> bool:
+        if (
+            self._database_metrics_baseline_mode == "gen_pop"
+            and "tag_distribution" in GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS
+        ):
+            return False
         return (
             self._left_panel_visible
-            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+            and self._active_left_panel == "database_metrics"
             and self._is_database_metrics_section_visible("tag_distribution")
             and self._is_database_metrics_section_expanded("tag_distribution")
         )
@@ -12505,13 +12510,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not self._should_refresh_tag_distribution_for_batch_tag_update():
             self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
             return
-        self._update_sentiment_tally(
-            changed_ids=changed_ids,
-            update_database_metrics=True,
-            update_similarities=False,
-            sections_to_refresh={"tag_distribution"},
+
+        chart_ids = self._selected_chart_ids(self.list_widget.selectedItems())
+        database_chart_ids = {
+            int(row[0])
+            for row in getattr(self, "_chart_rows", [])
+            if self._normalize_chart_row(row) is not None
+        }
+        self._analysis_chart_export_rows["tag_distribution"] = self._render_tag_distribution_section(
+            chart_ids=chart_ids,
+            database_chart_ids=database_chart_ids,
+            loaded_charts=len(chart_ids),
+            should_refresh=lambda section_key: section_key == "tag_distribution",
         )
-        self._batch_tagging_debug_log("phase2c_tag_distribution_refreshed")
+        self._batch_tagging_debug_log(
+            "phase2c_tag_distribution_refreshed changed_ids=%s",
+            sorted(changed_ids),
+        )
 
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
         selected_set = set(selected_chart_ids)
