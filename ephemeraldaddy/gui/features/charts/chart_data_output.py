@@ -48,6 +48,7 @@ class ChartDataTableOutput(QPlainTextEdit):
         *,
         emphasize_dnd_class_headers: bool = False,
         emphasize_species_info_headers: bool = False,
+        human_design_synastry_mode: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setReadOnly(True)
@@ -67,6 +68,7 @@ class ChartDataTableOutput(QPlainTextEdit):
             self,
             emphasize_dnd_class_headers=emphasize_dnd_class_headers,
             emphasize_species_info_headers=emphasize_species_info_headers,
+            human_design_synastry_mode=human_design_synastry_mode,
         )
 
 
@@ -75,6 +77,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
     _HD_PERSONALITY_GATE_COLOR = "#2f9e44"
     _HD_DESIGN_GATE_COLOR = "#c24a4a"
+    _HD_SYNASTRY_CHART_A_COLOR = "#ff9f1c"
+    _HD_SYNASTRY_CHART_B_COLOR = "#4ea5ff"
     
     _NAKSHATRA_INFO_FIELD_LABELS = (
         "Symbol:",
@@ -106,6 +110,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Defined Centers",
+        "Combined Incarnation Cross(es)",
         "Channel",
         "Body",
         "Sign",
@@ -120,9 +130,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Type",
         "Authority",
         "Defined Centers",
+        "Combined Defined Centers",
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Incarnation Cross(es)",
         "Strategy",
     )
 
@@ -132,10 +148,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         *,
         emphasize_dnd_class_headers: bool = False,
         emphasize_species_info_headers: bool = False,
+        human_design_synastry_mode: bool = False,
     ) -> None:
         super().__init__(document)
         self._emphasize_dnd_class_headers = bool(emphasize_dnd_class_headers)
         self._emphasize_species_info_headers = bool(emphasize_species_info_headers)
+        self._human_design_synastry_mode = bool(human_design_synastry_mode)
         self._unknown_format = QTextCharFormat()
         self._unknown_format.setForeground(QColor("#666666"))
         self._unknown_format.setFontItalic(True)
@@ -145,6 +163,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         # while preventing header-style bold inheritance.
         self._default_body_format.setFontWeight(QFont.Normal)
         self._default_body_format.setFontItalic(False)
+        if self._human_design_synastry_mode:
+            self._default_body_format.setForeground(QColor("#ffffff"))
         self._unknown_needles = (
             "unknown (birth time unknown)",
             "unknown (🐣time unknown)",
@@ -271,6 +291,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         )
         self._hd_personality_gate_format = self._make_format(self._HD_PERSONALITY_GATE_COLOR)
         self._hd_design_gate_format = self._make_format(self._HD_DESIGN_GATE_COLOR)
+        self._hd_synastry_chart_a_format = self._make_format(self._HD_SYNASTRY_CHART_A_COLOR)
+        self._hd_synastry_chart_b_format = self._make_format(self._HD_SYNASTRY_CHART_B_COLOR)
         self._hd_gate_side_cache_revision = -1
         self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
 
@@ -366,6 +388,37 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 start = index + len(needle)
         stripped_text = text.strip()
         lowered_stripped = stripped_text.lower()
+        if self._human_design_synastry_mode:
+            if (
+                stripped_text
+                and stripped_text == stripped_text.upper()
+                and any(char.isalpha() for char in stripped_text)
+                and all(char.isupper() or not char.isalpha() for char in stripped_text)
+            ):
+                self.setFormat(0, self._qt_len(text), self._section_format)
+            active_synastry_line = re.match(
+                r"^.+?'s active gates:", stripped_text, flags=re.IGNORECASE
+            ) or re.match(
+                r"^.+?'s active channel\(s\):", stripped_text, flags=re.IGNORECASE
+            )
+            if active_synastry_line:
+                previous_active_count = 0
+                previous_block = self.currentBlock().previous()
+                while previous_block.isValid():
+                    previous_text = previous_block.text().strip()
+                    if re.match(r"^.+?'s active gates:", previous_text, flags=re.IGNORECASE) or re.match(
+                        r"^.+?'s active channel\(s\):", previous_text, flags=re.IGNORECASE
+                    ):
+                        previous_active_count += 1
+                    previous_block = previous_block.previous()
+                active_format = (
+                    self._hd_synastry_chart_a_format
+                    if previous_active_count % 2 == 0
+                    else self._hd_synastry_chart_b_format
+                )
+                self.setFormat(0, self._qt_len(text), active_format)
+                return
+
         for header in CHART_DATA_SECTION_HEADERS:
             if stripped_text.upper() == header:
                 self.setFormat(0, self._qt_len(text), self._section_format)
@@ -388,7 +441,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     if prefix in self.HD_HEADERS
                     else self._plain_bold_format
                 )
-                self.setFormat(0, self._qt_len(prefix), header_format)
+                label_text = f"{prefix}:" if stripped_text.startswith(f"{prefix}:") else prefix
+                self.setFormat(0, self._qt_len(label_text), header_format)
                 break
         for prefix in self.HD_HEADERS:
             if stripped_text.startswith(f"{prefix} "):
@@ -396,8 +450,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 break
         if stripped_text in self._hd_center_header_names:
             self.setFormat(0, self._qt_len(stripped_text), self._copper_header_format)
-        if stripped_text.startswith("Defined Centers:"):
-            label = "Defined Centers:"
+        for label in ("Defined Centers:", "Combined Defined Centers:"):
+            if not stripped_text.startswith(label):
+                continue
             self.setFormat(0, self._qt_len(label), self._copper_header_format)
             centers_text = stripped_text[len(label):].strip()
             if centers_text and centers_text.lower() != "none":
@@ -413,6 +468,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                             self._qt_len(raw_center),
                             center_format,
                         )
+            break
         if re.search(r"\bBody\b", stripped_text) and re.search(r"\bSign\b", stripped_text) and "G/L" in stripped_text:
             for header_token in ("Body", "Sign", "Longitude", "G/L", "C", "T", "B"):
                 token_start = 0
@@ -678,12 +734,14 @@ def apply_chart_data_highlighter(
     *,
     emphasize_dnd_class_headers: bool = False,
     emphasize_species_info_headers: bool = False,
+    human_design_synastry_mode: bool = False,
 ) -> ChartSummaryHighlighter:
     """Attach the shared chart-data highlighter to an output widget."""
     highlighter = ChartSummaryHighlighter(
         output_widget.document(),
         emphasize_dnd_class_headers=emphasize_dnd_class_headers,
         emphasize_species_info_headers=emphasize_species_info_headers,
+        human_design_synastry_mode=human_design_synastry_mode,
     )
     output_widget._summary_highlighter = highlighter
     return highlighter

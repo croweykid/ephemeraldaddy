@@ -672,6 +672,7 @@ from ephemeraldaddy.analysis.human_design import (
     describe_gate_line_placements,
     gate_lines_for_gate,
 )
+from ephemeraldaddy.analysis.hd_incarnation_crosses import find_cross_by_name
 from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CENTERS,
@@ -24289,6 +24290,12 @@ class MainWindow(QMainWindow):
                                 entry.get("line"),
                             )
                             return True
+                        if entry.get("kind") == "hd_property":
+                            self._show_human_design_property_info(
+                                str(entry.get("property_key", "")),
+                                str(entry.get("property_value", "")),
+                            )
+                            return True
                         if entry.get("kind") == "hd_channel":
                             self._show_human_design_channel_info(
                                 int(entry.get("gate_a", 0)),
@@ -24703,6 +24710,29 @@ class MainWindow(QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
+    def _set_human_design_info_text(self, header: str, body_lines: list[str]) -> None:
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+
+        header_fmt = QTextCharFormat()
+        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
+        header_fmt.setFontWeight(QFont.Bold)
+
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        plain_fmt.setFontItalic(False)
+
+        cursor.insertText(f"{header}\n\n", header_fmt)
+        for idx, line in enumerate(body_lines):
+            cursor.insertText(line, plain_fmt)
+            if idx < len(body_lines) - 1:
+                cursor.insertText("\n", plain_fmt)
+        self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
+
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
         key = str(property_key or "").strip().lower()
         raw_value = str(property_value or "").strip()
@@ -24740,7 +24770,7 @@ class MainWindow(QMainWindow):
             description = _lookup_reference(HD_TYPES, alias_map)
             header = f"Type: {raw_value or 'Unknown'}"
             if description:
-                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                self._set_human_design_info_text(header, [f"• {description}"])
                 return
         elif key == "authority":
             alias_map = {
@@ -24761,7 +24791,7 @@ class MainWindow(QMainWindow):
             description = _lookup_reference(HD_AUTHORITIES, alias_map)
             header = f"Authority: {raw_value or 'Unknown'}"
             if description:
-                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                self._set_human_design_info_text(header, [f"• {description}"])
                 return
         elif key == "definition":
             alias_map = {
@@ -24778,7 +24808,7 @@ class MainWindow(QMainWindow):
             description = _lookup_reference(HD_DEFINITIONS, alias_map)
             header = f"Definition: {raw_value or 'Unknown'}"
             if description:
-                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                self._set_human_design_info_text(header, [f"• {description}"])
                 return
         elif key == "strategy":
             alias_map = {
@@ -24794,31 +24824,49 @@ class MainWindow(QMainWindow):
             description = _lookup_reference(HD_STRATEGIES, alias_map)
             header = f"Strategy: {raw_value or 'Unknown'}"
             if description:
-                self.chart_info_output.setPlainText("\n".join([header, "", f"• {description}"]))
+                self._set_human_design_info_text(header, [f"• {description}"])
                 return
         elif key == "profile":
             cleaned_profile = raw_value.replace(" ", "")
             description = HD_PROFILES.get(cleaned_profile)
             if description:
-                self.chart_info_output.setPlainText(
-                    "\n".join(
-                        [
-                            f"Profile: {cleaned_profile}",
-                            "",
-                            f"• {description}",
-                        ]
-                    )
-                )
+                self._set_human_design_info_text(f"Profile: {cleaned_profile}", [f"• {description}"])
                 return
-            self.chart_info_output.setPlainText(
-                "Profile\n\n"
-                "• Profile is derived from Personality Sun line / Design Sun line.\n"
-                "• Display format: PersonalityLine/DesignLine (for example, 1/3)."
+            self._set_human_design_info_text(
+                "Profile",
+                [
+                    "• Profile is derived from Personality Sun line / Design Sun line.",
+                    "• Display format: PersonalityLine/DesignLine (for example, 1/3).",
+                ],
             )
             return
 
-        self.chart_info_output.setPlainText(
-            "No details available for this Human Design property."
+        elif key == "incarnation_cross":
+            cross_name = raw_value
+            cross_entry = find_cross_by_name(cross_name) if cross_name else None
+            if cross_entry:
+                gates = cross_entry.get("gates", ())
+                gates_text = "/".join(str(gate) for gate in gates) if gates else "Unknown"
+                theme = str(cross_entry.get("theme", "")).strip() or "Unknown"
+                angle = str(cross_entry.get("angle", "")).strip() or "Unknown"
+                self._set_human_design_info_text(
+                    f"Incarnation Cross: {cross_name}",
+                    [
+                        f"• Theme: {theme}",
+                        f"• Angle: {angle}",
+                        f"• Gates: {gates_text}",
+                    ],
+                )
+                return
+            self._set_human_design_info_text(
+                f"Incarnation Cross: {cross_name or 'Unknown'}",
+                ["• No incarnation cross reference available."],
+            )
+            return
+
+        self._set_human_design_info_text(
+            "Human Design Property",
+            ["• No details available for this Human Design property."],
         )
 
     def _show_human_design_channel_info(self, gate_a: int, gate_b: int, center: str) -> None:
@@ -24848,7 +24896,7 @@ class MainWindow(QMainWindow):
         ]
         if explanation:
             lines.append(f"• {explanation}")
-        self.chart_info_output.setPlainText("\n".join(lines))
+        self._set_human_design_info_text(header, lines[2:])
 
     def _show_species_info(
         self,
