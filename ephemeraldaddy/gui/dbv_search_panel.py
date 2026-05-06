@@ -139,6 +139,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     window.search_tags_list_widget.setMaximumHeight(180)
     window.search_tags_list_widget.setVisible(False)
     window.search_tags_toggle.toggled.connect(window.search_tags_list_widget.setVisible)
+    window.search_tags_toggle.toggled.connect(
+        lambda expanded: window._refresh_search_tags_list(
+            getattr(window, "_known_chart_tags", [])
+        ) if expanded else None
+    )
     tags_search_row.addWidget(window.search_tags_list_widget)
     layout.addLayout(tags_search_row)
 
