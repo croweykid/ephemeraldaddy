@@ -64,6 +64,12 @@ def create_human_design_synastry_dialog(
     chart_b_gate_set = {activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)}
     aggregate_gate_set = set(chart_a_gate_set) | set(chart_b_gate_set)
     awareness_stream_entries = build_awareness_stream_completion(aggregate_gate_set)
+    for stream_entry in awareness_stream_entries:
+        stream_gates = [int(gate) for gate in stream_entry.get("gates", []) if isinstance(gate, int)]
+        stream_entry["chart_1_present_gates"] = [gate for gate in stream_gates if gate in chart_a_gate_set]
+        stream_entry["chart_2_present_gates"] = [gate for gate in stream_gates if gate in chart_b_gate_set]
+        stream_entry["chart_1_color"] = SYNASTRY_PRIMARY_COLOR
+        stream_entry["chart_2_color"] = SYNASTRY_SECONDARY_COLOR
 
     chart_info_output = parent._build_popout_left_panel(
         layout,
