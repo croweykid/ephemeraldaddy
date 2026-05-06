@@ -44,8 +44,17 @@ def classify_jones_shape(positions: dict[str, float]) -> tuple[str, dict[str, st
         return "bowl", {}
     if largest_gap >= float(JONES_SHAPES["locomotive"].get("empty_span_min", 120)) - 8 and span <= 248:
         lead_index = gaps.index(largest_gap)
-        leading = tracked[(lead_index + 1) % len(tracked)][0]
-        return "locomotive", {"leading_planet": leading}
+        trailer_boundary = tracked[lead_index]
+        leader_boundary = tracked[(lead_index + 1) % len(tracked)]
+        return "locomotive", {
+            # We treat ascending zodiac longitude as the wheel's forward order.
+            # With that choice, the leader is the first body encountered after
+            # crossing the largest empty arc into the occupied arc.
+            "leader": leader_boundary[0],
+            "trailer": trailer_boundary[0],
+            "leader_direction": "ascending_longitude",
+            "largest_gap_degrees": f"{largest_gap:.2f}",
+        }
     if max(int(g // 30.0) for g in gaps) <= int(JONES_SHAPES["splash"].get("max_consecutive_empty_houses", 2)):
         return "splash", {}
     return "splay", {}
