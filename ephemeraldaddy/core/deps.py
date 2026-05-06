@@ -11,6 +11,8 @@ from __future__ import annotations
 import importlib
 from typing import Dict, Tuple
 
+from ephemeraldaddy.core.python_compat import python_compatibility_message
+
 
 # pip_name -> import_name
 REQUIRED_PACKAGES: Dict[str, str] = {
@@ -30,6 +32,10 @@ _module_cache: Dict[str, object] = {}
 
 
 def _missing_dependency_message(pkg_name: str, module_name: str) -> str:
+    compatibility_message = python_compatibility_message()
+    if compatibility_message is not None:
+        return compatibility_message
+
     return (
         f"Missing dependency '{pkg_name}' (import '{module_name}'). "
         "Install project dependencies before launching (example: `pip install -r requirements.txt` "
