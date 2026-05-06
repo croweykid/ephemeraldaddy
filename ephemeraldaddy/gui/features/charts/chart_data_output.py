@@ -110,6 +110,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Defined Centers",
+        "Combined Incarnation Cross(es)",
         "Channel",
         "Body",
         "Sign",
@@ -124,9 +130,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Type",
         "Authority",
         "Defined Centers",
+        "Combined Defined Centers",
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Combined Type",
+        "Combined Authority",
+        "Combined Definition",
+        "Combined Strategy",
+        "Combined Incarnation Cross(es)",
         "Strategy",
     )
 
@@ -384,7 +396,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 and all(char.isupper() or not char.isalpha() for char in stripped_text)
             ):
                 self.setFormat(0, self._qt_len(text), self._section_format)
-                return
             active_synastry_line = re.match(
                 r"^.+?'s active gates:", stripped_text, flags=re.IGNORECASE
             ) or re.match(
@@ -407,7 +418,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 )
                 self.setFormat(0, self._qt_len(text), active_format)
                 return
-            return
 
         for header in CHART_DATA_SECTION_HEADERS:
             if stripped_text.upper() == header:
@@ -431,7 +441,8 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                     if prefix in self.HD_HEADERS
                     else self._plain_bold_format
                 )
-                self.setFormat(0, self._qt_len(prefix), header_format)
+                label_text = f"{prefix}:" if stripped_text.startswith(f"{prefix}:") else prefix
+                self.setFormat(0, self._qt_len(label_text), header_format)
                 break
         for prefix in self.HD_HEADERS:
             if stripped_text.startswith(f"{prefix} "):
@@ -439,8 +450,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 break
         if stripped_text in self._hd_center_header_names:
             self.setFormat(0, self._qt_len(stripped_text), self._copper_header_format)
-        if stripped_text.startswith("Defined Centers:"):
-            label = "Defined Centers:"
+        for label in ("Defined Centers:", "Combined Defined Centers:"):
+            if not stripped_text.startswith(label):
+                continue
             self.setFormat(0, self._qt_len(label), self._copper_header_format)
             centers_text = stripped_text[len(label):].strip()
             if centers_text and centers_text.lower() != "none":
@@ -456,6 +468,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                             self._qt_len(raw_center),
                             center_format,
                         )
+            break
         if re.search(r"\bBody\b", stripped_text) and re.search(r"\bSign\b", stripped_text) and "G/L" in stripped_text:
             for header_token in ("Body", "Sign", "Longitude", "G/L", "C", "T", "B"):
                 token_start = 0
