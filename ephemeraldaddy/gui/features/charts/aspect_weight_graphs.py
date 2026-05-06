@@ -350,12 +350,12 @@ def build_popout_left_panel(
                 y_padding = 0.35 if is_circuits_mode else 0.5
                 analytics_ax.set_ylim(-y_padding, max(0.0, current_row - row_step + y_padding))
                 analytics_ax.invert_yaxis()
-                synastry_chart_1_color = "#4ea5ff"
-                synastry_chart_2_color = "#ff9f1c"
                 for row_index, entry, gate_row, present_gates, completion_level in row_layouts:
                     segment_color = color_by_completion.get(completion_level, color_by_completion[0])
                     chart_1_present_gates = set(int(gate) for gate in entry.get("chart_1_present_gates", []))
                     chart_2_present_gates = set(int(gate) for gate in entry.get("chart_2_present_gates", []))
+                    synastry_chart_1_color = str(entry.get("chart_1_color") or "#ff9f1c")
+                    synastry_chart_2_color = str(entry.get("chart_2_color") or "#4ea5ff")
                     use_synastry_gate_colors = bool(chart_1_present_gates or chart_2_present_gates)
                     for segment_index, gate in enumerate(gate_row):
                         gate_present = gate in present_gates
