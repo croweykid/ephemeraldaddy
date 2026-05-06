@@ -7,11 +7,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.chart import chart_uses_houses
-from ephemeraldaddy.analysis.body_dynamics_reworked import (
-    BODY_PAIR_DYNAMICS,
-    PAIR_TYPE_DISTRIBUTION,
-    normalize_body_pair,
-)
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
@@ -58,6 +53,55 @@ PLANET_DYNAMICS_METRICS = (
     "escalating",
 )
 BODY_DYNAMICS_LABELS = ("enabler", "antagonizer", "escalating enabler", "escalating antagonizer")
+BODY_DYNAMICS_PAIR_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
+BODY_PAIR_DYNAMICS = {
+    ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair", ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair", ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair",
+    ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair", ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair", ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair",
+    ("Mercury", "Venus"): "enabling_pair", ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair", ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair",
+    ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair", ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair",
+    ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair", ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair",
+    ("Jupiter", "Saturn"): "volatile_pair", ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair",
+    ("Saturn", "Uranus"): "antagonizing_pair", ("Saturn", "Neptune"): "antagonizing_pair", ("Saturn", "Pluto"): "antagonizing_pair",
+    ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair",
+    ("Neptune", "Pluto"): "volatile_pair",
+}
+PAIR_TONE_DISTRIBUTION = {
+    "enabling_pair": {
+        "enabling_aspect": {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
+        "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},
+        "escalating_aspect": {"Enabling": 0.60, "Antagonizing": 0.00, "Escalating": 0.40},
+    },
+    "antagonizing_pair": {
+        "enabling_aspect": {"Enabling": 0.55, "Antagonizing": 0.20, "Escalating": 0.25},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.80, "Escalating": 0.20},
+        "escalating_aspect": {"Enabling": 0.10, "Antagonizing": 0.45, "Escalating": 0.45},
+    },
+    "volatile_pair": {
+        "enabling_aspect": {"Enabling": 0.65, "Antagonizing": 0.00, "Escalating": 0.35},
+        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.55, "Escalating": 0.45},
+        "escalating_aspect": {"Enabling": 0.25, "Antagonizing": 0.25, "Escalating": 0.50},
+    },
+}
+PAIR_TYPE_DISTRIBUTION = {
+    pair: {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["antagonizing_aspect"]
+        for aspect_name in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())
+    }
+    | {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["enabling_aspect"]
+        for group_name in ("chill vibes", "creative/technical")
+        for aspect_name in ASPECT_TYPES.get(group_name, {}).get("aspects", set())
+    }
+    | {
+        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["escalating_aspect"]
+        for aspect_name in ASPECT_TYPES.get("amplifying", {}).get("aspects", set())
+    }
+    for pair, tone in BODY_PAIR_DYNAMICS.items()
+}
+
+
+def normalize_body_pair(a: str, b: str) -> tuple[str, str]:
+    return tuple(sorted((a, b), key=BODY_DYNAMICS_PAIR_INDEX.__getitem__))
 
 
 def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]]:

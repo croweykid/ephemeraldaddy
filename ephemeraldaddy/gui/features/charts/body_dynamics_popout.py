@@ -14,16 +14,14 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_ORDER,
     aspect_orb_allowance,
 )
-from ephemeraldaddy.analysis.body_dynamics_reworked import (
+from ephemeraldaddy.gui.features.charts.metrics import (
     BODY_PAIR_DYNAMICS,
     PAIR_TYPE_DISTRIBUTION,
-    normalize_body_pair,
-)
-from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_planet_condition_weights,
     calculate_planet_dynamics_scores,
     classify_body_dynamics,
     normalize_body_name,
+    normalize_body_pair,
 )
 from ephemeraldaddy.gui.features.charts.text_summary import _display_body_name
 
