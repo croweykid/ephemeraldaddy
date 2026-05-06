@@ -12493,6 +12493,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and search_untagged_checkbox.mode() != QuadStateSlider.MODE_EMPTY
         )
 
+    def _should_refresh_tag_distribution_for_batch_tag_update(self) -> bool:
+        return (
+            self._left_panel_visible
+            and self._active_left_panel in {"database_metrics", "gen_pop_norms"}
+            and self._is_database_metrics_section_visible("tag_distribution")
+            and self._is_database_metrics_section_expanded("tag_distribution")
+        )
+
+    def _refresh_tag_distribution_after_batch_tag_update(self, changed_ids: set[int]) -> None:
+        if not self._should_refresh_tag_distribution_for_batch_tag_update():
+            self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
+            return
+        self._update_sentiment_tally(
+            changed_ids=changed_ids,
+            update_database_metrics=True,
+            update_similarities=False,
+            sections_to_refresh={"tag_distribution"},
+        )
+        self._batch_tagging_debug_log("phase2c_tag_distribution_refreshed")
+
     def _update_batch_selection_order(self, selected_chart_ids: list[int]) -> None:
         selected_set = set(selected_chart_ids)
         self._batch_selection_order = [
@@ -12959,6 +12979,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._batch_tagging_debug_log("phase2a_tag_completers_updated")
             self._update_batch_tag_state()
             self._batch_tagging_debug_log("phase2b_batch_tag_state_updated")
+            self._refresh_tag_distribution_after_batch_tag_update(changed_ids)
             if self._has_active_search_tag_filters():
                 self._refresh_filters_after_batch_edit(
                     changed_ids,
