@@ -433,7 +433,6 @@ from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
     save_chart,
-    find_chart_name_matches_by_birth_day,
     list_charts,
     load_chart,
     load_dominant_sign_weights,
@@ -564,6 +563,7 @@ from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
 )
 from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     DuplicateLikelihood,
+    build_duplicate_save_warning,
     find_possible_duplicate_charts,
 )
 
@@ -11569,6 +11569,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
         chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
         chart.is_placeholder = False
+
+        if not parent._confirm_duplicate_chart_save(chart):
+            return
 
         try:
             chart_id = save_chart(
@@ -26174,34 +26177,15 @@ class MainWindow(QMainWindow):
     def _on_chart_tag_remove_link_clicked(self, link: str) -> None:
         on_chart_view_tag_remove_link(self, link)
 
-    def _confirm_birth_day_duplicate_save(self, chart: Chart) -> bool:
-        month = getattr(chart, "birth_month", None)
-        day = getattr(chart, "birth_day", None)
-        is_placeholder = bool(getattr(chart, "is_placeholder", False))
-        if (month is None or day is None) and not is_placeholder:
-            dt = getattr(chart, "dt", None)
-            month = getattr(dt, "month", None)
-            day = getattr(dt, "day", None)
-        if month is None or day is None:
+    def _confirm_duplicate_chart_save(self, chart: Chart) -> bool:
+        warning = build_duplicate_save_warning(chart, list_charts())
+        if warning is None:
             return True
-
-        matches = find_chart_name_matches_by_birth_day(month, day)
-        if not matches:
-            return True
-
-        preview_limit = 12
-        preview_names = matches[:preview_limit]
-        extra_count = max(0, len(matches) - len(preview_names))
-        lines = [f"Found {len(matches)} chart(s) with this birthday ({int(month):02d}/{int(day):02d}):", ""]
-        lines.extend(f"• {name}" for name in preview_names)
-        if extra_count:
-            lines.append(f"• ...and {extra_count} more")
-        lines.extend(["", "Continue and save this chart anyway?"])
 
         choice = QMessageBox.question(
             self,
-            "Possible duplicate birthdays",
-            "\n".join(lines),
+            warning.title,
+            warning.message,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -26377,7 +26361,7 @@ class MainWindow(QMainWindow):
         )
 
         if is_new_chart:
-            if not self._confirm_birth_day_duplicate_save(chart):
+            if not self._confirm_duplicate_chart_save(chart):
                 return
             chart_id = save_chart(chart, **save_kwargs)
             set_current_chart(chart_id)
