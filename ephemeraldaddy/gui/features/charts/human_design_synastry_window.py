@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from typing import Any
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -81,15 +82,16 @@ def create_human_design_synastry_dialog(
     layout.addLayout(right_layout, 3)
 
     header_label = QLabel(
-        "\n".join(
+        "<br>".join(
             [
                 "🪷 Human Design Synastry",
-                f"Orange: {chart_a.name}",
-                f"Blue:    {chart_b.name}",
+                f'<span style="color:{SYNASTRY_PRIMARY_COLOR};">{html.escape(str(chart_a.name))}</span>',
+                f'<span style="color:{SYNASTRY_SECONDARY_COLOR};">{html.escape(str(chart_b.name))}</span>',
                 "Shared gates are drawn as striped segments.",
             ]
         )
     )
+    header_label.setTextFormat(Qt.RichText)
     header_label.setStyleSheet(f"{CHART_DATA_POPOUT_HEADER_STYLE} background: transparent;")
     header_font = header_label.font()
     header_font.setFamily(CHART_DATA_MONOSPACE_FONT_FAMILY)
@@ -229,12 +231,12 @@ def create_human_design_synastry_dialog(
     right_splitter.setChildrenCollapsible(False)
     right_splitter.addWidget(chart_container)
 
-    summary_output = ChartDataTableOutput()
+    summary_output = ChartDataTableOutput(human_design_synastry_mode=True)
     summary_output.setReadOnly(True)
     output_font = summary_output.font()
     summary_output.setFont(output_font)
     summary_output.setTabStopDistance(6)
-    apply_chart_data_highlighter(summary_output)
+    apply_chart_data_highlighter(summary_output, human_design_synastry_mode=True)
     summary_output.setMinimumHeight(220)
     summary_output.viewport().installEventFilter(parent)
     right_splitter.addWidget(summary_output)
@@ -242,7 +244,12 @@ def create_human_design_synastry_dialog(
     right_splitter.setStretchFactor(1, 3)
     right_layout.addWidget(right_splitter, 1)
 
-    chart_data_text, position_info_map, summary_block_offset = build_human_design_synastry_data_output(hd_a, hd_b)
+    chart_data_text, position_info_map, summary_block_offset = build_human_design_synastry_data_output(
+        hd_a,
+        hd_b,
+        chart_a_name=chart_a.name,
+        chart_b_name=chart_b.name,
+    )
     summary_output.setPlainText(chart_data_text)
 
     popout_context_key = summary_output.viewport()

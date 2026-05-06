@@ -636,6 +636,9 @@ def _add_synastry_gate_token_entries(
 def build_human_design_synastry_data_output(
     hd_a: HumanDesignResult,
     hd_b: HumanDesignResult,
+    *,
+    chart_a_name: str = "Chart A",
+    chart_b_name: str = "Chart B",
 ) -> tuple[str, dict[int, Any], int]:
     """Build synastry HD output treating two charts as one aggregate chart."""
     active_lines = {
@@ -655,14 +658,18 @@ def build_human_design_synastry_data_output(
         activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)
     }
     chart_a_channels = sorted(
-        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-        for gate_a, gate_b, _center_a, _center_b in CHANNELS
-        if gate_a in chart_a_active_gates and gate_b in chart_a_active_gates
+        {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b, _center_a, _center_b in CHANNELS
+            if gate_a in chart_a_active_gates and gate_b in chart_a_active_gates
+        }
     )
     chart_b_channels = sorted(
-        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-        for gate_a, gate_b, _center_a, _center_b in CHANNELS
-        if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
+        {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b, _center_a, _center_b in CHANNELS
+            if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
+        }
     )
     defined_channels = tuple(
         (gate_a, gate_b, center_a, center_b)
@@ -721,6 +728,12 @@ def build_human_design_synastry_data_output(
         f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         for stream_entry in build_awareness_stream_completion(active_gates)
     ]
+    chart_a_label = str(chart_a_name or "Chart A").strip() or "Chart A"
+    chart_b_label = str(chart_b_name or "Chart B").strip() or "Chart B"
+    chart_a_gates_text = ", ".join(str(gate) for gate in sorted(chart_a_active_gates)) if chart_a_active_gates else "None"
+    chart_b_gates_text = ", ".join(str(gate) for gate in sorted(chart_b_active_gates)) if chart_b_active_gates else "None"
+    chart_a_channels_text = ", ".join(chart_a_channels) if chart_a_channels else "None"
+    chart_b_channels_text = ", ".join(chart_b_channels) if chart_b_channels else "None"
 
     rendered_lines = [
         CHART_DATA_DIVIDER,
@@ -733,12 +746,10 @@ def build_human_design_synastry_data_output(
         f"Combined Defined Centers: {_format_defined_centers(defined_centers)}",
         incarnation_cross_line,
         "",
-        "🟧 Active Gates (Chart A): "
-        + (", ".join(str(gate) for gate in sorted(chart_a_active_gates)) if chart_a_active_gates else "None"),
-        "🟦 Active Gates (Chart B): "
-        + (", ".join(str(gate) for gate in sorted(chart_b_active_gates)) if chart_b_active_gates else "None"),
-        "🟧 Active Channels (Chart A): " + (", ".join(chart_a_channels) if chart_a_channels else "None"),
-        "🟦 Active Channels (Chart B): " + (", ".join(chart_b_channels) if chart_b_channels else "None"),
+        f"{chart_a_label}'s active gates: {chart_a_gates_text}",
+        f"{chart_b_label}'s active gates: {chart_b_gates_text}",
+        f"{chart_a_label}'s active channel(s): {chart_a_channels_text}",
+        f"{chart_b_label}'s active channel(s): {chart_b_channels_text}",
         "",
         CHART_DATA_DIVIDER,
         "GATES & LINES",
