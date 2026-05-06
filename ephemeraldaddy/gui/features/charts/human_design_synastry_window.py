@@ -105,7 +105,7 @@ def create_human_design_synastry_dialog(
         weighted_score_for_entry=lambda _entry: 0.0,
         show_aspect_distribution=False,
         awareness_stream_entries=awareness_stream_entries,
-        circuit_entries=[],
+        circuit_entries=circuit_entries,
         hd_placement_contexts=hd_placement_contexts,
     )
 
