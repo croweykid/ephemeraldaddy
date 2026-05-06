@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
+    build_circuit_group_completion,
     build_human_design_result,
     build_human_design_synastry_data_output,
 )
@@ -39,6 +40,21 @@ from ephemeraldaddy.gui.style import CHART_DATA_MONOSPACE_FONT_FAMILY, CHART_DAT
 
 SYNASTRY_PRIMARY_COLOR = "#ff9f1c"
 SYNASTRY_SECONDARY_COLOR = "#4ea5ff"
+
+
+def _apply_synastry_gate_metadata(
+    entries: list[dict[str, Any]],
+    *,
+    chart_a_gate_set: set[int],
+    chart_b_gate_set: set[int],
+) -> None:
+    """Annotate Human Design analytics entries with per-chart synastry gate membership."""
+    for entry in entries:
+        entry_gates = [int(gate) for gate in entry.get("gates", []) if isinstance(gate, int)]
+        entry["chart_1_present_gates"] = [gate for gate in entry_gates if gate in chart_a_gate_set]
+        entry["chart_2_present_gates"] = [gate for gate in entry_gates if gate in chart_b_gate_set]
+        entry["chart_1_color"] = SYNASTRY_PRIMARY_COLOR
+        entry["chart_2_color"] = SYNASTRY_SECONDARY_COLOR
 
 
 def create_human_design_synastry_dialog(
@@ -64,12 +80,17 @@ def create_human_design_synastry_dialog(
     chart_b_gate_set = {activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)}
     aggregate_gate_set = set(chart_a_gate_set) | set(chart_b_gate_set)
     awareness_stream_entries = build_awareness_stream_completion(aggregate_gate_set)
-    for stream_entry in awareness_stream_entries:
-        stream_gates = [int(gate) for gate in stream_entry.get("gates", []) if isinstance(gate, int)]
-        stream_entry["chart_1_present_gates"] = [gate for gate in stream_gates if gate in chart_a_gate_set]
-        stream_entry["chart_2_present_gates"] = [gate for gate in stream_gates if gate in chart_b_gate_set]
-        stream_entry["chart_1_color"] = SYNASTRY_PRIMARY_COLOR
-        stream_entry["chart_2_color"] = SYNASTRY_SECONDARY_COLOR
+    circuit_entries = build_circuit_group_completion(aggregate_gate_set)
+    _apply_synastry_gate_metadata(
+        awareness_stream_entries,
+        chart_a_gate_set=chart_a_gate_set,
+        chart_b_gate_set=chart_b_gate_set,
+    )
+    _apply_synastry_gate_metadata(
+        circuit_entries,
+        chart_a_gate_set=chart_a_gate_set,
+        chart_b_gate_set=chart_b_gate_set,
+    )
 
     chart_info_output = parent._build_popout_left_panel(
         layout,
@@ -79,7 +100,7 @@ def create_human_design_synastry_dialog(
         weighted_score_for_entry=lambda _entry: 0.0,
         show_aspect_distribution=False,
         awareness_stream_entries=awareness_stream_entries,
-        circuit_entries=[],
+        circuit_entries=circuit_entries,
     )
 
     right_layout = QVBoxLayout()
