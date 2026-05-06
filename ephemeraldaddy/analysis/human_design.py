@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ephemeraldaddy.core.chart import Chart
@@ -300,14 +301,49 @@ def _render_clickable_property(
     *,
     lookup_value: str | None = None,
 ) -> tuple[str, dict[str, object]]:
-    line = f"{label}: {value} ⓘ"
+    value_text = str(value or "").strip() or "Unknown"
+    line = f"{label}: {value_text} ⓘ"
+    value_start = len(f"{label}: ")
+    icon_index = len(f"{label}: {value_text} ")
     entry = {
         "kind": "hd_property",
         "property_key": property_key,
-        "property_value": lookup_value if lookup_value is not None else value,
-        "icon_index": len(f"{label}: {value} "),
+        "property_value": lookup_value if lookup_value is not None else value_text,
+        "span_start": value_start,
+        "span_end": icon_index + 1,
+        "icon_index": icon_index,
     }
     return line, entry
+
+
+def _render_clickable_incarnation_cross_line(
+    label: str,
+    cross_names: list[str],
+) -> tuple[str, list[dict[str, object]]]:
+    value_text = ", ".join(cross_names) if cross_names else "Unknown"
+    line = f"{label}: {value_text} ⓘ"
+    if not cross_names:
+        return line, []
+    entries: list[dict[str, object]] = []
+    value_start = len(f"{label}: ")
+    search_start = value_start
+    for cross_name in cross_names:
+        span_start = line.find(cross_name, search_start)
+        if span_start == -1:
+            continue
+        span_end = span_start + len(cross_name)
+        entries.append(
+            {
+                "kind": "hd_property",
+                "property_key": "incarnation_cross",
+                "property_value": cross_name,
+                "span_start": span_start,
+                "span_end": span_end,
+                "icon_index": len(line) - 1,
+            }
+        )
+        search_start = span_end
+    return line, entries
 
 def _format_split_definition(split_definition: str) -> str:
     suffix = " Definition"
@@ -362,6 +398,8 @@ def _render_channel_lines(
                     "gate_a": gate_a,
                     "gate_b": gate_b,
                     "center": center,
+                    "span_start": cursor,
+                    "span_end": cursor + len(token),
                     "icon_index": cursor + len(label) + 1,
                 }
             )
@@ -502,9 +540,117 @@ def build_human_design_chart_data_output(
     )
 
 
+_GATE_NUMBER_PATTERN = r"[1-9]|[1-5][0-9]|6[0-4]"
+_GATE_LINE_TOKEN_RE = re.compile(
+    rf"(?<![\d.])(?P<gate>{_GATE_NUMBER_PATTERN})(?:\.(?P<line>[1-6]))?(?![\d.%])"
+)
+_CHANNEL_TOKEN_RE = re.compile(
+    rf"(?<![\d.])(?P<gate_a>{_GATE_NUMBER_PATTERN})-(?P<gate_b>{_GATE_NUMBER_PATTERN})(?![\d.])"
+)
+
+
+def _qt_text_offset(text: str, index: int) -> int:
+    """Return the QTextCursor-compatible UTF-16 code-unit offset for a Python index."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
+def _qt_text_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """Return a QTextCursor-compatible span for Python regex match indices."""
+    return _qt_text_offset(text, start), _qt_text_offset(text, end)
+
+
+def _find_channel_tokens(line_text: str) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for match in _CHANNEL_TOKEN_RE.finditer(line_text):
+        try:
+            gate_a = int(match.group("gate_a"))
+            gate_b = int(match.group("gate_b"))
+        except (TypeError, ValueError):
+            continue
+        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
+        entries.append(
+            {
+                "kind": "hd_channel",
+                "gate_a": min(gate_a, gate_b),
+                "gate_b": max(gate_a, gate_b),
+                "center": "",
+                "span_start": span_start,
+                "span_end": span_end,
+            }
+        )
+    return entries
+
+
+def _find_gate_line_tokens(line_text: str) -> list[dict[str, object]]:
+    """Return clickable gate/gate-line entries for HD synastry free-text rows."""
+    entries: list[dict[str, object]] = []
+    for match in _GATE_LINE_TOKEN_RE.finditer(line_text):
+        gate_text = match.group("gate")
+        line_text_value = match.group("line")
+        try:
+            gate_number = int(gate_text)
+            line_number = int(line_text_value) if line_text_value is not None else None
+        except (TypeError, ValueError):
+            continue
+        span_start, span_end = _qt_text_span(line_text, match.start(), match.end())
+        entries.append(
+            {
+                "kind": "hd_gate_line",
+                "gate": gate_number,
+                "line": line_number,
+                "span_start": span_start,
+                "span_end": span_end,
+            }
+        )
+    return entries
+
+
+def _add_synastry_gate_token_entries(
+    rendered_lines: list[str],
+    position_info_map: dict[int, Any],
+    *,
+    excluded_line_indices: set[int] | None = None,
+) -> None:
+    """Make otherwise-unmapped gate numbers in synastry output clickable."""
+    excluded = excluded_line_indices or set()
+    for line_index, line_text in enumerate(rendered_lines):
+        if line_index in excluded:
+            continue
+        existing_entries = position_info_map.setdefault(line_index, [])
+        existing_spans = [
+            (int(entry["span_start"]), int(entry["span_end"]))
+            for entry in existing_entries
+            if isinstance(entry.get("span_start"), int) and isinstance(entry.get("span_end"), int)
+        ]
+        for entry in _find_channel_tokens(line_text):
+            span_start = int(entry["span_start"])
+            span_end = int(entry["span_end"])
+            if any(
+                span_start < existing_end and span_end > existing_start
+                for existing_start, existing_end in existing_spans
+            ):
+                continue
+            existing_entries.append(entry)
+            existing_spans.append((span_start, span_end))
+        for entry in _find_gate_line_tokens(line_text):
+            span_start = int(entry["span_start"])
+            span_end = int(entry["span_end"])
+            if any(
+                span_start < existing_end and span_end > existing_start
+                for existing_start, existing_end in existing_spans
+            ):
+                continue
+            existing_entries.append(entry)
+        if not existing_entries:
+            position_info_map.pop(line_index, None)
+
+
 def build_human_design_synastry_data_output(
     hd_a: HumanDesignResult,
     hd_b: HumanDesignResult,
+    *,
+    chart_a_name: str = "Chart A",
+    chart_b_name: str = "Chart B",
 ) -> tuple[str, dict[int, Any], int]:
     """Build synastry HD output treating two charts as one aggregate chart."""
     active_lines = {
@@ -524,14 +670,18 @@ def build_human_design_synastry_data_output(
         activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)
     }
     chart_a_channels = sorted(
-        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-        for gate_a, gate_b, _center_a, _center_b in CHANNELS
-        if gate_a in chart_a_active_gates and gate_b in chart_a_active_gates
+        {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b, _center_a, _center_b in CHANNELS
+            if gate_a in chart_a_active_gates and gate_b in chart_a_active_gates
+        }
     )
     chart_b_channels = sorted(
-        f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
-        for gate_a, gate_b, _center_a, _center_b in CHANNELS
-        if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
+        {
+            f"{min(gate_a, gate_b)}-{max(gate_a, gate_b)}"
+            for gate_a, gate_b, _center_a, _center_b in CHANNELS
+            if gate_a in chart_b_active_gates and gate_b in chart_b_active_gates
+        }
     )
     defined_channels = tuple(
         (gate_a, gate_b, center_a, center_b)
@@ -579,6 +729,10 @@ def build_human_design_synastry_data_output(
         combined_strategy,
         "strategy",
     )
+    incarnation_cross_line, incarnation_cross_entries = _render_clickable_incarnation_cross_line(
+        "Combined Incarnation Cross(es)",
+        combined_crosses,
+    )
 
     channel_lines, channel_info_map = _render_channel_lines(defined_channels)
     gate_line_lines, gate_line_info_map = _render_clickable_gate_line_summary(active_lines)
@@ -586,6 +740,12 @@ def build_human_design_synastry_data_output(
         f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         for stream_entry in build_awareness_stream_completion(active_gates)
     ]
+    chart_a_label = str(chart_a_name or "Chart A").strip() or "Chart A"
+    chart_b_label = str(chart_b_name or "Chart B").strip() or "Chart B"
+    chart_a_gates_text = ", ".join(str(gate) for gate in sorted(chart_a_active_gates)) if chart_a_active_gates else "None"
+    chart_b_gates_text = ", ".join(str(gate) for gate in sorted(chart_b_active_gates)) if chart_b_active_gates else "None"
+    chart_a_channels_text = ", ".join(chart_a_channels) if chart_a_channels else "None"
+    chart_b_channels_text = ", ".join(chart_b_channels) if chart_b_channels else "None"
 
     rendered_lines = [
         CHART_DATA_DIVIDER,
@@ -596,14 +756,12 @@ def build_human_design_synastry_data_output(
         definition_line,
         strategy_line,
         f"Combined Defined Centers: {_format_defined_centers(defined_centers)}",
-        f"Combined Incarnation Cross(es): {', '.join(combined_crosses) if combined_crosses else 'Unknown'}",
+        incarnation_cross_line,
         "",
-        "🟧 Active Gates (Chart A): "
-        + (", ".join(str(gate) for gate in sorted(chart_a_active_gates)) if chart_a_active_gates else "None"),
-        "🟦 Active Gates (Chart B): "
-        + (", ".join(str(gate) for gate in sorted(chart_b_active_gates)) if chart_b_active_gates else "None"),
-        "🟧 Active Channels (Chart A): " + (", ".join(chart_a_channels) if chart_a_channels else "None"),
-        "🟦 Active Channels (Chart B): " + (", ".join(chart_b_channels) if chart_b_channels else "None"),
+        f"{chart_a_label}'s active gates: {chart_a_gates_text}",
+        f"{chart_b_label}'s active gates: {chart_b_gates_text}",
+        f"{chart_a_label}'s active channel(s): {chart_a_channels_text}",
+        f"{chart_b_label}'s active channel(s): {chart_b_channels_text}",
         "",
         CHART_DATA_DIVIDER,
         "GATES & LINES",
@@ -630,12 +788,25 @@ def build_human_design_synastry_data_output(
     ):
         position_info_map.setdefault(rendered_lines.index(line_text), []).append(entry)
 
+    incarnation_cross_line_index = rendered_lines.index(incarnation_cross_line)
+    if incarnation_cross_entries:
+        position_info_map.setdefault(incarnation_cross_line_index, []).extend(incarnation_cross_entries)
+
     gates_header_index = rendered_lines.index("GATES & LINES")
     for relative_line_index, entries in gate_line_info_map.items():
         position_info_map.setdefault(gates_header_index + 2 + relative_line_index, []).extend(entries)
 
     channels_header_index = rendered_lines.index("CHANNELS")
+    channel_line_indices: set[int] = set()
     for relative_line_index, entries in channel_info_map.items():
-        position_info_map.setdefault(channels_header_index + 2 + relative_line_index, []).extend(entries)
+        absolute_line_index = channels_header_index + 2 + relative_line_index
+        position_info_map.setdefault(absolute_line_index, []).extend(entries)
+        channel_line_indices.add(absolute_line_index)
+
+    _add_synastry_gate_token_entries(
+        rendered_lines,
+        position_info_map,
+        excluded_line_indices=channel_line_indices,
+    )
 
     return "\n".join(rendered_lines), position_info_map, 0
