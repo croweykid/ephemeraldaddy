@@ -236,6 +236,7 @@ def create_human_design_synastry_dialog(
     summary_output.setTabStopDistance(6)
     apply_chart_data_highlighter(summary_output)
     summary_output.setMinimumHeight(220)
+    summary_output.viewport().installEventFilter(parent)
     right_splitter.addWidget(summary_output)
     right_splitter.setStretchFactor(0, 7)
     right_splitter.setStretchFactor(1, 3)
