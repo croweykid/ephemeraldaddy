@@ -4541,19 +4541,47 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     2:{ #needs weights
         "name":"Caretaker",
-        "signs":{"Libra","Capricorn","Cancer"}, #Pisces dominance were average in my meager sample of 22. Need a bigger sample, but gotta listen to the data for now.
-        "antisigns":{"Gemini",},
-        "houses":{11,6,}, 
-        "antihouses":{},
-        "bodies":{"Sun","Venus","Ceres","Chiron","Neptune"}, #Venus was the biggest indicator! But is that because they were known for being service-oriented??
-        "antibodies":{"Mars",}, #moon dominange is just below avg in selection; busy looking out for #1, evidently
-        "nakshatras":{"Purva Ashadha","Pushya","Shatabhisha","Punarvasu","Bharani","Uttara Bhadrapada"},
-        "antinakshatras":{"Krittika","Purva Bhadrapada","Vishakha"}, #the 'bad' gems, and 'bad' pisces...hahaha
-        "positions":{"Chiron in H12","Juno in H5","Ketu in H1","Neptune in H6","Rahu in H7","Venus in H11","Venus in H3","Ceres in H1","Ceres in H4","Chiron in H3","Juno in H1","Neptune in H11","Rahu in H8","Virgo in H2","Libra in H3","Mars in Cancer","Vesta in Cancer","Moon in Cancer","Moon in Pisces","Juno in Scorpio","Jupiter in Cancer","Pallas in Aquarius","Fortune in Capricorn","Sun in Taurus","Ceres in Aquarius","Chiron in Leo","Sun in Taurus","Vesta in Taurus","Jupiter in Libra","Moon in Virgo","Rahu in Pisces","Sun in Cancer","Sun in Capricorn","AS in Cancer","AS in Capricorn","Juno in Cancer","Pallas in Scorpio","Venus in Pisces","Scorpio in H4","Taurus in H10","Juno in H1",
+        "signs":{"Libra":7,"Capricorn":7,"Cancer":3,"Scorpio":4}, #Pisces dominance were average in my meager sample of 22. Need a bigger sample, but gotta listen to the data for now.
+        "antisigns":{"Gemini":5,},
+        "houses":{10:9,4:5,7:5,11:4,5:6}, 
+        "antihouses":{1:5},
+        "bodies":{"Venus":13,"Sun":5}, #Venus was the biggest indicator! But is that because they were known for being service-oriented??
+        "antibodies":{"Jupiter":9,"Mars":5,"Uranus":6,}, #moon dominange is just below avg in selection; busy looking out for #1, evidently
+        "nakshatras":{
+            "Krittika":3,"Hasta":3,"Swati":4,"Chitra":3,"Purva Bhadrapada":3,"Dhanishta":11,"Ashwini":3,"Magha":4,"Punarvasu":5,
+        },
+        "antinakshatras":{"Krittika":3,"Arda":4,"Ashlesha":4,"Mula":6,"Shravana":6}, #the 'bad' gems, and 'bad' pisces...hahaha
+        "positions":{
+            "Sun in Taurus":1,"Sun in Cancer":7,"Sun in Capricorn":1,
+            "Moon in Cancer":1,"Moon in Pisces":1,"Moon in Virgo":1,"Moon in Scorpio":7,"Moon in Leo":7,"Moon in H11":7,
+            "Mercury in Capricorn":5,
+            "Venus in Gemini":10,"Venus in Pisces":1,"Venus in H11":1,"Venus in H6":7,
+            "Mars in Cancer":1,"Mars in H11":7,"Mars in H4":7,
+            "Jupiter in Cancer":1,"Jupiter in Libra":7,
+            "Neptune in Libra":8,"Neptune in H9":7,
+            "Uranus in Gemini":8, #idk, maybe it was a more caring age. lol
+            "Pluto in H3":7,"Pluto in H8":6,
+            "Juno in Libra":7,"Juno in Scorpio":8,"Juno in Cancer":1,"Juno in H1":1,"Juno in H5":1,
+            "Rahu in Pisces":6,"Ketu in Aquarius":7,"Ketu in H5":13,"Rahu in H7":10,"Rahu in H8":7,
+            "Ceres in Pisces":7,"Ceres in H1":1,"Ceres in H4":1,
+            "Chiron in Leo":1,"Chiron in H3":1,"Chiron in H12":1,
+            "Pallas in Aquarius":11,"Pallas in Scorpio":1,"Pallas in H6":8,
+            "Lilith in Scorpio":8,
+            "Vesta in Cancer":8,"Vesta in Taurus":1,"Vesta in Sagittarius":8,"Vesta in H4":7,
+            "Fortune in Capricorn":5,
+            "Scorpio in H11":11,"Pisces in H3":14,
             #"Neptune in Capricorn","Pluto in Scorpio", #ignoring outer planets here; might be gaussian noise
         },
         #these were true for people working in healthcare, but not my list of 'e2s': {"Rahu in Pisces","Moon in Cancer","Chiron in Pisces","Ceres in Pisces","Mars in Pisces","Vesta in H4", "Taurus in H10","Neptune in H4","Ceres in H11"},
-        "antipositions":{"Chiron in Pisces","Chiron in Aries","Taurus in H1","Venus in Libra","Gemini in H1","Uranus in Aries","Sun in Pisces","Pluto in Virgo",}, 
+        "antipositions":{
+            "Sun in Pisces":1,
+            "Venus in Libra":1,
+            "Neptune in Scorpio":7,
+            "Uranus in Aries":1,
+            "Pluto in Virgo":1,
+            "Chiron in Pisces":1,"Chiron in Aries":1,
+            "Gemini in H1":1,"Taurus in H1":1,
+        }, 
         #have another look at aspects for e2, cos I added a bunch and now it might have changed the data:
         "aspects":{"Ceres trine Jupiter","Ceres sextile Juno","Saturn square True Lilith","Ceres trine Moon","AS trine Juno","Ceres opposition Neptune","Ceres sextile Mercury","Ceres sextile Fortune","Juno sextile Ketu","Ketu conjunction Sun","Ketu square Neptune","Mars trine Fortune","Mars trine Rahu","Neptune square Rahu","Pallas sextile Pluto","True Lilith sextile Venus","Venus sextile Vesta","Ceres conjunction Moon",}, #wow, Neptune is super at odds with e2?? And the Moon can work cooperatively, but only if Ceres inspires it, or if Juno is involved.
         #these were aspects for healthcare workers, not e2s:{"Ceres sextile Mercury","Chiron trine Vesta","Chiron trine True Lilith","Juno trine Neptune","Mercury trine Neptune","Ketu trine Venus","Ketu square Venus"},
@@ -4570,8 +4598,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiprofiles":{},
         "authorities":{},
         "antiauthorities":{},
-        "bazisigns":{"Dragon":4,"Goat":4},
-        "antibazisigns":{"Horse":4},
+        "bazisigns":{"Dragon":3,"Goat":4},
+        "antibazisigns":{"Tiger":3},
         "color":"#cc9900",
         "motivation":"To be useful & necessary to others",
         "why":"to be essential to others; to be useful, needed and loved",
@@ -4850,9 +4878,28 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibodies":{"Mars","Mercury"},
         "nakshatras":{"Ardra","Dhanishta","Shatabhisha","Uttara Bhadrapada",}, #Jyestha came up, but I think they're faking it
         "antinakshatras":{"Uttara Phalguni","Swati"}, 
-        "positions":{"Virgo in H4","Pisces in H10","Pisces in H4","Virgo in H10","Neptune in Scorpio","Neptune in Capricorn","Pluto in Scorpio","Uranus in Capricorn","Chiron in Taurus","Pallas in Pisces","Jupiter in Cancer","Fortune in Aquarius","Cancer in H1","Moon in Leo","Moon in Sagittarius","Neptune in Aquarius","Pluto in Sagittarius","Saturn in Taurus","Ceres in Sagittarius","Ceres in Taurus","Juno in Aquarius","Juno in Libra","Mercury in Cancer","Mercury in Libra","Moon in Aries","Saturn in Capricorn","Sun in Capricorn","Sun in Pisces","Lilith in Aries","Uranus in Aquarius","Uranus in Scorpio","Neptune in H6","Moon in H4","Fortune in H6","Pluto in H4","Uranus in H5","Chiron in H11","Chiron in H12","Mars in H4","Ketu in H9","Rahu in H3","Saturn in H3","Sun in H4","Uranus in H10","Fortune in H3","Venus in H5","Venus in H7","Vesta in H6",},#"Sun in Pisces","Sun in Libra","Sun in Virgo","Moon in Leo","Moon in Aries","Moon in Sagittarius","Mercury in Aquarius","Mercury in Cancer","Mercury in Libra","Venus in Capricorn","Venus in Aries","Mars in Leo","Mars in Libra","Mars in Pisces","Jupiter in Cancer","Saturn in Taurus","Saturn in Capricorn"},
+        "positions":{
+            "Virgo in H4","Pisces in H10","Pisces in H4","Virgo in H10","Cancer in H1",
+            "Sun in Capricorn","Sun in Pisces",
+            "Moon in Leo","Moon in Sagittarius","Moon in H4",
+            "Mercury in Cancer","Mercury in Libra","Moon in Aries",
+            "Uranus in Capricorn",
+            "Chiron in Taurus","Chiron in H11","Chiron in H12",
+            "Fortune in Aquarius","Fortune in H6",
+            "Pallas in Pisces","Lilith in Aries",
+            "Jupiter in Cancer",
+            "Saturn in Taurus","Saturn in Capricorn",
+            "Neptune in H6",
+            "Uranus in Aquarius","Uranus in Scorpio","Uranus in H5",
+            "Ketu in H9",
+            "Ceres in Sagittarius","Ceres in Taurus",
+            "Juno in Aquarius","Juno in Libra",
+            "Mars in H4","Rahu in H3","Saturn in H3","Sun in H4","Uranus in H10","Fortune in H3","Venus in H5","Venus in H7","Vesta in H6",
+        },
         "antipositions":{"Neptune in Libra","Pallas in Aquarius","Pluto in Leo",},#"Sun in Taurus","Sun in Scorpio","Sun in Leo","Sun in Aquarius","Moon in Aquarius","Moon in Taurus","Moon in Gemini","Moon in Cancer","Moon in Virgo","Moon in Capricorn","Mercury in Gemini","Mercury in Scorpio","Mercury in Pisces","Mercury in Leo","Venus in Sagittarius",,"Mars in Scorpio","Mars in Capricorn","Saturn in Aquarius","Mars in Aquarius"},
-        "aspects":{"Pallas trine Pluto","Chiron trine Jupiter","Juno trine Saturn","Chiron sextile Juno","Neptune sextile Pallas","Pallas square Vesta","Saturn trine Sun","Ceres opposition Jupiter","Ceres sextile Fortune","Ceres trine Moon","Chiron opposition Saturn","Juno trine Mars","Juno trine Uranus","Ketu trine Neptune","Mercury square Moon","Moon sextile Uranus","Mars trine Neptune","Moon square Sun","Neptune quincunx Sun","Neptune square Fortune","Saturn trine Venus","Ceres sextile Rahu","Ceres sextile Sun","Ceres trine Ketu","Chiron trine Fortune","Juno conjunction Mercury","Juno square Moon","Jupiter opposition Sun","Mars sextile Pluto","Fortune opposition Lilith","IC sextile Uranus","IC trine Jupiter"},
+        "aspects":{
+            "Pallas trine Pluto","Chiron trine Jupiter","Juno trine Saturn","Chiron sextile Juno","Neptune sextile Pallas","Pallas square Vesta","Saturn trine Sun","Ceres opposition Jupiter","Ceres sextile Fortune","Ceres trine Moon","Chiron opposition Saturn","Juno trine Mars","Juno trine Uranus","Ketu trine Neptune","Mercury square Moon","Moon sextile Uranus","Mars trine Neptune","Moon square Sun","Neptune quincunx Sun","Neptune square Fortune","Saturn trine Venus","Ceres sextile Rahu","Ceres sextile Sun","Ceres trine Ketu","Chiron trine Fortune","Juno conjunction Mercury","Juno square Moon","Jupiter opposition Sun","Mars sextile Pluto","Fortune opposition Lilith","IC sextile Uranus","IC trine Jupiter"
+        },
         "antiaspects":{},
         "gates":{20,5,54,18,58,26,48,63,8,9,17,30,52,55},
         "antigates":{1,44,50,6,33,43,2,60,4,42,49,7,3,24},
