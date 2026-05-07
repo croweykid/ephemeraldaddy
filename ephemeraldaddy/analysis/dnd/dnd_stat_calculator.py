@@ -79,11 +79,11 @@ def _normalize_weighted_stat_scores(raw_scores: Mapping[str, float]) -> Dict[str
     the evidence gap was small.
 
     This absolute tanh calibration keeps neutral evidence at the average anchor
-    (0.5), lets genuinely large positive/negative evidence approach the bounds,
-    and avoids manufacturing CHA 5 / WIS 5 / STR 20 profiles from merely being
-    the weakest/strongest entries in a six-stat list.
+    (0.5), reserves the 5/20 bounds for exceptional evidence, and avoids
+    manufacturing CHA 5 / WIS 11 / several-20 profiles from ordinary weighted
+    predictor matches.
     """
-    evidence_scale = 4.0
+    evidence_scale = 24.0
     return {
         key: _clamp01(0.5 + (0.5 * math.tanh(float(value) / evidence_scale)))
         for key, value in raw_scores.items()
@@ -103,8 +103,12 @@ def _shape_stat_profile(
             if effect is None:
                 continue
             weight = max(0.0, float(sign_weight))
-            values[effect["major"]] = _clamp01(values.get(effect["major"], 0.0) + (0.30 * weight))
-            values[effect["minor"]] = _clamp01(values.get(effect["minor"], 0.0) + (0.14 * weight))
+            major_key = effect["major"]
+            minor_key = effect["minor"]
+            major_value = values.get(major_key, 0.0)
+            minor_value = values.get(minor_key, 0.0)
+            values[major_key] = _clamp01(major_value + ((1.0 - major_value) * 0.10 * weight))
+            values[minor_key] = _clamp01(minor_value + ((1.0 - minor_value) * 0.05 * weight))
             # Temporarily disabling sign-based nerfs per product direction.
     return values
 
@@ -209,6 +213,7 @@ def score_dnd_statblock(
     }
     modifiers = {key: int((value - 10) // 2) for key, value in scores.items()}
     return DnDStatBlock(raw_scores=raw_scores, scores=scores, modifiers=modifiers)
+
 
 def build_dnd_statblock_profile_lines(
     statblock: DnDStatBlock,

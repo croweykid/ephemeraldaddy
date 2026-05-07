@@ -63,8 +63,7 @@ def test_weighted_stat_scores_use_absolute_evidence_not_per_chart_minmax():
     normalized = _normalize_weighted_stat_scores(raw_scores)
     dnd_scores = {key: _to_dnd_stat(value) for key, value in normalized.items()}
 
-    assert dnd_scores["STR"] == 13
-    assert all(10 <= dnd_scores[key] <= 12 for key in ("DEX", "CON", "INT", "WIS", "CHA"))
+    assert all(10 <= dnd_scores[key] <= 12 for key in ("STR", "DEX", "CON", "INT", "WIS", "CHA"))
     assert min(dnd_scores.values()) > 5
     assert max(dnd_scores.values()) < 20
 
@@ -86,7 +85,7 @@ def test_score_dnd_statblock_does_not_force_min_and_max_for_ordinary_spreads(mon
     statblock = stat_calculator.score_dnd_statblock(SimpleNamespace(name="Ordinary spread"))
 
     assert statblock.scores == {
-        "STR": 13,
+        "STR": 11,
         "DEX": 11,
         "CON": 11,
         "INT": 11,
@@ -106,3 +105,46 @@ def test_stat_profile_shaping_does_not_amplify_existing_spread_without_sign_flav
     }
 
     assert _shape_stat_profile(raw_scores) == raw_scores
+
+
+def test_weighted_stat_scores_reserve_bounds_for_exceptional_evidence():
+    raw_scores = {
+        "STR": 24.0,
+        "DEX": 18.0,
+        "CON": 16.0,
+        "INT": 14.0,
+        "WIS": 0.0,
+        "CHA": -18.0,
+    }
+
+    normalized = _normalize_weighted_stat_scores(raw_scores)
+    dnd_scores = {key: _to_dnd_stat(value) for key, value in normalized.items()}
+
+    assert dnd_scores == {
+        "STR": 18,
+        "DEX": 17,
+        "CON": 16,
+        "INT": 16,
+        "WIS": 11,
+        "CHA": 7,
+    }
+    assert 20 not in dnd_scores.values()
+    assert 5 not in dnd_scores.values()
+
+
+def test_sign_flavor_does_not_force_high_scores_to_twenty():
+    raw_scores = {
+        "STR": 0.85,
+        "DEX": 0.5,
+        "CON": 0.5,
+        "INT": 0.5,
+        "WIS": 0.5,
+        "CHA": 0.5,
+    }
+
+    shaped = _shape_stat_profile(raw_scores, dominant_sign_weights={"Sagittarius": 1.0})
+    dnd_scores = {key: _to_dnd_stat(value) for key, value in shaped.items()}
+
+    assert dnd_scores["STR"] < 20
+    assert shaped["DEX"] > raw_scores["DEX"]
+    assert 10 <= dnd_scores["DEX"] <= 12
