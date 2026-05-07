@@ -881,20 +881,45 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             #Uttara Ashadha is also overrepresented in "Least CHA"
         }, 
         "positions":{
-            "Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,
-            "Moon in Capricorn":4,"Mercury in Taurus":3,"Mercury in Leo":3,
-            "Venus in Taurus":2,"Venus in Gemini":5,
-            "Mars in Aries":3,
-            "Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,
-            "Cancer in H1":2,"Sun in H2":9,"Neptune in H6":5,"Pluto in H4":5,"Lilith in H10":4,"Jupiter in H6":4,"Juno in H4":5,"Pallas in H3":4,"Mercury in H3":4,"Fortune in H8":5,"Saturn in H11":4,"Mercury in H2":4,"Saturn in H10":4,"Uranus in H1":4,"Mars in H4":3,"Taurus in H10":4,"Gemini in H12":4,"Pluto in Cancer":7,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,"Venus in Aries":3,"Neptune in Leo":4,"Pallas in Cancer":5,"Scorpio in H4":4,"Uranus in Pisces":4,
-        "Chiron in Pisces":8,"Pisces in H7":6,"Neptune in Libra":6,"Pallas in Pisces":6,"Ceres in Taurus":7,"Mars in Pisces":5, #not present in "Most CHA", but absent in "Least CHA"
+            "Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Sun in H2":9,
+            "Moon in Capricorn":4,
+            "Mercury in Taurus":3,"Mercury in Leo":3,"Mercury in H3":4,"Mercury in H2":4,
+            "Venus in Taurus":2,"Venus in Gemini":5,"Venus in Aries":3,
+            "Mars in Aries":3,"Mars in H4":3,
+            "Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,"Jupiter in H6":4,
+            "Saturn in H11":4,"Saturn in H10":4,
+            "Neptune in H6":5,"Neptune in Leo":4,
+            "Uranus in Pisces":4,"Uranus in H1":4,
+            "Pluto in Cancer":7,"Pluto in H4":5,
+            "Lilith in H10":4,"Juno in H4":5,"Pallas in H3":4,"Fortune in H8":5,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,
+            "Cancer in H1":2,"Taurus in H10":4,"Gemini in H12":4,"Pallas in Cancer":5,"Scorpio in H4":4,
+            "Chiron in Pisces":8,"Pisces in H7":6,"Neptune in Libra":6,"Pallas in Pisces":6,"Ceres in Taurus":7,"Mars in Pisces":5,
         },
         "antipositions":{
-            "Sun in Aquarius":5,"Sun in Libra":3,"Moon in Taurus":6,"Mercury in Aquarius":4,"Mercury in Libra":4,"Venus in Leo":2,"Venus in Sagittarius":3,"Venus in Scorpio":3,"Jupiter in Aries":3,"Saturn in Libra":2,"Saturn in H10":4,"Neptune in Capricorn":4,"Uranus in Sagittarius":5,"Fortune in Leo":4,"Chiron in Aquarius":6,"Juno in Leo":5,"Pallas in H10":7,"Fortune in H7":4, #absent from "Most CHA". #fortune in leo being a neg is interesting...what the heck's up with that?
-            "Pluto in Libra":8,"Pallas in Aquarius":5,"Neptune in Capricorn":6,"Ceres in Pisces":6,"Ketu in Aries":8,"Mars in Cancer":8,"Rahu in Libra":8,"Jupiter in Gemini":6,"Mercury in Aquarius":4,"Fortune in Aquarius":5,"Cancer in H1":18,"Vesta in Leo":6,"Juno in Cancer":5,"Pluto in Sagittarius":7,"Pisces in H10":9,"Mars in H10":13,"Ketu in H7":8,"Mercury in H11":8,"Pluto in H4":9,"Rahu in H1":8,"Vesta in H12":7,"Chiron in H12":6,"Chiron in H5":8,"Neptune in H5":6,"Pallas in H8":7,"Saturn in H12":6,"Moon in H10":5,"Neptune in H7":5, #present in "Least CHA"
-            "Pluto in Scorpio":5, #both overabsent from "Most" and overpresent in "Least"
+            "Sun in Aquarius":5,"Sun in Libra":3,
+            "Moon in Taurus":6,"Moon in H10":5,
+            "Mercury in Aquarius":4,"Mercury in Libra":4,"Mercury in H11":8,
+            "Venus in Leo":2,"Venus in Sagittarius":3,"Venus in Scorpio":3,
+            "Mars in Cancer":8,"Mars in H10":13,
+            "Jupiter in Aries":3,"Jupiter in Gemini":6,
+            "Saturn in Libra":2,"Saturn in H10":4,"Saturn in H12":6,
+            "Neptune in Capricorn":4,"Neptune in H5":6,"Neptune in H7":5, 
+            "Uranus in Sagittarius":5,
+            "Pluto in H4":9,
+            "Fortune in Leo":4,"Fortune in H7":4, #fortune in leo being a neg is interesting...what the heck's up with that?
+            "Chiron in Aquarius":6,"Chiron in H12":6,"Chiron in H5":8,
+            "Juno in Leo":5,"Juno in Cancer":5,
+            "Pallas in H10":7, "Pallas in Aquarius":5,"Pallas in H8":7,
+            "Ceres in Pisces":6,
+            "Ketu in Aries":8,"Ketu in H7":8,
+            "Rahu in Libra":8,"Rahu in H1":8,
+            "Fortune in Aquarius":5,
+            "Vesta in Leo":6,"Vesta in H12":7,
+            "Pisces in H10":9,"Cancer in H1":18,
         }, 
-        "aspects":{"Saturn trine Vesta":5,"Pallas square Uranus":3,"Chiron trine Neptune":4,"Mercury trine Moon":6,"Neptune trine Fortune":4,"Lilith trine Vesta":4,"Mars conjunction Mercury":4,"Fortune trine Venus":4,"Rahu trine Venus":4,"Chiron sextile Venus":4,"Pluto sextile Vesta":4,"Ketu square Neptune":4,"Lilith sextile Uranus":5,"Jupiter square Pluto":4,"Jupiter trine Neptune":4,"Mercury square Neptune":4,"Neptune square Saturn":4,"DS square Sun":4,"IC trine Moon":4},
+        "aspects":{
+            "Saturn trine Vesta":5,"Pallas square Uranus":3,"Chiron trine Neptune":4,"Mercury trine Moon":6,"Neptune trine Fortune":4,"Lilith trine Vesta":4,"Mars conjunction Mercury":4,"Fortune trine Venus":4,"Rahu trine Venus":4,"Chiron sextile Venus":4,"Pluto sextile Vesta":4,"Ketu square Neptune":4,"Lilith sextile Uranus":5,"Jupiter square Pluto":4,"Jupiter trine Neptune":4,"Mercury square Neptune":4,"Neptune square Saturn":4,"DS square Sun":4,"IC trine Moon":4
+        },
         "antiaspects":{
             "Chiron opposition Uranus":5,"Sun semisquare Venus":6, #absent from "Most CHA"
             "Pallas square Saturn":10,"Juno square Venus":8,"Ceres square Uranus":6,"Ketu square Fortune":6,"Mars square Neptune":5,"Lilith sextile Uranus":7,"Jupiter square Vesta":6,"Saturn sextile Uranus":7,"Sun square Vesta":6,"Ketu square Vesta":5, #overpresent in "Least CHA"
