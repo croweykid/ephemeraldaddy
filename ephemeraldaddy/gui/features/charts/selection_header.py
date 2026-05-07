@@ -27,7 +27,7 @@ SELECTION_SUMMARY_LABEL_STYLE = (
     "font-size: 12.5px; font-weight: 400; color: #c8914f;"
 )
 _SELECTION_SUMMARY_PREFIX = "Charts Selected:"
-_SELECTION_SUMMARY_HIGHLIGHT_COLOR = "#cc33ff" #alternately: #3399ff
+_SELECTION_SUMMARY_HIGHLIGHT_COLOR = "#ffcc66" #alternately: #3399ff
 
 @dataclass(frozen=True, slots=True)
 class SelectionSummaryCounts:
@@ -104,13 +104,13 @@ def format_selection_summary_html(
     prefix = f"<b>{escape(_SELECTION_SUMMARY_PREFIX)}</b>"
     collection_id = normalize_collection_id(active_collection_id)
     has_filtered_results = bool(active_filters)
-    highlighted_database = _highlight_summary_text("database")
+    #highlighted_database = _highlight_summary_text("database") #swap "database" with "{highlighted_database}" if yo wat to use this
 
     if collection_id == DEFAULT_COLLECTION_ALL:
         if has_filtered_results:
             return (
                 f"{prefix} {counts.selected} of {counts.search_results} results. "
-                f"{counts.database} in {highlighted_database}"
+                f"{counts.database} in database"
             )
         return f"{prefix} {counts.selected} of {counts.database}"
 
@@ -124,12 +124,12 @@ def format_selection_summary_html(
         return (
             f"{prefix} {counts.selected} of {counts.search_results} results. "
             f"{counts.current_collection} in {collection_name} collection. "
-            f"({counts.database} in {highlighted_database})"
+            f"({counts.database} in database)"
         )
     return (
         f"{prefix} {counts.selected} of {counts.current_collection} "
         f"in {collection_name} collection. "
-        f"({counts.database} in {highlighted_database})"
+        f"({counts.database} in database)"
     )
 
 
