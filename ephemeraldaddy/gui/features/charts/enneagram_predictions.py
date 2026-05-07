@@ -11,6 +11,7 @@ from typing import Any, Callable
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     ASPECT_SCORE_WEIGHTS,
+    ENNEAGRAM_REALMS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
@@ -40,6 +41,10 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
 ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
+ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
+ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
+ENNEAGRAM_REALM_WEIGHT_MID_COLOR = (255, 235, 59)
+ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR = (0, 255, 102)
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
@@ -632,6 +637,68 @@ def build_enneagram_popout_info_html(
         "</div>"
         f"{debug_html}"
     )
+
+
+def enneagram_realm_scores_for_type_scores(type_scores: dict[int, float]) -> dict[str, float]:
+    """Return combined Enneagram score totals for head, heart, and body realms."""
+    realm_scores: dict[str, float] = {}
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        realm_config = ENNEAGRAM_REALMS.get(realm_name, {})
+        realm_types = realm_config.get("types", set())
+        realm_scores[realm_name] = sum(
+            float(type_scores.get(int(type_num), 0.0)) for type_num in realm_types
+        )
+    return realm_scores
+
+
+def _interpolate_enneagram_realm_color(
+    start: tuple[int, int, int],
+    end: tuple[int, int, int],
+    ratio: float,
+) -> str:
+    clamped_ratio = max(0.0, min(1.0, float(ratio)))
+    red = int(round(start[0] + ((end[0] - start[0]) * clamped_ratio)))
+    green = int(round(start[1] + ((end[1] - start[1]) * clamped_ratio)))
+    blue = int(round(start[2] + ((end[2] - start[2]) * clamped_ratio)))
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def enneagram_realm_color_for_score(score: float) -> str:
+    """Map an Enneagram realm score onto a dark-red/yellow/green weight scale."""
+    color_ceiling = max(
+        1.0,
+        sum(max(0.0, float(weight)) for weight in ENNEAGRAM_CATEGORY_WEIGHTS.values()),
+    )
+    color_midpoint = color_ceiling / 2.0
+    clamped_score = max(0.0, min(float(score), color_ceiling))
+    if clamped_score <= color_midpoint:
+        return _interpolate_enneagram_realm_color(
+            ENNEAGRAM_REALM_WEIGHT_LOW_COLOR,
+            ENNEAGRAM_REALM_WEIGHT_MID_COLOR,
+            clamped_score / color_midpoint if color_midpoint > 0 else 0.0,
+        )
+    return _interpolate_enneagram_realm_color(
+        ENNEAGRAM_REALM_WEIGHT_MID_COLOR,
+        ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR,
+        (clamped_score - color_midpoint) / color_midpoint
+        if color_midpoint > 0
+        else 1.0,
+    )
+
+
+def enneagram_realm_summary_html(type_scores: dict[int, float]) -> str:
+    """Return weight-colored HTML summarizing combined Head/Heart/Body weights."""
+    realm_scores = enneagram_realm_scores_for_type_scores(type_scores)
+    realm_tokens = []
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        label = realm_name.title()
+        score = realm_scores.get(realm_name, 0.0)
+        color = enneagram_realm_color_for_score(score)
+        realm_tokens.append(
+            f"<span style='color:{color};font-weight:700;'>"
+            f"{html.escape(label)} ({score:.1f})</span>"
+        )
+    return ", ".join(realm_tokens) + "."
 
 
 def tritype_text_for_scores(type_scores: dict[int, float]) -> str:
