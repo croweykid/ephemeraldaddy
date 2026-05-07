@@ -4801,9 +4801,9 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
 } #no one knows wtf Hasta wants. lol Bharani is hunger, but not in a chill or fun way. Uttara Phalguni for e2 is experimental. P. Phal is experimental for e7 but seems to fit.
 
 ENNEAGRAM_REALMS = {
-    "heart" : {"signs":{"Pisces","Cancer","Scorpio","Leo"},"houses":{4,5,7,10,}},
-    "head" : {"signs":{"Aries","Virgo","Aquarius","Libra","Gemini"},"houses":{1,3,9,11}},
-    "body" : {"signs":{"Capricorn","Taurus","Leo","Sagittarius","Virgo"},"houses":{2,6,8,12}},
+    "heart" : {"signs":{"Pisces","Cancer","Scorpio","Leo"},"houses":{4,5,7,10,},"types":{2,3,4}},
+    "head" : {"signs":{"Aries","Virgo","Aquarius","Libra","Gemini"},"houses":{1,3,9,11},"types":{5,6,7}},
+    "body" : {"signs":{"Capricorn","Taurus","Leo","Sagittarius","Virgo"},"houses":{2,6,8,12},"types":{8,9,1}},
 }
 
 ENNEAGRAM_VARIANTS = { #the scale/scope of one's focus. Gemini has no evident preference, as far as I can tell. Capricorns technically operate at any scope, but their bottom line is always sp, I think.
@@ -4814,7 +4814,7 @@ ENNEAGRAM_VARIANTS = { #the scale/scope of one's focus. Gemini has no evident pr
      {},"color":"","description":"",}, }
 
 TRAITS = {
-    "conflict avoidant":{
+    "conflict_avoidant":{
      "name":"Conflict Avoidant",
         "signs":{"Capricorn":10,"Sagittarius":9,"Libra":7,"Gemini":4,"Cancer":4}, #Pretty sure Sagittarius is just trying not to go to jail...again. But maybe it's a specific nakshatra of Sag that's calling those shots. Also-- no pisces??
         "antisigns":{"Taurus":8,"Leo":6,"Scorpio":4}, 
@@ -4826,6 +4826,37 @@ TRAITS = {
         "antinakshatras":{"Pushya":3,"Swati":3,"Anuradha":4,"Mula":4,"Shravana":3,"Revati":5,}, 
         "positions":{"Sun in Pisces":6,"Sun in Leo":3,"Moon in Gemini":3,"Moon in Leo":4,"Moon in Aquarius":3,"Venus in Aquarius":5,"Venus in Cancer":3}, #not sure about sun in leo...
         "antipositions":{"Sun in Taurus":6,"Sun in Sagittarius":5,"Sun in Aquarius":4,"Moon in Virgo":8,"Moon in Capricorn":4,"Mercury in Scorpio":7,"Mercury in Capricorn":3,"Venus in Libra":4,"Venus in Scorpio":5,"Venus in Pisces":3,"Venus in Sagittarius":3},
+        "aspects":{},
+        "antiaspects":{},
+        "gates":{},
+        "antigates":{},
+        #"channels":{}
+        #"antichannels":{},
+        "centers":{},
+        "anticenters":{},
+        "profiles":{},
+        "antiprofiles":{},
+        "authorities":{},
+        "antiauthorities":{},
+        "bazisigns":{},
+        "antibazisigns":{},
+        "color":"#cc99ff",
+        "motivation":"",
+        "description":"",
+        "quotes":{""},
+        },
+    "sex_symbol":{
+     "name":"Sex Symbol",
+        "signs":{},
+        "antisigns":{},
+        "houses":{},
+        "antihouses":{},
+        "bodies":{},
+        "antibodies":{},
+        "nakshatras":{}, 
+        "antinakshatras":{}, 
+        "positions":{},
+        "antipositions":{},
         "aspects":{},
         "antiaspects":{},
         "gates":{},
