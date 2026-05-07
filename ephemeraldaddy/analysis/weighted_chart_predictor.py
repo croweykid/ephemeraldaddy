@@ -476,6 +476,29 @@ def _bazi_weights_from_pillars(chart: Any) -> dict[str, float]:
     return weights
 
 
+def _effective_bazi_datetime_and_hour_policy(chart: Any) -> tuple[Any, bool]:
+    chart_dt = getattr(chart, "dt", None)
+    include_hour = default_chart_uses_houses(chart)
+    if chart_dt is None:
+        return None, include_hour
+    if include_hour and bool(getattr(chart, "retcon_time_used", False)):
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_hour is not None and retcon_minute is not None:
+            try:
+                chart_dt = chart_dt.replace(
+                    hour=int(retcon_hour),
+                    minute=int(retcon_minute),
+                    second=0,
+                    microsecond=0,
+                )
+            except Exception:
+                pass
+    if getattr(chart_dt, "tzinfo", None) is not None:
+        chart_dt = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
+    return chart_dt, include_hour
+
+
 def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
     for attr_name in ("bazi_sign_weights", "bazi_branch_weights", "dominant_bazi_sign_weights"):
         raw_weights = getattr(chart, attr_name, None)
@@ -499,13 +522,10 @@ def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
 
     from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 
-    chart_dt = getattr(chart, "dt", None)
+    chart_dt, include_hour = _effective_bazi_datetime_and_hour_policy(chart)
     if chart_dt is None:
         return {}
-    if getattr(chart_dt, "tzinfo", None) is not None:
-        chart_dt = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
     try:
-        include_hour = default_chart_uses_houses(chart)
         bazi_data = build_bazi_chart_data(chart_dt, include_hour=include_hour)
     except Exception:
         return {}
