@@ -31,7 +31,10 @@ stub_axes.validate_axis_scores = lambda _axis_scores: None
 sys.modules["ephemeraldaddy.analysis.dnd.dnd_class_axes_v2"] = stub_axes
 
 from ephemeraldaddy.analysis.dnd import dnd_stat_calculator as stat_calculator
+from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_STAT_PREDICTORS
 from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
+    _calculate_predictor_criteria_budgets,
+    _calculate_stat_evidence_denominators,
     _normalize_weighted_stat_scores,
     _shape_stat_profile,
     _to_dnd_stat,
@@ -92,6 +95,43 @@ def test_score_dnd_statblock_does_not_force_min_and_max_for_ordinary_spreads(mon
         "WIS": 11,
         "CHA": 11,
     }
+
+
+def test_dnd_stat_evidence_denominators_account_for_criteria_coverage():
+    budgets = _calculate_predictor_criteria_budgets(DND_STAT_PREDICTORS)
+    denominators = _calculate_stat_evidence_denominators(DND_STAT_PREDICTORS)
+
+    assert budgets["DEX"] > budgets["WIS"] * 100
+    assert denominators["DEX"] == budgets["DEX"]
+    assert denominators["WIS"] > budgets["WIS"]
+
+
+def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypatch):
+    monkeypatch.setattr(
+        stat_calculator,
+        "calculate_weighted_criteria_scores",
+        lambda _chart, *, predictors: {
+            "STR": 24.0,
+            "DEX": 18.0,
+            "CON": 16.0,
+            "INT": 14.0,
+            "WIS": 0.0,
+            "CHA": -18.0,
+        },
+    )
+
+    statblock = stat_calculator.score_dnd_statblock(SimpleNamespace(name="Uneven criteria spread"))
+
+    assert statblock.scores == {
+        "STR": 14,
+        "DEX": 13,
+        "CON": 14,
+        "INT": 14,
+        "WIS": 11,
+        "CHA": 9,
+    }
+    assert 20 not in statblock.scores.values()
+    assert 5 not in statblock.scores.values()
 
 
 def test_stat_profile_shaping_does_not_amplify_existing_spread_without_sign_flavor():
