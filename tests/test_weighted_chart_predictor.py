@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
 
 
@@ -51,7 +53,7 @@ def test_scores_human_design_and_bazi_metadata_categories():
 
     scores = _score(predictors, chart)
 
-    assert scores["match"] == 28.0
+    assert scores["match"] == pytest.approx(0.9610389610389609)
     assert scores["miss"] == 0.0
 
 
@@ -71,7 +73,74 @@ def test_scores_bazi_signs_from_stored_pillars():
 
     scores = _score(predictors, chart)
 
-    assert scores["bazi"] == 3.0
+    assert scores["bazi"] == pytest.approx(0.4)
+
+
+def test_scores_normalize_all_positive_criteria_across_categories():
+    chart = SimpleNamespace(
+        human_design_type="Generator",
+        human_design_defined_centers=["Sacral"],
+        human_design_profile="4/1",
+        human_design_authority="Sacral",
+        positions={"Sun": 120.0, "Moon": 90.0},
+    )
+    predictors = {
+        "charisma": {
+            "profiles": {"4/1": 3},
+            "positions": {"Sun in Leo": 96, "Moon in Cancer": None},
+        }
+    }
+
+    scores = _score(predictors, chart)
+
+    assert scores["charisma"] == pytest.approx(1.0)
+
+
+def test_scores_normalize_positive_and_anti_criteria_separately():
+    chart = SimpleNamespace(
+        dominant_sign_weights={"Taurus": 2.0, "Aries": 0.0},
+        dominant_nakshatra_weights={"Anuradha": 3.0, "Mula": 7.0, "Ashwini": 0.0},
+        positions={"Sun": 120.0, "Moon": 90.0},
+    )
+    predictors = {
+        "target": {
+            "signs": {"Taurus": 2},
+            "positions": {"Sun in Leo": 1, "Moon in Cancer": 2},
+            "antinakshatras": {"Anuradha": 3, "Mula": 7},
+        }
+    }
+
+    scores = _score(predictors, chart)
+
+    assert scores["target"] == pytest.approx(0.17142857142857149)
+
+
+def test_category_weights_and_criterion_multipliers_are_ignored():
+    chart = SimpleNamespace(
+        human_design_type="Generator",
+        human_design_defined_centers=["Sacral"],
+        human_design_profile="4/1",
+        human_design_authority="Sacral",
+    )
+    predictors = {
+        "target": {
+            "profiles": {"4/1": 1},
+            "criterion_multipliers": {"profiles": 999},
+        }
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        category_weights={"profiles": 999},
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+    )
+
+    assert scores["target"] == pytest.approx(1.0)
 
 
 def test_skips_hd_gate_and_bazi_resolution_when_predictors_do_not_use_those_categories(monkeypatch):

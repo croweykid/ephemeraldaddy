@@ -513,13 +513,12 @@ def build_enneagram_popout_info_html(
             if category == "body_in_house" and isinstance(container, int):
                 body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
                 house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
-                score = float(body_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
                 matched = body_house_lookup.get(str(subject)) == container
-                return f"<li>{body_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+                score = 1.0 if matched else 0.0
+                return f"<li>{body_html} in {house_html}: {'✓' if matched else '✗'} match {score:.0f}</li>"
             if category == "sign_in_house" and isinstance(container, int):
                 sign_html = _color_token(str(subject), SIGN_COLORS.get(str(subject), text_color))
                 house_html = _color_token(f"H{container}", HOUSE_COLORS.get(str(container), text_color))
-                score = float(sign_weights.get(str(subject), 0.0)) + float(house_weights.get(container, 0.0))
                 matched = False
                 for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
                     body = _normalize_factor_value(str(raw_body))
@@ -531,29 +530,25 @@ def build_enneagram_popout_info_html(
                             break
                     except (TypeError, ValueError):
                         continue
-                return f"<li>{sign_html} in {house_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+                score = 1.0 if matched else 0.0
+                return f"<li>{sign_html} in {house_html}: {'✓' if matched else '✗'} match {score:.0f}</li>"
             if category == "body_in_sign" and isinstance(container, str):
                 body_html = _color_token(str(subject), PLANET_COLORS.get(str(subject), text_color))
                 sign_html = _color_token(container, SIGN_COLORS.get(container, text_color))
-                score = float(body_weights.get(str(subject), 0.0)) + float(sign_weights.get(container, 0.0))
                 body_lon = (getattr(chart, "positions", None) or {}).get(str(subject))
                 matched = False
                 try:
                     matched = sign_for_longitude(float(body_lon)) == container
                 except (TypeError, ValueError):
                     pass
-                return f"<li>{body_html} in {sign_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+                score = 1.0 if matched else 0.0
+                return f"<li>{body_html} in {sign_html}: {'✓' if matched else '✗'} match {score:.0f}</li>"
             return f"<li>{html.escape(raw_position)}: ✓ parsed</li>"
         def _format_aspect_item(raw_aspect: str) -> str:
             parsed_aspect = _parse_aspect_spec(raw_aspect)
             if parsed_aspect is None:
                 return f"<li>{html.escape(raw_aspect)}: ✗ parse error</li>"
             left_body, aspect_type, right_body = parsed_aspect
-            score = (
-                float(body_weights.get(left_body, 0.0))
-                + float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
-                + float(body_weights.get(right_body, 0.0))
-            )
             matched = any(
                 {_normalize_factor_value(str(a.get("p1", ""))), _normalize_factor_value(str(a.get("p2", "")))} == {left_body, right_body}
                 and str(a.get("type", "")).strip().lower() == aspect_type
@@ -562,7 +557,8 @@ def build_enneagram_popout_info_html(
             left_html = _color_token(left_body, PLANET_COLORS.get(left_body, text_color))
             aspect_html = _color_token(aspect_type.title(), ASPECT_COLORS.get(aspect_type.lower(), text_color))
             right_html = _color_token(right_body, PLANET_COLORS.get(right_body, text_color))
-            return f"<li>{left_html} {aspect_html} {right_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
+            score = 1.0 if matched else 0.0
+            return f"<li>{left_html} {aspect_html} {right_html}: {'✓' if matched else '✗'} match {score:.0f}</li>"
         position_items = "".join(
             _format_position_item(position)
             for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
@@ -573,19 +569,17 @@ def build_enneagram_popout_info_html(
         ) or "<li>None</li>"
         aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()})) or "<li>None</li>"
         anti_aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()})) or "<li>None</li>"
-        formula_bits = ", ".join(
-            f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
-        )
+        formula_bits = "positive criteria sum to 100%; anti-criteria sum to 100%; unweighted criteria default to 1"
         debug_html = (
             "<hr style='margin-top:12px;margin-bottom:10px;border:0;border-top:1px solid #555;'/>"
             f"<div style='font-size:13px;color:{text_color};'>"
             f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Calculator debug details</div>"
             "<div style='margin-top:6px;'>"
-            "Score model (per type): most astrological categories normalize as "
-            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count; "
-            "HD type/profile/authority, HD centers, and BaZi signs contribute direct matched criterion weights."
+            "Score model (per type): positive criteria are normalized together by their item weights; "
+            "anti-criteria are normalized separately and subtracted with anti_factor. "
+            "No category/property-type weights or criterion_multipliers are applied."
             "</div>"
-            f"<div style='margin-top:6px;'>Category weights currently used: {html.escape(formula_bits)}; "
+            f"<div style='margin-top:6px;'>Criterion weighting: {html.escape(formula_bits)}; "
             f"anti_factor={ENNEAGRAM_ANTI_FACTOR:.2f}.</div>"
             f"<div style='margin-top:6px;'>Selected type final score: <b>{selected_score:.4f}</b>.</div>"
             "<div style='margin-top:6px;'>All final type scores (so you can verify ranking math):</div>"
