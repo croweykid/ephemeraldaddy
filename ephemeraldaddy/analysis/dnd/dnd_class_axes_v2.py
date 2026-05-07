@@ -1573,25 +1573,6 @@ def score_class_families(axis_scores: Mapping[str, float]) -> Dict[str, float]:
     return DnDClassScorer().score_families(axis_scores)
 
 
-def score_dnd_statblock_from_features(
-    axis_scores: Mapping[str, float],
-    features: AxisFeatureSet,
-    *,
-    stat_floor: int = 5,
-    stat_ceiling: int = 20,
-    dominant_sign_weights: Optional[Mapping[str, float]] = None,
-) -> DnDStatBlock:
-    from .dnd_stat_calculator import score_dnd_statblock_from_features as _score_dnd_statblock_from_features
-
-    return _score_dnd_statblock_from_features(
-        axis_scores,
-        features,
-        stat_floor=stat_floor,
-        stat_ceiling=stat_ceiling,
-        dominant_sign_weights=dominant_sign_weights,
-    )
-
-
 def score_dnd_statblock(
     chart: Any,
     *,

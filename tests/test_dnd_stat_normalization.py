@@ -10,24 +10,15 @@ class _StubDnDStatBlock:
     modifiers: dict
 
 
-class _StubClassAxisScorer:
-    @staticmethod
-    def _normalize_numeric_map(values):
-        return values
-
-
 def _stub_clamp01(value):
     return max(0.0, min(1.0, float(value)))
 
 
 stub_axes = ModuleType("ephemeraldaddy.analysis.dnd.dnd_class_axes_v2")
-stub_axes.AxisFeatureSet = object
-stub_axes.ClassAxisScorer = _StubClassAxisScorer
 stub_axes.DnDStatBlock = _StubDnDStatBlock
 stub_axes._build_axis_score_bar = lambda *_args, **_kwargs: ""
 stub_axes._build_right_justified_label = lambda label, _width: label
 stub_axes._clamp01 = _stub_clamp01
-stub_axes.validate_axis_scores = lambda _axis_scores: None
 sys.modules["ephemeraldaddy.analysis.dnd.dnd_class_axes_v2"] = stub_axes
 
 from ephemeraldaddy.analysis.dnd import dnd_stat_calculator as stat_calculator
@@ -36,7 +27,6 @@ from ephemeraldaddy.analysis.dnd.dnd_stat_calculator import (
     _calculate_predictor_criteria_budgets,
     _calculate_stat_evidence_denominators,
     _normalize_weighted_stat_scores,
-    _shape_stat_profile,
     _to_dnd_stat,
 )
 
@@ -134,17 +124,27 @@ def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypat
     assert 5 not in statblock.scores.values()
 
 
-def test_stat_profile_shaping_does_not_amplify_existing_spread_without_sign_flavor():
-    raw_scores = {
-        "STR": 1.0,
-        "DEX": 0.15,
-        "CON": 0.0,
-        "INT": 0.45,
-        "WIS": 0.2,
-        "CHA": 0.35,
-    }
+def test_score_dnd_statblock_uses_dnd_stat_predictors(monkeypatch):
+    captured = {}
 
-    assert _shape_stat_profile(raw_scores) == raw_scores
+    def fake_weighted_scores(_chart, *, predictors):
+        captured["predictors"] = predictors
+        return {key: 0.0 for key in ("STR", "DEX", "CON", "INT", "WIS", "CHA")}
+
+    monkeypatch.setattr(
+        stat_calculator,
+        "calculate_weighted_criteria_scores",
+        fake_weighted_scores,
+    )
+
+    stat_calculator.score_dnd_statblock(SimpleNamespace(name="Predictor-only"))
+
+    assert captured["predictors"] is DND_STAT_PREDICTORS
+
+
+def test_old_feature_based_stat_scorer_is_removed():
+    assert not hasattr(stat_calculator, "score_dnd_statblock_from_features")
+    assert not hasattr(stat_calculator, "_shape_stat_profile")
 
 
 def test_weighted_stat_scores_reserve_bounds_for_exceptional_evidence():
@@ -170,21 +170,3 @@ def test_weighted_stat_scores_reserve_bounds_for_exceptional_evidence():
     }
     assert 20 not in dnd_scores.values()
     assert 5 not in dnd_scores.values()
-
-
-def test_sign_flavor_does_not_force_high_scores_to_twenty():
-    raw_scores = {
-        "STR": 0.85,
-        "DEX": 0.5,
-        "CON": 0.5,
-        "INT": 0.5,
-        "WIS": 0.5,
-        "CHA": 0.5,
-    }
-
-    shaped = _shape_stat_profile(raw_scores, dominant_sign_weights={"Sagittarius": 1.0})
-    dnd_scores = {key: _to_dnd_stat(value) for key, value in shaped.items()}
-
-    assert dnd_scores["STR"] < 20
-    assert shaped["DEX"] > raw_scores["DEX"]
-    assert 10 <= dnd_scores["DEX"] <= 12
