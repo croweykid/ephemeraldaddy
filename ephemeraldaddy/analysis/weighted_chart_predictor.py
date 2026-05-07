@@ -278,27 +278,19 @@ def parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
     return (left, aspect_type, right)
 
 
-def normalize_category_delta(
-    positive_delta: float,
-    negative_delta: float,
-    *,
-    criteria_count: int,
-    anti_factor: float = DEFAULT_ANTI_FACTOR,
-) -> float:
-    if criteria_count <= 0:
+def normalize_criterion_weight(weight: float, total_weight: float) -> float:
+    """Return a criterion's share of all same-polarity criteria for a target."""
+    if total_weight <= 0.0:
         return 0.0
-    return (positive_delta - (anti_factor * negative_delta)) / float(criteria_count)
+    return float(weight) / float(total_weight)
 
 
-def criterion_multiplier_for_target(target_factors: Mapping[str, Any], category: str) -> float:
-    multipliers = target_factors.get("criterion_multipliers", {})
-    if not isinstance(multipliers, Mapping):
-        return DEFAULT_CRITERION_MULTIPLIER
-    raw_value = multipliers.get(category, DEFAULT_CRITERION_MULTIPLIER)
-    try:
-        return float(raw_value)
-    except (TypeError, ValueError):
-        return DEFAULT_CRITERION_MULTIPLIER
+def sum_criterion_weights(*weighted_maps: Mapping[Any, float]) -> float:
+    """Sum explicit per-criterion weights, defaulting invalid values to 1 upstream."""
+    total = 0.0
+    for weighted_map in weighted_maps:
+        total += sum(float(weight) for weight in weighted_map.values())
+    return total
 
 
 def active_human_design_gates(chart: Any) -> set[int]:
@@ -453,20 +445,6 @@ def _has_any_predictor_criteria(predictors: Mapping[Any, Mapping[str, Any]], cat
     return False
 
 
-def _merged_category_weights(overrides: Mapping[str, float] | None) -> dict[str, float]:
-    merged = dict(DEFAULT_CATEGORY_WEIGHTS)
-    if not isinstance(overrides, Mapping):
-        return merged
-    for key, value in overrides.items():
-        if key not in merged:
-            continue
-        try:
-            merged[key] = float(value)
-        except (TypeError, ValueError):
-            continue
-    return merged
-
-
 def calculate_weighted_criteria_scores(
     chart: Any,
     *,
@@ -483,17 +461,19 @@ def calculate_weighted_criteria_scores(
     parse_error_prefix: str = "[Weighted Predictor Parse Error]",
     format_debug_target: Callable[[Any], str] | None = None,
 ) -> dict[Any, float]:
-    """Score predictor targets from chart criteria and per-category weights.
+    """Score predictor targets from chart criteria and per-criterion weights.
 
     Predictor definitions may use weighted dicts or unweighted iterables for each
     positive/negative category: signs/antisigns, bodies/antibodies,
     nakshatras/antinakshatras, houses/antihouses, gates/antigates,
     hdtypes/antihdtypes, centers/anticenters, profiles/antiprofiles,
     authorities/antiauthorities, bazisigns/antibazisigns, positions/antipositions,
-    and aspects/antiaspects.
+    and aspects/antiaspects. Each criterion's explicit weight is normalized
+    against all criteria of the same polarity for that target; unweighted
+    criteria default to 1. ``category_weights`` is accepted for compatibility but
+    intentionally ignored.
     """
     scores = {target: 0.0 for target in predictors}
-    weights_by_category = _merged_category_weights(category_weights)
     target_label = format_debug_target or (lambda target: str(target))
 
     sign_weights_raw = getattr(chart, "dominant_sign_weights", None) or calculate_sign_weights(chart)
@@ -573,39 +553,68 @@ def calculate_weighted_criteria_scores(
         aspects = _weighted_text_entries(factors.get("aspects", set()))
         antiaspects = _weighted_text_entries(factors.get("antiaspects", set()))
 
-        sign_positive = sum(float(sign_weights.get(sign, 0.0)) * weight for sign, weight in signs.items())
-        sign_negative = sum(float(sign_weights.get(sign, 0.0)) * weight for sign, weight in antisigns.items())
-        body_positive = sum(float(body_weights.get(body, 0.0)) * weight for body, weight in bodies.items())
-        body_negative = sum(float(body_weights.get(body, 0.0)) * weight for body, weight in antibodies.items())
-        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * weight for nakshatra, weight in nakshatras.items())
-        nakshatra_negative = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * weight for nakshatra, weight in antinakshatras.items())
+        positive_total_weight = sum_criterion_weights(
+            signs,
+            bodies,
+            nakshatras,
+            houses if use_houses else {},
+            gates,
+            hdtypes,
+            centers,
+            profiles,
+            authorities,
+            bazisigns,
+            positions,
+            aspects,
+        )
+        negative_total_weight = sum_criterion_weights(
+            antisigns,
+            antibodies,
+            antinakshatras,
+            antihouses if use_houses else {},
+            antigates,
+            antihdtypes,
+            anticenters,
+            antiprofiles,
+            antiauthorities,
+            antibazisigns,
+            antipositions,
+            antiaspects,
+        )
+
+        sign_positive = sum(float(sign_weights.get(sign, 0.0)) * normalize_criterion_weight(weight, positive_total_weight) for sign, weight in signs.items())
+        sign_negative = sum(float(sign_weights.get(sign, 0.0)) * normalize_criterion_weight(weight, negative_total_weight) for sign, weight in antisigns.items())
+        body_positive = sum(float(body_weights.get(body, 0.0)) * normalize_criterion_weight(weight, positive_total_weight) for body, weight in bodies.items())
+        body_negative = sum(float(body_weights.get(body, 0.0)) * normalize_criterion_weight(weight, negative_total_weight) for body, weight in antibodies.items())
+        nakshatra_positive = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * normalize_criterion_weight(weight, positive_total_weight) for nakshatra, weight in nakshatras.items())
+        nakshatra_negative = sum(float(nakshatra_weights.get(nakshatra, 0.0)) * normalize_criterion_weight(weight, negative_total_weight) for nakshatra, weight in antinakshatras.items())
 
         house_positive = 0.0
         house_negative = 0.0
         if use_houses:
-            house_positive = sum(float(house_weights.get(house_num, 0.0)) * weight for house_num, weight in houses.items())
-            house_negative = sum(float(house_weights.get(house_num, 0.0)) * weight for house_num, weight in antihouses.items())
+            house_positive = sum(float(house_weights.get(house_num, 0.0)) * normalize_criterion_weight(weight, positive_total_weight) for house_num, weight in houses.items())
+            house_negative = sum(float(house_weights.get(house_num, 0.0)) * normalize_criterion_weight(weight, negative_total_weight) for house_num, weight in antihouses.items())
 
-        gates_positive = sum(6.0 * weight for gate, weight in gates.items() if gate in active_gates)
-        gates_negative = sum(6.0 * weight for gate, weight in antigates.items() if gate in active_gates)
+        gates_positive = sum(normalize_criterion_weight(weight, positive_total_weight) for gate, weight in gates.items() if gate in active_gates)
+        gates_negative = sum(normalize_criterion_weight(weight, negative_total_weight) for gate, weight in antigates.items() if gate in active_gates)
 
-        hdtype_positive = sum(weight for hd_type, weight in hdtypes.items() if hd_type == active_hd_type)
-        hdtype_negative = sum(weight for hd_type, weight in antihdtypes.items() if hd_type == active_hd_type)
-        center_positive = sum(weight for center, weight in centers.items() if center in active_centers)
-        center_negative = sum(weight for center, weight in anticenters.items() if center in active_centers)
-        profile_positive = sum(weight for profile, weight in profiles.items() if profile == active_profile)
-        profile_negative = sum(weight for profile, weight in antiprofiles.items() if profile == active_profile)
-        authority_positive = sum(weight for authority, weight in authorities.items() if authority == active_authority)
-        authority_negative = sum(weight for authority, weight in antiauthorities.items() if authority == active_authority)
-        bazi_positive = sum(float(bazi_sign_weights.get(sign, 0.0)) * weight for sign, weight in bazisigns.items())
-        bazi_negative = sum(float(bazi_sign_weights.get(sign, 0.0)) * weight for sign, weight in antibazisigns.items())
+        hdtype_positive = sum(normalize_criterion_weight(weight, positive_total_weight) for hd_type, weight in hdtypes.items() if hd_type == active_hd_type)
+        hdtype_negative = sum(normalize_criterion_weight(weight, negative_total_weight) for hd_type, weight in antihdtypes.items() if hd_type == active_hd_type)
+        center_positive = sum(normalize_criterion_weight(weight, positive_total_weight) for center, weight in centers.items() if center in active_centers)
+        center_negative = sum(normalize_criterion_weight(weight, negative_total_weight) for center, weight in anticenters.items() if center in active_centers)
+        profile_positive = sum(normalize_criterion_weight(weight, positive_total_weight) for profile, weight in profiles.items() if profile == active_profile)
+        profile_negative = sum(normalize_criterion_weight(weight, negative_total_weight) for profile, weight in antiprofiles.items() if profile == active_profile)
+        authority_positive = sum(normalize_criterion_weight(weight, positive_total_weight) for authority, weight in authorities.items() if authority == active_authority)
+        authority_negative = sum(normalize_criterion_weight(weight, negative_total_weight) for authority, weight in antiauthorities.items() if authority == active_authority)
+        bazi_positive = sum(float(bazi_sign_weights.get(sign, 0.0)) * normalize_criterion_weight(weight, positive_total_weight) for sign, weight in bazisigns.items())
+        bazi_negative = sum(float(bazi_sign_weights.get(sign, 0.0)) * normalize_criterion_weight(weight, negative_total_weight) for sign, weight in antibazisigns.items())
 
         positions_positive = 0.0
         positions_negative = 0.0
         for raw_position, criterion_weight in positions.items():
             bonus = _position_match_weight(raw_position, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights)
             if bonus > 0:
-                positions_positive += bonus * criterion_weight
+                positions_positive += bonus * normalize_criterion_weight(criterion_weight, positive_total_weight)
                 if debug is not None:
                     debug(
                         f"{debug_prefix} {chart_name}: {target_label(target)} position TRUE -> "
@@ -614,12 +623,13 @@ def calculate_weighted_criteria_scores(
         for raw_position, criterion_weight in antipositions.items():
             malus = _position_match_weight(raw_position, chart, use_houses, body_house_lookup, body_weights, sign_weights, house_weights)
             if malus > 0:
-                positions_negative += malus * criterion_weight
+                positions_negative += malus * normalize_criterion_weight(criterion_weight, negative_total_weight)
 
         aspects_positive = _score_aspect_specs(
             chart,
             aspects,
             body_weights,
+            positive_total_weight,
             chart_name,
             target,
             debug,
@@ -632,6 +642,7 @@ def calculate_weighted_criteria_scores(
             chart,
             antiaspects,
             body_weights,
+            negative_total_weight,
             chart_name,
             target,
             debug,
@@ -641,26 +652,37 @@ def calculate_weighted_criteria_scores(
             anti=True,
         )
 
-        category_deltas = {
-            "signs": normalize_category_delta(sign_positive, sign_negative, criteria_count=len(signs) + len(antisigns), anti_factor=anti_factor),
-            "bodies": normalize_category_delta(body_positive, body_negative, criteria_count=len(bodies) + len(antibodies), anti_factor=anti_factor),
-            "nakshatras": normalize_category_delta(nakshatra_positive, nakshatra_negative, criteria_count=len(nakshatras) + len(antinakshatras), anti_factor=anti_factor),
-            "houses": normalize_category_delta(house_positive, house_negative, criteria_count=(len(houses) + len(antihouses)) if use_houses else 0, anti_factor=anti_factor),
-            "gates": normalize_category_delta(gates_positive, gates_negative, criteria_count=len(gates) + len(antigates), anti_factor=anti_factor),
-            "hdtypes": hdtype_positive - (anti_factor * hdtype_negative),
-            "centers": center_positive - (anti_factor * center_negative),
-            "profiles": profile_positive - (anti_factor * profile_negative),
-            "authorities": authority_positive - (anti_factor * authority_negative),
-            "bazisigns": bazi_positive - (anti_factor * bazi_negative),
-            "positions": normalize_category_delta(positions_positive, positions_negative, criteria_count=len(positions) + len(antipositions), anti_factor=anti_factor),
-            "aspects": normalize_category_delta(aspects_positive, aspects_negative, criteria_count=len(aspects) + len(antiaspects), anti_factor=anti_factor),
-        }
-        for category, delta in category_deltas.items():
-            scores[target] += (
-                weights_by_category[category]
-                * criterion_multiplier_for_target(factors, category)
-                * delta
+        scores[target] += (
+            sign_positive
+            + body_positive
+            + nakshatra_positive
+            + house_positive
+            + gates_positive
+            + hdtype_positive
+            + center_positive
+            + profile_positive
+            + authority_positive
+            + bazi_positive
+            + positions_positive
+            + aspects_positive
+            - (
+                anti_factor
+                * (
+                    sign_negative
+                    + body_negative
+                    + nakshatra_negative
+                    + house_negative
+                    + gates_negative
+                    + hdtype_negative
+                    + center_negative
+                    + profile_negative
+                    + authority_negative
+                    + bazi_negative
+                    + positions_negative
+                    + aspects_negative
+                )
             )
+        )
     return scores
 
 
@@ -679,7 +701,7 @@ def _position_match_weight(
     category, container, subject = parsed
     if category == "body_in_house" and isinstance(container, int) and use_houses:
         if body_house_lookup.get(subject) == container:
-            return float(body_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+            return 1.0
     elif category == "sign_in_house" and isinstance(container, int) and use_houses:
         for raw_body, lon in (getattr(chart, "positions", None) or {}).items():
             body = normalize_factor_value(str(raw_body))
@@ -690,7 +712,7 @@ def _position_match_weight(
             except (TypeError, ValueError):
                 continue
             if sign_for_longitude(lon_value) == subject:
-                return float(sign_weights.get(subject, 0.0)) + float(house_weights.get(container, 0.0))
+                return 1.0
     elif category == "body_in_sign" and isinstance(container, str):
         body_lon = (getattr(chart, "positions", None) or {}).get(subject)
         try:
@@ -698,7 +720,7 @@ def _position_match_weight(
         except (TypeError, ValueError):
             lon_value = None
         if lon_value is not None and sign_for_longitude(lon_value) == container:
-            return float(body_weights.get(subject, 0.0)) + float(sign_weights.get(container, 0.0))
+            return 1.0
     return 0.0
 
 
@@ -706,6 +728,7 @@ def _score_aspect_specs(
     chart: Any,
     aspect_specs: Mapping[str, float],
     body_weights: Mapping[str, float],
+    total_criterion_weight: float,
     chart_name: str,
     target: Any,
     debug: Callable[[str], None] | None,
@@ -731,8 +754,8 @@ def _score_aspect_specs(
             if {p1, p2} != {left_body, right_body}:
                 continue
             aspect_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
-            value = float(body_weights.get(left_body, 0.0)) + aspect_weight + float(body_weights.get(right_body, 0.0))
-            total += value * float(criterion_weight)
+            value = 1.0 if aspect_weight >= 0.0 else 0.0
+            total += value * normalize_criterion_weight(criterion_weight, total_criterion_weight)
             if debug is not None and not anti:
                 debug(
                     f"{debug_prefix} {chart_name}: {target_label(target)} aspect TRUE -> "
