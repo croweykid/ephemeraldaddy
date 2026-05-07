@@ -50,11 +50,24 @@ _DND_STAT_DISPLAY_LABELS: Dict[str, str] = {
 
 
 def _to_dnd_stat(raw_score: float, floor: int = 5, ceiling: int = 20) -> int:
+    """Map a normalized predictor score onto the D&D 5-20 ability range.
+
+    The midpoint is intentionally anchored at 11 so ordinary predictions land in
+    the requested "Average" band of 10-12. Scores below the midpoint spend the
+    smaller 5-11 span, while scores above it spend the larger 11-20 span. That
+    keeps below-average stats visibly below 10, lets strong outliers reach 20,
+    and avoids inflating middling raw scores into heroic 14-16 results.
+    """
     raw_score = _clamp01(raw_score)
-    # Lift ordinary charts into a healthier PC-like range while preserving spread.
-    calibrated_raw = 0.08 + (0.92 * (raw_score ** 0.5))
-    calibrated_raw = _clamp01(calibrated_raw)
-    return int(round(floor + calibrated_raw * (ceiling - floor)))
+    midpoint = 0.5
+    average_anchor = floor + round((ceiling - floor) * 0.40)
+    if raw_score <= midpoint:
+        lower_ratio = raw_score / midpoint
+        stat_value = floor + lower_ratio * (average_anchor - floor)
+    else:
+        upper_ratio = (raw_score - midpoint) / midpoint
+        stat_value = average_anchor + upper_ratio * (ceiling - average_anchor)
+    return int(round(max(floor, min(ceiling, stat_value))))
 
 
 def _shape_stat_profile(
