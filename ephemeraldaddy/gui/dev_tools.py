@@ -1607,6 +1607,11 @@ ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("nakshatras", "Nakshatras"),
     ("houses", "Houses"),
     ("gates", "HD Gates"),
+    ("hdtypes", "HD Types"),
+    ("centers", "HD Centers"),
+    ("profiles", "HD Profiles"),
+    ("authorities", "HD Authorities"),
+    ("bazisigns", "BaZi Signs"),
     ("positions", "Positions"),
     ("aspects", "Aspects"),
 )

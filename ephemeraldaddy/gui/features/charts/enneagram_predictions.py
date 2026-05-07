@@ -39,15 +39,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
-ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
-    "signs": 1.0,
-    "bodies": 1.0,
-    "nakshatras": 1.0,
-    "houses": 1.0,
-    "gates": 1.0,
-    "positions": 1.0,
-    "aspects": 1.0,
-}
+ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
@@ -589,8 +581,9 @@ def build_enneagram_popout_info_html(
             f"<div style='font-size:13px;color:{text_color};'>"
             f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Calculator debug details</div>"
             "<div style='margin-top:6px;'>"
-            "Score model (per type): normalized contribution per criterion = "
-            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count."
+            "Score model (per type): most astrological categories normalize as "
+            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count; "
+            "HD type/profile/authority, HD centers, and BaZi signs contribute direct matched criterion weights."
             "</div>"
             f"<div style='margin-top:6px;'>Category weights currently used: {html.escape(formula_bits)}; "
             f"anti_factor={ENNEAGRAM_ANTI_FACTOR:.2f}.</div>"
@@ -619,7 +612,7 @@ def build_enneagram_popout_info_html(
             f"<li><b>Aspects (-)</b><ul>{anti_aspect_items}</ul></li>"
             "</ul>"
             "<div style='margin-top:6px;'>"
-            "To verify manually with a calculator: compute each criterion's normalized value, multiply each by the criterion weight, then sum all weighted criterion values for the final type score."
+            "To verify manually with a calculator: compute each category's contribution according to its rule, multiply by the category weight, then sum all weighted category values for the final type score."
             "</div>"
             "</div>"
         )
