@@ -633,6 +633,9 @@ from ephemeraldaddy.gui.features.charts.body_dynamics_popout import (
 from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
     build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
 )
+from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
+    style_dominant_body_axis_labels as _style_dominant_body_axis_labels,
+)
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
@@ -22989,71 +22992,6 @@ class MainWindow(QMainWindow):
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
-    @staticmethod
-    def _normalize_body_dynamics_role_label(value: object) -> str | None:
-        text = str(value or "").strip().lower().replace("_", " ").replace("-", " ")
-        if not text:
-            return None
-        if text in {"enabler", "enabling", "enabling influence"}:
-            return "enabler"
-        if text in {"antagonist", "antagonizer", "antagonizing", "antagonizing influence"}:
-            return "antagonist"
-        if text.startswith("escalat") or " escalating" in f" {text}":
-            return "escalator"
-        return None
-
-    def _body_dynamics_roles_for_chart(self, chart: Chart) -> dict[str, str]:
-        raw_roles = getattr(chart, "body_dynamics_roles", None)
-        if isinstance(raw_roles, dict):
-            role_items = raw_roles.items()
-        else:
-            role_items = ()
-            role_text = str(raw_roles or "").strip()
-            if role_text:
-                try:
-                    parsed_roles = json.loads(role_text)
-                except (TypeError, json.JSONDecodeError):
-                    parsed_roles = {}
-                if isinstance(parsed_roles, dict):
-                    role_items = parsed_roles.items()
-
-        canonical_bodies = {body.casefold(): body for body in PLANET_ORDER}
-        roles: dict[str, str] = {}
-        for raw_body, raw_role in role_items:
-            body = canonical_bodies.get(str(raw_body or "").strip().casefold())
-            role = self._normalize_body_dynamics_role_label(raw_role)
-            if body and role:
-                roles[body] = role
-
-        if roles:
-            return roles
-
-        scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
-        if not isinstance(scores, dict):
-            return {}
-        for body, body_scores in scores.items():
-            canonical_body = canonical_bodies.get(str(body or "").strip().casefold())
-            if not canonical_body or not isinstance(body_scores, dict):
-                continue
-            enabling = float(body_scores.get("enabling", 0.0))
-            antagonizing = float(body_scores.get("antagonizing", 0.0))
-            escalating = float(body_scores.get("escalating", 0.0))
-            if escalating > enabling and escalating > antagonizing:
-                roles[canonical_body] = "escalator"
-            elif antagonizing > enabling:
-                roles[canonical_body] = "antagonist"
-            else:
-                roles[canonical_body] = "enabler"
-        return roles
-
-    @staticmethod
-    def _dominant_body_axis_label_color(role: str | None) -> str | None:
-        return {
-            "enabler": "#6be39d",
-            "antagonist": "#ff6b6b",
-            "escalator": "#ffbd59",
-        }.get(role)
-
     def _draw_planet_tally(self, ax, chart: Chart) -> None:
         mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
         if mode == "sidereal_planet_prevalence":
@@ -23080,13 +23018,7 @@ class MainWindow(QMainWindow):
             bar.set_picker(True)
         x_labels = [_display_body_name(body) for body in planets]
         self._apply_standard_ncv_bar_chart_axes(ax, x_labels)
-        body_dynamics_roles = self._body_dynamics_roles_for_chart(chart)
-        for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
-            tick_label.set_gid(f"body:{body}")
-            tick_label.set_picker(5)
-            role_color = self._dominant_body_axis_label_color(body_dynamics_roles.get(body))
-            if role_color:
-                tick_label.set_color(role_color)
+        _style_dominant_body_axis_labels(ax, chart, planets)
         draw_weight_distribution_reference_lines(ax, values)
         top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
