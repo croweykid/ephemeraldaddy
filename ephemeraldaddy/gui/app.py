@@ -567,6 +567,11 @@ from ephemeraldaddy.gui.features.charts.duplicate_detection import (
     find_possible_duplicate_charts,
 )
 
+from ephemeraldaddy.gui.features.charts.selection_header import (
+    SelectionSummaryCounts,
+    format_selection_summary,
+)
+
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
     NATAL_ASPECT_SORT_OPTIONS,
     sort_natal_aspects as _sort_natal_aspects,
@@ -1876,6 +1881,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._excluded_duplicate_pairs: set[tuple[int, int]] = list_duplicate_exclusions()
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
+        self._database_total_count = 0
         self._analysis_chart_export_rows: dict[
             str,
             list[tuple[str, float, float, float, int, int, float]],
@@ -8817,18 +8823,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return filtered_ids
 
     def _update_selection_header(self) -> None:
-        selected_count = len(self.list_widget.selectedItems())
-        shown_count = self.list_widget.count()
-        total_count = self._active_collection_total_count
-
-        if selected_count == 0 and self._has_active_chart_filters():
-            self.charts_header_label.setText(
-                f"Charts found: {shown_count} of {total_count}"
+        summary_counts = SelectionSummaryCounts.from_values(
+            selected=len(self.list_widget.selectedItems()),
+            search_results=self.list_widget.count(),
+            current_collection=getattr(self, "_active_collection_total_count", 0),
+            database=getattr(
+                self,
+                "_database_total_count",
+                len(getattr(self, "_chart_rows", ())),
+            ),
+        )
+        self.charts_header_label.setText(
+            format_selection_summary(
+                counts=summary_counts,
+                active_collection_id=getattr(self, "_active_collection_id", DEFAULT_COLLECTION_ALL),
+                active_filters=self._has_active_chart_filters(),
+                custom_collections=getattr(self, "_custom_collections", {}),
             )
-        else:
-            self.charts_header_label.setText(
-                f"Charts Selected: {selected_count} of {total_count}"
-            )
+        )
         self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
 
     def _has_active_chart_filters(self) -> bool:
@@ -16317,6 +16329,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
+        self._database_total_count = len(rows)
         rows = [row for row in rows if self._chart_in_active_collection(row)]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
