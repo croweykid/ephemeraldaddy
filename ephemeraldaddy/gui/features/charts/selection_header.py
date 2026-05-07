@@ -8,6 +8,7 @@ unit-tested without Qt and safely called from existing UI refresh paths.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from typing import Mapping
 
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -22,7 +23,10 @@ _DEFAULT_COLLECTION_LABELS = {
     collection_id: label for label, collection_id in DEFAULT_COLLECTION_OPTIONS
 }
 _DEFAULT_COLLECTION_LABELS[DEFAULT_COLLECTION_POSSIBLE_DUPLICATES] = "possible duplicates"
-
+SELECTION_SUMMARY_LABEL_STYLE = (
+    "font-size: 12.5px; font-weight: 400; color: #c8914f;"
+)
+_SELECTION_SUMMARY_PREFIX = "Charts Selected:"
 
 @dataclass(frozen=True, slots=True)
 class SelectionSummaryCounts:
@@ -87,6 +91,25 @@ def format_selection_summary(
         f"in {collection_name} collection. ({counts.database} in database)"
     )
 
+def format_selection_summary_html(
+    *,
+    counts: SelectionSummaryCounts,
+    active_collection_id: object,
+    active_filters: bool,
+    custom_collections: Mapping[str, CustomCollection] | None = None,
+) -> str:
+    """Return rich text with only the fixed summary prefix bolded."""
+
+    plain_text = format_selection_summary(
+        counts=counts,
+        active_collection_id=active_collection_id,
+        active_filters=active_filters,
+        custom_collections=custom_collections,
+    )
+    if not plain_text.startswith(_SELECTION_SUMMARY_PREFIX):
+        return escape(plain_text)
+    remainder = plain_text[len(_SELECTION_SUMMARY_PREFIX) :]
+    return f"<b>{escape(_SELECTION_SUMMARY_PREFIX)}</b>{escape(remainder)}"
 
 def collection_display_name(
     collection_id: object,

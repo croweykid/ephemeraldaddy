@@ -568,8 +568,9 @@ from ephemeraldaddy.gui.features.charts.duplicate_detection import (
 )
 
 from ephemeraldaddy.gui.features.charts.selection_header import (
+    SELECTION_SUMMARY_LABEL_STYLE,
     SelectionSummaryCounts,
-    format_selection_summary,
+    format_selection_summary_html,
 )
 
 from ephemeraldaddy.gui.features.charts.aspect_sorting import (
@@ -2220,8 +2221,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_sort_button_label()
         list_layout.addWidget(list_header_row)
         list_layout.addWidget(self.list_widget, 1)
-        self.charts_header_label = QLabel("Charts Selected: 0 of 0")
-        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        self.charts_header_label = QLabel()
+        self.charts_header_label.setTextFormat(Qt.RichText)
+        self.charts_header_label.setStyleSheet(SELECTION_SUMMARY_LABEL_STYLE)
+        self._update_selection_header()
         list_layout.addWidget(self.charts_header_label)
 
         # Database View - Content splitter (left panel stack, center list, right panel stack).
@@ -8834,14 +8837,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ),
         )
         self.charts_header_label.setText(
-            format_selection_summary(
+            format_selection_summary_html(
                 counts=summary_counts,
-                active_collection_id=getattr(self, "_active_collection_id", DEFAULT_COLLECTION_ALL),
+                active_collection_id=getattr(
+                    self, "_active_collection_id", DEFAULT_COLLECTION_ALL
+                ),
                 active_filters=self._has_active_chart_filters(),
                 custom_collections=getattr(self, "_custom_collections", {}),
             )
         )
-        self.charts_header_label.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
+        self.charts_header_label.setStyleSheet(SELECTION_SUMMARY_LABEL_STYLE)
 
     def _has_active_chart_filters(self) -> bool:
         selected_sentiments = {
