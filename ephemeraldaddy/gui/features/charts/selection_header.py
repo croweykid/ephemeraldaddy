@@ -27,7 +27,7 @@ SELECTION_SUMMARY_LABEL_STYLE = (
     "font-size: 12.5px; font-weight: 400; color: #c8914f;"
 )
 _SELECTION_SUMMARY_PREFIX = "Charts Selected:"
-_SELECTION_SUMMARY_HIGHLIGHT_COLOR = "#ffffff"
+_SELECTION_SUMMARY_HIGHLIGHT_COLOR = "#cc33ff" #alternately: #3399ff
 
 @dataclass(frozen=True, slots=True)
 class SelectionSummaryCounts:
