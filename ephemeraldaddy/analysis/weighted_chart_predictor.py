@@ -24,6 +24,77 @@ BODY_ALIASES = {
     "true lilith": "Lilith",
     "lilith": "Lilith",
 }
+
+HD_TYPE_ALIASES = {
+    "manifestinggenerator": "manifesting_generator",
+    "manifesting_generator": "manifesting_generator",
+    "mfgenerator": "manifesting_generator",
+    "mf_generator": "manifesting_generator",
+    "mg": "manifesting_generator",
+    "generator": "generator",
+    "manifestor": "manifestor",
+    "projector": "projector",
+    "reflector": "reflector",
+}
+HD_CENTER_ALIASES = {
+    "head": "Head",
+    "ajna": "Ajna",
+    "throat": "Throat",
+    "g": "G",
+    "gcenter": "G",
+    "identity": "G",
+    "identitycenter": "G",
+    "ego": "Ego",
+    "heart": "Ego",
+    "heartcenter": "Ego",
+    "will": "Ego",
+    "willcenter": "Ego",
+    "spleen": "Spleen",
+    "splenic": "Spleen",
+    "sacral": "Sacral",
+    "root": "Root",
+    "solarplexus": "Solar Plexus",
+    "emotional": "Solar Plexus",
+    "emotionalcenter": "Solar Plexus",
+}
+HD_AUTHORITY_ALIASES = {
+    "no_inner_authority": "lunar",
+    "mental_environmental_sounding_board": "mental",
+    "environmental_sounding_board": "mental",
+    "sounding_board": "mental",
+}
+BAZI_BRANCH_TO_SIGN = {
+    "子": "Rat",
+    "丑": "Ox",
+    "寅": "Tiger",
+    "卯": "Rabbit",
+    "辰": "Dragon",
+    "巳": "Snake",
+    "午": "Horse",
+    "未": "Goat",
+    "申": "Monkey",
+    "酉": "Rooster",
+    "戌": "Dog",
+    "亥": "Pig",
+}
+BAZI_SIGN_ALIASES = {
+    "rat": "Rat",
+    "ox": "Ox",
+    "tiger": "Tiger",
+    "rabbit": "Rabbit",
+    "dragon": "Dragon",
+    "snake": "Snake",
+    "horse": "Horse",
+    "goat": "Goat",
+    "sheep": "Goat",
+    "ram": "Goat",
+    "monkey": "Monkey",
+    "rooster": "Rooster",
+    "chicken": "Rooster",
+    "dog": "Dog",
+    "pig": "Pig",
+    "boar": "Pig",
+}
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
 
@@ -79,6 +150,11 @@ DEFAULT_CATEGORY_WEIGHTS: dict[str, float] = {
     "nakshatras": 1.0,
     "houses": 1.0,
     "gates": 1.0,
+    "hdtypes": 1.0,
+    "centers": 1.0,
+    "profiles": 1.0,
+    "authorities": 1.0,
+    "bazisigns": 1.0,
     "positions": 1.0,
     "aspects": 1.0,
 }
@@ -270,12 +346,196 @@ def active_human_design_gates(chart: Any) -> set[int]:
     return {int(gate) for gate in gates if 1 <= int(gate) <= 64}
 
 
+def _normalized_token_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().casefold()).strip("_")
+
+
+def normalize_hd_type_value(value: Any) -> str:
+    key = _normalized_token_key(value)
+    compact_key = key.replace("_", "")
+    return HD_TYPE_ALIASES.get(key) or HD_TYPE_ALIASES.get(compact_key, key)
+
+
+def normalize_hd_center_value(value: Any) -> str:
+    key = _normalized_token_key(value)
+    compact_key = key.replace("_", "")
+    return HD_CENTER_ALIASES.get(key) or HD_CENTER_ALIASES.get(compact_key, str(value).strip().title())
+
+
+def normalize_hd_authority_value(value: Any) -> str:
+    key = _normalized_token_key(value)
+    normalized = HD_AUTHORITY_ALIASES.get(key, key)
+    return normalized.replace("_", " ").title() if normalized else ""
+
+
+def normalize_hd_profile_value(value: Any) -> str:
+    text = str(value).strip().replace(" ", "")
+    return text
+
+
+def normalize_bazi_sign_value(value: Any) -> str:
+    text = str(value).strip()
+    if not text:
+        return ""
+    for char in text:
+        sign = BAZI_BRANCH_TO_SIGN.get(char)
+        if sign:
+            return sign
+    parenthetical = re.search(r"\(([^()]+)\)", text)
+    if parenthetical:
+        text = parenthetical.group(1).strip()
+    key = _normalized_token_key(text)
+    return BAZI_SIGN_ALIASES.get(key, text.title())
+
+
+def weighted_hd_type_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = normalize_hd_type_value(raw_value)
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def weighted_hd_center_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = normalize_hd_center_value(raw_value)
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def weighted_hd_profile_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = normalize_hd_profile_value(raw_value)
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def weighted_hd_authority_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = normalize_hd_authority_value(raw_value)
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def weighted_bazi_sign_entries(values: Any) -> dict[str, float]:
+    entries: dict[str, float] = {}
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = normalize_bazi_sign_value(raw_value)
+        if token:
+            entries[token] = weight
+    return entries
+
+
+def active_human_design_properties(chart: Any) -> tuple[str, set[str], str, str]:
+    hd_type = normalize_hd_type_value(getattr(chart, "human_design_type", ""))
+    centers = {
+        normalize_hd_center_value(center)
+        for center in (getattr(chart, "human_design_defined_centers", None) or [])
+        if str(center).strip()
+    }
+    profile = normalize_hd_profile_value(getattr(chart, "human_design_profile", ""))
+    authority = normalize_hd_authority_value(getattr(chart, "human_design_authority", ""))
+    if hd_type and centers and profile and authority:
+        return hd_type, centers, profile, authority
+
+    from ephemeraldaddy.analysis.human_design import build_human_design_result
+
+    try:
+        hd_result = build_human_design_result(chart)
+    except Exception:
+        return hd_type, centers, profile, authority
+
+    resolved_type = normalize_hd_type_value(getattr(hd_result, "hd_type", ""))
+    resolved_centers = {
+        normalize_hd_center_value(center)
+        for center in getattr(hd_result, "defined_centers", [])
+        if str(center).strip()
+    }
+    resolved_profile = normalize_hd_profile_value(getattr(hd_result, "profile", ""))
+    resolved_authority = normalize_hd_authority_value(getattr(hd_result, "authority", ""))
+    hd_type = resolved_type or hd_type
+    centers = resolved_centers or centers
+    profile = resolved_profile or profile
+    authority = resolved_authority or authority
+    return hd_type, centers, profile, authority
+
+
+def _bazi_weights_from_pillars(chart: Any) -> dict[str, float]:
+    weights: dict[str, float] = {}
+    for attr_name in ("bazi_year_pillar", "bazi_month_pillar", "bazi_day_pillar", "bazi_hour_pillar"):
+        sign = normalize_bazi_sign_value(getattr(chart, attr_name, ""))
+        if sign:
+            weights[sign] = weights.get(sign, 0.0) + 1.0
+    return weights
+
+
+def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
+    for attr_name in ("bazi_sign_weights", "bazi_branch_weights", "dominant_bazi_sign_weights"):
+        raw_weights = getattr(chart, attr_name, None)
+        if isinstance(raw_weights, Mapping) and raw_weights:
+            weights: dict[str, float] = {}
+            for raw_sign, raw_weight in raw_weights.items():
+                sign = normalize_bazi_sign_value(raw_sign)
+                if not sign:
+                    continue
+                try:
+                    weight = float(raw_weight)
+                except (TypeError, ValueError):
+                    weight = 0.0
+                weights[sign] = weights.get(sign, 0.0) + weight
+            if weights:
+                return weights
+
+    weights = _bazi_weights_from_pillars(chart)
+    if weights:
+        return weights
+
+    from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
+
+    chart_dt = getattr(chart, "dt", None)
+    if chart_dt is None:
+        return {}
+    if getattr(chart_dt, "tzinfo", None) is not None:
+        chart_dt = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
+    try:
+        include_hour = default_chart_uses_houses(chart)
+        bazi_data = build_bazi_chart_data(chart_dt, include_hour=include_hour)
+    except Exception:
+        return {}
+    for branch in getattr(bazi_data, "earthly_branches", {}).values():
+        sign = normalize_bazi_sign_value(branch)
+        if sign:
+            weights[sign] = weights.get(sign, 0.0) + 1.0
+    return weights
+
+
 def _weighted_text_entries(values: Any) -> dict[str, float]:
     return {
         str(value).strip(): float(weight)
         for value, weight in coerce_weighted_entries(values).items()
         if str(value).strip()
     }
+
+
+def _has_any_predictor_criteria(predictors: Mapping[Any, Mapping[str, Any]], category_keys: set[str]) -> bool:
+    for raw_factors in predictors.values():
+        if not isinstance(raw_factors, Mapping):
+            continue
+        for key in category_keys:
+            value = raw_factors.get(key)
+            if isinstance(value, str):
+                if value.strip():
+                    return True
+            elif value:
+                return True
+    return False
 
 
 def _merged_category_weights(overrides: Mapping[str, float] | None) -> dict[str, float]:
@@ -313,7 +573,9 @@ def calculate_weighted_criteria_scores(
     Predictor definitions may use weighted dicts or unweighted iterables for each
     positive/negative category: signs/antisigns, bodies/antibodies,
     nakshatras/antinakshatras, houses/antihouses, gates/antigates,
-    positions/antipositions, and aspects/antiaspects.
+    hdtypes/antihdtypes, centers/anticenters, profiles/antiprofiles,
+    authorities/antiauthorities, bazisigns/antibazisigns, positions/antipositions,
+    and aspects/antiaspects.
     """
     scores = {target: 0.0 for target in predictors}
     weights_by_category = _merged_category_weights(category_weights)
@@ -342,7 +604,32 @@ def calculate_weighted_criteria_scores(
             if house_num is not None:
                 body_house_lookup[body] = house_num
 
-    active_gates = active_human_design_gates(chart)
+    active_gates = (
+        active_human_design_gates(chart)
+        if _has_any_predictor_criteria(predictors, {"gates", "antigates"})
+        else set()
+    )
+    if _has_any_predictor_criteria(
+        predictors,
+        {
+            "hdtypes",
+            "antihdtypes",
+            "centers",
+            "anticenters",
+            "profiles",
+            "antiprofiles",
+            "authorities",
+            "antiauthorities",
+        },
+    ):
+        active_hd_type, active_centers, active_profile, active_authority = active_human_design_properties(chart)
+    else:
+        active_hd_type, active_centers, active_profile, active_authority = "", set(), "", ""
+    bazi_sign_weights = (
+        active_bazi_sign_weights(chart)
+        if _has_any_predictor_criteria(predictors, {"bazisigns", "antibazisigns"})
+        else {}
+    )
 
     for target, raw_factors in predictors.items():
         factors = raw_factors if isinstance(raw_factors, Mapping) else {}
@@ -356,6 +643,16 @@ def calculate_weighted_criteria_scores(
         antihouses = weighted_house_entries(factors.get("antihouses", set()))
         gates = weighted_gate_entries(factors.get("gates", set()))
         antigates = weighted_gate_entries(factors.get("antigates", set()))
+        hdtypes = weighted_hd_type_entries(factors.get("hdtypes", set()))
+        antihdtypes = weighted_hd_type_entries(factors.get("antihdtypes", set()))
+        centers = weighted_hd_center_entries(factors.get("centers", set()))
+        anticenters = weighted_hd_center_entries(factors.get("anticenters", set()))
+        profiles = weighted_hd_profile_entries(factors.get("profiles", set()))
+        antiprofiles = weighted_hd_profile_entries(factors.get("antiprofiles", set()))
+        authorities = weighted_hd_authority_entries(factors.get("authorities", set()))
+        antiauthorities = weighted_hd_authority_entries(factors.get("antiauthorities", set()))
+        bazisigns = weighted_bazi_sign_entries(factors.get("bazisigns", set()))
+        antibazisigns = weighted_bazi_sign_entries(factors.get("antibazisigns", set()))
         positions = _weighted_text_entries(factors.get("positions", set()))
         antipositions = _weighted_text_entries(factors.get("antipositions", set()))
         aspects = _weighted_text_entries(factors.get("aspects", set()))
@@ -376,6 +673,17 @@ def calculate_weighted_criteria_scores(
 
         gates_positive = sum(6.0 * weight for gate, weight in gates.items() if gate in active_gates)
         gates_negative = sum(6.0 * weight for gate, weight in antigates.items() if gate in active_gates)
+
+        hdtype_positive = sum(weight for hd_type, weight in hdtypes.items() if hd_type == active_hd_type)
+        hdtype_negative = sum(weight for hd_type, weight in antihdtypes.items() if hd_type == active_hd_type)
+        center_positive = sum(weight for center, weight in centers.items() if center in active_centers)
+        center_negative = sum(weight for center, weight in anticenters.items() if center in active_centers)
+        profile_positive = sum(weight for profile, weight in profiles.items() if profile == active_profile)
+        profile_negative = sum(weight for profile, weight in antiprofiles.items() if profile == active_profile)
+        authority_positive = sum(weight for authority, weight in authorities.items() if authority == active_authority)
+        authority_negative = sum(weight for authority, weight in antiauthorities.items() if authority == active_authority)
+        bazi_positive = sum(float(bazi_sign_weights.get(sign, 0.0)) * weight for sign, weight in bazisigns.items())
+        bazi_negative = sum(float(bazi_sign_weights.get(sign, 0.0)) * weight for sign, weight in antibazisigns.items())
 
         positions_positive = 0.0
         positions_negative = 0.0
@@ -424,6 +732,11 @@ def calculate_weighted_criteria_scores(
             "nakshatras": normalize_category_delta(nakshatra_positive, nakshatra_negative, criteria_count=len(nakshatras) + len(antinakshatras), anti_factor=anti_factor),
             "houses": normalize_category_delta(house_positive, house_negative, criteria_count=(len(houses) + len(antihouses)) if use_houses else 0, anti_factor=anti_factor),
             "gates": normalize_category_delta(gates_positive, gates_negative, criteria_count=len(gates) + len(antigates), anti_factor=anti_factor),
+            "hdtypes": hdtype_positive - (anti_factor * hdtype_negative),
+            "centers": center_positive - (anti_factor * center_negative),
+            "profiles": profile_positive - (anti_factor * profile_negative),
+            "authorities": authority_positive - (anti_factor * authority_negative),
+            "bazisigns": bazi_positive - (anti_factor * bazi_negative),
             "positions": normalize_category_delta(positions_positive, positions_negative, criteria_count=len(positions) + len(antipositions), anti_factor=anti_factor),
             "aspects": normalize_category_delta(aspects_positive, aspects_negative, criteria_count=len(aspects) + len(antiaspects), anti_factor=anti_factor),
         }

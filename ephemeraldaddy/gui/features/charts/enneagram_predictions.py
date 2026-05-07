@@ -39,15 +39,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
-ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
-    "signs": 1.0,
-    "bodies": 1.0,
-    "nakshatras": 1.0,
-    "houses": 1.0,
-    "gates": 1.0,
-    "positions": 1.0,
-    "aspects": 1.0,
-}
+ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
