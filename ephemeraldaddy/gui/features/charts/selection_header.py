@@ -27,6 +27,7 @@ SELECTION_SUMMARY_LABEL_STYLE = (
     "font-size: 12.5px; font-weight: 400; color: #c8914f;"
 )
 _SELECTION_SUMMARY_PREFIX = "Charts Selected:"
+_SELECTION_SUMMARY_HIGHLIGHT_COLOR = "#ffffff"
 
 @dataclass(frozen=True, slots=True)
 class SelectionSummaryCounts:
@@ -98,19 +99,46 @@ def format_selection_summary_html(
     active_filters: bool,
     custom_collections: Mapping[str, CustomCollection] | None = None,
 ) -> str:
-    """Return rich text with only the fixed summary prefix bolded."""
+    """Return rich text with only selected summary phrases emphasized."""
 
-    plain_text = format_selection_summary(
-        counts=counts,
-        active_collection_id=active_collection_id,
-        active_filters=active_filters,
-        custom_collections=custom_collections,
+    prefix = f"<b>{escape(_SELECTION_SUMMARY_PREFIX)}</b>"
+    collection_id = normalize_collection_id(active_collection_id)
+    has_filtered_results = bool(active_filters)
+    highlighted_database = _highlight_summary_text("database")
+
+    if collection_id == DEFAULT_COLLECTION_ALL:
+        if has_filtered_results:
+            return (
+                f"{prefix} {counts.selected} of {counts.search_results} results. "
+                f"{counts.database} in {highlighted_database}"
+            )
+        return f"{prefix} {counts.selected} of {counts.database}"
+
+    collection_name = _highlight_summary_text(
+        collection_display_name(
+            collection_id,
+            custom_collections=custom_collections,
+        )
     )
-    if not plain_text.startswith(_SELECTION_SUMMARY_PREFIX):
-        return escape(plain_text)
-    remainder = plain_text[len(_SELECTION_SUMMARY_PREFIX) :]
-    return f"<b>{escape(_SELECTION_SUMMARY_PREFIX)}</b>{escape(remainder)}"
+    if has_filtered_results:
+        return (
+            f"{prefix} {counts.selected} of {counts.search_results} results. "
+            f"{counts.current_collection} in {collection_name} collection. "
+            f"({counts.database} in {highlighted_database})"
+        )
+    return (
+        f"{prefix} {counts.selected} of {counts.current_collection} "
+        f"in {collection_name} collection. "
+        f"({counts.database} in {highlighted_database})"
+    )
 
+
+def _highlight_summary_text(text: object) -> str:
+    return (
+        f'<span style="color: {_SELECTION_SUMMARY_HIGHLIGHT_COLOR};">'
+        f'{escape(str(text))}</span>'
+    )
+    
 def collection_display_name(
     collection_id: object,
     *,
