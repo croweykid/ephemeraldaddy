@@ -11,6 +11,7 @@ from typing import Any, Callable
 from ephemeraldaddy.core.interpretations import (
     ASPECT_COLORS,
     ASPECT_SCORE_WEIGHTS,
+    ENNEAGRAM_REALMS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
@@ -40,6 +41,8 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
 ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
+ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
+ENNEAGRAM_REALM_RANK_COLORS = ("#00ff66", "#ffeb3b", "#ff4d4d")
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
@@ -632,6 +635,48 @@ def build_enneagram_popout_info_html(
         "</div>"
         f"{debug_html}"
     )
+
+
+def enneagram_realm_scores_for_type_scores(type_scores: dict[int, float]) -> dict[str, float]:
+    """Return combined Enneagram score totals for head, heart, and body realms."""
+    realm_scores: dict[str, float] = {}
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        realm_config = ENNEAGRAM_REALMS.get(realm_name, {})
+        realm_types = realm_config.get("types", set())
+        realm_scores[realm_name] = sum(
+            float(type_scores.get(int(type_num), 0.0)) for type_num in realm_types
+        )
+    return realm_scores
+
+
+def enneagram_realm_summary_html(type_scores: dict[int, float]) -> str:
+    """Return rank-colored HTML summarizing combined Head/Heart/Body weights."""
+    realm_scores = enneagram_realm_scores_for_type_scores(type_scores)
+    display_index = {
+        realm_name: index
+        for index, realm_name in enumerate(ENNEAGRAM_REALM_DISPLAY_ORDER)
+    }
+    ranked_realms = sorted(
+        ENNEAGRAM_REALM_DISPLAY_ORDER,
+        key=lambda realm_name: (
+            -realm_scores.get(realm_name, 0.0),
+            display_index[realm_name],
+        ),
+    )
+    color_by_realm = {
+        realm_name: ENNEAGRAM_REALM_RANK_COLORS[index]
+        for index, realm_name in enumerate(ranked_realms)
+    }
+    realm_tokens = []
+    for realm_name in ENNEAGRAM_REALM_DISPLAY_ORDER:
+        label = realm_name.title()
+        score = realm_scores.get(realm_name, 0.0)
+        color = color_by_realm[realm_name]
+        realm_tokens.append(
+            f"<span style='color:{color};font-weight:700;'>"
+            f"{html.escape(label)} ({score:.1f})</span>"
+        )
+    return ", ".join(realm_tokens) + "."
 
 
 def tritype_text_for_scores(type_scores: dict[int, float]) -> str:

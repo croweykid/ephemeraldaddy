@@ -964,6 +964,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
     connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
     draw_enneagram_predictions as _draw_enneagram_predictions_chart,
+    enneagram_realm_summary_html as _enneagram_realm_summary_html,
     tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
 )
@@ -28143,6 +28144,7 @@ class MainWindow(QMainWindow):
         if tritype_label is not None:
             tritype_label.setText(
                 f"<b>Predicted Tritype:</b> {_tritype_text_for_scores(scores)}"
+                f"<br>{_enneagram_realm_summary_html(scores)}"
             )
 
     def _draw_dnd_statblock_predictions(self, ax, chart: Chart) -> None:
