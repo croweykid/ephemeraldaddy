@@ -4500,11 +4500,11 @@ SOCIAL_ROLE = [
 #enneagram (approximated). One problem with this system is some thing get double counted by 'dominant' and also fulfilling the positions of certain criteria.
 ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached to it for relevance, because not all predictors are equally important...
 #if sign, house, body, or nakshatra exists in this constant, add its weight within the chart to the sum of the enneagram type number. 
-# Individual criterion entries can be weighted by switching set -> dict, e.g. "positions": {"Moon in Scorpio": 1.4, "Moon in Cancer": 0.8}.
+# Optional per-type criterion multipliers can be supplied via: "criterion_multipliers": {"houses":1.25,"signs":1.0,...}.
+# Omitted multipliers default to 1.0.
+# Individual criterion entries can also be weighted by switching set -> dict, e.g. "positions": {"Moon in Scorpio": 1.4, "Moon in Cancer": 0.8}.
 # This works for signs/bodies/houses/nakshatras/gates/positions/aspects (+ anti* variants).
-# Omitted criterion weights default to 1, and all positive criteria are normalized together for a type.
-# Anti-criteria are normalized separately, then subtracted. No category/property-type multipliers are applied.
-# Positions and aspects are matched as true/false criteria.
+#Positions and aspects must be parsed differently. First, parse the position string so it's algorithmically recognizeable with actual chart positions in the given chart. Then - if take that chart's sign weight, body weight and house weight
     1:{ #sample size was 77, so that's ok, but could be better.
         "name":"Idealist",
         "signs":{"Scorpio":6,"Virgo":4,"Cancer":9,"Taurus":6}, #Cancer=9 or 4. Virgo is 3 o4 4. Taurus is 6 or 5.yeah, Cancer surprised me but that's what the data shows. My original guess was Virgo, Scorpio, Aquarius, Capricorn.
