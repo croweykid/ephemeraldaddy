@@ -633,6 +633,9 @@ from ephemeraldaddy.gui.features.charts.body_dynamics_popout import (
 from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
     build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
 )
+from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
+    style_dominant_body_axis_labels as _style_dominant_body_axis_labels,
+)
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
 )
@@ -23015,9 +23018,7 @@ class MainWindow(QMainWindow):
             bar.set_picker(True)
         x_labels = [_display_body_name(body) for body in planets]
         self._apply_standard_ncv_bar_chart_axes(ax, x_labels)
-        for tick_label, body in zip(ax.get_xticklabels(), planets, strict=True):
-            tick_label.set_gid(f"body:{body}")
-            tick_label.set_picker(5)
+        _style_dominant_body_axis_labels(ax, chart, planets)
         draw_weight_distribution_reference_lines(ax, values)
         top_padding = self._chart_bar_top_padding_in_data_units(ax, pixels=15.0)
         ax.set_ylim(0, max(1, max_value + 1) + top_padding)
