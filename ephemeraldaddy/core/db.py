@@ -18,7 +18,8 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
-from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
+from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
+from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 
 
@@ -41,6 +42,8 @@ SOURCE_EVENT = CHART_TYPE_EVENT
 SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
 SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
 SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
+
+BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
 
 CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
     "id",
@@ -73,6 +76,7 @@ CHART_EXPORT_LABEL_OVERRIDES: dict[str, str] = {
 }
 
 CHART_EXPORT_DEFAULTS: dict[str, Any] = {
+    "body_dynamics_roles": "",
     "alias": "",
     "from_whence": "",
     "gender": "",
@@ -238,7 +242,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -315,6 +319,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             top_three_enneagram_types TEXT,
             dominant_mode TEXT,
             modal_distribution TEXT,
+            body_dynamics_roles TEXT,
             human_design_gates TEXT,
             human_design_lines TEXT,
             human_design_channels TEXT,
@@ -706,6 +711,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             ADD COLUMN modal_distribution TEXT
             """
         )
+    if "body_dynamics_roles" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN body_dynamics_roles TEXT
+            """
+        )
     if "human_design_gates" not in columns:
         conn.execute(
             """
@@ -1049,6 +1061,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _create_duplicate_exclusions_table(conn)
         _prune_duplicate_exclusions(conn)
         conn.execute("PRAGMA user_version = 12")
+        user_version = 12
+
+    if user_version < 13:
+        _migrate_charts_columns(conn)
+        conn.execute("PRAGMA user_version = 13")
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -1196,6 +1213,98 @@ def _parse_string_list(value: Optional[str]) -> list[str]:
         if text:
             values.append(text)
     return values
+
+
+
+def _parse_body_dynamics_roles(raw_value: Any) -> dict[str, str]:
+    """Parse persisted Body Dynamics role metadata into canonical values."""
+    if isinstance(raw_value, dict):
+        items = raw_value.items()
+    else:
+        text = str(raw_value or "").strip()
+        if not text:
+            return {}
+        try:
+            parsed = json.loads(text)
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        items = parsed.items()
+
+    roles: dict[str, str] = {}
+    canonical_bodies = {body.casefold(): body for body in JONES_PLANETS}
+    for raw_body, raw_role in items:
+        body = canonical_bodies.get(str(raw_body or "").strip().casefold())
+        role = _normalize_body_dynamics_role(raw_role)
+        if body and role:
+            roles[body] = role
+    return roles
+
+
+def _serialize_body_dynamics_roles(roles: Optional[dict[str, str]]) -> Optional[str]:
+    """Serialize Body Dynamics role metadata using stable JONES body ordering."""
+    normalized = _parse_body_dynamics_roles(roles or {})
+    if not normalized:
+        return None
+    ordered = {
+        body: normalized[body]
+        for body in JONES_PLANETS
+        if body in normalized
+    }
+    return json.dumps(ordered, ensure_ascii=False, sort_keys=False)
+
+
+def _normalize_body_dynamics_role(value: Any) -> Optional[str]:
+    """Normalize legacy/UI Body Dynamics labels to searchable metadata roles."""
+    text = str(value or "").strip().lower().replace("_", " ").replace("-", " ")
+    if not text:
+        return None
+    if text in BODY_DYNAMICS_ROLE_VALUES:
+        return text
+    if text in {"antagonizer", "antagonizing", "antagonizing influence"}:
+        return "antagonist"
+    if text in {"enabling", "enabling influence"}:
+        return "enabler"
+    if text.startswith("escalat") or " escalating" in f" {text}":
+        return "escalator"
+    return None
+
+
+def _body_dynamics_role_from_scores(body_scores: dict[str, float] | None) -> str:
+    """Classify one body's Body Dynamics scores for persistent metadata."""
+    scores = body_scores or {}
+    enabling = float(scores.get("enabling", 0.0))
+    antagonizing = float(scores.get("antagonizing", 0.0))
+    escalating = float(scores.get("escalating", 0.0))
+    if escalating > enabling and escalating > antagonizing:
+        return "escalator"
+    if antagonizing > enabling:
+        return "antagonist"
+    return "enabler"
+
+
+def _resolve_body_dynamics_roles(chart: Any) -> dict[str, str]:
+    """Calculate and cache each chart's JONES-body Body Dynamics roles."""
+    existing_roles = _parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
+    scores = (
+        getattr(chart, "planet_dynamics_scores", None)
+        or body_dynamics_reworked.calculate_planet_dynamics_scores(chart)
+    )
+
+    roles: dict[str, str] = {}
+    chart_positions = getattr(chart, "positions", {}) or {}
+    for body in JONES_PLANETS:
+        if body not in chart_positions and body not in scores:
+            if body in existing_roles:
+                roles[body] = existing_roles[body]
+            continue
+        roles[body] = _body_dynamics_role_from_scores(scores.get(body))
+
+    if not roles:
+        roles = existing_roles
+    chart.body_dynamics_roles = dict(roles)
+    return roles
 
 
 def _resolve_unknown_sign_metadata(
@@ -2124,6 +2233,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          alignment_score, matched_expectations, familiarity_factors, age_when_first_met, year_first_encountered, data_rating,
                          social_score, birthtime_unknown, signs_unknown, unknown_signs, retcon_time_used, retcon_hour, retcon_minute,
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
+                         body_dynamics_roles,
                          human_design_gates, human_design_lines, human_design_channels,
                          human_design_type, human_design_authority,
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2132,7 +2242,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2175,6 +2285,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("dominant_element_weights"),
                         _row_value("dominant_mode"),
                         _row_value("modal_distribution"),
+                        _row_value("body_dynamics_roles"),
                         _row_value("human_design_gates"),
                         _row_value("human_design_lines"),
                         _row_value("human_design_channels"),
@@ -2305,6 +2416,7 @@ def save_chart(
     chart.unknown_signs = list(resolved_unknown_signs)
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
+    body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
     with conn:
         cur = conn.execute(
@@ -2322,6 +2434,7 @@ def save_chart(
                  signs_unknown, unknown_signs,
                  retcon_time_used, retcon_hour, retcon_minute,
                  dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, enneagram_type_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
+                 body_dynamics_roles,
                  human_design_gates, human_design_lines, human_design_channels,
                  human_design_type, human_design_authority,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -2341,7 +2454,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2422,6 +2535,7 @@ def save_chart(
                 _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
+                _serialize_body_dynamics_roles(body_dynamics_roles),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
@@ -2558,6 +2672,7 @@ def update_chart(
     chart.unknown_signs = list(resolved_unknown_signs)
     human_design_type, human_design_authority = _resolve_human_design_metadata(chart)
     bazi_metadata = _resolve_bazi_metadata(chart)
+    body_dynamics_roles = _resolve_body_dynamics_roles(chart)
     conn = _get_conn()
     with conn:
         conn.execute(
@@ -2605,6 +2720,7 @@ def update_chart(
                 top_three_enneagram_types = ?,
                 dominant_mode = ?,
                 modal_distribution = ?,
+                body_dynamics_roles = ?,
                 human_design_gates = ?,
                 human_design_lines = ?,
                 human_design_channels = ?,
@@ -2713,6 +2829,7 @@ def update_chart(
                 _serialize_int_list(getattr(chart, "top_three_enneagram_types", None)),
                 getattr(chart, "dominant_mode", None),
                 _serialize_weight_map(getattr(chart, "modal_distribution", None)),
+                _serialize_body_dynamics_roles(body_dynamics_roles),
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
@@ -3025,6 +3142,11 @@ def load_chart(chart_id: int):
         if "enneagram_type_weights" in columns
         else "NULL AS enneagram_type_weights"
     )
+    body_dynamics_roles_projection = (
+        "body_dynamics_roles"
+        if "body_dynamics_roles" in columns
+        else "NULL AS body_dynamics_roles"
+    )
     cur = conn.execute(
         f"""
         SELECT name, alias, from_whence, gender, birth_place, datetime_iso, tz_name, lat, lon,
@@ -3033,7 +3155,7 @@ def load_chart(chart_id: int):
                positive_sentiment_intensity, negative_sentiment_intensity,
                familiarity, alignment_score, matched_expectations, {familiarity_factors_projection}, age_when_first_met, year_first_encountered, data_rating, birthtime_unknown, signs_unknown, unknown_signs,
                retcon_time_used, retcon_hour, retcon_minute,
-               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
+               dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
                human_design_gates, human_design_lines, human_design_channels,
                human_design_type, human_design_authority,
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
@@ -3094,6 +3216,7 @@ def load_chart(chart_id: int):
         top_three_enneagram_types,
         dominant_mode,
         modal_distribution,
+        body_dynamics_roles,
         human_design_gates,
         human_design_lines,
         human_design_channels,
@@ -3177,6 +3300,7 @@ def load_chart(chart_id: int):
         placeholder.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
         placeholder.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
         placeholder.modal_distribution = _parse_weight_map(modal_distribution)
+        placeholder.body_dynamics_roles = _parse_body_dynamics_roles(body_dynamics_roles)
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
         placeholder.human_design_lines = _parse_int_list(human_design_lines)
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
@@ -3259,6 +3383,7 @@ def load_chart(chart_id: int):
     chart.top_three_enneagram_types = _parse_int_list(top_three_enneagram_types)
     chart.dominant_mode = str(dominant_mode).strip() if dominant_mode else None
     chart.modal_distribution = _parse_weight_map(modal_distribution)
+    chart.body_dynamics_roles = _parse_body_dynamics_roles(body_dynamics_roles)
     chart.human_design_gates = _parse_int_list(human_design_gates)
     chart.human_design_lines = _parse_int_list(human_design_lines)
     chart.human_design_channels = _parse_string_list(human_design_channels)
