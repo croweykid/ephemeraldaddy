@@ -22365,7 +22365,7 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title == "Enneagram":
+        elif title == "💭Enneagram":
             info_panel.setPlaceholderText(
                 "Click an Enneagram bar to view type motivation and interpretation details."
             )
