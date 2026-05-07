@@ -467,9 +467,12 @@ def active_human_design_properties(chart: Any) -> tuple[str, set[str], str, str]
     return hd_type, centers, profile, authority
 
 
-def _bazi_weights_from_pillars(chart: Any) -> dict[str, float]:
+def _bazi_weights_from_pillars(chart: Any, *, include_hour: bool) -> dict[str, float]:
     weights: dict[str, float] = {}
-    for attr_name in ("bazi_year_pillar", "bazi_month_pillar", "bazi_day_pillar", "bazi_hour_pillar"):
+    pillar_attrs = ["bazi_year_pillar", "bazi_month_pillar", "bazi_day_pillar"]
+    if include_hour:
+        pillar_attrs.append("bazi_hour_pillar")
+    for attr_name in pillar_attrs:
         sign = normalize_bazi_sign_value(getattr(chart, attr_name, ""))
         if sign:
             weights[sign] = weights.get(sign, 0.0) + 1.0
@@ -500,10 +503,16 @@ def _effective_bazi_datetime_and_hour_policy(chart: Any) -> tuple[Any, bool]:
 
 
 def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
+    chart_dt, include_hour = _effective_bazi_datetime_and_hour_policy(chart)
+
+    weights = _bazi_weights_from_pillars(chart, include_hour=include_hour)
+    if weights:
+        return weights
+
     for attr_name in ("bazi_sign_weights", "bazi_branch_weights", "dominant_bazi_sign_weights"):
         raw_weights = getattr(chart, attr_name, None)
         if isinstance(raw_weights, Mapping) and raw_weights:
-            weights: dict[str, float] = {}
+            weights = {}
             for raw_sign, raw_weight in raw_weights.items():
                 sign = normalize_bazi_sign_value(raw_sign)
                 if not sign:
@@ -516,13 +525,8 @@ def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
             if weights:
                 return weights
 
-    weights = _bazi_weights_from_pillars(chart)
-    if weights:
-        return weights
-
     from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
 
-    chart_dt, include_hour = _effective_bazi_datetime_and_hour_policy(chart)
     if chart_dt is None:
         return {}
     try:

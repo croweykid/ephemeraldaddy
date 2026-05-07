@@ -121,3 +121,19 @@ def test_bazi_fallback_uses_rectified_time_when_hour_is_available(monkeypatch):
     assert captured["dt_local"].minute == 15
     assert captured["include_hour"] is True
     assert weights == {"Horse": 2.0, "Dog": 1.0, "Rabbit": 1.0}
+
+
+def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypatch):
+    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+
+    monkeypatch.setattr(predictor, "default_chart_uses_houses", lambda _chart: False)
+    chart = SimpleNamespace(
+        bazi_year_pillar="甲午",
+        bazi_month_pillar="丙午",
+        bazi_day_pillar="甲戌",
+        bazi_hour_pillar="乙卯",
+    )
+
+    weights = predictor.active_bazi_sign_weights(chart)
+
+    assert weights == {"Horse": 2.0, "Dog": 1.0}
