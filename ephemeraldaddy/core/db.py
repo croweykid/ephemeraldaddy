@@ -18,7 +18,8 @@ from ephemeraldaddy.core.chart import (
     chart_uses_houses,
     compute_unknown_sign_positions,
 )
-from ephemeraldaddy.core.interpretations import RELATION_TYPE, SENTIMENT_OPTIONS
+from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
+from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
 
 
@@ -42,18 +43,6 @@ SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
 SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
 SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
 
-JONES_BODY_DYNAMICS_BODIES: tuple[str, ...] = (
-    "Sun",
-    "Moon",
-    "Mercury",
-    "Venus",
-    "Mars",
-    "Jupiter",
-    "Saturn",
-    "Uranus",
-    "Neptune",
-    "Pluto",
-)
 BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
 
 CHART_DB_EXPORT_LOCKED_COLUMNS: set[str] = {
@@ -1244,7 +1233,7 @@ def _parse_body_dynamics_roles(raw_value: Any) -> dict[str, str]:
         items = parsed.items()
 
     roles: dict[str, str] = {}
-    canonical_bodies = {body.casefold(): body for body in JONES_BODY_DYNAMICS_BODIES}
+    canonical_bodies = {body.casefold(): body for body in JONES_PLANETS}
     for raw_body, raw_role in items:
         body = canonical_bodies.get(str(raw_body or "").strip().casefold())
         role = _normalize_body_dynamics_role(raw_role)
@@ -1260,7 +1249,7 @@ def _serialize_body_dynamics_roles(roles: Optional[dict[str, str]]) -> Optional[
         return None
     ordered = {
         body: normalized[body]
-        for body in JONES_BODY_DYNAMICS_BODIES
+        for body in JONES_PLANETS
         if body in normalized
     }
     return json.dumps(ordered, ensure_ascii=False, sort_keys=False)
@@ -1298,16 +1287,14 @@ def _body_dynamics_role_from_scores(body_scores: dict[str, float] | None) -> str
 def _resolve_body_dynamics_roles(chart: Any) -> dict[str, str]:
     """Calculate and cache each chart's JONES-body Body Dynamics roles."""
     existing_roles = _parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
-    try:
-        from ephemeraldaddy.analysis.body_dynamics_reworked import calculate_planet_dynamics_scores
-
-        scores = calculate_planet_dynamics_scores(chart)
-    except Exception:
-        scores = getattr(chart, "planet_dynamics_scores", None) or {}
+    scores = (
+        getattr(chart, "planet_dynamics_scores", None)
+        or body_dynamics_reworked.calculate_planet_dynamics_scores(chart)
+    )
 
     roles: dict[str, str] = {}
     chart_positions = getattr(chart, "positions", {}) or {}
-    for body in JONES_BODY_DYNAMICS_BODIES:
+    for body in JONES_PLANETS:
         if body not in chart_positions and body not in scores:
             if body in existing_roles:
                 roles[body] = existing_roles[body]

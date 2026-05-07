@@ -8,16 +8,15 @@ from ephemeraldaddy.core.interpretations import (
     EXALTATION_WEIGHT,
     FALL_WEIGHT,
     HOUSE_WEIGHTS,
-    INNER_PLANETS,
     NATAL_WEIGHT,
     NATURAL_HOUSE_PLANET_BONUS,
     NATURAL_HOUSE_PLANETS,
     NATURAL_HOUSE_SIGN_BONUS,
     NATURAL_HOUSE_SIGNS,
-    OUTER_PLANETS,
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
     PLANET_FALL,
+    JONES_PLANETS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
     RULERSHIP_WEIGHT,
@@ -26,7 +25,7 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 
-BODY_INDEX = {body: i for i, body in enumerate(PLANET_ORDER)}
+BODY_INDEX = {body: i for i, body in enumerate(JONES_PLANETS)}
 
 def normalize_body_pair(a: str, b: str) -> tuple[str, str]:
     """
@@ -106,8 +105,8 @@ BODY_PAIR_DYNAMICS = {
 }
 
 
-EXPECTED_UNORDERED_PAIR_COUNT = 45
-assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT
+EXPECTED_UNORDERED_PAIR_COUNT = len(JONES_PLANETS) * (len(JONES_PLANETS) - 1) // 2
+assert len(BODY_PAIR_DYNAMICS) == EXPECTED_UNORDERED_PAIR_COUNT == 45
 
 PAIR_TONE_DISTRIBUTION = {
     "enabling_pair": {
@@ -282,11 +281,7 @@ def _aspect_orb_factor(aspect: dict) -> float:
 def calculate_planet_dynamics_scores(chart) -> dict[str, dict[str, float]]:
     """Compute per-JONES-body dynamics scores from aspect type + pair tone."""
     positions = getattr(chart, "positions", {}) or {}
-    tracked_bodies = tuple(
-        body
-        for body in PLANET_ORDER
-        if body in (INNER_PLANETS | OUTER_PLANETS) and body in positions
-    )
+    tracked_bodies = tuple(body for body in JONES_PLANETS if body in positions)
     dynamics: dict[str, dict[str, float]] = {
         body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
         for body in tracked_bodies
