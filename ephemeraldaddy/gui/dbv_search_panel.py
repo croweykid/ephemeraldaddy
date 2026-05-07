@@ -66,67 +66,12 @@ def build_dbv_search_panel(window) -> "QWidget":
     def apply_default_dropdown_style(dropdown: QComboBox) -> None:
         dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
-    human_design_dropdown_style = f"""
-{DEFAULT_DROPDOWN_STYLE}
-QComboBox QAbstractItemView::item {{
-    margin-left: 0px;
-    margin-right: 0px;
-    padding-left: 2px;
-    padding-right: 2px;
-}}
-"""
-
-    class DropdownFullClickFilter(app_module.QObject):
-        """Open a combo box popup when any visible part of the box is clicked."""
-
-        def __init__(self, dropdown: QComboBox) -> None:
-            super().__init__(dropdown)
-            self._dropdown = dropdown
-
-        def eventFilter(self, obj, event) -> bool:
-            if (
-                event.type() == app_module.QEvent.MouseButtonPress
-                and event.button() == Qt.LeftButton
-                and self._dropdown.isEnabled()
-            ):
-                self._dropdown.setFocus(Qt.MouseFocusReason)
-                self._dropdown.showPopup()
-                return True
-            return super().eventFilter(obj, event)
-
-    def make_dropdown_fully_clickable(dropdown: QComboBox) -> None:
-        click_filter = DropdownFullClickFilter(dropdown)
-        dropdown.installEventFilter(click_filter)
-        if dropdown.lineEdit() is not None:
-            dropdown.lineEdit().installEventFilter(click_filter)
-        if not hasattr(window, "_dbv_dropdown_click_filters"):
-            window._dbv_dropdown_click_filters = []
-        window._dbv_dropdown_click_filters.append(click_filter)
-
-    def apply_human_design_dropdown_style(dropdown: QComboBox) -> None:
-        dropdown.setStyleSheet(human_design_dropdown_style)
-        dropdown.view().setStyleSheet(
-            "QAbstractItemView::item { "
-            "margin-left: 0px; margin-right: 0px; "
-            "padding-left: 2px; padding-right: 2px; "
-            "}"
-        )
-        make_dropdown_fully_clickable(dropdown)
-
     def center_dropdown_items(dropdown: QComboBox) -> None:
+        dropdown.setEditable(True)
+        dropdown.lineEdit().setReadOnly(True)
+        dropdown.lineEdit().setAlignment(Qt.AlignCenter)
         for item_index in range(dropdown.count()):
             dropdown.setItemData(item_index, Qt.AlignCenter, Qt.TextAlignmentRole)
-
-    def make_smaller_label(text: str) -> QLabel:
-        label = QLabel(text)
-        font = label.font()
-        point_size = font.pointSize()
-        if point_size > 0:
-            font.setPointSize(max(1, point_size - 3))
-        else:
-            font.setPixelSize(max(1, font.pixelSize() - 3))
-        label.setFont(font)
-        return label
 
     def narrow_dropdown_for_not_option(dropdown: QComboBox) -> None:
         target_width = max(120, dropdown.sizeHint().width() - 100)
@@ -714,10 +659,10 @@ QComboBox QAbstractItemView::item {{
     human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
 
     hd_channels_row = QHBoxLayout()
-    hd_channels_row.addWidget(make_smaller_label("Channels"))
+    hd_channels_row.addWidget(QLabel("Channels"))
     for _ in range(3):
         channel_combo = QComboBox()
-        apply_human_design_dropdown_style(channel_combo)
+        apply_default_dropdown_style(channel_combo)
         channel_combo.addItem("Any", "Any")
         channel_options = sorted(
             {
@@ -749,10 +694,10 @@ QComboBox QAbstractItemView::item {{
     human_design_group_layout.addLayout(hd_channels_row)
 
     hd_gates_row = QHBoxLayout()
-    hd_gates_row.addWidget(make_smaller_label("Gates"))
+    hd_gates_row.addWidget(QLabel("Gates"))
     for _ in range(3):
         gate_combo = QComboBox()
-        apply_human_design_dropdown_style(gate_combo)
+        apply_default_dropdown_style(gate_combo)
         gate_combo.addItem("Any", "Any")
         for gate_value in range(1, 65):
             gate_combo.addItem(str(gate_value), gate_value)
@@ -773,9 +718,9 @@ QComboBox QAbstractItemView::item {{
     human_design_group_layout.addLayout(hd_gates_row)
 
     hd_type_row = QHBoxLayout()
-    hd_type_row.addWidget(make_smaller_label("Type"))
+    hd_type_row.addWidget(QLabel("Type"))
     window._human_design_type_filter_combo = QComboBox()
-    apply_human_design_dropdown_style(window._human_design_type_filter_combo)
+    apply_default_dropdown_style(window._human_design_type_filter_combo)
     window._human_design_type_filter_combo.addItem("Any", "Any")
     window._human_design_type_filter_combo.addItem("Manifestor", "Manifestor")
     window._human_design_type_filter_combo.addItem("Generator", "Generator")
@@ -786,9 +731,9 @@ QComboBox QAbstractItemView::item {{
     human_design_group_layout.addLayout(hd_type_row)
 
     hd_profile_row = QHBoxLayout()
-    hd_profile_row.addWidget(make_smaller_label("Profile"))
+    hd_profile_row.addWidget(QLabel("Profile"))
     window._human_design_profile_filter_combo = QComboBox()
-    apply_human_design_dropdown_style(window._human_design_profile_filter_combo)
+    apply_default_dropdown_style(window._human_design_profile_filter_combo)
     window._human_design_profile_filter_combo.addItem("Any", "Any")
     for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
         window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
@@ -797,10 +742,10 @@ QComboBox QAbstractItemView::item {{
     human_design_group_layout.addLayout(hd_profile_row)
 
     hd_defined_centers_row = QHBoxLayout()
-    hd_defined_centers_row.addWidget(make_smaller_label("Defined Centers"))
+    hd_defined_centers_row.addWidget(QLabel("Defined Centers"))
     for _ in range(3):
         center_combo = QComboBox()
-        apply_human_design_dropdown_style(center_combo)
+        apply_default_dropdown_style(center_combo)
         center_combo.addItem("Any", "Any")
         for center_label in getattr(window, "HD_DEFINED_CENTER_ORDER", ()):
             center_combo.addItem(center_label, center_label)
