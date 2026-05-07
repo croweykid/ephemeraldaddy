@@ -10,6 +10,10 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, Mapping
 
+from ephemeraldaddy.analysis.bazi_getter import (
+    bazi_sign_weights_from_chart,
+    normalize_bazi_sign_value,
+)
 from ephemeraldaddy.core.chart import chart_uses_houses as default_chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
     ASPECT_SCORE_WEIGHTS,
@@ -62,38 +66,6 @@ HD_AUTHORITY_ALIASES = {
     "mental_environmental_sounding_board": "mental",
     "environmental_sounding_board": "mental",
     "sounding_board": "mental",
-}
-BAZI_BRANCH_TO_SIGN = {
-    "子": "Rat",
-    "丑": "Ox",
-    "寅": "Tiger",
-    "卯": "Rabbit",
-    "辰": "Dragon",
-    "巳": "Snake",
-    "午": "Horse",
-    "未": "Goat",
-    "申": "Monkey",
-    "酉": "Rooster",
-    "戌": "Dog",
-    "亥": "Pig",
-}
-BAZI_SIGN_ALIASES = {
-    "rat": "Rat",
-    "ox": "Ox",
-    "tiger": "Tiger",
-    "rabbit": "Rabbit",
-    "dragon": "Dragon",
-    "snake": "Snake",
-    "horse": "Horse",
-    "goat": "Goat",
-    "sheep": "Goat",
-    "ram": "Goat",
-    "monkey": "Monkey",
-    "rooster": "Rooster",
-    "chicken": "Rooster",
-    "dog": "Dog",
-    "pig": "Pig",
-    "boar": "Pig",
 }
 CANONICAL_FACTOR_NAMES = tuple(dict.fromkeys([*PLANET_ORDER, *ZODIAC_NAMES, "AS", "DS", "IC", "MC"]))
 CANONICAL_FACTOR_LOOKUP = {name.casefold(): name for name in CANONICAL_FACTOR_NAMES}
@@ -373,21 +345,6 @@ def normalize_hd_profile_value(value: Any) -> str:
     return text
 
 
-def normalize_bazi_sign_value(value: Any) -> str:
-    text = str(value).strip()
-    if not text:
-        return ""
-    for char in text:
-        sign = BAZI_BRANCH_TO_SIGN.get(char)
-        if sign:
-            return sign
-    parenthetical = re.search(r"\(([^()]+)\)", text)
-    if parenthetical:
-        text = parenthetical.group(1).strip()
-    key = _normalized_token_key(text)
-    return BAZI_SIGN_ALIASES.get(key, text.title())
-
-
 def weighted_hd_type_entries(values: Any) -> dict[str, float]:
     entries: dict[str, float] = {}
     for raw_value, weight in coerce_weighted_entries(values).items():
@@ -467,77 +424,11 @@ def active_human_design_properties(chart: Any) -> tuple[str, set[str], str, str]
     return hd_type, centers, profile, authority
 
 
-def _bazi_weights_from_pillars(chart: Any, *, include_hour: bool) -> dict[str, float]:
-    weights: dict[str, float] = {}
-    pillar_attrs = ["bazi_year_pillar", "bazi_month_pillar", "bazi_day_pillar"]
-    if include_hour:
-        pillar_attrs.append("bazi_hour_pillar")
-    for attr_name in pillar_attrs:
-        sign = normalize_bazi_sign_value(getattr(chart, attr_name, ""))
-        if sign:
-            weights[sign] = weights.get(sign, 0.0) + 1.0
-    return weights
-
-
-def _effective_bazi_datetime_and_hour_policy(chart: Any) -> tuple[Any, bool]:
-    chart_dt = getattr(chart, "dt", None)
-    include_hour = default_chart_uses_houses(chart)
-    if chart_dt is None:
-        return None, include_hour
-    if include_hour and bool(getattr(chart, "retcon_time_used", False)):
-        retcon_hour = getattr(chart, "retcon_hour", None)
-        retcon_minute = getattr(chart, "retcon_minute", None)
-        if retcon_hour is not None and retcon_minute is not None:
-            try:
-                chart_dt = chart_dt.replace(
-                    hour=int(retcon_hour),
-                    minute=int(retcon_minute),
-                    second=0,
-                    microsecond=0,
-                )
-            except Exception:
-                pass
-    if getattr(chart_dt, "tzinfo", None) is not None:
-        chart_dt = chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
-    return chart_dt, include_hour
-
-
 def active_bazi_sign_weights(chart: Any) -> dict[str, float]:
-    chart_dt, include_hour = _effective_bazi_datetime_and_hour_policy(chart)
-
-    weights = _bazi_weights_from_pillars(chart, include_hour=include_hour)
-    if weights:
-        return weights
-
-    for attr_name in ("bazi_sign_weights", "bazi_branch_weights", "dominant_bazi_sign_weights"):
-        raw_weights = getattr(chart, attr_name, None)
-        if isinstance(raw_weights, Mapping) and raw_weights:
-            weights = {}
-            for raw_sign, raw_weight in raw_weights.items():
-                sign = normalize_bazi_sign_value(raw_sign)
-                if not sign:
-                    continue
-                try:
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    weight = 0.0
-                weights[sign] = weights.get(sign, 0.0) + weight
-            if weights:
-                return weights
-
-    from ephemeraldaddy.analysis.bazi_getter import build_bazi_chart_data
-
-    if chart_dt is None:
-        return {}
     try:
-        bazi_data = build_bazi_chart_data(chart_dt, include_hour=include_hour)
+        return bazi_sign_weights_from_chart(chart)
     except Exception:
         return {}
-    for branch in getattr(bazi_data, "earthly_branches", {}).values():
-        sign = normalize_bazi_sign_value(branch)
-        if sign:
-            weights[sign] = weights.get(sign, 0.0) + 1.0
-    return weights
 
 
 def _weighted_text_entries(values: Any) -> dict[str, float]:

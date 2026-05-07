@@ -94,7 +94,6 @@ def test_bazi_fallback_uses_rectified_time_when_hour_is_available(monkeypatch):
     from datetime import datetime
 
     from ephemeraldaddy.analysis import bazi_getter
-    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
 
     captured = {}
 
@@ -106,7 +105,7 @@ def test_bazi_fallback_uses_rectified_time_when_hour_is_available(monkeypatch):
         captured["include_hour"] = include_hour
         return SimpleNamespace(earthly_branches={"year": "午", "month": "戌", "day": "卯", "hour": "午"})
 
-    monkeypatch.setattr(predictor, "default_chart_uses_houses", fake_chart_uses_houses)
+    monkeypatch.setattr(bazi_getter, "bazi_include_hour_for_chart", fake_chart_uses_houses)
     monkeypatch.setattr(bazi_getter, "build_bazi_chart_data", fake_build_bazi_chart_data)
     chart = SimpleNamespace(
         dt=datetime(2000, 1, 1, 12, 34),
@@ -115,7 +114,7 @@ def test_bazi_fallback_uses_rectified_time_when_hour_is_available(monkeypatch):
         retcon_minute=15,
     )
 
-    weights = predictor.active_bazi_sign_weights(chart)
+    weights = bazi_getter.bazi_sign_weights_from_chart(chart)
 
     assert captured["dt_local"].hour == 22
     assert captured["dt_local"].minute == 15
@@ -124,9 +123,9 @@ def test_bazi_fallback_uses_rectified_time_when_hour_is_available(monkeypatch):
 
 
 def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypatch):
-    from ephemeraldaddy.analysis import weighted_chart_predictor as predictor
+    from ephemeraldaddy.analysis import bazi_getter
 
-    monkeypatch.setattr(predictor, "default_chart_uses_houses", lambda _chart: False)
+    monkeypatch.setattr(bazi_getter, "bazi_include_hour_for_chart", lambda _chart: False)
     chart = SimpleNamespace(
         bazi_year_pillar="甲午",
         bazi_month_pillar="丙午",
@@ -134,6 +133,6 @@ def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypa
         bazi_hour_pillar="乙卯",
     )
 
-    weights = predictor.active_bazi_sign_weights(chart)
+    weights = bazi_getter.bazi_sign_weights_from_chart(chart)
 
     assert weights == {"Horse": 2.0, "Dog": 1.0}
