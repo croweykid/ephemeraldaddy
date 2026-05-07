@@ -4535,6 +4535,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{},
         "color":"#f5f5f5",
         "motivation":"Perfection, correctness",
+        "why":"because what needs done could - and SHOULD - be done better",
         "description":"1s dream of a better world, which begins with themselves. Their scope for seeking the betterness of things may occupy any scale - personal (rigorous regimen to become virtuosic and/or to obliterate one's personal flaws), intimate (seeking to correct the flaws of others), or global/collective (trying to correct perceived flaws in the world and/or its systems at large).",
         "quotes":{"'I don't care if it hurts. / I want to have control. / I want a perfect body. / I want a perfect soul.' - Thom Yorke, Creep"}
         },
@@ -4573,6 +4574,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{"Horse":4},
         "color":"#cc9900",
         "motivation":"To be useful & necessary to others",
+        "why":"to be essential to others; to be useful, needed and loved",
         "description":"2s want to be indispensible to others. They need to be needed. They can only feel that they matter if others depend on them.",
         "quotes":{"'When you're weary / Feeling small / When tears are in your eyes / I will dry them all / I'm on your side. / Oh, when times get rough, / And friends just can't be found...' - Simon & Garfunkel, Bridge Over Troubled Water"},
         },
@@ -4610,6 +4612,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{},
         "color":"#ffff00",
         "motivation":"Visible recognition, status and achievement",
+        "why":"to be recognized as the best",
         "description":"3s are sort of narcissist-coded, but that doesn't have to be malignant. It can result in materialism, or it could result in extreme competence. Sometimes 3s are mistaken for 1s because they appear driven by perfectionism. But rather than pursuit of perfection/ideals (e1) or competence (e5) for their own sake, 3s are driven by the pursuit of recognition for that competence. Arguably, the easier the trophies and accolades come, the less hard 3s will need to try. The point here is not the conditions of victory, but the recognition of their superiority over others; the status and attention of being president more than the power of owning the red button. They will live and die for that gold star on their paper, and the knowledge that other people know they got it.",
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
         },
@@ -4670,6 +4673,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{"Ox":3}, #+3% in "normcore"
         "color":"#cc66ff",
         "motivation":"Individuality, depth of experience & authenticity",
+        "why":"to feel something real",
         "description":"4s don't mind if you think they're a freak. They want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. Many seek originality and ways of distinguishing themselves from the mainstream, but that may be just a reaction to the inauthenticity of the mainstream. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
         },
@@ -4683,7 +4687,14 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibodies":{"Jupiter":12,"Pluto":6},
         "nakshatras":{"Mrigashira":11,"Bharani":6,"Chitra":5,"Krittika":5,"Punarvasu":4}, #"Purva Phalguni","Krittika","Vishakha"        
         "antinakshatras":{"Purva Ashadha":5,"Hasta":6,}, #"Swati","Pushya","Purva Bhadrapada" 
-        "positions":{"Sun in Cancer":6,"Sun in Gemini":3,"Sun in Taurus":4,"Sun in Virgo":3,"Sun in Scorpio":3,"Moon in Aries":3,"Moon in Cancer":3,"Moon in Pisces":3,"Mercury in Gemini":5,"Mercury in Taurus":8,"Venus in Aries":8,"Venus in Gemini":8,"Venus in Scorpio":6,"Mars in Libra":11,"Mars in Capricorn":8,"Jupiter in Gemini":11,"Saturn in Leo":5,"Scorpio in H1":7,"Gemini in H1":4,"Virgo in H10":9,"Cancer in H2":9,"Pallas in Aquarius":1,"Mercury in H3":1,"Venus in H4":1,"Vesta in H7":1,"Mercury in H12":1,"Moon in H6":1,"Venus in H3":1,"Capricorn in H8":1},
+        "positions":{
+            "Sun in Cancer":6,"Sun in Gemini":3,"Sun in Taurus":4,"Sun in Virgo":3,"Sun in Scorpio":3,
+            "Moon in Aries":3,"Moon in Cancer":3,"Moon in Pisces":3,
+            "Mercury in Gemini":5,"Mercury in Taurus":8,
+            "Venus in Aries":8,"Venus in Gemini":8,"Venus in Scorpio":6,
+            "Mars in Libra":11,"Mars in Capricorn":8,
+            "Jupiter in Gemini":11,
+            "Saturn in Leo":5,"Scorpio in H1":7,"Gemini in H1":4,"Virgo in H10":9,"Cancer in H2":9,"Pallas in Aquarius":1,"Mercury in H3":1,"Venus in H4":1,"Vesta in H7":1,"Mercury in H12":1,"Moon in H6":1,"Venus in H3":1,"Capricorn in H8":1},
         "antipositions":{"Sun in Leo","Sun in Libra","Sun in Sagittarius","Sun in Pisces","Moon in Scorpio","Moon in Capricorn","Venus in Capricorn","Venus in Sagittarius","Mars in Scorpio","Mars in Aquarius","Jupiter in Cancer","Jupiter in Leo","Uranus in Virgo","Leo in H1","Sagittarius in H1","Libra in H10"},
         "aspects":{"Sun conjunction Venus":11,"Ceres square Jupiter":10,"Mercury conjunction Venus":5,"Moon trine Pallas":10,"Fortune square Vesta":9,"Chiron trine Mars":10,"Uranus square Venus":10,"Chiron square Pluto":9,"Neptune sextile Sun":7,"Moon square Lilith":8,"Juno trine Moon":7,"Juno square Ketu":7,"Jupiter square Rahu":7,"Ceres square Lilith":7,"Chiron square Fortune":7,"Ketu trine Vesta":6,"Neptune sextile Sun":7,"Saturn trine Lilith":6,"IC conjunction Venus":14,"IC square Jupiter":10,"IC square Vesta":9,"IC trine Neptune":10,}, #there are more. Also: 'but in what signs??'
         "antiaspects":{"Chiron opposition Uranus":16},
@@ -4703,6 +4714,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{"Dog"},
         "color":"#669900",
         "motivation":"Knowledge & information, personal autonomy",
+        "why":"for the love of knowledge",
         "description":"5s want to understand the world, whether through a microscope or a telescope. They generally perceive themselves as on the outside, looking in at the experiment of existence. They go to great pains to ensure that their lab is protected so that their subjects (the outside world) cannot touch them, messy their lab and disrupt their experiments.",
         "quotes":{"'I'm so glad I got burned, / think of all the things we learned / from the people who are / still alive. / And believe me I'm still alive. / I'm doing science and I'm still alive.' - Portal Soundtrack, Still Alive","'There is research to be done, / and we made a neat gun / for the people who are / still alive...' - Portal soundtrack, Still Alive","'Well they gave me medication so I feel how I imagine people of average intelligence feel all the time.' - Dr. Temperance Bones, Bones"},
         },
@@ -4756,6 +4768,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{},
         "color":"#0099cc",
         "motivation":"Duty, performing perceived social role & fulfilling personal responsibilities.",
+        "why":"because that's what someone with their responsibilities does, according to respected authorities",
         "description":"6s are generally here to maintain their view of the status quo, upholding their recognized hierarchy, and support their tribe. This can look very different depending on who they recognize as their authority figure (leader), and who/what they believe is their tribe (which can exist at varying scales from the very personal to the very global). Independent of scale, they will expect members of their perceived tribe to fulfill their responsibilities/duties/roles within the tribe as well. In the creator of this app's opinion, there is no 'counterphobic 6' as lore suggests - just one type of 6, who is always deferential to role models, even if the early Recognized Tribal Authority was Hunter S Thompson, Charlton Heston or the Unibomber. Saying e6 is about 'security' is tautological; the entire enneagram is about how individuals seek a sense of security; e6 seeks it through tribal role participation'.",
         "quotes":{"'If I'd said that to MY daddy, he'd have...[insert reflection on one's father's archetypal behavior, intended as a model of exemplary response to the situation]' - a phrase often invoked by nearly everyone in the American South & Bible Belt.","'Three weeks from now, I will be harvesting my crops. Imagine where you will be, and it will be so. Hold the line! Stay with me! If you find yourself alone, riding in the green fields with the sun on your face, do not be troubled. For you are in Elysium, and you're already dead! Brothers, what we do in life echoes in eternity...' - Maximus, Gladiator","'Five thousand of my men are out there in the freezing mud. Three thousand of them are bloodied and cleaved. Two thousand will never leave this place. I will not believe that they fought and died for nothing.' - Maximus, Gladiator","'Sometimes I do what I want to do. The rest of the time, I do what I have to.' - Cicero, Gladiator","'You have a great name. He must kill your name before he kills you.' - Juba, Gladiator",},
         }, #"'Elephants are not purple. This is wrong.' - Dr. Temperance Bones, Bones"
@@ -4789,11 +4802,12 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{},
         "color":"#ff33cc",
         "motivation":"Escaping adversity, embracing pleasure",
+        "why":"because it sounded fun",
         "description":"Essentially, 7s are about a blend of hedonism and epicurianism. They are here to enjoy life, and avoid what detracts from that enjoyment.",
         "quotes":{"'Hey, I just met you / and this is crazy / but here's my number / so call me maybe...' - Carly Rae Jepsen, Call Me Maybe","'This is the day you will always remember as the day you almost caught Captain Jack Sparrow.' - Capt. Jack Sparrow, Pirates of the Caribbean","'What’s the hassle, Schmasel?' - Bugs Bunny","'Well, like the Romans always say … E pluribus uranium.' - Bugs Bunny"},
         },
     8:{ #needs weights
-        "name":"Barbarian", #Philarch, crushinator, czar, dominatrix, social darwinist, The Ruler
+        "name":"Sovereign", #Barbarian, philarch, crushinator, czar, dominatrix, social darwinist, The Ruler
         "signs":{"Aries","Libra"}, #"Sagittarius","Leo"
         "antisigns":{},
         "houses":{10,4},
@@ -4822,6 +4836,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{},
         "color":"#ff0000",
         "motivation":"Personal sovereignty, dominance, asserting control",
+        "why":"to avoid being controlled",
         "description":"3s may pursue dominance through material recognition and social status. 8s will pursue it by any means necessary. Power not for social validation, not as a conditioned social response that recognizes and values the established institutions and wishes to perform within them, but potentially outside them. Whatever it takes to be in control, or at very least to avoid being controlled by others.",
         "quotes":{"'You know the way to stop me / but you don't have the discipline. / How many nights have I prayed for this? / To let my work begin...! / First we take Manhattan... / then we take Berlin!' - Leonard Cohen, First We Take Manhattan","'They’re whispering his name across this disappearing land / But hidden in his coat is a red right hand... / You ain’t got no money? / He’ll get you some / You ain’t got no car? / He’ll get you one / You ain’t got no self-respect, you feel like an insect / Well don’t you worry buddy, cause here he comes...' - Nick Cave, Red Right Hand","'People should know when they're conquered.' - Quintus, Gladiator"},
         },
@@ -4855,6 +4870,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibazisigns":{"Dragon","Tiger",},
         "color":"#cc99ff",
         "motivation":"Tranquility. Maintaining harmony at any cost",
+        "why":"to maintain the peace",
         "description":"9s just want peace. They want everyone to get along. Unlike 1s, they won't generally lash out at those disrupting the peace, but will quietly brood and retreat from those who cause chaos and disharmony. If they ever choose to stand for anything, it would likely be a stand for nonviolence, a stand to end conflict. They can be hard to recognize because they often adapt & shapeshift as a means of keeping peace.",
         "quotes":{"'Well, you may say that I'm a dreamer / but I'm not the only one. / I hope someday you'll join us... / and the world can live as one.' - John Lennon, Imagine"},
         },
