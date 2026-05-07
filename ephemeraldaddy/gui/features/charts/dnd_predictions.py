@@ -8,6 +8,7 @@ from typing import Any
 from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_STAT_EXPLANATIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     DND_CLASSES,
+    DND_CLASS_SUBCLASS_STATS,
     score_class_axes,
     score_class_families,
     score_dnd_classes,

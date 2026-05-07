@@ -1381,3 +1381,184 @@ DND_CLASS_SUBCLASS_EXPLAINERS: Dict[str, str] = {
     "Wizard::Order of Scribes": "Walking filing system continues proving that stationery can become a personality.",
     "Wizard::Transmutation": "Matter-tinkerer remains one adjustment away from fixing the chair, the world, and possibly lunch.",
 }
+
+from typing import Dict, List, Union
+
+DND_CLASS_SUBCLASS_STATS: Dict[str, Dict[str, Union[List[str], Dict[str, List[str]]]]] = {
+    "Artificer": {
+        "stats": ["INT", "CON"],
+        "subclasses": {
+            "Alchemist": ["INT", "CON"],
+            "Armorer": ["INT", "CON"],
+            "Artillerist": ["INT", "CON"],
+            "Battle Smith": ["INT", "CON"],
+            "Cartographer": ["INT", "WIS"],
+        },
+    },
+
+    "Barbarian": {
+        "stats": ["STR", "CON"],
+        "subclasses": {
+            "Ancestral Guardian": ["STR", "CON"],
+            "Beast": ["STR", "CON"],
+            "Berserker": ["STR", "CON"],
+            "Giant": ["STR", "CON"],
+            "Totem Warrior": ["STR", "CON"],
+            "Wild Magic": ["STR", "CON"],
+            "World Tree": ["STR", "CON"],
+            "Zealot": ["STR", "CON"],
+        },
+    },
+
+    "Bard": {
+        "stats": ["CHA", "DEX"],
+        "subclasses": {
+            "Creation": ["CHA", "DEX"],
+            "Dance": ["DEX", "CHA"],
+            "Eloquence": ["CHA", "DEX"],
+            "Glamour": ["CHA", "DEX"],
+            "Lore": ["CHA", "DEX"],
+            "Swords": ["DEX", "CHA"],
+            "Valor": ["CHA", "DEX"],
+            "Whispers": ["CHA", "DEX"],
+        },
+    },
+
+    "Cleric": {
+        "stats": ["WIS", "CON"],
+        "subclasses": {
+            "Arcana": ["WIS", "INT"],
+            "Death": ["WIS", "CON"],
+            "Forge": ["WIS", "CON"],
+            "Grave": ["WIS", "CON"],
+            "Knowledge": ["WIS", "INT"],
+            "Life": ["WIS", "CON"],
+            "Light": ["WIS", "CON"],
+            "Nature": ["WIS", "CON"],
+            "Order": ["WIS", "CHA"],
+            "Peace": ["WIS", "CON"],
+            "Tempest": ["WIS", "STR"],
+            "Trickery": ["WIS", "DEX"],
+            "Twilight": ["WIS", "CON"],
+            "War": ["WIS", "STR"],
+        },
+    },
+
+    "Druid": {
+        "stats": ["WIS", "CON"],
+        "subclasses": {
+            "Dreams": ["WIS", "CON"],
+            "Land": ["WIS", "CON"],
+            "Moon": ["WIS", "CON"],
+            "Sea": ["WIS", "CON"],
+            "Shepherd": ["WIS", "CON"],
+            "Spores": ["WIS", "CON"],
+            "Stars": ["WIS", "CON"],
+            "Wildfire": ["WIS", "CON"],
+        },
+    },
+
+    "Fighter": {
+        "stats": ["STR|DEX", "CON"],
+        "subclasses": {
+            "Battle Master": ["STR|DEX", "CON"],
+            "Cavalier": ["STR", "CON"],
+            "Champion": ["STR|DEX", "CON"],
+            "Echo Knight": ["STR|DEX", "CON"],
+            "Eldritch Knight": ["STR|DEX", "INT"],
+            "Psi Warrior": ["STR|DEX", "INT"],
+            "Rune Knight": ["STR", "CON"],
+            "Samurai": ["STR|DEX", "CON"],
+        },
+    },
+
+    "Monk": {
+        "stats": ["DEX", "WIS"],
+        "subclasses": {
+            "Astral Self": ["WIS", "DEX"],
+            "Long Death": ["DEX", "WIS"],
+            "Mercy": ["DEX", "WIS"],
+            "Open Hand": ["DEX", "WIS"],
+            "Shadow": ["DEX", "WIS"],
+            "Warrior of the Elements": ["DEX", "WIS"],
+        },
+    },
+
+    "Paladin": {
+        "stats": ["STR", "CHA"],
+        "subclasses": {
+            "Ancients": ["CHA", "STR"],
+            "Conquest": ["CHA", "STR"],
+            "Devotion": ["STR", "CHA"],
+            "Redemption": ["CHA", "STR"],
+            "Vengeance": ["STR", "CHA"],
+            "Watchers": ["CHA", "STR"],
+        },
+    },
+
+    "Ranger": {
+        "stats": ["DEX|STR", "WIS"],
+        "subclasses": {
+            "Beast Master": ["DEX|STR", "WIS"],
+            "Drakewarden": ["DEX|STR", "WIS"],
+            "Fey Wanderer": ["WIS", "DEX|STR"],
+            "Gloom Stalker": ["DEX", "WIS"],
+            "Horizon Walker": ["DEX|STR", "WIS"],
+            "Hunter": ["DEX|STR", "WIS"],
+            "Swarmkeeper": ["DEX|STR", "WIS"],
+        },
+    },
+
+    "Rogue": {
+        "stats": ["DEX", "CON"],
+        "subclasses": {
+            "Arcane Trickster": ["DEX", "INT"],
+            "Phantom": ["DEX", "CON"],
+            "Soulknife": ["DEX", "CON"],
+            "Swashbuckler": ["DEX", "CHA"],
+            "Thief": ["DEX", "CON"],
+        },
+    },
+
+    "Sorcerer": {
+        "stats": ["CHA", "CON"],
+        "subclasses": {
+            "Aberrant Mind": ["CHA", "CON"],
+            "Clockwork Soul": ["CHA", "CON"],
+            "Divine Soul": ["CHA", "CON"],
+            "Draconic Bloodline": ["CHA", "CON"],
+            "Shadow Magic": ["CHA", "CON"],
+            "Wild Magic": ["CHA", "CON"],
+        },
+    },
+
+    "Warlock": {
+        "stats": ["CHA", "CON"],
+        "subclasses": {
+            "Archfey": ["CHA", "CON"],
+            "Celestial": ["CHA", "CON"],
+            "Fathomless": ["CHA", "CON"],
+            "Fiend": ["CHA", "CON"],
+            "Genie": ["CHA", "CON"],
+            "Great Old One": ["CHA", "CON"],
+            "Hexblade": ["CHA", "CON"],
+            "Undead": ["CHA", "CON"],
+        },
+    },
+
+    "Wizard": {
+        "stats": ["INT", "CON"],
+        "subclasses": {
+            "Abjuration": ["INT", "CON"],
+            "Bladesinger": ["INT", "DEX"],
+            "Conjuration": ["INT", "CON"],
+            "Divination": ["INT", "CON"],
+            "Enchantment": ["INT", "CON"],
+            "Evocation": ["INT", "CON"],
+            "Illusion": ["INT", "CON"],
+            "Necromancy": ["INT", "CON"],
+            "Order of Scribes": ["INT", "CON"],
+            "Transmutation": ["INT", "CON"],
+        },
+    },
+}

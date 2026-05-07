@@ -4523,6 +4523,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antigates":{57:7,20:6,27:7,46:6,19:8,60:14,5:8,56:14,38:5,19:8,34:8,17:8},
         #"channels":{[24,61],},
         #"antichannels":{[20,34],[34,57],[20,57]},
+        "hdtypes":{},
+        "antihdtypes":{},
         "centers":{},
         "anticenters":{},
         "profiles":{},
@@ -4536,7 +4538,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"1s dream of a better world, which begins with themselves. Their scope for seeking the betterness of things may occupy any scale - personal (rigorous regimen to become virtuosic and/or to obliterate one's personal flaws), intimate (seeking to correct the flaws of others), or global/collective (trying to correct perceived flaws in the world and/or its systems at large).",
         "quotes":{"'I don't care if it hurts. / I want to have control. / I want a perfect body. / I want a perfect soul.' - Thom Yorke, Creep"}
         },
-    2:{
+    2:{ #needs weights
         "name":"Caretaker",
         "signs":{"Libra","Capricorn","Cancer"}, #Pisces dominance were average in my meager sample of 22. Need a bigger sample, but gotta listen to the data for now.
         "antisigns":{"Gemini",},
@@ -4557,6 +4559,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiaspects":{},
         "gates":{58,62,50,13,45,47,52,61,17,},
         "antigates":{34,43,14,26,9,57,22,64,51,29,31,4,},
+        "hdtypes":{},
+        "antihdtypes":{},
         "channels":{},
         "antichannels":{},
         "centers":{},
@@ -4592,6 +4596,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiaspects":{},
         "gates":{50,34,9,32,5,58,42,54,},
         "antigates":{59,26,12,55,15,6,36,13,23,},
+        "hdtypes":{},
+        "antihdtypes":{},
         #"channels":{},
         #"antichannels":{[23,43]},
         "centers":{},
@@ -4609,32 +4615,59 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     4:{ #assessed with Similarities Analysis AND DB Analytics.
         "name":"Artist", 
-        "signs":{"Aquarius","Pisces"}, #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
-        "antisigns":{"Libra","Aries","Cancer"}, #Cap was negative 3% & Leo was neg 1%, but that's because Cap trends e2 and Leo trends e3, I suspect.
-        "houses":{}, #1 & 5, but only 1-2% difference from norms
-        "antihouses":{}, #4 & 7, but only 1-2% difference from norms
-        "bodies":{}, #theoretically: "Uranus","Lilith"
+        "signs":{"Aquarius":19,"Pisces":18,"Sagittarius":2,"Taurus":1}, #Taurus was -3% in "normcore". Maybe cos they don't conform, but they also don't flagrantly pursue authenticity or truth as an MO. haha. Sag was -4% in "normcore" but didn't register in e4. #theoretically: "Pisces","Aquarius","Scorpio","Sagittarius". I found out that Aquarius dominant charts *are* the weirdest in agregate. But not all Aquarius dominant charts show it.
+        "antisigns":{"Libra":9,"Aries":10,"Cancer":6,"Capricorn":5}, #Aries was +10% in "normcore" & -8% in e4. Libra was -9% in e4, +4% in "normcore". Capricorn was -5% in e4, +4% in "normcore". Now! Aquarius was +5% in "normcore" but +19% in e4! But I think that's because radical conservatives look very "normcore" as a form of aggressive authenticity/self expression. So I'm going to leave Aquarius untouched.
+        "houses":{3:1}, #H3 has fluctuated from 2-3% in e4, but -3% in "normcore", so I included it.  
+        "antihouses":{4:5},
+        "bodies":{"Neptune":4,"Mercury":1}, #Mercury was -3% in "normcore". Neptune was -2%. #theoretically: "Uranus","Lilith"
         "antibodies":{},
-        "nakshatras":{"Shravana","Purva Bhadrapada","Shatabhisha","Dhanishta","Vishakha","Mrigashira",}, #theoretically: "Ardra","Purva Bhadrapada","Revati"
-        "antinakshatras":{"Jyestha"}, 
+        "nakshatras":{"Shravana":10,"Purva Bhadrapada":5,"Shatabhisha":7,"Purva Phalguni":3}, #Purva Phalguni was -3% in "normcore"
+        "antinakshatras":{"Krittika":4,"Hasta":6,"Mula":4}, #Hasta was +6% in "normcore", Mula was +4% in "normcore"; Krittika was -4% in "e4" 
         "positions":{
-            "Sun in Pisces","Sun in Aquarius","Rahu in Pisces","Cancer in H4","Chiron in H5","Jupiter in H6","Venus in H1","Mercury in H2","Pallas in Pisces","Pallas in Aquarius","Ceres in Pisces","Mercury in Pisces","Mercury in Aquarius","Venus in Aquarius","Venus in Pisces","Venus in Gemini","Mars in Pisces","Jupiter in Pisces","Saturn in Aquarius","Saturn in Gemini","Neptune in Scorpio","Scorpio in H1","Aries in H1",
+            "Sun in Pisces":8,"Sun in Aquarius":7,"Sun in H2":6, #Sun in Pisces was -1% normcore, Sun in Aquarius was 1% normcore. 
+            #no lunar correlations for e4, but Moon in Scorpio & Moon in Gemini were -4% normcore.
+            "Mercury in Pisces":4,"Mercury in Aquarius":8, #Mercury in Taurus & Virgo are -5% normcore.
+            "Venus in Aquarius":3,"Venus in Pisces":4,"Venus in Gemini":6,"Venus in H12":5, #Venus in Aquarius was 6% in normcore, and 6% in e4, too, so I split the diff & made it 3. Venus in Gem was 4% in e4 & -4% in normcore, so I boosted it to 6.
+            "Mars in Pisces":4,"Jupiter in Pisces":4,"Jupiter in H10":5, #Mars in Gemini & Cancer were -3% normcore but nothing in e4.
+            "Saturn in Aquarius":5,"Saturn in H2":6,"Saturn in Leo":4, #Saturn in Leo was -4% normcore, nothing in e4.
+            "Neptune in Scorpio":7,
+            "Uranus in H11":5,
+            "Pluto in Virgo":5,
+            "Lilith in Pisces":5,"Fortune in Sagittarius":4,"Vesta in Aquarius":4,"Pallas in Aquarius":6,
+            "Chiron in Leo":4,"Chiron in Pisces":5,"Chiron in H5":7,
+            "Scorpio in H1":3,"Aries in H1":4,"Gemini in H3":5,
             }, #theoretically: "Mercury in Pisces","Mars in Pisces","Pluto in Scorpio","Ketu in H8"
-        "antipositions":{"Sun in Aries","Sun in Virgo","Mercury in Scorpio","Mercury in Aries","Mercury in Virgo","Venus in Leo","Venus in Virgo","Mars in Libra","Saturn in Aries","Saturn in Scorpio","Uranus in Taurus","Neptune in Virgo","Cancer in H1","Sagittarius in H1","Aries in H10"},
-        "aspects":{"Ketu sextile Vesta","Jupiter square Pallas","Moon conjunction Rahu","MC square Sun"},
+        "antipositions":{
+            "Sun in Aries":3,"Sun in Virgo":1,"Sun in Capricorn":1,"Sun in Libra":3,"Sun in H4":5, #Sun in Aries is +3% 'normcore' & -3% e4. But Virgo was -3% e4 & -2% 'normcore'. Sun in Libra was -3% e4 & +2% 'normcore'. Sun in Cap was +3% normcore.
+            "Moon in Leo":6, #no correlations in e4, but +6% in 'normcore'
+            "Mercury in Scorpio":3,"Mercury in Libra":4,"Mercury in Capricorn":7, #Mercury in Scorpio was +2% norcore; removed Merc in Vir cos it was -5% normcore and only -3% in e4.
+            "Venus in Leo":2,"Venus in Virgo":2,"Venus in H2":6, #Neither Leo nor Virgo Venus showed up much in 'normcore'; they were only absent in e4, so I reduced them both by 2. Venus in Aquarius was 6% in normcore, and 6% in e4, too.
+            "Mars in Libra":3,
+            "Jupiter in Libra":5,
+            "Saturn in Scorpio":3,
+            "Uranus in Taurus":5,"Neptune in Virgo":5,
+            "Pluto in Cancer":5,
+            "Chiron in Gemini":4,"Vesta in Capricorn":4,"Vesta in H5":5,"Lillith in H7":5,
+            "Cancer in H1":4,"Sagittarius in H1":3,"Aries in H10":3,"Cancer in H10":3,
+        },
+        "aspects":{
+            "Chiron opposition Uranus":6,"Neptune sextile Pluto":12,"Ketu trine Mercury":5,"Neptune trine Vesta":5,"Ceres trine Pluto":5,"Mercury trine Rahu":6,"Mars square Venus":5,"Rahu trine Vesta":5,"Juno trine Uranus":5,"Jupiter square Pallas":5,"Ketu sextile Vesta":5,
+        },
         "antiaspects":{},
-        "gates":{55,59,36,22,46,53,16,25,24},
-        "antigates":{1,60,8,13,57,43,48,64,3,56,63,},
+        "gates":{55:11,59:6,19:7,29:5,},
+        "antigates":{60:7,27:6,21:6,52:6,48:6,33:6,64:5,17:5,58:5,62:5},
+        "hdtypes":{"MF Generator":4},
+        "antihdtypes":{"Generator":6},
         "channels":{},
         "antichannels":{},
         "centers":{},
         "anticenters":{},
         "profiles":{},
-        "antiprofiles":{"4/6"}, #-4%
-        "authorities":{"Emotional"},
-        "antiauthorities":{"Sacral"},
-        "bazisigns":{"Tiger"},
-        "antibazisigns":{"Dog"},
+        "antiprofiles":{"4/6":4},
+        "authorities":{"Emotional":5},
+        "antiauthorities":{"Sacral":4},
+        "bazisigns":{"Tiger":4}, #Tiger was also -2% in "normcore"
+        "antibazisigns":{"Ox":3}, #+3% in "normcore"
         "color":"#cc66ff",
         "motivation":"Individuality, depth of experience & authenticity",
         "description":"4s don't mind if you think they're a freak. They want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. Many seek originality and ways of distinguishing themselves from the mainstream, but that may be just a reaction to the inauthenticity of the mainstream. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
@@ -4656,6 +4689,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiaspects":{"Chiron opposition Uranus":16},
         "gates":{57:11,7:13,23:14,31:11,12:10,45:8,46:10,17:12,27:8,36:9,8:11,22:8,25:6,24:6},
         "antigates":{43:8,50:10,29:11,44:17,5:10,56:8,54:8,40:12,59:28,19:12,63:8},
+        "hdtypes":{},
+        "antihdtypes":{},
         "channels":{},
         "antichannels":{},
         "centers":{},
@@ -4681,8 +4716,25 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibodies":{"Jupiter":5,"Saturn":3}, #Apparently Saturn isn't a joiner??? I suspect the aspects to Saturn matter tremendously, as much as how it's weighed.
         "nakshatras":{"Anuradha":4,"Rohini":4,"Mrigashira":9,"Magha":9,"Dhanishta":3,"Shatabhisha":7,"Purva Phalguni":4,"Uttara Phalguni":6,"Mula":4,"Uttara Bhadrapada":3},
         "antinakshatras":{"Vishakha":9,"Ashwini":5,"Bharani":7,"Krittika":8,"Pushya":5,"Swati":6,"Purva Ashadha":3,}, 
-        "positions":{"Sun in Leo":8,"Sun in Capricorn":6,"Sun in Pisces":6,"Saturn in Sagittarius":7,"Saturn in Scorpio":5,"Saturn in Pisces":3,"Moon in Taurus":4,"Mercury in Virgo":10,"Mercury in Pisces":10,"Mercury in Capricorn":4,"Venus in Virgo":5,"Venus in Pisces":7,"Venus in Gemini":4,"Mars in Taurus":8,"Mars in Gemini":8,"Mars in Scorpio":4,"Jupiter in Gemini":7,"Aries in H1":4,"Cancer in H1":1,"Pisces in H1":7,}, #i might ignore venus in gem & thought about ignoring venus in pisces - don't buy it! "Juno in Capricorn":1,"Mars in Taurus":1,"Mercury in Virgo":1,"Pallas in Sagittarius":1,"Juno in Leo":1,"Libra in H10":1,"Chiron in H3":1,"Jupiter in H3":1,"Pallas in H10":1,"Mars in H11":1,"Mercury in H2":1,"Pluto in H8":1,"Ceres in H11":1,"Ketu in H5":1,"Neptune in H9":1,"Fortune in H8":1,"Pluto in H5":1,"Rahu in H11":1,"Saturn in H12":1,"Vesta in H4":1,"Uranus in H11":1,"Vesta in H5":1,"Pluto in Leo":1,"Libra in H10":1,"Neptune in Libra":1,"Neptune in Virgo":1,"Juno in Capricorn":1,"Mars in Taurus":1,"Pallas in Pisces":1,"Ceres in Aries":1,"Mercury in Virgo":1,"Lilith in Libra":1,"Juno in Leo":1,},
-        "antipositions":{"Sun in Sagittarius":7,"Sun in Aquarius":5,"Sun in Gemini":4,"Sun in Scorpio":3,"Moon in Leo":6,"Saturn in Capricorn":9,"Saturn in Libra":6,"Mercury in Gemini":5,"Mercury in Libra":5,"Mercury in Scorpio":5,"Mercury in Sagittarius":4,"Mercury in Aquarius":5,"Venus in Aries":1,"Venus in Scorpio":1,"Venus in Sagittarius":3,"Mars in Aquarius":6,"Mars in Capricorn":6,"Mars in Leo":5,"Jupiter in Cancer":6,"Virgo in H1":11,"Gemini in H1":4,}, #"Capricorn in H11":1,"Aquarius in H12":1,"Leo in H6":1,"Pisces in H3":1,"Virgo in H9":1,"Chiron in Aries":1,"Sun in H10":1,"Neptune in Sagittarius":1,"Pluto in Libra":1,"Juno in Scorpio":1,"Jupiter in Cancer":1,
+        "positions":{
+            "Sun in Leo":8,"Sun in Capricorn":6,"Sun in Pisces":6,
+            "Saturn in Sagittarius":7,"Saturn in Scorpio":5,"Saturn in Pisces":3,
+            "Moon in Taurus":4,
+            "Mercury in Virgo":10,"Mercury in Pisces":10,"Mercury in Capricorn":4,
+            "Venus in Virgo":5,"Venus in Pisces":7,"Venus in Gemini":4,
+            "Mars in Taurus":8,"Mars in Gemini":8,"Mars in Scorpio":4,
+            "Jupiter in Gemini":7,
+            "Aries in H1":4,"Cancer in H1":1,"Pisces in H1":7,}, 
+            #i might ignore venus in gem & thought about ignoring venus in pisces - don't buy it!
+        "antipositions":{
+            "Sun in Sagittarius":7,"Sun in Aquarius":5,"Sun in Gemini":4,"Sun in Scorpio":3,
+            "Moon in Leo":6,"Moon in Scorpio":1,"Moon in Gemini":1, #not in e6, but Scorpio & Gem moon were both -4% in 'normcore', possibly implying that they refuse to join.
+            "Mercury in Gemini":5,"Mercury in Libra":5,"Mercury in Scorpio":5,"Mercury in Sagittarius":4,"Mercury in Aquarius":5,
+            "Venus in Aries":1,"Venus in Scorpio":1,"Venus in Sagittarius":3,
+            "Mars in Aquarius":6,"Mars in Capricorn":6,"Mars in Leo":5,
+            "Jupiter in Cancer":6,
+            "Saturn in Capricorn":9,"Saturn in Libra":6,
+            "Virgo in H1":11,"Gemini in H1":4,}, #"Capricorn in H11":1,"Aquarius in H12":1,"Leo in H6":1,"Pisces in H3":1,"Virgo in H9":1,"Chiron in Aries":1,"Sun in H10":1,"Neptune in Sagittarius":1,"Pluto in Libra":1,"Juno in Scorpio":1,"Jupiter in Cancer":1,
         "aspects":{
             "Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto",
             "Chiron square Saturn","Saturn trine Sun","Juno square Saturn","Saturn square Vesta","Fortune opposition Saturn","Saturn sextile Sun"
@@ -4691,6 +4743,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "gates":{12,32,40,3,11,42,54,},
         "antigates":{28,26,58,15,18,64,55,41,17},
         #"channels":{[12,22],[37,40]},
+        "hdtypes":{},
+        "antihdtypes":{},
         "centers":{},
         "anticenters":{},
         "profiles":{},
@@ -4721,6 +4775,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiaspects":{},
         "gates":{43,54},
         "antigates":{},
+        "hdtypes":{},
+        "antihdtypes":{},
         "channels":{},
         "centers":{},
         "anticenters":{},
@@ -4736,7 +4792,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"Essentially, 7s are about a blend of hedonism and epicurianism. They are here to enjoy life, and avoid what detracts from that enjoyment.",
         "quotes":{"'Hey, I just met you / and this is crazy / but here's my number / so call me maybe...' - Carly Rae Jepsen, Call Me Maybe","'This is the day you will always remember as the day you almost caught Captain Jack Sparrow.' - Capt. Jack Sparrow, Pirates of the Caribbean","'What’s the hassle, Schmasel?' - Bugs Bunny","'Well, like the Romans always say … E pluribus uranium.' - Bugs Bunny"},
         },
-    8:{
+    8:{ #needs weights
         "name":"Barbarian", #Philarch, crushinator, czar, dominatrix, social darwinist, The Ruler
         "signs":{"Aries","Libra"}, #"Sagittarius","Leo"
         "antisigns":{},
@@ -4752,6 +4808,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antiaspects":{},
         "gates":{44,32,62,49,12,},
         "antigates":{55,24,18,58},
+        "hdtypes":{},
+        "antihdtypes":{},
         "channels":{},
         "antichannels":{},
         "centers":{},
@@ -4767,7 +4825,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "description":"3s may pursue dominance through material recognition and social status. 8s will pursue it by any means necessary. Power not for social validation, not as a conditioned social response that recognizes and values the established institutions and wishes to perform within them, but potentially outside them. Whatever it takes to be in control, or at very least to avoid being controlled by others.",
         "quotes":{"'You know the way to stop me / but you don't have the discipline. / How many nights have I prayed for this? / To let my work begin...! / First we take Manhattan... / then we take Berlin!' - Leonard Cohen, First We Take Manhattan","'They’re whispering his name across this disappearing land / But hidden in his coat is a red right hand... / You ain’t got no money? / He’ll get you some / You ain’t got no car? / He’ll get you one / You ain’t got no self-respect, you feel like an insect / Well don’t you worry buddy, cause here he comes...' - Nick Cave, Red Right Hand","'People should know when they're conquered.' - Quintus, Gladiator"},
         },
-    9:{
+    9:{ #needs weights
         "name":"Pacifist",
         "signs":{"Capricorn","Cancer","Sagittarius"}, #Aries also came up
         "antisigns":{"Gemini","Leo","Aquarius","Virgo"},
@@ -4785,6 +4843,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antigates":{1,44,50,6,33,43,2,60,4,42,49,7,3,24},
         #"channels":{[20,57],[18,58],[37,40],[17,62],[4,63]},
         #"antichannels":{},
+        "hdtypes":{},
+        "antihdtypes":{},
         "centers":{"Root"},
         "anticenters":{"Sacral"},
         "profiles":{},
