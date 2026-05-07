@@ -582,7 +582,13 @@ from ephemeraldaddy.gui.features.charts.tag_search import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
-from ephemeraldaddy.gui.dbv_search_panel import build_dbv_search_panel
+from ephemeraldaddy.gui.dbv_search_panel import (
+    active_body_dynamics_filters as get_active_body_dynamics_filters,
+    body_dynamics_filters_are_active,
+    build_dbv_search_panel,
+    chart_matches_body_dynamics_filters,
+    reset_body_dynamics_filters,
+)
 from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog,
     TransitAspectWindowRelay,
@@ -1814,6 +1820,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._aspect_filters = []
         self._dominant_sign_filters = []
         self._dominant_planet_filters = []
+        self._body_dynamics_filters = []
         self._dominant_mode_filters = []
         self._dominant_nakshatra_filters = []
         self._human_design_channel_filters = []
@@ -8958,6 +8965,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_planet_filters
             if str(filters["planet"].currentData()) != "Any"
         ]
+        active_body_dynamics_filter_rows = get_active_body_dynamics_filters(self)
         active_dominant_mode_filters = [
             filters
             for filters in self._dominant_mode_filters
@@ -9158,6 +9166,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not active_aspect_filters
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
+            and not active_body_dynamics_filter_rows
             and not active_dominant_mode_filters
             and not active_dominant_nakshatra_filters
             and not active_dominant_element_filters
@@ -15008,6 +15017,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_planet_filters
         ):
             return True
+        if body_dynamics_filters_are_active(self):
+            return True
         if any(
             filters["mode"].currentData() != "Any"
             for filters in self._dominant_mode_filters
@@ -15176,6 +15187,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if "not" in filters and filters["not"] is not None:
                     filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
+            reset_body_dynamics_filters(self)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
                 if "or" in filters and filters["or"] is not None:
@@ -16732,6 +16744,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_planet_filters
             if str(filters["planet"].currentData()) != "Any"
         ]
+        active_body_dynamics_filter_rows = get_active_body_dynamics_filters(self)
         active_dominant_mode_filters = [
             filters
             for filters in self._dominant_mode_filters
@@ -17507,6 +17520,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     str(filters["planet"].currentData()),
                 ):
                     return False
+
+        if active_body_dynamics_filter_rows:
+            if not chart_matches_body_dynamics_filters(
+                self, chart, active_body_dynamics_filter_rows
+            ):
+                return False
 
         if active_dominant_nakshatra_filters:
             dominant_nakshatra_and_filters = [

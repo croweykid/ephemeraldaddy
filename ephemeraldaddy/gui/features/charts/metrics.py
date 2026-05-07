@@ -38,14 +38,18 @@ from ephemeraldaddy.core.interpretations import (
     TIGHT_ASPECT_ORB_DEGREES,
     SIGN_GENDERS,
     SIGN_ELEMENTS,
-    ASPECT_TYPES,
-    INNER_PLANETS,
-    OUTER_PLANETS,
     ZODIAC_NAMES,
     aspect_orb_allowance,
     normalize_body_name,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.analysis.body_dynamics_reworked import (
+    BODY_PAIR_DYNAMICS,
+    PAIR_TYPE_DISTRIBUTION,
+    calculate_planet_condition_weights,
+    calculate_planet_dynamics_scores,
+    normalize_body_pair,
+)
 
 PLANET_DYNAMICS_METRICS = (
     "antagonizing",
@@ -53,118 +57,6 @@ PLANET_DYNAMICS_METRICS = (
     "escalating",
 )
 BODY_DYNAMICS_LABELS = ("enabler", "antagonizer", "escalating enabler", "escalating antagonizer")
-BODY_DYNAMICS_PAIR_INDEX = {body: index for index, body in enumerate(PLANET_ORDER)}
-BODY_PAIR_DYNAMICS = {
-    ("Sun", "Moon"): "enabling_pair", ("Sun", "Mercury"): "enabling_pair", ("Sun", "Venus"): "enabling_pair", ("Sun", "Mars"): "volatile_pair", ("Sun", "Jupiter"): "enabling_pair", ("Sun", "Saturn"): "antagonizing_pair", ("Sun", "Uranus"): "volatile_pair", ("Sun", "Neptune"): "volatile_pair", ("Sun", "Pluto"): "volatile_pair",
-    ("Moon", "Mercury"): "enabling_pair", ("Moon", "Venus"): "enabling_pair", ("Moon", "Mars"): "antagonizing_pair", ("Moon", "Jupiter"): "enabling_pair", ("Moon", "Saturn"): "antagonizing_pair", ("Moon", "Uranus"): "antagonizing_pair", ("Moon", "Neptune"): "volatile_pair", ("Moon", "Pluto"): "antagonizing_pair",
-    ("Mercury", "Venus"): "enabling_pair", ("Mercury", "Mars"): "antagonizing_pair", ("Mercury", "Jupiter"): "enabling_pair", ("Mercury", "Saturn"): "volatile_pair", ("Mercury", "Uranus"): "enabling_pair", ("Mercury", "Neptune"): "volatile_pair", ("Mercury", "Pluto"): "volatile_pair",
-    ("Venus", "Mars"): "volatile_pair", ("Venus", "Jupiter"): "enabling_pair", ("Venus", "Saturn"): "antagonizing_pair", ("Venus", "Uranus"): "antagonizing_pair", ("Venus", "Neptune"): "volatile_pair", ("Venus", "Pluto"): "antagonizing_pair",
-    ("Mars", "Jupiter"): "enabling_pair", ("Mars", "Saturn"): "antagonizing_pair", ("Mars", "Uranus"): "antagonizing_pair", ("Mars", "Neptune"): "antagonizing_pair", ("Mars", "Pluto"): "volatile_pair",
-    ("Jupiter", "Saturn"): "volatile_pair", ("Jupiter", "Uranus"): "enabling_pair", ("Jupiter", "Neptune"): "volatile_pair", ("Jupiter", "Pluto"): "volatile_pair",
-    ("Saturn", "Uranus"): "antagonizing_pair", ("Saturn", "Neptune"): "antagonizing_pair", ("Saturn", "Pluto"): "antagonizing_pair",
-    ("Uranus", "Neptune"): "volatile_pair", ("Uranus", "Pluto"): "volatile_pair",
-    ("Neptune", "Pluto"): "volatile_pair",
-}
-PAIR_TONE_DISTRIBUTION = {
-    "enabling_pair": {
-        "enabling_aspect": {"Enabling": 0.85, "Antagonizing": 0.00, "Escalating": 0.15},
-        "antagonizing_aspect": {"Enabling": 0.10, "Antagonizing": 0.65, "Escalating": 0.25},
-        "escalating_aspect": {"Enabling": 0.60, "Antagonizing": 0.00, "Escalating": 0.40},
-    },
-    "antagonizing_pair": {
-        "enabling_aspect": {"Enabling": 0.55, "Antagonizing": 0.20, "Escalating": 0.25},
-        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.80, "Escalating": 0.20},
-        "escalating_aspect": {"Enabling": 0.10, "Antagonizing": 0.45, "Escalating": 0.45},
-    },
-    "volatile_pair": {
-        "enabling_aspect": {"Enabling": 0.65, "Antagonizing": 0.00, "Escalating": 0.35},
-        "antagonizing_aspect": {"Enabling": 0.00, "Antagonizing": 0.55, "Escalating": 0.45},
-        "escalating_aspect": {"Enabling": 0.25, "Antagonizing": 0.25, "Escalating": 0.50},
-    },
-}
-PAIR_TYPE_DISTRIBUTION = {
-    pair: {
-        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["antagonizing_aspect"]
-        for aspect_name in ASPECT_TYPES.get("stress/friction", {}).get("aspects", set())
-    }
-    | {
-        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["enabling_aspect"]
-        for group_name in ("chill vibes", "creative/technical")
-        for aspect_name in ASPECT_TYPES.get(group_name, {}).get("aspects", set())
-    }
-    | {
-        str(aspect_name).replace(" ", "_").lower(): PAIR_TONE_DISTRIBUTION[tone]["escalating_aspect"]
-        for aspect_name in ASPECT_TYPES.get("amplifying", {}).get("aspects", set())
-    }
-    for pair, tone in BODY_PAIR_DYNAMICS.items()
-}
-
-
-def normalize_body_pair(a: str, b: str) -> tuple[str, str]:
-    return tuple(sorted((a, b), key=BODY_DYNAMICS_PAIR_INDEX.__getitem__))
-
-
-def calculate_planet_dynamics_scores(chart: Chart) -> dict[str, dict[str, float]]:
-    """Compute per-body dynamics scores from aspect type + pair-character weighting."""
-    tracked_bodies = tuple(
-        body
-        for body in PLANET_ORDER
-        if body in (INNER_PLANETS | OUTER_PLANETS) and body in chart.positions
-    )
-
-    dynamics: dict[str, dict[str, float]] = {
-        body: {"antagonizing": 0.0, "enabling": 0.0, "escalating": 0.0}
-        for body in tracked_bodies
-    }
-
-    def _accumulate_metric(body_a: str, body_b: str, metric: str, signed_value: float) -> None:
-        if signed_value >= 0:
-            dynamics[body_a][metric] += signed_value
-            dynamics[body_b][metric] += signed_value
-            return
-        flipped_magnitude = abs(signed_value)
-        if metric == "antagonizing":
-            target_metric = "enabling"
-        elif metric == "enabling":
-            target_metric = "antagonizing"
-        else:
-            target_metric = "antagonizing"
-        dynamics[body_a][target_metric] += flipped_magnitude
-        dynamics[body_b][target_metric] += flipped_magnitude
-
-    condition_weights = calculate_planet_condition_weights(chart)
-    for aspect in getattr(chart, "aspects", []) or []:
-        p1 = normalize_body_name(str(aspect.get("p1", "")))
-        p2 = normalize_body_name(str(aspect.get("p2", "")))
-        if p1 not in dynamics or p2 not in dynamics:
-            continue
-        aspect_type = str(aspect.get("type", "")).replace(" ", "_").lower()
-        pair = normalize_body_pair(p1, p2)
-        pair_tone = BODY_PAIR_DYNAMICS.get(pair)
-        distribution = (PAIR_TYPE_DISTRIBUTION.get(pair) or {}).get(aspect_type)
-        if not distribution:
-            continue
-        orb_weight = _aspect_orb_factor(aspect)
-        aspect_base_weight = float(ASPECT_SCORE_WEIGHTS.get(aspect_type, 0.0))
-        if orb_weight <= 0.0 or aspect_base_weight <= 0.0:
-            continue
-        dom_a = max(float(condition_weights.get(p1, 0.0)), 0.0)
-        dom_b = max(float(condition_weights.get(p2, 0.0)), 0.0)
-        aspect_score = orb_weight * aspect_base_weight * ((dom_a * dom_b) ** 0.5)
-        for metric, weight in (
-            ("enabling", float(distribution.get("Enabling", 0.0))),
-            ("antagonizing", float(distribution.get("Antagonizing", 0.0))),
-            ("escalating", float(distribution.get("Escalating", 0.0))),
-        ):
-            weighted_score = aspect_score * weight
-            if metric == "escalating" and pair_tone == "volatile_pair":
-                weighted_score *= 1.15
-            if weighted_score > 0.0:
-                _accumulate_metric(p1, p2, metric, weighted_score)
-
-    return dynamics
-
-
 def classify_body_dynamics(body_scores: dict[str, float] | None) -> str:
     """Classify a body's dynamics balance for reuse across UI/features."""
     scores = body_scores or {}
@@ -461,43 +353,6 @@ def _chart_ruler_planets(chart: Chart) -> set[str]:
         if ascendant_sign in ruled_signs
     }
 
-
-def calculate_planet_condition_weights(chart: Chart) -> dict[str, float]:
-    """Body condition weights used by Body Dynamics multipliers (without aspect gain loop)."""
-    use_houses = chart_uses_houses(chart)
-    planets = dominant_planet_keys(chart)
-    condition_weights = {body: 0.0 for body in planets}
-    houses = getattr(chart, "houses", None) if use_houses else None
-    for body in planets:
-        if body not in chart.positions:
-            continue
-        lon = chart.positions[body]
-        house_num = house_for_longitude(houses, lon)
-        weight = float(planet_weight(body, lon, houses, house_num))
-        condition_weights[body] += weight
-
-    if use_houses:
-        for chart_ruler in _chart_ruler_planets(chart):
-            if chart_ruler in condition_weights:
-                condition_weights[chart_ruler] += CHART_RULER_BONUS
-
-        snapshot_weights = dict(condition_weights)
-        dispositor_transfers = {body: 0.0 for body in condition_weights}
-        for body, body_weight in snapshot_weights.items():
-            if body not in chart.positions:
-                continue
-            sign = sign_for_longitude(chart.positions[body])
-            rulers = [r for r in _sign_rulers(sign) if r in condition_weights]
-            if not rulers:
-                continue
-            transfer = body_weight * (DISPOSITOR_PLANET_ATTENUATION / len(rulers))
-            for ruler in rulers:
-                dispositor_transfers[ruler] += transfer
-
-        for body, transfer in dispositor_transfers.items():
-            condition_weights[body] += transfer
-
-    return condition_weights
 
 def calculate_dominant_planet_weights(chart: Chart) -> dict[str, float]:
     subtotal_weights = calculate_planet_condition_weights(chart)

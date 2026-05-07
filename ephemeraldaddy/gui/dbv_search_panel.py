@@ -4,6 +4,74 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ephemeraldaddy.core.interpretations import JONES_PLANETS
+
+BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("Enabler", "enabler"),
+    ("Antagonist", "antagonist"),
+    ("Escalator", "escalator"),
+)
+
+
+def active_body_dynamics_filters(window) -> list[dict[str, object]]:
+    """Return active Body Dynamics filter rows from the Database View search panel."""
+    return [
+        filters
+        for filters in getattr(window, "_body_dynamics_filters", [])
+        if str(filters["body"].currentData()) != "Any"
+    ]
+
+
+def body_dynamics_filters_are_active(window) -> bool:
+    """Return whether any Body Dynamics filter row is selected."""
+    return bool(active_body_dynamics_filters(window))
+
+
+def reset_body_dynamics_filters(window) -> None:
+    """Reset all Body Dynamics filter widgets to their default state."""
+    for filters in getattr(window, "_body_dynamics_filters", []):
+        filters["body"].setCurrentIndex(0)
+        filters["role"].setCurrentIndex(0)
+        filters["or"].setChecked(False)
+        filters["exclude"].setChecked(False)
+        filters["and"].setChecked(True)
+
+
+def _body_dynamics_filter_matches(chart, filters: dict[str, object]) -> bool:
+    body = str(filters["body"].currentData())
+    role = str(filters["role"].currentData())
+    if body == "Any" or not role:
+        return False
+
+    from ephemeraldaddy.core import db
+
+    roles = db._parse_body_dynamics_roles(getattr(chart, "body_dynamics_roles", None))
+    if body not in roles:
+        roles = db._resolve_body_dynamics_roles(chart)
+    return roles.get(body) == role
+
+
+def chart_matches_body_dynamics_filters(window, chart, filters: list[dict[str, object]] | None = None) -> bool:
+    """Apply active Body Dynamics AND/OR/EXCLUDE filters to a chart."""
+    active_filters = list(filters if filters is not None else active_body_dynamics_filters(window))
+    if not active_filters:
+        return True
+
+    and_filters = [filters for filters in active_filters if filters["and"].isChecked()]
+    or_filters = [filters for filters in active_filters if filters["or"].isChecked()]
+    exclude_filters = [filters for filters in active_filters if filters["exclude"].isChecked()]
+
+    for filters in and_filters:
+        if not _body_dynamics_filter_matches(chart, filters):
+            return False
+    if or_filters and not any(_body_dynamics_filter_matches(chart, filters) for filters in or_filters):
+        return False
+    for filters in exclude_filters:
+        if _body_dynamics_filter_matches(chart, filters):
+            return False
+    return True
+
+
 if TYPE_CHECKING:
     from PyQt5.QtWidgets import QWidget
 
@@ -502,6 +570,62 @@ def build_dbv_search_panel(window) -> "QWidget":
         dominant_planet_layout.addRow(dominant_planet_row)
 
     layout.addWidget(dominant_planet_section)
+
+    #Search: Body Dynamics section
+    body_dynamics_section, body_dynamics_group_layout = add_collapsible_section(
+        "🪐Body Dynamics"
+    )
+
+    body_dynamics_layout = QFormLayout()
+    body_dynamics_layout.setLabelAlignment(Qt.AlignLeft)
+    body_dynamics_group_layout.addLayout(body_dynamics_layout)
+
+    for _ in range(3):
+        body_dynamics_row = QWidget()
+        body_dynamics_row_layout = QHBoxLayout()
+        body_dynamics_row_layout.setContentsMargins(0, 0, 0, 0)
+        body_dynamics_row.setLayout(body_dynamics_row_layout)
+
+        body_combo = QComboBox()
+        apply_default_dropdown_style(body_combo)
+        body_combo.addItem("Any", "Any")
+        for body in JONES_PLANETS:
+            body_combo.addItem(body, body)
+        body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+        role_combo = QComboBox()
+        apply_default_dropdown_style(role_combo)
+        for role_label, role_key in BODY_DYNAMICS_ROLE_OPTIONS:
+            role_combo.addItem(role_label, role_key)
+        role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+        filter_and = QRadioButton("AND")
+        filter_or = QRadioButton("OR")
+        filter_exclude = QRadioButton("EXCLUDE")
+        filter_group = QButtonGroup(body_dynamics_row)
+        filter_group.setExclusive(True)
+        filter_group.addButton(filter_and)
+        filter_group.addButton(filter_or)
+        filter_group.addButton(filter_exclude)
+        filter_and.setChecked(True)
+        filter_group.buttonClicked.connect(window._on_filter_changed)
+
+        body_dynamics_row_layout.addWidget(body_combo, 1)
+        body_dynamics_row_layout.addWidget(role_combo, 1)
+        body_dynamics_row_layout.addWidget(filter_and)
+        body_dynamics_row_layout.addWidget(filter_or)
+        body_dynamics_row_layout.addWidget(filter_exclude)
+
+        window._body_dynamics_filters.append({
+            "body": body_combo,
+            "role": role_combo,
+            "and": filter_and,
+            "or": filter_or,
+            "exclude": filter_exclude,
+        })
+        body_dynamics_layout.addRow(body_dynamics_row)
+
+    layout.addWidget(body_dynamics_section)
 
     #Search: Dominant Mode section
     dominant_mode_section, dominant_mode_group_layout = add_collapsible_section(
