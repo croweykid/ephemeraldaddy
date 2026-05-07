@@ -18743,7 +18743,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _save_similarity_calculator_settings(parent._settings, defaults)
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
-        return {"signs": 1.0, "bodies": 1.0, "nakshatras": 1.0, "houses": 1.0, "gates": 1.0, "positions": 1.0, "aspects": 1.0}
+        return {}
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
         normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
@@ -27971,7 +27971,7 @@ class MainWindow(QMainWindow):
         self._apply_enneagram_predictor_weights()
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
-        return {"signs": 1.0, "bodies": 1.0, "nakshatras": 1.0, "houses": 1.0, "gates": 1.0, "positions": 1.0, "aspects": 1.0}
+        return {}
 
     def _load_enneagram_predictor_controls(self) -> None:
         payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}

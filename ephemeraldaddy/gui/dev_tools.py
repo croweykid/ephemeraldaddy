@@ -1601,15 +1601,7 @@ QComboBox QAbstractItemView {
         )
         self._reload_usage(refresh_chart_context=True, keep_selection_label=into_label)
 
-ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
-    ("signs", "Signs"),
-    ("bodies", "Bodies"),
-    ("nakshatras", "Nakshatras"),
-    ("houses", "Houses"),
-    ("gates", "HD Gates"),
-    ("positions", "Positions"),
-    ("aspects", "Aspects"),
-)
+ENNEAGRAM_CATEGORY_FACTOR_ROWS: tuple[tuple[str, str], ...] = ()
 
 def build_enneagram_predictor_settings_section(
     *,
@@ -1623,7 +1615,7 @@ def build_enneagram_predictor_settings_section(
     label = QLabel("Enneagram Predictor")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
-    section_layout.addWidget(QLabel("Choose default or custom category-type weighting."))
+    section_layout.addWidget(QLabel("Enneagram scoring now uses only item-by-item criterion weights; category/property-type weights are ignored."))
     default_radio = QRadioButton("use default")
     custom_radio = QRadioButton("use custom")
     group = QButtonGroup(dialog)
@@ -1636,8 +1628,7 @@ def build_enneagram_predictor_settings_section(
     section_layout.addWidget(custom_radio)
 
     grid = QGridLayout()
-    grid.addWidget(QLabel("Criteria property"), 0, 0)
-    grid.addWidget(QLabel("Weight"), 0, 1)
+    grid.addWidget(QLabel("Criterion weights are configured in predictor definitions."), 0, 0, 1, 2)
     weight_boxes: dict[str, QDoubleSpinBox] = {}
     total_label = QLabel("0.00")
     for idx, (key, title) in enumerate(ENNEAGRAM_CATEGORY_FACTOR_ROWS, start=1):
@@ -1649,8 +1640,8 @@ def build_enneagram_predictor_settings_section(
         spin.valueChanged.connect(lambda _v, row_key=key, box=spin: on_weight_changed(row_key, float(box.value())))
         grid.addWidget(spin, idx, 1)
         weight_boxes[key] = spin
-    grid.addWidget(QLabel("Selected Total"), len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 0)
-    grid.addWidget(total_label, len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 1)
+    grid.addWidget(QLabel("Category weights"), len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 0)
+    grid.addWidget(QLabel("Ignored"), len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 1)
     section_layout.addLayout(grid)
     return {
         "default_radio": default_radio,

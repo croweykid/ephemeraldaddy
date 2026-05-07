@@ -2,11 +2,45 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+import re
+from typing import Any, Mapping
 
 from lunar_python import Solar
 
 UNKNOWN_BAZI_VALUE = "Unknown"
+
+BAZI_BRANCH_TO_SIGN = {
+    "子": "Rat",
+    "丑": "Ox",
+    "寅": "Tiger",
+    "卯": "Rabbit",
+    "辰": "Dragon",
+    "巳": "Snake",
+    "午": "Horse",
+    "未": "Goat",
+    "申": "Monkey",
+    "酉": "Rooster",
+    "戌": "Dog",
+    "亥": "Pig",
+}
+BAZI_SIGN_ALIASES = {
+    "rat": "Rat",
+    "ox": "Ox",
+    "tiger": "Tiger",
+    "rabbit": "Rabbit",
+    "dragon": "Dragon",
+    "snake": "Snake",
+    "horse": "Horse",
+    "goat": "Goat",
+    "sheep": "Goat",
+    "ram": "Goat",
+    "monkey": "Monkey",
+    "rooster": "Rooster",
+    "chicken": "Rooster",
+    "dog": "Dog",
+    "pig": "Pig",
+    "boar": "Pig",
+}
 
 
 @dataclass(frozen=True)
@@ -105,3 +139,103 @@ def build_bazi_chart_data(dt_local: datetime, *, include_hour: bool = True) -> B
         five_elements_summary=five_elements_summary,
         ten_gods_summary=ten_gods_summary,
     )
+
+
+def _normalized_bazi_token_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().casefold()).strip("_")
+
+
+def normalize_bazi_sign_value(value: Any) -> str:
+    text = str(value).strip()
+    if not text or text == UNKNOWN_BAZI_VALUE:
+        return ""
+    for char in text:
+        sign = BAZI_BRANCH_TO_SIGN.get(char)
+        if sign:
+            return sign
+    parenthetical = re.search(r"\(([^()]+)\)", text)
+    if parenthetical:
+        text = parenthetical.group(1).strip()
+    key = _normalized_bazi_token_key(text)
+    return BAZI_SIGN_ALIASES.get(key, text.title())
+
+
+def bazi_include_hour_for_chart(chart: Any) -> bool:
+    from ephemeraldaddy.core.chart import chart_uses_houses
+
+    return chart_uses_houses(chart)
+
+
+def effective_bazi_datetime_and_hour_policy(chart: Any) -> tuple[datetime | None, bool]:
+    dt_local = getattr(chart, "dt_local", None)
+    chart_dt = getattr(chart, "dt", None)
+    if dt_local is None and isinstance(chart_dt, datetime):
+        dt_local = (
+            chart_dt.astimezone(chart_dt.tzinfo).replace(tzinfo=None)
+            if chart_dt.tzinfo is not None
+            else chart_dt
+        )
+    include_hour = bazi_include_hour_for_chart(chart)
+    if not isinstance(dt_local, datetime):
+        return None, include_hour
+    if include_hour and bool(getattr(chart, "retcon_time_used", False)):
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        if retcon_hour is not None and retcon_minute is not None:
+            try:
+                dt_local = dt_local.replace(
+                    hour=int(retcon_hour),
+                    minute=int(retcon_minute),
+                    second=0,
+                    microsecond=0,
+                )
+            except Exception:
+                pass
+    return dt_local, include_hour
+
+
+def bazi_sign_weights_from_pillars(chart: Any, *, include_hour: bool) -> dict[str, float]:
+    weights: dict[str, float] = {}
+    pillar_attrs = ["bazi_year_pillar", "bazi_month_pillar", "bazi_day_pillar"]
+    if include_hour:
+        pillar_attrs.append("bazi_hour_pillar")
+    for attr_name in pillar_attrs:
+        sign = normalize_bazi_sign_value(getattr(chart, attr_name, ""))
+        if sign:
+            weights[sign] = weights.get(sign, 0.0) + 1.0
+    return weights
+
+
+def bazi_sign_weights_from_data(bazi_data: BaziChartData) -> dict[str, float]:
+    weights: dict[str, float] = {}
+    for branch in getattr(bazi_data, "earthly_branches", {}).values():
+        sign = normalize_bazi_sign_value(branch)
+        if sign:
+            weights[sign] = weights.get(sign, 0.0) + 1.0
+    return weights
+
+
+def bazi_sign_weights_from_chart(chart: Any) -> dict[str, float]:
+    dt_local, include_hour = effective_bazi_datetime_and_hour_policy(chart)
+    pillar_weights = bazi_sign_weights_from_pillars(chart, include_hour=include_hour)
+    if pillar_weights:
+        return pillar_weights
+    for attr_name in ("bazi_sign_weights", "bazi_branch_weights", "dominant_bazi_sign_weights"):
+        raw_weights = getattr(chart, attr_name, None)
+        if not isinstance(raw_weights, Mapping) or not raw_weights:
+            continue
+        weights: dict[str, float] = {}
+        for raw_sign, raw_weight in raw_weights.items():
+            sign = normalize_bazi_sign_value(raw_sign)
+            if not sign:
+                continue
+            try:
+                weight = float(raw_weight)
+            except (TypeError, ValueError):
+                weight = 0.0
+            weights[sign] = weights.get(sign, 0.0) + weight
+        if weights:
+            return weights
+    if dt_local is None:
+        return {}
+    return bazi_sign_weights_from_data(build_bazi_chart_data(dt_local, include_hour=include_hour))

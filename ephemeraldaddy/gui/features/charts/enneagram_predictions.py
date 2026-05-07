@@ -31,40 +31,17 @@ from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 from ephemeraldaddy.analysis.human_design import derive_human_design_profile
 from ephemeraldaddy.core.chart import chart_uses_houses
 
-from ephemeraldaddy.analysis.weighted_chart_predictor import (
-    DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
-    calculate_weighted_criteria_scores,
-)
+from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
-ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {
-    "signs": 1.0,
-    "bodies": 1.0,
-    "nakshatras": 1.0,
-    "houses": 1.0,
-    "gates": 1.0,
-    "positions": 1.0,
-    "aspects": 1.0,
-}
+ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = {}
 
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
-    """Override runtime category weights used by Enneagram predictions."""
-    global ENNEAGRAM_CATEGORY_WEIGHTS
-    base = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
-    if not isinstance(overrides, dict):
-        ENNEAGRAM_CATEGORY_WEIGHTS = base
-        return
-    merged = dict(base)
-    for key, value in overrides.items():
-        if key in merged:
-            try:
-                merged[key] = float(value)
-            except (TypeError, ValueError):
-                continue
-    ENNEAGRAM_CATEGORY_WEIGHTS = merged
+    """Category/property-type weights are intentionally ignored; criteria carry their own weights."""
+    ENNEAGRAM_CATEGORY_WEIGHTS.clear()
 
 BODY_ALIASES = {
     "fortune": "Part of Fortune",
@@ -278,7 +255,7 @@ def calculate_enneagram_type_weights(
     weighted_scores = calculate_weighted_criteria_scores(
         chart,
         predictors=enneagram,
-        category_weights=ENNEAGRAM_CATEGORY_WEIGHTS,
+        category_weights=None,
         anti_factor=ENNEAGRAM_ANTI_FACTOR,
         calculate_sign_weights=calculate_sign_weights,
         calculate_body_weights=calculate_body_weights,
@@ -581,18 +558,16 @@ def build_enneagram_popout_info_html(
         ) or "<li>None</li>"
         aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()})) or "<li>None</li>"
         anti_aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()})) or "<li>None</li>"
-        formula_bits = ", ".join(
-            f"{category}×{weight:.2f}" for category, weight in ENNEAGRAM_CATEGORY_WEIGHTS.items()
-        )
+        formula_bits = "individual criterion weights only; no category/property-type weights"
         debug_html = (
             "<hr style='margin-top:12px;margin-bottom:10px;border:0;border-top:1px solid #555;'/>"
             f"<div style='font-size:13px;color:{text_color};'>"
             f"<div style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Calculator debug details</div>"
             "<div style='margin-top:6px;'>"
-            "Score model (per type): normalized contribution per criterion = "
-            "(positive matched-weight sum - anti_factor × negative matched-weight sum) / criterion_count."
+            "Score model (per type): positive criteria are normalized against the total positive criterion weight, "
+            "anti-criteria are normalized against the total anti-criterion weight, and no category/property-type weights are applied."
             "</div>"
-            f"<div style='margin-top:6px;'>Category weights currently used: {html.escape(formula_bits)}; "
+            f"<div style='margin-top:6px;'>Weighting currently used: {html.escape(formula_bits)}; "
             f"anti_factor={ENNEAGRAM_ANTI_FACTOR:.2f}.</div>"
             f"<div style='margin-top:6px;'>Selected type final score: <b>{selected_score:.4f}</b>.</div>"
             "<div style='margin-top:6px;'>All final type scores (so you can verify ranking math):</div>"
@@ -605,21 +580,18 @@ def build_enneagram_popout_info_html(
             f"<li><b>Bodies (-)</b><ul>{anti_body_items}</ul></li>"
             f"<li><b>Houses (+)</b><ul>{house_items}</ul></li>"
             f"<li><b>Houses (-)</b><ul>{anti_house_items}</ul></li>"
-            f"<li><b>Houses contribution</b>: +{house_positive_total:.4f} / -{house_negative_total:.4f} "
-            f"→ normalized {house_normalized_delta:.4f}</li>"
             f"<li><b>Nakshatras (+)</b><ul>{nak_items}</ul></li>"
             f"<li><b>Nakshatras (-)</b><ul>{anti_nak_items}</ul></li>"
             f"<li><b>HD Gates (+)</b><ul>{gate_items}</ul></li>"
             f"<li><b>HD Gates (-)</b><ul>{anti_gate_items}</ul></li>"
-            f"<li><b>HD Gates contribution</b>: +{gate_positive_total:.4f} / -{gate_negative_total:.4f} "
-            f"→ normalized {gate_normalized_delta:.4f}; active gates detected: {len(active_gates)}</li>"
+            f"<li><b>Active HD gates detected</b>: {len(active_gates)}</li>"
             f"<li><b>Positions (+)</b><ul>{position_items}</ul></li>"
             f"<li><b>Positions (-)</b><ul>{anti_position_items}</ul></li>"
             f"<li><b>Aspects (+)</b><ul>{aspect_items}</ul></li>"
             f"<li><b>Aspects (-)</b><ul>{anti_aspect_items}</ul></li>"
             "</ul>"
             "<div style='margin-top:6px;'>"
-            "To verify manually with a calculator: compute each criterion's normalized value, multiply each by the criterion weight, then sum all weighted criterion values for the final type score."
+            "To verify manually with a calculator: normalize positive item weights against the total positive item-weight sum, normalize anti item weights against the total anti item-weight sum, then subtract the weighted anti score from the weighted positive score."
             "</div>"
             "</div>"
         )
