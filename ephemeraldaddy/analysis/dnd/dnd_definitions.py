@@ -621,9 +621,20 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{"Venus":6,"Jupiter":7,"Neptune":3}, #cumulatively, only Venus is negative
         "nakshatras":{"Punarvasu":11,"Uttara Ashadha":10,"Purva Ashadha":6,"Mula":8,"Ardra":8,"Mrigashira":6,"Chitra":12,"Revati":7,"Swati":7}, #wondering if P Ash is only implicated by proximity to Ut Ash in charts... Cumulatively, only Punarvasu is 4% positive. P. Ash & Ut Ash are 2%. Everything else is 1% or less. #Similar Charts view & Database Analytics disagree about this for some reason.
         "antinakshatras":{"Bharani":6,"Rohini":4,"Pushya":8,"Ashlesha":8,"Purva Phalguni":4,"Uttara Phalguni":8,"Vishakha":11,"Uttara Bhadrapada":6}, #cumulatively, Ashwini & Jyestha are 2% neg. #Similar Charts view & Database Analytics disagree about this for some reason.
-        "positions":{"Sun in Capricorn":10,"Sun in Sagittarius":5,"Sun in Leo":4,"Moon in Aries":4,"Moon in Cancer":4,"Moon in Libra":5,"Mercury in Capricorn":10,"Mercury in Sagittarius":5,"Mercury in Aries":4,"Venus in Capricorn":11,"Venus in Cancer":7,"Venus in Aquarius":9,"Venus in Virgo":4,"Mars in Cancer":8,"Mars in Taurus":4,"Jupiter in Gemini":8,"Jupiter in Scorpio":8,"Jupiter in Cancer":6,"Jupiter in Aries":4,"Saturn in Gemini":8,"Saturn in Libra":4,"Mercury in H5":19,"Pluto in H6":19,"Sun in H4":18,"Ceres in H1":17,"Jupiter in H5":17},
+        "positions":{
+            "Sun in Capricorn":10,"Sun in Sagittarius":5,"Sun in Leo":4,"Sun in H4":18,
+            "Moon in Aries":4,"Moon in Cancer":4,"Moon in Libra":5,
+            "Mercury in Capricorn":10,"Mercury in Sagittarius":5,"Mercury in Aries":4,"Mercury in H5":19,
+            "Venus in Capricorn":11,"Venus in Cancer":7,"Venus in Aquarius":9,"Venus in Virgo":4,
+            "Mars in Cancer":8,"Mars in Taurus":4,
+            "Jupiter in Gemini":8,"Jupiter in Scorpio":8,"Jupiter in Cancer":6,"Jupiter in Aries":4,"Jupiter in H5":17,
+            "Saturn in Gemini":8,"Saturn in Libra":4,
+            "Pluto in H6":19,
+            "Ceres in H1":17,},
         "antipositions":{"Sun in Aries":6,"Sun in Gemini":4,"Sun in Virgo":8,"Sun in Scorpio":4,"Moon in Taurus":5,"Moon in Sagittarius":5,"Mercury in Taurus":7,"Mercury in Leo":4,"Mercury in Pisces":9,"Venus in Libra":7,"Venus in Leo":7,"Venus in Pisces":8,"Venus in Taurus":4,"Mars in Leo":6,"Mars in Virgo":7,"Mars in Pisces":4,"Jupiter in Leo":7,"Jupiter in Virgo":9,"Jupiter in Sagittarius":7,"Jupiter in Pisces":8,"Jupiter in Aquarius":4,"Saturn in Taurus":4,"Saturn in Virgo":6,"Saturn in Sagittarius":7,}, #note: these are based off of who "isn't on the strong list", not off a list of "who is weak"
-        "aspects":{"Neptune sextile Pluto":20,"Chiron opposition Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10},
+        "aspects":{
+            "Neptune sextile Pluto":20,"Chiron opposition Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10
+        },
         "antiaspects":{},
         "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
         "antigates":{59,29,47,27,5,26,4,22,25,36,33},
@@ -653,8 +664,30 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{"Venus":20,"Jupiter":10},
         "nakshatras":{"Bharani":8,"Punarvasu":14,"Mrigashira":9,"Ardra":7,"Purva Ashadha":12,"Shravana":11,"Revati":8}, 
         "antinakshatras":{"Hasta":8,"Anuradha":5,"Mula":5,"Shatabhisha":10,"Purva Bhadrapada":5,"Uttara Phalguni":4}, 
-        "positions":{"Sun in Taurus":5,"Sun in Gemini":4,"Sun in Sagittarius":4,"Moon in Gemini":10,"Mercury in Pisces":5,"Mercury in Cancer":7,"Venus in Aries":18,"Venus in Taurus":4,"Venus in Virgo":9,"Mars in Virgo":8,"Mars in Aquarius":7,"Jupiter in Virgo":5,"Saturn in Gemini":10,"Ceres in Libra":7,"Juno in Sagittarius":14,"Rahu in Capricorn":17,"Juno in Scorpio":6,"Pallas in Virgo":14,"Pluto in Scorpio":9,"Lilith in Taurus":13,"Vesta in Cancer":10,"Pallas in Scorpio":11,"Fortune in Scorpio":11,},
-        "antipositions":{"Sun in Cancer":7,"Sun in Leo":5,"Sun in Scorpio":7,"Sun in Capricorn":5,"Moon in Virgo":7,"Moon in Sagittarius":4,"Mercury in Gemini":5,"Venus in Cancer":5,"Venus in Libra":6,"Venus in Sagittarius":7,"Venus in Capricorn":8,"Venus in Aquarius":6,"Mars in Libra":5,"Jupiter in Pisces":8,"Jupiter in Libra":6,"Saturn in Cancer":6,"Saturn in Sagittarius":6},
+        "positions":{
+            "Sun in Taurus":5,"Sun in Gemini":4,"Sun in Sagittarius":4,
+            "Moon in Gemini":10,
+            "Mercury in Pisces":5,"Mercury in Cancer":7,
+            "Venus in Aries":18,"Venus in Taurus":4,"Venus in Virgo":9,
+            "Mars in Virgo":8,"Mars in Aquarius":7,
+            "Jupiter in Virgo":5,
+            "Saturn in Gemini":10,
+            "Pluto in Scorpio":9,
+            "Ceres in Libra":7,
+            "Juno in Sagittarius":14,"Juno in Scorpio":6,
+            "Pallas in Virgo":14,"Pallas in Scorpio":11,
+            "Lilith in Taurus":13,"Vesta in Cancer":10,"Fortune in Scorpio":11,
+            "Rahu in Capricorn":17,
+        },
+        "antipositions":{
+            "Sun in Cancer":7,"Sun in Leo":5,"Sun in Scorpio":7,"Sun in Capricorn":5,
+            "Moon in Virgo":7,"Moon in Sagittarius":4,
+            "Mercury in Gemini":5,
+            "Venus in Cancer":5,"Venus in Libra":6,"Venus in Sagittarius":7,"Venus in Capricorn":8,"Venus in Aquarius":6,
+            "Mars in Libra":5,
+            "Jupiter in Pisces":8,"Jupiter in Libra":6,
+            "Saturn in Cancer":6,"Saturn in Sagittarius":6
+        },
         "aspects":{},
         "antiaspects":{},
         "gates":{54:21,25:16,38:16,11:15,23:18,48:11,6:11,12:13,32:9,41:14,61:13,62:9,9:8},
@@ -685,7 +718,14 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{"Mars":5,"Uranus":4},
         "nakshatras":{"Purva Ashadha":5,"Uttara Ashadha":5,}, 
         "antinakshatras":{"Magha":7}, 
-        "positions":{"Sun in Capricorn":9,"Ceres in Pisces":6,"Venus in Capricorn":6,"Lilith in H6":6,"Rahu in H2":6,"Ketu in H1":5,"Ceres in H4":5,"Mars in H8":4,"Mercury in H5":5,},
+        "positions":{
+            "Sun in Capricorn":9,
+            "Mercury in H5":5,
+            "Venus in Capricorn":6,
+            "Mars in H8":4,
+            "Ceres in Pisces":6,"Ceres in H4":5,
+            "Lilith in H6":6,"Rahu in H2":6,"Ketu in H1":5,
+        },
         "antipositions":{"Neptune in Sagittarius":8},
         "aspects":{"Moon square Fortune":7,"Lilith trine Uranus":6,"Ceres trine Vesta":5,"Pluto sextile Vesta":5,"Uranus trine Vesta":4,"DS trine Pallas":7,"MC trine Neptune":5,"Pallas conjunction Uranus":5,"IC square Vesta":5,"MC trine Lilith":5},
         "antiaspects":{"Sun semisquare Venus":6},
@@ -717,9 +757,26 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{"Mercury":6}, #lol yeah it got -6% in 'Similarities Analysis'
         "nakshatras":{"Mrigashira":6,"Punarvasu":3,"Purva Phalguni":2,"Revati":2,}, 
         "antinakshatras":{"Purva Ashadha":2}, 
-        "positions":{"Moon in Aries":3,"Mercury in Scorpio":4,"Venus in Scorpio":5,"Mars in Capricorn":4,"Saturn in Gemini":4,"Scorpio in H1":5,"Virgo in H1":4,"Pluto in Leo":5,"Saturn in Gemini":4,"MC in Leo":5,"Neptune in Libra":4,"Juno in Scorpio":4},
-        "antipositions":{"Pluto in Virgo":4,"Neptune in Scorpio":4,"Aquarius in H1":4,"Sun in Leo":4,"Saturn in Capricorn":4,},
-        "aspects":{"Chiron opposition Uranus":8,"Mars trine Fortune":5,"Fortune trine Lilith":5,"Rahu trine Sun":4,"Moon trine Uranus":5,"Juno sextile Jupiter":5,"Neptune opposition Fortune":6,"AS square Mercury":5,"Mars conjunction Moon":5,"Pallas opposition Vesta":4,"AS square Juno":5,"Fortune opposition Vesta":4,"MC sextile Fortune":5},
+        "positions":{
+            "Moon in Aries":3,
+            "Mercury in Scorpio":4,
+            "Venus in Scorpio":5,"Mars in Capricorn":4,
+            "Saturn in Gemini":4,
+            "Pluto in Leo":5,
+            "Neptune in Libra":4,
+            "Scorpio in H1":5,"Virgo in H1":4,"Leo in H10":5,
+            "Juno in Scorpio":4
+        },
+        "antipositions":{
+            "Sun in Leo":4,
+            "Saturn in Capricorn":4,
+            "Neptune in Scorpio":4,
+            "Pluto in Virgo":4,
+            "Aquarius in H1":4,
+        },
+        "aspects":{
+            "Chiron opposition Uranus":8,"Mars trine Fortune":5,"Fortune trine Lilith":5,"Rahu trine Sun":4,"Moon trine Uranus":5,"Juno sextile Jupiter":5,"Neptune opposition Fortune":6,"AS square Mercury":5,"Mars conjunction Moon":5,"Pallas opposition Vesta":4,"AS square Juno":5,"Fortune opposition Vesta":4,"MC sextile Fortune":5
+        },
         "antiaspects":{},
         "gates":{45,62,51,12,61,36,},
         "antigates":{59,44,29,5,63,37,13},
@@ -749,8 +806,25 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antibodies":{"Saturn":3},
         "nakshatras":{"Shatabhisha":7,"Mrigashira":4,"Rohini":6,"Purva Phalguni":6,"Jyestha":4,"Mula":3}, 
         "antinakshatras":{"Ashwini":4,"Pushya":4,"Hasta":4,"Swati":6,"Uttara Bhadrapada":4}, 
-        "positions":{"Sun in Virgo":5,"Sun in Taurus":4,"Sun in Cancer":3,"Sun in Pisces":3,"Moon in Pisces":7,"Mercury in Gemini":8,"Venus in Libra":3,"Venus in Aquarius":3,"Mars in Pisces":4,"Mars in Libra":3,"Jupiter in Virgo":5,"Jupiter in Aries":4,"Saturn in Pisces":4,"Saturn in Sagittarius":6,"Saturn in Cancer":4,"Aries in H1":8,"Scorpio in H1":4},
-        "antipositions":{"Sun in Aries":7,"Sun in Leo":6,"Sun in Libra":4,"Moon in Sagittarius":5,"Moon in Cancer":3,"Mercury in Cancer":6,"Mercury in Scorpio":3,"Mercury in Taurus":3,"Venus in Sagittarius":3,"Mars in Scorpio":4,"Jupiter in Leo":3,"Jupiter in Scorpio":3,"Saturn in Libra":5,"Saturn in Aquarius":3,"Saturn in Scorpio":3,"Cancer in H1":8,"Libra in H1":6,"Sagittarius in H1":4},
+        "positions":{
+            "Sun in Virgo":5,"Sun in Taurus":4,"Sun in Cancer":3,"Sun in Pisces":3,
+            "Moon in Pisces":7,
+            "Mercury in Gemini":8,"Venus in Libra":3,"Venus in Aquarius":3,
+            "Mars in Pisces":4,"Mars in Libra":3,
+            "Jupiter in Virgo":5,"Jupiter in Aries":4,
+            "Saturn in Pisces":4,"Saturn in Sagittarius":6,"Saturn in Cancer":4,
+            "Aries in H1":8,"Scorpio in H1":4
+        },
+        "antipositions":{
+            "Sun in Aries":7,"Sun in Leo":6,"Sun in Libra":4,
+            "Moon in Sagittarius":5,"Moon in Cancer":3,
+            "Mercury in Cancer":6,"Mercury in Scorpio":3,"Mercury in Taurus":3,
+            "Venus in Sagittarius":3,
+            "Mars in Scorpio":4,
+            "Jupiter in Leo":3,"Jupiter in Scorpio":3,
+            "Saturn in Libra":5,"Saturn in Aquarius":3,"Saturn in Scorpio":3,
+            "Cancer in H1":8,"Libra in H1":6,"Sagittarius in H1":4
+        },
         "aspects":{},
         "antiaspects":{},
         "gates":{47:11,50:5,6:6,10:7,15:8,37:10,12:7,9:6,35:7,22:6,36:6,16:5},
@@ -806,7 +880,13 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Anuradha":6,"Chitra":4,"Jyestha":4,"Shravana":4,
             #Uttara Ashadha is also overrepresented in "Least CHA"
         }, 
-        "positions":{"Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Moon in Capricorn":4,"Mercury in Taurus":3,"Mercury in Leo":3,"Venus in Taurus":2,"Venus in Gemini":5,"Mars in Aries":3,"Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,"Cancer in H1":2,"Sun in H2":9,"Neptune in H6":5,"Pluto in H4":5,"Lilith in H10":4,"Jupiter in H6":4,"Juno in H4":5,"Pallas in H3":4,"Mercury in H3":4,"Fortune in H8":5,"Saturn in H11":4,"Mercury in H2":4,"Saturn in H10":4,"Uranus in H1":4,"Mars in H4":3,"Taurus in H10":4,"Gemini in H12":4,"Pluto in Cancer":7,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,"Venus in Aries":3,"Neptune in Leo":4,"Pallas in Cancer":5,"Scorpio in H4":4,"Uranus in Pisces":4,
+        "positions":{
+            "Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,
+            "Moon in Capricorn":4,"Mercury in Taurus":3,"Mercury in Leo":3,
+            "Venus in Taurus":2,"Venus in Gemini":5,
+            "Mars in Aries":3,
+            "Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,
+            "Cancer in H1":2,"Sun in H2":9,"Neptune in H6":5,"Pluto in H4":5,"Lilith in H10":4,"Jupiter in H6":4,"Juno in H4":5,"Pallas in H3":4,"Mercury in H3":4,"Fortune in H8":5,"Saturn in H11":4,"Mercury in H2":4,"Saturn in H10":4,"Uranus in H1":4,"Mars in H4":3,"Taurus in H10":4,"Gemini in H12":4,"Pluto in Cancer":7,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,"Venus in Aries":3,"Neptune in Leo":4,"Pallas in Cancer":5,"Scorpio in H4":4,"Uranus in Pisces":4,
         "Chiron in Pisces":8,"Pisces in H7":6,"Neptune in Libra":6,"Pallas in Pisces":6,"Ceres in Taurus":7,"Mars in Pisces":5, #not present in "Most CHA", but absent in "Least CHA"
         },
         "antipositions":{
