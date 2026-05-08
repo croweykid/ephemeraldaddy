@@ -7,11 +7,7 @@ from difflib import SequenceMatcher
 import re
 from typing import Callable, Literal, Sequence
 
-from ephemeraldaddy.analysis.get_astro_twin import (
-    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-    SimilarityCalculatorSettings,
-    chart_similarity_score_for_algorithm,
-)
+from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
 
 DuplicateLikelihood = Literal[
@@ -226,8 +222,6 @@ def find_possible_duplicate_charts(
     similarity_threshold_percent: float = 65.0,
     similarity_ceiling_percent: float = 100.0,
     excluded_pairs: set[tuple[int, int]] | None = None,
-    algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-    custom_settings: SimilarityCalculatorSettings | None = None,
 ) -> DuplicateDetectionResult:
     duplicate_ids: set[int] = set()
     related_names: dict[int, dict[str, set[str]]] = {}
@@ -352,12 +346,7 @@ def find_possible_duplicate_charts(
                 right_chart = get_chart(right_id)
                 if right_chart is None or not getattr(right_chart, "positions", None):
                     continue
-                final_score, _component_scores = chart_similarity_score_for_algorithm(
-                    left_chart,
-                    right_chart,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=custom_settings,
-                )
+                final_score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
                 if not (min_score <= final_score <= max_score):
                     continue
                 percent = final_score * 100.0
