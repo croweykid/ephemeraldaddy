@@ -4537,7 +4537,25 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "motivation":"Perfection, correctness",
         "why":"because what needs done could - and SHOULD - be done better",
         "description":"1s dream of a better world, which begins with themselves. Their scope for seeking the betterness of things may occupy any scale - personal (rigorous regimen to become virtuosic and/or to obliterate one's personal flaws), intimate (seeking to correct the flaws of others), or global/collective (trying to correct perceived flaws in the world and/or its systems at large).",
-        "quotes":{"'I don't care if it hurts. / I want to have control. / I want a perfect body. / I want a perfect soul.' - Thom Yorke, Creep"}
+        "quotes":{"'I don't care if it hurts. / I want to have control. / I want a perfect body. / I want a perfect soul.' - Thom Yorke, Creep"},
+        "overrepresented in data": [
+        "public critics",
+        "writers",
+        "commentators",
+        "intellectual moralists",
+        "aesthetic standard-setters",
+        "people with quotable principles",
+        "people whose criticism is easy to observe",
+        ],
+        "underrepresented in data": [
+            "quiet duty-based Type 1s",
+            "craftsperson Type 1s",
+            "domestic/orderly Type 1s",
+            "religious or procedural Type 1s who do not verbalize much",
+            "service-oriented Type 1s who correct through routine instead of argument",
+        ],
+        "summary of findings":"A naive model says: Type 1 = Saturn. The data says: Type 1 = distributed correction",
+        "results interpretated": {"Virgo: correction","Scorpio/Pluto: detection of hidden rot","Cancer/IC/Moon: protective moral duty","Taurus/Vesta: preservation of value","Pallas: pattern-ordering intelligence","Mars: corrective action","Juno: obligation and relational contract","Mercury/H3: naming, sorting, judging, arguing",},
         },
     2:{ #needs weights
         "name":"Caretaker",
@@ -4608,6 +4626,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"to be essential to others; to be useful, needed and loved",
         "description":"2s want to be indispensible to others. They need to be needed. They can only feel that they matter if others depend on them.",
         "quotes":{"'When you're weary / Feeling small / When tears are in your eyes / I will dry them all / I'm on your side. / Oh, when times get rough, / And friends just can't be found...' - Simon & Garfunkel, Bridge Over Troubled Water"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
     3:{ #no actual data formally assessed & documented; purely theoretical rn based on loose past observations
         "name":"Status-seeker",
@@ -4646,6 +4666,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"to be recognized as the best",
         "description":"3s are sort of narcissist-coded, but that doesn't have to be malignant. It can result in materialism, or it could result in extreme competence. Sometimes 3s are mistaken for 1s because they appear driven by perfectionism. But rather than pursuit of perfection/ideals (e1) or competence (e5) for their own sake, 3s are driven by the pursuit of recognition for that competence. Arguably, the easier the trophies and accolades come, the less hard 3s will need to try. The point here is not the conditions of victory, but the recognition of their superiority over others; the status and attention of being president more than the power of owning the red button. They will live and die for that gold star on their paper, and the knowledge that other people know they got it.",
         "quotes":{"'There's been a lot of compromisin' / on the road to my horizon... / but I'm gonna be / where the lights are shinin' on me...' - Glen Campbell, Rhinestone Cowboy"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
     4:{ #assessed with Similarities Analysis AND DB Analytics.
         "name":"Artist", 
@@ -4707,6 +4729,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"to feel something real",
         "description":"4s don't mind if you think they're a freak. They want a genuine experience, be it the depths of pain or pleasure. They want beauty, but see beauty and truth as inseparable, so we aren't talking Kpop symmetry and Kardashians; we're talking scar-faced midwives, Edward James Olmos' face, Bukowski poems, Philip-Lorca diCorcia photos, Disco Elysium, David Lynch and Adrienne Shelly indie flicks. They can be goth-coded, but they aren't all goths. Many seek originality and ways of distinguishing themselves from the mainstream, but that may be just a reaction to the inauthenticity of the mainstream. There's a lot of BS backstory lore on e4s by major voices in Enneagram theory who say stuff like 'e4s feel there's an essential part of themselves missing' or are driven by self-pity and similar nonsense. It's all rubbish written by people who clearly don't understand them. Like their moms. *slams door*",
         "quotes":{"'Drink up one more time / and I'll make you mine, / keep you apart, / deep in my heart / separate from the rest, / where I like you the best-- / and keep the things you forgot...' - Elliott Smith, Between the Bars","'Baby, do you understand me now? / Sometimes I feel a little mad... / Don't you know no one alive can always be an angel.../ When things go wrong, I seem to be bad.  - The Animals, Don't Let Me Be Misunderstood","Marge: Why all the black? / Homer: Why all the pearls? Why all the hair? Why anything? - The Simpsons"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
     5:{
         "name":"Investigator", #Scholar, Permastudent, Datahoarder, Researcher, Hermit
@@ -4748,6 +4772,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"for the love of knowledge",
         "description":"5s want to understand the world, whether through a microscope or a telescope. They generally perceive themselves as on the outside, looking in at the experiment of existence. They go to great pains to ensure that their lab is protected so that their subjects (the outside world) cannot touch them, messy their lab and disrupt their experiments.",
         "quotes":{"'I'm so glad I got burned, / think of all the things we learned / from the people who are / still alive. / And believe me I'm still alive. / I'm doing science and I'm still alive.' - Portal Soundtrack, Still Alive","'There is research to be done, / and we made a neat gun / for the people who are / still alive...' - Portal soundtrack, Still Alive","'Well they gave me medication so I feel how I imagine people of average intelligence feel all the time.' - Dr. Temperance Bones, Bones"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
     6:{
         "name":"Loyalist", #Acolyte, authority
@@ -4802,6 +4828,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"because that's what someone with their responsibilities does, according to respected authorities",
         "description":"6s are generally here to maintain their view of the status quo, upholding their recognized hierarchy, and support their tribe. This can look very different depending on who they recognize as their authority figure (leader), and who/what they believe is their tribe (which can exist at varying scales from the very personal to the very global). Independent of scale, they will expect members of their perceived tribe to fulfill their responsibilities/duties/roles within the tribe as well. In the creator of this app's opinion, there is no 'counterphobic 6' as lore suggests - just one type of 6, who is always deferential to role models, even if the early Recognized Tribal Authority was Hunter S Thompson, Charlton Heston or the Unibomber. Saying e6 is about 'security' is tautological; the entire enneagram is about how individuals seek a sense of security; e6 seeks it through tribal role participation'.",
         "quotes":{"'If I'd said that to MY daddy, he'd have...[insert reflection on one's father's archetypal behavior, intended as a model of exemplary response to the situation]' - a phrase often invoked by nearly everyone in the American South & Bible Belt.","'Three weeks from now, I will be harvesting my crops. Imagine where you will be, and it will be so. Hold the line! Stay with me! If you find yourself alone, riding in the green fields with the sun on your face, do not be troubled. For you are in Elysium, and you're already dead! Brothers, what we do in life echoes in eternity...' - Maximus, Gladiator","'Five thousand of my men are out there in the freezing mud. Three thousand of them are bloodied and cleaved. Two thousand will never leave this place. I will not believe that they fought and died for nothing.' - Maximus, Gladiator","'Sometimes I do what I want to do. The rest of the time, I do what I have to.' - Cicero, Gladiator","'You have a great name. He must kill your name before he kills you.' - Juba, Gladiator",},
+        "summary of findings":"",
+        "results interpretated":{}
         }, #"'Elephants are not purple. This is wrong.' - Dr. Temperance Bones, Bones"
     7:{
         "name":"Explorer",
@@ -4870,6 +4898,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"to avoid being controlled",
         "description":"3s may pursue dominance through material recognition and social status. 8s will pursue it by any means necessary. Power not for social validation, not as a conditioned social response that recognizes and values the established institutions and wishes to perform within them, but potentially outside them. Whatever it takes to be in control, or at very least to avoid being controlled by others.",
         "quotes":{"'You know the way to stop me / but you don't have the discipline. / How many nights have I prayed for this? / To let my work begin...! / First we take Manhattan... / then we take Berlin!' - Leonard Cohen, First We Take Manhattan","'They’re whispering his name across this disappearing land / But hidden in his coat is a red right hand... / You ain’t got no money? / He’ll get you some / You ain’t got no car? / He’ll get you one / You ain’t got no self-respect, you feel like an insect / Well don’t you worry buddy, cause here he comes...' - Nick Cave, Red Right Hand","'People should know when they're conquered.' - Quintus, Gladiator"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
     9:{ #needs weights
         "name":"Pacifist",
@@ -4923,6 +4953,8 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "why":"to maintain the peace",
         "description":"9s just want peace. They want everyone to get along. Unlike 1s, they won't generally lash out at those disrupting the peace, but will quietly brood and retreat from those who cause chaos and disharmony. If they ever choose to stand for anything, it would likely be a stand for nonviolence, a stand to end conflict. They can be hard to recognize because they often adapt & shapeshift as a means of keeping peace.",
         "quotes":{"'Well, you may say that I'm a dreamer / but I'm not the only one. / I hope someday you'll join us... / and the world can live as one.' - John Lennon, Imagine"},
+        "summary of findings":"",
+        "results interpretated":{}
         },
 } #no one knows wtf Hasta wants. lol Bharani is hunger, but not in a chill or fun way. Uttara Phalguni for e2 is experimental. P. Phal is experimental for e7 but seems to fit.
 
