@@ -2537,7 +2537,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_output": False,
+            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
         }
     def _expanded_database_metric_sections(self) -> list[str]:
         section_order = [
@@ -23730,7 +23730,7 @@ class MainWindow(QMainWindow):
     def _chart_data_visibility_options(self) -> dict[str, bool]:
         return {
             "show_cursedness": self._visibility.get("chart_data.cursedness"),
-            "show_dnd_output": False,
+            "show_dnd_output": self._visibility.get("chart_data.dnd_output"),
         }
 
     def _refresh_chart_summary(self, chart: Chart | None = None) -> None:
