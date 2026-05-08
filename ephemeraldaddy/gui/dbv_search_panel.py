@@ -13,6 +13,46 @@ BODY_DYNAMICS_ROLE_OPTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
+def weight_is_at_least_triple_next_highest(
+    weights: dict[str, float] | None,
+    selected_key: str,
+) -> bool:
+    """Return whether a selected weight is at least 3x the next-highest peer.
+
+    ``selected_key == "Any"`` means any weighted key may satisfy the isolated
+    dominance test. This is the active Isolated Factors wildcard behavior.
+    """
+    if not weights:
+        return False
+
+    def numeric_weight(weight_key: str) -> float | None:
+        try:
+            return float(weights.get(weight_key, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+
+    def key_is_isolated(candidate_key: str) -> bool:
+        if candidate_key not in weights:
+            return False
+        selected_weight = numeric_weight(candidate_key)
+        if selected_weight is None or selected_weight <= 0.0:
+            return False
+
+        next_highest_weight = 0.0
+        for weight_key in weights:
+            if str(weight_key) == candidate_key:
+                continue
+            other_weight = numeric_weight(str(weight_key))
+            if other_weight is None:
+                return False
+            next_highest_weight = max(next_highest_weight, other_weight)
+        return selected_weight >= (next_highest_weight * 3.0)
+
+    if selected_key == "Any":
+        return any(key_is_isolated(str(weight_key)) for weight_key in weights)
+    return key_is_isolated(selected_key)
+
+
 def active_body_dynamics_filters(window) -> list[dict[str, object]]:
     """Return active Body Dynamics filter rows from the Database View search panel."""
     return [
