@@ -145,6 +145,7 @@ class Chart:
         self.human_design_gates = []
         self.human_design_lines = []
         self.human_design_channels = []
+        self.human_design_defined_centers = []
         self.bazi_year_pillar = ""
         self.bazi_month_pillar = ""
         self.bazi_day_pillar = ""
@@ -239,6 +240,7 @@ class Chart:
             "human_design_gates": self.human_design_gates,
             "human_design_lines": self.human_design_lines,
             "human_design_channels": self.human_design_channels,
+            "human_design_defined_centers": self.human_design_defined_centers,
             "bazi_year_pillar": self.bazi_year_pillar,
             "bazi_month_pillar": self.bazi_month_pillar,
             "bazi_day_pillar": self.bazi_day_pillar,

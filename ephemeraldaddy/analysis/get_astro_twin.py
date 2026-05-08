@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import heapq
+import warnings
 from math import sqrt
 from typing import Callable, Iterable
 
@@ -41,6 +42,122 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
+
+
+class SimilarityMetadataRepairWarning(UserWarning):
+    """Warn that similarity scoring had to repair missing stored metadata."""
+
+
+def _similarity_chart_label(chart: Chart) -> str:
+    chart_id = getattr(chart, "id", None)
+    name = str(getattr(chart, "name", "") or "").strip()
+    if chart_id is not None and name:
+        return f"#{chart_id} ({name})"
+    if chart_id is not None:
+        return f"#{chart_id}"
+    return name or "an unsaved chart"
+
+
+def _warn_similarity_metadata_repaired(chart: Chart, repaired_fields: list[str], persisted: bool) -> None:
+    if not repaired_fields:
+        return
+    warning_key = tuple(sorted(repaired_fields))
+    emitted = getattr(chart, "_similarity_metadata_repair_warnings", set())
+    if warning_key in emitted:
+        return
+    emitted = set(emitted)
+    emitted.add(warning_key)
+    try:
+        chart._similarity_metadata_repair_warnings = emitted
+    except Exception:
+        pass
+    persistence_note = "and saved it back to the database" if persisted else "in memory only"
+    warnings.warn(
+        "Similarity Calculator found missing persisted metadata for "
+        f"{_similarity_chart_label(chart)} ({', '.join(repaired_fields)}), "
+        f"so it recalculated that metadata {persistence_note}. "
+        "This should normally only happen for legacy/incomplete rows; please save/update "
+        "the chart to keep database metadata healthy.",
+        SimilarityMetadataRepairWarning,
+        stacklevel=3,
+    )
+
+
+def _persist_repaired_similarity_metadata(chart: Chart) -> bool:
+    chart_id = getattr(chart, "id", None)
+    if chart_id is None or isinstance(chart_id, bool):
+        return False
+    from ephemeraldaddy.core.db import update_chart
+
+    try:
+        update_chart(int(chart_id), chart)
+        return True
+    except Exception:
+        return False
+
+
+def _repair_missing_similarity_metadata(chart: Chart, requested_components: set[str]) -> None:
+    if not getattr(chart, "positions", None):
+        return
+    repaired_fields: list[str] = []
+
+    if "nakshatra_dominance" in requested_components and not getattr(chart, "dominant_nakshatra_weights", None):
+        try:
+            chart.dominant_nakshatra_weights = dict(calculate_dominant_nakshatra_weights(chart) or {})
+        except Exception:
+            chart.dominant_nakshatra_weights = {}
+        if chart.dominant_nakshatra_weights:
+            repaired_fields.append("dominant nakshatra weights")
+
+    requested_hd = {"defined_centers", "human_design_gates"} & requested_components
+    if requested_hd and chart_uses_houses(chart):
+        has_gates = bool(getattr(chart, "human_design_gates", None))
+        has_lines = bool(getattr(chart, "human_design_lines", None))
+        has_type = bool(str(getattr(chart, "human_design_type", "") or "").strip())
+        has_authority = bool(str(getattr(chart, "human_design_authority", "") or "").strip())
+        has_defined_centers_attr = hasattr(chart, "human_design_defined_centers")
+        if not (has_gates and has_lines and has_type and has_authority and has_defined_centers_attr):
+            try:
+                hd_result = calculate_human_design(chart)
+                activations = (
+                    *getattr(hd_result, "personality_activations", ()),
+                    *getattr(hd_result, "design_activations", ()),
+                )
+                chart.human_design_gates = sorted(
+                    {int(gate) for gate in getattr(hd_result, "active_gates", [])}
+                )
+                chart.human_design_lines = sorted(
+                    {
+                        int(getattr(activation, "line"))
+                        for activation in activations
+                        if getattr(activation, "line", None) is not None
+                    }
+                )
+                chart.human_design_channels = sorted(
+                    f"{min(int(gate_a), int(gate_b))}-{max(int(gate_a), int(gate_b))}"
+                    for gate_a, gate_b, _center_a, _center_b in getattr(
+                        hd_result,
+                        "defined_channels",
+                        [],
+                    )
+                )
+                chart.human_design_defined_centers = sorted(
+                    {
+                        str(center).strip()
+                        for center in getattr(hd_result, "defined_centers", [])
+                        if str(center).strip()
+                    }
+                )
+                chart.human_design_type = str(getattr(hd_result, "hd_type", "") or "").strip()
+                chart.human_design_authority = str(getattr(hd_result, "authority", "") or "").strip()
+            except Exception:
+                pass
+            if bool(getattr(chart, "human_design_gates", None)):
+                repaired_fields.append("Human Design metadata")
+
+    if repaired_fields:
+        persisted = _persist_repaired_similarity_metadata(chart)
+        _warn_similarity_metadata_repaired(chart, repaired_fields, persisted)
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -963,9 +1080,6 @@ def _nakshatra_dominance_similarity(query: Chart, candidate: Chart) -> float:
 
 def _dominant_nakshatra_weight_profile(chart: Chart) -> dict[str, float]:
     raw_weights = getattr(chart, "dominant_nakshatra_weights", None) or {}
-    if not raw_weights:
-        raw_weights = calculate_dominant_nakshatra_weights(chart)
-        chart.dominant_nakshatra_weights = dict(raw_weights)
     normalized: dict[str, float] = {}
     for nakshatra_name, raw_value in raw_weights.items():
         normalized[str(nakshatra_name)] = max(0.0, float(raw_value or 0.0))
@@ -986,21 +1100,12 @@ def _human_design_gates(chart: Chart) -> set[int]:
             resolved_gates.add(int(gate))
         except (TypeError, ValueError):
             continue
-    if resolved_gates:
-        return resolved_gates
-    try:
-        hd_result = calculate_human_design(chart)
-    except Exception:
-        return set()
-    for gate in (getattr(hd_result, "active_gates", None) or []):
-        try:
-            resolved_gates.add(int(gate))
-        except (TypeError, ValueError):
-            continue
     return resolved_gates
 
 
-def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
+def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float | None:
+    if not (chart_uses_houses(query) and chart_uses_houses(candidate)):
+        return None
     q_gates = _human_design_gates(query)
     c_gates = _human_design_gates(candidate)
     if not q_gates and not c_gates:
@@ -1017,7 +1122,21 @@ def _similarity_component_scores(
     candidate: Chart,
     *,
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-) -> dict[str, float]:
+    requested_components: Iterable[str] | None = None,
+) -> dict[str, float | None]:
+    requested_component_set = (
+        set(requested_components)
+        if requested_components is not None
+        else {
+            key
+            for key, weight in SimilarityCalculatorSettings.defaults_from_comprehensive()
+            .weights_by_component()
+            .items()
+            if weight > 0.0
+        }
+    )
+    _repair_missing_similarity_metadata(query, requested_component_set)
+    _repair_missing_similarity_metadata(candidate, requested_component_set)
     return {
         "placement": _placement_similarity(query, candidate, weighting_mode=placement_weighting_mode),
         "aspect": _aspect_similarity(query, candidate),
@@ -1035,7 +1154,7 @@ def _similarity_component_scores(
 
 
 def _weighted_similarity_score(
-    component_scores: dict[str, float],
+    component_scores: dict[str, float | None],
     weights_by_component: dict[str, float],
     enabled_components: dict[str, bool] | None = None,
 ) -> float:
@@ -1047,7 +1166,10 @@ def _weighted_similarity_score(
         weight = max(0.0, float(weights_by_component.get(key, 0.0)))
         if weight <= 0.0:
             continue
-        weighted_score += float(component_scores.get(key, 0.0)) * weight
+        component_score = component_scores.get(key, 0.0)
+        if component_score is None:
+            continue
+        weighted_score += float(component_score) * weight
         total_weight += weight
     if total_weight <= 0.0:
         return 0.0
@@ -1063,7 +1185,9 @@ def _defined_centers(chart: Chart) -> set[str]:
     }
 
 
-def _defined_centers_similarity(query: Chart, candidate: Chart) -> float:
+def _defined_centers_similarity(query: Chart, candidate: Chart) -> float | None:
+    if not (chart_uses_houses(query) and chart_uses_houses(candidate)):
+        return None
     q_centers = _defined_centers(query)
     c_centers = _defined_centers(candidate)
     if not q_centers and not c_centers:
@@ -1121,7 +1245,7 @@ def chart_similarity_score_comprehensive(
         component_scores["aspect"],
         component_scores["distribution"],
         component_scores["nakshatra_placement"],
-        component_scores["defined_centers"],
+        component_scores["defined_centers"] if component_scores["defined_centers"] is not None else 1.0,
     )
 
 
@@ -1129,16 +1253,23 @@ def chart_similarity_score_custom(
     query: Chart,
     candidate: Chart,
     settings: SimilarityCalculatorSettings,
-) -> tuple[float, dict[str, float]]:
+) -> tuple[float, dict[str, float | None]]:
+    enabled_components = settings.enabled_components()
+    weights_by_component = settings.weights_by_component()
     component_scores = _similarity_component_scores(
         query,
         candidate,
         placement_weighting_mode=settings.normalized_placement_weighting_mode(),
+        requested_components={
+            key
+            for key, enabled in enabled_components.items()
+            if enabled and weights_by_component.get(key, 0.0) > 0.0
+        },
     )
     final_score = _weighted_similarity_score(
         component_scores,
-        settings.weights_by_component(),
-        enabled_components=settings.enabled_components(),
+        weights_by_component,
+        enabled_components=enabled_components,
     )
     return final_score, component_scores
 
@@ -1149,7 +1280,7 @@ def chart_similarity_score_for_algorithm(
     *,
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     custom_settings: SimilarityCalculatorSettings | None = None,
-) -> tuple[float, dict[str, float]]:
+) -> tuple[float, dict[str, float | None]]:
     """Return the app-wide Similarities Calculator score and components.
 
     The Similarities Calculator setting owns the active algorithm app-wide. Default
@@ -1169,25 +1300,38 @@ def chart_similarity_score_for_algorithm(
         )
 
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
-    component_scores = _similarity_component_scores(
-        query,
-        candidate,
-        placement_weighting_mode=placement_weighting_mode,
-    )
-
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        component_scores = _similarity_component_scores(
+            query,
+            candidate,
+            placement_weighting_mode=placement_weighting_mode,
+        )
         final_score = _weighted_similarity_score(
             component_scores,
             SimilarityCalculatorSettings.defaults_from_comprehensive().weights_by_component(),
         )
-    else:
-        final_score = (
-            (component_scores["placement"] * 0.38)
-            + (component_scores["aspect"] * 0.27)
-            + (component_scores["distribution"] * 0.10)
-            + (component_scores["combined_dominance"] * 0.25)
-        )
+        return final_score, component_scores
 
+    component_scores = {
+        "placement": _placement_similarity(
+            query,
+            candidate,
+            weighting_mode=placement_weighting_mode,
+        ),
+        "aspect": _aspect_similarity(query, candidate),
+        "distribution": _distribution_similarity(
+            query,
+            candidate,
+            weighting_mode=placement_weighting_mode,
+        ),
+        "combined_dominance": _combined_dominance_similarity(query, candidate),
+    }
+    final_score = (
+        (component_scores["placement"] * 0.38)
+        + (component_scores["aspect"] * 0.27)
+        + (component_scores["distribution"] * 0.10)
+        + (component_scores["combined_dominance"] * 0.25)
+    )
     return final_score, component_scores
 
 
@@ -1241,7 +1385,7 @@ def chart_dissimilarity_score_comprehensive(
         + ((1.0 - distribution_score) * 0.08)
         + ((1.0 - _combined_dominance_similarity(query, candidate)) * 0.28)
         + ((1.0 - nakshatra_score) * 0.13)
-        + ((1.0 - hd_centers_score) * 0.08)
+        + (((1.0 - hd_centers_score) * 0.08) if hd_centers_score is not None else 0.0)
     )
     dominance_similarity = _sign_dominance_similarity(query, candidate)
     dominance_penalty = 0.35 * dominance_similarity

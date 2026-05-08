@@ -17,6 +17,7 @@ import subprocess
 import sys
 import traceback
 import uuid
+import warnings
 import urllib.parse
 import platform
 from collections import Counter, OrderedDict
@@ -393,6 +394,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
+    SimilarityMetadataRepairWarning,
     build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
     chart_similarity_score_for_algorithm,
     find_astro_twins,
@@ -6651,6 +6653,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_lookup=self._similarities_chart_lookup,
         )
 
+    def _show_similarity_metadata_repair_warnings(
+        self,
+        title: str,
+        caught_warnings: list[warnings.WarningMessage],
+    ) -> None:
+        messages = []
+        seen = set()
+        for caught_warning in caught_warnings:
+            if not issubclass(caught_warning.category, SimilarityMetadataRepairWarning):
+                continue
+            message = str(caught_warning.message).strip()
+            if not message or message in seen:
+                continue
+            seen.add(message)
+            messages.append(message)
+        if not messages:
+            return
+        shown_messages = messages[:5]
+        if len(messages) > len(shown_messages):
+            shown_messages.append(
+                f"{len(messages) - len(shown_messages)} additional metadata repairs were performed."
+            )
+        QMessageBox.warning(
+            self,
+            title,
+            "Similarity Calculator found missing persisted metadata and repaired it.\n\n"
+            + "\n\n".join(shown_messages),
+        )
+
     def _calculate_pair_similarity_from_selection(self) -> None:
         if self._similarities_pair_result_label is None:
             return
@@ -6679,12 +6710,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._similar_charts_algorithm_mode = algorithm_mode
         similarity_settings = getattr(self, "_similarity_calculator_settings", None)
-        final_score, component_scores = chart_similarity_score_for_algorithm(
-            first,
-            second,
-            algorithm_mode=algorithm_mode,
-            custom_settings=similarity_settings,
-        )
+        with warnings.catch_warnings(record=True) as similarity_warnings:
+            warnings.simplefilter("always", SimilarityMetadataRepairWarning)
+            final_score, component_scores = chart_similarity_score_for_algorithm(
+                first,
+                second,
+                algorithm_mode=algorithm_mode,
+                custom_settings=similarity_settings,
+            )
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         similarity_percent = final_score * 100.0
@@ -6712,6 +6745,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"{similarity_percent:.1f}% ({band_label})"
             f"</span> "
             f"({component_summary})."
+        )
+        self._show_similarity_metadata_repair_warnings(
+            "Calculate Similarity metadata repaired",
+            similarity_warnings,
         )
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
@@ -14479,18 +14516,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        duplicate_result = find_possible_duplicate_charts(
-            rows,
-            load_chart=self._get_chart_for_filter,
-            similarity_threshold_percent=65.0,
-            similarity_ceiling_percent=100.0,
-            excluded_pairs=self._excluded_duplicate_pairs,
-            algorithm_mode=getattr(
-                self,
-                "_similar_charts_algorithm_mode",
-                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-            ),
-            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        with warnings.catch_warnings(record=True) as similarity_warnings:
+            warnings.simplefilter("always", SimilarityMetadataRepairWarning)
+            duplicate_result = find_possible_duplicate_charts(
+                rows,
+                load_chart=self._get_chart_for_filter,
+                similarity_threshold_percent=65.0,
+                similarity_ceiling_percent=100.0,
+                excluded_pairs=self._excluded_duplicate_pairs,
+                algorithm_mode=getattr(
+                    self,
+                    "_similar_charts_algorithm_mode",
+                    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+                ),
+                custom_settings=getattr(self, "_similarity_calculator_settings", None),
+            )
+        self._show_similarity_metadata_repair_warnings(
+            "Possible duplicates metadata repaired",
+            similarity_warnings,
         )
         if not duplicate_result.duplicate_ids:
             self._possible_duplicate_chart_ids = set()
@@ -19433,14 +19476,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        calibration = compute_similarity_calibration(
-            [chart for _chart_id, chart in charts],
-            algorithm_mode=getattr(
-                self,
-                "_similar_charts_algorithm_mode",
-                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
-            ),
-            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        with warnings.catch_warnings(record=True) as similarity_warnings:
+            warnings.simplefilter("always", SimilarityMetadataRepairWarning)
+            calibration = compute_similarity_calibration(
+                [chart for _chart_id, chart in charts],
+                algorithm_mode=getattr(
+                    self,
+                    "_similar_charts_algorithm_mode",
+                    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+                ),
+                custom_settings=getattr(self, "_similarity_calculator_settings", None),
+            )
+        self._show_similarity_metadata_repair_warnings(
+            "Similarity calibration metadata repaired",
+            similarity_warnings,
         )
         if calibration is None:
             QMessageBox.warning(
