@@ -4,7 +4,7 @@
 
 [Setup]
 AppName=EphemeralDaddy
-AppVersion=1.2.3
+AppVersion=3.0.0
 DefaultDirName={autopf}\EphemeralDaddy
 DefaultGroupName=EphemeralDaddy
 OutputDir=dist
