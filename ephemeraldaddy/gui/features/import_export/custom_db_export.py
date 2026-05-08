@@ -252,7 +252,7 @@ def open_custom_db_export_dialog(parent: QWidget) -> None:
             )
             return
 
-        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
         if db_radio.isChecked():
             file_path, _ = QFileDialog.getSaveFileName(
                 dialog,
