@@ -6,7 +6,7 @@ import json
 import csv
 import shutil
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable, List, Tuple, Optional
@@ -974,7 +974,7 @@ def _sync_year_first_encountered_from_age(conn: sqlite3.Connection) -> None:
         except Exception:
             self_birth_month = 1
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     current_age = now.year - int(self_birth_year)
     if now.month < int(self_birth_month):
         current_age -= 1
@@ -1832,7 +1832,7 @@ def resolve_user_age_details(
       - source: 'self' | 'predicted' | 'unavailable'
       - chart_name: str | None
     """
-    now = reference_dt or datetime.utcnow()
+    now = reference_dt or datetime.now(timezone.utc)
     conn = _get_conn()
     rows = conn.execute(
         """
@@ -2103,7 +2103,7 @@ def backup_database(destination: Optional[Path] = None) -> Path:
         raise FileNotFoundError("Database file does not exist yet.")
     DB_DIR.mkdir(parents=True, exist_ok=True)
     if destination is None:
-        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         destination = DB_DIR / f"ephemeraldaddy_dbbackup_{timestamp}.db"
     else:
         destination = Path(destination)
@@ -2144,7 +2144,7 @@ def append_database(source: Path) -> dict[str, Any]:
         target_max_id = int(target_max_id_row[0] or 0) if target_max_id_row else 0
 
         source_rows = source_conn.execute("SELECT * FROM charts ORDER BY id ASC").fetchall()
-        now_iso = datetime.utcnow().isoformat(timespec="seconds")
+        now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         with target_conn:
             for row_index, row in enumerate(source_rows, start=1):
@@ -2617,7 +2617,7 @@ def save_chart(
                 death_hour if death_hour is not None else getattr(chart, "death_hour", None),
                 death_minute if death_minute is not None else getattr(chart, "death_minute", None),
                 death_place if death_place is not None else getattr(chart, "death_place", None),
-                datetime.utcnow().isoformat(timespec="seconds"),
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
             ),
         )
         chart_id = cur.lastrowid
@@ -3094,7 +3094,7 @@ def save_duplicate_exclusions(chart_ids: List[int]) -> int:
     normalized_ids = sorted({int(chart_id) for chart_id in chart_ids if chart_id is not None})
     if len(normalized_ids) < 2:
         return 0
-    now_iso = datetime.utcnow().isoformat(timespec="seconds")
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
     pairs: list[tuple[int, int, str]] = []
     for index, left_id in enumerate(normalized_ids):
         for right_id in normalized_ids[index + 1 :]:

@@ -15968,7 +15968,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _on_export_database(self) -> None:
-        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export database",
