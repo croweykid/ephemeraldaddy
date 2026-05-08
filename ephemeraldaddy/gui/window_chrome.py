@@ -82,14 +82,22 @@ def _configure_menu_bar_visibility(menu_bar) -> None:
     ):
         menu_bar.setNativeMenuBar(False)
 
-def _is_human_design_menu_enabled(owner: "QWidget") -> bool:
+def _is_optional_module_enabled(owner: "QWidget", key: str) -> bool:
     visibility_store = getattr(owner, "_visibility", None)
     if visibility_store is None:
         return False
     get_visibility = getattr(visibility_store, "get", None)
     if not callable(get_visibility):
         return False
-    return bool(get_visibility("chart_data.human_design_alpha_prototype"))
+    return bool(get_visibility(key))
+
+
+def _is_human_design_menu_enabled(owner: "QWidget") -> bool:
+    return _is_optional_module_enabled(owner, "optional_modules.human_design")
+
+
+def _is_event_planner_menu_enabled(owner: "QWidget") -> bool:
+    return _is_optional_module_enabled(owner, "optional_modules.event_predictor")
 
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:
@@ -224,7 +232,8 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    
+    if _is_event_planner_menu_enabled(window):
+        _bind_menu_action(tools_menu, "🗓️ Event Planner", window, "on_open_event_planner")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
@@ -296,6 +305,14 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
+    if _is_event_planner_menu_enabled(dialog):
+        _bind_menu_action(
+            tools_menu,
+            "🗓️ Event Planner",
+            dialog,
+            "_on_menu_open_event_planner",
+            "on_open_event_planner",
+        )
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
