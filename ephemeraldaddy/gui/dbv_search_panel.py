@@ -779,6 +779,55 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(dominant_element_section)
 
+    #Search: Isolated Factors section
+    isolated_factors_section, isolated_factors_group_layout = add_collapsible_section(
+        "🪐Isolated Factors"
+    )
+
+    isolated_body_row = QHBoxLayout()
+    window._isolated_dominant_body_filter_checkbox = QCheckBox("apply")
+    window._isolated_dominant_body_filter_checkbox.stateChanged.connect(
+        window._on_astrological_filter_changed
+    )
+    isolated_body_row.addWidget(window._isolated_dominant_body_filter_checkbox)
+    isolated_body_row.addWidget(QLabel("Solo dominance of body"))
+    window._isolated_dominant_body_filter_combo = QComboBox()
+    apply_default_dropdown_style(window._isolated_dominant_body_filter_combo)
+    window._isolated_dominant_body_filter_combo.addItem("Any", "Any")
+    for body_label, body_key in window._searchable_bodies():
+        if body_key in {"AS", "IC", "DS", "MC"}:
+            continue
+        window._isolated_dominant_body_filter_combo.addItem(body_label, body_key)
+    window._isolated_dominant_body_filter_combo.currentIndexChanged.connect(
+        window._on_astrological_filter_changed
+    )
+    isolated_body_row.addWidget(window._isolated_dominant_body_filter_combo, 1)
+    isolated_factors_group_layout.addLayout(isolated_body_row)
+
+    isolated_or_label = QLabel("or")
+    isolated_or_label.setAlignment(Qt.AlignCenter)
+    isolated_factors_group_layout.addWidget(isolated_or_label)
+
+    isolated_sign_row = QHBoxLayout()
+    window._isolated_dominant_sign_filter_checkbox = QCheckBox("apply")
+    window._isolated_dominant_sign_filter_checkbox.stateChanged.connect(
+        window._on_astrological_filter_changed
+    )
+    isolated_sign_row.addWidget(window._isolated_dominant_sign_filter_checkbox)
+    isolated_sign_row.addWidget(QLabel("Solo dominance of sign"))
+    window._isolated_dominant_sign_filter_combo = QComboBox()
+    apply_default_dropdown_style(window._isolated_dominant_sign_filter_combo)
+    window._isolated_dominant_sign_filter_combo.addItem("Any", "Any")
+    for sign in ZODIAC_NAMES:
+        window._isolated_dominant_sign_filter_combo.addItem(sign, sign)
+    window._isolated_dominant_sign_filter_combo.currentIndexChanged.connect(
+        window._on_astrological_filter_changed
+    )
+    isolated_sign_row.addWidget(window._isolated_dominant_sign_filter_combo, 1)
+    isolated_factors_group_layout.addLayout(isolated_sign_row)
+
+    layout.addWidget(isolated_factors_section)
+
     #Search: Human Design section
     human_design_section, human_design_group_layout = add_collapsible_section("🪐Human Design")
 
