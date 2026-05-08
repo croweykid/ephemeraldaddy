@@ -12,17 +12,22 @@ py -3.11 -m venv venv
 python -m pip install --upgrade pip wheel setuptools
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller pillow
+python -m pip install Pyside6
+python -m pip install imojify
+python -m pip install matplotlib
+python -m pip install skyfield
+python -m pip install pyswisseph
 ```
 
 ## 2) Sanity-check app before packaging
 
 ```powershell
-python -m ephemeraldaddy.gui.bootstrap
+python -m ephemeraldaddy.gui.bootstrap 
 ```
 
 If this fails in Python, fix that first before trying to package.
 
-## 3) Build EXE
+## 3) Build EXE 
 
 ### Single-file EXE (easy to share)
 
