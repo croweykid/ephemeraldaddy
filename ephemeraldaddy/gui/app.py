@@ -1829,6 +1829,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._aspect_filters = []
         self._dominant_sign_filters = []
         self._dominant_planet_filters = []
+        self._isolated_dominant_body_filter_combo = None
+        self._isolated_dominant_sign_filter_combo = None
         self._body_dynamics_filters = []
         self._dominant_mode_filters = []
         self._dominant_nakshatra_filters = []
@@ -8986,6 +8988,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if str(filters["planet"].currentData()) != "Any"
         ]
         active_body_dynamics_filter_rows = get_active_body_dynamics_filters(self)
+        selected_isolated_dominant_body = (
+            str(self._isolated_dominant_body_filter_combo.currentData())
+            if self._isolated_dominant_body_filter_combo is not None
+            else "Any"
+        )
+        selected_isolated_dominant_sign = (
+            str(self._isolated_dominant_sign_filter_combo.currentData())
+            if self._isolated_dominant_sign_filter_combo is not None
+            else "Any"
+        )
         active_dominant_mode_filters = [
             filters
             for filters in self._dominant_mode_filters
@@ -9186,6 +9198,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not active_aspect_filters
             and not active_dominant_sign_filters
             and not active_dominant_planet_filters
+            and selected_isolated_dominant_body == "Any"
+            and selected_isolated_dominant_sign == "Any"
             and not active_body_dynamics_filter_rows
             and not active_dominant_mode_filters
             and not active_dominant_nakshatra_filters
@@ -15037,6 +15051,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_planet_filters
         ):
             return True
+        if (
+            self._isolated_dominant_body_filter_combo is not None
+            and str(self._isolated_dominant_body_filter_combo.currentData()) != "Any"
+        ):
+            return True
+        if (
+            self._isolated_dominant_sign_filter_combo is not None
+            and str(self._isolated_dominant_sign_filter_combo.currentData()) != "Any"
+        ):
+            return True
         if body_dynamics_filters_are_active(self):
             return True
         if any(
@@ -15207,6 +15231,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if "not" in filters and filters["not"] is not None:
                     filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
+            if self._isolated_dominant_body_filter_combo is not None:
+                self._isolated_dominant_body_filter_combo.setCurrentIndex(0)
+            if self._isolated_dominant_sign_filter_combo is not None:
+                self._isolated_dominant_sign_filter_combo.setCurrentIndex(0)
             reset_body_dynamics_filters(self)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
@@ -16766,6 +16794,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if str(filters["planet"].currentData()) != "Any"
         ]
         active_body_dynamics_filter_rows = get_active_body_dynamics_filters(self)
+        selected_isolated_dominant_body = (
+            str(self._isolated_dominant_body_filter_combo.currentData())
+            if self._isolated_dominant_body_filter_combo is not None
+            else "Any"
+        )
+        selected_isolated_dominant_sign = (
+            str(self._isolated_dominant_sign_filter_combo.currentData())
+            if self._isolated_dominant_sign_filter_combo is not None
+            else "Any"
+        )
         active_dominant_mode_filters = [
             filters
             for filters in self._dominant_mode_filters
@@ -17542,6 +17580,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ):
                     return False
 
+        if (
+            selected_isolated_dominant_body != "Any"
+            or selected_isolated_dominant_sign != "Any"
+        ):
+            isolated_body_matches = (
+                selected_isolated_dominant_body != "Any"
+                and self._chart_isolated_dominant_planet_matches(
+                    chart, selected_isolated_dominant_body
+                )
+            )
+            isolated_sign_matches = (
+                selected_isolated_dominant_sign != "Any"
+                and self._chart_isolated_dominant_sign_matches(
+                    chart, selected_isolated_dominant_sign
+                )
+            )
+            if not (isolated_body_matches or isolated_sign_matches):
+                return False
+
         if active_body_dynamics_filter_rows:
             if not chart_matches_body_dynamics_filters(
                 self, chart, active_body_dynamics_filter_rows
@@ -17901,6 +17958,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return True
         return mode in self._chart_top_three_dominant_modes(chart)
 
+    def _chart_isolated_dominant_sign_matches(
+        self,
+        chart: Chart,
+        sign: str,
+    ) -> bool:
+        if sign == "Any":
+            return True
+        dominant_weights = getattr(chart, "dominant_sign_weights", None)
+        if not dominant_weights:
+            dominant_weights = _calculate_dominant_sign_weights(chart)
+            chart.dominant_sign_weights = dominant_weights
+        return self._weight_is_at_least_triple_all_others(dominant_weights, sign)
+
     def _chart_top_three_dominant_signs(self, chart: Chart) -> set[str]:
         dominant_weights = getattr(chart, "dominant_sign_weights", None)
         if not dominant_weights:
@@ -17963,6 +18033,42 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for weighted_planet, weight in dominant_planet_weights.items()
             if isinstance(weight, (int, float)) and float(weight) >= dominant_threshold
         }
+
+    def _chart_isolated_dominant_planet_matches(
+        self,
+        chart: Chart,
+        planet: str,
+    ) -> bool:
+        if planet == "Any":
+            return True
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+            chart.dominant_planet_weights = dominant_planet_weights
+        return self._weight_is_at_least_triple_all_others(dominant_planet_weights, planet)
+
+    @staticmethod
+    def _weight_is_at_least_triple_all_others(
+        weights: dict[str, float] | None,
+        selected_key: str,
+    ) -> bool:
+        if not weights or selected_key not in weights:
+            return False
+        try:
+            selected_weight = float(weights.get(selected_key, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return False
+        if selected_weight <= 0.0:
+            return False
+        other_weights = []
+        for weight_key, weight in weights.items():
+            if str(weight_key) == selected_key:
+                continue
+            try:
+                other_weights.append(float(weight or 0.0))
+            except (TypeError, ValueError):
+                return False
+        return all(selected_weight >= (other_weight * 3.0) for other_weight in other_weights)
 
     def _chart_dominant_nakshatra_matches(
         self,
