@@ -750,6 +750,7 @@ def build_chart_view_middle_header_controls(
             "_show_similar_charts_popout",
             "on_create_gemstone_chartwheel",
             "on_open_chart_predictor_quiz",
+            "on_open_event_predictor",
         ),
         context="build_chart_view_middle_header_controls",
     )
@@ -764,7 +765,7 @@ def build_chart_view_middle_header_controls(
     get_visibility = getattr(visibility_store, "get", None)
     is_human_design_enabled = bool(
         callable(get_visibility)
-        and get_visibility("chart_data.human_design_alpha_prototype")
+        and get_visibility("optional_modules.human_design")
     )
 
     button_specs: list[tuple[str, str, str, Callable[..., object]]] = [
@@ -913,6 +914,7 @@ def build_chart_view_right_panel(
         layout=predictions_layout,
         title="D&&D-ification",
         expanded=True,
+        section_key="dndification",
     )
     owner.dnd_predictions_chart_panel = QWidget()
     owner.dnd_predictions_chart_layout = QVBoxLayout()

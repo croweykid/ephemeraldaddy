@@ -8,6 +8,15 @@ from PySide6.QtCore import QSettings
 
 SETTINGS_GROUP = "visibility"
 
+OPTIONAL_MODULE_KEYS: dict[str, bool] = {
+    "optional_modules.human_design": False,
+    "optional_modules.anagrams": False,
+    "optional_modules.bazi": False,
+    "optional_modules.dndification": True,
+    "optional_modules.event_predictor": False,
+    "optional_modules.cursedness": True,
+}
+
 CHART_DATA_KEYS: dict[str, bool] = {
     "chart_data.cursedness": True,
     "chart_data.dnd_output": True,
@@ -48,6 +57,18 @@ DEFAULT_VISIBILITY: dict[str, bool] = {
     **CHART_DATA_KEYS,
     **DATABASE_ANALYTICS_SECTION_KEYS,
     **DATABASE_ANALYTICS_VISIBILITY_KEYS,
+    **OPTIONAL_MODULE_KEYS,
+}
+
+VISIBILITY_KEY_ALIASES: dict[str, tuple[str, ...]] = {
+    "optional_modules.human_design": ("chart_data.human_design_alpha_prototype",),
+    "optional_modules.anagrams": ("chart_analytics.anagrams",),
+    "optional_modules.bazi": ("database_metrics_visibility.bazi",),
+    "optional_modules.dndification": (
+        "chart_data.dnd_output",
+        "database_metrics_visibility.species_distribution",
+    ),
+    "optional_modules.cursedness": ("chart_data.cursedness",),
 }
 
 
@@ -57,13 +78,23 @@ class VisibilityStore:
 
     def get(self, key: str) -> bool:
         default = DEFAULT_VISIBILITY.get(key, True)
-        raw = self.settings.value(f"{SETTINGS_GROUP}/{key}", default)
+        settings_key = f"{SETTINGS_GROUP}/{key}"
+        raw = self.settings.value(settings_key, default)
+        if not self.settings.contains(settings_key):
+            for alias in VISIBILITY_KEY_ALIASES.get(key, ()):
+                alias_key = f"{SETTINGS_GROUP}/{alias}"
+                if self.settings.contains(alias_key):
+                    raw = self.settings.value(alias_key, default)
+                    break
         if isinstance(raw, bool):
             return raw
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     def set(self, key: str, visible: bool) -> None:
-        self.settings.setValue(f"{SETTINGS_GROUP}/{key}", bool(visible))
+        normalized = bool(visible)
+        self.settings.setValue(f"{SETTINGS_GROUP}/{key}", normalized)
+        for alias in VISIBILITY_KEY_ALIASES.get(key, ()):
+            self.settings.setValue(f"{SETTINGS_GROUP}/{alias}", normalized)
 
     def reset_defaults(self) -> None:
         for key, default in DEFAULT_VISIBILITY.items():

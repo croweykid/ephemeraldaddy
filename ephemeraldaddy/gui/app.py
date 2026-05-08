@@ -799,6 +799,7 @@ from ephemeraldaddy.gui.visibility import (
     DATABASE_ANALYTICS_SECTION_KEYS,
     VisibilityStore,
 )
+from ephemeraldaddy.analysis.event_predictor import create_event_predictor_window
 from ephemeraldaddy.gui.features.import_export.parsing import (
     format_chart_row_datetime,
     normalize_csv_row,
@@ -3179,10 +3180,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_section_expanded[section_key] = self._visibility.get(key)
 
         self._database_metrics_section_visible["species_distribution"] = self._visibility.get(
-            "database_metrics_visibility.species_distribution"
+            "optional_modules.dndification"
         )
         self._database_metrics_section_visible["bazi"] = self._visibility.get(
-            "database_metrics_visibility.bazi"
+            "optional_modules.bazi"
         )
         self._database_metrics_section_visible["enneagram"] = self._visibility.get(
             "database_metrics_visibility.enneagram"
@@ -14252,6 +14253,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dialog.show()
         dialog.raise_()
 
+    def _on_menu_open_event_predictor(self) -> None:
+        parent = self.parent()
+        if parent is not None and hasattr(parent, "on_open_event_predictor"):
+            parent.on_open_event_predictor()
+            return
+        dialog = create_event_predictor_window(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def _on_menu_see_similar_charts(self) -> None:
         self._run_main_window_chart_action("see_similar_charts")
         dialog.activateWindow()
@@ -18245,100 +18257,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Visibility", #should use header format: bold & copper
+            "Optional Modules",
         )
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
-        cursedness_checkbox = QCheckBox("Show cursedness analysis")
-        cursedness_checkbox.setChecked(self._visibility.get("chart_data.cursedness"))
-        cursedness_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.cursedness", checked)
-        )
-        visibility_section.addWidget(cursedness_checkbox)
-
-        dnd_species_checkbox = QCheckBox("Show D&&D Card")
-        dnd_species_checkbox.setChecked(self._visibility.get("chart_data.dnd_output"))
-        dnd_species_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility("chart_data.dnd_output", checked)
-        )
-        visibility_section.addWidget(dnd_species_checkbox)
-
-        human_design_alpha_checkbox = QCheckBox("Show Human Design (alpha prototype)")
-        human_design_alpha_checkbox.setChecked(
-            self._visibility.get("chart_data.human_design_alpha_prototype")
-        )
-        human_design_alpha_checkbox.toggled.connect(
-            lambda checked: self._set_chart_data_visibility(
-                "chart_data.human_design_alpha_prototype",
-                checked,
+        for label, key in (
+            ("Human Design", "human_design"),
+            ("Anagrams", "anagrams"),
+            ("BaZi", "bazi"),
+            ("D&&D-ification", "dndification"),
+            ("Event Predictor", "event_predictor"),
+            ("Cursedness", "cursedness"),
+        ):
+            checkbox = QCheckBox(label)
+            checkbox.setChecked(self._visibility.get(f"optional_modules.{key}"))
+            checkbox.toggled.connect(
+                lambda checked, module_key=key: self._set_optional_module_visibility(
+                    module_key,
+                    checked,
+                )
             )
-        )
-        visibility_section.addWidget(human_design_alpha_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
-
-        synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
-        synastry_aspect_weights_checkbox.setChecked(self._visibility.get("popout.synastry_aspect_weights"))
-        synastry_aspect_weights_checkbox.toggled.connect(
-            lambda checked: self._set_popout_visibility("popout.synastry_aspect_weights", checked)
-        )
-        visibility_section.addWidget(synastry_aspect_weights_checkbox)
-
-        visibility_section.addWidget(self._build_settings_subheader_label("Chart Analytics Panel (Chart View View)"))
-
-        planet_dynamics_checkbox = QCheckBox("Show Body Dynamics (Chart Analytics)")
-        parent = self.parent()
-        planet_dynamics_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("planet_dynamics")
-        )
-        planet_dynamics_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "planet_dynamics",
-                checked,
-            )
-        )
-        visibility_section.addWidget(planet_dynamics_checkbox)
-
-        anagrams_checkbox = QCheckBox("Show Anagrams (Chart Analytics)")
-        anagrams_checkbox.setChecked(
-            isinstance(parent, MainWindow)
-            and parent._is_chart_analysis_section_visible("anagrams")
-        )
-        anagrams_checkbox.toggled.connect(
-            lambda checked: self._set_chart_analytics_visibility_from_settings(
-                "anagrams",
-                checked,
-            )
-        )
-        visibility_section.addWidget(anagrams_checkbox)
-
-        visibility_section.addSpacing(8)
-        visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
-
-        species_distribution_checkbox = QCheckBox("Show D&&D Typing")
-        species_distribution_checkbox.setChecked(
-            self._is_database_metrics_section_visible("species_distribution")
-        )
-        species_distribution_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "species_distribution",
-                checked,
-            )
-        )
-        visibility_section.addWidget(species_distribution_checkbox)
-
-        bazi_checkbox = QCheckBox("Show BaZi graphs")
-        bazi_checkbox.setChecked(
-            self._is_database_metrics_section_visible("bazi")
-        )
-        bazi_checkbox.toggled.connect(
-            lambda checked: self._set_database_metric_section_visibility_from_settings(
-                "bazi",
-                checked,
-            )
-        )
-        visibility_section.addWidget(bazi_checkbox)
+            visibility_section.addWidget(checkbox)
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
@@ -19072,7 +19010,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.remove("app/last_view")
         self._visibility.reset_defaults()
         self._restore_visibility_preferences()
-        self._refresh_human_design_menu_visibility()
+        self._refresh_optional_module_menu_visibility()
 
         self._sort_mode = "alpha"
         self._sort_descending = False
@@ -19095,6 +19033,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 parent._chart_analysis_section_visible[section_key] = parent._visibility.get(
                     f"chart_analytics.{section_key}"
                 )
+            parent._chart_analysis_section_visible["dndification"] = parent._visibility.get(
+                "optional_modules.dndification"
+            )
             parent._sync_chart_analysis_section_visibility()
             parent._reset_interface_layout_to_defaults()
 
@@ -19150,19 +19091,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _set_chart_data_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
         if key == "chart_data.human_design_alpha_prototype":
-            self._refresh_human_design_menu_visibility()
+            self._refresh_optional_module_menu_visibility()
 
         parent = self.parent()
         if isinstance(parent, MainWindow):
             parent._refresh_chart_preview()
 
-    def _refresh_human_design_menu_visibility(self) -> None:
+    def _refresh_optional_module_menu_visibility(self) -> None:
         layout = self.layout()
         if isinstance(layout, QVBoxLayout):
             configure_manage_dialog_chrome(self, layout)
         parent = self.parent()
         if isinstance(parent, MainWindow):
             configure_main_window_chrome(parent)
+
+    def _set_optional_module_visibility(self, module_key: str, checked: bool) -> None:
+        self._visibility.set(f"optional_modules.{module_key}", checked)
+        parent = self.parent()
+        if module_key == "anagrams" and isinstance(parent, MainWindow):
+            parent._set_chart_analysis_section_visible("anagrams", checked)
+        elif module_key == "dndification" and isinstance(parent, MainWindow):
+            parent._set_chart_analysis_section_visible("dndification", checked)
+            self._set_database_metrics_section_visible("species_distribution", checked)
+            self._refresh_charts(refresh_metrics=True)
+        elif module_key == "bazi":
+            self._set_database_metrics_section_visible("bazi", checked)
+            self._refresh_charts(refresh_metrics=True)
+        elif module_key == "cursedness" and isinstance(parent, MainWindow):
+            parent._refresh_chart_preview()
+        if module_key in {"human_design", "event_predictor"}:
+            self._refresh_optional_module_menu_visibility()
 
     def _set_popout_visibility(self, key: str, checked: bool) -> None:
         self._visibility.set(key, checked)
@@ -21007,7 +20965,10 @@ class MainWindow(QMainWindow):
             "chart_analytics.planet_dynamics"
         )
         self._chart_analysis_section_visible["anagrams"] = self._visibility.get(
-            "chart_analytics.anagrams"
+            "optional_modules.anagrams"
+        )
+        self._chart_analysis_section_visible["dndification"] = self._visibility.get(
+            "optional_modules.dndification"
         )
         build_chart_view_right_panel(
             self,
@@ -24118,6 +24079,13 @@ class MainWindow(QMainWindow):
 
     def on_open_chart_predictor_quiz(self) -> None:
         dialog = create_chart_predictor_quiz_dialog(self)
+        self._register_popout_shortcuts(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def on_open_event_predictor(self) -> None:
+        dialog = create_event_predictor_window(self)
         self._register_popout_shortcuts(dialog)
         dialog.show()
         dialog.raise_()
