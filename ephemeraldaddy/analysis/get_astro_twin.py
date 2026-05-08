@@ -1143,6 +1143,54 @@ def chart_similarity_score_custom(
     return final_score, component_scores
 
 
+def chart_similarity_score_for_algorithm(
+    query: Chart,
+    candidate: Chart,
+    *,
+    algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    custom_settings: SimilarityCalculatorSettings | None = None,
+) -> tuple[float, dict[str, float]]:
+    """Return the app-wide Similarities Calculator score and components.
+
+    The Similarities Calculator setting owns the active algorithm app-wide. Default
+    keeps the legacy fixed weighting formula, Comprehensive uses the comprehensive
+    defaults, and Custom uses the saved enabled components and weights.
+    """
+    normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    normalized_custom_settings = (
+        custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    )
+
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+        return chart_similarity_score_custom(
+            query,
+            candidate,
+            normalized_custom_settings,
+        )
+
+    placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
+    component_scores = _similarity_component_scores(
+        query,
+        candidate,
+        placement_weighting_mode=placement_weighting_mode,
+    )
+
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        final_score = _weighted_similarity_score(
+            component_scores,
+            SimilarityCalculatorSettings.defaults_from_comprehensive().weights_by_component(),
+        )
+    else:
+        final_score = (
+            (component_scores["placement"] * 0.38)
+            + (component_scores["aspect"] * 0.27)
+            + (component_scores["distribution"] * 0.10)
+            + (component_scores["combined_dominance"] * 0.25)
+        )
+
+    return final_score, component_scores
+
+
 def chart_dissimilarity_score(
     query: Chart,
     candidate: Chart,

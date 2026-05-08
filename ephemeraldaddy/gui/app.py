@@ -394,7 +394,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
     build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
-    chart_similarity_score,
+    chart_similarity_score_for_algorithm,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
@@ -6674,27 +6674,44 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        similarity_settings = getattr(self, "_similarity_calculator_settings", None)
+        final_score, component_scores = chart_similarity_score_for_algorithm(
             first,
             second,
-            placement_weighting_mode=getattr(
-                getattr(self, "_similarity_calculator_settings", None),
-                "placement_weighting_mode",
-                PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-            ),
+            algorithm_mode=algorithm_mode,
+            custom_settings=similarity_settings,
         )
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
         similarity_percent = final_score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
+        component_keys = resolve_similarity_component_keys_for_display(
+            algorithm_mode=algorithm_mode,
+            similarity_settings=similarity_settings,
+        )
+        component_summary = format_similarity_component_summary(
+            match=SimpleNamespace(
+                placement_score=component_scores.get("placement"),
+                aspect_score=component_scores.get("aspect"),
+                distribution_score=component_scores.get("distribution"),
+                dominance_score=component_scores.get("combined_dominance"),
+                nakshatra_score=component_scores.get("nakshatra_placement"),
+                nakshatra_dominance_score=component_scores.get("nakshatra_dominance"),
+                hd_centers_score=component_scores.get("defined_centers"),
+                human_design_gates_score=component_scores.get("human_design_gates"),
+            ),
+            component_keys=component_keys,
+        )
         self._similarities_pair_result_label.setText(
             f"{first_name} ↔ {second_name}: "
             f'<span style="color: {band_color}; font-weight: 600;">'
             f"{similarity_percent:.1f}% ({band_label})"
             f"</span> "
-            f"(placements {placement_score * 100.0:.0f}%, "
-            f"aspects {aspect_score * 100.0:.0f}%, "
-            f"distribution {distribution_score * 100.0:.0f}%)."
+            f"({component_summary})."
         )
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
@@ -14468,6 +14485,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             similarity_threshold_percent=65.0,
             similarity_ceiling_percent=100.0,
             excluded_pairs=self._excluded_duplicate_pairs,
+            algorithm_mode=getattr(
+                self,
+                "_similar_charts_algorithm_mode",
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            ),
+            custom_settings=getattr(self, "_similarity_calculator_settings", None),
         )
         if not duplicate_result.duplicate_ids:
             self._possible_duplicate_chart_ids = set()
@@ -19410,7 +19433,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        calibration = compute_similarity_calibration([chart for _chart_id, chart in charts])
+        calibration = compute_similarity_calibration(
+            [chart for _chart_id, chart in charts],
+            algorithm_mode=getattr(
+                self,
+                "_similar_charts_algorithm_mode",
+                SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+            ),
+            custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
         if calibration is None:
             QMessageBox.warning(
                 self,
