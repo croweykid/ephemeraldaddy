@@ -48,6 +48,7 @@ class AnagramsSectionWidgets:
 
     summary_label: QLabel
     list_label: QLabel
+    definition_label: QLabel
     export_button: QToolButton
     source_dropdown: QComboBox
     container: QWidget
@@ -80,6 +81,10 @@ class AnagramsPresenter:
     @staticmethod
     def chart_has_alias(chart: object | None) -> bool:
         return bool(str(getattr(chart, "alias", "") or "").strip())
+
+    def _clear_definition_detail(self) -> None:
+        self.widgets.definition_label.clear()
+        self.widgets.definition_label.setVisible(False)
 
     def sync_source_options(
         self,
@@ -114,6 +119,7 @@ class AnagramsPresenter:
             self.widgets.list_label.setText(
                 f"Generate or load a chart to scan {source_label.lower()} letters."
             )
+            self._clear_definition_detail()
             self.state.current_words = []
             self.state.clicked_definitions.clear()
             self.state.current_chart_text = ""
@@ -142,6 +148,7 @@ class AnagramsPresenter:
             self.widgets.list_label.setText(
                 render_anagrams_text(chart_text, subject_label=subject_label)
             )
+            self._clear_definition_detail()
             return
 
         words = collect_anagram_words(self.state.current_chart_text, max_results=30)
@@ -152,16 +159,17 @@ class AnagramsPresenter:
             for word, definition in self.state.clicked_definitions.items()
             if word in word_set
         }
+        self._clear_definition_detail()
         if not words:
             self.widgets.list_label.setText(
                 render_anagrams_text(chart_text, subject_label=subject_label)
             )
+            self._clear_definition_detail()
             return
         self.widgets.list_label.setText(
             render_anagrams_html(
                 self.state.current_chart_text,
                 words,
-                self.state.clicked_definitions,
                 subject_label=subject_label,
             )
         )
@@ -183,21 +191,14 @@ class AnagramsPresenter:
             return False
         definition = fetch_word_definition(word)
         self.state.clicked_definitions[word] = definition
-        self.widgets.list_label.setText(
-            render_anagrams_html(
-                self.state.current_chart_text,
-                current_words,
-                self.state.clicked_definitions,
-                subject_label=self.state.current_subject_label,
-            )
-        )
+        self.widgets.definition_label.setText(render_definition_detail_html(word, definition))
+        self.widgets.definition_label.setVisible(True)
         return True
 
 
 def render_anagrams_html(
     chart_text: str,
     words: list[str],
-    definitions: dict[str, str],
     *,
     subject_label: str = "Chart name",
 ) -> str:
@@ -220,16 +221,22 @@ def render_anagrams_html(
             f'<a href="define:{urllib.parse.quote(word)}" '
             f'style="color: #9dd8ff; text-decoration: none;">{word}</a>'
         )
-        definition = definitions.get(word, "").strip()
-        if definition:
-            rendered.append(f"{word_link} — {definition}")
-        else:
-            rendered.append(word_link)
+        rendered.append(word_link)
     return (
         f"{subject_label}: \"{clean_name}\"<br>"
         f"Letters: {len(letters)}<br><br>"
-        "Click a word to fetch a definition:<br>"
+        "Click a word to fetch its definition:<br>"
         + "<br>".join(rendered)
+    )
+
+
+def render_definition_detail_html(word: str, definition: str) -> str:
+    """Build the stable definition detail shown below the clickable anagram list."""
+    clean_word = str(word or "").strip()
+    clean_definition = str(definition or "").strip() or "Definition unavailable."
+    return (
+        f'<span style="color: #9dd8ff; font-weight: 700;">{clean_word}</span>'
+        f'<span style="color: #f5f5f5;"> — {clean_definition}</span>'
     )
 
 
@@ -340,8 +347,8 @@ def build_anagrams_section(
         "}"
     )
     anagrams_box_layout = QVBoxLayout()
-    anagrams_box_layout.setContentsMargins(8, 8, 8, 8)
-    anagrams_box_layout.setSpacing(6)
+    anagrams_box_layout.setContentsMargins(8, 4, 8, 8)
+    anagrams_box_layout.setSpacing(0)
     anagrams_box.setLayout(anagrams_box_layout)
     anagrams_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
     
@@ -356,8 +363,8 @@ def build_anagrams_section(
 
     content_widget = QWidget()
     section_layout = QVBoxLayout()
-    section_layout.setContentsMargins(0, 0, 0, 0)
-    section_layout.setSpacing(6)
+    section_layout.setContentsMargins(0, 2, 0, 0)
+    section_layout.setSpacing(4)
     content_widget.setLayout(section_layout)
     content_widget.setVisible(False)
 
@@ -414,9 +421,18 @@ def build_anagrams_section(
     list_label.setOpenExternalLinks(False)
     list_label.linkActivated.connect(on_word_clicked)
     section_layout.addWidget(list_label)
+
+    definition_label = QLabel()
+    definition_label.setWordWrap(True)
+    definition_label.setTextFormat(Qt.RichText)
+    definition_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    definition_label.setStyleSheet("color: #f5f5f5; padding-top: 2px;")
+    definition_label.setVisible(False)
+    section_layout.addWidget(definition_label)
     return AnagramsSectionWidgets(
         summary_label=summary_label,
         list_label=list_label,
+        definition_label=definition_label,
         export_button=export_button,
         source_dropdown=source_dropdown,
         container=anagrams_box,
