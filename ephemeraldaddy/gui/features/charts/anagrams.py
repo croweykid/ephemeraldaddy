@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import urllib.parse
 from dataclasses import dataclass
 from functools import lru_cache
@@ -98,6 +99,17 @@ class AnagramsPresenter:
         self.widgets.definition_label.setVisible(False)
         _refresh_widget_geometry(self.widgets.definition_label, self.widgets.container)
 
+    def _render_word_list(self) -> None:
+        self.widgets.list_label.setText(
+            render_anagrams_html(
+                self.state.current_chart_text,
+                self.state.current_words or [],
+                subject_label=self.state.current_subject_label,
+                clicked_definitions=self.state.clicked_definitions,
+            )
+        )
+        _refresh_widget_geometry(self.widgets.list_label, self.widgets.container)
+
     def sync_source_options(
         self,
         chart: object | None,
@@ -178,14 +190,7 @@ class AnagramsPresenter:
             )
             self._clear_definition_detail()
             return
-        self.widgets.list_label.setText(
-            render_anagrams_html(
-                self.state.current_chart_text,
-                words,
-                subject_label=subject_label,
-            )
-        )
-        _refresh_widget_geometry(self.widgets.list_label, self.widgets.container)
+        self._render_word_list()
 
     def source_changed(self, source_value: str, chart: object | None) -> None:
         requested_source = source_value if source_value in {"name", "alias"} else "name"
@@ -202,11 +207,12 @@ class AnagramsPresenter:
         current_words = self.state.current_words or []
         if not word or word not in current_words:
             return False
-        definition = fetch_word_definition(word)
-        self.state.clicked_definitions[word] = definition
-        self.widgets.definition_label.setText(render_definition_detail_html(word, definition))
-        self.widgets.definition_label.setVisible(True)
-        _refresh_widget_geometry(self.widgets.definition_label, self.widgets.container)
+        if word in self.state.clicked_definitions:
+            self.state.clicked_definitions.pop(word, None)
+        else:
+            self.state.clicked_definitions[word] = fetch_word_definition(word)
+        self._clear_definition_detail()
+        self._render_word_list()
         return True
 
 
@@ -215,8 +221,9 @@ def render_anagrams_html(
     words: list[str],
     *,
     subject_label: str = "Chart name",
+    clicked_definitions: dict[str, str] | None = None,
 ) -> str:
-    """Build rich HTML view with clickable words and optional definition snippets."""
+    """Build rich HTML view with clickable words and inline definition snippets."""
     clean_name = str(chart_text or "").strip()
     if not clean_name:
         return f"{subject_label} is empty; no anagrams available."
@@ -230,27 +237,35 @@ def render_anagrams_html(
             "No dictionary matches found."
         )
     rendered: list[str] = []
+    visible_definitions = clicked_definitions or {}
     for word in words:
+        escaped_word = html.escape(word)
         word_link = (
             f'<a href="define:{urllib.parse.quote(word)}" '
-            f'style="color: #9dd8ff; text-decoration: none;">{word}</a>'
+            f'style="color: #9dd8ff; text-decoration: none;">{escaped_word}</a>'
         )
+        definition = visible_definitions.get(word)
+        if definition:
+            escaped_definition = html.escape(definition)
+            word_link += f'<span style="color: #f5f5f5;"> — {escaped_definition}</span>'
         rendered.append(word_link)
+    escaped_subject_label = html.escape(subject_label)
+    escaped_clean_name = html.escape(clean_name)
     return (
-        f"{subject_label}: \"{clean_name}\"<br>"
+        f"{escaped_subject_label}: \"{escaped_clean_name}\"<br>"
         f"Letters: {len(letters)}<br><br>"
-        "Click a word to fetch its definition:<br>"
+        "Click a word to show or hide its definition:<br>"
         + "<br>".join(rendered)
     )
 
 
 def render_definition_detail_html(word: str, definition: str) -> str:
-    """Build the stable definition detail shown below the clickable anagram list."""
+    """Build definition detail markup for legacy callers and exports."""
     clean_word = str(word or "").strip()
     clean_definition = str(definition or "").strip() or "Definition unavailable."
     return (
-        f'<span style="color: #9dd8ff; font-weight: 700;">{clean_word}</span>'
-        f'<span style="color: #f5f5f5;"> — {clean_definition}</span>'
+        f'<span style="color: #9dd8ff; font-weight: 700;">{html.escape(clean_word)}</span>'
+        f'<span style="color: #f5f5f5;"> — {html.escape(clean_definition)}</span>'
     )
 
 
