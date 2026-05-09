@@ -317,7 +317,8 @@ def build_anagrams_section(
     source_dropdown = QComboBox()
     source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
     for source_label, source_value in ANAGRAM_SOURCE_OPTIONS:
-        source_dropdown.addItem(source_label, source_value)
+        if source_value == "name":
+            source_dropdown.addItem(source_label, source_value)
     source_dropdown.currentIndexChanged.connect(
         lambda _index: on_source_changed(str(source_dropdown.currentData() or "name"))
     )
