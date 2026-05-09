@@ -27560,12 +27560,14 @@ class MainWindow(QMainWindow):
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
+        name_token = str(getattr(chart, "name", "") or "")
+        alias_token = str(getattr(chart, "alias", "") or "")
         if chart_id is not None:
-            return f"id:{int(chart_id)}"
+            return f"id:{int(chart_id)}|name:{name_token}|alias:{alias_token}"
         dt_value = getattr(chart, "dt", None)
         dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
         return (
-            f"draft:{getattr(chart, 'name', '')}|{dt_token}|"
+            f"draft:{name_token}|alias:{alias_token}|{dt_token}|"
             f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}"
         )
 
