@@ -21,6 +21,8 @@ from ephemeraldaddy.core.chart import (
 from ephemeraldaddy.core.interpretations import JONES_PLANETS, RELATION_TYPE, SENTIMENT_OPTIONS
 from ephemeraldaddy.analysis import body_dynamics_reworked
 from ephemeraldaddy.analysis.bazi_getter import UNKNOWN_BAZI_VALUE, build_bazi_chart_data
+from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
+from ephemeraldaddy.core.human_design_system import calculate_human_design
 
 
 DB_DIR = Path.home() / ".ephemeraldaddy"
@@ -113,6 +115,7 @@ CHART_EXPORT_DEFAULTS: dict[str, Any] = {
     "human_design_gates": "",
     "human_design_lines": "",
     "human_design_channels": "",
+    "human_design_defined_centers": "",
     "human_design_type": "",
     "human_design_authority": "",
     "bazi_year_pillar": "",
@@ -323,6 +326,7 @@ def _create_charts_table(conn: sqlite3.Connection) -> None:
             human_design_gates TEXT,
             human_design_lines TEXT,
             human_design_channels TEXT,
+            human_design_defined_centers TEXT,
             human_design_type TEXT,
             human_design_authority TEXT,
             bazi_year_pillar TEXT,
@@ -737,6 +741,13 @@ def _migrate_charts_columns(conn: sqlite3.Connection) -> None:
             """
             ALTER TABLE charts
             ADD COLUMN human_design_channels TEXT
+            """
+        )
+    if "human_design_defined_centers" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE charts
+            ADD COLUMN human_design_defined_centers TEXT
             """
         )
     if "human_design_type" not in columns:
@@ -1344,21 +1355,52 @@ def _resolve_unknown_sign_metadata(
     return bool(unknown_positions), list(unknown_positions)
 
 
+def _apply_human_design_result_to_chart(chart: Any, hd_result: Any) -> None:
+    activations = (
+        *getattr(hd_result, "personality_activations", ()),
+        *getattr(hd_result, "design_activations", ()),
+    )
+    chart.human_design_gates = sorted(
+        {int(gate) for gate in getattr(hd_result, "active_gates", [])}
+    )
+    chart.human_design_lines = sorted(
+        {
+            int(getattr(activation, "line"))
+            for activation in activations
+            if getattr(activation, "line", None) is not None
+        }
+    )
+    chart.human_design_channels = sorted(
+        f"{min(int(gate_a), int(gate_b))}-{max(int(gate_a), int(gate_b))}"
+        for gate_a, gate_b, _center_a, _center_b in getattr(
+            hd_result,
+            "defined_channels",
+            [],
+        )
+    )
+    chart.human_design_defined_centers = sorted(
+        {
+            str(center).strip()
+            for center in getattr(hd_result, "defined_centers", [])
+            if str(center).strip()
+        }
+    )
+
+
 def _resolve_human_design_metadata(chart: Any) -> tuple[Optional[str], Optional[str]]:
     hd_type = str(getattr(chart, "human_design_type", "") or "").strip()
     hd_authority = str(getattr(chart, "human_design_authority", "") or "").strip()
-    if hd_type and hd_authority:
-        return hd_type, hd_authority
     if not getattr(chart, "positions", None):
+        chart.human_design_defined_centers = list(
+            getattr(chart, "human_design_defined_centers", None) or []
+        )
         return hd_type or None, hd_authority or None
     try:
-        from ephemeraldaddy.analysis.human_design import build_human_design_result
-        from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
-
-        hd_result = build_human_design_result(chart)
+        hd_result = calculate_human_design(chart)
     except Exception:
         return hd_type or None, hd_authority or None
 
+    _apply_human_design_result_to_chart(chart, hd_result)
     resolved_type = str(getattr(hd_result, "hd_type", "") or "").strip() or hd_type
     resolved_authority = canonicalize_hd_authority_label(
         str(getattr(hd_result, "authority", "") or "").strip()
@@ -2235,6 +2277,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, dominant_mode, modal_distribution,
                          body_dynamics_roles,
                          human_design_gates, human_design_lines, human_design_channels,
+                         human_design_defined_centers,
                          human_design_type, human_design_authority,
                          bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                          bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
@@ -2242,7 +2285,7 @@ def append_database(source: Path) -> dict[str, Any]:
                          is_placeholder, is_deceased, birth_month, birth_day, birth_year,
                          death_month, death_day, death_year, deathtime_unknown, death_hour, death_minute, death_place,
                          created_at, is_current)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_chart_id,
@@ -2289,6 +2332,7 @@ def append_database(source: Path) -> dict[str, Any]:
                         _row_value("human_design_gates"),
                         _row_value("human_design_lines"),
                         _row_value("human_design_channels"),
+                        _row_value("human_design_defined_centers"),
                         _row_value("human_design_type"),
                         _row_value("human_design_authority"),
                         _row_value("bazi_year_pillar"),
@@ -2436,6 +2480,7 @@ def save_chart(
                  dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, enneagram_type_weights, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution,
                  body_dynamics_roles,
                  human_design_gates, human_design_lines, human_design_channels,
+                 human_design_defined_centers,
                  human_design_type, human_design_authority,
                  bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                  bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
@@ -2454,7 +2499,7 @@ def save_chart(
                  death_minute,
                  death_place,
                  created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chart.name,
@@ -2539,6 +2584,7 @@ def save_chart(
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
+                _serialize_string_list(getattr(chart, "human_design_defined_centers", None)),
                 human_design_type,
                 human_design_authority,
                 bazi_metadata.get("bazi_year_pillar"),
@@ -2724,6 +2770,7 @@ def update_chart(
                 human_design_gates = ?,
                 human_design_lines = ?,
                 human_design_channels = ?,
+                human_design_defined_centers = ?,
                 human_design_type = ?,
                 human_design_authority = ?,
                 bazi_year_pillar = ?,
@@ -2833,6 +2880,7 @@ def update_chart(
                 _serialize_int_list(getattr(chart, "human_design_gates", None)),
                 _serialize_int_list(getattr(chart, "human_design_lines", None)),
                 _serialize_string_list(getattr(chart, "human_design_channels", None)),
+                _serialize_string_list(getattr(chart, "human_design_defined_centers", None)),
                 human_design_type,
                 human_design_authority,
                 bazi_metadata.get("bazi_year_pillar"),
@@ -3157,6 +3205,7 @@ def load_chart(chart_id: int):
                retcon_time_used, retcon_hour, retcon_minute,
                dominant_sign_weights, dominant_planet_weights, dominant_nakshatra_weights, dominant_element_weights, {enneagram_type_weights_projection}, dominant_enneagram_type, top_three_enneagram_types, dominant_mode, modal_distribution, {body_dynamics_roles_projection},
                human_design_gates, human_design_lines, human_design_channels,
+               human_design_defined_centers,
                human_design_type, human_design_authority,
                bazi_year_pillar, bazi_month_pillar, bazi_day_pillar, bazi_hour_pillar,
                bazi_year_element, bazi_month_element, bazi_day_element, bazi_hour_element,
@@ -3220,6 +3269,7 @@ def load_chart(chart_id: int):
         human_design_gates,
         human_design_lines,
         human_design_channels,
+        human_design_defined_centers,
         human_design_type,
         human_design_authority,
         bazi_year_pillar,
@@ -3249,6 +3299,7 @@ def load_chart(chart_id: int):
 
     if bool(is_placeholder):
         placeholder = SimpleNamespace()
+        placeholder.id = int(chart_id)
         placeholder.name = name
         placeholder.alias = alias
         placeholder.from_whence = from_whence
@@ -3304,6 +3355,7 @@ def load_chart(chart_id: int):
         placeholder.human_design_gates = _parse_int_list(human_design_gates)
         placeholder.human_design_lines = _parse_int_list(human_design_lines)
         placeholder.human_design_channels = _parse_string_list(human_design_channels)
+        placeholder.human_design_defined_centers = _parse_string_list(human_design_defined_centers)
         placeholder.human_design_type = str(human_design_type).strip() if human_design_type else ""
         placeholder.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
         placeholder.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""
@@ -3343,6 +3395,7 @@ def load_chart(chart_id: int):
         dt = dt.replace(tzinfo=ZoneInfo(tz_name))
 
     chart = Chart(name, dt, lat, lon, tz=None, alias=alias, from_whence=from_whence)
+    chart.id = int(chart_id)
     chart.gender = gender
     chart.birth_place = birth_place
     chart.used_utc_fallback = bool(used_utc_fallback)
@@ -3387,6 +3440,7 @@ def load_chart(chart_id: int):
     chart.human_design_gates = _parse_int_list(human_design_gates)
     chart.human_design_lines = _parse_int_list(human_design_lines)
     chart.human_design_channels = _parse_string_list(human_design_channels)
+    chart.human_design_defined_centers = _parse_string_list(human_design_defined_centers)
     chart.human_design_type = str(human_design_type).strip() if human_design_type else ""
     chart.human_design_authority = str(human_design_authority).strip() if human_design_authority else ""
     chart.bazi_year_pillar = str(bazi_year_pillar).strip() if bazi_year_pillar else ""

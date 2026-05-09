@@ -4,7 +4,11 @@ from dataclasses import dataclass
 import statistics
 from typing import Protocol
 
-from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    SimilarityCalculatorSettings,
+    chart_similarity_score_for_algorithm,
+)
 from ephemeraldaddy.core.chart import Chart
 
 SIMILARITY_NORMS_SETTINGS_GROUP = "similarity_norms"
@@ -103,13 +107,23 @@ def classify_similarity(similarity_percent: float, thresholds: SimilarityThresho
     return BAND_MOST_SIMILAR
 
 
-def compute_similarity_calibration(charts: list[Chart]) -> SimilarityCalibrationResult | None:
+def compute_similarity_calibration(
+    charts: list[Chart],
+    *,
+    algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    custom_settings: SimilarityCalculatorSettings | None = None,
+) -> SimilarityCalibrationResult | None:
     if len(charts) < 2:
         return None
     similarity_values: list[float] = []
     for left_index, left_chart in enumerate(charts):
         for right_chart in charts[left_index + 1 :]:
-            score, _placement, _aspect, _distribution = chart_similarity_score(left_chart, right_chart)
+            score, _component_scores = chart_similarity_score_for_algorithm(
+                left_chart,
+                right_chart,
+                algorithm_mode=algorithm_mode,
+                custom_settings=custom_settings,
+            )
             similarity_values.append(round(score * 100.0, 1))
     if not similarity_values:
         return None

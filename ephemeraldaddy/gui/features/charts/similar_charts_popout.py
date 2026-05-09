@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
 from ephemeraldaddy.analysis.get_astro_twin import (
     BODY_WEIGHTS,
@@ -59,7 +58,6 @@ from ephemeraldaddy.core.interpretations import (
     aspect_score,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
-from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
 
@@ -1208,7 +1206,7 @@ def _nakshatra_dominance_summary(subject_chart: Any, compared_chart: Any) -> lis
     def _profile(chart: Any) -> dict[str, float]:
         return {
             str(name): max(0.0, float(value or 0.0))
-            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+            for name, value in (getattr(chart, "dominant_nakshatra_weights", None) or {}).items()
         }
 
     subject_profile = _profile(subject_chart)
@@ -1230,7 +1228,7 @@ def _nakshatra_dominance_differences(subject_chart: Any, compared_chart: Any) ->
     def _top3(chart: Any) -> list[str]:
         weights = {
             str(name): max(0.0, float(value or 0.0))
-            for name, value in calculate_dominant_nakshatra_weights(chart).items()
+            for name, value in (getattr(chart, "dominant_nakshatra_weights", None) or {}).items()
         }
         return [name for name, _count in sorted(weights.items(), key=lambda item: item[1], reverse=True)[:3]]
 
@@ -1258,17 +1256,7 @@ def _defined_center_overlap_lines(subject_chart: Any, compared_chart: Any) -> li
             for center in (getattr(chart, "human_design_defined_centers", None) or [])
             if str(center).strip()
         }
-        if existing:
-            return existing
-        try:
-            result = build_human_design_result(chart)
-            return {
-                str(center).strip()
-                for center in getattr(result, "defined_centers", [])
-                if str(center).strip()
-            }
-        except Exception:
-            return set()
+        return existing
 
     overlap = sorted(_centers(subject_chart) & _centers(compared_chart))
     return overlap
@@ -1284,17 +1272,7 @@ def _defined_center_difference_lines(subject_chart: Any, compared_chart: Any) ->
             for center in (getattr(chart, "human_design_defined_centers", None) or [])
             if str(center).strip()
         }
-        if existing:
-            return existing
-        try:
-            result = build_human_design_result(chart)
-            return {
-                str(center).strip()
-                for center in getattr(result, "defined_centers", [])
-                if str(center).strip()
-            }
-        except Exception:
-            return set()
+        return existing
 
     subject_centers = _centers(subject_chart)
     compared_centers = _centers(compared_chart)
@@ -1315,19 +1293,7 @@ def _human_design_gate_set(chart: Any) -> set[int]:
             existing.add(int(gate))
         except (TypeError, ValueError):
             continue
-    if existing:
-        return existing
-    try:
-        result = build_human_design_result(chart)
-    except Exception:
-        return set()
-    resolved: set[int] = set()
-    for gate in (getattr(result, "active_gates", None) or []):
-        try:
-            resolved.add(int(gate))
-        except (TypeError, ValueError):
-            continue
-    return resolved
+    return existing
 
 
 def _human_design_gate_overlap_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
