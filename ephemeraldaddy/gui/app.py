@@ -21187,8 +21187,18 @@ class MainWindow(QMainWindow):
             return
         toggle.setText(self._similar_charts_section_title())
 
+    def _collapse_similar_charts_section(self) -> None:
+        self._chart_analysis_section_expanded["similar_charts"] = False
+        section_widget = self._chart_analysis_section_widgets.get("similar_charts")
+        if section_widget is None:
+            return
+        for toggle in section_widget.findChildren(QToolButton):
+            if toggle.isCheckable():
+                toggle.setChecked(False)
+                return
+
     def _create_similar_charts_section(self, panel: QWidget) -> None:
-        section_expanded = self._chart_analysis_section_expanded.get("similar_charts", False)
+        section_expanded = False
         section_layout = self._add_chart_analysis_collapsible_section(
             panel=panel,
             layout=self.metrics_layout,
@@ -25524,6 +25534,8 @@ class MainWindow(QMainWindow):
         )
         if panel_key == "analytics" and not analytics_enabled:
             panel_key = "subjective_notes"
+        if panel_key == "analytics":
+            self._collapse_similar_charts_section()
         if panel_key == "subjective_notes":
             active_scroll = self.subjective_notes_panel_scroll
         elif panel_key == "predictions":
@@ -25623,6 +25635,7 @@ class MainWindow(QMainWindow):
         maximize: bool | None = None,
         source_window: QWidget | None = None,
     ) -> None:
+        self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
         if source_window is not None:
             placement = capture_window_placement(source_window)
@@ -27364,7 +27377,11 @@ class MainWindow(QMainWindow):
         self._similar_charts_algorithm_mode = normalized
         self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
         self._refresh_similar_charts_section_title()
-        if self._latest_chart is not None and self._is_chart_analysis_section_visible("similar_charts"):
+        if (
+            self._latest_chart is not None
+            and self._is_chart_analysis_section_visible("similar_charts")
+            and self._chart_analysis_section_expanded.get("similar_charts", False)
+        ):
             self._render_similar_charts(self._latest_chart)
 
     def _clear_layout_widgets(self, layout: QLayout) -> None:
