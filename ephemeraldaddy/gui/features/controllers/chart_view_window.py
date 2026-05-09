@@ -968,6 +968,9 @@ def build_chart_view_right_panel(
     owner._anagrams_list_label = anagrams_section.list_label
     owner._anagrams_export_button = anagrams_section.export_button
     owner._anagrams_source_dropdown = anagrams_section.source_dropdown
+    sync_anagram_source_options = getattr(owner, "_sync_anagram_source_options", None)
+    if callable(sync_anagram_source_options):
+        sync_anagram_source_options(getattr(owner, "_latest_chart", None))
     owner._sync_chart_analysis_section_visibility()
     owner.metrics_layout.addStretch(1)
     subjective_notes_layout.addStretch(1)
