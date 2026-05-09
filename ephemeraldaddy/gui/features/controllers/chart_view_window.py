@@ -882,7 +882,6 @@ def build_chart_view_right_panel(
     subjective_notes_panel.setLayout(subjective_notes_layout)
     subjective_notes_layout.addWidget(owner.sentiment_metrics_widget)
     subjective_notes_layout.addWidget(owner.sentiment_relation_row_widget)
-    subjective_notes_layout.addStretch(1)
 
     predictions_panel = QWidget()
     predictions_layout = QVBoxLayout()
@@ -952,8 +951,8 @@ def build_chart_view_right_panel(
     owner._create_chart_analysis_sections(metrics_content)
     owner._create_similar_charts_section(metrics_content)
     anagrams_section = build_anagrams_section(
-        panel=metrics_content,
-        layout=owner.metrics_layout,
+        panel=subjective_notes_panel,
+        layout=subjective_notes_layout,
         add_collapsible_section=owner._add_chart_analysis_collapsible_section,
         on_toggled=lambda checked: owner._set_chart_analysis_section_expanded(
             "anagrams",
@@ -971,6 +970,7 @@ def build_chart_view_right_panel(
     owner._anagrams_source_dropdown = anagrams_section.source_dropdown
     owner._sync_chart_analysis_section_visibility()
     owner.metrics_layout.addStretch(1)
+    subjective_notes_layout.addStretch(1)
     owner._active_chart_right_panel = "subjective_notes"
     owner._set_chart_right_panel("subjective_notes")
 
