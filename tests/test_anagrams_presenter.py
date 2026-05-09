@@ -119,16 +119,26 @@ class FakeDropdown:
 
 
 
-def test_render_anagrams_html_keeps_definitions_out_of_clickable_list():
-    rendered = anagrams.render_anagrams_html("Listen", ["listen", "silent"])
+def test_render_anagrams_html_can_show_multiple_inline_definitions():
+    rendered = anagrams.render_anagrams_html(
+        "Listen",
+        ["listen", "silent"],
+        clicked_definitions={
+            "listen": "to hear attentively",
+            "silent": "making no sound",
+        },
+    )
 
     assert 'href="define:listen"' in rendered
     assert 'href="define:silent"' in rendered
-    assert "Click a word to fetch its definition" in rendered
-    assert " — " not in rendered
+    assert "Click a word to show or hide its definition" in rendered
+    assert "listen</a><span" in rendered
+    assert "to hear attentively" in rendered
+    assert "silent</a><span" in rendered
+    assert "making no sound" in rendered
 
 
-def test_definition_clicked_updates_stable_detail_without_rerendering_word_list(monkeypatch):
+def test_definition_clicked_toggles_inline_detail_and_rerenders_word_list(monkeypatch):
     list_label = FakeLabel("original clickable word list")
     definition_label = FakeLabel()
     definition_label.visible = False
@@ -147,10 +157,14 @@ def test_definition_clicked_updates_stable_detail_without_rerendering_word_list(
     monkeypatch.setattr(anagrams, "fetch_word_definition", lambda _word: "to hear attentively")
 
     assert presenter.definition_clicked("define:listen") is True
-    assert list_label.text == "original clickable word list"
-    assert definition_label.visible is True
-    assert "listen" in definition_label.text
-    assert "to hear attentively" in definition_label.text
+    assert "listen</a><span" in list_label.text
+    assert "to hear attentively" in list_label.text
+    assert definition_label.visible is False
+    assert definition_label.text == ""
     assert presenter.state.clicked_definitions == {"listen": "to hear attentively"}
-    assert definition_label.update_geometry_calls == 1
-    assert widgets.container.update_geometry_calls == 1
+
+    assert presenter.definition_clicked("define:listen") is True
+    assert "to hear attentively" not in list_label.text
+    assert presenter.state.clicked_definitions == {}
+    assert definition_label.update_geometry_calls == 2
+    assert widgets.container.update_geometry_calls == 4
