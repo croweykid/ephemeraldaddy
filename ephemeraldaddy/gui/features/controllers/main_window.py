@@ -146,11 +146,8 @@ class ChartAnalysisSectionsController:
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
         section.setLayout(section_layout)
-        section_style = COLLAPSIBLE_SECTION_CONTENT_STYLE if section_key == "anagrams" else ""
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
-            section_style = f"{section_style} {DATABASE_ANALYTICS_SECTION_DEBUG_STYLE}".strip()
-        if section_style:
-            section.setStyleSheet(section_style)
+            section.setStyleSheet(DATABASE_ANALYTICS_SECTION_DEBUG_STYLE)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
