@@ -4639,8 +4639,11 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         "antibodies":{"Mercury":3,"Venus":4,"Neptune":3},
         "nakshatras":{"Ashwini":8,"Jyestha":8,"Revati":6,"Ashlesha":2,"Vishakha":9,"Hasta":7,"Purva Ashadha":4}, #original guesses: "Vishakha","Jyestha","Ashlesha","Magha",
         "antinakshatras":{"Purva Phalguni":9,"Krittika":9,"Shatabhisha":6,"Shravana":6,"Mula":3,"Uttara Phalguni":5,"Ardra":7,}, 
-        "positions":{"Vesta in Cancer":10,"Mars in Aries":12,"Mercury in Aries":8,"Lilith in Pisces":7,"Venus in Pisces":7,"Ceres in Aries":9,"Sun in Taurus":6,"Sun in Aries":6,"Scorpio in H4":9,"Taurus in H10":9,"Cancer in H1":14,"Leo in H2":9,"Aries in H10":9,"Pluto in Scorpio":11,}, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
-        "antipositions":{"Chiron in Pisces":1,"Rahu in H1":1,"Pluto in H12":1,"Saturn in H3":1,"Sun in H12":1,"Uranus in H10":1,"Venus in H11":1,"Vesta in H11":1,"Ceres in H5":1,"Chiron in H9":1,"Jupiter in H2":1,"Mars in H6":1,"Vesta in H10":1,"Vesta in H1":1,"Lilith in H4":1,
+        "positions":{
+            "Vesta in Cancer":10,"Mars in Aries":12,"Mercury in Aries":8,"Lilith in Pisces":7,"Venus in Pisces":7,"Ceres in Aries":9,"Sun in Taurus":6,"Sun in Aries":6,"Scorpio in H4":9,"Taurus in H10":9,"Cancer in H1":14,"Leo in H2":9,"Aries in H10":9,"Pluto in Scorpio":11,
+        }, #sun in Leo is not supported by the data so far, but I believe it's what I've seen in the wild, so I put it on there.
+        "antipositions":{
+            "Chiron in Pisces":1,"Rahu in H1":1,"Pluto in H12":1,"Saturn in H3":1,"Sun in H12":1,"Uranus in H10":1,"Venus in H11":1,"Vesta in H11":1,"Ceres in H5":1,"Chiron in H9":1,"Jupiter in H2":1,"Mars in H6":1,"Vesta in H10":1,"Vesta in H1":1,"Lilith in H4":1,
             #"Uranus in Virgo", #ignoring outer planets
         },
         "aspects":{"Jupiter sextile Sun","Mercury trine Moon","Saturn trine Sun","Ketu trine Moon","Mars sextile Mercury","Moon trine Rahu","Mars sextile Sun","Moon trine Sun","Ceres square Juno","Ceres square Moon","Chiron square Lilith","Ketu square Vesta","Ketu trine Sun","Mercury semisextile Venus","Mercury square Pluto","Pallas sextile Sun","AS trine Lilith","Rahu square Vesta","Juno conjunction Fortune","Ketu trine Pallas","Lilith sextile Venus","Mars opposition Fortune","Pallas conjunction Pluto","Fortune conjunction Pluto","IC sextile Vesta","IC square Mars","IC trine Venus","MC square Mars","MC trine Vesta","AS sextile Vesta","AS square Saturn",

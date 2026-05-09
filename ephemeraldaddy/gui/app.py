@@ -20443,6 +20443,7 @@ class MainWindow(QMainWindow):
         self._update_time_input_visibility()
         self._update_time_input_text_colors()
 
+#Most of Chart View's righthand Chart Analytics panel is defined here; but it should all be consolidated into its own separate cv_chart_analytics.py file for better organization ASAP. Some of it is scattered elsewhere in the file directory, as well. Needs to all get bundled in one place & app.py is NOT the place for it...
         # Sentiment selection panel (checkbox grid).
         self.sentiment_checkboxes = {}
         sentiment_widget = QWidget()
@@ -20618,6 +20619,9 @@ class MainWindow(QMainWindow):
         tags_box_layout.setSpacing(6)
         tags_box.setLayout(tags_box_layout)
         tags_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+
+
 
         self.tags_panel_toggle = QToolButton()
         configure_collapsible_header_toggle(
