@@ -10,14 +10,16 @@ from functools import lru_cache
 from typing import Callable
 
 import requests
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from PySide6.QtWidgets import QHBoxLayout, QToolButton
 
 from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
+    DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    configure_collapsible_header_toggle,
 )
 
 
@@ -44,6 +46,148 @@ class AnagramsSectionWidgets:
     list_label: QLabel
     export_button: QToolButton
     source_dropdown: QComboBox
+    container: QWidget
+
+
+@dataclass
+class AnagramsViewState:
+    """Mutable display state for Chart View's anagrams panel."""
+
+    selected_source: str = "name"
+    current_words: list[str] | None = None
+    clicked_definitions: dict[str, str] | None = None
+    current_chart_text: str = ""
+    current_subject_label: str = "Chart name"
+
+    def __post_init__(self) -> None:
+        if self.current_words is None:
+            self.current_words = []
+        if self.clicked_definitions is None:
+            self.clicked_definitions = {}
+
+
+class AnagramsPresenter:
+    """Keep anagram UI state, source options, and render behavior out of app.py."""
+
+    def __init__(self, widgets: AnagramsSectionWidgets) -> None:
+        self.widgets = widgets
+        self.state = AnagramsViewState()
+
+    @staticmethod
+    def chart_has_alias(chart: object | None) -> bool:
+        return bool(str(getattr(chart, "alias", "") or "").strip())
+
+    def sync_source_options(
+        self,
+        chart: object | None,
+        *,
+        reset_to_chart_name: bool = False,
+    ) -> None:
+        alias_available = self.chart_has_alias(chart)
+        if reset_to_chart_name or not alias_available:
+            self.state.selected_source = "name"
+
+        dropdown = self.widgets.source_dropdown
+        blocker = QSignalBlocker(dropdown)
+        dropdown.clear()
+        dropdown.addItem("Chart Name", "name")
+        if alias_available:
+            dropdown.addItem("Chart Alias", "alias")
+        selected_index = dropdown.findData(self.state.selected_source)
+        dropdown.setCurrentIndex(max(0, selected_index))
+        dropdown.setMinimumWidth(dropdown.sizeHint().width() + 6)
+        del blocker
+
+    def refresh_for_chart(
+        self,
+        chart: object | None,
+        *,
+        reset_to_chart_name: bool = False,
+    ) -> None:
+        self.sync_source_options(chart, reset_to_chart_name=reset_to_chart_name)
+        if chart is None:
+            source_label = ANAGRAM_SOURCE_LABELS.get(self.state.selected_source, "Chart name")
+            self.widgets.list_label.setText(
+                f"Generate or load a chart to scan {source_label.lower()} letters."
+            )
+            self.state.current_words = []
+            self.state.clicked_definitions.clear()
+            self.state.current_chart_text = ""
+            self.state.current_subject_label = ANAGRAM_SOURCE_LABELS.get(
+                self.state.selected_source,
+                "Chart name",
+            )
+            return
+        self.render(chart)
+
+    def render(self, chart: object) -> None:
+        self.sync_source_options(chart)
+        source = self.state.selected_source if self.state.selected_source in {"name", "alias"} else "name"
+        if source == "alias" and not self.chart_has_alias(chart):
+            source = "name"
+            self.state.selected_source = "name"
+            self.sync_source_options(chart)
+
+        subject_label = ANAGRAM_SOURCE_LABELS.get(source, "Chart name")
+        chart_text = str(getattr(chart, source, "") or "")
+        self.state.current_chart_text = chart_text.strip()
+        self.state.current_subject_label = subject_label
+        if not self.state.current_chart_text:
+            self.state.current_words = []
+            self.state.clicked_definitions.clear()
+            self.widgets.list_label.setText(
+                render_anagrams_text(chart_text, subject_label=subject_label)
+            )
+            return
+
+        words = collect_anagram_words(self.state.current_chart_text, max_results=30)
+        self.state.current_words = words
+        word_set = set(words)
+        self.state.clicked_definitions = {
+            word: definition
+            for word, definition in self.state.clicked_definitions.items()
+            if word in word_set
+        }
+        if not words:
+            self.widgets.list_label.setText(
+                render_anagrams_text(chart_text, subject_label=subject_label)
+            )
+            return
+        self.widgets.list_label.setText(
+            render_anagrams_html(
+                self.state.current_chart_text,
+                words,
+                self.state.clicked_definitions,
+                subject_label=subject_label,
+            )
+        )
+
+    def source_changed(self, source_value: str, chart: object | None) -> None:
+        requested_source = source_value if source_value in {"name", "alias"} else "name"
+        if requested_source == "alias" and not self.chart_has_alias(chart):
+            requested_source = "name"
+        self.state.selected_source = requested_source
+        self.refresh_for_chart(chart)
+
+    def definition_clicked(self, target: str) -> bool:
+        if not target.startswith("define:"):
+            return False
+        encoded_word = target.split("define:", 1)[1].strip()
+        word = urllib.parse.unquote(encoded_word).strip().casefold()
+        current_words = self.state.current_words or []
+        if not word or word not in current_words:
+            return False
+        definition = fetch_word_definition(word)
+        self.state.clicked_definitions[word] = definition
+        self.widgets.list_label.setText(
+            render_anagrams_html(
+                self.state.current_chart_text,
+                current_words,
+                self.state.clicked_definitions,
+                subject_label=self.state.current_subject_label,
+            )
+        )
+        return True
 
 
 @lru_cache(maxsize=1)
@@ -286,7 +430,6 @@ def build_anagrams_section(
     *,
     panel: QWidget,
     layout: QVBoxLayout,
-    add_collapsible_section: Callable[..., QVBoxLayout],
     on_toggled: Callable[[bool], None],
     on_export_clicked: Callable[[], None],
     on_word_clicked: Callable[[str], None],
@@ -294,14 +437,47 @@ def build_anagrams_section(
     get_share_icon_path: Callable[[], str | None],
 ) -> AnagramsSectionWidgets:
     """Create the Anagrams collapsible Subjective Notes section."""
-    section_layout = add_collapsible_section(
-        panel=panel,
-        layout=layout,
+    anagrams_box = QFrame()
+    anagrams_box.setStyleSheet(
+        "QFrame {"
+        "background-color: #1c1c1c;"
+        "border: 1px solid #2b2b2b;"
+        "border-radius: 6px;"
+        "}"
+    )
+    anagrams_box_layout = QVBoxLayout()
+    anagrams_box_layout.setContentsMargins(8, 8, 8, 8)
+    anagrams_box_layout.setSpacing(6)
+    anagrams_box.setLayout(anagrams_box_layout)
+    anagrams_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+    toggle = QToolButton()
+    configure_collapsible_header_toggle(
+        toggle,
         title="Anagrams",
         expanded=False,
-        on_toggled=on_toggled,
-        section_key="anagrams",
+        style_sheet=DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
     )
+    anagrams_box_layout.addWidget(toggle)
+
+    content_widget = QWidget()
+    section_layout = QVBoxLayout()
+    section_layout.setContentsMargins(0, 0, 0, 0)
+    section_layout.setSpacing(6)
+    content_widget.setLayout(section_layout)
+    content_widget.setVisible(False)
+
+    def toggle_content(checked: bool) -> None:
+        content_widget.setVisible(checked)
+        toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+        on_toggled(checked)
+        anagrams_box.adjustSize()
+        panel.adjustSize()
+        panel.updateGeometry()
+
+    toggle.toggled.connect(toggle_content)
+    anagrams_box_layout.addWidget(content_widget)
+    layout.addWidget(anagrams_box)
 
     summary_label = QLabel(
         "Dictionary-based anagrams for chart name or alias (single words only, capped for speed)."
@@ -316,8 +492,8 @@ def build_anagrams_section(
     header_row.setLayout(header_layout)
     source_dropdown = QComboBox()
     source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
-    for source_label, source_value in ANAGRAM_SOURCE_OPTIONS:
-        source_dropdown.addItem(source_label, source_value)
+    source_dropdown.addItem("Chart Name", "name")
+    source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 6)
     source_dropdown.currentIndexChanged.connect(
         lambda _index: on_source_changed(str(source_dropdown.currentData() or "name"))
     )
@@ -349,4 +525,5 @@ def build_anagrams_section(
         list_label=list_label,
         export_button=export_button,
         source_dropdown=source_dropdown,
+        container=anagrams_box,
     )
