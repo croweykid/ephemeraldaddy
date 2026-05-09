@@ -70,8 +70,21 @@ _install_style_stub()
 from ephemeraldaddy.gui.features.charts import anagrams
 
 
-class FakeLabel:
+class FakeWidget:
+    def __init__(self):
+        self.update_geometry_calls = 0
+        self.adjust_size_calls = 0
+
+    def updateGeometry(self):
+        self.update_geometry_calls += 1
+
+    def adjustSize(self):
+        self.adjust_size_calls += 1
+
+
+class FakeLabel(FakeWidget):
     def __init__(self, text=""):
+        super().__init__()
         self.text = text
         self.visible = True
 
@@ -125,7 +138,7 @@ def test_definition_clicked_updates_stable_detail_without_rerendering_word_list(
         definition_label=definition_label,
         export_button=object(),
         source_dropdown=FakeDropdown(),
-        container=object(),
+        container=FakeWidget(),
     )
     presenter = anagrams.AnagramsPresenter(widgets)
     presenter.state.current_words = ["listen"]
@@ -139,3 +152,5 @@ def test_definition_clicked_updates_stable_detail_without_rerendering_word_list(
     assert "listen" in definition_label.text
     assert "to hear attentively" in definition_label.text
     assert presenter.state.clicked_definitions == {"listen": "to hear attentively"}
+    assert definition_label.update_geometry_calls == 1
+    assert widgets.container.update_geometry_calls == 1
