@@ -717,7 +717,6 @@ from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
 )
 from ephemeraldaddy.gui.features.charts.anagrams import (
     ANAGRAM_SOURCE_LABELS,
-    ANAGRAM_SOURCE_OPTIONS,
     collect_anagram_words,
     fetch_word_definition,
     render_anagrams_html,
@@ -2376,11 +2375,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
         section.setLayout(section_layout)
-        section_style = COLLAPSIBLE_SECTION_CONTENT_STYLE if section_key == "anagrams" else ""
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
-            section_style = f"{section_style} {DATABASE_ANALYTICS_SECTION_DEBUG_STYLE}".strip()
-        if section_style:
-            section.setStyleSheet(section_style)
+            section.setStyleSheet(DATABASE_ANALYTICS_SECTION_DEBUG_STYLE)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -22107,64 +22103,9 @@ class MainWindow(QMainWindow):
             return
         QMessageBox.information(dialog, "Export complete", f"Saved similar charts export to:\n{file_path}")
 
-    def _chart_has_anagram_alias_source(self, chart: Chart | None) -> bool:
-        return bool(str(getattr(chart, "alias", "") or "").strip())
-
-    def _sync_anagram_source_options(self, chart: Chart | None) -> None:
-        dropdown = self._anagrams_source_dropdown
-        if dropdown is None:
-            return
-
-        previous_selection = self._anagrams_selected_source
-        allowed_sources = {"name"}
-        if self._chart_has_anagram_alias_source(chart):
-            allowed_sources.add("alias")
-        if previous_selection not in allowed_sources:
-            previous_selection = "name"
-
-        blocker = QSignalBlocker(dropdown)
-        try:
-            dropdown.clear()
-            for source_label, source_value in ANAGRAM_SOURCE_OPTIONS:
-                if source_value in allowed_sources:
-                    dropdown.addItem(source_label, source_value)
-            selected_index = dropdown.findData(previous_selection)
-            dropdown.setCurrentIndex(max(0, selected_index))
-        finally:
-            del blocker
-        self._anagrams_selected_source = previous_selection
-
-    def _refresh_anagrams_after_chart_identity_change(
-        self,
-        chart: Chart,
-        *,
-        previous_name: str | None,
-        previous_alias: str | None,
-    ) -> None:
-        current_name = str(getattr(chart, "name", "") or "")
-        current_alias = str(getattr(chart, "alias", "") or "")
-        anagram_source_changed = (
-            str(previous_name or "") != current_name
-            or str(previous_alias or "") != current_alias
-        )
-        self._sync_anagram_source_options(chart)
-        if not anagram_source_changed:
-            return
-        self._mark_chart_analytics_sections_dirty({"anagrams"})
-        if (
-            self._latest_chart is chart
-            and self._is_chart_analysis_section_visible("anagrams")
-        ):
-            self._schedule_chart_render(
-                chart,
-                sections={"anagrams"},
-                allow_collapsed_sections=True,
-            )
-
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
             return
-        self._sync_anagram_source_options(chart)
         source = self._anagrams_selected_source if self._anagrams_selected_source in {"name", "alias"} else "name"
         subject_label = ANAGRAM_SOURCE_LABELS.get(source, "Chart name")
         chart_text = str(getattr(chart, source, "") or "")
@@ -22199,10 +22140,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_anagram_source_changed(self, source_value: str) -> None:
-        requested_source = source_value if source_value in {"name", "alias"} else "name"
-        if requested_source == "alias" and not self._chart_has_anagram_alias_source(self._latest_chart):
-            requested_source = "name"
-        self._anagrams_selected_source = requested_source
+        self._anagrams_selected_source = source_value if source_value in {"name", "alias"} else "name"
         if self._latest_chart is not None:
             self._render_anagrams(self._latest_chart)
         elif self._anagrams_list_label is not None:
@@ -26323,7 +26261,6 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
-        self._sync_anagram_source_options(chart)
         self._update_unknown_positions_summary(chart)
         self._set_chart_right_panel_container_visible(True)
         self._schedule_chart_render(chart, sections={
@@ -26511,8 +26448,6 @@ class MainWindow(QMainWindow):
 
     def on_update_chart(self, show_dialog: bool = True, recalculate_chart: bool = True):
         chart_id = self.current_chart_id
-        previous_anagram_name = str(getattr(self._latest_chart, "name", "") or "")
-        previous_anagram_alias = str(getattr(self._latest_chart, "alias", "") or "")
         is_placeholder = self.placeholder_chart_checkbox.isChecked()
         chart = None
         place = self.place_edit.text().strip()
@@ -26703,11 +26638,6 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
-        self._refresh_anagrams_after_chart_identity_change(
-            chart,
-            previous_name=previous_anagram_name,
-            previous_alias=previous_anagram_alias,
-        )
         self._update_unknown_positions_summary(chart)
         self._update_tag_completers()
         self._sync_chart_right_panel_placeholder_state(chart)
@@ -27167,7 +27097,6 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
-        self._sync_anagram_source_options(chart)
         self._update_unknown_positions_summary(chart)
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
@@ -27910,7 +27839,6 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name = ""
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(False)
-        self._sync_anagram_source_options(None)
         if self._anagrams_list_label is not None:
             source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
             self._anagrams_list_label.setText(
