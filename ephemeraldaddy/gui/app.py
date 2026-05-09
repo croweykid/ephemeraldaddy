@@ -27370,14 +27370,23 @@ class MainWindow(QMainWindow):
             return
         self._refresh_chart_preview()
 
-    
     def _handle_similar_charts_algorithm_mode_changed(self, mode: str) -> None:
         normalized = _normalize_similar_charts_algorithm_mode(mode)
+        previous_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
         self._similar_charts_algorithm_mode = normalized
         self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
         self._refresh_similar_charts_section_title()
-        if self._latest_chart is not None and self._is_chart_analysis_section_visible("similar_charts"):
-            self._render_similar_charts(self._latest_chart)
+        if normalized == previous_mode or self._latest_chart is None:
+            return
+
+        self._mark_chart_analytics_sections_dirty({"similar_charts"})
+        self._schedule_chart_render(
+            self._latest_chart,
+            sections={"similar_charts"},
+            queue_priority="interactive",
+        )
 
     def _clear_layout_widgets(self, layout: QLayout) -> None:
         while layout.count():
