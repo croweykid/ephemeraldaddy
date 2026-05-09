@@ -32,6 +32,7 @@ CHART_TYPE_EVENT = "event"
 CHART_TYPE_SYNASTRY = "synastry"
 CHART_TYPE_PERSONAL_TRANSIT = "personal_transit"
 CHART_TYPE_NONHUMAN_ENTITY = "nonhuman_entity"
+CHART_TYPE_HYPOTHETICAL = "hypothetical"
 SOURCE_USER_SUBMITTED = "user_submitted"  # legacy alias
 
 # Backwards-compatibility aliases for legacy `source` naming.
@@ -42,6 +43,7 @@ SOURCE_EVENT = CHART_TYPE_EVENT
 SOURCE_SYNASTRY = CHART_TYPE_SYNASTRY
 SOURCE_PERSONAL_TRANSIT = CHART_TYPE_PERSONAL_TRANSIT
 SOURCE_NONHUMAN_ENTITY = CHART_TYPE_NONHUMAN_ENTITY
+SOURCE_HYPOTHETICAL = CHART_TYPE_HYPOTHETICAL
 
 BODY_DYNAMICS_ROLE_VALUES: set[str] = {"antagonist", "enabler", "escalator"}
 
@@ -216,6 +218,8 @@ def normalize_chart_type(value: Optional[str]) -> str:
         return CHART_TYPE_PERSONAL_TRANSIT
     if normalized == CHART_TYPE_NONHUMAN_ENTITY:
         return CHART_TYPE_NONHUMAN_ENTITY
+    if normalized == CHART_TYPE_HYPOTHETICAL:
+        return CHART_TYPE_HYPOTHETICAL
     if normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}:
         return CHART_TYPE_PERSONAL
     return CHART_TYPE_PERSONAL
