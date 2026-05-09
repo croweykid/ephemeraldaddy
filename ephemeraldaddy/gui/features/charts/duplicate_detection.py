@@ -9,6 +9,7 @@ from typing import Callable, Literal, Sequence
 
 from ephemeraldaddy.analysis.get_astro_twin import chart_similarity_score
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
 
 DuplicateLikelihood = Literal[
     "definite",
@@ -259,8 +260,7 @@ def find_possible_duplicate_charts(
         birth_month = row[17]
         birth_day = row[18]
         birth_year = row[19]
-        is_placeholder = bool(row[15]) if len(row) > 15 else False
-        if is_placeholder:
+        if chart_row_is_non_aggregable(row):
             placeholder_ids.add(chart_id)
         chart_names[chart_id] = _display_name(chart_id, name, alias)
 

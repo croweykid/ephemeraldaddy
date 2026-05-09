@@ -52,6 +52,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     normalize_hd_authority_key,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
@@ -2539,7 +2540,7 @@ class DatabaseAnalyticsChartsMixin:
             chart = self._get_chart_for_filter(int(chart_id))
             if chart is None:
                 continue
-            if bool(getattr(chart, "is_placeholder", False)):
+            if self._is_placeholder_chart(chart):
                 continue
 
             birth_year_value = getattr(chart, "birth_year", None)
@@ -2589,7 +2590,7 @@ class DatabaseAnalyticsChartsMixin:
             if isinstance(dt_value, datetime.datetime) and has_known_time:
                 birth_minutes.append((int(dt_value.hour) * 60) + int(dt_value.minute))
 
-            is_placeholder = bool(getattr(chart, "is_placeholder", False))
+            is_placeholder = self._is_placeholder_chart(chart)
             month_value = getattr(chart, "birth_month", None)
             day_value = getattr(chart, "birth_day", None)
             if (
@@ -2909,14 +2910,7 @@ class DatabaseAnalyticsChartsMixin:
 
     @staticmethod
     def _is_placeholder_chart(chart: Any) -> bool:
-        if chart is None:
-            return False
-        if bool(getattr(chart, "is_placeholder", False)):
-            return True
-        chart_type = str(
-            getattr(chart, "chart_type", None) or getattr(chart, "source", None) or ""
-        ).strip().lower()
-        return chart_type == "placeholder"
+        return chart_is_non_aggregable(chart)
 
     def _render_enneagram_database_analytics(
         self,

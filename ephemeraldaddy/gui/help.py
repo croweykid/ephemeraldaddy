@@ -147,9 +147,19 @@ What they’re good for:
 - Non-astrological organization
 
 What they’re not good for:
-- Serious astrological inference"""
+- Serious astrological inference
+
+Hypothetical charts
+What they are:
+- A calculated chart type for experiments, rectification attempts, alternate times, or possible future events/people.
+
+What they’re good for:
+- Chart View calculations, wheels, Human Design, BaZi, notes, and future reference.
+
+What they’re not used for:
+- Database Analytics, Similar Charts, Similarities Calculator, Astro Twin matching, or database averages."""
         ),
-        keywords=("chart type", "placeholder", "interpretation"),
+        keywords=("chart type", "placeholder", "hypothetical", "interpretation"),
     ),
     HelpEntry(
         title="Nakshatras + Human design + toy metrics",

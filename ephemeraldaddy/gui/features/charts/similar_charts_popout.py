@@ -59,6 +59,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_score,
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
@@ -2210,10 +2211,9 @@ def load_similar_chart_candidates(
     candidates: list[tuple[int, Any]] = []
     for row in rows:
         chart_id = int(row[0])
-        is_placeholder = bool(row[15]) if len(row) > 15 else False
         if current_chart_id is not None and chart_id == current_chart_id:
             continue
-        if is_placeholder:
+        if chart_row_is_non_aggregable(row):
             continue
         try:
             candidate = load_chart_by_id(chart_id)

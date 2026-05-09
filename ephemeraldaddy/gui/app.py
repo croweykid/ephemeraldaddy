@@ -541,6 +541,8 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_OPTIONS,
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
+    chart_is_non_aggregable as _chart_is_non_aggregable,
+    chart_row_is_non_aggregable as _chart_row_is_non_aggregable,
     normalize_gui_source as _normalize_gui_source,
 )
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -6576,7 +6578,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             normalized
             for row in list_charts()
             if (normalized := self._normalize_chart_row(row)) is not None
-            and not bool(normalized[15])
+            and not _chart_row_is_non_aggregable(normalized)
         ]
         self._similarities_chart_lookup, choices = build_chart_lookup(similarity_rows)
 
@@ -6593,21 +6595,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
-        if row is not None and len(row) > 15:
-            if bool(row[15]):
-                return True
+        if row is not None and _chart_row_is_non_aggregable(row):
+            return True
         chart = self._get_chart_for_filter(int(chart_id))
         return self._is_placeholder_chart(chart)
 
     def _is_placeholder_chart(self, chart: Any | None) -> bool:
-        if chart is None:
-            return False
-        if bool(getattr(chart, "is_placeholder", False)):
-            return True
-        chart_type = str(
-            getattr(chart, "chart_type", None) or getattr(chart, "source", None) or ""
-        ).strip().lower()
-        return chart_type == "placeholder"
+        return _chart_is_non_aggregable(chart)
 
     def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
         return [
@@ -7340,7 +7334,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             int(normalized[0])
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
-            and not bool(normalized[15])
+            and not _chart_row_is_non_aggregable(normalized)
         ]
         db_total_count = len(db_chart_ids)
         if self._similarities_pair_button is not None:
@@ -13758,6 +13752,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for chart_id in chart_ids:
                 chart = load_chart(chart_id)
                 chart.source = source
+                chart.chart_type = source
                 chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                 chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
                 chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -15948,7 +15943,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if progress.wasCanceled():
                         break
                     chart = self._get_chart_for_filter(chart_id)
-                    if chart is not None and not getattr(chart, "is_placeholder", False):
+                    if chart is not None and not _chart_is_non_aggregable(chart):
                         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
                         chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -15999,7 +15994,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self,
             "Refresh Database",
             (
-                "This will recalculate all non-placeholder charts in the database "
+                "This will recalculate all charts except placeholders and hypotheticals "
                 "using their stored date/time/location data.\n\n"
                 "Continue?"
             ),
@@ -16030,7 +16025,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if progress.wasCanceled():
                     break
                 chart = load_chart(chart_id)
-                if chart is not None and not getattr(chart, "is_placeholder", False):
+                if chart is not None and not _chart_is_non_aggregable(chart):
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
                     chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -19375,8 +19370,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_ids: list[int] = []
         for row in rows:
             chart_id = int(row[0])
-            is_placeholder = bool(row[15]) if len(row) > 15 else False
-            if is_placeholder:
+            if _chart_row_is_non_aggregable(row):
                 continue
             chart_ids.append(chart_id)
 
@@ -21661,13 +21655,13 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         self._similar_charts_reasoning_by_target = {}
-        if getattr(chart, "is_placeholder", False):
+        if _chart_is_non_aggregable(chart):
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
             if self._similar_charts_export_button is not None:
                 self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
-                "Similar chart matching is disabled for placeholder charts."
+                "Similar chart matching is disabled for placeholder and hypothetical charts."
             )
             return
 
@@ -21699,7 +21693,7 @@ class MainWindow(QMainWindow):
             if self._similar_charts_export_button is not None:
                 self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
-                "Need at least one additional non-placeholder saved chart in the database."
+                "Need at least one additional saved chart that is not placeholder/hypothetical."
             )
             return
 
@@ -21865,11 +21859,11 @@ class MainWindow(QMainWindow):
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
             return
-        if getattr(chart, "is_placeholder", False):
+        if _chart_is_non_aggregable(chart):
             QMessageBox.information(
                 self,
                 "Similar Charts",
-                "Similar chart matching is disabled for placeholder charts.",
+                "Similar chart matching is disabled for placeholder and hypothetical charts.",
             )
             return
 
@@ -21882,7 +21876,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Similar Charts",
-                "Need at least one additional non-placeholder saved chart in the database.",
+                "Need at least one additional saved chart that is not placeholder/hypothetical.",
             )
             return
 
@@ -26181,6 +26175,8 @@ class MainWindow(QMainWindow):
             chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
         if hasattr(chart, "source"):
             chart.source = chart_type_value
+        if hasattr(chart, "chart_type"):
+            chart.chart_type = chart_type_value
 
         chart.birthtime_unknown = self.time_unknown_checkbox.isChecked()
         chart.retcon_time_used = self.retcon_time_checkbox.isChecked()
@@ -26448,6 +26444,7 @@ class MainWindow(QMainWindow):
                 chart.data_rating = "blank" if is_event_chart else str(self.data_rating_combo.currentData() or "blank")
                 chart.age_when_first_met = 0
                 chart.source = chart_type_value
+                chart.chart_type = chart_type_value
                 chart.name = self.name_edit.text().strip() or chart.name
                 chart.alias = self.alias_edit.text().strip() or None
                 chart.from_whence = self.from_whence_edit.text().strip() or None
