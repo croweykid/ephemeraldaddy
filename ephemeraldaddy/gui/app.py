@@ -21197,8 +21197,18 @@ class MainWindow(QMainWindow):
             return
         toggle.setText(self._similar_charts_section_title())
 
+    def _collapse_similar_charts_section(self) -> None:
+        self._chart_analysis_section_expanded["similar_charts"] = False
+        section_widget = self._chart_analysis_section_widgets.get("similar_charts")
+        if section_widget is None:
+            return
+        for toggle in section_widget.findChildren(QToolButton):
+            if toggle.isCheckable():
+                toggle.setChecked(False)
+                return
+
     def _create_similar_charts_section(self, panel: QWidget) -> None:
-        section_expanded = self._chart_analysis_section_expanded.get("similar_charts", False)
+        section_expanded = False
         section_layout = self._add_chart_analysis_collapsible_section(
             panel=panel,
             layout=self.metrics_layout,
@@ -25585,6 +25595,7 @@ class MainWindow(QMainWindow):
     def _set_chart_right_panel(self, panel_key: str) -> None:
         panel_stack = getattr(self, "chart_right_panel_stack", None)
         if panel_stack is None:
+        self._collapse_similar_charts_section()
             return
         analytics_enabled = bool(
             getattr(self, "chart_analytics_panel_button", None)
@@ -25592,6 +25603,8 @@ class MainWindow(QMainWindow):
         )
         if panel_key == "analytics" and not analytics_enabled:
             panel_key = "subjective_notes"
+        if panel_key == "analytics":
+            self._collapse_similar_charts_section()
         if panel_key == "subjective_notes":
             active_scroll = self.subjective_notes_panel_scroll
         elif panel_key == "predictions":
@@ -25697,6 +25710,7 @@ class MainWindow(QMainWindow):
         maximize: bool | None = None,
         source_window: QWidget | None = None,
     ) -> None:
+        self._collapse_similar_charts_section()
         placement: WindowPlacement | None = None
         if source_window is not None:
             placement = capture_window_placement(source_window)
@@ -25716,7 +25730,12 @@ class MainWindow(QMainWindow):
         )
         self.raise_()
         self.activateWindow()
-        if self._latest_chart is not None and not self._is_placeholder_chart(self._latest_chart):
+        #if self._latest_chart is not None and not self._is_placeholder_chart(self._latest_chart):
+        if (
+            self._latest_chart is not None
+            and self._is_chart_analysis_section_visible("similar_charts")
+            and self._chart_analysis_section_expanded.get("similar_charts", False)
+        ):
             # If chart rendering was queued while Chart View was hidden, analytics
             # sections that require visible widgets (like Similar Charts) may have
             # been skipped. Re-schedule now that the window is visible.
