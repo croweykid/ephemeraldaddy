@@ -22103,10 +22103,64 @@ class MainWindow(QMainWindow):
             return
         QMessageBox.information(dialog, "Export complete", f"Saved similar charts export to:\n{file_path}")
 
+    def _chart_has_anagram_alias(self, chart: Chart | None) -> bool:
+        return bool(str(getattr(chart, "alias", "") or "").strip())
+
+    def _sync_anagrams_source_options(
+        self,
+        chart: Chart | None,
+        *,
+        reset_to_chart_name: bool = False,
+    ) -> None:
+        dropdown = self._anagrams_source_dropdown
+        alias_available = self._chart_has_anagram_alias(chart)
+        if reset_to_chart_name or not alias_available:
+            self._anagrams_selected_source = "name"
+        if dropdown is None:
+            return
+
+        blocker = QSignalBlocker(dropdown)
+        dropdown.clear()
+        dropdown.addItem("Chart Name", "name")
+        if alias_available:
+            dropdown.addItem("Chart Alias", "alias")
+        selected_index = dropdown.findData(self._anagrams_selected_source)
+        dropdown.setCurrentIndex(max(0, selected_index))
+        dropdown.setMinimumWidth(dropdown.sizeHint().width() + 6)
+        del blocker
+
+    def _refresh_anagrams_for_chart(
+        self,
+        chart: Chart | None,
+        *,
+        reset_to_chart_name: bool = False,
+    ) -> None:
+        self._sync_anagrams_source_options(chart, reset_to_chart_name=reset_to_chart_name)
+        if chart is None:
+            if self._anagrams_list_label is not None:
+                source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
+                self._anagrams_list_label.setText(
+                    f"Generate or load a chart to scan {source_label.lower()} letters."
+                )
+            self._anagrams_current_words = []
+            self._anagrams_clicked_definitions.clear()
+            self._anagrams_current_chart_text = ""
+            self._anagrams_current_subject_label = ANAGRAM_SOURCE_LABELS.get(
+                self._anagrams_selected_source,
+                "Chart name",
+            )
+            return
+        self._render_anagrams(chart)
+
     def _render_anagrams(self, chart: Chart) -> None:
         if self._anagrams_list_label is None:
             return
+        self._sync_anagrams_source_options(chart)
         source = self._anagrams_selected_source if self._anagrams_selected_source in {"name", "alias"} else "name"
+        if source == "alias" and not self._chart_has_anagram_alias(chart):
+            source = "name"
+            self._anagrams_selected_source = "name"
+            self._sync_anagrams_source_options(chart)
         subject_label = ANAGRAM_SOURCE_LABELS.get(source, "Chart name")
         chart_text = str(getattr(chart, source, "") or "")
         self._anagrams_current_chart_text = chart_text.strip()
@@ -22140,14 +22194,11 @@ class MainWindow(QMainWindow):
         )
 
     def _on_anagram_source_changed(self, source_value: str) -> None:
-        self._anagrams_selected_source = source_value if source_value in {"name", "alias"} else "name"
-        if self._latest_chart is not None:
-            self._render_anagrams(self._latest_chart)
-        elif self._anagrams_list_label is not None:
-            source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
-            self._anagrams_list_label.setText(
-                f"Generate or load a chart to scan {source_label.lower()} letters."
-            )
+        requested_source = source_value if source_value in {"name", "alias"} else "name"
+        if requested_source == "alias" and not self._chart_has_anagram_alias(self._latest_chart):
+            requested_source = "name"
+        self._anagrams_selected_source = requested_source
+        self._refresh_anagrams_for_chart(self._latest_chart)
 
     def _on_anagram_link_activated(self, target: str) -> None:
         if not target.startswith("define:"):
@@ -26638,6 +26689,8 @@ class MainWindow(QMainWindow):
             self.update_button.setText("Update Chart")
 
         self._latest_chart = chart
+        self._refresh_anagrams_for_chart(chart, reset_to_chart_name=True)
+        self._mark_chart_analytics_sections_clean({"anagrams"}, chart)
         self._update_unknown_positions_summary(chart)
         self._update_tag_completers()
         self._sync_chart_right_panel_placeholder_state(chart)
@@ -27097,6 +27150,11 @@ class MainWindow(QMainWindow):
 
         # Update the text summary
         self._latest_chart = chart
+        if not is_same_chart_request:
+            self._refresh_anagrams_for_chart(chart, reset_to_chart_name=True)
+            self._mark_chart_analytics_sections_clean({"anagrams"}, chart)
+        else:
+            self._sync_anagrams_source_options(chart)
         self._update_unknown_positions_summary(chart)
         self._cache_chart_view_navigation_entry(chart_id, chart)
         self._sync_chart_right_panel_placeholder_state(chart)
@@ -27839,18 +27897,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name = ""
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(False)
-        if self._anagrams_list_label is not None:
-            source_label = ANAGRAM_SOURCE_LABELS.get(self._anagrams_selected_source, "Chart name")
-            self._anagrams_list_label.setText(
-                f"Generate or load a chart to scan {source_label.lower()} letters."
-            )
-        self._anagrams_current_words = []
-        self._anagrams_clicked_definitions.clear()
-        self._anagrams_current_chart_text = ""
-        self._anagrams_current_subject_label = ANAGRAM_SOURCE_LABELS.get(
-            self._anagrams_selected_source,
-            "Chart name",
-        )
+        self._refresh_anagrams_for_chart(None, reset_to_chart_name=True)
         self._hide_chart_loading_overlay()
 
     def _render_sign_tally(self, chart: Chart) -> None:

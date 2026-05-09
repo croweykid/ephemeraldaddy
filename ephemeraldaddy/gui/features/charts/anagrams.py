@@ -12,7 +12,7 @@ from typing import Callable
 import requests
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from PySide6.QtWidgets import QHBoxLayout, QToolButton
 
 from ephemeraldaddy.gui.style import (
@@ -44,6 +44,7 @@ class AnagramsSectionWidgets:
     list_label: QLabel
     export_button: QToolButton
     source_dropdown: QComboBox
+    container: QWidget
 
 
 @lru_cache(maxsize=1)
@@ -294,14 +295,29 @@ def build_anagrams_section(
     get_share_icon_path: Callable[[], str | None],
 ) -> AnagramsSectionWidgets:
     """Create the Anagrams collapsible Subjective Notes section."""
+    anagrams_box = QFrame()
+    anagrams_box.setStyleSheet(
+        "QFrame {"
+        "background-color: #1c1c1c;"
+        "border: 1px solid #2b2b2b;"
+        "border-radius: 6px;"
+        "}"
+    )
+    anagrams_box_layout = QVBoxLayout()
+    anagrams_box_layout.setContentsMargins(8, 8, 8, 8)
+    anagrams_box_layout.setSpacing(6)
+    anagrams_box.setLayout(anagrams_box_layout)
+    anagrams_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
     section_layout = add_collapsible_section(
         panel=panel,
-        layout=layout,
+        layout=anagrams_box_layout,
         title="Anagrams",
         expanded=False,
         on_toggled=on_toggled,
-        section_key="anagrams",
+        section_key=None,
     )
+    layout.addWidget(anagrams_box)
 
     summary_label = QLabel(
         "Dictionary-based anagrams for chart name or alias (single words only, capped for speed)."
@@ -316,8 +332,8 @@ def build_anagrams_section(
     header_row.setLayout(header_layout)
     source_dropdown = QComboBox()
     source_dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
-    for source_label, source_value in ANAGRAM_SOURCE_OPTIONS:
-        source_dropdown.addItem(source_label, source_value)
+    source_dropdown.addItem("Chart Name", "name")
+    source_dropdown.setMinimumWidth(source_dropdown.sizeHint().width() + 6)
     source_dropdown.currentIndexChanged.connect(
         lambda _index: on_source_changed(str(source_dropdown.currentData() or "name"))
     )
@@ -349,4 +365,5 @@ def build_anagrams_section(
         list_label=list_label,
         export_button=export_button,
         source_dropdown=source_dropdown,
+        container=anagrams_box,
     )
