@@ -25595,7 +25595,7 @@ class MainWindow(QMainWindow):
     def _set_chart_right_panel(self, panel_key: str) -> None:
         panel_stack = getattr(self, "chart_right_panel_stack", None)
         if panel_stack is None:
-        self._collapse_similar_charts_section()
+            self._collapse_similar_charts_section()
             return
         analytics_enabled = bool(
             getattr(self, "chart_analytics_panel_button", None)
