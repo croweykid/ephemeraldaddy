@@ -66,8 +66,8 @@ SEASONAL_COLOR_SPECTRUM = {
 }
 
 #Here for reference but not imported to any other file.
-OUTER_PLANETS = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}  # slow / structural
-INNER_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}       # fast / personal
+OUTER_PLANETS = {"Uranus", "Neptune", "Pluto"}  # slow / structural
+INNER_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", }       # fast / personal
 ANGLES = {"AS", "DS", "MC", "IC"}
 
 PERSONAL = INNER_PLANETS | ANGLES
