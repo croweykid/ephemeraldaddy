@@ -26600,7 +26600,7 @@ class MainWindow(QMainWindow):
         self._sync_chart_right_panel_placeholder_state(chart)
         if is_placeholder:
             self._set_chart_right_panel_container_visible(True)
-            self._clear_chart_displays()
+            self._clear_chart_displays(reset_anagrams=False)
         else:
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart, sections={
@@ -27065,7 +27065,7 @@ class MainWindow(QMainWindow):
         if getattr(chart, "is_placeholder", False):
             self._set_chart_right_panel("subjective_notes")
             self._set_chart_right_panel_container_visible(True)
-            self._clear_chart_displays()
+            self._clear_chart_displays(reset_anagrams=False)
             self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel("analytics")
@@ -27747,7 +27747,7 @@ class MainWindow(QMainWindow):
         
         self.chart_canvas = canvas
 
-    def _clear_chart_displays(self) -> None:
+    def _clear_chart_displays(self, *, reset_anagrams: bool = True) -> None:
         for layout in (
             self.chart_canvas_container_layout,
             self.sign_chart_container_layout,
@@ -27803,8 +27803,9 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name = ""
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(False)
-        self._refresh_anagrams_for_chart(None, reset_to_chart_name=True)
-        self._hide_chart_loading_overlay()
+        if reset_anagrams:
+            self._refresh_anagrams_for_chart(None, reset_to_chart_name=True)
+            self._hide_chart_loading_overlay()
 
     def _render_sign_tally(self, chart: Chart) -> None:
 
