@@ -18300,7 +18300,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(planet_dynamics_checkbox)
 
-        anagrams_checkbox = QCheckBox("Show Anagrams (Chart Analytics)")
+        visibility_section.addWidget(self._build_settings_subheader_label("Subjective Notes Panel (Chart View)"))
+
+        anagrams_checkbox = QCheckBox("Show Anagrams (Subjective Notes)")
         anagrams_checkbox.setChecked(
             isinstance(parent, MainWindow)
             and parent._is_chart_analysis_section_visible("anagrams")
@@ -25539,6 +25541,12 @@ class MainWindow(QMainWindow):
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
         if panel_key == "analytics" and self._latest_chart is not None:
             self._schedule_chart_render(self._latest_chart)
+        if (
+            panel_key == "subjective_notes"
+            and self._latest_chart is not None
+            and self._is_chart_analysis_section_visible("anagrams")
+        ):
+            self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
         if panel_key == "predictions" and self._latest_chart is not None:
             self._render_enneagram_predictions(self._latest_chart)
             self._render_dndification_predictions(self._latest_chart)
@@ -27605,7 +27613,9 @@ class MainWindow(QMainWindow):
             return False
         if not self.metrics_panel.isVisible():
             return False
-        if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
+        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        expected_panel = "subjective_notes" if render_key == "anagrams" else "analytics"
+        if active_panel != expected_panel:
             return False
         if not allow_collapsed and not self._chart_analysis_section_expanded.get(section_key, True):
             return False
@@ -27642,21 +27652,25 @@ class MainWindow(QMainWindow):
     def _schedule_passive_chart_analysis_preload(self, chart: Chart) -> None:
         if not self.metrics_panel.isVisible():
             return
-        if getattr(self, "_active_chart_right_panel", "analytics") != "analytics":
+        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        if active_panel == "subjective_notes":
+            if not self._is_chart_analysis_section_visible("anagrams"):
+                return
+            passive_sections = {"anagrams"}
+        elif active_panel == "analytics":
+            passive_sections = {
+                "signs",
+                "planets",
+                "houses",
+                "elements",
+                "nakshatra",
+                "modal",
+                "gender",
+                "planet_dynamics",
+                "chart_type",
+            }
+        else:
             return
-        passive_sections = {
-            "signs",
-            "planets",
-            "houses",
-            "elements",
-            "nakshatra",
-            "modal",
-            "gender",
-            "planet_dynamics",
-            "chart_type",
-        }
-        if self._is_chart_analysis_section_visible("anagrams"):
-            passive_sections.add("anagrams")
         self._schedule_chart_render(
             chart,
             sections=passive_sections,

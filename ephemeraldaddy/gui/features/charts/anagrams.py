@@ -38,7 +38,7 @@ _DEFINITION_HTTP_SESSION = requests.Session()
 
 @dataclass(frozen=True)
 class AnagramsSectionWidgets:
-    """References to labels used by the chart-name anagrams analytics section."""
+    """References to labels used by the chart-name anagrams section."""
 
     summary_label: QLabel
     list_label: QLabel
@@ -293,7 +293,7 @@ def build_anagrams_section(
     on_source_changed: Callable[[str], None],
     get_share_icon_path: Callable[[], str | None],
 ) -> AnagramsSectionWidgets:
-    """Create the Anagrams collapsible analytics section."""
+    """Create the Anagrams collapsible Subjective Notes section."""
     section_layout = add_collapsible_section(
         panel=panel,
         layout=layout,
