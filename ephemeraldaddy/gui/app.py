@@ -542,7 +542,9 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PERSONAL,
     SOURCE_PUBLIC_DB,
     chart_is_non_aggregable as _chart_is_non_aggregable,
+    chart_is_placeholder as _chart_is_placeholder,
     chart_row_is_non_aggregable as _chart_row_is_non_aggregable,
+    chart_row_is_placeholder as _chart_row_is_placeholder,
     normalize_gui_source as _normalize_gui_source,
 )
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -6595,13 +6597,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
-        if row is not None and _chart_row_is_non_aggregable(row):
+        if row is not None and _chart_row_is_placeholder(row):
             return True
         chart = self._get_chart_for_filter(int(chart_id))
         return self._is_placeholder_chart(chart)
 
     def _is_placeholder_chart(self, chart: Any | None) -> bool:
-        return _chart_is_non_aggregable(chart)
+        return _chart_is_placeholder(chart)
 
     def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
         return [
@@ -15943,7 +15945,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if progress.wasCanceled():
                         break
                     chart = self._get_chart_for_filter(chart_id)
-                    if chart is not None and not _chart_is_non_aggregable(chart):
+                    if chart is not None and not _chart_is_placeholder(chart):
                         chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                         chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
                         chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -15994,8 +15996,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self,
             "Refresh Database",
             (
-                "This will recalculate all charts except placeholders and hypotheticals "
-                "using their stored date/time/location data.\n\n"
+                "This will recalculate all charts except placeholders "
+                "using their stored date/time/location data. Hypothetical charts will be refreshed, "
+                "but remain excluded from database-wide similarity results.\n\n"
                 "Continue?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -16025,7 +16028,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 if progress.wasCanceled():
                     break
                 chart = load_chart(chart_id)
-                if chart is not None and not _chart_is_non_aggregable(chart):
+                if chart is not None and not _chart_is_placeholder(chart):
                     chart.dominant_sign_weights = _calculate_dominant_sign_weights(chart)
                     chart.dominant_planet_weights = _calculate_dominant_planet_weights(chart)
                     chart.dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -21655,13 +21658,13 @@ class MainWindow(QMainWindow):
         if self._similar_charts_list_label is None:
             return
         self._similar_charts_reasoning_by_target = {}
-        if _chart_is_non_aggregable(chart):
+        if _chart_is_placeholder(chart):
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
             if self._similar_charts_export_button is not None:
                 self._similar_charts_export_button.setEnabled(False)
             self._similar_charts_list_label.setText(
-                "Similar chart matching is disabled for placeholder and hypothetical charts."
+                "Similar chart matching is disabled for placeholder charts."
             )
             return
 
@@ -21859,11 +21862,11 @@ class MainWindow(QMainWindow):
         if chart is None:
             QMessageBox.information(self, "Similar Charts", "Generate or load a chart first.")
             return
-        if _chart_is_non_aggregable(chart):
+        if _chart_is_placeholder(chart):
             QMessageBox.information(
                 self,
                 "Similar Charts",
-                "Similar chart matching is disabled for placeholder and hypothetical charts.",
+                "Similar chart matching is disabled for placeholder charts.",
             )
             return
 
