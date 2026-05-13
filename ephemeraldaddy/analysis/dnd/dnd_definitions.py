@@ -633,7 +633,7 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Ceres in H1":17,},
         "antipositions":{"Sun in Aries":6,"Sun in Gemini":4,"Sun in Virgo":8,"Sun in Scorpio":4,"Moon in Taurus":5,"Moon in Sagittarius":5,"Mercury in Taurus":7,"Mercury in Leo":4,"Mercury in Pisces":9,"Venus in Libra":7,"Venus in Leo":7,"Venus in Pisces":8,"Venus in Taurus":4,"Mars in Leo":6,"Mars in Virgo":7,"Mars in Pisces":4,"Jupiter in Leo":7,"Jupiter in Virgo":9,"Jupiter in Sagittarius":7,"Jupiter in Pisces":8,"Jupiter in Aquarius":4,"Saturn in Taurus":4,"Saturn in Virgo":6,"Saturn in Sagittarius":7,}, #note: these are based off of who "isn't on the strong list", not off a list of "who is weak"
         "aspects":{
-            "Neptune sextile Pluto":20,"Chiron opposition Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10
+            "Chiron opposition Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10
         },
         "antiaspects":{},
         "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
