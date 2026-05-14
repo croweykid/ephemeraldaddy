@@ -316,6 +316,31 @@ from matplotlib.patches import Patch
 from PIL import Image as PILImage
 from imojify import imojify as imojify_emoji
 
+
+class MetricFigureCanvas(FigureCanvas):
+    """Figure canvas whose height follows the available Chart Analytics width."""
+
+    def _figure_aspect_ratio(self) -> float:
+        figure_width, figure_height = self.figure.get_size_inches()
+        if figure_width <= 0:
+            return 1.0
+        return float(figure_height / figure_width)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 - Qt override name
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802 - Qt override name
+        return max(1, int(round(max(1, width) * self._figure_aspect_ratio())))
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override name
+        width = self.width()
+        if width <= 0:
+            width = int(round(self.figure.get_figwidth() * self.figure.get_dpi()))
+        return QSize(width, self.heightForWidth(width))
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt override name
+        return QSize(1, 1)
+
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
 from ephemeraldaddy.gui.astrotheme_search import (
@@ -22382,11 +22407,11 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
-        figure = canvas.figure
-        height = int(round(figure.get_size_inches()[1] * figure.get_dpi()))
-        if height > 0:
-            canvas.setMinimumHeight(height)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        size_policy.setHeightForWidth(True)
+        canvas.setSizePolicy(size_policy)
+        canvas.setMinimumHeight(0)
+        canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
@@ -23376,8 +23401,8 @@ class MainWindow(QMainWindow):
         # ax.figure.subplots_adjust(left=0.18, bottom=0.46, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=0.46,
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            bottom=0.40,
+            top=0.94,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
@@ -23574,7 +23599,7 @@ class MainWindow(QMainWindow):
             spine.set_visible(False)
         ax.grid(False)
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.09, bottom=0.34, top=0.83, right=0.97)
+        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
         scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
@@ -23680,8 +23705,8 @@ class MainWindow(QMainWindow):
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=max(STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"], 0.24 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"]),
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            bottom=0.18 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            top=0.90,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
@@ -27768,19 +27793,20 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax = figure.add_subplot(111)
             ax.set_facecolor(CHART_THEME_COLORS["background"])
-            canvas = FigureCanvas(figure)
-            self._apply_metric_chart_sizing(canvas)
+            canvas = MetricFigureCanvas(figure)
             setattr(self, canvas_attr, canvas)
             self._register_metric_chart(canvas, title)
             self._clear_layout_widgets(container_layout)
             container_layout.addWidget(canvas)
         else:
             figure = canvas.figure
+            figure.set_size_inches(*figsize, forward=True)
             ax = figure.gca()
             ax.clear()
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
+        self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
         try:
             canvas.draw()
@@ -28077,7 +28103,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="nakshatra_wordcloud_canvas",
             container_layout=self.nakshatra_wordcloud_container_layout,
-            figsize=(5.5, 5.1),
+            figsize=(5.5, 4.0),
             title="Dominant Nakshatras" if selected_mode == "dominant_nakshatras" else "Nakshatra Prevalence",
             draw_fn=self._draw_nakshatra_wordcloud,
             chart=chart,
@@ -28106,7 +28132,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="gender_guesser_canvas",
             container_layout=self.gender_guesser_container_layout,
-            figsize=(5.5, 2.8),
+            figsize=(5.5, 1.9),
             title="Gender Guesser",
             draw_fn=self._draw_gender_guesser,
             chart=chart,
@@ -28135,7 +28161,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="planet_dynamics_canvas",
             container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.4), #width & height of "Body Dynamics" graph
+            figsize=(5.5, 2.4), #width & height of "Body Dynamics" graph
             title="Body Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
