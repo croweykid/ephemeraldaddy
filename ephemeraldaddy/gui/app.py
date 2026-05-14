@@ -6480,6 +6480,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             min_height=120,
             list_style=similarities_list_style,
         )
+        (
+            self.similarities_common_hd_defined_centers_toggle,
+            self.similarities_common_hd_defined_centers_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Defined Centers in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
+            self.similarities_common_hd_authorities_toggle,
+            self.similarities_common_hd_authorities_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Authorities in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
+        (
+            self.similarities_common_hd_profiles_toggle,
+            self.similarities_common_hd_profiles_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "Profiles in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
         self.similarities_db_info_panel = DBInfoPanel(panel)
         self.similarities_db_info_panel.setVisible(False)
         layout.addWidget(self.similarities_db_info_panel)
@@ -7412,6 +7439,97 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         }
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+    def _build_common_human_design_defined_centers(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        center_counts: dict[str, int] = {}
+        for chart in charts:
+            (
+                _hd_gates,
+                _hd_lines,
+                _hd_channels,
+                hd_defined_centers,
+                _hd_type,
+                _hd_authority,
+            ) = self._extract_human_design_profile(chart)
+            for center in {
+                str(center).strip()
+                for center in hd_defined_centers
+                if str(center).strip()
+            }:
+                center_counts[center] = center_counts.get(center, 0) + 1
+
+        ordered_counts = {
+            center: center_counts[center]
+            for center in self.HD_DEFINED_CENTER_ORDER
+            if center in center_counts
+        }
+        for center in sorted(set(center_counts) - set(ordered_counts)):
+            ordered_counts[center] = center_counts[center]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_human_design_authorities(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        authority_counts: dict[str, int] = {}
+        for chart in charts:
+            (
+                _hd_gates,
+                _hd_lines,
+                _hd_channels,
+                _hd_defined_centers,
+                _hd_type,
+                hd_authority,
+            ) = self._extract_human_design_profile(chart)
+            authority = canonicalize_hd_authority_label(str(hd_authority).strip())
+            if authority:
+                authority_counts[authority] = authority_counts.get(authority, 0) + 1
+
+        ordered_counts = {
+            authority: authority_counts[authority]
+            for authority in self.HD_STANDARD_AUTHORITIES
+            if authority in authority_counts
+        }
+        for authority in sorted(set(authority_counts) - set(ordered_counts)):
+            ordered_counts[authority] = authority_counts[authority]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
+    def _build_common_human_design_profiles(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        profile_counts: dict[str, int] = {}
+        for chart in charts:
+            profile = self._chart_human_design_profile(chart)
+            if profile:
+                profile_counts[profile] = profile_counts.get(profile, 0) + 1
+
+        ordered_counts = {
+            profile: profile_counts[profile]
+            for profile in self.HD_STANDARD_PROFILES
+            if profile in profile_counts
+        }
+        for profile in sorted(set(profile_counts) - set(ordered_counts)):
+            ordered_counts[profile] = profile_counts[profile]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
     def _similarity_matching_chart_names(
         self,
         section_title: str,
@@ -7523,6 +7641,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         raw = f"{min(a, b)}-{max(a, b)}"
                     normalized_channels.add(raw)
                 include = label in normalized_channels
+            elif section_title == "Defined Centers in common":
+                (
+                    _hd_gates,
+                    _hd_lines,
+                    _hd_channels,
+                    hd_centers,
+                    _hd_type,
+                    _hd_authority,
+                ) = self._extract_human_design_profile(chart)
+                include = label in {str(center).strip() for center in hd_centers}
+            elif section_title == "Authorities in common":
+                (
+                    _hd_gates,
+                    _hd_lines,
+                    _hd_channels,
+                    _hd_centers,
+                    _hd_type,
+                    hd_authority,
+                ) = self._extract_human_design_profile(chart)
+                include = label == canonicalize_hd_authority_label(
+                    str(hd_authority).strip()
+                )
+            elif section_title == "Profiles in common":
+                include = label == self._chart_human_design_profile(chart)
 
             if include:
                 matching_names.append(self._display_name_for_chart_id(int(chart_id)))
@@ -7627,6 +7769,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 [],
                 show_no_match_row=False,
             )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_defined_centers_list,
+                self.similarities_common_hd_defined_centers_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_authorities_list,
+                self.similarities_common_hd_authorities_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_profiles_list,
+                self.similarities_common_hd_profiles_toggle,
+                [],
+                show_no_match_row=False,
+            )
             return
 
         common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
@@ -7639,6 +7799,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
         common_hd_gates = self._build_common_human_design_gates(selected_non_placeholder_chart_ids)
         common_hd_channels = self._build_common_human_design_channels(selected_non_placeholder_chart_ids)
+        common_hd_defined_centers = self._build_common_human_design_defined_centers(
+            selected_non_placeholder_chart_ids
+        )
+        common_hd_authorities = self._build_common_human_design_authorities(
+            selected_non_placeholder_chart_ids
+        )
+        common_hd_profiles = self._build_common_human_design_profiles(
+            selected_non_placeholder_chart_ids
+        )
         db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
         db_common_positions = dict(
             (label, count) for label, count, _total in db_common_positions_matches
@@ -7686,6 +7855,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         db_common_hd_channels = dict(
             (label, count)
             for label, count, _total in self._build_common_human_design_channels(db_chart_ids)
+        )
+        db_common_hd_defined_centers = dict(
+            (label, count)
+            for label, count, _total in self._build_common_human_design_defined_centers(db_chart_ids)
+        )
+        db_common_hd_authorities = dict(
+            (label, count)
+            for label, count, _total in self._build_common_human_design_authorities(db_chart_ids)
+        )
+        db_common_hd_profiles = dict(
+            (label, count)
+            for label, count, _total in self._build_common_human_design_profiles(db_chart_ids)
         )
         self._similarities_export_sections = [
             (
@@ -7868,6 +8049,60 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     for label, match_count, total_count in common_hd_channels
                 ],
             ),
+            (
+                "Defined Centers in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_hd_defined_centers.get(label, 0)),
+                        db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Defined Centers in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
+                    )
+                    for label, match_count, total_count in common_hd_defined_centers
+                ],
+            ),
+            (
+                "Authorities in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_hd_authorities.get(label, 0)),
+                        db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Authorities in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
+                    )
+                    for label, match_count, total_count in common_hd_authorities
+                ],
+            ),
+            (
+                "Profiles in common",
+                [
+                    (
+                        label,
+                        match_count,
+                        total_count,
+                        int(db_common_hd_profiles.get(label, 0)),
+                        db_total_count,
+                        self._similarity_matching_chart_names(
+                            "Profiles in common",
+                            label,
+                            selected_non_placeholder_chart_ids,
+                        ),
+                    )
+                    for label, match_count, total_count in common_hd_profiles
+                ],
+            ),
         ]
 
         total_matches = (
@@ -7881,6 +8116,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             + len(common_aspects)
             + len(common_hd_gates)
             + len(common_hd_channels)
+            + len(common_hd_defined_centers)
+            + len(common_hd_authorities)
+            + len(common_hd_profiles)
         )
         if total_matches > 0:
             self.similarities_status_label.setText(
@@ -7974,6 +8212,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             common_hd_channels,
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_hd_channels,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_common_hd_defined_centers_list,
+            self.similarities_common_hd_defined_centers_toggle,
+            common_hd_defined_centers,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_hd_defined_centers,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_common_hd_authorities_list,
+            self.similarities_common_hd_authorities_toggle,
+            common_hd_authorities,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_hd_authorities,
+            db_total_count=db_total_count,
+        )
+        self._set_similarities_section_matches(
+            self.similarities_common_hd_profiles_list,
+            self.similarities_common_hd_profiles_toggle,
+            common_hd_profiles,
+            selection_total_count=len(selected_non_placeholder_chart_ids),
+            db_match_counts=db_common_hd_profiles,
             db_total_count=db_total_count,
         )
 
