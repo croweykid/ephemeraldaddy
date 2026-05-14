@@ -34,25 +34,52 @@ def is_hypothetical_chart_type(chart_type: str | None) -> bool:
     return normalize_chart_type(chart_type) == SOURCE_HYPOTHETICAL
 
 
-def chart_is_non_aggregable(chart: object | None) -> bool:
-    """Return True for charts excluded from analytics/similarity aggregation."""
+def is_placeholder_chart_type(chart_type: str | None) -> bool:
+    """Return True for legacy placeholder chart-type markers."""
+    return str(chart_type or "").strip().lower() == "placeholder"
+
+
+def chart_is_placeholder(chart: object | None) -> bool:
+    """Return True for placeholder charts that cannot participate in chart math."""
     if chart is None:
         return False
     if bool(getattr(chart, "is_placeholder", False)):
         return True
     chart_type = getattr(chart, "chart_type", None) or getattr(chart, "source", None)
-    normalized_type = normalize_chart_type(chart_type)
-    return (
-        normalized_type == SOURCE_HYPOTHETICAL
-        or str(chart_type or "").strip().lower() == "placeholder"
-    )
+    return is_placeholder_chart_type(str(chart_type or ""))
 
 
-def chart_row_is_non_aggregable(row: tuple[object, ...] | list[object] | None) -> bool:
-    """Return True for list_charts() rows excluded from database-wide math."""
+def chart_is_hypothetical(chart: object | None) -> bool:
+    """Return True for hypothetical charts that should not be aggregation candidates."""
+    if chart is None:
+        return False
+    chart_type = getattr(chart, "chart_type", None) or getattr(chart, "source", None)
+    return is_hypothetical_chart_type(str(chart_type or ""))
+
+
+def chart_is_non_aggregable(chart: object | None) -> bool:
+    """Return True for charts excluded from database-wide aggregation results."""
+    return chart_is_placeholder(chart) or chart_is_hypothetical(chart)
+
+
+def chart_row_is_placeholder(row: tuple[object, ...] | list[object] | None) -> bool:
+    """Return True for list_charts() rows that represent placeholders."""
     if row is None:
         return False
     if len(row) > 15 and bool(row[15]):
         return True
     chart_type = row[14] if len(row) > 14 else None
+    return is_placeholder_chart_type(str(chart_type or ""))
+
+
+def chart_row_is_hypothetical(row: tuple[object, ...] | list[object] | None) -> bool:
+    """Return True for list_charts() rows that represent hypothetical charts."""
+    if row is None:
+        return False
+    chart_type = row[14] if len(row) > 14 else None
     return is_hypothetical_chart_type(str(chart_type or ""))
+
+
+def chart_row_is_non_aggregable(row: tuple[object, ...] | list[object] | None) -> bool:
+    """Return True for list_charts() rows excluded from database-wide math."""
+    return chart_row_is_placeholder(row) or chart_row_is_hypothetical(row)
