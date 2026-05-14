@@ -544,7 +544,6 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     chart_is_non_aggregable as _chart_is_non_aggregable,
     chart_is_placeholder as _chart_is_placeholder,
     chart_row_is_non_aggregable as _chart_row_is_non_aggregable,
-    chart_row_is_placeholder as _chart_row_is_placeholder,
     normalize_gui_source as _normalize_gui_source,
 )
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -6597,13 +6596,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _is_placeholder_chart_id(self, chart_id: int) -> bool:
         row = self._active_chart_rows_by_id.get(int(chart_id))
-        if row is not None and _chart_row_is_placeholder(row):
+        if row is not None and _chart_row_is_non_aggregable(row):
             return True
         chart = self._get_chart_for_filter(int(chart_id))
         return self._is_placeholder_chart(chart)
 
     def _is_placeholder_chart(self, chart: Any | None) -> bool:
-        return _chart_is_placeholder(chart)
+        # Despite the legacy method name, database analytics callers use this
+        # as the non-aggregable gate; placeholders and hypotheticals must both
+        # be excluded from metric snapshots and database-wide totals.
+        return _chart_is_non_aggregable(chart)
 
     def _exclude_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
         return [
