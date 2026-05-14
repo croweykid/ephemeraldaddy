@@ -485,7 +485,6 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
-    ANGLE_POINTS,
     ANGLE_WEIGHT,
     NATAL_WEIGHT,
     TRANSIT_WEIGHT,
@@ -27922,20 +27921,21 @@ class MainWindow(QMainWindow):
         house_numbers = list(range(1, 13))
         house_counts = {house_num: 0.0 for house_num in house_numbers}
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
-        if use_houses and houses:
-            position_names = (
-                [position_name for position_name in PLANET_ORDER if position_name not in ANGLE_POINTS]
-                if mode == "house_prevalence"
-                else [position_name for position_name in PLANET_ORDER if position_name in NATAL_WEIGHT]
-            )
-            for position_name in position_names:
-                if position_name not in chart.positions:
-                    continue
-                lon = chart.positions[position_name]
-                house_num = _house_for_longitude(houses, lon)
-                if house_num is None:
-                    continue
-                house_counts[house_num] += 1.0 if mode == "house_prevalence" else float(NATAL_WEIGHT.get(position_name, 1))
+        if not use_houses or not houses:
+            return [float(house_counts[house_num]) for house_num in house_numbers]
+
+        if mode == "house_prevalence":
+            prevalence_counts = _calculate_house_prevalence_counts(chart)
+            return [float(prevalence_counts.get(house_num, 0.0)) for house_num in house_numbers]
+
+        for position_name in [position_name for position_name in PLANET_ORDER if position_name in NATAL_WEIGHT]:
+            if position_name not in chart.positions:
+                continue
+            lon = chart.positions[position_name]
+            house_num = _house_for_longitude(houses, lon)
+            if house_num is None:
+                continue
+            house_counts[house_num] += float(NATAL_WEIGHT.get(position_name, 1))
         return [float(house_counts[house_num]) for house_num in house_numbers]
 
     def _dominant_nakshatra_distribution_weights(self, chart: Chart | None) -> list[float]:
