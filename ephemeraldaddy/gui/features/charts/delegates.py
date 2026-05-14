@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QPainter
-from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -11,6 +10,9 @@ from PySide6.QtWidgets import (
     QStyleOptionViewItem,
     QWidget,
 )
+
+from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
+CHART_ROW_PLACE_COLOR = "#9c7a53"
 
 
 class ChartRowDelegate(QStyledItemDelegate):
@@ -27,7 +29,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             "date": QColor("#8d6e63"),
             "time": QColor("#6b705c"),
             "retcon_time": QColor("#4a7bd1"),
-            "place": QColor("#9c7a53"),
+            "place": QColor(CHART_ROW_PLACE_COLOR),
         }
         self._duplicate_likelihood_colors = {
             "definite": QColor("#7CFF00"),

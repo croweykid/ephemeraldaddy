@@ -535,7 +535,7 @@ from ephemeraldaddy.core.interpretations import (
     ENNEAGRAM,
 )
 
-from ephemeraldaddy.gui.features.charts.delegates import ChartRowDelegate
+from ephemeraldaddy.gui.features.charts.delegates import CHART_ROW_PLACE_COLOR, ChartRowDelegate
 from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_EVENT,
     SOURCE_OPTIONS,
@@ -16220,7 +16220,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     {
                         "text": text,
                         "color": color,
-                        "space_after": space_after,
+                        # "space_after": space_after,
                     }
                 )
 
@@ -16229,17 +16229,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             sign_glyph = self._chart_row_zodiac_glyph_for_sign(sign)
             if not sign_glyph:
                 continue
-            add_segment(
-                PLANET_GLYPHS.get(body, body),
-                PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                space_after=False,
-            )
+            # add_segment( #the glyphs are visual clutter
+            #     PLANET_GLYPHS.get(body, body),
+            #     CHART_ROW_PLACE_COLOR,
+            #     space_after=False,
+            # )
             add_segment(sign_glyph, SIGN_COLORS.get(sign, "#f5f5f5"))
 
         ascendant_sign = self._chart_row_sign_for_position(chart, "AS")
         ascendant_glyph = self._chart_row_zodiac_glyph_for_sign(ascendant_sign)
         if ascendant_glyph:
-            add_segment("↑", CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            # add_segment("↑", CHART_ROW_PLACE_COLOR)
             add_segment(ascendant_glyph, SIGN_COLORS.get(ascendant_sign, "#f5f5f5"))
 
         return segments
