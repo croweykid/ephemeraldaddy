@@ -393,7 +393,6 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
-    build_body_dominance_explanation_bullets as _build_body_dominance_explanation_bullets,
     chart_similarity_score,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
@@ -639,6 +638,11 @@ from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
     style_dominant_body_axis_labels as _style_dominant_body_axis_labels,
+)
+from ephemeraldaddy.gui.features.charts.chart_analytics_popout import (
+    build_body_dominance_section_html as _build_body_dominance_section_html,
+    build_house_dominance_section_html as _build_house_dominance_section_html,
+    build_sign_dominance_section_html as _build_sign_dominance_section_html,
 )
 from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
     build_gender_guesser_breakdown_text as _build_gender_guesser_breakdown_text,
@@ -22750,153 +22754,14 @@ class MainWindow(QMainWindow):
         )
 
 
-    def _colorized_dominance_label_html(self, label: object, color: object | None) -> str:
-        label_text = str(label or "")
-        color_text = str(color or "").strip()
-        if not color_text:
-            return html.escape(label_text)
-        return (
-            f'<span style="color: {html.escape(color_text)}; font-weight: 600;">'
-            f"{html.escape(label_text)}</span>"
-        )
-
-    def _dominance_body_label_html(self, body: str) -> str:
-        return self._colorized_dominance_label_html(
-            _display_body_name(body),
-            PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-        )
-
-    def _dominance_sign_label_html(self, sign: str) -> str:
-        return self._colorized_dominance_label_html(
-            sign,
-            SIGN_COLORS.get(sign, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-        )
-
-    def _dominance_house_label_html(self, house_num: int | str) -> str:
-        house_label = f"House {house_num}"
-        return self._colorized_dominance_label_html(
-            house_label,
-            HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
-        )
-
-    def _dominance_aspect_label_html(self, aspect_type: str) -> str:
-        aspect_label = str(aspect_type or "aspect").strip() or "aspect"
-        aspect_key = aspect_label.replace(" ", "_").lower()
-        return self._colorized_dominance_label_html(
-            aspect_label,
-            ASPECT_COLORS.get(aspect_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-        )
-
-    def _dominance_reason_line_html(self, text: object) -> str:
-        raw_text = str(text or "")
-        body_labels: dict[str, str] = {}
-        for body in PLANET_COLORS:
-            display = _display_body_name(body)
-            body_labels[body] = body
-            body_labels[display] = body
-        token_labels = sorted(
-            set(body_labels) | set(ZODIAC_NAMES) | {key.replace("_", " ") for key in ASPECT_COLORS},
-            key=len,
-            reverse=True,
-        )
-        token_pattern = "|".join(re.escape(label) for label in token_labels if label)
-        pattern = re.compile(
-            rf"(?<![\w])(?:House\s+(?P<house>1[0-2]|[1-9])|(?P<token>{token_pattern}))(?![\w])",
-            re.IGNORECASE,
-        )
-        parts: list[str] = []
-        last_end = 0
-        for match in pattern.finditer(raw_text):
-            parts.append(html.escape(raw_text[last_end:match.start()]))
-            matched_text = match.group(0)
-            house_match = match.group("house")
-            if house_match:
-                parts.append(self._dominance_house_label_html(house_match))
-            else:
-                token = match.group("token") or matched_text
-                canonical_body = next(
-                    (body for label, body in body_labels.items() if label.lower() == token.lower()),
-                    None,
-                )
-                if canonical_body is not None:
-                    parts.append(
-                        self._colorized_dominance_label_html(
-                            token,
-                            PLANET_COLORS.get(canonical_body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                        )
-                    )
-                else:
-                    canonical_sign = next((sign for sign in ZODIAC_NAMES if sign.lower() == token.lower()), None)
-                    if canonical_sign is not None:
-                        parts.append(self._dominance_sign_label_html(canonical_sign))
-                    else:
-                        aspect_key = token.replace(" ", "_").lower()
-                        parts.append(
-                            self._colorized_dominance_label_html(
-                                token,
-                                ASPECT_COLORS.get(aspect_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
-                            )
-                        )
-            last_end = match.end()
-        parts.append(html.escape(raw_text[last_end:]))
-        return "".join(parts)
-
-    def _dominance_section_header_html(self, chart: Chart) -> str:
-        chart_name = str(getattr(chart, "name", "") or "").strip() or "this chart"
-        return (
-            f'<div style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
-            f"Why Dominant (or Not)? (for {html.escape(chart_name)})"
-            "</div>"
-        )
-
     def _build_sign_dominance_section(self, chart: Chart, sign_name: str) -> str:
-        mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
-        lines: list[str] = [self._dominance_section_header_html(chart)]
-        if mode == "sign_prevalence":
-            lines.append("<ul><li>Sign Prevalence mode is active (raw placements, not weighted dominance).</li></ul>")
-            return "".join(lines)
-
-        use_houses = _chart_uses_houses(chart)
-        houses = getattr(chart, "houses", None) if use_houses else None
-        placement_lines: list[str] = []
-        for body in PLANET_ORDER:
-            if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-                continue
-            lon = chart.positions.get(body)
-            if lon is None or _sign_for_longitude(lon) != sign_name:
-                continue
-            house_num = _house_for_longitude(houses, lon)
-            _weighted_sign, body_weight = _planet_sign_weight(body, lon, houses, house_num)
-            placement_lines.append(
-                f"{self._dominance_body_label_html(body)} in {self._dominance_sign_label_html(sign_name)}"
-                + (f", {self._dominance_house_label_html(house_num)}" if house_num else "")
-                + f" (base sign weight {body_weight:.2f})"
-            )
-
-        if placement_lines:
-            lines.append("<ul>" + "".join(f"<li>{entry}</li>" for entry in placement_lines) + "</ul>")
-        else:
-            lines.append("<ul><li>No chart points are currently in this sign.</li></ul>")
-
-        aspect_lines: list[str] = []
-        for aspect in getattr(chart, "aspects", []) or []:
-            p1 = str(aspect.get("p1", ""))
-            p2 = str(aspect.get("p2", ""))
-            lon1 = chart.positions.get(p1)
-            lon2 = chart.positions.get(p2)
-            if lon1 is None or lon2 is None:
-                continue
-            if sign_name not in {_sign_for_longitude(lon1), _sign_for_longitude(lon2)}:
-                continue
-            aspect_type = str(aspect.get("type", "")).strip() or "aspect"
-            aspect_lines.append(
-                f"{self._dominance_body_label_html(p1)} "
-                f"{self._dominance_aspect_label_html(aspect_type)} "
-                f"{self._dominance_body_label_html(p2)}"
-            )
-        if aspect_lines:
-            lines.append("<ul>" + "".join(f"<li>Aspect contribution: {entry}</li>" for entry in aspect_lines[:8]) + "</ul>")
-        return "".join(lines)
+        return _build_sign_dominance_section_html(
+            chart,
+            sign_name,
+            mode=self._chart_analysis_selected_mode("dominant_signs", "dominant_signs"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
 
     def _build_body_popout_info(self, chart: Chart, body: str) -> str:
         body_name = str(body or "").strip()
@@ -23044,24 +22909,13 @@ class MainWindow(QMainWindow):
 
 
     def _build_body_dominance_section(self, chart: Chart, body_name: str) -> str:
-        mode = self._chart_analysis_selected_mode("dominant_planets", "dominant_planets")
-        lines: list[str] = [self._dominance_section_header_html(chart)]
-        if mode == "sidereal_planet_prevalence":
-            lines.append("<ul><li>Sidereal Planet Prevalence mode is active (raw prevalence count, not weighted dominance).</li></ul>")
-            return "".join(lines)
-
-        lon = chart.positions.get(body_name)
-        if lon is None:
-            lines.append("<ul><li>This body is unavailable in the current chart.</li></ul>")
-            return "".join(lines)
-
-        bullets = _build_body_dominance_explanation_bullets(
+        return _build_body_dominance_section_html(
             chart,
             body_name,
-            _display_body_name,
+            mode=self._chart_analysis_selected_mode("dominant_planets", "dominant_planets"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
-        lines.append("<ul>" + "".join(f"<li>{self._dominance_reason_line_html(bullet)}</li>" for bullet in bullets) + "</ul>")
-        return "".join(lines)
 
     def _build_house_popout_info(self, chart: Chart, house_num: int) -> str:
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
@@ -23140,47 +22994,13 @@ class MainWindow(QMainWindow):
         return "".join(info_parts)
 
     def _build_house_dominance_section(self, chart: Chart, target_house: int) -> str:
-        mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
-        lines: list[str] = [self._dominance_section_header_html(chart)]
-        if mode == "house_prevalence":
-            lines.append("<ul><li>House Prevalence mode is active: each listed body/point counts once, with no weights applied.</li></ul>")
-            return "".join(lines)
-        if not _chart_uses_houses(chart):
-            lines.append("<ul><li>Houses are unavailable for this chart, so no house-dominance scoring can be applied.</li></ul>")
-            return "".join(lines)
-        houses = getattr(chart, "houses", None)
-        if not houses:
-            lines.append("<ul><li>House cusp data is missing.</li></ul>")
-            return "".join(lines)
-
-        house_sign_spans = _house_span_signs(houses)
-        span = house_sign_spans[target_house - 1] if 1 <= target_house <= 12 else []
-        bullets = [
-            f"House {target_house} spans: {', '.join(html.escape(sign) for sign in span) if span else 'n/a'}."
-        ]
-
-        contributing_points: list[str] = []
-        for body in list(_dominant_planet_keys(chart)) + ["AS", "IC", "DS", "MC"]:
-            lon = chart.positions.get(body)
-            if lon is None:
-                continue
-            membership = _house_membership_weights(houses, lon)
-            share = float(membership.get(target_house, 0.0))
-            if share <= 0:
-                continue
-            primary_house = _house_for_longitude(houses, lon)
-            if primary_house is None:
-                continue
-            body_weight = _planet_weight(body, lon, houses, primary_house)
-            contributing_points.append(
-                f"{_display_body_name(body)}: {body_weight:.2f} × {share:.2f} share"
-            )
-        if contributing_points:
-            bullets.extend(contributing_points[:14])
-        else:
-            bullets.append("No bodies/angles contributed weight to this house.")
-        lines.append("<ul>" + "".join(f"<li>{self._dominance_reason_line_html(entry)}</li>" for entry in bullets) + "</ul>")
-        return "".join(lines)
+        return _build_house_dominance_section_html(
+            chart,
+            target_house,
+            mode=self._chart_analysis_selected_mode("dominant_houses", "dominant_houses"),
+            highlight_color=CHART_DATA_HIGHLIGHT_COLOR,
+            fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
+        )
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
         mode = self._chart_analysis_selected_mode("dominant_signs", "dominant_signs")
