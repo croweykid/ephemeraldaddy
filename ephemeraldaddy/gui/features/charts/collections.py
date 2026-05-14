@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_EVENT,
+    SOURCE_HYPOTHETICAL,
     SOURCE_NONHUMAN_ENTITY,
     SOURCE_PARASOCIAL,
     SOURCE_PERSONAL,
@@ -24,6 +25,7 @@ DEFAULT_COLLECTION_EVENT = "event"
 DEFAULT_COLLECTION_SYNASTRY = "synastry"
 DEFAULT_COLLECTION_PERSONAL_TRANSIT = "personal_transit"
 DEFAULT_COLLECTION_NONHUMAN_ENTITY = "nonhuman_entity"
+DEFAULT_COLLECTION_HYPOTHETICAL = "hypothetical"
 DEFAULT_COLLECTION_POSSIBLE_DUPLICATES = "possible_duplicates"
 
 DEFAULT_COLLECTION_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -35,6 +37,7 @@ DEFAULT_COLLECTION_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Synastry", DEFAULT_COLLECTION_SYNASTRY),
     ("Personal Transit", DEFAULT_COLLECTION_PERSONAL_TRANSIT),
     ("Nonhuman Entity", DEFAULT_COLLECTION_NONHUMAN_ENTITY),
+    ("Hypothetical", DEFAULT_COLLECTION_HYPOTHETICAL),
 )
 DEFAULT_COLLECTION_IDS = {value for _label, value in DEFAULT_COLLECTION_OPTIONS}
 DEFAULT_COLLECTION_IDS.add(DEFAULT_COLLECTION_POSSIBLE_DUPLICATES)
@@ -70,6 +73,11 @@ def chart_belongs_to_collection(
         return True
 
     normalized_source = normalize_gui_source(source or getattr(chart, "source", SOURCE_PERSONAL))
+    normalized_chart_type = normalize_gui_source(
+        getattr(chart, "chart_type", None)
+        or source
+        or getattr(chart, "source", SOURCE_PERSONAL)
+    )
     relationship_types = _normalized_relationship_types(chart)
     is_parasocial = (
         (normalized_source == SOURCE_PARASOCIAL)
@@ -92,6 +100,8 @@ def chart_belongs_to_collection(
         return normalized_source == SOURCE_PERSONAL_TRANSIT
     if normalized_collection_id == DEFAULT_COLLECTION_NONHUMAN_ENTITY:
         return normalized_source == SOURCE_NONHUMAN_ENTITY
+    if normalized_collection_id == DEFAULT_COLLECTION_HYPOTHETICAL:
+        return normalized_chart_type == SOURCE_HYPOTHETICAL
 
     if custom_collections is None or chart_id is None:
         return False
