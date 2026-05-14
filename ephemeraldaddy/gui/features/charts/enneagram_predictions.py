@@ -46,6 +46,61 @@ ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
 ENNEAGRAM_REALM_WEIGHT_MID_COLOR = (255, 235, 59)
 ENNEAGRAM_REALM_WEIGHT_HIGH_COLOR = (0, 255, 102)
 
+ENNEAGRAM_CATEGORY_WEIGHT_KEYS = (
+    "signs",
+    "bodies",
+    "nakshatras",
+    "houses",
+    "gates",
+    "hdtypes",
+    "centers",
+    "profiles",
+    "authorities",
+    "bazisigns",
+    "positions",
+    "aspects",
+)
+
+
+def default_enneagram_category_weights() -> dict[str, float]:
+    """Return the GUI's default equal-weight Enneagram predictor controls."""
+    return {key: 1.0 for key in ENNEAGRAM_CATEGORY_WEIGHT_KEYS}
+
+
+def merge_enneagram_category_weights(payload: Any) -> dict[str, float]:
+    """Overlay persisted category weights onto the default GUI weight map."""
+    merged = default_enneagram_category_weights()
+    if isinstance(payload, dict):
+        for key in merged:
+            try:
+                merged[key] = float(payload.get(key, merged[key]))
+            except (TypeError, ValueError):
+                continue
+    return merged
+
+
+def cache_enneagram_prediction_metadata(chart: Any, scores: dict[int, float]) -> dict[int, float]:
+    """Write ranked Enneagram prediction metadata back onto a chart object."""
+    ranked_scores = sorted(
+        ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
+        key=lambda item: (-item[1], item[0]),
+    )
+    if ranked_scores and ranked_scores[0][1] > 0:
+        chart.enneagram_type_weights = {
+            enneagram_type: score for enneagram_type, score in ranked_scores
+        }
+        chart.dominant_enneagram_type = ranked_scores[0][0]
+        chart.top_three_enneagram_types = [
+            enneagram_type
+            for enneagram_type, score in ranked_scores[:3]
+            if score > 0
+        ]
+    else:
+        chart.enneagram_type_weights = {}
+        chart.dominant_enneagram_type = None
+        chart.top_three_enneagram_types = []
+    return scores
+
 
 def set_enneagram_category_weights(overrides: dict[str, float] | None) -> None:
     """Override runtime category weights used by Enneagram predictions."""
