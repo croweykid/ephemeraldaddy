@@ -978,10 +978,13 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
+    cache_enneagram_prediction_metadata as _cache_enneagram_prediction_metadata,
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
     connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
+    default_enneagram_category_weights as _default_enneagram_category_weights,
     draw_enneagram_predictions as _draw_enneagram_predictions_chart,
     enneagram_realm_summary_html as _enneagram_realm_summary_html,
+    merge_enneagram_category_weights as _merge_enneagram_category_weights,
     tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
 )
@@ -19338,20 +19341,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             _save_similarity_calculator_settings(parent._settings, defaults)
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
-        return {
-            "signs": 1.0,
-            "bodies": 1.0,
-            "nakshatras": 1.0,
-            "houses": 1.0,
-            "gates": 1.0,
-            "hdtypes": 1.0,
-            "centers": 1.0,
-            "profiles": 1.0,
-            "authorities": 1.0,
-            "bazisigns": 1.0,
-            "positions": 1.0,
-            "aspects": 1.0,
-        }
+        return _default_enneagram_category_weights()
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
         normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
@@ -19367,13 +19357,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}
         mode = str(self._settings.value(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default") or "default").lower()
         self._enneagram_predictor_mode = "custom" if mode == "custom" else "default"
-        merged = self._default_enneagram_category_weights()
-        if isinstance(payload, dict):
-            for key in merged:
-                try:
-                    merged[key] = float(payload.get(key, merged[key]))
-                except (TypeError, ValueError):
-                    continue
+        merged = _merge_enneagram_category_weights(payload)
         self._enneagram_predictor_weights = merged
         for key, spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).items():
             blocker = QSignalBlocker(spin)
@@ -28397,32 +28381,13 @@ class MainWindow(QMainWindow):
         self._apply_enneagram_predictor_weights()
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
-        return {
-            "signs": 1.0,
-            "bodies": 1.0,
-            "nakshatras": 1.0,
-            "houses": 1.0,
-            "gates": 1.0,
-            "hdtypes": 1.0,
-            "centers": 1.0,
-            "profiles": 1.0,
-            "authorities": 1.0,
-            "bazisigns": 1.0,
-            "positions": 1.0,
-            "aspects": 1.0,
-        }
+        return _default_enneagram_category_weights()
 
     def _load_enneagram_predictor_controls(self) -> None:
         payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}
         mode = str(self._settings.value(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default") or "default").lower()
         self._enneagram_predictor_mode = "custom" if mode == "custom" else "default"
-        merged = self._default_enneagram_category_weights()
-        if isinstance(payload, dict):
-            for key in merged:
-                try:
-                    merged[key] = float(payload.get(key, merged[key]))
-                except (TypeError, ValueError):
-                    continue
+        merged = _merge_enneagram_category_weights(payload)
         self._enneagram_predictor_weights = merged
         for key, spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).items():
             blocker = QSignalBlocker(spin)
@@ -28490,23 +28455,7 @@ class MainWindow(QMainWindow):
 
     def _cache_enneagram_prediction_metadata(self, chart: Chart) -> dict[int, float]:
         scores = self._calculate_enneagram_type_weights(chart)
-        ranked_scores = sorted(
-            ((int(enneagram_type), float(score)) for enneagram_type, score in scores.items()),
-            key=lambda item: (-item[1], item[0]),
-        )
-        if ranked_scores and ranked_scores[0][1] > 0:
-            chart.enneagram_type_weights = {enneagram_type: score for enneagram_type, score in ranked_scores}
-            chart.dominant_enneagram_type = ranked_scores[0][0]
-            chart.top_three_enneagram_types = [
-                enneagram_type
-                for enneagram_type, score in ranked_scores[:3]
-                if score > 0
-            ]
-        else:
-            chart.enneagram_type_weights = {}
-            chart.dominant_enneagram_type = None
-            chart.top_three_enneagram_types = []
-        return scores
+        return _cache_enneagram_prediction_metadata(chart, scores)
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
