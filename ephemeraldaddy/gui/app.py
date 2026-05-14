@@ -555,7 +555,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
-from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
+from ephemeraldaddy.gui.features.charts.popout_aspects import (
     build_popout_left_panel as _build_popout_left_panel_widget,
     collect_aspect_category_totals as _collect_aspect_category_totals,
     collect_aspect_type_counts as _collect_aspect_type_counts,
@@ -666,8 +666,13 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_MODE_LABELS,
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
-    export_aspect_distribution_csv_dialog as _export_aspect_distribution_csv_dialog,
     get_text_export_path as _get_text_export_path,
+)
+from ephemeraldaddy.gui.features.charts.popout_helpers import (
+    attach_popout_share_button as _attach_popout_share_button,
+    export_popout_chart_data_output as _export_popout_chart_data_output,
+    position_popout_share_button as _position_popout_share_button,
+    register_popout_close_shortcuts as _register_popout_close_shortcuts,
 )
 from ephemeraldaddy.gui.features.charts.text_summary import (
     _aspect_body_with_sign,
@@ -905,7 +910,6 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_DND_SUBHEADER_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
-    CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
     CHART_INFO_EVIDENCE_LABEL_BOLD,
     CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
@@ -944,16 +948,12 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
-from ephemeraldaddy.analysis.dnd.dnd_definitions import SPECIES_DESCRIPTIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
-    build_class_axis_profile_lines,
     DND_CLASS_AXIS_EARTHTONE_COLORS,
     DND_CLASS_THRESHOLD_COLOR,
     DND_CLASSES,
-    DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
     format_class_axis_label,
-    resolve_class_key,
     score_class_axes,
     score_dnd_statblock,
 )
@@ -965,7 +965,6 @@ from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
     ChartDataTableOutput,
-    ChartSummaryHighlighter,
     apply_chart_data_highlighter,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
@@ -987,8 +986,12 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
+    build_dnd_top_three_summary_html as _build_dnd_top_three_summary_html,
     connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
+    format_dnd_class_info_text as _format_dnd_class_info_text,
+    format_dnd_species_info_text as _format_dnd_species_info_text,
+    format_dnd_statblock_info_text as _format_dnd_statblock_info_text,
 )
 
 
@@ -4915,7 +4918,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weighted_type_totals=weighted_type_totals,
             friction_totals=friction_totals,
             weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
         )
 
     def _build_popout_left_panel(
@@ -4934,18 +4936,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
+            parent=self,
             chart_info_placeholder=chart_info_placeholder,
             aspect_entries=aspect_entries,
             export_file_stem=export_file_stem,
+            get_share_icon_path=_get_share_icon_path,
             weighted_score_for_entry=weighted_score_for_entry,
             aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
@@ -5028,18 +5025,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # return default_stem
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        host_window = output_widget.window()
-        if not isinstance(host_window, QWidget):
-            return
-
-        anchor_parent = button.parentWidget() if isinstance(button.parentWidget(), QWidget) else host_window
-        margin = 6
-        button.move(
-            max(margin, anchor_parent.width() - button.width() - margin),
-            margin,
-        )
-        button.raise_()
-        button.show()
+        _position_popout_share_button(output_widget, button)
 
     def _attach_popout_share_button(
         self,
@@ -5047,28 +5033,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        host_window = output_widget.window()
-        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
-        share_button = QToolButton(share_parent)
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            share_button.setIcon(QIcon(share_icon_path))
-            share_button.setIconSize(QSize(14, 14))
-        else:
-            share_button.setText("↗")
-        share_button.setAutoRaise(True)
-        share_button.setCursor(Qt.PointingHandCursor)
-        share_button.setToolTip("Export chart data output as Markdown or text")
-        share_button.clicked.connect(
-            lambda _checked=False, widget=output_widget, stem=default_file_stem, provider=export_text_provider: self._export_popout_chart_data_output(
-                widget,
-                stem,
-                provider,
-            )
+        return _attach_popout_share_button(
+            output_widget=output_widget,
+            default_file_stem=default_file_stem,
+            export_text_provider=export_text_provider,
+            share_icon_path_provider=_get_share_icon_path,
+            export_callback=self._export_popout_chart_data_output,
         )
-        share_button.resize(22, 22)
-        self._position_popout_share_button(output_widget, share_button)
-        return share_button
 
     def _export_popout_chart_data_output(
         self,
@@ -5076,47 +5047,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> None:
-        if callable(export_text_provider):
-            summary_text = export_text_provider().strip()
-        else:
-            summary_text = output_widget.toPlainText().strip()
-        if not summary_text:
-            QMessageBox.information(
-                self,
-                "Nothing to export",
-                "Generate or load a chart before exporting chart data output.",
-            )
-            return
-
-        safe_stem = self._sanitize_export_token(default_file_stem, fallback="chart_data_output")
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Chart Data Output",
-            f"{safe_stem}.md",
-            "Markdown Files (*.md);;Text Files (*.txt)",
-        )
-        if not file_path:
-            return
-
-        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
-        if not file_path.lower().endswith((".md", ".txt")):
-            file_path = f"{file_path}{selected_extension}"
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as output_file:
-                output_file.write(summary_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart data output:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart data output to:\n{file_path}",
+        _export_popout_chart_data_output(
+            owner=self,
+            output_widget=output_widget,
+            default_file_stem=default_file_stem,
+            sanitize_export_token=self._sanitize_export_token,
+            export_text_provider=export_text_provider,
         )
 
     def _personal_transit_priority(
@@ -12161,10 +12097,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(self, "Get Bio", "Biography imported from Astrotheme.")
 
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
-        dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
-        dialog._shortcut_close_ctrl.activated.connect(dialog.close)
-        dialog._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), dialog)
-        dialog._shortcut_close_cmd.activated.connect(dialog.close)
+        _register_popout_close_shortcuts(dialog)
 
     def _export_chart(self, chart: Chart | None) -> None:
         parent = self.parent()
@@ -23045,10 +22978,7 @@ class MainWindow(QMainWindow):
         )
 
     def _register_popout_shortcuts(self, dialog: QDialog) -> None:
-        dialog._shortcut_close_ctrl = QShortcut(QKeySequence("Ctrl+W"), dialog)
-        dialog._shortcut_close_ctrl.activated.connect(dialog.close)
-        dialog._shortcut_close_cmd = QShortcut(QKeySequence("Meta+W"), dialog)
-        dialog._shortcut_close_cmd.activated.connect(dialog.close)
+        _register_popout_close_shortcuts(dialog)
 
     def _build_metric_popout_figure(self, title: str, chart: Chart) -> Figure:
         size_by_title = {
@@ -24610,18 +24540,7 @@ class MainWindow(QMainWindow):
         )
 
     def _position_popout_share_button(self, output_widget: QPlainTextEdit, button: QToolButton) -> None:
-        host_window = output_widget.window()
-        if not isinstance(host_window, QWidget):
-            return
-
-        anchor_parent = button.parentWidget() if isinstance(button.parentWidget(), QWidget) else host_window
-        margin = 6
-        button.move(
-            max(margin, anchor_parent.width() - button.width() - margin),
-            margin,
-        )
-        button.raise_()
-        button.show()
+        _position_popout_share_button(output_widget, button)
 
     def _attach_popout_share_button(
         self,
@@ -24629,28 +24548,13 @@ class MainWindow(QMainWindow):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> QToolButton:
-        host_window = output_widget.window()
-        share_parent = host_window if isinstance(host_window, QWidget) else output_widget
-        share_button = QToolButton(share_parent)
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            share_button.setIcon(QIcon(share_icon_path))
-            share_button.setIconSize(QSize(14, 14))
-        else:
-            share_button.setText("↗")
-        share_button.setAutoRaise(True)
-        share_button.setCursor(Qt.PointingHandCursor)
-        share_button.setToolTip("Export chart data output as Markdown or text")
-        share_button.clicked.connect(
-            lambda _checked=False, widget=output_widget, stem=default_file_stem, provider=export_text_provider: self._export_popout_chart_data_output(
-                widget,
-                stem,
-                provider,
-            )
+        return _attach_popout_share_button(
+            output_widget=output_widget,
+            default_file_stem=default_file_stem,
+            export_text_provider=export_text_provider,
+            share_icon_path_provider=_get_share_icon_path,
+            export_callback=self._export_popout_chart_data_output,
         )
-        share_button.resize(22, 22)
-        self._position_popout_share_button(output_widget, share_button)
-        return share_button
 
     def _export_popout_chart_data_output(
         self,
@@ -24658,47 +24562,12 @@ class MainWindow(QMainWindow):
         default_file_stem: str,
         export_text_provider: Callable[[], str] | None = None,
     ) -> None:
-        if callable(export_text_provider):
-            summary_text = export_text_provider().strip()
-        else:
-            summary_text = output_widget.toPlainText().strip()
-        if not summary_text:
-            QMessageBox.information(
-                self,
-                "Nothing to export",
-                "Generate or load a chart before exporting chart data output.",
-            )
-            return
-
-        safe_stem = self._sanitize_export_token(default_file_stem, fallback="chart_data_output")
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Chart Data Output",
-            f"{safe_stem}.md",
-            "Markdown Files (*.md);;Text Files (*.txt)",
-        )
-        if not file_path:
-            return
-
-        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
-        if not file_path.lower().endswith((".md", ".txt")):
-            file_path = f"{file_path}{selected_extension}"
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as output_file:
-                output_file.write(summary_text)
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export failed",
-                f"Could not export chart data output:\n{e}",
-            )
-            return
-
-        QMessageBox.information(
-            self,
-            "Export complete",
-            f"Saved chart data output to:\n{file_path}",
+        _export_popout_chart_data_output(
+            owner=self,
+            output_widget=output_widget,
+            default_file_stem=default_file_stem,
+            sanitize_export_token=self._sanitize_export_token,
+            export_text_provider=export_text_provider,
         )
 
     def _set_chart_info_panel_mode(self, mode: str) -> None:
@@ -25510,28 +25379,8 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        label = f"{family} ({subtype})" if subtype else family
-        header = f"{label} • {score:.2f}"
-        species_description = SPECIES_DESCRIPTIONS.get(family, "")
-        subtype_key = f"{family}::{subtype}" if subtype else ""
-        subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
-        description_parts = [part for part in (species_description, subtype_description) if part]
-        description_line = " ".join(description_parts) if description_parts else "Species flavor text unavailable."
-        if evidence:
-            lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText(
-                "\n".join([header, description_line, "", "Evidence:"] + lines)
-            )
-            return
         self.chart_info_output.setPlainText(
-            "\n".join(
-                [
-                    header,
-                    description_line,
-                    "",
-                    "• Evidence is unavailable for this species assignment.",
-                ]
-            )
+            _format_dnd_species_info_text(family, subtype, score, evidence)
         )
 
     def _show_dnd_class_info(
@@ -25541,38 +25390,12 @@ class MainWindow(QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
-        resolved_class_key = resolve_class_key(class_key) or resolve_class_key(class_name) or class_name
-        class_definition = DND_CLASSES.get(resolved_class_key)
-        header = (
-            class_definition.display_name
-            if class_definition is not None
-            else class_name
-        )
-        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(header, "Class flavor text unavailable.")
-        evidence_lines = build_class_axis_profile_lines(header, axis_scores)
-        if evidence_lines:
-            self.chart_info_output.setPlainText("\n".join([header, "", class_description, "", *evidence_lines]))
-            return
         self.chart_info_output.setPlainText(
-            "\n".join(
-                [
-                    header,
-                    "",
-                    class_description,
-                    "",
-                    "‣ Axis profile unavailable for this class assignment.",
-                ]
-            )
+            _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        header = "D&D Statblock"
-        if profile_lines:
-            self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
-            return
-        self.chart_info_output.setPlainText(
-            "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
-        )
+        self.chart_info_output.setPlainText(_format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
         self,
@@ -28763,48 +28586,7 @@ class MainWindow(QMainWindow):
         return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
         
     def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
-        species_lines: list[str] = []
-        class_lines: list[str] = []
-        try:
-            species_top_three = assign_top_three_species(chart)
-        except Exception:
-            species_top_three = []
-        for rank, species in enumerate(species_top_three[:3], start=1):
-            family = species[0]
-            subtype = species[1] if len(species) > 1 else ""
-            species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
-            species_lines.append(f"{rank}) {family}{species_variant}")
-
-        try:
-            axis_scores = score_class_axes(chart)
-            class_scores = DnDClassScorer().score_classes(axis_scores)
-            ranked_classes = sorted(
-                class_scores.values(),
-                key=lambda scored_class: scored_class.score,
-                reverse=True,
-            )
-        except Exception:
-            ranked_classes = []
-        for rank, scored_class in enumerate(ranked_classes[:3], start=1):
-            class_definition = DND_CLASSES.get(scored_class.key)
-            class_display_name = (
-                class_definition.display_name
-                if class_definition is not None
-                else scored_class.key.replace("_", " ").title()
-            )
-            class_lines.append(f"{rank}) {class_display_name}")
-
-        if not species_lines:
-            species_lines.append("No species prediction available.")
-        if not class_lines:
-            class_lines.append("No class prediction available.")
-
-        return (
-            "<b>Top 3 Species/Subspecies</b><br>"
-            + "<br>".join(html.escape(line) for line in species_lines)
-            + "<br><br><b>Top 3 Classes</b><br>"
-            + "<br>".join(html.escape(line) for line in class_lines)
-        )
+        return _build_dnd_top_three_summary_html(chart)
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
@@ -28884,7 +28666,6 @@ class MainWindow(QMainWindow):
             weighted_type_totals=weighted_type_totals,
             friction_totals=friction_totals,
             weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
         )
 
     def _build_popout_left_panel(
@@ -28903,18 +28684,13 @@ class MainWindow(QMainWindow):
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
+            parent=self,
             chart_info_placeholder=chart_info_placeholder,
             aspect_entries=aspect_entries,
             export_file_stem=export_file_stem,
+            get_share_icon_path=_get_share_icon_path,
             weighted_score_for_entry=weighted_score_for_entry,
             aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
