@@ -4,7 +4,7 @@ import logging
 from typing import Callable
 
 from PySide6.QtCore import QThread, Qt, QSize
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QColor, QFont, QIcon, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
     QLabel,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.features.retcon.workers import SwissEphemerisPrefetchWorker
 from ephemeraldaddy.gui.style import (
+    CHART_ANALYTICS_PANEL_BACKGROUND,
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_CHART_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE,
@@ -39,6 +40,15 @@ from ephemeraldaddy.gui.style import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_solid_chart_analytics_background(widget: QWidget) -> None:
+    """Force an opaque paint surface behind Chart Analytics sections."""
+    widget.setAttribute(Qt.WA_StyledBackground, True)
+    widget.setAutoFillBackground(True)
+    palette = widget.palette()
+    palette.setColor(QPalette.Window, QColor(CHART_ANALYTICS_PANEL_BACKGROUND))
+    widget.setPalette(palette)
 
 
 class ChartAnalysisSectionsController:
@@ -142,6 +152,7 @@ class ChartAnalysisSectionsController:
         section_key: str | None = None,
     ) -> QVBoxLayout:
         section = QWidget()
+        _apply_solid_chart_analytics_background(section)
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(0)
@@ -158,6 +169,7 @@ class ChartAnalysisSectionsController:
         )
 
         content = QWidget()
+        _apply_solid_chart_analytics_background(content)
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(*DATABASE_ANALYTICS_CONTENT_MARGINS)
         content_layout.setSpacing(DATABASE_ANALYTICS_CONTENT_SPACING)
@@ -238,6 +250,7 @@ class ChartAnalysisSectionsController:
         )
 
         chart_container = QWidget()
+        _apply_solid_chart_analytics_background(chart_container)
         chart_layout = QVBoxLayout()
         chart_layout.setContentsMargins(*DATABASE_ANALYTICS_CHART_CONTENT_MARGINS)
         chart_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)

@@ -921,6 +921,7 @@ from ephemeraldaddy.gui.style import (
     PLANET_DYNAMICS_BAR_COLORS,
     STANDARD_NCV_PIE_CHART,
     STANDARD_NCV_POPOUT_LAYOUT,
+    CHART_ANALYTICS_PANEL_BACKGROUND,
     CHART_THEME_COLORS,
     GENDER_GUESSER_COLORS,
     INACTIVE_ACTION_BUTTON_STYLE,
@@ -27985,6 +27986,11 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
+        canvas.setAttribute(Qt.WA_StyledBackground, True)
+        canvas.setAutoFillBackground(True)
+        canvas_palette = canvas.palette()
+        canvas_palette.setColor(QPalette.Window, QColor(CHART_ANALYTICS_PANEL_BACKGROUND))
+        canvas.setPalette(canvas_palette)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
         try:
