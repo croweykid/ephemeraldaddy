@@ -668,6 +668,13 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
     get_text_export_path as _get_text_export_path,
+    sanitize_export_token as _sanitize_export_token,
+)
+from ephemeraldaddy.gui.features.charts.popout_helpers import (
+    attach_popout_share_button as _attach_popout_share_button,
+    export_popout_chart_data_output as _export_popout_chart_data_output,
+    position_popout_share_button as _position_popout_share_button,
+    register_popout_close_shortcuts as _register_popout_close_shortcuts,
 )
 from ephemeraldaddy.gui.features.charts.popout_helpers import (
     attach_popout_share_button as _attach_popout_share_button,
@@ -1627,14 +1634,6 @@ def _should_run_startup_dependency_check(settings: QSettings) -> bool:
 def _mark_startup_dependency_check_complete(settings: QSettings) -> None:
     settings.setValue("startup/dependency_check_stamp", STARTUP_DEPENDENCY_CHECK_STAMP)
     settings.sync()
-
-
-def _sanitize_export_token(value: str, fallback: str = "chart") -> str:
-    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
-    return token or fallback
-
-
-
 
 
 
