@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QPushButton,
@@ -19,16 +18,6 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.interpretations import MODE_KEYWORDS
-from ephemeraldaddy.gui.style import CHART_ANALYTICS_PANEL_BACKGROUND
-
-
-def apply_chart_right_panel_background(widget: QWidget) -> None:
-    """Make Chart View right-panel surfaces opaque to prevent stacked-page bleed-through."""
-    widget.setAttribute(Qt.WA_StyledBackground, True)
-    widget.setAutoFillBackground(True)
-    palette = widget.palette()
-    palette.setColor(QPalette.Window, QColor(CHART_ANALYTICS_PANEL_BACKGROUND))
-    widget.setPalette(palette)
 
 
 MODE_POPOUT_COLORS: dict[str, str] = {
@@ -159,7 +148,6 @@ def build_chart_right_panel_stack(
 ) -> ChartRightPanelStack:
     """Build the Chart View right panel with analytics/subjective notes toggle."""
     container = QWidget()
-    apply_chart_right_panel_background(container)
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(4)
@@ -196,21 +184,14 @@ def build_chart_right_panel_stack(
     layout.addWidget(controls_row)
 
     stack = QStackedWidget()
-    apply_chart_right_panel_background(stack)
     stack.setMinimumWidth(0)
     layout.addWidget(stack, 1)
-
-    apply_chart_right_panel_background(analytics_content_widget)
-    apply_chart_right_panel_background(predictions_content_widget)
-    apply_chart_right_panel_background(subjective_notes_content_widget)
 
     analytics_scroll = QScrollArea()
     analytics_scroll.setWidgetResizable(True)
     analytics_scroll.setFrameShape(QScrollArea.NoFrame)
     analytics_scroll.setMinimumWidth(240)
     analytics_scroll.setStyleSheet(scrollbar_style)
-    apply_chart_right_panel_background(analytics_scroll)
-    apply_chart_right_panel_background(analytics_scroll.viewport())
     analytics_scroll.setFocusPolicy(Qt.StrongFocus)
     analytics_scroll.setWidget(analytics_content_widget)
     stack.addWidget(analytics_scroll)
@@ -220,8 +201,6 @@ def build_chart_right_panel_stack(
     predictions_scroll.setFrameShape(QScrollArea.NoFrame)
     predictions_scroll.setMinimumWidth(240)
     predictions_scroll.setStyleSheet(scrollbar_style)
-    apply_chart_right_panel_background(predictions_scroll)
-    apply_chart_right_panel_background(predictions_scroll.viewport())
     predictions_scroll.setFocusPolicy(Qt.StrongFocus)
     predictions_scroll.setWidget(predictions_content_widget)
     stack.addWidget(predictions_scroll)
@@ -231,8 +210,6 @@ def build_chart_right_panel_stack(
     subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
     subjective_notes_scroll.setMinimumWidth(240)
     subjective_notes_scroll.setStyleSheet(scrollbar_style)
-    apply_chart_right_panel_background(subjective_notes_scroll)
-    apply_chart_right_panel_background(subjective_notes_scroll.viewport())
     subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
     subjective_notes_scroll.setWidget(subjective_notes_content_widget)
     stack.addWidget(subjective_notes_scroll)
