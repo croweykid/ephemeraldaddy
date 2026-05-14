@@ -23377,8 +23377,8 @@ class MainWindow(QMainWindow):
         # ax.figure.subplots_adjust(left=0.18, bottom=0.46, top=0.92, right=0.98)
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=0.46,
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            bottom=0.40,
+            top=0.94,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
@@ -23575,7 +23575,7 @@ class MainWindow(QMainWindow):
             spine.set_visible(False)
         ax.grid(False)
         ax.figure.tight_layout()
-        ax.figure.subplots_adjust(left=0.09, bottom=0.34, top=0.83, right=0.97)
+        ax.figure.subplots_adjust(left=0.09, bottom=0.28, top=0.82, right=0.97)
 
     def _draw_planet_dynamics(self, ax, chart: Chart) -> None:
         scores = getattr(chart, "planet_dynamics_scores", None) or _calculate_planet_dynamics_scores(chart)
@@ -23681,8 +23681,8 @@ class MainWindow(QMainWindow):
         ax.figure.tight_layout()
         ax.figure.subplots_adjust(
             left=STANDARD_NCV_HORIZONTAL_BAR_CHART["left"],
-            bottom=max(STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"], 0.24 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"]),
-            top=STANDARD_NCV_HORIZONTAL_BAR_CHART["top"],
+            bottom=0.18 if emoji_images_applied else STANDARD_NCV_HORIZONTAL_BAR_CHART["bottom"],
+            top=0.90,
             right=STANDARD_NCV_HORIZONTAL_BAR_CHART["right"],
         )
 
@@ -28078,7 +28078,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="nakshatra_wordcloud_canvas",
             container_layout=self.nakshatra_wordcloud_container_layout,
-            figsize=(5.5, 5.1),
+            figsize=(5.5, 4.0),
             title="Dominant Nakshatras" if selected_mode == "dominant_nakshatras" else "Nakshatra Prevalence",
             draw_fn=self._draw_nakshatra_wordcloud,
             chart=chart,
@@ -28107,7 +28107,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="gender_guesser_canvas",
             container_layout=self.gender_guesser_container_layout,
-            figsize=(5.5, 2.8),
+            figsize=(5.5, 1.9),
             title="Gender Guesser",
             draw_fn=self._draw_gender_guesser,
             chart=chart,
@@ -28136,7 +28136,7 @@ class MainWindow(QMainWindow):
         self._render_metric_panel(
             canvas_attr="planet_dynamics_canvas",
             container_layout=self.planet_dynamics_container_layout,
-            figsize=(5.5, 3.4), #width & height of "Body Dynamics" graph
+            figsize=(5.5, 2.4), #width & height of "Body Dynamics" graph
             title="Body Dynamics",
             draw_fn=self._draw_planet_dynamics,
             chart=chart,
