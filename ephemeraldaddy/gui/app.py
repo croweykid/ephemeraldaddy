@@ -555,7 +555,7 @@ from ephemeraldaddy.gui.features.charts.collections import (
     normalize_collection_id,
     sanitize_collection_name,
 )
-from ephemeraldaddy.gui.features.charts.aspect_weight_graphs import (
+from ephemeraldaddy.gui.features.charts.popout_aspects import (
     build_popout_left_panel as _build_popout_left_panel_widget,
     collect_aspect_category_totals as _collect_aspect_category_totals,
     collect_aspect_type_counts as _collect_aspect_type_counts,
@@ -667,7 +667,6 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_MODE_LABELS,
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
-    export_aspect_distribution_csv_dialog as _export_aspect_distribution_csv_dialog,
     get_text_export_path as _get_text_export_path,
 )
 from ephemeraldaddy.gui.features.charts.popout_helpers import (
@@ -912,7 +911,6 @@ from ephemeraldaddy.gui.style import (
     CHART_DATA_DND_SUBHEADER_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_BOLD,
     CHART_DATA_DND_SUBHEADER_NOTE_ITALIC,
-    CHART_DATA_INFO_LABEL_STYLE,
     CHART_DATA_POPOUT_HEADER_STYLE,
     CHART_INFO_EVIDENCE_LABEL_BOLD,
     CHART_INFO_SPECIES_DESCRIPTION_ITALIC,
@@ -972,7 +970,6 @@ from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
     ChartDataTableOutput,
-    ChartSummaryHighlighter,
     apply_chart_data_highlighter,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
@@ -4922,7 +4919,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weighted_type_totals=weighted_type_totals,
             friction_totals=friction_totals,
             weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
         )
 
     def _build_popout_left_panel(
@@ -4941,18 +4937,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
+            parent=self,
             chart_info_placeholder=chart_info_placeholder,
             aspect_entries=aspect_entries,
             export_file_stem=export_file_stem,
+            get_share_icon_path=_get_share_icon_path,
             weighted_score_for_entry=weighted_score_for_entry,
             aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
@@ -28747,7 +28738,6 @@ class MainWindow(QMainWindow):
             weighted_type_totals=weighted_type_totals,
             friction_totals=friction_totals,
             weighted_friction_totals=weighted_friction_totals,
-            chart_theme_colors=CHART_THEME_COLORS,
         )
 
     def _build_popout_left_panel(
@@ -28766,18 +28756,13 @@ class MainWindow(QMainWindow):
     ) -> QPlainTextEdit:
         return _build_popout_left_panel_widget(
             layout,
+            parent=self,
             chart_info_placeholder=chart_info_placeholder,
             aspect_entries=aspect_entries,
             export_file_stem=export_file_stem,
+            get_share_icon_path=_get_share_icon_path,
             weighted_score_for_entry=weighted_score_for_entry,
             aspect_subheader=aspect_subheader,
-            parent=self,
-            chart_summary_highlighter_cls=ChartSummaryHighlighter,
-            export_aspect_distribution_csv_dialog=_export_aspect_distribution_csv_dialog,
-            get_share_icon_path=_get_share_icon_path,
-            chart_data_info_label_style=CHART_DATA_INFO_LABEL_STYLE,
-            database_analytics_dropdown_style=DATABASE_ANALYTICS_DROPDOWN_STYLE,
-            chart_theme_colors=CHART_THEME_COLORS,
             show_aspect_distribution=show_aspect_distribution,
             awareness_stream_entries=awareness_stream_entries,
             circuit_entries=circuit_entries,
