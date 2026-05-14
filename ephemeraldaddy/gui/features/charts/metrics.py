@@ -433,6 +433,18 @@ def calculate_dominant_sign_weights(chart: Chart) -> dict[str, float]:
         if count >= 3:
             weighted_counts[sign] += 1.0 #float(count) #used to double stellium score, now just give a lil bonus
 
+    # Feed fully calculated house dominance back into each house's natural sign
+    # only after all direct body/sign scoring is complete.  House dominance is
+    # derived from final per-body weights via calculate_dominant_house_weights(),
+    # which does not call calculate_dominant_sign_weights(), so this adds the
+    # H8 -> Scorpio style resonance without creating sign/house recursion.
+    if use_houses and houses:
+        dominant_house_weights = calculate_dominant_house_weights(chart)
+        for house_num, house_weight in dominant_house_weights.items():
+            natural_sign = NATURAL_HOUSE_SIGNS.get(house_num)
+            if natural_sign:
+                weighted_counts[natural_sign] += float(house_weight)
+
     return weighted_counts
 
 def calculate_sign_prevalence_counts(chart: Chart) -> dict[str, int]:
