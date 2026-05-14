@@ -596,6 +596,7 @@ from ephemeraldaddy.gui.dbv_search_panel import (
     build_dbv_search_panel,
     chart_matches_body_dynamics_filters,
     reset_body_dynamics_filters,
+    weight_is_at_least_triple_next_highest,
 )
 from ephemeraldaddy.gui.features.charts.transit_workers import (
     ManagedTransitPopoutDialog,
@@ -18522,23 +18523,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         weights: dict[str, float] | None,
         selected_key: str,
     ) -> bool:
-        if not weights or selected_key not in weights:
-            return False
-        try:
-            selected_weight = float(weights.get(selected_key, 0.0) or 0.0)
-        except (TypeError, ValueError):
-            return False
-        if selected_weight <= 0.0:
-            return False
-        other_weights = []
-        for weight_key, weight in weights.items():
-            if str(weight_key) == selected_key:
-                continue
-            try:
-                other_weights.append(float(weight or 0.0))
-            except (TypeError, ValueError):
-                return False
-        return all(selected_weight >= (other_weight * 3.0) for other_weight in other_weights)
+        return weight_is_at_least_triple_next_highest(weights, selected_key)
 
     def _chart_dominant_nakshatra_matches(
         self,
