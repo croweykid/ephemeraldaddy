@@ -11618,6 +11618,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart.is_placeholder = False
 
         if not parent._confirm_duplicate_chart_save(chart):
+            parent._reset_new_chart_form()
             return
 
         try:
