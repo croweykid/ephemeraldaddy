@@ -949,16 +949,12 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     assign_top_three_species,
     assign_top_three_species_with_evidence,
 )
-from ephemeraldaddy.analysis.dnd.dnd_definitions import SPECIES_DESCRIPTIONS
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
-    build_class_axis_profile_lines,
     DND_CLASS_AXIS_EARTHTONE_COLORS,
     DND_CLASS_THRESHOLD_COLOR,
     DND_CLASSES,
-    DND_CLASS_SUBCLASS_EXPLAINERS,
     DnDClassScorer,
     format_class_axis_label,
-    resolve_class_key,
     score_class_axes,
     score_dnd_statblock,
 )
@@ -991,8 +987,12 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
+    build_dnd_top_three_summary_html as _build_dnd_top_three_summary_html,
     connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
+    format_dnd_class_info_text as _format_dnd_class_info_text,
+    format_dnd_species_info_text as _format_dnd_species_info_text,
+    format_dnd_statblock_info_text as _format_dnd_statblock_info_text,
 )
 
 
@@ -25364,28 +25364,8 @@ class MainWindow(QMainWindow):
         score: float,
         evidence: list[str],
     ) -> None:
-        label = f"{family} ({subtype})" if subtype else family
-        header = f"{label} • {score:.2f}"
-        species_description = SPECIES_DESCRIPTIONS.get(family, "")
-        subtype_key = f"{family}::{subtype}" if subtype else ""
-        subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
-        description_parts = [part for part in (species_description, subtype_description) if part]
-        description_line = " ".join(description_parts) if description_parts else "Species flavor text unavailable."
-        if evidence:
-            lines = [f"• {line}" for line in evidence]
-            self.chart_info_output.setPlainText(
-                "\n".join([header, description_line, "", "Evidence:"] + lines)
-            )
-            return
         self.chart_info_output.setPlainText(
-            "\n".join(
-                [
-                    header,
-                    description_line,
-                    "",
-                    "• Evidence is unavailable for this species assignment.",
-                ]
-            )
+            _format_dnd_species_info_text(family, subtype, score, evidence)
         )
 
     def _show_dnd_class_info(
@@ -25395,38 +25375,12 @@ class MainWindow(QMainWindow):
         _score: float,
         axis_scores: dict[str, float],
     ) -> None:
-        resolved_class_key = resolve_class_key(class_key) or resolve_class_key(class_name) or class_name
-        class_definition = DND_CLASSES.get(resolved_class_key)
-        header = (
-            class_definition.display_name
-            if class_definition is not None
-            else class_name
-        )
-        class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(header, "Class flavor text unavailable.")
-        evidence_lines = build_class_axis_profile_lines(header, axis_scores)
-        if evidence_lines:
-            self.chart_info_output.setPlainText("\n".join([header, "", class_description, "", *evidence_lines]))
-            return
         self.chart_info_output.setPlainText(
-            "\n".join(
-                [
-                    header,
-                    "",
-                    class_description,
-                    "",
-                    "‣ Axis profile unavailable for this class assignment.",
-                ]
-            )
+            _format_dnd_class_info_text(class_name, class_key, axis_scores)
         )
 
     def _show_dnd_statblock_info(self, profile_lines: list[str]) -> None:
-        header = "D&D Statblock"
-        if profile_lines:
-            self.chart_info_output.setPlainText("\n".join([header, "", *profile_lines]))
-            return
-        self.chart_info_output.setPlainText(
-            "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
-        )
+        self.chart_info_output.setPlainText(_format_dnd_statblock_info_text(profile_lines))
 
     def _show_aspect_info(
         self,
@@ -28617,48 +28571,7 @@ class MainWindow(QMainWindow):
         return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
         
     def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
-        species_lines: list[str] = []
-        class_lines: list[str] = []
-        try:
-            species_top_three = assign_top_three_species(chart)
-        except Exception:
-            species_top_three = []
-        for rank, species in enumerate(species_top_three[:3], start=1):
-            family = species[0]
-            subtype = species[1] if len(species) > 1 else ""
-            species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
-            species_lines.append(f"{rank}) {family}{species_variant}")
-
-        try:
-            axis_scores = score_class_axes(chart)
-            class_scores = DnDClassScorer().score_classes(axis_scores)
-            ranked_classes = sorted(
-                class_scores.values(),
-                key=lambda scored_class: scored_class.score,
-                reverse=True,
-            )
-        except Exception:
-            ranked_classes = []
-        for rank, scored_class in enumerate(ranked_classes[:3], start=1):
-            class_definition = DND_CLASSES.get(scored_class.key)
-            class_display_name = (
-                class_definition.display_name
-                if class_definition is not None
-                else scored_class.key.replace("_", " ").title()
-            )
-            class_lines.append(f"{rank}) {class_display_name}")
-
-        if not species_lines:
-            species_lines.append("No species prediction available.")
-        if not class_lines:
-            class_lines.append("No class prediction available.")
-
-        return (
-            "<b>Top 3 Species/Subspecies</b><br>"
-            + "<br>".join(html.escape(line) for line in species_lines)
-            + "<br><br><b>Top 3 Classes</b><br>"
-            + "<br>".join(html.escape(line) for line in class_lines)
-        )
+        return _build_dnd_top_three_summary_html(chart)
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
