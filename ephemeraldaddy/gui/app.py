@@ -485,6 +485,7 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_PATTERN_DEFS,
     ASPECT_BODY_ALIASES,
     ASPECT_SORT_OPTIONS,
+    ANGLE_POINTS,
     ANGLE_WEIGHT,
     NATAL_WEIGHT,
     TRANSIT_WEIGHT,
@@ -2702,7 +2703,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         label_by_mode = {
             "sign_prevalence": "Distribution of signs (all positions) in database",
-            "house_prevalence": "Distribution of houses (all positions) in database",
+            "house_prevalence": "Distribution of houses (non-angle positions) in database",
             "elemental_prevalence": "Distribution of elements in database",
             "nakshatra_prevalence": "Distribution of nakshatras in database",
         }
@@ -27923,7 +27924,7 @@ class MainWindow(QMainWindow):
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
         if use_houses and houses:
             planets = (
-                list(PLANET_ORDER)
+                [body for body in PLANET_ORDER if body not in ANGLE_POINTS]
                 if mode == "house_prevalence"
                 else [body for body in PLANET_ORDER if body in NATAL_WEIGHT]
             )

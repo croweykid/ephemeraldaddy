@@ -316,7 +316,7 @@ class ChartAnalysisSectionsController:
             subtitle_text="Houses evaluated with priority weights (rulerships/houses/signs/etc).",
             subtitle_by_mode={
                 "dominant_houses": "Houses evaluated with priority weights (rulerships/houses/signs/etc).",
-                "house_prevalence": "Total distribution of houses across chart, equally weighted.",
+                "house_prevalence": "Total distribution of non-angle placements across houses, equally weighted.",
             },
             default_filename="ephemeraldaddy_chart_dominant_houses",
             chart_container_attr="house_chart_container",
