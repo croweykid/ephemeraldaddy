@@ -5,15 +5,26 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from ephemeraldaddy.analysis.dnd.dnd_definitions import DND_STAT_EXPLANATIONS, DND_CLASS_SUBCLASS_STATS
+from ephemeraldaddy.analysis.dnd.dnd_definitions import (
+    DND_CLASS_SUBCLASS_STATS,
+    DND_STAT_EXPLANATIONS,
+    SPECIES_DESCRIPTIONS,
+)
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     DND_CLASSES,
+    DND_CLASS_SUBCLASS_EXPLAINERS,
+    DnDClassScorer,
+    build_class_axis_profile_lines,
+    resolve_class_key,
     score_class_axes,
     score_class_families,
     score_dnd_classes,
     score_dnd_statblock,
 )
-from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SpeciesAssigner
+from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
+    SpeciesAssigner,
+    assign_top_three_species,
+)
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DND_STAT_EARTHTONE_COLORS, get_cycled_earthtone_colors
 
 def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[str, ...], apply_standard_bar_axes: Any) -> None:
@@ -134,6 +145,121 @@ def build_dnd_statblock_popout_info_html(chart: Any, stat_key: str) -> str:
         f"{html.escape(stat_name)} is about average.</span></div>"
     )
 
+
+def format_dnd_species_info_text(
+    family: str,
+    subtype: str,
+    score: float,
+    evidence: list[str],
+) -> str:
+    label = f"{family} ({subtype})" if subtype else family
+    header = f"{label} • {score:.2f}"
+    species_description = SPECIES_DESCRIPTIONS.get(family, "")
+    subtype_key = f"{family}::{subtype}" if subtype else ""
+    subtype_description = SPECIES_DESCRIPTIONS.get(subtype_key, "")
+    description_parts = [part for part in (species_description, subtype_description) if part]
+    description_line = (
+        " ".join(description_parts)
+        if description_parts
+        else "Species flavor text unavailable."
+    )
+    if evidence:
+        lines = [f"• {line}" for line in evidence]
+        return "\n".join([header, description_line, "", "Evidence:"] + lines)
+    return "\n".join(
+        [
+            header,
+            description_line,
+            "",
+            "• Evidence is unavailable for this species assignment.",
+        ]
+    )
+
+
+def format_dnd_class_info_text(
+    class_name: str,
+    class_key: str,
+    axis_scores: dict[str, float],
+) -> str:
+    resolved_class_key = (
+        resolve_class_key(class_key)
+        or resolve_class_key(class_name)
+        or class_name
+    )
+    class_definition = DND_CLASSES.get(resolved_class_key)
+    header = (
+        class_definition.display_name
+        if class_definition is not None
+        else class_name
+    )
+    class_description = DND_CLASS_SUBCLASS_EXPLAINERS.get(
+        header,
+        "Class flavor text unavailable.",
+    )
+    evidence_lines = build_class_axis_profile_lines(header, axis_scores)
+    if evidence_lines:
+        return "\n".join([header, "", class_description, "", *evidence_lines])
+    return "\n".join(
+        [
+            header,
+            "",
+            class_description,
+            "",
+            "‣ Axis profile unavailable for this class assignment.",
+        ]
+    )
+
+
+def format_dnd_statblock_info_text(profile_lines: list[str]) -> str:
+    header = "D&D Statblock"
+    if profile_lines:
+        return "\n".join([header, "", *profile_lines])
+    return "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
+
+
+def build_dnd_top_three_summary_html(chart: Any) -> str:
+    species_lines: list[str] = []
+    class_lines: list[str] = []
+    try:
+        species_top_three = assign_top_three_species(chart)
+    except Exception:
+        species_top_three = []
+    for rank, species in enumerate(species_top_three[:3], start=1):
+        family = species[0]
+        subtype = species[1] if len(species) > 1 else ""
+        species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
+        species_lines.append(f"{rank}) {family}{species_variant}")
+
+    try:
+        axis_scores = score_class_axes(chart)
+        class_scores = DnDClassScorer().score_classes(axis_scores)
+        ranked_classes = sorted(
+            class_scores.values(),
+            key=lambda scored_class: scored_class.score,
+            reverse=True,
+        )
+    except Exception:
+        ranked_classes = []
+    for rank, scored_class in enumerate(ranked_classes[:3], start=1):
+        class_definition = DND_CLASSES.get(scored_class.key)
+        class_display_name = (
+            class_definition.display_name
+            if class_definition is not None
+            else scored_class.key.replace("_", " ").title()
+        )
+        class_lines.append(f"{rank}) {class_display_name}")
+
+    if not species_lines:
+        species_lines.append("No species prediction available.")
+    if not class_lines:
+        class_lines.append("No class prediction available.")
+
+    return (
+        "<b>Top 3 Species/Subspecies</b><br>"
+        + "<br>".join(html.escape(line) for line in species_lines)
+        + "<br><br><b>Top 3 Classes</b><br>"
+        + "<br>".join(html.escape(line) for line in class_lines)
+    )
 
 def connect_dnd_statblock_popout_pick_handler(
     popout_canvas: Any,
