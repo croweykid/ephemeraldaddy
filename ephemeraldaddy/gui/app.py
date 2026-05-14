@@ -11663,15 +11663,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if isinstance(parent, QWidget):
             if isinstance(parent, MainWindow):
-                parent._show_chart_view_maximized(maximize=self.isMaximized(), source_window=self)
+                was_maximized = self.isMaximized()
+                parent._show_chart_view_maximized(maximize=was_maximized, source_window=self)
+                parent._retarget_size_checker_to_main_view()
+                self.hide()
+                # Showing the success dialog with Database View as the parent can
+                # reactivate the database dialog after Chart View has been shown.
+                # Queue one final foreground request so the imported chart remains
+                # the visible, active window after the dialog/window-manager churn.
+                QTimer.singleShot(0, lambda: parent._show_chart_view_maximized(maximize=was_maximized))
             else:
                 parent.showNormal()
                 parent.raise_()
                 parent.activateWindow()
-        self.lower()
+                self.hide()
 
         QMessageBox.information(
-            self,
+            parent if isinstance(parent, QWidget) else self,
             "Astrotheme import",
             f"Imported and saved chart #{chart_id} from Astrotheme.",
         )
