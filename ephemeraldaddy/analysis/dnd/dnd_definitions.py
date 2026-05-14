@@ -638,8 +638,8 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
         "antigates":{59,29,47,27,5,26,4,22,25,36,33},
-        #"channels":{[20,34]:2,[10,20]:4,[10,34]:3,[34,57]:2,[20,57]:2}
-        #"antichannels":{[6,59]:2,[47,64]:3},
+        #"channels":[[20,34]:2,[10,20]:4,[10,34]:3,[34,57]:2,[20,57]:2],
+        #"antichannels":[[6,59]:2,[47,64]:3],
         "hdtypes":{"MF Generator":6},
         "antihdtypes":{"Projector":7},
         "centers":{"Spleen":3},
