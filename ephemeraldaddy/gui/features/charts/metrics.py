@@ -515,21 +515,28 @@ def calculate_modal_prevalence_counts(chart: Chart) -> dict[str, int]:
                 break
     return mode_counts
 
-def calculate_element_prevalence_counts(chart: Chart) -> dict[str, int]:
-    elements = ["Fire", "Earth", "Air", "Water"]
-    element_counts = {element: 0 for element in elements}
-    use_houses = chart_uses_houses(chart)
-    for body in PLANET_ORDER:
-        if not use_houses and body in {"AS", "MC", "DS", "IC"}:
-            continue
-        lon = chart.positions.get(body)
-        if lon is None:
-            continue
-        sign = sign_for_longitude(lon)
-        natural_element = SIGN_ELEMENTS.get(sign)
-        if natural_element in element_counts:
-            element_counts[natural_element] += 1
+def element_prevalence_counts_from_sign_counts(sign_counts: dict[str, int | float]) -> dict[str, float]:
+    """Collapse equal-weight sign placement counts into elemental totals.
+
+    Elemental prevalence is the elemental grouping of sign prevalence: each listed
+    body/point placement counts once for its sign, and that sign contributes once
+    to its natural element. Keeping this as a separate helper makes database-wide
+    aggregation use the same numerator as sign prevalence instead of an
+    independent per-chart scoring path.
+    """
+    element_counts = {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")}
+    for sign, count in sign_counts.items():
+        element = SIGN_ELEMENTS.get(sign)
+        if element in element_counts:
+            element_counts[element] += float(count)
     return element_counts
+
+
+def calculate_element_prevalence_counts(chart: Chart) -> dict[str, int]:
+    element_counts = element_prevalence_counts_from_sign_counts(
+        calculate_sign_prevalence_counts(chart)
+    )
+    return {element: int(count) for element, count in element_counts.items()}
 
 def calculate_dominant_element_weights(chart: Chart) -> dict[str, float]:
     element_counts = {element: 0.0 for element in ("Fire", "Earth", "Air", "Water")}

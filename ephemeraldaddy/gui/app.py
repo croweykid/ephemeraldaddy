@@ -611,6 +611,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_planet_weights as _calculate_dominant_planet_weights,
     calculate_dominant_sign_weights as _calculate_dominant_sign_weights,
     calculate_element_prevalence_counts as _calculate_element_prevalence_counts,
+    element_prevalence_counts_from_sign_counts as _element_prevalence_counts_from_sign_counts,
     calculate_gender_prevalence_score as _calculate_gender_prevalence_score,
     calculate_gender_weight_score as _calculate_gender_weight_score,
     calculate_house_prevalence_counts as _calculate_house_prevalence_counts,
@@ -8358,7 +8359,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["house_prevalence_totals"][house_num] += count
                 snapshot["house_prevalence_total_count"] += count
 
-            element_prevalence_counts = _calculate_element_prevalence_counts(chart)
+            # Elemental prevalence is the elemental grouping of the same
+            # equal-weight position sign counts used by sign prevalence. Derive
+            # it from this snapshot's sign totals so Database View aggregation
+            # stays locked to Chart View's Elemental Prevalence numerator.
+            element_prevalence_counts = _element_prevalence_counts_from_sign_counts(
+                snapshot["sign_totals"]
+            )
             for element in ("Fire", "Earth", "Air", "Water"):
                 count = float(element_prevalence_counts.get(element, 0.0))
                 snapshot["element_prevalence_totals"][element] += count
