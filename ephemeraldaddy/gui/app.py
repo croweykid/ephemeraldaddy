@@ -22749,6 +22749,98 @@ class MainWindow(QMainWindow):
             fallback_text_color=CHART_THEME_COLORS.get("text", "#f5f5f5"),
         )
 
+
+    def _colorized_dominance_label_html(self, label: object, color: object | None) -> str:
+        label_text = str(label or "")
+        color_text = str(color or "").strip()
+        if not color_text:
+            return html.escape(label_text)
+        return (
+            f'<span style="color: {html.escape(color_text)}; font-weight: 600;">'
+            f"{html.escape(label_text)}</span>"
+        )
+
+    def _dominance_body_label_html(self, body: str) -> str:
+        return self._colorized_dominance_label_html(
+            _display_body_name(body),
+            PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+        )
+
+    def _dominance_sign_label_html(self, sign: str) -> str:
+        return self._colorized_dominance_label_html(
+            sign,
+            SIGN_COLORS.get(sign, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+        )
+
+    def _dominance_house_label_html(self, house_num: int | str) -> str:
+        house_label = f"House {house_num}"
+        return self._colorized_dominance_label_html(
+            house_label,
+            HOUSE_COLORS.get(str(house_num), CHART_THEME_COLORS.get("text", "#f5f5f5")),
+        )
+
+    def _dominance_aspect_label_html(self, aspect_type: str) -> str:
+        aspect_label = str(aspect_type or "aspect").strip() or "aspect"
+        aspect_key = aspect_label.replace(" ", "_").lower()
+        return self._colorized_dominance_label_html(
+            aspect_label,
+            ASPECT_COLORS.get(aspect_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+        )
+
+    def _dominance_reason_line_html(self, text: object) -> str:
+        raw_text = str(text or "")
+        body_labels: dict[str, str] = {}
+        for body in PLANET_COLORS:
+            display = _display_body_name(body)
+            body_labels[body] = body
+            body_labels[display] = body
+        token_labels = sorted(
+            set(body_labels) | set(ZODIAC_NAMES) | {key.replace("_", " ") for key in ASPECT_COLORS},
+            key=len,
+            reverse=True,
+        )
+        token_pattern = "|".join(re.escape(label) for label in token_labels if label)
+        pattern = re.compile(
+            rf"(?<![\w])(?:House\s+(?P<house>1[0-2]|[1-9])|(?P<token>{token_pattern}))(?![\w])",
+            re.IGNORECASE,
+        )
+        parts: list[str] = []
+        last_end = 0
+        for match in pattern.finditer(raw_text):
+            parts.append(html.escape(raw_text[last_end:match.start()]))
+            matched_text = match.group(0)
+            house_match = match.group("house")
+            if house_match:
+                parts.append(self._dominance_house_label_html(house_match))
+            else:
+                token = match.group("token") or matched_text
+                canonical_body = next(
+                    (body for label, body in body_labels.items() if label.lower() == token.lower()),
+                    None,
+                )
+                if canonical_body is not None:
+                    parts.append(
+                        self._colorized_dominance_label_html(
+                            token,
+                            PLANET_COLORS.get(canonical_body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                        )
+                    )
+                else:
+                    canonical_sign = next((sign for sign in ZODIAC_NAMES if sign.lower() == token.lower()), None)
+                    if canonical_sign is not None:
+                        parts.append(self._dominance_sign_label_html(canonical_sign))
+                    else:
+                        aspect_key = token.replace(" ", "_").lower()
+                        parts.append(
+                            self._colorized_dominance_label_html(
+                                token,
+                                ASPECT_COLORS.get(aspect_key, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                            )
+                        )
+            last_end = match.end()
+        parts.append(html.escape(raw_text[last_end:]))
+        return "".join(parts)
+
     def _dominance_section_header_html(self, chart: Chart) -> str:
         chart_name = str(getattr(chart, "name", "") or "").strip() or "this chart"
         return (
@@ -22776,8 +22868,8 @@ class MainWindow(QMainWindow):
             house_num = _house_for_longitude(houses, lon)
             _weighted_sign, body_weight = _planet_sign_weight(body, lon, houses, house_num)
             placement_lines.append(
-                f"{html.escape(_display_body_name(body))} in {html.escape(sign_name)}"
-                + (f", House {house_num}" if house_num else "")
+                f"{self._dominance_body_label_html(body)} in {self._dominance_sign_label_html(sign_name)}"
+                + (f", {self._dominance_house_label_html(house_num)}" if house_num else "")
                 + f" (base sign weight {body_weight:.2f})"
             )
 
@@ -22798,7 +22890,9 @@ class MainWindow(QMainWindow):
                 continue
             aspect_type = str(aspect.get("type", "")).strip() or "aspect"
             aspect_lines.append(
-                f"{html.escape(_display_body_name(p1))} {html.escape(aspect_type)} {html.escape(_display_body_name(p2))}"
+                f"{self._dominance_body_label_html(p1)} "
+                f"{self._dominance_aspect_label_html(aspect_type)} "
+                f"{self._dominance_body_label_html(p2)}"
             )
         if aspect_lines:
             lines.append("<ul>" + "".join(f"<li>Aspect contribution: {entry}</li>" for entry in aspect_lines[:8]) + "</ul>")
@@ -22966,7 +23060,7 @@ class MainWindow(QMainWindow):
             body_name,
             _display_body_name,
         )
-        lines.append("<ul>" + "".join(f"<li>{bullet}</li>" for bullet in bullets) + "</ul>")
+        lines.append("<ul>" + "".join(f"<li>{self._dominance_reason_line_html(bullet)}</li>" for bullet in bullets) + "</ul>")
         return "".join(lines)
 
     def _build_house_popout_info(self, chart: Chart, house_num: int) -> str:
@@ -23079,13 +23173,13 @@ class MainWindow(QMainWindow):
                 continue
             body_weight = _planet_weight(body, lon, houses, primary_house)
             contributing_points.append(
-                f"{html.escape(_display_body_name(body))}: {body_weight:.2f} × {share:.2f} share"
+                f"{_display_body_name(body)}: {body_weight:.2f} × {share:.2f} share"
             )
         if contributing_points:
             bullets.extend(contributing_points[:14])
         else:
             bullets.append("No bodies/angles contributed weight to this house.")
-        lines.append("<ul>" + "".join(f"<li>{entry}</li>" for entry in bullets) + "</ul>")
+        lines.append("<ul>" + "".join(f"<li>{self._dominance_reason_line_html(entry)}</li>" for entry in bullets) + "</ul>")
         return "".join(lines)
 
     def _draw_sign_tally(self, ax, chart: Chart) -> None:
