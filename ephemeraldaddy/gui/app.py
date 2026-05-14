@@ -22384,10 +22384,17 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
         figure = canvas.figure
-        height = int(round(figure.get_size_inches()[1] * figure.get_dpi()))
+        figure_width, figure_height = figure.get_size_inches()
+        width = canvas.width()
+        if width <= 0:
+            width = int(round(figure_width * figure.get_dpi()))
+        height = int(round(width * (figure_height / figure_width))) if figure_width > 0 else 0
         if height > 0:
             canvas.setMinimumHeight(height)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
+            if canvas.height() != height:
+                canvas.resize(width, height)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
@@ -24640,6 +24647,8 @@ class MainWindow(QMainWindow):
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
         if obj in self._metric_chart_titles:
+            if event.type() == QEvent.Resize:
+                self._apply_metric_chart_sizing(obj)
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
@@ -27770,18 +27779,19 @@ class MainWindow(QMainWindow):
             ax = figure.add_subplot(111)
             ax.set_facecolor(CHART_THEME_COLORS["background"])
             canvas = FigureCanvas(figure)
-            self._apply_metric_chart_sizing(canvas)
             setattr(self, canvas_attr, canvas)
             self._register_metric_chart(canvas, title)
             self._clear_layout_widgets(container_layout)
             container_layout.addWidget(canvas)
         else:
             figure = canvas.figure
+            figure.set_size_inches(*figsize, forward=True)
             ax = figure.gca()
             ax.clear()
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
+        self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
         try:
             canvas.draw()
