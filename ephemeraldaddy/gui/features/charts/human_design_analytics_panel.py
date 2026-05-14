@@ -23,6 +23,10 @@ from ephemeraldaddy.gui.style import (
     configure_collapsible_header_toggle,
 )
 
+HD_ANALYTICS_SCROLL_MIN_WIDTH = 340
+HD_ANALYTICS_CONTAINER_MIN_WIDTH = 320
+HD_ANALYTICS_EXPANDED_WIDTH = 400
+
 def _theme_color(theme: dict[str, str], key: str, fallback: str) -> str:
     value = str(theme.get(key, "") or "").strip()
     return value or fallback
@@ -64,7 +68,7 @@ def build_human_design_top_splitter(
     hd_analytics_scroll = QScrollArea()
     hd_analytics_scroll.setWidgetResizable(True)
     hd_analytics_scroll.setFrameShape(QScrollArea.NoFrame)
-    hd_analytics_scroll.setMinimumWidth(240)
+    hd_analytics_scroll.setMinimumWidth(HD_ANALYTICS_SCROLL_MIN_WIDTH)
     hd_analytics_scroll.setStyleSheet(
         "QScrollArea { background: transparent; border: none; }"
         "QScrollBar:vertical { background: transparent; width: 8px; margin: 0; }"
@@ -188,7 +192,7 @@ def build_human_design_top_splitter(
     top_splitter.setStretchFactor(0, 5)
     top_splitter.setStretchFactor(1, 2)
 
-    hd_analytics_expanded_width = 300
+    hd_analytics_expanded_width = HD_ANALYTICS_EXPANDED_WIDTH
 
     def _set_hd_analytics_expanded(expanded: bool) -> None:
         nonlocal hd_analytics_expanded_width
@@ -196,7 +200,7 @@ def build_human_design_top_splitter(
             hd_analytics_content.show()
             hd_analytics_toggle.setArrowType(Qt.LeftArrow)
             hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
-            hd_analytics_container.setMinimumWidth(220)
+            hd_analytics_container.setMinimumWidth(HD_ANALYTICS_CONTAINER_MIN_WIDTH)
             hd_analytics_container.setMaximumWidth(16777215)
             top_splitter.setSizes(
                 [
@@ -205,7 +209,11 @@ def build_human_design_top_splitter(
                 ]
             )
             return
-        hd_analytics_expanded_width = max(240, hd_analytics_container.width())
+        
+        hd_analytics_expanded_width = max(
+            HD_ANALYTICS_SCROLL_MIN_WIDTH,
+            hd_analytics_container.width(),
+        )
         hd_analytics_content.hide()
         hd_analytics_toggle.setArrowType(Qt.RightArrow)
         hd_analytics_toggle.setToolTip("Expand HD analytics panel")
