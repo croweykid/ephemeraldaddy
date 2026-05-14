@@ -246,7 +246,7 @@ def _is_personal_chart_type_for_age_inference(value: Optional[str]) -> bool:
     return normalized in {CHART_TYPE_PERSONAL, SOURCE_USER_SUBMITTED}
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 _SENTIMENT_CANONICAL_BY_KEY = {
     option.strip().lower(): option for option in SENTIMENT_OPTIONS
@@ -1070,6 +1070,13 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if user_version < 13:
         _migrate_charts_columns(conn)
         conn.execute("PRAGMA user_version = 13")
+        user_version = 13
+
+    if user_version < 14:
+        if _charts_table_exists(conn):
+            _clear_dominant_weight_caches(conn)
+        conn.execute("PRAGMA user_version = 14")
+
 
 def _get_conn() -> sqlite3.Connection:
     """Open a SQLite connection and ensure the schema exists."""
@@ -3463,18 +3470,22 @@ def update_chart_dominant_sign_weights(
     conn.close()
 
 
+def _clear_dominant_weight_caches(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        UPDATE charts
+        SET dominant_sign_weights = '',
+            dominant_planet_weights = '',
+            dominant_nakshatra_weights = ''
+        """
+    )
+
+
 def invalidate_all_dominant_weight_caches() -> None:
     """Clear cached dominant-weight blobs so downstream reads recompute them."""
     conn = _get_conn()
     with conn:
-        conn.execute(
-            """
-            UPDATE charts
-            SET dominant_sign_weights = '',
-                dominant_planet_weights = '',
-                dominant_nakshatra_weights = ''
-            """
-        )
+        _clear_dominant_weight_caches(conn)
     conn.close()
 
 
