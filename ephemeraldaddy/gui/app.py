@@ -16182,6 +16182,61 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return (parsed_dt.month, parsed_dt.day, datetime_iso)
 
     @staticmethod
+    def _chart_row_zodiac_glyph_for_sign(sign: str | None) -> str:
+        if not sign:
+            return ""
+        try:
+            return ZODIAC_SIGNS[ZODIAC_NAMES.index(sign)]
+        except (ValueError, IndexError):
+            return ""
+
+    @staticmethod
+    def _chart_row_sign_for_position(chart: Chart | None, body: str) -> str | None:
+        if chart is None:
+            return None
+        positions = getattr(chart, "positions", None) or {}
+        lon = positions.get(body)
+        if lon is None:
+            return None
+        try:
+            return _sign_for_longitude(float(lon))
+        except (TypeError, ValueError):
+            return None
+
+    def _chart_row_chart_info_segments(self, chart: Chart | None) -> list[dict[str, object]]:
+        segments: list[dict[str, object]] = []
+
+        def add_segment(text: str, color: str, *, space_after: bool = True) -> None:
+            if text:
+                segments.append(
+                    {
+                        "text": text,
+                        "color": color,
+                        "space_after": space_after,
+                    }
+                )
+
+        for body in ("Sun", "Moon"):
+            sign = self._chart_row_sign_for_position(chart, body)
+            sign_glyph = self._chart_row_zodiac_glyph_for_sign(sign)
+            if not sign_glyph:
+                continue
+            add_segment(
+                PLANET_GLYPHS.get(body, body),
+                PLANET_COLORS.get(body, CHART_THEME_COLORS.get("text", "#f5f5f5")),
+                space_after=False,
+            )
+            add_segment(sign_glyph, SIGN_COLORS.get(sign, "#f5f5f5"))
+
+        ascendant_sign = self._chart_row_sign_for_position(chart, "AS")
+        ascendant_glyph = self._chart_row_zodiac_glyph_for_sign(ascendant_sign)
+        if ascendant_glyph:
+            add_segment("↑", CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            add_segment(ascendant_glyph, SIGN_COLORS.get(ascendant_sign, "#f5f5f5"))
+
+        return segments
+
+    @staticmethod
     def _known_duration_sort_key(year_first_encountered: int | None) -> float:
         now_year = datetime.datetime.now(datetime.timezone.utc).year
         if year_first_encountered is None:
@@ -16507,11 +16562,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 place = birth_place or ""
                 gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
                 place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
+                chart_info_segments = self._chart_row_chart_info_segments(chart)
+                chart_info_label = "".join(
+                    f"{segment.get('text', '')}{' ' if segment.get('space_after', True) else ''}"
+                    for segment in chart_info_segments
+                ).strip()
                 row_prefix = "💀  " if bool(is_deceased) else ""
                 label = (
                     f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {alias_label}  {from_whence_label}  {date_label}  {time_label}"
-                    f"  {retcon_time_label}  {place_with_gender}"
+                    f"{display_name}  {alias_label}  {from_whence_label}  {chart_info_label}  "
+                    f"{date_label}  {time_label}  {retcon_time_label}  {place_with_gender}"
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
@@ -16574,6 +16634,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "from_whence": from_whence_text,
                         "date": date_label,
                         "time": time_label,
+                        "chart_info": chart_info_segments,
                         "retcon_time": retcon_time_label,
                         "place": place_with_gender,
                         "is_placeholder": bool(is_placeholder),

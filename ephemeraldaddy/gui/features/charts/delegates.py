@@ -69,6 +69,9 @@ class ChartRowDelegate(QStyledItemDelegate):
             alias_text = f"({alias_text})"
         if from_whence_text:
             from_whence_text = f"({from_whence_text})"
+        chart_info_segments = self._normalize_chart_info_segments(
+            segment_data.get("chart_info")
+        )
         date_text = str(segment_data.get("date", "??.??.????"))
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
@@ -78,24 +81,32 @@ class ChartRowDelegate(QStyledItemDelegate):
         is_placeholder = bool(segment_data.get("is_placeholder", False))
         duplicate_likelihood = str(segment_data.get("duplicate_likelihood", "")).strip()
 
-        segments = [
-            ("status", status_text),
-            ("chart", chart_text),
-            ("name", name_text),
-            ("alias", alias_text),
-            ("from_whence", from_whence_text),
-            ("date", date_text),
-            ("time", time_text),
-            ("retcon_time", retcon_time_text),
-            ("place", place_text),
+        segments: list[dict[str, object]] = [
+            {"key": "status", "text": status_text},
+            {"key": "chart", "text": chart_text},
+            {"key": "name", "text": name_text},
+            {"key": "alias", "text": alias_text},
+            {"key": "from_whence", "text": from_whence_text},
+            *chart_info_segments,
+            {"key": "date", "text": date_text},
+            {"key": "time", "text": time_text},
+            {"key": "retcon_time", "text": retcon_time_text},
+            {"key": "place", "text": place_text},
         ]
 
         x = rect.x()
-        for key, text in segments:
+        for segment in segments:
+            key = str(segment.get("key", ""))
+            text = str(segment.get("text", ""))
             if not text:
                 continue
-            color = self._segment_colors.get(key, opt.palette.text().color())
-            if is_placeholder:
+            color_value = segment.get("color")
+            color = (
+                QColor(str(color_value))
+                if color_value
+                else self._segment_colors.get(key, opt.palette.text().color())
+            )
+            if is_placeholder and key != "chart_info":
                 color = QColor("#4a7bd1")
             elif duplicate_likelihood and key in {
                 "chart",
@@ -117,8 +128,32 @@ class ChartRowDelegate(QStyledItemDelegate):
             else:
                 painter.setFont(opt.font)
             painter.drawText(x, baseline, text)
-            x += metrics.horizontalAdvance(text) + spacing
+            x += metrics.horizontalAdvance(text)
+            if bool(segment.get("space_after", True)):
+                x += spacing
             if x >= rect.right():
                 break
 
         painter.restore()
+
+    @staticmethod
+    def _normalize_chart_info_segments(raw_segments: object) -> list[dict[str, object]]:
+        if not isinstance(raw_segments, list):
+            return []
+
+        segments: list[dict[str, object]] = []
+        for raw_segment in raw_segments:
+            if not isinstance(raw_segment, dict):
+                continue
+            text = str(raw_segment.get("text", ""))
+            if not text:
+                continue
+            segments.append(
+                {
+                    "key": "chart_info",
+                    "text": text,
+                    "color": str(raw_segment.get("color", "")),
+                    "space_after": bool(raw_segment.get("space_after", True)),
+                }
+            )
+        return segments
