@@ -2025,11 +2025,38 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.manage_settings_button.setObjectName("manage_settings_button")
         self.manage_settings_button.clicked.connect(self._on_open_settings)
 
+        self.database_view_middle_header_action_buttons = {}
+        middle_action_button_specs: list[tuple[str, str, str]] = [
+            # BaZi Chart
+            ("bazi", "🐉", "BaZi Chart"),
+            # Human Design Chart
+            ("human_design", "🪷", "Human Design Chart"),
+            # Personal Transit
+            ("personal_transit", "🌎", "Personal Transit"),
+            # Synastry Chart
+            ("synastry", "🧬", "Synastry Chart"),
+            # See Similar Charts
+            ("similar_charts", "👯", "See Similar Charts"),
+            # Create Gemstone Chart
+            ("gemstone_chart", "💎", "Create Gemstone Chart"),
+            # Chart Predictor Quiz
+            ("chart_predictor_quiz", "🔮", "Chart Predictor Quiz"),
+        ]
+        for button_key, button_label, button_tooltip in middle_action_button_specs:
+            action_button = QPushButton(button_label)
+            action_button.setObjectName(f"database_view_middle_{button_key}_button")
+            action_button.setToolTip(button_tooltip)
+            action_button.clicked.connect(
+                lambda _checked=False, key=button_key: self._on_middle_panel_chart_tool(key)
+            )
+            self.database_view_middle_header_action_buttons[button_key] = action_button
+
         for control_button in (
             self.todays_transits_panel_button,
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
+            *self.database_view_middle_header_action_buttons.values(),
             self.manage_collections_button,
             self.edit_charts_button,
             self.manage_settings_button,
@@ -2173,7 +2200,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         right_controls_layout.addWidget(self.edit_charts_button)
         right_controls_layout.addWidget(self.manage_collections_button)
 
+        middle_controls_row = QWidget()
+        middle_controls_layout = QHBoxLayout()
+        middle_controls_layout.setContentsMargins(0, 0, 0, 0)
+        middle_controls_layout.setSpacing(4)
+        middle_controls_row.setLayout(middle_controls_layout)
+        middle_controls_layout.addStretch(1)
+        for action_button in self.database_view_middle_header_action_buttons.values():
+            middle_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addStretch(1)
+
         panel_controls_layout.addWidget(left_controls_row, alignment=Qt.AlignLeft)
+        panel_controls_layout.addStretch(1)
+        panel_controls_layout.addWidget(middle_controls_row, alignment=Qt.AlignHCenter)
         panel_controls_layout.addStretch(1)
         panel_controls_layout.addWidget(right_controls_row, alignment=Qt.AlignRight)
         layout.addWidget(panel_controls_row)
@@ -6557,6 +6596,158 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title = f"Gate {int(gate_num)} • {gate_info['name']}"
         body = str(gate_info.get("meaning", "")).strip() or "No gate reference available."
         target_info_widget.setPlainText(f"{title}\n\nGate {int(gate_num)}: {body}")
+
+    def _prompt_single_chart_selection(
+        self,
+        *,
+        dialog_title: str,
+        submit_button_label: str = "Open Chart",
+        placeholder_text: str = "Select chart name or alias",
+    ) -> int | None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(dialog_title)
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        chart_lookup: dict[str, int] = {}
+        labels: list[str] = []
+        for row in list_charts():
+            chart_id, name, alias, *_rest = row
+            chart_id = int(chart_id)
+            display_name = name.strip() if isinstance(name, str) and name.strip() else f"Chart {chart_id}"
+            alias_text = alias.strip() if isinstance(alias, str) and alias.strip() else ""
+            label = f"{display_name} ({alias_text})  [#{chart_id}]" if alias_text else f"{display_name}  [#{chart_id}]"
+            labels.append(label)
+            chart_lookup[label] = chart_id
+            chart_lookup.setdefault(display_name, chart_id)
+            if alias_text:
+                chart_lookup.setdefault(alias_text, chart_id)
+
+        chart_input = QLineEdit(dialog)
+        chart_input.setPlaceholderText(placeholder_text)
+        completer = QCompleter(labels, chart_input)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        chart_input.setCompleter(completer)
+        layout.addWidget(chart_input)
+
+        open_button = QPushButton(submit_button_label, dialog)
+        layout.addWidget(open_button)
+
+        selected_chart_id: int | None = None
+
+        def _resolve_chart_id(raw_value: str) -> int | None:
+            query = raw_value.strip()
+            if not query:
+                return None
+            direct_match = chart_lookup.get(query)
+            if direct_match is not None:
+                return direct_match
+            query_lower = query.lower()
+            for label, chart_id in chart_lookup.items():
+                if query_lower == label.lower():
+                    return chart_id
+            return None
+
+        def _submit() -> None:
+            nonlocal selected_chart_id
+            selected_chart_id = _resolve_chart_id(chart_input.text())
+            if selected_chart_id is None:
+                QMessageBox.warning(
+                    dialog,
+                    dialog_title,
+                    "Select one saved chart from autocomplete before opening.",
+                )
+                return
+            dialog.accept()
+
+        open_button.clicked.connect(_submit)
+        chart_input.returnPressed.connect(_submit)
+        QTimer.singleShot(0, chart_input.setFocus)
+
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return selected_chart_id
+
+    def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
+        selected_chart_ids = self._selected_chart_ids()
+        if len(selected_chart_ids) == 1:
+            return selected_chart_ids[0]
+        return self._prompt_single_chart_selection(
+            dialog_title=tool_title,
+            submit_button_label=f"Open {tool_title}",
+        )
+
+    def _on_middle_panel_chart_tool(self, tool_key: str) -> None:
+        tool_titles = {
+            "bazi": "BaZi Chart",
+            "human_design": "Human Design Chart",
+            "personal_transit": "Personal Transit",
+            "synastry": "Synastry Chart",
+            "similar_charts": "See Similar Charts",
+            "gemstone_chart": "Create Gemstone Chart",
+            "chart_predictor_quiz": "Chart Predictor Quiz",
+        }
+        tool_title = tool_titles.get(tool_key, "Chart Tool")
+        chart_id = self._resolve_middle_panel_tool_chart_id(tool_title)
+        if chart_id is None:
+            return
+
+        parent = self.parent()
+        if parent is None or not isinstance(parent, MainWindow):
+            QMessageBox.warning(self, tool_title, "Unable to open this chart tool.")
+            return
+
+        if tool_key == "synastry":
+            chart_ids = self._prompt_composite_chart_selection(
+                default_first_chart_id=chart_id,
+                focus_second_input=True,
+                dialog_title="Synastry Chart",
+                submit_button_label="Synastrize!",
+            )
+            if chart_ids is None:
+                return
+            self._generate_composite_chart_for_ids(*chart_ids)
+            return
+
+        try:
+            chart = load_chart(chart_id)
+        except Exception as exc:
+            QMessageBox.warning(self, tool_title, f"Unable to load selected chart.\n\n{exc}")
+            return
+
+        if tool_key == "chart_predictor_quiz":
+            parent._latest_chart = chart
+            parent.current_chart_id = chart_id
+            parent.on_open_chart_predictor_quiz()
+            return
+
+        if tool_key == "bazi":
+            parent._open_bazi_window(chart)
+        elif tool_key == "human_design":
+            parent._latest_chart = chart
+            parent.current_chart_id = chart_id
+            parent.on_get_human_design_info()
+        elif tool_key == "personal_transit":
+            parent._generate_current_transits_for_chart(chart, chart_id)
+        elif tool_key == "similar_charts":
+            previous_chart = parent._latest_chart
+            previous_chart_id = parent.current_chart_id
+            parent._latest_chart = chart
+            parent.current_chart_id = chart_id
+            try:
+                parent._show_similar_charts_popout(requester=parent)
+            finally:
+                parent._latest_chart = previous_chart
+                parent.current_chart_id = previous_chart_id
+        elif tool_key == "gemstone_chart":
+            parent._create_gemstone_chartwheel(chart)
+        else:
+            QMessageBox.warning(self, tool_title, f"Unknown chart tool: {tool_key}")
+
 
     def _selected_chart_ids(
         self,
@@ -21899,11 +22090,14 @@ class MainWindow(QMainWindow):
     def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
-            requester is manage_dialog
-            or (
-                manage_dialog is not None
-                and manage_dialog.isVisible()
-                and manage_dialog.isActiveWindow()
+            requester is not self
+            and (
+                requester is manage_dialog
+                or (
+                    manage_dialog is not None
+                    and manage_dialog.isVisible()
+                    and manage_dialog.isActiveWindow()
+                )
             )
         )
         chart: Chart | None
