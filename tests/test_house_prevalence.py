@@ -10,12 +10,12 @@ style_stub.CHART_DATA_HIGHLIGHT_COLOR = "#ffffff"
 from ephemeraldaddy.gui.features.charts.metrics import calculate_house_prevalence_counts
 
 
-def test_house_prevalence_excludes_angles_from_raw_placement_counts():
+def test_house_prevalence_excludes_angle_positions_from_raw_placement_counts():
     chart = SimpleNamespace(
         birthtime_unknown=False,
         houses=[degree * 30.0 for degree in range(12)],
         positions={
-            # Angle markers should not count as formal body/point placements.
+            # Angle positions should not count as listed body/point placements.
             "AS": 5.0,
             "IC": 95.0,
             "DS": 185.0,

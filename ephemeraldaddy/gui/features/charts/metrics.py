@@ -52,7 +52,7 @@ from ephemeraldaddy.analysis.body_dynamics_reworked import (
     normalize_body_pair,
 )
 
-HOUSE_PREVALENCE_EXCLUDED_BODIES = frozenset(ANGLE_POINTS)
+HOUSE_PREVALENCE_EXCLUDED_POSITIONS = frozenset(ANGLE_POINTS)
 
 PLANET_DYNAMICS_METRICS = (
     "antagonizing",
@@ -454,12 +454,12 @@ def calculate_house_prevalence_counts(chart: Chart) -> dict[int, int]:
     houses = getattr(chart, "houses", None) if use_houses else None
     if not use_houses or not houses:
         return house_counts
-    for body in PLANET_ORDER:
-        if body in HOUSE_PREVALENCE_EXCLUDED_BODIES:
+    for position_name in PLANET_ORDER:
+        if position_name in HOUSE_PREVALENCE_EXCLUDED_POSITIONS:
             continue
-        if body not in chart.positions:
+        if position_name not in chart.positions:
             continue
-        lon = chart.positions[body]
+        lon = chart.positions[position_name]
         house_num = house_for_longitude(houses, lon)
         if house_num is not None:
             house_counts[house_num] += 1
