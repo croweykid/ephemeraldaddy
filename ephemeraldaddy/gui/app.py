@@ -2702,7 +2702,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         label_by_mode = {
             "sign_prevalence": "Distribution of signs (all positions) in database",
-            "house_prevalence": "Distribution of houses (all positions) in database",
+            "house_prevalence": "Distribution of houses. Each listed body/point counts once. No weights applied.",
             "elemental_prevalence": "Distribution of elements in database",
             "nakshatra_prevalence": "Distribution of nakshatras in database",
         }
@@ -22973,7 +22973,7 @@ class MainWindow(QMainWindow):
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
         lines: list[str] = [self._dominance_section_header_html(chart)]
         if mode == "house_prevalence":
-            lines.append("<ul><li>House Prevalence mode is active (raw placements, not weighted dominance).</li></ul>")
+            lines.append("<ul><li>House Prevalence mode is active: each listed body/point counts once, with no weights applied.</li></ul>")
             return "".join(lines)
         if not _chart_uses_houses(chart):
             lines.append("<ul><li>Houses are unavailable for this chart, so no house-dominance scoring can be applied.</li></ul>")
@@ -27921,20 +27921,21 @@ class MainWindow(QMainWindow):
         house_numbers = list(range(1, 13))
         house_counts = {house_num: 0.0 for house_num in house_numbers}
         mode = self._chart_analysis_selected_mode("dominant_houses", "dominant_houses")
-        if use_houses and houses:
-            planets = (
-                list(PLANET_ORDER)
-                if mode == "house_prevalence"
-                else [body for body in PLANET_ORDER if body in NATAL_WEIGHT]
-            )
-            for body in planets:
-                if body not in chart.positions:
-                    continue
-                lon = chart.positions[body]
-                house_num = _house_for_longitude(houses, lon)
-                if house_num is None:
-                    continue
-                house_counts[house_num] += 1.0 if mode == "house_prevalence" else float(NATAL_WEIGHT.get(body, 1))
+        if not use_houses or not houses:
+            return [float(house_counts[house_num]) for house_num in house_numbers]
+
+        if mode == "house_prevalence":
+            prevalence_counts = _calculate_house_prevalence_counts(chart)
+            return [float(prevalence_counts.get(house_num, 0.0)) for house_num in house_numbers]
+
+        for position_name in [position_name for position_name in PLANET_ORDER if position_name in NATAL_WEIGHT]:
+            if position_name not in chart.positions:
+                continue
+            lon = chart.positions[position_name]
+            house_num = _house_for_longitude(houses, lon)
+            if house_num is None:
+                continue
+            house_counts[house_num] += float(NATAL_WEIGHT.get(position_name, 1))
         return [float(house_counts[house_num]) for house_num in house_numbers]
 
     def _dominant_nakshatra_distribution_weights(self, chart: Chart | None) -> list[float]:

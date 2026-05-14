@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.chart import chart_uses_houses
 from ephemeraldaddy.core.interpretations import (
+    ANGLE_POINTS,
     ASPECT_SCORE_MULTIPLIERS,
     ASPECT_SCORE_WEIGHTS,
     CHART_RULER_BONUS,
@@ -50,6 +51,8 @@ from ephemeraldaddy.analysis.body_dynamics_reworked import (
     calculate_planet_dynamics_scores,
     normalize_body_pair,
 )
+
+HOUSE_PREVALENCE_EXCLUDED_POSITIONS = frozenset(ANGLE_POINTS)
 
 PLANET_DYNAMICS_METRICS = (
     "antagonizing",
@@ -451,10 +454,12 @@ def calculate_house_prevalence_counts(chart: Chart) -> dict[int, int]:
     houses = getattr(chart, "houses", None) if use_houses else None
     if not use_houses or not houses:
         return house_counts
-    for body in PLANET_ORDER:
-        if body not in chart.positions:
+    for position_name in PLANET_ORDER:
+        if position_name in HOUSE_PREVALENCE_EXCLUDED_POSITIONS:
             continue
-        lon = chart.positions[body]
+        if position_name not in chart.positions:
+            continue
+        lon = chart.positions[position_name]
         house_num = house_for_longitude(houses, lon)
         if house_num is not None:
             house_counts[house_num] += 1
