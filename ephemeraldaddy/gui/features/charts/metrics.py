@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ephemeraldaddy.core.chart import Chart
 from ephemeraldaddy.core.chart import chart_uses_houses
+from ephemeraldaddy.core.dominance import (
+    dominant_element_labels_from_weights,
+    dominant_mode_labels_from_weights,
+)
 from ephemeraldaddy.core.interpretations import (
     ANGLE_POINTS,
     ASPECT_SCORE_MULTIPLIERS,
