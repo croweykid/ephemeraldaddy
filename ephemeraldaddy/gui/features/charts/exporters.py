@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import csv
+import datetime
+import json
 import re
 from collections import OrderedDict
+from typing import Callable
 
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
+
+
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    build_similarities_json_export_payload,
+    similarities_json_payload_has_factors,
+)
 
 
 def sanitize_export_token(value: str, fallback: str = "chart") -> str:
@@ -96,3 +105,73 @@ def get_text_export_path(
 
     settings.setValue(preference_key, selected_extension)
     return file_path
+
+
+def export_similarities_analysis_json_dialog(
+    parent: QWidget,
+    export_sections,
+    *,
+    reactivate_callback: Callable[[], None] | None = None,
+) -> None:
+    """Prompt for a name/path and export Similarities Analysis data as JSON."""
+    if not export_sections:
+        QMessageBox.information(
+            parent,
+            "No similarities data",
+            "Select at least 2 charts to generate similarities before exporting.",
+        )
+        return
+
+    selection_name, accepted = QInputDialog.getText(
+        parent,
+        "Selection name",
+        "Name this selection (used as the JSON key and profile name):",
+        text="Selection",
+    )
+    if not accepted:
+        return
+    selection_name = selection_name.strip() or "Selection"
+
+    payload = build_similarities_json_export_payload(selection_name, export_sections)
+    if not similarities_json_payload_has_factors(payload, selection_name):
+        QMessageBox.information(
+            parent,
+            "No JSON factors",
+            "No similarities differ from the database by more than 3%.",
+        )
+        return
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    sanitized_name = re.sub(r"[^\w\s-]", "", selection_name).strip() or "selection"
+    sanitized_name = re.sub(r"\s+", "_", sanitized_name)
+    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.json"
+    file_path, _ = QFileDialog.getSaveFileName(
+        parent,
+        "Export similarities analysis as JSON",
+        default_filename,
+        "JSON Files (*.json)",
+    )
+    if reactivate_callback is not None:
+        QTimer.singleShot(0, reactivate_callback)
+    if not file_path:
+        return
+    if not file_path.lower().endswith(".json"):
+        file_path = f"{file_path}.json"
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as json_file:
+            json.dump(payload, json_file, ensure_ascii=False, indent=4)
+            json_file.write("\n")
+    except Exception as exc:
+        QMessageBox.critical(
+            parent,
+            "Export failed",
+            f"Could not export similarities analysis as JSON:\n{exc}",
+        )
+        return
+
+    QMessageBox.information(
+        parent,
+        "Export complete",
+        f"Saved similarities analysis JSON to:\n{file_path}",
+    )

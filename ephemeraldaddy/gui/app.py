@@ -669,6 +669,7 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_MODE_LABELS,
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
+    export_similarities_analysis_json_dialog as _export_similarities_analysis_json_dialog,
     get_text_export_path as _get_text_export_path,
     sanitize_export_token as _sanitize_export_token,
 )
@@ -6238,6 +6239,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
+        json_export_button = QPushButton("JSON")
+        json_export_button.setFlat(True)
+        json_export_button.setFixedSize(42, 20)
+        json_export_button.setCursor(Qt.PointingHandCursor)
+        json_export_button.setToolTip("Export similarities analysis as JSON")
+        json_export_button.clicked.connect(self._export_similarities_analysis_json)
+        title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
+
         export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
@@ -8182,6 +8191,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_hd_profiles,
             db_total_count=db_total_count,
+        )
+
+    def _export_similarities_analysis_json(self) -> None:
+        _export_similarities_analysis_json_dialog(
+            self,
+            self._similarities_export_sections,
+            reactivate_callback=self._reactivate_database_view,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
@@ -21739,11 +21755,26 @@ class MainWindow(QMainWindow):
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
+            dialog._similar_chart_popout_last_info_target = normalized_target
             popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
-            if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData"):
-                similarities_index = int(popout_analysis_dropdown.findData("similarities"))
+            selected_mode = (
+                str(popout_analysis_dropdown.currentData() or "").strip().lower()
+                if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
+                else ""
+            )
+            if selected_mode not in {"similarities", "dissimilarities", "bio"}:
+                similarities_index = (
+                    int(popout_analysis_dropdown.findData("similarities"))
+                    if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
+                    else -1
+                )
                 if similarities_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
+                    signals_were_blocked = False
+                    if hasattr(popout_analysis_dropdown, "blockSignals"):
+                        signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
                     popout_analysis_dropdown.setCurrentIndex(similarities_index)
+                    if hasattr(popout_analysis_dropdown, "blockSignals"):
+                        popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(normalized_target)
@@ -21760,15 +21791,33 @@ class MainWindow(QMainWindow):
             return
         target = str(getattr(dialog, "_similar_chart_popout_last_info_target", "") or "").strip()
         if not target:
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode=selected_mode)
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
+
+    def _show_similar_chart_popout_empty_analysis(self, dialog: QDialog, *, selected_mode: str) -> None:
+        popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None or not hasattr(popout_info_output, "setText"):
+            return
+        title_and_prompt = {
+            "similarities": ("SIMILARITIES ANALYSIS", "similarities analysis"),
+            "dissimilarities": ("DISSIMILARITIES ANALYSIS", "dissimilarities analysis"),
+            "bio": ("BIO", "biographical information"),
+        }
+        title, prompt_subject = title_and_prompt.get(selected_mode, ("ANALYSIS", "this analysis"))
+        popout_info_output.setText(
+            f"<div style='font-weight:700;color:#B87333'>{html.escape(title)}</div>"
+            "<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>"
+            f"Click the ⓘ next to a name to see {html.escape(prompt_subject)}!"
+            "</div>"
+        )
 
     def _show_similar_chart_popout_predictions(self, dialog: QDialog) -> None:
         popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
         if popout_info_output is None:
             return
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
-        
+
         render_predictions_panel_content(
             output_widget=popout_info_output,
             subject_name=str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip() or "Current chart",
