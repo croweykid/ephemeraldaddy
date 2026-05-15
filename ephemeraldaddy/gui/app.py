@@ -22375,6 +22375,44 @@ class MainWindow(QMainWindow):
             )
         )
 
+    def _show_similar_charts_loading_progress(
+        self,
+        *,
+        parent: QWidget | None,
+        message: str = "Preparing similar chart calculations…",
+    ) -> QProgressDialog:
+        progress = QProgressDialog(message, None, 0, 0, parent or self)
+        progress.setWindowTitle("Similar Charts")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setValue(0)
+        progress.show()
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+        return progress
+
+    def _update_similar_charts_loading_progress(
+        self,
+        progress: QProgressDialog | None,
+        message: str,
+    ) -> None:
+        if progress is None:
+            return
+        progress.setLabelText(message)
+        progress.setValue(0)
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+    def _close_similar_charts_loading_progress(
+        self,
+        progress: QProgressDialog | None,
+    ) -> None:
+        if progress is None:
+            return
+        progress.close()
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+
     def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
@@ -22431,50 +22469,68 @@ class MainWindow(QMainWindow):
             )
             return
 
-        try:
-            candidates = self._load_similar_chart_candidates()
-        except Exception as exc:
-            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
-            return
-        if not candidates:
-            QMessageBox.information(
-                self,
-                "Similar Charts",
-                "Need at least one additional saved chart that is not placeholder/hypothetical.",
-            )
-            return
-
-        algorithm_mode = _normalize_similar_charts_algorithm_mode(
-            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        progress_parent = requester if isinstance(requester, QWidget) else self
+        progress = self._show_similar_charts_loading_progress(
+            parent=progress_parent,
+            message="Reading saved charts for similar chart matching…",
         )
-        self._similar_charts_algorithm_mode = algorithm_mode
         try:
-            most_similar_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=False,
-                algorithm_mode=algorithm_mode,
-                custom_settings=getattr(self, "_similarity_calculator_settings", None),
-            )
-            least_similar_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=True,
-                algorithm_mode=algorithm_mode,
-                custom_settings=getattr(self, "_similarity_calculator_settings", None),
-            )
-        except Exception as exc:
-            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                self._report_similar_charts_comprehensive_failure(
-                    context="_show_similar_charts_popout",
-                    detail="comprehensive algorithm execution failed",
-                    error=exc,
+            try:
+                candidates = self._load_similar_chart_candidates()
+            except Exception as exc:
+                self._close_similar_charts_loading_progress(progress)
+                QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+                return
+            if not candidates:
+                self._close_similar_charts_loading_progress(progress)
+                QMessageBox.information(
+                    self,
+                    "Similar Charts",
+                    "Need at least one additional saved chart that is not placeholder/hypothetical.",
                 )
-            raise
+                return
+
+            algorithm_mode = _normalize_similar_charts_algorithm_mode(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+            )
+            self._similar_charts_algorithm_mode = algorithm_mode
+            try:
+                self._update_similar_charts_loading_progress(
+                    progress,
+                    "Calculating most similar charts…",
+                )
+                most_similar_matches = find_astro_twins(
+                    chart,
+                    candidates,
+                    top_k=25,
+                    exclude_chart_id=subject_chart_id,
+                    least_similar=False,
+                    algorithm_mode=algorithm_mode,
+                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                )
+                self._update_similar_charts_loading_progress(
+                    progress,
+                    "Calculating least similar charts…",
+                )
+                least_similar_matches = find_astro_twins(
+                    chart,
+                    candidates,
+                    top_k=25,
+                    exclude_chart_id=subject_chart_id,
+                    least_similar=True,
+                    algorithm_mode=algorithm_mode,
+                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                )
+            except Exception as exc:
+                if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                    self._report_similar_charts_comprehensive_failure(
+                        context="_show_similar_charts_popout",
+                        detail="comprehensive algorithm execution failed",
+                        error=exc,
+                    )
+                raise
+        finally:
+            self._close_similar_charts_loading_progress(progress)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
