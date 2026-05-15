@@ -91,9 +91,10 @@ def test_dnd_stat_evidence_denominators_account_for_criteria_coverage():
     budgets = _calculate_predictor_criteria_budgets(DND_STAT_PREDICTORS)
     denominators = _calculate_stat_evidence_denominators(DND_STAT_PREDICTORS)
 
-    assert budgets["DEX"] > budgets["WIS"] * 100
+    assert budgets["DEX"] > budgets["WIS"]
+    assert budgets["STR"] > budgets["INT"]
     assert denominators["DEX"] == budgets["DEX"]
-    assert denominators["WIS"] > budgets["WIS"]
+    assert denominators["INT"] > budgets["INT"]
 
 
 def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypatch):
@@ -113,12 +114,12 @@ def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypat
     statblock = stat_calculator.score_dnd_statblock(SimpleNamespace(name="Uneven criteria spread"))
 
     assert statblock.scores == {
-        "STR": 14,
-        "DEX": 13,
-        "CON": 14,
-        "INT": 14,
+        "STR": 13,
+        "DEX": 12,
+        "CON": 13,
+        "INT": 13,
         "WIS": 11,
-        "CHA": 9,
+        "CHA": 10,
     }
     assert 20 not in statblock.scores.values()
     assert 5 not in statblock.scores.values()

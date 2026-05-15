@@ -638,8 +638,17 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{58,34,44,20,46,10,32,61,62,8,12,19,38},
         "antigates":{59,29,47,27,5,26,4,22,25,36,33},
-        #"channels":[[20,34]:2,[10,20]:4,[10,34]:3,[34,57]:2,[20,57]:2],
-        #"antichannels":[[6,59]:2,[47,64]:3],
+        "channels": {
+            (20, 34): 2,
+            (10, 20): 4,
+            (10, 34): 3,
+            (34, 57): 2,
+            (20, 57): 2,
+        },
+        "antichannels": {
+            (6, 59): 2,
+            (47, 64): 3,
+        },
         "hdtypes":{"MF Generator":6},
         "antihdtypes":{"Projector":7},
         "centers":{"Spleen":3},
@@ -692,8 +701,15 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{54:21,25:16,38:16,11:15,23:18,48:11,6:11,12:13,32:9,41:14,61:13,62:9,9:8},
         "antigates":{16:8,33:15,40:12,51:10,15:16,15:16,55:15,10:20},
-        #"channels":{[26,44]:11,[6,59]:7,[19,49]:7,[2,14]:8}
-        #"antichannels":{[10,34]},
+        "channels": {
+            (26, 44): 11,
+            (6, 59): 7,
+            (19, 49): 7,
+            (2, 14): 8,
+        },
+        "antichannels": {
+            (10, 34): 1,
+        },
         "hdtypes":{"Generator":10},
         "antihdtypes":{"MF Generator":6},
         "centers":{"Emotional":6},
@@ -731,8 +747,10 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{"Sun semisquare Venus":6},
         "gates":{44:5,47:8,46:5,12:7,29:5,56:5,28:7,25:5,63:5,},
         "antigates":{48:5,26:5,28:8,18:6,49:5,5:6,55:4,2:5},
-        #"channels":{}
-        #"antichannels":{[20,57]:5},
+        "channels": {},
+        "antichannels": {
+            (20, 57): 5,
+        },
         "hdtypes":{},
         "antihdtypes":{},
         "centers":{"Sacral":7},
@@ -780,8 +798,11 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{45,62,51,12,61,36,},
         "antigates":{59,44,29,5,63,37,13},
-        #"channels":{[27,50],[35,36]}
-        #"antichannels":{},
+        "channels": {
+            (27, 50): 1,
+            (35, 36): 1,
+        },
+        "antichannels": {},
         "hdtypes":{},
         "antihdtypes":{},
         "centers":{},
@@ -829,8 +850,15 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "antiaspects":{},
         "gates":{47:11,50:5,6:6,10:7,15:8,37:10,12:7,9:6,35:7,22:6,36:6,16:5},
         "antigates":{58:5,14:5,48:5,28:6,33:6,39:6,46:8,19:8,21:6,54:7,8:7,60:11},
-        #"channels":{[37,40]:6,[6,59]:4,[12,22]:6}
-        #"antichannels":{[18,58]:7,[28,38]:6},
+        "channels": {
+            (37, 40): 6,
+            (6, 59): 4,
+            (12, 22): 6,
+        },
+        "antichannels": {
+            (18, 58): 7,
+            (28, 38): 6,
+        },
         "hdtypes":{"MF Generator":6},
         "antihdtypes":{"Projector":6},
         "centers":{},
@@ -935,8 +963,15 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             44:6,26:9,7:9,61:10,9:9,29:5,5:5,17:9,62:5,21:6,35:5,#present in "Least CHA"
             34:11,32:10,#both least present in "Most CHA" and most present in "Least CHA": 34:5/34:6, 32:4/32:6.
         },
-        #"channels":{[2,14],[4,63]}
-        #"antichannels":{[20,34]:6,[26,44]:8,[47,64]:4},
+        "channels": {
+            (2, 14): 1,
+            (4, 63): 1,
+        },
+        "antichannels": {
+            (20, 34): 6,
+            (26, 44): 8,
+            (47, 64): 4,
+        },
         "hdtypes":{},
         "antihdtypes":{"MF Generator":4},
         "centers":{},

@@ -122,6 +122,7 @@ DEFAULT_CATEGORY_WEIGHTS: dict[str, float] = {
     "nakshatras": 1.0,
     "houses": 1.0,
     "gates": 1.0,
+    "channels": 1.0,
     "hdtypes": 1.0,
     "centers": 1.0,
     "profiles": 1.0,
@@ -237,6 +238,42 @@ def weighted_gate_entries(values: Any) -> dict[int, float]:
     return entries
 
 
+def normalize_channel_value(value: Any) -> tuple[int, int] | None:
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        raw_gate_a, raw_gate_b = value
+    else:
+        match = re.fullmatch(r"\s*(\d{1,2})\s*[-/,]\s*(\d{1,2})\s*", str(value))
+        if not match:
+            return None
+        raw_gate_a, raw_gate_b = match.groups()
+    try:
+        gate_a = int(raw_gate_a)
+        gate_b = int(raw_gate_b)
+    except (TypeError, ValueError):
+        return None
+    if not (1 <= gate_a <= 64 and 1 <= gate_b <= 64 and gate_a != gate_b):
+        return None
+    return (min(gate_a, gate_b), max(gate_a, gate_b))
+
+
+def weighted_channel_entries(values: Any) -> dict[tuple[int, int], float]:
+    entries: dict[tuple[int, int], float] = {}
+    if isinstance(values, Mapping):
+        source = values.items()
+    else:
+        source = ((value, 1.0) for value in (values or []))
+    for raw_value, raw_weight in source:
+        channel = normalize_channel_value(raw_value)
+        if channel is None:
+            continue
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 1.0
+        entries[channel] = weight
+    return entries
+
+
 def parse_house_token(token: str) -> int | None:
     match = re.fullmatch(r"H\s*(\d{1,2})", token.strip(), re.IGNORECASE)
     if not match:
@@ -316,6 +353,27 @@ def active_human_design_gates(chart: Any) -> set[int]:
     except Exception:
         return set()
     return {int(gate) for gate in gates if 1 <= int(gate) <= 64}
+
+
+def active_human_design_channels(chart: Any) -> set[tuple[int, int]]:
+    cached = {
+        channel
+        for raw_channel in (getattr(chart, "human_design_channels", None) or [])
+        if (channel := normalize_channel_value(raw_channel)) is not None
+    }
+    if cached:
+        return cached
+    try:
+        from ephemeraldaddy.analysis.human_design import derive_human_design_profile
+
+        _gates, _lines, channels, _hd_type = derive_human_design_profile(chart)
+    except Exception:
+        return set()
+    return {
+        channel
+        for raw_channel in channels
+        if (channel := normalize_channel_value(raw_channel)) is not None
+    }
 
 
 def _normalized_token_key(value: Any) -> str:
@@ -488,7 +546,7 @@ def calculate_weighted_criteria_scores(
     Predictor definitions may use weighted dicts or unweighted iterables for each
     positive/negative category: signs/antisigns, bodies/antibodies,
     nakshatras/antinakshatras, houses/antihouses, gates/antigates,
-    hdtypes/antihdtypes, centers/anticenters, profiles/antiprofiles,
+    channels/antichannels, hdtypes/antihdtypes, centers/anticenters, profiles/antiprofiles,
     authorities/antiauthorities, bazisigns/antibazisigns, positions/antipositions,
     and aspects/antiaspects.
     """
@@ -522,6 +580,11 @@ def calculate_weighted_criteria_scores(
     active_gates = (
         active_human_design_gates(chart)
         if _has_any_predictor_criteria(predictors, {"gates", "antigates"})
+        else set()
+    )
+    active_channels = (
+        active_human_design_channels(chart)
+        if _has_any_predictor_criteria(predictors, {"channels", "antichannels"})
         else set()
     )
     if _has_any_predictor_criteria(
@@ -558,6 +621,8 @@ def calculate_weighted_criteria_scores(
         antihouses = weighted_house_entries(factors.get("antihouses", set()))
         gates = weighted_gate_entries(factors.get("gates", set()))
         antigates = weighted_gate_entries(factors.get("antigates", set()))
+        channels = weighted_channel_entries(factors.get("channels", set()))
+        antichannels = weighted_channel_entries(factors.get("antichannels", set()))
         hdtypes = weighted_hd_type_entries(factors.get("hdtypes", set()))
         antihdtypes = weighted_hd_type_entries(factors.get("antihdtypes", set()))
         centers = weighted_hd_center_entries(factors.get("centers", set()))
@@ -588,6 +653,8 @@ def calculate_weighted_criteria_scores(
 
         gates_positive = sum(6.0 * weight for gate, weight in gates.items() if gate in active_gates)
         gates_negative = sum(6.0 * weight for gate, weight in antigates.items() if gate in active_gates)
+        channels_positive = sum(6.0 * weight for channel, weight in channels.items() if channel in active_channels)
+        channels_negative = sum(6.0 * weight for channel, weight in antichannels.items() if channel in active_channels)
 
         hdtype_positive = sum(weight for hd_type, weight in hdtypes.items() if hd_type == active_hd_type)
         hdtype_negative = sum(weight for hd_type, weight in antihdtypes.items() if hd_type == active_hd_type)
@@ -647,6 +714,7 @@ def calculate_weighted_criteria_scores(
             "nakshatras": normalize_category_delta(nakshatra_positive, nakshatra_negative, criteria_count=len(nakshatras) + len(antinakshatras), anti_factor=anti_factor),
             "houses": normalize_category_delta(house_positive, house_negative, criteria_count=(len(houses) + len(antihouses)) if use_houses else 0, anti_factor=anti_factor),
             "gates": normalize_category_delta(gates_positive, gates_negative, criteria_count=len(gates) + len(antigates), anti_factor=anti_factor),
+            "channels": normalize_category_delta(channels_positive, channels_negative, criteria_count=len(channels) + len(antichannels), anti_factor=anti_factor),
             "hdtypes": hdtype_positive - (anti_factor * hdtype_negative),
             "centers": center_positive - (anti_factor * center_negative),
             "profiles": profile_positive - (anti_factor * profile_negative),

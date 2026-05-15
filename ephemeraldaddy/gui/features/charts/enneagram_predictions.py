@@ -52,6 +52,7 @@ ENNEAGRAM_CATEGORY_WEIGHT_KEYS = (
     "nakshatras",
     "houses",
     "gates",
+    "channels",
     "hdtypes",
     "centers",
     "profiles",
