@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
-from typing import Any
+from typing import Any, Callable
+
+from PySide6.QtCore import Qt
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import (
     DND_CLASS_SUBCLASS_STATS,
@@ -24,6 +26,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     SpeciesAssigner,
     assign_top_three_species,
+    assign_top_three_species_with_evidence,
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DND_STAT_EARTHTONE_COLORS, get_cycled_earthtone_colors
 
@@ -217,19 +220,15 @@ def format_dnd_statblock_info_text(profile_lines: list[str]) -> str:
     return "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
 
 
-def build_dnd_top_three_summary_html(chart: Any) -> str:
-    species_lines: list[str] = []
-    class_lines: list[str] = []
-    try:
-        species_top_three = assign_top_three_species(chart)
-    except Exception:
-        species_top_three = []
-    for rank, species in enumerate(species_top_three[:3], start=1):
-        family = species[0]
-        subtype = species[1] if len(species) > 1 else ""
-        species_variant = f" ({subtype})" if str(subtype or "").strip() else ""
-        species_lines.append(f"{rank}) {family}{species_variant}")
+def _dnd_label_link(text: str, href: str) -> str:
+    return (
+        f'<a href="{html.escape(href, quote=True)}" '
+        f'style="color:{CHART_DATA_HIGHLIGHT_COLOR};text-decoration:none;">'
+        f"{html.escape(text)}</a>"
+    )
 
+
+def _collect_top_three_class_payloads(chart: Any) -> tuple[dict[str, float], list[dict[str, Any]]]:
     try:
         axis_scores = score_class_axes(chart)
         class_scores = DnDClassScorer().score_classes(axis_scores)
@@ -239,15 +238,77 @@ def build_dnd_top_three_summary_html(chart: Any) -> str:
             reverse=True,
         )
     except Exception:
-        ranked_classes = []
-    for rank, scored_class in enumerate(ranked_classes[:3], start=1):
+        return {}, []
+
+    payloads: list[dict[str, Any]] = []
+    for scored_class in ranked_classes[:3]:
         class_definition = DND_CLASSES.get(scored_class.key)
         class_display_name = (
             class_definition.display_name
             if class_definition is not None
             else scored_class.key.replace("_", " ").title()
         )
-        class_lines.append(f"{rank}) {class_display_name}")
+        payloads.append(
+            {
+                "name": class_display_name,
+                "class_key": scored_class.key,
+                "score": float(scored_class.score),
+                "axis_scores": {
+                    axis_key: float(value) for axis_key, value in axis_scores.items()
+                },
+            }
+        )
+    return {axis_key: float(value) for axis_key, value in axis_scores.items()}, payloads
+
+
+def _collect_top_three_species_payloads(chart: Any) -> list[dict[str, Any]]:
+    try:
+        species_top_three = assign_top_three_species_with_evidence(chart)
+    except Exception:
+        try:
+            species_top_three = [(*species[:3], []) for species in assign_top_three_species(chart)]
+        except Exception:
+            species_top_three = []
+
+    payloads: list[dict[str, Any]] = []
+    for family, subtype, score, evidence in species_top_three[:3]:
+        subtype_text = str(subtype or "").strip()
+        label = f"{family} ({subtype_text})" if subtype_text else str(family)
+        payloads.append(
+            {
+                "label": label,
+                "family": str(family),
+                "subtype": subtype_text,
+                "score": float(score),
+                "evidence": list(evidence or []),
+            }
+        )
+    return payloads
+
+
+def build_dnd_top_three_summary_html(chart: Any, *, linked: bool = False) -> str:
+    species_payloads = _collect_top_three_species_payloads(chart)
+    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+
+    species_lines: list[str] = []
+    for rank, payload in enumerate(species_payloads, start=1):
+        label = str(payload["label"])
+        rendered_label = (
+            _dnd_label_link(label, f"dnd-species:{rank - 1}")
+            if linked
+            else html.escape(label)
+        )
+        species_lines.append(f"{rank}) {rendered_label}")
+
+    class_lines: list[str] = []
+    for rank, payload in enumerate(class_payloads, start=1):
+        label = str(payload["name"])
+        rendered_label = (
+            _dnd_label_link(label, f"dnd-class:{rank - 1}")
+            if linked
+            else html.escape(label)
+        )
+        class_lines.append(f"{rank}) {rendered_label}")
 
     if not species_lines:
         species_lines.append("No species prediction available.")
@@ -256,10 +317,68 @@ def build_dnd_top_three_summary_html(chart: Any) -> str:
 
     return (
         "<b>Top 3 Species/Subspecies</b><br>"
-        + "<br>".join(html.escape(line) for line in species_lines)
+        + "<br>".join(species_lines)
         + "<br><br><b>Top 3 Classes</b><br>"
-        + "<br>".join(html.escape(line) for line in class_lines)
+        + "<br>".join(class_lines)
     )
+
+
+def configure_dnd_top_three_summary_label(
+    label: Any,
+    chart: Any,
+    *,
+    info_panel: Any,
+    before_show: Callable[[], None] | None = None,
+) -> None:
+    """Render clickable top-three D&D species/classes into a Predictions label."""
+
+    species_payloads = _collect_top_three_species_payloads(chart)
+    _axis_scores, class_payloads = _collect_top_three_class_payloads(chart)
+
+    previous_handler = getattr(label, "_dnd_top_three_link_handler", None)
+    if previous_handler is not None:
+        try:
+            label.linkActivated.disconnect(previous_handler)
+        except (RuntimeError, TypeError):
+            pass
+
+    def _show_text(text: str) -> None:
+        if before_show is not None:
+            before_show()
+        info_panel.setPlainText(text)
+
+    def _on_link_activated(href: str) -> None:
+        prefix, _separator, index_text = str(href).partition(":")
+        try:
+            index = int(index_text)
+        except ValueError:
+            return
+        if prefix == "dnd-species" and 0 <= index < len(species_payloads):
+            payload = species_payloads[index]
+            _show_text(
+                format_dnd_species_info_text(
+                    str(payload.get("family", "Unknown Species")),
+                    str(payload.get("subtype", "")),
+                    float(payload.get("score", 0.0)),
+                    list(payload.get("evidence", [])),
+                )
+            )
+        elif prefix == "dnd-class" and 0 <= index < len(class_payloads):
+            payload = class_payloads[index]
+            _show_text(
+                format_dnd_class_info_text(
+                    str(payload.get("name", "Unknown Class")),
+                    str(payload.get("class_key", "")),
+                    dict(payload.get("axis_scores", {})),
+                )
+            )
+
+    label._dnd_top_three_link_handler = _on_link_activated
+    label.linkActivated.connect(_on_link_activated)
+    label.setTextFormat(Qt.RichText)
+    label.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.TextSelectableByMouse)
+    label.setOpenExternalLinks(False)
+    label.setText(build_dnd_top_three_summary_html(chart, linked=True))
 
 def connect_dnd_statblock_popout_pick_handler(
     popout_canvas: Any,
