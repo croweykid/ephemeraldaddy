@@ -1,3 +1,5 @@
+# Use CPython 3.11 for Windows source installs/builds.
+# pyswisseph provides Windows wheels for Python 3.11; newer Python versions may need Microsoft C++ Build Tools.
 skyfield>=1.49
 pandas>=2.2
 matplotlib>=3.9

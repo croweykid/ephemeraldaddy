@@ -2,6 +2,7 @@
 name = "ephemeraldaddy"
 version = "0.1.0"
 description = "A modular, research-ready astrology toolkit."
+requires-python = ">=3.11,<3.12"
 authors = [{name="Your Name"}]
 dependencies = [
   "skyfield>=1.49",

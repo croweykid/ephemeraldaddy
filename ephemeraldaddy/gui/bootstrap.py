@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import sys
 
+from ephemeraldaddy.core.python_compat import ensure_supported_python
+
+ensure_supported_python()
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication

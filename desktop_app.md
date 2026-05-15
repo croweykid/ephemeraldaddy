@@ -4,6 +4,8 @@ This is the practical "first EXE build" guide for EphemeralDaddy.
 
 ## 1) Prepare a clean build environment (Windows)
 
+> **Important:** use 64-bit CPython 3.11 for Windows source builds. If PowerShell shows a path such as `pythoncore-3.14`, `pyswisseph` may not have a matching prebuilt wheel and `pip` may try to compile it, producing `Microsoft Visual C++ 14.0 or greater is required`. Installing Visual C++ Build Tools can work for advanced users, but the supported no-compiler path is Python 3.11.
+
 From PowerShell in the repo root:
 
 ```powershell
