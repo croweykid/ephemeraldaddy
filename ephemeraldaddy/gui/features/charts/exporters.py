@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import csv
+import re
 from collections import OrderedDict
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+
+
+def sanitize_export_token(value: str, fallback: str = "chart") -> str:
+    """Return a filesystem-friendly token for generated export filenames."""
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip()).strip("_")
+    return token or fallback
 
 
 def export_aspect_distribution_csv_dialog(
