@@ -667,6 +667,7 @@ from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_MODE_LABELS,
 )
 from ephemeraldaddy.gui.features.charts.exporters import (
+    export_similarities_analysis_json_dialog as _export_similarities_analysis_json_dialog,
     get_text_export_path as _get_text_export_path,
     sanitize_export_token as _sanitize_export_token,
 )
@@ -6236,6 +6237,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
+        json_export_button = QPushButton("JSON")
+        json_export_button.setFlat(True)
+        json_export_button.setFixedSize(42, 20)
+        json_export_button.setCursor(Qt.PointingHandCursor)
+        json_export_button.setToolTip("Export similarities analysis as JSON")
+        json_export_button.clicked.connect(self._export_similarities_analysis_json)
+        title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
+
         export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
@@ -8180,6 +8189,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_hd_profiles,
             db_total_count=db_total_count,
+        )
+
+    def _export_similarities_analysis_json(self) -> None:
+        _export_similarities_analysis_json_dialog(
+            self,
+            self._similarities_export_sections,
+            reactivate_callback=self._reactivate_database_view,
         )
 
     def _export_similarities_analysis_csv(self) -> None:
