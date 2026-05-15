@@ -6236,6 +6236,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
+        json_export_button = QPushButton("JSON")
+        json_export_button.setFlat(True)
+        json_export_button.setFixedSize(42, 20)
+        json_export_button.setCursor(Qt.PointingHandCursor)
+        json_export_button.setToolTip("Export similarities analysis as JSON")
+        json_export_button.clicked.connect(self._export_similarities_analysis_json)
+        title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
+
         export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
         if share_icon_path:
@@ -8180,6 +8188,192 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selection_total_count=len(selected_non_placeholder_chart_ids),
             db_match_counts=db_common_hd_profiles,
             db_total_count=db_total_count,
+        )
+
+    @staticmethod
+    def _empty_similarities_json_profile(selection_name: str) -> OrderedDict:
+        return OrderedDict(
+            [
+                ("name", selection_name),
+                ("signs", OrderedDict()),
+                ("antisigns", OrderedDict()),
+                ("houses", OrderedDict()),
+                ("antihouses", OrderedDict()),
+                ("bodies", OrderedDict()),
+                ("antibodies", OrderedDict()),
+                ("nakshatras", OrderedDict()),
+                ("antinakshatras", OrderedDict()),
+                ("positions", OrderedDict()),
+                ("antipositions", OrderedDict()),
+                ("aspects", OrderedDict()),
+                ("antiaspects", OrderedDict()),
+                ("gates", OrderedDict()),
+                ("antigates", OrderedDict()),
+                ("channels", OrderedDict()),
+                ("antichannels", OrderedDict()),
+                ("centers", OrderedDict()),
+                ("anticenters", OrderedDict()),
+                ("profiles", OrderedDict()),
+                ("antiprofiles", OrderedDict()),
+                ("authorities", OrderedDict()),
+                ("antiauthorities", OrderedDict()),
+                ("bazisigns", OrderedDict()),
+                ("antibazisigns", OrderedDict()),
+                ("color", "#cc99ff"),
+                ("motivation", ""),
+                ("description", ""),
+                ("quotes", OrderedDict()),
+            ]
+        )
+
+    @staticmethod
+    def _similarities_json_category_for_section(section_title: str, percent_difference: float) -> str | None:
+        positive_categories = {
+            "Signs in positions in common": "positions",
+            "Houses in positions in common": "positions",
+            "Signs in houses in common": "houses",
+            "Top 3 Dominant Signs in common": "signs",
+            "Top 3 Dominant Bodies in common": "bodies",
+            "Top 3 Dominant Houses in common": "houses",
+            "Dominant nakshatras in common": "nakshatras",
+            "Aspects in common": "aspects",
+            "Gates in common": "gates",
+            "Channels in common": "channels",
+            "Defined Centers in common": "centers",
+            "Authorities in common": "authorities",
+            "Profiles in common": "profiles",
+        }
+        category = positive_categories.get(section_title)
+        if category is None:
+            return None
+        if percent_difference < 0:
+            return f"anti{category}"
+        return category
+
+    def _build_similarities_json_export_payload(self, selection_name: str) -> OrderedDict:
+        profile = self._empty_similarities_json_profile(selection_name)
+        for section_title, matches in self._similarities_export_sections:
+            if not matches:
+                continue
+            for (
+                label,
+                match_count,
+                total_count,
+                database_match_count,
+                database_total_count,
+                _matching_chart_names,
+            ) in matches:
+                selection_percent = (match_count / total_count) * 100 if total_count else 0.0
+                database_percent = (
+                    (database_match_count / database_total_count) * 100
+                    if database_total_count
+                    else 0.0
+                )
+                percent_difference = selection_percent - database_percent
+                if abs(percent_difference) <= 3.0:
+                    continue
+                category = self._similarities_json_category_for_section(
+                    section_title,
+                    percent_difference,
+                )
+                if category is None:
+                    continue
+                ratio = int(round(abs(percent_difference)))
+                if ratio <= 0:
+                    continue
+                profile[category][str(label)] = ratio
+        return OrderedDict([(selection_name, profile)])
+
+    def _export_similarities_analysis_json(self) -> None:
+        if not self._similarities_export_sections:
+            QMessageBox.information(
+                self,
+                "No similarities data",
+                "Select at least 2 charts to generate similarities before exporting.",
+            )
+            return
+
+        selection_name, accepted = QInputDialog.getText(
+            self,
+            "Selection name",
+            "Name this selection (used as the JSON key and profile name):",
+            text="Selection",
+        )
+        if not accepted:
+            return
+        selection_name = selection_name.strip() or "Selection"
+
+        payload = self._build_similarities_json_export_payload(selection_name)
+        profile = payload[selection_name]
+        has_exported_factors = any(
+            bool(profile.get(key))
+            for key in (
+                "signs",
+                "antisigns",
+                "houses",
+                "antihouses",
+                "bodies",
+                "antibodies",
+                "nakshatras",
+                "antinakshatras",
+                "positions",
+                "antipositions",
+                "aspects",
+                "antiaspects",
+                "gates",
+                "antigates",
+                "channels",
+                "antichannels",
+                "centers",
+                "anticenters",
+                "profiles",
+                "antiprofiles",
+                "authorities",
+                "antiauthorities",
+                "bazisigns",
+                "antibazisigns",
+            )
+        )
+        if not has_exported_factors:
+            QMessageBox.information(
+                self,
+                "No JSON factors",
+                "No similarities differ from the database by more than 3%.",
+            )
+            return
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        sanitized_name = re.sub(r"[^\w\s-]", "", selection_name).strip() or "selection"
+        sanitized_name = re.sub(r"\s+", "_", sanitized_name)
+        default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.json"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export similarities analysis as JSON",
+            default_filename,
+            "JSON Files (*.json)",
+        )
+        QTimer.singleShot(0, self._reactivate_database_view)
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".json"):
+            file_path = f"{file_path}.json"
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as json_file:
+                json.dump(payload, json_file, ensure_ascii=False, indent=4)
+                json_file.write("\n")
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                f"Could not export similarities analysis as JSON:\n{e}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Export complete",
+            f"Saved similarities analysis JSON to:\n{file_path}",
         )
 
     def _export_similarities_analysis_csv(self) -> None:
