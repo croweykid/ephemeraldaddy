@@ -22463,14 +22463,21 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Similar Charts",
-                "Similar chart matching is disabled for placeholder charts.",
+                "Similar chart matching is based on birth data, so doesn't work for placeholder charts.",
             )
             return
 
-        progress_parent = requester if isinstance(requester, QWidget) else self
+        
+        progress_parent = (
+            requester if isinstance(requester, QWidget) and requester.isVisible() else None
+        )
+        if progress_parent is None:
+            active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
+            if isinstance(active_window, QWidget) and active_window.isVisible():
+                progress_parent = active_window
         progress = show_similar_charts_loading_progress(
             parent=progress_parent,
-            message="Reading saved charts for similar chart matching…",
+            message="Analyzing database to match similar charts…",
         )
         try:
             try:
