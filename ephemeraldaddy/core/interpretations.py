@@ -5074,10 +5074,10 @@ TRAITS = {
 
 
 MBTI_ELEMENTS = [
-{"element":"fire","E":10,"S":10,"F":5,"P":5},
-{"element":"water","E":0,"S":2.5,"F":10,"P":5},
-{"element":"air","E":7.5,"S":0,"F":0,"P":10},
-{"element":"earth","E":2.5,"S":7.5,"F":5,"P":0},
+"air":{"E":7.5,"S":0,"F":0,"P":10,"E2":5,"S2":0,"F2":0,"P2":5,"description":"intellectual, cunning, theoretical, abstract, erudite",}, #e2/s2/f2/p2 are all based on kiersey's theoretical interpretation of the socratic elements. e/s/f/p are based on my own findings.
+"fire":{"E":10,"S":10,"F":5,"P":5,"E2":5,"S2":10,"F2":5,"P2":10,"description":"bold, dynamic, charismatic, radiant"}, #sp
+"water":{"E":0,"S":2.5,"F":10,"P":5,"E2":5,"S2":0,"F2":10,"P2":5,"description":"adaptive, empathic, perceptive, sensitive"}, #nf
+"earth":{"E":2.5,"S":7.5,"F":5,"P":0,"E2":5,"S2":10,"F2":5,"P2":0,"description":"grounded, stabilizing, nurturing"}, #sj
 ]
 
 #this should be moved to the analysis/human design file
