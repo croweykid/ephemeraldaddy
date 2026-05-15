@@ -1002,7 +1002,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
-    build_dnd_top_three_summary_html as _build_dnd_top_three_summary_html,
+    configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
     connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
     format_dnd_class_info_text as _format_dnd_class_info_text,
@@ -21787,11 +21787,26 @@ class MainWindow(QMainWindow):
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
+            dialog._similar_chart_popout_last_info_target = normalized_target
             popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
-            if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData"):
-                similarities_index = int(popout_analysis_dropdown.findData("similarities"))
+            selected_mode = (
+                str(popout_analysis_dropdown.currentData() or "").strip().lower()
+                if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
+                else ""
+            )
+            if selected_mode not in {"similarities", "dissimilarities", "bio"}:
+                similarities_index = (
+                    int(popout_analysis_dropdown.findData("similarities"))
+                    if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
+                    else -1
+                )
                 if similarities_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
+                    signals_were_blocked = False
+                    if hasattr(popout_analysis_dropdown, "blockSignals"):
+                        signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
                     popout_analysis_dropdown.setCurrentIndex(similarities_index)
+                    if hasattr(popout_analysis_dropdown, "blockSignals"):
+                        popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
         self._on_similar_chart_link_activated(normalized_target)
@@ -21808,15 +21823,33 @@ class MainWindow(QMainWindow):
             return
         target = str(getattr(dialog, "_similar_chart_popout_last_info_target", "") or "").strip()
         if not target:
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode=selected_mode)
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
+
+    def _show_similar_chart_popout_empty_analysis(self, dialog: QDialog, *, selected_mode: str) -> None:
+        popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None or not hasattr(popout_info_output, "setText"):
+            return
+        title_and_prompt = {
+            "similarities": ("SIMILARITIES ANALYSIS", "similarities analysis"),
+            "dissimilarities": ("DISSIMILARITIES ANALYSIS", "dissimilarities analysis"),
+            "bio": ("BIO", "biographical information"),
+        }
+        title, prompt_subject = title_and_prompt.get(selected_mode, ("ANALYSIS", "this analysis"))
+        popout_info_output.setText(
+            f"<div style='font-weight:700;color:#B87333'>{html.escape(title)}</div>"
+            "<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>"
+            f"Click the ⓘ next to a name to see {html.escape(prompt_subject)}!"
+            "</div>"
+        )
 
     def _show_similar_chart_popout_predictions(self, dialog: QDialog) -> None:
         popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
         if popout_info_output is None:
             return
         matches = list(getattr(dialog, "_similar_chart_popout_most_similar_matches", []) or [])
-        
+
         render_predictions_panel_content(
             output_widget=popout_info_output,
             subject_name=str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip() or "Current chart",
@@ -28696,9 +28729,6 @@ class MainWindow(QMainWindow):
 
     def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
         return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
-        
-    def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
-        return _build_dnd_top_three_summary_html(chart)
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
@@ -28728,7 +28758,12 @@ class MainWindow(QMainWindow):
             summary_label.setTextFormat(Qt.RichText)
             self.dnd_prediction_top_three_label = summary_label
             chart_layout.addWidget(summary_label)
-        summary_label.setText(self._build_dnd_top_three_summary_html(chart))
+        _configure_dnd_top_three_summary_label(
+            summary_label,
+            chart,
+            info_panel=self.chart_info_output,
+            before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
+        )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
