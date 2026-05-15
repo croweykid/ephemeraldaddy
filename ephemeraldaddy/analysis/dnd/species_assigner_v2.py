@@ -8,6 +8,10 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import math
 
 from ephemeraldaddy.analysis.dnd.dnd_definitions import FAMILY_SUBTYPES, SPECIES_FAMILIES
+from ephemeraldaddy.core.dominance import (
+    dominant_element_labels_from_weights,
+    dominant_mode_labels_from_weights,
+)
 
 from ephemeraldaddy.core.interpretations import (
     ASPECT_ANGLE_DEGREES,
@@ -73,7 +77,7 @@ class ScoreCard:
 
     def add(self, amount: float, reason: Optional[str] = None) -> None:
         self.score += amount
-        if reason:
+        if reason and abs(float(amount)) > 1e-9:
             self.reasons.append(reason)
 
 
@@ -477,6 +481,8 @@ class SpeciesAssigner:
             "house_ratios": house_ratios,
             "prominence": prominence,
             "dominant_element": dominant_element,
+            "dominant_elements": dominant_element_labels_from_weights(element_ratios),
+            "dominant_modes": dominant_mode_labels_from_weights(mode_ratios),
             "dominant_ratio": dominant_ratio,
             "balance_score": balance_score,
             "spikiness": spikiness,
@@ -559,8 +565,19 @@ class SpeciesAssigner:
         def ratio_houses(*houses: int) -> float:
             return sum(float(hr.get(h, 0.0)) for h in houses)
 
+        dominant_elements = set(feats.get("dominant_elements", ()))
+        dominant_modes = set(feats.get("dominant_modes", ()))
+
         def p(body: str) -> float:
             return float(prom.get(body, 0.0))
+
+        def dominant_element_score(*elements: str, require_all: bool = False) -> float:
+            if require_all and any(element not in dominant_elements for element in elements):
+                return 0.0
+            return sum(float(er.get(element, 0.0)) for element in elements if element in dominant_elements)
+
+        def dominant_mode_score(mode: str) -> float:
+            return float(mr.get(mode, 0.0)) if mode in dominant_modes else 0.0
 
         def link(a: str, b: str, kinds: Optional[Iterable[str]] = None, max_orb: Optional[float] = None) -> float:
             return self._aspect_strength(a, b, aspects, set(kinds) if kinds is not None else ALL_MAJOR_ASPECTS, max_orb=max_orb)
@@ -630,7 +647,7 @@ class SpeciesAssigner:
         cards["Dragons"].add(0.45 * p("Sun"), "Solar force helps.")
         cards["Dragons"].add(0.42 * p("Pluto"), "Pluto adds hoard-level intensity.")
         cards["Dragons"].add(0.68 * (er["Fire"] + er["Earth"]), "Fire/Earth is the dragon spine.")
-        cards["Dragons"].add(0.28 * mr["fixed"], "Fixed emphasis stabilizes dragonness.")
+        cards["Dragons"].add(0.28 * dominant_mode_score("fixed"), "Fixed emphasis stabilizes dragonness.")
         cards["Dragons"].add(0.22 * link("Jupiter", "Sun", ALL_MAJOR_ASPECTS), "Sun-Jupiter bond helps.")
 
         # Dwarf
@@ -714,7 +731,7 @@ class SpeciesAssigner:
         cards["Lizardfolk (Reptilians)"].add(0.82 * p("Saturn"), "Saturn gives cold pragmatism.")
         cards["Lizardfolk (Reptilians)"].add(0.58 * p("Pluto"), "Pluto adds survival intensity.")
         cards["Lizardfolk (Reptilians)"].add(0.72 * er["Earth"], "Earth is the main element lane.")
-        cards["Lizardfolk (Reptilians)"].add(0.32 * mr["fixed"], "Fixed emphasis = thick skin and arguably also sun basking - stationary for ectothermic homeostasis.")
+        cards["Lizardfolk (Reptilians)"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis = thick skin and arguably also sun basking - stationary for ectothermic homeostasis.")
         cards["Lizardfolk (Reptilians)"].add(0.26 * ratio_signs("Capricorn", "Scorpio", "Taurus"), "Capricorn/Scorpio/Taurus supports it.")
         cards["Lizardfolk (Reptilians)"].add(0.18 * ratio_houses(2, 6, 8, 10), "Survival and work houses reinforce it.")
 
@@ -729,7 +746,7 @@ class SpeciesAssigner:
         cards["Minotaur"].add(0.88 * p("Mars"), "Mars is primary.")
         cards["Minotaur"].add(0.52 * p("Jupiter"), "Jupiter adds size and momentum.")
         cards["Minotaur"].add(0.62 * (er["Fire"] + er["Earth"]), "Fire/Earth is the main chassis.")
-        cards["Minotaur"].add(0.34 * mr["fixed"], "Fixed emphasis helps the head-down drive.")
+        cards["Minotaur"].add(0.34 * dominant_mode_score("fixed"), "Fixed emphasis helps the head-down drive.")
         cards["Minotaur"].add(0.22 * ratio_signs("Taurus", "Aries", "Sagittarius"), "Taurus/Aries/Sagittarius supports it.")
 
         # Nymph
@@ -743,7 +760,7 @@ class SpeciesAssigner:
         cards["Ogres"].add(0.95 * p("Mars"), "Mars supplies force.")
         cards["Ogres"].add(0.82 * p("Saturn"), "Saturn supplies bulk and endurance.")
         cards["Ogres"].add(0.88 * er["Earth"], "Earth is the main Ogre lane.")
-        cards["Ogres"].add(0.28 * mr["fixed"], "Fixed emphasis helps.")
+        cards["Ogres"].add(0.28 * dominant_mode_score("fixed"), "Fixed emphasis helps.")
         cards["Ogres"].add(-0.18 * er["Air"], "Heavy Air works against Ogre typing.")
 
         # Orcs
@@ -757,8 +774,8 @@ class SpeciesAssigner:
         # Plasmoid
         cards["Plasmoid"].add(0.72 * p("Neptune"), "Neptune gives fluidity.")
         cards["Plasmoid"].add(0.62 * p("Uranus"), "Uranus gives weird embodiment.")
-        cards["Plasmoid"].add(0.68 * (er["Water"] + er["Air"]), "Water/Air is the main lane.")
-        cards["Plasmoid"].add(0.32 * mr["mutable"], "Mutable emphasis helps.")
+        cards["Plasmoid"].add(0.68 * dominant_element_score("Water", "Air", require_all=True), "Water/Air is the main lane.")
+        cards["Plasmoid"].add(0.32 * dominant_mode_score("mutable"), "Mutable emphasis helps.")
         cards["Plasmoid"].add(0.22 * link("Neptune", "Uranus", ALL_MAJOR_ASPECTS), "Neptune-Uranus contact helps.")
 
         # Robots
@@ -780,12 +797,12 @@ class SpeciesAssigner:
         cards["Rodentfolk"].add(0.24 * p("Mercury") * self._clamp01((er["Air"] + er["Earth"] - 0.38) / 0.32), "Mercury + practical elemental blend boosts Rodentfolk even outside heavy Earth charts.")
 
         # Shapeshifter
-        cards["Shapeshifter"].add(0.80 * mr["mutable"], "Mutable emphasis is central.")
+        cards["Shapeshifter"].add(0.80 * dominant_mode_score("mutable"), "Mutable emphasis is central.")
         cards["Shapeshifter"].add(0.58 * shape_sign_signature, "Gemini/Pisces/Libra/Aquarius supports fluid identity.")
         cards["Shapeshifter"].add(0.42 * max(p("Mercury"), p("Neptune"), p("Uranus"), p("Pluto")), "Labile or uncanny planets help.")
         cards["Shapeshifter"].add(0.34 * ratio_houses(1, 8, 12), "Identity and liminal houses reinforce it.")
         cards["Shapeshifter"].add(0.24 * max(link("Mercury", "Neptune", ALL_MAJOR_ASPECTS), link("Mercury", "Pluto", ALL_MAJOR_ASPECTS), link("Moon", "Uranus", ALL_MAJOR_ASPECTS)), "Identity-fluid contacts help.")
-        cards["Shapeshifter"].add(0.30 * self._clamp01((mr["mutable"] - 0.30) / 0.32), "Very high mutable concentration strongly favors Shapeshifter.")
+        cards["Shapeshifter"].add(0.30 * self._clamp01((dominant_mode_score("mutable") - 0.30) / 0.32), "Very high mutable concentration strongly favors Shapeshifter.")
         cards["Shapeshifter"].add(0.20 * self._clamp01((ratio_signs("Gemini", "Pisces") - 0.22) / 0.22), "Gemini/Pisces dominance materially increases Shapeshifter fit.")
 
         # Skeleton
@@ -800,7 +817,7 @@ class SpeciesAssigner:
         cards["Stone People (Golems)"].add(1.00 * er["Earth"], "Earth is primary.")
         cards["Stone People (Golems)"].add(0.82 * p("Saturn"), "Saturn gives mass and structure.")
         cards["Stone People (Golems)"].add(0.34 * max(p("Mars"), p("Pluto")), "A second hard planet helps the animated mass.")
-        cards["Stone People (Golems)"].add(0.32 * mr["fixed"], "Fixed emphasis supports it.")
+        cards["Stone People (Golems)"].add(0.32 * dominant_mode_score("fixed"), "Fixed emphasis supports it.")
         cards["Stone People (Golems)"].add(0.28 * ratio_houses(2, 4, 10), "Material houses reinforce it.")
 
         # Succubi/Incubi

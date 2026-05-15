@@ -623,6 +623,8 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_sidereal_planet_prevalence_counts as _calculate_sidereal_planet_prevalence_counts,
     calculate_sign_prevalence_counts as _calculate_sign_prevalence_counts,
     chart_uses_houses as _chart_uses_houses,
+    dominant_element_labels_from_weights as _dominant_element_labels_from_weights,
+    dominant_mode_labels_from_weights as _dominant_mode_labels_from_weights,
     dominant_planet_keys as _dominant_planet_keys,
     house_for_longitude as _house_for_longitude,
     house_membership_weights as _house_membership_weights,
@@ -8845,13 +8847,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 or _calculate_dominant_element_weights(chart)
             )
             chart.dominant_element_weights = dominant_element_weights
-            element_order = ["Fire", "Earth", "Air", "Water"]
-            ranked_elements = sorted(
-                element_order,
-                key=lambda element: (-float(dominant_element_weights.get(element, 0.0)), element_order.index(element)),
-            )
-            if ranked_elements and float(dominant_element_weights.get(ranked_elements[0], 0.0)) > 0:
-                snapshot["dominant_element_totals"][ranked_elements[0]] += 1.0
+            for dominant_element in _dominant_element_labels_from_weights(dominant_element_weights):
+                snapshot["dominant_element_totals"][dominant_element] += 1.0
                 snapshot["dominant_element_total_weight"] += 1.0
 
             dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)
@@ -16466,16 +16463,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     chart.dominant_element_weights = _calculate_dominant_element_weights(chart)
                     mode_weights = _calculate_mode_weights(chart)
                     chart.modal_distribution = dict(mode_weights)
-                    nonzero_modes = {
-                        mode: float(weight)
-                        for mode, weight in mode_weights.items()
-                        if float(weight) > 0
-                    }
-                    chart.dominant_mode = (
-                        max(nonzero_modes.items(), key=lambda item: item[1])[0]
-                        if nonzero_modes
-                        else None
-                    )
+                    dominant_modes = _dominant_mode_labels_from_weights(mode_weights)
+                    chart.dominant_mode = dominant_modes[0] if dominant_modes else None
                     hd_result = build_human_design_result(chart)
                     activations = (*hd_result.personality_activations, *hd_result.design_activations)
                     chart.human_design_gates = sorted(int(gate) for gate in hd_result.active_gates)
@@ -18440,7 +18429,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> bool:
         if mode == "Any":
             return True
-        return mode in self._chart_top_three_dominant_modes(chart)
+        return mode in self._chart_dominant_modes(chart)
 
     def _chart_isolated_dominant_sign_matches(
         self,
@@ -18465,23 +18454,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         top_three = self._dominant_sign_top_three_labels(dominant_weights)
         return {str(sign) for sign in top_three if str(sign)}
 
-    def _chart_top_three_dominant_modes(self, chart: Chart) -> set[str]:
+    def _chart_dominant_modes(self, chart: Chart) -> set[str]:
         mode_weights = _calculate_mode_weights(chart)
         if not mode_weights:
             return set()
-        ordered_modes = ["cardinal", "fixed", "mutable"]
-        ranked_modes = sorted(
-            ordered_modes,
-            key=lambda mode_name: (
-                -float(mode_weights.get(mode_name, 0.0)),
-                ordered_modes.index(mode_name),
-            ),
-        )
-        return {
-            str(mode_name)
-            for mode_name in ranked_modes[:3]
-            if float(mode_weights.get(mode_name, 0.0)) > 0
-        }
+        return set(_dominant_mode_labels_from_weights(mode_weights))
 
     def _chart_dominant_planet_matches(
         self,
@@ -18561,20 +18538,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     ) -> bool:
         if element == "Any":
             return True
-        return element in set(self._chart_ranked_dominant_elements(chart)[:3])
+        return element in set(self._chart_ranked_dominant_elements(chart))
 
     def _chart_ranked_dominant_elements(self, chart: Chart) -> list[str]:
         dominant_element_weights = _calculate_dominant_element_weights(chart)
-        elements = ["Fire", "Earth", "Air", "Water"]
-        ranked_elements = sorted(
-            elements,
-            key=lambda element: (-float(dominant_element_weights.get(element, 0.0)), elements.index(element)),
-        )
-        return [
-            element
-            for element in ranked_elements
-            if float(dominant_element_weights.get(element, 0.0)) > 0
-        ]
+        return _dominant_element_labels_from_weights(dominant_element_weights)
 
     @staticmethod
     def _house_for_longitude(
@@ -23868,16 +23836,8 @@ class MainWindow(QMainWindow):
         else:
             mode_counts = _calculate_mode_weights(chart)
             chart.modal_distribution = dict(mode_counts)
-            nonzero_modes = {
-                mode: float(weight)
-                for mode, weight in mode_counts.items()
-                if float(weight) > 0
-            }
-            chart.dominant_mode = (
-                max(nonzero_modes.items(), key=lambda item: item[1])[0]
-                if nonzero_modes
-                else None
-            )
+            dominant_modes = _dominant_mode_labels_from_weights(mode_counts)
+            chart.dominant_mode = dominant_modes[0] if dominant_modes else None
 
         values = [mode_counts[mode] for mode in modal_order]
         total = sum(values)
