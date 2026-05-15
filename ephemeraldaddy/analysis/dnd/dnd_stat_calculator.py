@@ -36,6 +36,7 @@ _WEIGHT_NORMALIZED_PREDICTOR_CATEGORIES: Tuple[Tuple[str, str, float], ...] = (
     ("positions", "antipositions", 1.0),
     ("aspects", "antiaspects", 1.0),
     ("gates", "antigates", 6.0),
+    ("channels", "antichannels", 6.0),
 )
 _MATCH_ONCE_PREDICTOR_CATEGORIES: Tuple[Tuple[str, str], ...] = (
     ("hdtypes", "antihdtypes"),

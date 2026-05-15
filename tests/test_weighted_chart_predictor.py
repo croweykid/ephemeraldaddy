@@ -55,6 +55,27 @@ def test_scores_human_design_and_bazi_metadata_categories():
     assert scores["miss"] == 0.0
 
 
+def test_scores_weighted_human_design_channels():
+    chart = SimpleNamespace(human_design_channels=["34-20", "6-59"])
+    predictors = {
+        "weighted_channel": {
+            "channels": {(20, 34): 2},
+        },
+        "unweighted_channel": {
+            "channels": [[20, 34]],
+        },
+        "anti_channel": {
+            "antichannels": {(59, 6): 2},
+        },
+    }
+
+    scores = _score(predictors, chart)
+
+    assert scores["weighted_channel"] == 12.0
+    assert scores["unweighted_channel"] == 6.0
+    assert scores["anti_channel"] == -12.0
+
+
 def test_scores_bazi_signs_from_stored_pillars():
     chart = SimpleNamespace(
         bazi_year_pillar="甲午",
