@@ -21789,8 +21789,45 @@ class MainWindow(QMainWindow):
             return
         target = str(getattr(dialog, "_similar_chart_popout_last_info_target", "") or "").strip()
         if not target:
+            target = self._default_similar_chart_popout_info_target(dialog, selected_mode=selected_mode)
+        if not target:
+            self._show_similar_chart_popout_empty_analysis(dialog, selected_mode=selected_mode)
             return
         self._show_similar_chart_reasoning(target, target_dialog=dialog)
+
+    def _default_similar_chart_popout_info_target(self, dialog: QDialog, *, selected_mode: str) -> str:
+        reasoning_by_target = getattr(dialog, "_similar_chart_popout_reasoning_by_target", {})
+        if not isinstance(reasoning_by_target, dict) or not reasoning_by_target:
+            return ""
+        preferred_panel = "least" if selected_mode == "dissimilarities" else "most"
+        preferred_fragment = f":{preferred_panel}:"
+        for target in reasoning_by_target:
+            normalized_target = str(target or "").strip()
+            if preferred_fragment in normalized_target:
+                dialog._similar_chart_popout_last_info_target = normalized_target
+                return normalized_target
+        fallback_target = str(next(iter(reasoning_by_target), "") or "").strip()
+        if fallback_target:
+            dialog._similar_chart_popout_last_info_target = fallback_target
+        return fallback_target
+
+    def _show_similar_chart_popout_empty_analysis(self, dialog: QDialog, *, selected_mode: str) -> None:
+        popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
+        if popout_info_output is None or not hasattr(popout_info_output, "setText"):
+            return
+        titles = {
+            "similarities": "SIMILARITIES ANALYSIS",
+            "dissimilarities": "DISSIMILARITIES ANALYSIS",
+            "bio": "BIO",
+        }
+        title = titles.get(selected_mode, "ANALYSIS")
+        popout_info_output.setText(
+            f"<div style='font-weight:700;color:#B87333'>{html.escape(title)}</div>"
+            "<div style='margin-top:8px;color:#f5f5f5;font-style:italic'>"
+            "No similar-chart details are available for this panel yet. "
+            "Click ⓘ next to a chart to choose a comparison."
+            "</div>"
+        )
 
     def _show_similar_chart_popout_predictions(self, dialog: QDialog) -> None:
         popout_info_output = getattr(dialog, "_similar_chart_popout_info_output", None)
