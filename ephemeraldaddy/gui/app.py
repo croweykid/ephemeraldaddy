@@ -765,6 +765,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    close_similar_charts_loading_progress,
     format_similar_chart_name_html,
     format_similarity_component_summary,
     is_similar_info_target,
@@ -772,6 +773,8 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     map_similar_info_targets,
     render_predictions_panel_content,
+    show_similar_charts_loading_progress,
+    update_similar_charts_loading_progress,
     resolve_similarity_component_keys_for_display,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import (
@@ -22431,50 +22434,68 @@ class MainWindow(QMainWindow):
             )
             return
 
-        try:
-            candidates = self._load_similar_chart_candidates()
-        except Exception as exc:
-            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
-            return
-        if not candidates:
-            QMessageBox.information(
-                self,
-                "Similar Charts",
-                "Need at least one additional saved chart that is not placeholder/hypothetical.",
-            )
-            return
-
-        algorithm_mode = _normalize_similar_charts_algorithm_mode(
-            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        progress_parent = requester if isinstance(requester, QWidget) else self
+        progress = show_similar_charts_loading_progress(
+            parent=progress_parent,
+            message="Reading saved charts for similar chart matching…",
         )
-        self._similar_charts_algorithm_mode = algorithm_mode
         try:
-            most_similar_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=False,
-                algorithm_mode=algorithm_mode,
-                custom_settings=getattr(self, "_similarity_calculator_settings", None),
-            )
-            least_similar_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=True,
-                algorithm_mode=algorithm_mode,
-                custom_settings=getattr(self, "_similarity_calculator_settings", None),
-            )
-        except Exception as exc:
-            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                self._report_similar_charts_comprehensive_failure(
-                    context="_show_similar_charts_popout",
-                    detail="comprehensive algorithm execution failed",
-                    error=exc,
+            try:
+                candidates = self._load_similar_chart_candidates()
+            except Exception as exc:
+                close_similar_charts_loading_progress(progress)
+                QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+                return
+            if not candidates:
+                close_similar_charts_loading_progress(progress)
+                QMessageBox.information(
+                    self,
+                    "Similar Charts",
+                    "Need at least one additional saved chart that is not placeholder/hypothetical.",
                 )
-            raise
+                return
+
+            algorithm_mode = _normalize_similar_charts_algorithm_mode(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+            )
+            self._similar_charts_algorithm_mode = algorithm_mode
+            try:
+                update_similar_charts_loading_progress(
+                    progress,
+                    "Calculating most similar charts…",
+                )
+                most_similar_matches = find_astro_twins(
+                    chart,
+                    candidates,
+                    top_k=25,
+                    exclude_chart_id=subject_chart_id,
+                    least_similar=False,
+                    algorithm_mode=algorithm_mode,
+                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                )
+                update_similar_charts_loading_progress(
+                    progress,
+                    "Calculating least similar charts…",
+                )
+                least_similar_matches = find_astro_twins(
+                    chart,
+                    candidates,
+                    top_k=25,
+                    exclude_chart_id=subject_chart_id,
+                    least_similar=True,
+                    algorithm_mode=algorithm_mode,
+                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                )
+            except Exception as exc:
+                if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                    self._report_similar_charts_comprehensive_failure(
+                        context="_show_similar_charts_popout",
+                        detail="comprehensive algorithm execution failed",
+                        error=exc,
+                    )
+                raise
+        finally:
+            close_similar_charts_loading_progress(progress)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
