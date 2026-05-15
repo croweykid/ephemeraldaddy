@@ -765,6 +765,7 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similarity_reasoning_panel_html,
     build_similarity_reasoning_panel_text,
     build_similar_charts_popout_dialog,
+    close_similar_charts_loading_progress,
     format_similar_chart_name_html,
     format_similarity_component_summary,
     is_similar_info_target,
@@ -772,6 +773,8 @@ from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     make_similar_info_target,
     map_similar_info_targets,
     render_predictions_panel_content,
+    show_similar_charts_loading_progress,
+    update_similar_charts_loading_progress,
     resolve_similarity_component_keys_for_display,
 )
 from ephemeraldaddy.gui.features.charts.db_info_panel import (
@@ -22375,44 +22378,6 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _show_similar_charts_loading_progress(
-        self,
-        *,
-        parent: QWidget | None,
-        message: str = "Preparing similar chart calculations…",
-    ) -> QProgressDialog:
-        progress = QProgressDialog(message, None, 0, 0, parent or self)
-        progress.setWindowTitle("Similar Charts")
-        progress.setWindowModality(Qt.WindowModal)
-        progress.setCancelButton(None)
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(False)
-        progress.setAutoReset(False)
-        progress.setValue(0)
-        progress.show()
-        QApplication.processEvents(QEventLoop.AllEvents, 50)
-        return progress
-
-    def _update_similar_charts_loading_progress(
-        self,
-        progress: QProgressDialog | None,
-        message: str,
-    ) -> None:
-        if progress is None:
-            return
-        progress.setLabelText(message)
-        progress.setValue(0)
-        QApplication.processEvents(QEventLoop.AllEvents, 50)
-
-    def _close_similar_charts_loading_progress(
-        self,
-        progress: QProgressDialog | None,
-    ) -> None:
-        if progress is None:
-            return
-        progress.close()
-        QApplication.processEvents(QEventLoop.AllEvents, 50)
-
     def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
@@ -22470,7 +22435,7 @@ class MainWindow(QMainWindow):
             return
 
         progress_parent = requester if isinstance(requester, QWidget) else self
-        progress = self._show_similar_charts_loading_progress(
+        progress = show_similar_charts_loading_progress(
             parent=progress_parent,
             message="Reading saved charts for similar chart matching…",
         )
@@ -22478,11 +22443,11 @@ class MainWindow(QMainWindow):
             try:
                 candidates = self._load_similar_chart_candidates()
             except Exception as exc:
-                self._close_similar_charts_loading_progress(progress)
+                close_similar_charts_loading_progress(progress)
                 QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
                 return
             if not candidates:
-                self._close_similar_charts_loading_progress(progress)
+                close_similar_charts_loading_progress(progress)
                 QMessageBox.information(
                     self,
                     "Similar Charts",
@@ -22495,7 +22460,7 @@ class MainWindow(QMainWindow):
             )
             self._similar_charts_algorithm_mode = algorithm_mode
             try:
-                self._update_similar_charts_loading_progress(
+                update_similar_charts_loading_progress(
                     progress,
                     "Calculating most similar charts…",
                 )
@@ -22508,7 +22473,7 @@ class MainWindow(QMainWindow):
                     algorithm_mode=algorithm_mode,
                     custom_settings=getattr(self, "_similarity_calculator_settings", None),
                 )
-                self._update_similar_charts_loading_progress(
+                update_similar_charts_loading_progress(
                     progress,
                     "Calculating least similar charts…",
                 )
@@ -22530,7 +22495,7 @@ class MainWindow(QMainWindow):
                     )
                 raise
         finally:
-            self._close_similar_charts_loading_progress(progress)
+            close_similar_charts_loading_progress(progress)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE

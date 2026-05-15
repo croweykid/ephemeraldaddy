@@ -9,15 +9,17 @@ import re
 import statistics
 from typing import Any, Callable
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEventLoop, QSize, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QProgressDialog,
     QToolButton,
     QScrollArea,
     QSplitter,
@@ -65,6 +67,42 @@ from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
 
 
+def show_similar_charts_loading_progress(
+    *,
+    parent: QWidget | None,
+    message: str = "Preparing similar chart calculations…",
+) -> QProgressDialog:
+    progress = QProgressDialog(message, None, 0, 0, parent)
+    progress.setWindowTitle("Similar Charts")
+    progress.setWindowModality(Qt.WindowModal)
+    progress.setCancelButton(None)
+    progress.setMinimumDuration(0)
+    progress.setAutoClose(False)
+    progress.setAutoReset(False)
+    progress.setValue(0)
+    progress.show()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+    return progress
+
+
+def update_similar_charts_loading_progress(
+    progress: QProgressDialog | None,
+    message: str,
+) -> None:
+    if progress is None:
+        return
+    progress.setLabelText(message)
+    progress.setValue(0)
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+
+def close_similar_charts_loading_progress(
+    progress: QProgressDialog | None,
+) -> None:
+    if progress is None:
+        return
+    progress.close()
+    QApplication.processEvents(QEventLoop.AllEvents, 50)
 
 
 def _sentiment_scale_bucket(value: float) -> tuple[str, str, str]:
