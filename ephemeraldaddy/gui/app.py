@@ -24781,9 +24781,29 @@ class MainWindow(QMainWindow):
             species_entries = species_info_map.get(block_number, [])
             if species_entries:
                 selected_species = None
-                for entry in sorted(species_entries, key=lambda item: item["icon_index"]):
-                    if cursor_pos >= entry["icon_index"]:
+                for entry in species_entries:
+                    span_start = entry.get("span_start")
+                    span_end = entry.get("span_end")
+                    if (
+                        isinstance(span_start, int)
+                        and isinstance(span_end, int)
+                        and span_start <= cursor_pos < span_end
+                    ):
                         selected_species = entry
+                        break
+                if selected_species is None:
+                    icon_entries = [
+                        entry
+                        for entry in species_entries
+                        if isinstance(entry.get("icon_index"), int)
+                        and int(entry.get("icon_index", -1)) >= 0
+                    ]
+                    for entry in sorted(
+                        icon_entries,
+                        key=lambda item: int(item["icon_index"]),
+                    ):
+                        if cursor_pos >= int(entry["icon_index"]):
+                            selected_species = entry
                 if selected_species:
                     if selected_species.get("kind") == "class":
                         self._show_dnd_class_info(

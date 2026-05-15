@@ -953,6 +953,10 @@ def format_chart_text(
         lines.append("Top 3 Species")
         for payload in species_payloads:
             species_line_text = str(payload["line"])
+            label_start = species_line_text.find(") ")
+            label_start = label_start + 2 if label_start != -1 else 0
+            icon_index = species_line_text.find("ⓘ")
+            label_end = icon_index if icon_index != -1 else len(species_line_text)
             species_info_map[len(lines)] = [
                 {
                     "kind": payload.get("kind"),
@@ -960,7 +964,9 @@ def format_chart_text(
                     "subtype": payload["subtype"],
                     "score": payload["score"],
                     "evidence": payload["evidence"],
-                    "icon_index": species_line_text.find("ⓘ"),
+                    "icon_index": icon_index,
+                    "span_start": label_start,
+                    "span_end": len(species_line_text[:label_end].rstrip()),
                 }
             ]
             lines.append(species_line_text)
@@ -970,6 +976,10 @@ def format_chart_text(
         lines.append("Top 3 Classes* (alpha phase prototype, not amazing yet)")
         for payload in class_payloads:
             class_line_text = str(payload["line"])
+            label_start = class_line_text.find(") ")
+            label_start = label_start + 2 if label_start != -1 else 0
+            icon_index = class_line_text.find("ⓘ")
+            label_end = icon_index if icon_index != -1 else len(class_line_text)
             species_info_map[len(lines)] = [
                 {
                     "kind": payload.get("kind"),
@@ -977,7 +987,9 @@ def format_chart_text(
                     "class_key": payload["class_key"],
                     "score": payload["score"],
                     "axis_scores": payload["axis_scores"],
-                    "icon_index": class_line_text.find("ⓘ"),
+                    "icon_index": icon_index,
+                    "span_start": label_start,
+                    "span_end": len(class_line_text[:label_end].rstrip()),
                 }
             ]
             lines.append(class_line_text)
