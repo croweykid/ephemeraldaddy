@@ -998,7 +998,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
-    build_dnd_top_three_summary_html as _build_dnd_top_three_summary_html,
+    configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
     connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
     format_dnd_class_info_text as _format_dnd_class_info_text,
@@ -28639,9 +28639,6 @@ class MainWindow(QMainWindow):
 
     def _build_dnd_statblock_popout_info(self, stat_key: str, *, chart: Chart | None = None) -> str:
         return _build_dnd_statblock_popout_info_html(chart or self._latest_chart, stat_key)
-        
-    def _build_dnd_top_three_summary_html(self, chart: Chart) -> str:
-        return _build_dnd_top_three_summary_html(chart)
 
     def _render_dndification_predictions(self, chart: Chart | None) -> None:
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
@@ -28671,7 +28668,12 @@ class MainWindow(QMainWindow):
             summary_label.setTextFormat(Qt.RichText)
             self.dnd_prediction_top_three_label = summary_label
             chart_layout.addWidget(summary_label)
-        summary_label.setText(self._build_dnd_top_three_summary_html(chart))
+        _configure_dnd_top_three_summary_label(
+            summary_label,
+            chart,
+            info_panel=self.chart_info_output,
+            before_show=lambda: self._set_chart_info_panel_mode("chart_info"),
+        )
 
     def _normalize_aspect_type(self, raw_aspect: Any) -> str:
         return _normalize_aspect_type(raw_aspect)
