@@ -757,6 +757,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     build_chart_lookup,
     resolve_similarity_pair_targets,
 )
+from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similar_chart_bio_panel_content,
     build_similar_charts_export_lines,
@@ -20469,6 +20470,8 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name: str = ""
         self._similar_charts_reasoning_by_target: dict[str, Any] = {}
         self._similar_charts_popout_dialogs: list[QDialog] = []
+        self._similar_charts_request_id: str | None = None
+        self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
         self._anagrams_summary_label: QLabel | None = None
         self._anagrams_list_label: QLabel | None = None
         self._anagrams_export_button: QToolButton | None = None
@@ -22096,6 +22099,7 @@ class MainWindow(QMainWindow):
             return
         self._similar_charts_reasoning_by_target = {}
         if _chart_is_placeholder(chart):
+            self._similar_charts_request_id = None
             self._similar_charts_export_rows = []
             self._similar_charts_subject_name = ""
             if self._similar_charts_export_button is not None:
@@ -22107,60 +22111,161 @@ class MainWindow(QMainWindow):
 
         if self._similar_charts_export_button is not None:
             self._similar_charts_export_button.setEnabled(False)
+        self._similar_charts_export_rows = []
+        self._similar_charts_subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         self._similar_charts_list_label.setText(
             (
                 f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR};'>⏳</span> "
-                "Calculating similar charts…"
+                "Calculating similar charts in the background…"
             )
         )
-        QApplication.processEvents()
-
-        try:
-            candidates = self._load_similar_chart_candidates()
-        except Exception as exc:
-            self._similar_charts_export_rows = []
-            self._similar_charts_subject_name = ""
-            if self._similar_charts_export_button is not None:
-                self._similar_charts_export_button.setEnabled(False)
-            self._similar_charts_list_label.setText(
-                f"Could not read saved charts for twin matching:\n{exc}"
-            )
-            return
-
-        if not candidates:
-            self._similar_charts_export_rows = []
-            self._similar_charts_subject_name = ""
-            if self._similar_charts_export_button is not None:
-                self._similar_charts_export_button.setEnabled(False)
-            self._similar_charts_list_label.setText(
-                "Need at least one additional saved chart that is not placeholder/hypothetical."
-            )
-            return
 
         algorithm_mode = _normalize_similar_charts_algorithm_mode(
             getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         )
         self._similar_charts_algorithm_mode = algorithm_mode
-        try:
-            matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=3,
-                exclude_chart_id=self.current_chart_id,
-                least_similar=(self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"),
-                algorithm_mode=algorithm_mode,
-                custom_settings=getattr(self, "_similarity_calculator_settings", None),
+        request_id = uuid.uuid4().hex
+        chart_token = self._chart_analytics_cache_token(chart)
+        least_similar = self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"
+        self._similar_charts_request_id = request_id
+        self._start_similar_charts_worker(
+            request_id=request_id,
+            chart=copy.deepcopy(chart),
+            chart_token=chart_token,
+            least_similar=least_similar,
+            algorithm_mode=algorithm_mode,
+        )
+
+    def _start_similar_charts_worker(
+        self,
+        *,
+        request_id: str,
+        chart: Chart,
+        chart_token: str,
+        least_similar: bool,
+        algorithm_mode: str,
+    ) -> None:
+        thread = QThread(self)
+        worker = SimilarChartsWorker(
+            request_id=request_id,
+            chart=chart,
+            current_chart_id=self.current_chart_id,
+            least_similar=least_similar,
+            algorithm_mode=algorithm_mode,
+            custom_settings=copy.deepcopy(getattr(self, "_similarity_calculator_settings", None)),
+        )
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(
+            lambda completed_request_id, payload, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_finished(
+                completed_request_id,
+                payload,
+                expected_chart_token=expected_token,
+                expected_algorithm_mode=expected_mode,
+                expected_least_similar=expected_least,
             )
-        except Exception as exc:
-            if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                self._report_similar_charts_comprehensive_failure(
-                    context="_render_similar_charts",
-                    detail="comprehensive algorithm execution failed",
-                    error=exc,
-                )
-            raise
+        )
+        worker.failed.connect(
+            lambda completed_request_id, message, error, expected_token=chart_token, expected_mode=algorithm_mode, expected_least=least_similar: self._on_similar_charts_worker_failed(
+                completed_request_id,
+                message,
+                error,
+                expected_chart_token=expected_token,
+                expected_algorithm_mode=expected_mode,
+                expected_least_similar=expected_least,
+            )
+        )
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda t=thread, w=worker: self._forget_similar_charts_worker_job(t, w))
+        self._similar_charts_worker_jobs.append((thread, worker))
+        thread.start()
+
+    def _forget_similar_charts_worker_job(self, thread: QThread, worker: SimilarChartsWorker) -> None:
+        try:
+            self._similar_charts_worker_jobs.remove((thread, worker))
+        except ValueError:
+            pass
+
+    def _similar_charts_worker_result_is_current(
+        self,
+        *,
+        request_id: str,
+        expected_chart_token: str,
+        expected_algorithm_mode: str,
+        expected_least_similar: bool,
+    ) -> bool:
+        if request_id != getattr(self, "_similar_charts_request_id", None):
+            return False
+        chart = getattr(self, "_latest_chart", None)
+        if chart is None:
+            return False
+        if self._chart_analytics_cache_token(chart) != expected_chart_token:
+            return False
+        if _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        ) != expected_algorithm_mode:
+            return False
+        current_least_similar = self._chart_analysis_selected_mode("similar_charts", "most_similar") == "least_similar"
+        return current_least_similar == expected_least_similar
+
+    def _on_similar_charts_worker_failed(
+        self,
+        request_id: str,
+        message: str,
+        error: object,
+        *,
+        expected_chart_token: str,
+        expected_algorithm_mode: str,
+        expected_least_similar: bool,
+    ) -> None:
+        if not self._similar_charts_worker_result_is_current(
+            request_id=request_id,
+            expected_chart_token=expected_chart_token,
+            expected_algorithm_mode=expected_algorithm_mode,
+            expected_least_similar=expected_least_similar,
+        ):
+            return
+        self._similar_charts_export_rows = []
+        self._similar_charts_subject_name = ""
+        if self._similar_charts_export_button is not None:
+            self._similar_charts_export_button.setEnabled(False)
+        if expected_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE and isinstance(error, Exception):
+            self._report_similar_charts_comprehensive_failure(
+                context="_render_similar_charts",
+                detail="comprehensive algorithm execution failed",
+                error=error,
+            )
+        if self._similar_charts_list_label is not None:
+            self._similar_charts_list_label.setText(
+                f"Could not calculate similar charts:\n{message}"
+            )
+
+    def _on_similar_charts_worker_finished(
+        self,
+        request_id: str,
+        payload: object,
+        *,
+        expected_chart_token: str,
+        expected_algorithm_mode: str,
+        expected_least_similar: bool,
+    ) -> None:
+        if not self._similar_charts_worker_result_is_current(
+            request_id=request_id,
+            expected_chart_token=expected_chart_token,
+            expected_algorithm_mode=expected_algorithm_mode,
+            expected_least_similar=expected_least_similar,
+        ):
+            return
+        if self._similar_charts_list_label is None or self._latest_chart is None:
+            return
+        result = payload if isinstance(payload, dict) else {}
+        matches = list(result.get("matches") or [])
         if (
-            algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+            expected_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
             and any(match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE for match in matches)
         ):
             self._report_similar_charts_comprehensive_failure(
@@ -22177,9 +22282,25 @@ class MainWindow(QMainWindow):
             self._similar_charts_subject_name = ""
             if self._similar_charts_export_button is not None:
                 self._similar_charts_export_button.setEnabled(False)
-            self._similar_charts_list_label.setText("No similar charts found.")
+            self._similar_charts_list_label.setText(
+                str(result.get("empty_reason") or "No similar charts found.")
+            )
             return
+        self._populate_similar_charts_panel(
+            chart=self._latest_chart,
+            matches=matches,
+            algorithm_mode=expected_algorithm_mode,
+        )
 
+    def _populate_similar_charts_panel(
+        self,
+        *,
+        chart: Chart,
+        matches: list[Any],
+        algorithm_mode: str,
+    ) -> None:
+        if self._similar_charts_list_label is None:
+            return
         self._similar_charts_subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         self._similar_charts_export_rows = []
         if self._similar_charts_export_button is not None:
@@ -27184,6 +27305,7 @@ class MainWindow(QMainWindow):
 
         set_current_chart(chart_id)
         self._pending_render_chart = None
+        self._similar_charts_request_id = None
         self._chart_render_queue_state.clear()
         if self._render_flush_timer.isActive():
             self._render_flush_timer.stop()
