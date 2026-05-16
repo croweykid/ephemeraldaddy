@@ -22674,6 +22674,7 @@ class MainWindow(QMainWindow):
                 info_link_prefix="sim-info:popout:least",
             )
         )
+        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
@@ -22689,6 +22690,8 @@ class MainWindow(QMainWindow):
             resolve_similarity_band=self._similarity_band_for_percent,
             algorithm_mode=algorithm_mode,
             similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
             info_link_prefix="sim-info:popout",
             configure_splitter=configure_splitter_handle_resize_cursor,
             on_analysis_mode_changed=self._on_similar_chart_popout_analysis_mode_changed,
@@ -22774,13 +22777,18 @@ class MainWindow(QMainWindow):
             return
 
         is_markdown = file_path.lower().endswith(".md")
+        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
         most_rows = build_similar_charts_export_rows_from_matches(
             matches=most_matches[:25],
             resolve_similarity_band=self._similarity_band_for_percent,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
         )
         least_rows = build_similar_charts_export_rows_from_matches(
             matches=least_matches[:25],
             resolve_similarity_band=self._similarity_band_for_percent,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
         )
         lines: list[str] = []
         if is_markdown:

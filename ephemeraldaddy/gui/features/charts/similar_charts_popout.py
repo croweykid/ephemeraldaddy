@@ -62,6 +62,7 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
+from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
@@ -427,11 +428,18 @@ def build_similar_charts_export_rows_from_matches(
     matches: list[Any],
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     subject_uses_houses: bool = True,
+    similarity_average: float | None = None,
+    similarity_standard_deviation: float | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for rank, match in enumerate(matches, start=1):
         similarity_percent = float(getattr(match, "score", 0.0) or 0.0) * 100.0
         band_label, _band_color = resolve_similarity_band(similarity_percent)
+        z_score = similarity_z_score(
+            similarity_percent,
+            similarity_average,
+            similarity_standard_deviation,
+        )
         rows.append(
             {
                 "rank": rank,
@@ -439,6 +447,7 @@ def build_similar_charts_export_rows_from_matches(
                 "chart_name": str(getattr(match, "chart_name", "") or ""),
                 "similarity_percent": round(similarity_percent, 1),
                 "similarity_band": band_label,
+                "similarity_z_score": None if z_score is None else round(z_score, 3),
                 "placement_percent": round(float(getattr(match, "placement_score", 0.0) or 0.0) * 100.0, 1),
                 "aspect_percent": round(float(getattr(match, "aspect_score", 0.0) or 0.0) * 100.0, 1),
                 "distribution_percent": round(float(getattr(match, "distribution_score", 0.0) or 0.0) * 100.0, 1),
@@ -467,11 +476,12 @@ def build_similar_charts_export_lines(
         )
         lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|---:|")
         for row in rows:
+            z_score = row.get("similarity_z_score")
+            z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             lines.append(
                 f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
                 f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
-                f"{'' if row.get('similarity_z_score') is None else f'{float(row.get('similarity_z_score')):+.3f}'} | "
-                f"{row['placement_percent']:.1f}% | {row['aspect_percent']:.1f}% | "
+                f"{z_score_text} | {row['placement_percent']:.1f}% | {row['aspect_percent']:.1f}% | "
                 f"{row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
             )
         return lines
@@ -479,11 +489,12 @@ def build_similar_charts_export_lines(
     lines.append(f"Similar Charts for {subject_name}")
     lines.append("")
     for row in rows:
+        z_score = row.get("similarity_z_score")
+        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
         lines.append(
             f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
-            f"[{row.get('similarity_band', 'unclassified')}"
-            f"{'' if row.get('similarity_z_score') is None else f'; z={float(row.get('similarity_z_score')):+.3f}'}] "
+            f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
             f"(placements {row['placement_percent']:.1f}%, "
             f"aspects {row['aspect_percent']:.1f}%, "
             f"distribution {row['distribution_percent']:.1f}%, "
@@ -2300,6 +2311,8 @@ def render_similar_match_blocks(
     info_link_prefix: str = "sim-info",
     algorithm_mode: str = "default",
     similarity_settings: SimilarityCalculatorSettings | None = None,
+    similarity_average: float | None = None,
+    similarity_standard_deviation: float | None = None,
 ) -> str:
     if not matches:
         return "No charts found."
@@ -2320,13 +2333,19 @@ def render_similar_match_blocks(
             match=match,
             component_keys=component_keys,
         )
+        z_score = similarity_z_score(
+            similarity_percent,
+            similarity_average,
+            similarity_standard_deviation,
+        )
+        z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
         blocks.append(
             (
                 f'<span style="font-weight: bold; color: {highlight_color};">{rank}.</span> '
                 f'#{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
                 f'<a href="{make_similar_info_target(info_link_prefix=info_link_prefix, chart_id=int(match.chart_id))}">ⓘ</a><br>'
                 f'Similarity <span style="color: {band_color}; font-weight: 600;">'
-                f"{similarity_percent:.1f}% ({band_label})</span> "
+                f"{similarity_percent:.1f}% ({band_label}{z_score_html})</span> "
                 f'<span style="font-weight: 400; color: {_SIMILARITY_LIST_TEXT_COLOR};">'
                 f"({component_summary})"
                 "</span>"
@@ -2480,6 +2499,8 @@ def build_similar_charts_popout_dialog(
     resolve_similarity_band: Callable[[float], tuple[str, str]],
     algorithm_mode: str = "default",
     similarity_settings: SimilarityCalculatorSettings | None = None,
+    similarity_average: float | None = None,
+    similarity_standard_deviation: float | None = None,
     info_link_prefix: str = "sim-info",
     configure_splitter: Callable[[QSplitter], None] | None = None,
     on_analysis_mode_changed: Callable[[QDialog], None] | None = None,
@@ -2616,6 +2637,8 @@ def build_similar_charts_popout_dialog(
                 info_link_prefix=f"{info_link_prefix}:{panel_key}",
                 algorithm_mode=algorithm_mode,
                 similarity_settings=similarity_settings,
+                similarity_average=similarity_average,
+                similarity_standard_deviation=similarity_standard_deviation,
             )
         )
 
