@@ -11944,6 +11944,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             self._on_import_astrotheme_from_search_panel()
             return True
+        database_analytics_key = None
+        if isinstance(obj, FigureCanvas):
+            database_analytics_key = self._database_analytics_chart_key_for_canvas(obj)
+        if database_analytics_key is not None:
+            if event.type() == QEvent.Enter:
+                obj.setCursor(Qt.PointingHandCursor)
+            if event.type() == QEvent.Wheel:
+                return self._handle_database_analytics_canvas_wheel(event)
+            if (
+                event.type() == QEvent.MouseButtonRelease
+                and event.button() == Qt.LeftButton
+            ):
+                self._show_database_analytics_popout(
+                    database_analytics_key,
+                    self._database_analytics_title_for_key(database_analytics_key),
+                )
+                return True
         if obj in self._transit_chart_canvases:
             if event.type() == QEvent.Enter:
                 obj.setCursor(Qt.PointingHandCursor)
