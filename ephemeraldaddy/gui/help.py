@@ -93,6 +93,21 @@ Use this window when you want to:
         ),
         keywords=("database", "manage", "filters", "sort"),
     ),
+
+    HelpEntry(
+        title="Database analytics significance & SD guides",
+        description=(
+            """Database View analytics can show red dashed significance guides on selection-vs-database-average graphs.
+
+Statistical models used:
+- Category/count charts use a selection-vs-database proportion z-test. The dashed red guide lines show typical ±1 and ±2 standard-error bands for the visible categories; exact per-label standard error, z-score, p-value, adjusted p-value, significance band, and model are included in CSV exports.
+- Similarity calibration computes database-wide pairwise similarity average and standard deviation, then similar-chart results can show z-scores relative to those saved norms.
+- Weighted/non-binomial metrics are intended for bootstrap/permutation testing when enabled, because those values are calculated scores rather than simple category counts.
+
+The Settings > Data Visualization section controls multiple-comparison correction. Benjamini-Hochberg FDR is the default because it is better suited to exploratory discovery than no correction, while being less severe than Bonferroni strict."""
+        ),
+        keywords=("statistics", "standard deviation", "significance", "z-score", "database analytics", "benjamini", "bonferroni"),
+    ),
     HelpEntry(
         title="Transit + Composite tools",
         description=(

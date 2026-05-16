@@ -52,6 +52,11 @@ from ephemeraldaddy.analysis.human_design_reference import (
     normalize_hd_authority_key,
 )
 from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.features.charts.statistical_significance import (
+    compute_proportion_significance_results,
+    draw_standard_deviation_guides,
+    typical_standard_error,
+)
 from ephemeraldaddy.gui.features.charts.provenance import chart_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.tagging import normalize_tag_list
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
@@ -689,18 +694,32 @@ class DatabaseAnalyticsChartsMixin:
                         "selection_qty",
                         "database_qty",
                         "% of DB",
+                        "std_error",
+                        "z_score",
+                        "p_value",
+                        "adjusted_p_value",
+                        "significance",
+                        "statistical_model",
                         "matching chart names",
                     ]
                 )
-                for (
-                    label,
-                    selection_value,
-                    database_value,
-                    difference,
-                    selection_count,
-                    database_count,
-                    percent_of_database,
-                ) in rows:
+                for row in rows:
+                    (
+                        label,
+                        selection_value,
+                        database_value,
+                        difference,
+                        selection_count,
+                        database_count,
+                        percent_of_database,
+                        *statistical_values,
+                    ) = row
+                    standard_error = statistical_values[0] if len(statistical_values) > 0 else None
+                    z_score = statistical_values[1] if len(statistical_values) > 1 else None
+                    p_value = statistical_values[2] if len(statistical_values) > 2 else None
+                    adjusted_p_value = statistical_values[3] if len(statistical_values) > 3 else None
+                    significance = statistical_values[4] if len(statistical_values) > 4 else "n/a"
+                    statistical_model = statistical_values[5] if len(statistical_values) > 5 else "category proportion z-test"
                     writer.writerow(
                         [
                             label,
@@ -710,6 +729,12 @@ class DatabaseAnalyticsChartsMixin:
                             selection_count,
                             database_count,
                             round(percent_of_database, 8),
+                            "" if standard_error is None else round(float(standard_error), 8),
+                            "" if z_score is None else round(float(z_score), 8),
+                            "" if p_value is None else round(float(p_value), 8),
+                            "" if adjusted_p_value is None else round(float(adjusted_p_value), 8),
+                            significance,
+                            statistical_model,
                             self._analysis_matching_chart_names(chart_key, label),
                         ]
                     )
@@ -1036,6 +1061,30 @@ class DatabaseAnalyticsChartsMixin:
         )
 
      #DB View's Lefthand Panel: Selection Comparison Chart 2: Relationship Distribution Chart
+
+    def _draw_category_significance_guides(
+        self,
+        ax: Any,
+        selection_counts: list[float | int],
+        database_counts: list[float | int],
+        loaded_charts: int | float,
+    ) -> None:
+        if float(loaded_charts or 0) <= 0:
+            return
+        correction = getattr(self, "_significance_correction", "benjamini_hochberg")
+        results = compute_proportion_significance_results(
+            selection_counts=selection_counts,
+            database_counts=database_counts,
+            loaded_charts=loaded_charts,
+            correction=correction,
+        )
+        draw_standard_deviation_guides(
+            ax,
+            typical_standard_error(results),
+            max_sigma=2,
+            label_prefix="SE",
+        )
+
     def _build_relationship_distribution_chart(
         self,
         selection_relationships: dict[str, float],
@@ -1138,6 +1187,12 @@ class DatabaseAnalyticsChartsMixin:
                 color=CHART_THEME_COLORS["spine"],
                 linewidth=1.5,
                 zorder=1,
+            )
+            self._draw_category_significance_guides(
+                relationship_ax,
+                [selection_relationship_counts.get(label, 0) for label in relationship_labels],
+                [database_relationship_counts.get(label, 0) for label in relationship_labels],
+                loaded_charts,
             )
             for bar, diff_value in zip(relationship_bars, differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
@@ -1692,6 +1747,12 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            self._draw_category_significance_guides(
+                ax,
+                [selection_planet_counts.get(label, 0) for label in labels],
+                [database_planet_counts.get(label, 0) for label in labels],
+                loaded_charts,
+            )
             for bar, diff_value in zip(bars, differences):
                 width = bar.get_width()
                 if width <= 0:
@@ -1814,6 +1875,12 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            self._draw_category_significance_guides(
+                ax,
+                selection_counts,
+                database_counts,
+                loaded_charts,
+            )
             for bar, diff_value in zip(bars, differences):
                 width = bar.get_width()
                 if width <= 0:
@@ -2461,12 +2528,21 @@ class DatabaseAnalyticsChartsMixin:
             database_total = max(1, int(database_tag_analytics.get("total_charts", 0)))
             selection_values = [count / selection_total for count in selection_counts]
             database_values = [count / database_total for count in database_counts]
-            for tag_label, selection_value, database_value, selection_count, database_count in zip(
+            significance_results = compute_proportion_significance_results(
+                selection_counts=selection_counts,
+                database_counts=database_counts,
+                loaded_charts=loaded_charts,
+                correction=getattr(self, "_significance_correction", "benjamini_hochberg"),
+                selection_total=selection_total,
+                database_total=database_total,
+            )
+            for tag_label, selection_value, database_value, selection_count, database_count, significance in zip(
                 filtered_tags,
                 selection_values,
                 database_values,
                 selection_counts,
                 database_counts,
+                significance_results,
             ):
                 displayed_selection_value = selection_value if loaded_charts else database_value
                 relative_percent = (
@@ -2483,6 +2559,12 @@ class DatabaseAnalyticsChartsMixin:
                         selection_count if loaded_charts else database_count,
                         database_count,
                         relative_percent,
+                        significance.standard_error,
+                        significance.z_score,
+                        significance.p_value,
+                        significance.adjusted_p_value,
+                        significance.band,
+                        significance.model,
                     )
                 )
             if should_refresh("tag_distribution"):
@@ -3314,6 +3396,12 @@ class DatabaseAnalyticsChartsMixin:
             ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
             ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            self._draw_category_significance_guides(
+                ax,
+                selection_counts,
+                database_counts,
+                loaded_charts,
+            )
             for bar, diff_value in zip(bars, differences):
                 width = bar.get_width()
                 if width <= 0:

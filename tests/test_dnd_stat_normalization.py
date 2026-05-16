@@ -15,7 +15,12 @@ def _stub_clamp01(value):
 
 
 stub_axes = ModuleType("ephemeraldaddy.analysis.dnd.dnd_class_axes_v2")
+stub_axes.DND_CLASSES = {}
+stub_axes.DnDClassScorer = object
 stub_axes.DnDStatBlock = _StubDnDStatBlock
+stub_axes.build_dnd_statblock_profile_lines = lambda *_args, **_kwargs: []
+stub_axes.score_class_axes = lambda *_args, **_kwargs: {}
+stub_axes.score_dnd_statblock = lambda *_args, **_kwargs: _StubDnDStatBlock({}, {}, {})
 stub_axes._build_axis_score_bar = lambda *_args, **_kwargs: ""
 stub_axes._build_right_justified_label = lambda label, _width: label
 stub_axes._clamp01 = _stub_clamp01

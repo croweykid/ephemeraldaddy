@@ -52,6 +52,7 @@ class SimilarityCalibrationResult:
     maximum: float
     average: float
     median: float
+    standard_deviation: float
     mode_values: tuple[float, ...]
     mode_count: int
     pair_count: int
@@ -133,6 +134,7 @@ def compute_similarity_calibration(charts: list[Chart]) -> SimilarityCalibration
         maximum=max(similarity_values),
         average=statistics.fmean(similarity_values),
         median=statistics.median(similarity_values),
+        standard_deviation=(statistics.stdev(similarity_values) if len(similarity_values) > 1 else 0.0),
         mode_values=mode_values,
         mode_count=mode_count,
         pair_count=len(similarity_values),
@@ -166,12 +168,32 @@ def save_similarity_calibration(settings: _SettingsLike, result: SimilarityCalib
     settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/max", round(result.maximum, 1))
     settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/average", round(result.average, 1))
     settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/median", round(result.median, 1))
+    settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/standard_deviation", round(result.standard_deviation, 3))
     settings.setValue(
         f"{SIMILARITY_NORMS_SETTINGS_GROUP}/mode",
         ", ".join(f"{value:.1f}" for value in result.mode_values),
     )
     settings.setValue(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/pair_count", int(result.pair_count))
     return normalized
+
+
+def load_similarity_calibration_stats(settings: _SettingsLike) -> tuple[float | None, float | None]:
+    try:
+        average = float(settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/average", ""))
+        standard_deviation = float(
+            settings.value(f"{SIMILARITY_NORMS_SETTINGS_GROUP}/standard_deviation", "")
+        )
+    except (TypeError, ValueError):
+        return None, None
+    if standard_deviation <= 0:
+        return average, None
+    return average, standard_deviation
+
+
+def similarity_z_score(similarity_percent: float, average: float | None, standard_deviation: float | None) -> float | None:
+    if average is None or standard_deviation is None or standard_deviation <= 0:
+        return None
+    return (float(similarity_percent) - float(average)) / float(standard_deviation)
 
 
 def describe_similarity_bands(thresholds: SimilarityThresholds) -> list[str]:
