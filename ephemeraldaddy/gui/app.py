@@ -2054,6 +2054,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.manage_settings_button.setObjectName("manage_settings_button")
         self.manage_settings_button.clicked.connect(self._on_open_settings)
 
+        self.batch_new_chart_button = QPushButton("+ New Chart")
+        self.batch_new_chart_button.setObjectName("database_view_middle_new_chart_button")
+        self.batch_new_chart_button.clicked.connect(self._on_new_chart)
+
+        self.batch_delete_chart_button = QPushButton("❌ 0 Charts")
+        self.batch_delete_chart_button.setObjectName("database_view_middle_delete_chart_button")
+        self.batch_delete_chart_button.clicked.connect(self._on_delete)
+
+        self.batch_rename_chart_button = QPushButton("Rename Chart")
+        self.batch_rename_chart_button.setObjectName("database_view_middle_rename_chart_button")
+        self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
+        self.batch_rename_chart_button.setEnabled(False)
+
         self.database_view_middle_header_action_buttons = {}
         middle_action_button_specs: list[tuple[str, str, str]] = [
             # BaZi Chart
@@ -2085,6 +2098,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.database_metrics_panel_button,
             self.gen_pop_norms_panel_button,
             self.similarities_panel_button,
+            self.batch_new_chart_button,
+            self.batch_delete_chart_button,
+            self.batch_rename_chart_button,
             *self.database_view_middle_header_action_buttons.values(),
             self.manage_collections_button,
             self.edit_charts_button,
@@ -2096,6 +2112,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             control_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
             control_button.setMinimumWidth(0)
             control_button.setStyleSheet("padding: 1px 5px; font-size: 11px;")
+        self.batch_new_chart_button.setStyleSheet(
+            "padding: 1px 5px; font-size: 11px; color: #6fe06f; font-weight: 600;"
+        )
+        self.batch_delete_chart_button.setStyleSheet(
+            "padding: 1px 5px; font-size: 11px; color: #ff7b7b; font-weight: 600;"
+        )
 
         self.sort_button = QPushButton("Sort: Alphabetical") #default sorting method pt 2/2
         self.sort_button.setObjectName("manage_sort_button")
@@ -2235,6 +2257,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         middle_controls_layout.setSpacing(4)
         middle_controls_row.setLayout(middle_controls_layout)
         middle_controls_layout.addStretch(1)
+        middle_controls_layout.addWidget(self.batch_new_chart_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addWidget(self.batch_delete_chart_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addWidget(self.batch_rename_chart_button, 0, Qt.AlignHCenter)
         for action_button in self.database_view_middle_header_action_buttons.values():
             middle_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addStretch(1)
@@ -12305,26 +12330,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         actions_row_top_layout = QHBoxLayout(actions_row_top)
         actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
         actions_row_top_layout.setSpacing(4)
-
-        self.batch_new_chart_button = QPushButton("+ New Chart")
-        self.batch_new_chart_button.clicked.connect(self._on_new_chart)
-        self.batch_new_chart_button.setStyleSheet(
-            action_button_style + "QPushButton { color: #6fe06f; font-weight: 600; }"
-        )
-        actions_row_top_layout.addWidget(self.batch_new_chart_button)
-
-        self.batch_delete_chart_button = QPushButton("❌ 0 Charts")
-        self.batch_delete_chart_button.clicked.connect(self._on_delete)
-        self.batch_delete_chart_button.setStyleSheet(
-            action_button_style + "QPushButton { color: #ff7b7b; font-weight: 600; }"
-        )
-        actions_row_top_layout.addWidget(self.batch_delete_chart_button)
-
-        self.batch_rename_chart_button = QPushButton("Rename chart")
-        self.batch_rename_chart_button.setStyleSheet(action_button_style)
-        self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
-        self.batch_rename_chart_button.setEnabled(False)
-        actions_row_top_layout.addWidget(self.batch_rename_chart_button)
 
         self.batch_synastry_chart_button = QPushButton("Synastry Chart")
         self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
