@@ -224,6 +224,11 @@ def add_similarity_match_row(
     percent_bar.setTextVisible(False)
     percent_bar.setFixedWidth(120)
     percent_bar.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    percent_bar.set_norm_delta_overlay(
+        selection_percent=percent_value,
+        db_norm_percent=db_percent_value,
+        delta_rgb=similarity_rgb,
+    )
     delta_points = similarity_delta_points(percent_value, db_percent_value)
     z_score = similarity_deviation_z_score(percent_value, db_percent_value, total_count)
     direction_label = (
@@ -233,7 +238,7 @@ def add_similarity_match_row(
     )
     z_score_text = "" if z_score is None else f" ({z_score:+.2f} standard-error units)"
     percent_bar.setToolTip(
-        f"Selection is {abs(delta_points):.0f} percentage point(s) "
+        f"Selection is {abs(delta_points):.0f}% pt(s) "
         f"{direction_label}{z_score_text}."
     )
     percent_bar.set_standard_deviation_guides(
@@ -257,7 +262,7 @@ def add_similarity_match_row(
     selection_percent_text = f"{percent_value}% of selection"
     delta_suffix = ""
     if delta_points != 0.0:
-        delta_suffix = f" | {delta_points:+.0f} pp {direction_label}"
+        delta_suffix = f" | {delta_points:+.0f}% pts {direction_label}"
     if percent_value < db_percent_value:
         selection_percent_text = (
             f'<span style="color: #ff2d2d;">{selection_percent_text}</span>'

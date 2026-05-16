@@ -7032,7 +7032,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     else 0
                 )
                 similarity_red, similarity_green, similarity_blue = similarity_delta_rgb(
-                    percent_value, db_percent_value
+                    percent_value, db_percent_value, total_count
                 )
                 add_similarity_match_row(
                     section_list=section_list,
@@ -12345,12 +12345,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         actions_row_top_layout.setContentsMargins(0, 2, 0, 2)
         actions_row_top_layout.setSpacing(4)
 
-        self.batch_synastry_chart_button = QPushButton("Synastry Chart")
-        self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
-        self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
-        self.batch_synastry_chart_button.setStyleSheet(action_button_style)
-        actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
-        layout.addWidget(actions_row_top)
+        # self.batch_synastry_chart_button = QPushButton("Synastry Chart")
+        # self.batch_synastry_chart_button.clicked.connect(self._on_generate_composite_chart)
+        # self.batch_synastry_chart_button.setObjectName("manage_composite_chart_button")
+        # self.batch_synastry_chart_button.setStyleSheet(action_button_style)
+        # actions_row_top_layout.addWidget(self.batch_synastry_chart_button)
+        # layout.addWidget(actions_row_top)
 
         divider_chart_editor = QFrame()
         divider_chart_editor.setFrameShape(QFrame.HLine)

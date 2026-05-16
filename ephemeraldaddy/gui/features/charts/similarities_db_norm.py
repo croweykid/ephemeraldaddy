@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 
-SIMILARITY_DELTA_SIGNIFICANCE_TOTAL_POINTS = 10.0
+SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS = 2.0
+SIMILARITY_DELTA_FALLBACK_SIGNIFICANCE_PERCENTAGE_POINTS = 10.0
 SIMILARITY_DELTA_NEUTRAL_RGB = (150, 150, 150)
 SIMILARITY_DELTA_POSITIVE_RGB = (127, 255, 0)
 SIMILARITY_DELTA_NEGATIVE_RGB = (255, 45, 45)
@@ -47,8 +48,9 @@ def similarity_deviation_z_score(
 def similarity_delta_rgb(
     selection_percent_value: int | float,
     db_percent_value: int | float,
+    total_count: int | None = None,
 ) -> tuple[int, int, int]:
-    """Color a similarity row by signed delta rather than absolute distance.
+    """Color a similarity row by signed, sample-aware distance from the DB norm.
 
     Over-represented factors move toward green; under-represented factors move
     toward red. Near-DB-norm factors remain neutral instead of being displayed
@@ -60,10 +62,25 @@ def similarity_delta_rgb(
     target = (
         SIMILARITY_DELTA_POSITIVE_RGB if delta > 0.0 else SIMILARITY_DELTA_NEGATIVE_RGB
     )
-    ratio = (
-        min(abs(delta), SIMILARITY_DELTA_SIGNIFICANCE_TOTAL_POINTS)
-        / SIMILARITY_DELTA_SIGNIFICANCE_TOTAL_POINTS
+    z_score = (
+        similarity_deviation_z_score(
+            selection_percent_value,
+            db_percent_value,
+            total_count,
+        )
+        if total_count is not None
+        else None
     )
+    if z_score is not None:
+        ratio = (
+            min(abs(z_score), SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS)
+            / SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS
+        )
+    else:
+        ratio = (
+            min(abs(delta), SIMILARITY_DELTA_FALLBACK_SIGNIFICANCE_PERCENTAGE_POINTS)
+            / SIMILARITY_DELTA_FALLBACK_SIGNIFICANCE_PERCENTAGE_POINTS
+        )
     return tuple(
         int(
             round(
