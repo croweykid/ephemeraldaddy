@@ -613,14 +613,26 @@ DND_STAT_EXPLANATIONS = {
 
 DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unless otherwise indicated
     "STR" : { #based on 33 charts:
-        "signs":{"Capricorn":31,"Cancer":5,"Libra":11,"Gemini":5}, #cumulatively, Cap is 5% positive & Can is 2% positive
-        "antisigns":{"Taurus":14,"Leo":12,"Pisces":7}, #cumulatively, Taurus is 3% neg & Leo is 2% neg
-        "houses":{5:9,7:4,1:3,6:3}, #cumulatively, only 6 is strong (3%) but 6 doesn't show up in the 'dominant houses top 3'
-        "antihouses":{3:6,9:6}, #cumulatively, only 3rd house is super neg, 9th is 2% neg
-        "bodies":{"Moon":5,"Pluto":3,"Saturn":3}, #cumulatively, no relevance shown
-        "antibodies":{"Venus":6,"Jupiter":7,"Neptune":3}, #cumulatively, only Venus is negative
-        "nakshatras":{"Punarvasu":11,"Uttara Ashadha":10,"Purva Ashadha":6,"Mula":8,"Ardra":8,"Mrigashira":6,"Chitra":12,"Revati":7,"Swati":7}, #wondering if P Ash is only implicated by proximity to Ut Ash in charts... Cumulatively, only Punarvasu is 4% positive. P. Ash & Ut Ash are 2%. Everything else is 1% or less. #Similar Charts view & Database Analytics disagree about this for some reason.
-        "antinakshatras":{"Bharani":6,"Rohini":4,"Pushya":8,"Ashlesha":8,"Purva Phalguni":4,"Uttara Phalguni":8,"Vishakha":11,"Uttara Bhadrapada":6}, #cumulatively, Ashwini & Jyestha are 2% neg. #Similar Charts view & Database Analytics disagree about this for some reason.
+        "signs":{
+            "Capricorn":31,"Cancer":5,"Libra":11,"Gemini":5, #cumulatively, Cap is 5% positive & Can is 2% positive
+            "Taurus":-14,"Leo":-12,"Pisces":-7 #cumulatively, Taurus is 3% neg & Leo is 2% neg
+            }, 
+        "antisigns":{}, 
+        "houses":{
+            5:9,7:4,1:3,6:3,
+            3:-6,9:-6
+        }, #cumulatively, only 6 is strong (3%) but 6 doesn't show up in the 'dominant houses top 3'
+        "antihouses":{}, #cumulatively, only 3rd house is super neg, 9th is 2% neg
+        "bodies":{
+            "Moon":5,"Pluto":3,"Saturn":3, #cumulatively, no relevance shown
+            "Venus":-6,"Jupiter":-7,"Neptune":-3 #cumulatively, only Venus is negative
+        },
+        "antibodies":{}, 
+        "nakshatras":{
+            "Punarvasu":11,"Uttara Ashadha":10,"Purva Ashadha":6,"Mula":8,"Ardra":8,"Mrigashira":6,"Chitra":12,"Revati":7,"Swati":7, #wondering if P Ash is only implicated by proximity to Ut Ash in charts... Cumulatively, only Punarvasu is 4% positive. P. Ash & Ut Ash are 2%. Everything else is 1% or less. #Similar Charts view & Database Analytics disagree about this for some reason.
+            "Bharani":6,"Rohini":4,"Pushya":8,"Ashlesha":8,"Purva Phalguni":4,"Uttara Phalguni":8,"Vishakha":11,"Uttara Bhadrapada":6 #cumulatively, Ashwini & Jyestha are 2% neg. #Similar Charts view & Database Analytics disagree about this for some reason.
+        }, 
+        "antinakshatras":{}, 
         "positions":{
             "Sun in Capricorn":10,"Sun in Sagittarius":5,"Sun in Leo":4,"Sun in H4":18,
             "Moon in Aries":4,"Moon in Cancer":4,"Moon in Libra":5,
@@ -630,8 +642,16 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Jupiter in Gemini":8,"Jupiter in Scorpio":8,"Jupiter in Cancer":6,"Jupiter in Aries":4,"Jupiter in H5":17,
             "Saturn in Gemini":8,"Saturn in Libra":4,
             "Pluto in H6":19,
-            "Ceres in H1":17,},
-        "antipositions":{"Sun in Aries":6,"Sun in Gemini":4,"Sun in Virgo":8,"Sun in Scorpio":4,"Moon in Taurus":5,"Moon in Sagittarius":5,"Mercury in Taurus":7,"Mercury in Leo":4,"Mercury in Pisces":9,"Venus in Libra":7,"Venus in Leo":7,"Venus in Pisces":8,"Venus in Taurus":4,"Mars in Leo":6,"Mars in Virgo":7,"Mars in Pisces":4,"Jupiter in Leo":7,"Jupiter in Virgo":9,"Jupiter in Sagittarius":7,"Jupiter in Pisces":8,"Jupiter in Aquarius":4,"Saturn in Taurus":4,"Saturn in Virgo":6,"Saturn in Sagittarius":7,}, #note: these are based off of who "isn't on the strong list", not off a list of "who is weak"
+            "Ceres in H1":17,
+            "Sun in Aries":-6,"Sun in Gemini":-4,"Sun in Virgo":-8,"Sun in Scorpio":-4,
+            "Moon in Taurus":-5,"Moon in Sagittarius":-5,
+            "Mercury in Taurus":-7,"Mercury in Leo":-4,"Mercury in Pisces":-9,
+            "Venus in Libra":-7,"Venus in Leo":-7,"Venus in Pisces":-8,"Venus in Taurus":-4,
+            "Mars in Leo":-6,"Mars in Virgo":-7,"Mars in Pisces":-4,
+            "Jupiter in Leo":-7,"Jupiter in Virgo":-9,"Jupiter in Sagittarius":-7,"Jupiter in Pisces":-8,"Jupiter in Aquarius":-4,
+            "Saturn in Taurus":-4,"Saturn in Virgo":-6,"Saturn in Sagittarius":-7,
+        },
+        "antipositions":{},
         "aspects":{
             "Chiron opposition Uranus":16,"Moon square Fortune":16,"Chiron trine Vesta":16,"Mars sextile Mercury":16,"Ceres sextile Rahu":16,"Ceres trine Ketu":14,"Ceres trine Moon":13,"Mercury sextile Venus":10,"Neptune square Pallas":14,"Chiron opposition Saturn":10,"Chiron square Mars":10
         },
