@@ -7005,6 +7005,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         similarity_blue,
                     ),
                     on_info_target_requested=self._handle_similarity_info_target_requested,
+                    show_standard_deviation_guides=self._visibility.get(
+                        "charts.standard_deviation_indicators"
+                    ),
                 )
             toggle.setChecked(True)
             return
@@ -18798,6 +18801,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         visibility_section.addWidget(anagrams_checkbox)
 
         visibility_section.addSpacing(8)
+        visibility_section.addWidget(self._build_settings_subheader_label("Data Visualization"))
+
+        standard_deviation_checkbox = QCheckBox("Show standard deviation indicator lines")
+        standard_deviation_checkbox.setChecked(
+            self._visibility.get("charts.standard_deviation_indicators")
+        )
+        standard_deviation_checkbox.toggled.connect(
+            self._set_standard_deviation_indicator_visibility_from_settings
+        )
+        visibility_section.addWidget(standard_deviation_checkbox)
+
+        visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Database Analytics Panel (DB View)"))
 
         species_distribution_checkbox = QCheckBox("Show D&&D Typing")
@@ -19683,6 +19698,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
+        self._refresh_charts(refresh_metrics=True)
+
+    def _set_standard_deviation_indicator_visibility_from_settings(self, checked: bool) -> None:
+        self._visibility.set("charts.standard_deviation_indicators", checked)
         self._refresh_charts(refresh_metrics=True)
 
     def _resize_and_center_settings_dialog(self, dialog: QDialog) -> None:

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from typing import Callable
 
 from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -18,6 +20,66 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
+
+
+class SimilarityPercentBar(QProgressBar):
+    """Progress bar that can overlay DB standard-error guide lines."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._standard_deviation_guides: tuple[tuple[float, int], ...] = ()
+
+    def set_standard_deviation_guides(self, guide_percents: list[tuple[float, int]]) -> None:
+        self._standard_deviation_guides = tuple(
+            (max(0.0, min(100.0, float(value))), max(0, min(255, int(alpha))))
+            for value, alpha in guide_percents
+            if math.isfinite(float(value))
+        )
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().paintEvent(event)
+        if not self._standard_deviation_guides:
+            return
+
+        painter = QPainter(self)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, False)
+            content_rect = self.rect().adjusted(2, 2, -2, -2)
+            if content_rect.width() <= 0:
+                return
+            unique_guides = sorted(set((round(value, 4), alpha) for value, alpha in self._standard_deviation_guides))
+            for guide_percent, alpha in unique_guides:
+                color = QColor(255, 45, 45, alpha)
+                pen = QPen(color)
+                pen.setWidth(1)
+                painter.setPen(pen)
+                x = content_rect.left() + round((guide_percent / 100.0) * content_rect.width())
+                painter.drawLine(x, content_rect.top(), x, content_rect.bottom())
+        finally:
+            painter.end()
+
+
+def _standard_error_guide_percents(
+    *,
+    db_percent_value: int,
+    total_count: int,
+    show_standard_deviation_guides: bool,
+) -> list[tuple[float, int]]:
+    if not show_standard_deviation_guides or total_count <= 0:
+        return []
+    probability = max(0.0, min(1.0, float(db_percent_value) / 100.0))
+    standard_error_percent = math.sqrt(probability * (1.0 - probability) / float(total_count)) * 100.0
+    if standard_error_percent <= 0.0 or not math.isfinite(standard_error_percent):
+        return []
+    guides: list[tuple[float, int]] = []
+    for multiplier in (1, 2):
+        offset = standard_error_percent * multiplier
+        alpha = 220 if multiplier == 1 else 145
+        for guide in (float(db_percent_value) - offset, float(db_percent_value) + offset):
+            if 0.0 <= guide <= 100.0:
+                guides.append((guide, alpha))
+    return guides
 
 
 def parse_similarity_info_target(section_title: str, label: str) -> str | None:
@@ -94,6 +156,7 @@ def add_similarity_match_row(
     total_count: int,
     similarity_rgb: tuple[int, int, int],
     on_info_target_requested: Callable[[str], None] | None = None,
+    show_standard_deviation_guides: bool = True,
 ) -> None:
     """Render one similarities list row, with optional clickable info target."""
     similarity_red, similarity_green, similarity_blue = similarity_rgb
@@ -134,12 +197,19 @@ def add_similarity_match_row(
     label_widget.setFont(label_font)
     top_layout.addWidget(label_widget, stretch=1)
 
-    percent_bar = QProgressBar()
+    percent_bar = SimilarityPercentBar()
     percent_bar.setRange(0, 100)
     percent_bar.setValue(percent_value)
     percent_bar.setTextVisible(False)
     percent_bar.setFixedWidth(120)
     percent_bar.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    percent_bar.set_standard_deviation_guides(
+        _standard_error_guide_percents(
+            db_percent_value=db_percent_value,
+            total_count=total_count,
+            show_standard_deviation_guides=show_standard_deviation_guides,
+        )
+    )
     top_layout.addWidget(percent_bar, stretch=0, alignment=Qt.AlignRight)
     row_layout.addWidget(top_row)
 

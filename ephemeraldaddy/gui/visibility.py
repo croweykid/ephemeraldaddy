@@ -15,6 +15,7 @@ CHART_DATA_KEYS: dict[str, bool] = {
     "popout.synastry_aspect_weights": False,
     "chart_analytics.planet_dynamics": False,
     "chart_analytics.anagrams": False,
+    "charts.standard_deviation_indicators": True,
 }
 
 DATABASE_ANALYTICS_VISIBILITY_KEYS: dict[str, bool] = {
