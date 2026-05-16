@@ -403,6 +403,58 @@ class DatabaseAnalyticsChartsMixin:
         else:
             ax.set_ylim(lower, upper)
 
+
+    @staticmethod
+    def _nice_symmetric_axis_limit(
+        values: list[float],
+        *,
+        minimum_limit: float = 0.01,
+        maximum_limit: float = 1.0,
+        padding_ratio: float = 1.12,
+    ) -> float:
+        """Return a rounded symmetric axis limit sized to the visible values."""
+        max_abs_value = max((abs(float(value)) for value in values), default=0.0)
+        raw_limit = max(float(minimum_limit), max_abs_value * float(padding_ratio))
+        maximum_limit = float(maximum_limit)
+        if raw_limit >= maximum_limit:
+            return maximum_limit
+
+        exponent = math.floor(math.log10(raw_limit))
+        base = 10 ** exponent
+        fraction = raw_limit / base
+        for step in (1.0, 2.0, 2.5, 5.0, 10.0):
+            if fraction <= step:
+                return min(maximum_limit, step * base)
+        return maximum_limit
+
+    @classmethod
+    def _configure_symmetric_percent_difference_axis(
+        cls,
+        ax,
+        values: list[float],
+        *,
+        show_x_axis_labels: bool = True,
+    ) -> float:
+        """Scale a +/- percentage-difference axis to the current dataset."""
+        axis_limit = cls._nice_symmetric_axis_limit(values)
+        ax.set_xlim(-axis_limit, axis_limit)
+        if show_x_axis_labels:
+            ticks = [-axis_limit, -axis_limit / 2.0, 0.0, axis_limit / 2.0, axis_limit]
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([_format_percent(value) for value in ticks])
+        return axis_limit
+
+    @staticmethod
+    def _difference_label_x(value: float, axis_limit: float) -> float:
+        """Place a difference label just outside its bar but inside the axis."""
+        direction = 1.0 if value >= 0 else -1.0
+        offset = max(float(axis_limit) * 0.03, 0.001)
+        margin = max(float(axis_limit) * 0.02, 0.001)
+        raw_x = float(value) + (direction * offset)
+        if direction >= 0:
+            return min(raw_x, float(axis_limit) - margin)
+        return max(raw_x, -float(axis_limit) + margin)
+
     @staticmethod
     def _configure_positive_percent_axis(
         ax,
@@ -1168,7 +1220,10 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            relationship_ax.set_xlim(-1, 1)
+            relationship_axis_limit = self._configure_symmetric_percent_difference_axis(
+                relationship_ax,
+                differences,
+            )
             relationship_ax.set_yticks(
                 relationship_positions,
                 labels=relationship_display_labels,
@@ -1178,10 +1233,6 @@ class DatabaseAnalyticsChartsMixin:
             relationship_ax.tick_params(axis="y", **CHART_AXES_STYLE["y_tick"])
             relationship_ax.tick_params(axis="x", **CHART_AXES_STYLE["x_tick"])
             relationship_ax.set_xlabel("")
-            relationship_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            relationship_ax.set_xticklabels(
-                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-            )
             relationship_ax.axvline(
                 0,
                 color=CHART_THEME_COLORS["spine"],
@@ -1199,13 +1250,7 @@ class DatabaseAnalyticsChartsMixin:
                 selection_value = bar.get_width()
                 if selection_value > 0:
                     label_value = abs(diff_value)
-                    label_x = (
-                        selection_value if diff_value >= 0 else -selection_value
-                    )
-                    if label_x >= 0:
-                        label_x = min(label_x + 0.02, 0.95)
-                    else:
-                        label_x = max(label_x - 0.02, -0.95)
+                    label_x = self._difference_label_x(diff_value, relationship_axis_limit)
                     relationship_ax.text(
                         label_x,
                         bar_center,
@@ -1333,30 +1378,20 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            self._set_x_limits_with_padding(ax, -1, 1)
+            axis_limit = self._configure_symmetric_percent_difference_axis(ax, difference_values)
             ax.set_yticks(y_positions, labels=display_labels_with_counts)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(display_labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.set_xlabel("")
-            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            ax.set_xticklabels(
-                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-            )
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, difference_value in zip(selection_bars, difference_values):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
                 if selection_value > 0:
                     label_value = abs(difference_value)
-                    label_x = (
-                        selection_value if difference_value >= 0 else -selection_value
-                    )
-                    if label_x >= 0:
-                        label_x = min(label_x + 0.02, 0.95)
-                    else:
-                        label_x = max(label_x - 0.02, -0.95)
+                    label_x = self._difference_label_x(difference_value, axis_limit)
                     ax.text(
                         label_x,
                         bar_center,
@@ -1464,30 +1499,20 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            sign_ax.set_xlim(-1, 1)
+            sign_axis_limit = self._configure_symmetric_percent_difference_axis(sign_ax, sign_differences)
             sign_ax.set_yticks(sign_positions, labels=sign_display_labels)
             sign_ax.invert_yaxis()
             self._set_compact_barh_y_limits(sign_ax, len(sign_labels), bar_height)
             sign_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
-            sign_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            sign_ax.set_xticklabels(
-                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-            )
             sign_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
                 if selection_value > 0:
                     label_value = abs(diff_value)
-                    label_x = (
-                        selection_value if diff_value >= 0 else -selection_value
-                    )
-                    if label_x >= 0:
-                        label_x = min(label_x + 0.02, 0.95)
-                    else:
-                        label_x = max(label_x - 0.02, -0.95)
+                    label_x = self._difference_label_x(diff_value, sign_axis_limit)
                     sign_ax.text(
                         label_x,
                         bar_center,
@@ -1589,30 +1614,20 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            dominant_ax.set_xlim(-1, 1)
+            dominant_axis_limit = self._configure_symmetric_percent_difference_axis(dominant_ax, sign_differences)
             dominant_ax.set_yticks(sign_positions, labels=sign_display_labels)
             dominant_ax.invert_yaxis()
             self._set_compact_barh_y_limits(dominant_ax, len(sign_labels), bar_height)
             dominant_ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
-            dominant_ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            dominant_ax.set_xticklabels(
-                [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-            )
             dominant_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
                 if selection_value > 0:
                     label_value = abs(diff_value)
-                    label_x = (
-                        selection_value if diff_value >= 0 else -selection_value
-                    )
-                    if label_x >= 0:
-                        label_x = min(label_x + 0.02, 0.95)
-                    else:
-                        label_x = max(label_x - 0.02, -0.95)
+                    label_x = self._difference_label_x(diff_value, dominant_axis_limit)
                     dominant_ax.text(
                         label_x,
                         bar_center,
@@ -1738,14 +1753,12 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            ax.set_xlim(-1, 1)
+            axis_limit = self._configure_symmetric_percent_difference_axis(ax, differences)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
-            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             self._draw_category_significance_guides(
                 ax,
@@ -1758,7 +1771,7 @@ class DatabaseAnalyticsChartsMixin:
                 if width <= 0:
                     continue
                 label_x = width if diff_value >= 0 else -width
-                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                label_x = self._difference_label_x(diff_value, axis_limit)
                 ax.text(label_x, bar.get_y() + (bar.get_height() / 2), _format_percent(abs(diff_value)), va="center", ha="left" if diff_value >= 0 else "right", color=CHART_THEME_COLORS["text"], fontsize=7.5)
 
         for spine in ax.spines.values():
@@ -1866,14 +1879,12 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            ax.set_xlim(-1, 1)
+            axis_limit = self._configure_symmetric_percent_difference_axis(ax, differences)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
-            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             self._draw_category_significance_guides(
                 ax,
@@ -1886,7 +1897,7 @@ class DatabaseAnalyticsChartsMixin:
                 if width <= 0:
                     continue
                 label_x = width if diff_value >= 0 else -width
-                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                label_x = self._difference_label_x(diff_value, axis_limit)
                 ax.text(
                     label_x,
                     bar.get_y() + (bar.get_height() / 2),
@@ -2011,7 +2022,11 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            ax.set_xlim(-1, 1)
+            axis_limit = self._configure_symmetric_percent_difference_axis(
+                ax,
+                differences,
+                show_x_axis_labels=show_x_axis_labels,
+            )
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
@@ -2021,22 +2036,13 @@ class DatabaseAnalyticsChartsMixin:
             else:
                 ax.tick_params(axis="x", length=0, labelbottom=False)
             ax.set_xlabel("")
-            if show_x_axis_labels:
-                ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-                ax.set_xticklabels(
-                    [_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]]
-                )
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             for bar, diff_value in zip(species_bars, differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
                 if selection_value > 0:
                     label_value = abs(diff_value)
-                    label_x = selection_value if diff_value >= 0 else -selection_value
-                    if label_x >= 0:
-                        label_x = min(label_x + 0.02, 0.95)
-                    else:
-                        label_x = max(label_x - 0.02, -0.95)
+                    label_x = self._difference_label_x(diff_value, axis_limit)
                     ax.text(
                         label_x,
                         bar_center,
@@ -2185,16 +2191,25 @@ class DatabaseAnalyticsChartsMixin:
                 height=bar_height,
                 zorder=2,
             )
-            max_abs_difference = max(1.0, max((abs(value) for value in differences), default=0.0))
+            max_abs_difference = max((abs(value) for value in differences), default=0.0)
             if fixed_axis_limit is not None:
-                max_abs_difference = max(max_abs_difference, float(fixed_axis_limit))
-                ax.set_xlim(-float(fixed_axis_limit), float(fixed_axis_limit))
+                axis_limit = float(fixed_axis_limit)
+                max_abs_difference = max(max_abs_difference, axis_limit)
+                ax.set_xlim(-axis_limit, axis_limit)
             elif range_min is not None and range_max is not None:
-                range_limit = max(abs(range_min), abs(range_max), 1.0)
-                max_abs_difference = max(max_abs_difference, range_limit)
-                ax.set_xlim(-range_limit, range_limit)
+                axis_limit = self._nice_symmetric_axis_limit(
+                    [range_min, range_max],
+                    maximum_limit=float("inf"),
+                )
+                max_abs_difference = max(max_abs_difference, axis_limit)
+                ax.set_xlim(-axis_limit, axis_limit)
             else:
-                self._set_x_limits_with_padding(ax, -max_abs_difference, max_abs_difference)
+                axis_limit = self._nice_symmetric_axis_limit(
+                    differences,
+                    maximum_limit=float("inf"),
+                )
+                max_abs_difference = max(max_abs_difference, axis_limit)
+                ax.set_xlim(-axis_limit, axis_limit)
             ax.set_yticks(positions, labels=display_labels)
             ax.invert_yaxis()
             self._set_compact_barh_y_limits(ax, len(labels), bar_height)
@@ -2206,12 +2221,7 @@ class DatabaseAnalyticsChartsMixin:
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 width = bar.get_width()
                 if width > 0:
-                    label_x = width if difference >= 0 else -width
-                    offset = max_abs_difference * 0.03
-                    if label_x >= 0:
-                        label_x += offset
-                    else:
-                        label_x -= offset
+                    label_x = self._difference_label_x(difference, max_abs_difference)
                     ax.text(
                         label_x,
                         bar_center,
@@ -3392,9 +3402,7 @@ class DatabaseAnalyticsChartsMixin:
                 height=0.55,
                 zorder=2,
             )
-            ax.set_xlim(-1, 1)
-            ax.set_xticks([-1.0, -0.5, 0, 0.5, 1.0])
-            ax.set_xticklabels([_format_percent(value) for value in [-1.0, -0.5, 0, 0.5, 1.0]])
+            axis_limit = self._configure_symmetric_percent_difference_axis(ax, differences)
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
             self._draw_category_significance_guides(
                 ax,
@@ -3407,7 +3415,7 @@ class DatabaseAnalyticsChartsMixin:
                 if width <= 0:
                     continue
                 label_x = width if diff_value >= 0 else -width
-                label_x = min(label_x + 0.02, 0.95) if label_x >= 0 else max(label_x - 0.02, -0.95)
+                label_x = self._difference_label_x(diff_value, axis_limit)
                 ax.text(
                     label_x,
                     bar.get_y() + (bar.get_height() / 2),
