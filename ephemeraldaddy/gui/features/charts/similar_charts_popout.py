@@ -463,14 +463,16 @@ def build_similar_charts_export_lines(
         lines.append(f"# Similar Charts for {subject_name}")
         lines.append("")
         lines.append(
-            "| Rank | Chart ID | Chart | Similarity | Band | Placement | Aspects | Distribution | Dominance |"
+            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Placement | Aspects | Distribution | Dominance |"
         )
-        lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|")
+        lines.append("|---:|---:|---|---:|---|---:|---:|---:|---:|---:|")
         for row in rows:
             lines.append(
                 f"| {row['rank']} | {row['chart_id']} | {row['chart_name']} | "
-                f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | {row['placement_percent']:.1f}% | "
-                f"{row['aspect_percent']:.1f}% | {row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
+                f"{row['similarity_percent']:.1f}% | {row.get('similarity_band', '')} | "
+                f"{'' if row.get('similarity_z_score') is None else f'{float(row.get('similarity_z_score')):+.3f}'} | "
+                f"{row['placement_percent']:.1f}% | {row['aspect_percent']:.1f}% | "
+                f"{row['distribution_percent']:.1f}% | {float(row.get('dominance_percent') or 0.0):.1f}% |"
             )
         return lines
 
@@ -480,7 +482,8 @@ def build_similar_charts_export_lines(
         lines.append(
             f"{row['rank']}. #{row['chart_id']} — {row['chart_name']}: "
             f"Similarity {row['similarity_percent']:.1f}% "
-            f"[{row.get('similarity_band', 'unclassified')}] "
+            f"[{row.get('similarity_band', 'unclassified')}"
+            f"{'' if row.get('similarity_z_score') is None else f'; z={float(row.get('similarity_z_score')):+.3f}'}] "
             f"(placements {row['placement_percent']:.1f}%, "
             f"aspects {row['aspect_percent']:.1f}%, "
             f"distribution {row['distribution_percent']:.1f}%, "

@@ -284,7 +284,7 @@ def build_similarity_calculator_settings_section(
 
     calibrate_similarity_button = QPushButton("Calibrate Similarity Norms")
     calibrate_similarity_button.setToolTip(
-        "Compute min/max/avg/median/mode similarity across saved chart pairs and save thresholds."
+        "Compute min/max/avg/median/mode/standard-deviation similarity across saved chart pairs and save thresholds."
     )
     calibrate_similarity_button.clicked.connect(on_calibrate_clicked)
     section_layout.addWidget(calibrate_similarity_button)
