@@ -1114,6 +1114,12 @@ class DatabaseAnalyticsChartsMixin:
 
      #DB View's Lefthand Panel: Selection Comparison Chart 2: Relationship Distribution Chart
 
+    def _standard_deviation_indicators_visible(self) -> bool:
+        visibility = getattr(self, "_visibility", None)
+        if visibility is None:
+            return True
+        return bool(visibility.get("charts.standard_deviation_indicators"))
+
     def _draw_category_significance_guides(
         self,
         ax: Any,
@@ -1121,6 +1127,8 @@ class DatabaseAnalyticsChartsMixin:
         database_counts: list[float | int],
         loaded_charts: int | float,
     ) -> None:
+        if not self._standard_deviation_indicators_visible():
+            return
         if float(loaded_charts or 0) <= 0:
             return
         correction = getattr(self, "_significance_correction", "benjamini_hochberg")
@@ -1507,6 +1515,12 @@ class DatabaseAnalyticsChartsMixin:
             sign_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             sign_ax.set_xlabel("")
             sign_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            self._draw_category_significance_guides(
+                sign_ax,
+                [selection_sign_counts.get(label, 0) for label in sign_labels],
+                [database_sign_counts.get(label, 0) for label in sign_labels],
+                loaded_charts,
+            )
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
