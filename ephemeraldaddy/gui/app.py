@@ -3287,17 +3287,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         labels: list[str],
         selection_values: list[float],
         database_values: list[float],
-        selection_counts: list[int],
-        database_counts: list[int],
+        selection_counts: list[float | int],
+        database_counts: list[float | int],
         loaded_charts: int,
+        selection_total: float | None = None,
+        database_total: float | None = None,
+        include_significance: bool = True,
     ) -> list[tuple[str, float, float, float, int, int, float, float | None, float | None, float | None, float | None, str, str]]:
         rows = []
         total_database_count = float(sum(database_counts))
         significance_results = compute_proportion_significance_results(
             selection_counts=selection_counts,
             database_counts=database_counts,
-            loaded_charts=loaded_charts,
+            loaded_charts=loaded_charts if include_significance else 0,
             correction=getattr(self, "_significance_correction", SIGNIFICANCE_CORRECTION_DEFAULT),
+            selection_total=selection_total,
+            database_total=database_total,
         )
         for (
             label,
@@ -10383,6 +10388,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=selection_counts,
                         database_counts=database_counts,
                         loaded_charts=sentiment_loaded_charts,
+                        selection_total=float(sentiment_loaded_charts),
+                        database_total=float(sentiment_database_loaded_charts),
                     )
                 )
             except Exception as exc:
@@ -10640,6 +10647,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_planet_counts=selection_cache["dominant_planet_totals"],
                         database_planet_counts=database_cache["dominant_planet_totals"],
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_planet_total_weight"]),
+                        database_total=float(database_cache["dominant_planet_total_weight"]),
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_planet_labels,
@@ -10648,6 +10657,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_planet_total_weight"]),
+                        database_total=float(database_cache["dominant_planet_total_weight"]),
                     )
                 elif dominant_mode == "top3_houses":
                     dominant_sign_canvas = self._build_dominant_house_chart(
@@ -10656,6 +10667,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_house_counts={str(num): selection_cache["dominant_house_totals"][num] for num in range(1, 13)},
                         database_house_counts={str(num): database_cache["dominant_house_totals"][num] for num in range(1, 13)},
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_house_total_weight"]),
+                        database_total=float(database_cache["dominant_house_total_weight"]),
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_house_labels,
@@ -10664,6 +10677,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_house_total_weight"]),
+                        database_total=float(database_cache["dominant_house_total_weight"]),
                     )
                 elif dominant_mode == "top3_nakshatras":
                     dominant_sign_canvas = self._build_dominant_planet_chart(
@@ -10673,6 +10688,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_planet_counts=database_cache["dominant_nakshatra_frequency_totals"],
                         loaded_charts=loaded_charts,
                         labels=dominant_nakshatra_labels,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=dominant_nakshatra_labels,
@@ -10681,6 +10698,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
                         database_counts=[database_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                 elif dominant_mode == "top3_signs":
                     dominant_sign_canvas = self._build_dominant_sign_chart(
@@ -10689,6 +10708,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
                         database_sign_counts=database_cache["dominant_sign_frequency_totals"],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
@@ -10697,6 +10718,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                 else:
                     dominant_sign_canvas = self._build_dominant_sign_chart(
@@ -10705,6 +10728,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_sign_counts=selection_cache["dominant_sign_frequency_totals"],
                         database_sign_counts=database_cache["dominant_sign_frequency_totals"],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
                         labels=list(ZODIAC_NAMES),
@@ -10713,6 +10738,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                 self._clear_layout(self.dominant_sign_chart_layout)
                 self.dominant_sign_chart_layout.addWidget(
@@ -10729,6 +10756,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[int(selection_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         database_counts=[int(database_cache["dominant_planet_totals"][label]) for label in dominant_planet_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_planet_total_weight"]),
+                        database_total=float(database_cache["dominant_planet_total_weight"]),
                     )
                 elif dominant_mode == "top3_houses":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -10738,6 +10767,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[int(selection_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         database_counts=[int(database_cache["dominant_house_totals"][int(label)]) for label in dominant_house_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(selection_cache["dominant_house_total_weight"]),
+                        database_total=float(database_cache["dominant_house_total_weight"]),
                     )
                 elif dominant_mode == "top3_nakshatras":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -10747,6 +10778,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
                         database_counts=[database_cache["dominant_nakshatra_frequency_totals"][label] for label in dominant_nakshatra_labels],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                 elif dominant_mode == "top3_signs":
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -10756,6 +10789,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
                 else:
                     self._analysis_chart_export_rows["dominant_signs"] = self._build_analysis_export_rows(
@@ -10765,6 +10800,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         database_counts=[database_cache["dominant_sign_frequency_totals"][sign] for sign in ZODIAC_NAMES],
                         loaded_charts=loaded_charts,
+                        selection_total=float(loaded_charts),
+                        database_total=float(database_loaded_charts),
                     )
 
             if _should_refresh_database_metric_section("cumulativedom_factors"):
@@ -10777,6 +10814,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_planet_counts=database_cache["dominant_planet_weight_totals"],
                         loaded_charts=loaded_charts,
                         labels=cumulative_planet_labels,
+                        include_significance_guides=False,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_planet_labels,
@@ -10785,6 +10823,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 elif cumulativedom_mode == "cumulative_houses":
                     cumulativedom_sign_canvas = self._build_dominant_house_chart(
@@ -10794,6 +10833,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_house_counts={str(num): database_cache["dominant_house_weight_totals"][num] for num in range(1, 13)},
                         loaded_charts=loaded_charts,
                         labels=cumulative_house_labels,
+                        include_significance_guides=False,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_house_labels,
@@ -10802,6 +10842,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 elif cumulativedom_mode == "cumulative_nakshatras":
                     cumulativedom_sign_canvas = self._build_dominant_planet_chart(
@@ -10811,6 +10852,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_planet_counts=database_cache["dominant_nakshatra_totals"],
                         loaded_charts=loaded_charts,
                         labels=cumulative_nakshatra_labels,
+                        include_significance_guides=False,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_nakshatra_labels,
@@ -10819,6 +10861,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         database_counts=[database_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 else:
                     cumulativedom_sign_canvas = self._build_dominant_sign_chart(
@@ -10828,6 +10871,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         database_sign_counts=database_cache["dominant_sign_totals"],
                         loaded_charts=loaded_charts,
                         sign_labels=cumulative_sign_labels,
+                        include_significance_guides=False,
                     )
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
                         labels=cumulative_sign_labels,
@@ -10836,6 +10880,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         database_counts=[database_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 self._clear_layout(self.cumulativedom_sign_chart_layout)
                 self.cumulativedom_sign_chart_layout.addWidget(
@@ -10852,6 +10897,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         database_counts=[database_cache["dominant_planet_weight_totals"][label] for label in cumulative_planet_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 elif cumulativedom_mode == "cumulative_houses":
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
@@ -10861,6 +10907,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         database_counts=[database_cache["dominant_house_weight_totals"][int(label)] for label in cumulative_house_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 elif cumulativedom_mode == "cumulative_nakshatras":
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
@@ -10870,6 +10917,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         database_counts=[database_cache["dominant_nakshatra_totals"][label] for label in cumulative_nakshatra_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
                 else:
                     self._analysis_chart_export_rows["cumulativedom_factors"] = self._build_analysis_export_rows(
@@ -10879,6 +10927,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         selection_counts=[selection_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         database_counts=[database_cache["dominant_sign_totals"][sign] for sign in cumulative_sign_labels],
                         loaded_charts=loaded_charts,
+                        include_significance=False,
                     )
 
             prevalence_mode = self._prevalence_mode
