@@ -1935,6 +1935,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
+        self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[
             tuple[str, list[tuple[str, int, int, int, int, str]]]
@@ -2403,6 +2404,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         header_layout.addWidget(dropdown, alignment=Qt.AlignRight)
         self._analysis_chart_dropdowns[chart_key] = dropdown
+
+        popout_button = QPushButton("⤢")
+        popout_button.setFlat(True)
+        popout_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
+        popout_button.setCursor(Qt.PointingHandCursor)
+        popout_button.setToolTip(f"Open {title_text} graph in a larger popout window")
+        popout_button.clicked.connect(
+            lambda _checked=False, key=chart_key, title=title_text: self._show_database_analytics_popout(
+                key,
+                title,
+            )
+        )
+        header_layout.addWidget(popout_button, alignment=Qt.AlignRight)
 
         export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
