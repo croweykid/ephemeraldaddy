@@ -794,6 +794,9 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import (
     DBInfoPanel,
     add_similarity_match_row,
 )
+from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
+    similarity_delta_rgb,
+)
 from ephemeraldaddy.gui.features.retcon.transit_window import (
     TRANSIT_WINDOW_CACHE_LIMIT,
     resolve_transit_window_scan_config,
@@ -960,7 +963,6 @@ from ephemeraldaddy.gui.style import (
     SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE,
     SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE,
     alignment_score_to_rgb,
-    similarity_gradient_rgb_from_ratio,
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
     format_chart_header,
@@ -6990,10 +6992,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if db_label_total_count
                     else 0
                 )
-                percent_difference = abs(percent_value - db_percent_value)
-                difference_ratio = min(percent_difference, 10) / 10.0
-                similarity_red, similarity_green, similarity_blue = similarity_gradient_rgb_from_ratio(
-                    difference_ratio
+                similarity_red, similarity_green, similarity_blue = similarity_delta_rgb(
+                    percent_value, db_percent_value
                 )
                 add_similarity_match_row(
                     section_list=section_list,
