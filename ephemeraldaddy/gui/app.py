@@ -750,9 +750,19 @@ from ephemeraldaddy.gui.features.charts.similarity_norms import (
     classify_similarity,
     compute_similarity_calibration,
     describe_similarity_bands,
+    load_similarity_calibration_stats,
     load_similarity_thresholds,
     save_similarity_calibration,
     save_similarity_thresholds,
+    similarity_z_score,
+)
+from ephemeraldaddy.gui.features.charts.statistical_significance import (
+    SIGNIFICANCE_CORRECTION_DEFAULT,
+    SIGNIFICANCE_CORRECTION_LABELS,
+    SIGNIFICANCE_CORRECTION_SETTINGS_KEY,
+    compute_proportion_significance_results,
+    load_significance_correction,
+    save_significance_correction,
 )
 from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityInputState,
@@ -1794,6 +1804,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
         )
+        self._significance_correction = load_significance_correction(self._settings)
+        self._settings.setValue(
+            SIGNIFICANCE_CORRECTION_SETTINGS_KEY,
+            self._significance_correction,
+        )
         self._similar_predictions_default_zero_for_unassigned_alignment = (
             _load_predictions_alignment_default_zero_when_unassigned(self._settings, fallback=True)
         )
@@ -1910,10 +1925,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._database_total_count = 0
-        self._analysis_chart_export_rows: dict[
-            str,
-            list[tuple[str, float, float, float, int, int, float]],
-        ] = {}
+        self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._database_metrics_section_expanded: dict[str, bool] = {}
@@ -3278,21 +3290,29 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selection_counts: list[int],
         database_counts: list[int],
         loaded_charts: int,
-    ) -> list[tuple[str, float, float, float, int, int, float]]:
+    ) -> list[tuple[str, float, float, float, int, int, float, float | None, float | None, float | None, float | None, str, str]]:
         rows = []
         total_database_count = float(sum(database_counts))
+        significance_results = compute_proportion_significance_results(
+            selection_counts=selection_counts,
+            database_counts=database_counts,
+            loaded_charts=loaded_charts,
+            correction=getattr(self, "_significance_correction", SIGNIFICANCE_CORRECTION_DEFAULT),
+        )
         for (
             label,
             selection_value,
             database_value,
             selection_count,
             database_count,
+            significance,
         ) in zip(
             labels,
             selection_values,
             database_values,
             selection_counts,
             database_counts,
+            significance_results,
         ):
             display_selection = selection_value if loaded_charts else database_value
             difference = display_selection - database_value
@@ -3312,6 +3332,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     int(display_selection_count),
                     database_count_value,
                     percent_of_database,
+                    significance.standard_error,
+                    significance.z_score,
+                    significance.p_value,
+                    significance.adjusted_p_value,
+                    significance.band,
+                    significance.model,
                 )
             )
         return rows
@@ -18616,6 +18642,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _on_manage_help_overlay(self) -> None:
         self._toggle_help_overlay()
 
+    def _on_significance_correction_changed(self, correction: str) -> None:
+        self._significance_correction = save_significance_correction(self._settings, correction)
+        self._settings.sync()
+        combo = getattr(self, "_settings_significance_correction_combo", None)
+        if isinstance(combo, QComboBox):
+            current_index = combo.findData(self._significance_correction)
+            if current_index >= 0 and combo.currentIndex() != current_index:
+                blocker = QSignalBlocker(combo)
+                combo.setCurrentIndex(current_index)
+                del blocker
+        self._update_sentiment_tally(update_database_metrics=True, update_similarities=False)
+
     def _on_open_settings(self) -> None:
         dialog = self._ensure_settings_dialog()
         dialog.show()
@@ -18629,6 +18667,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._batch_tagging_terminal_debug_checkbox.setChecked(
                     bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
                 )
+                del blocker
+            significance_combo = getattr(self, "_settings_significance_correction_combo", None)
+            if isinstance(significance_combo, QComboBox):
+                blocker = QSignalBlocker(significance_combo)
+                correction_index = significance_combo.findData(
+                    getattr(self, "_significance_correction", SIGNIFICANCE_CORRECTION_DEFAULT)
+                )
+                significance_combo.setCurrentIndex(correction_index if correction_index >= 0 else 0)
                 del blocker
             self._resize_and_center_settings_dialog(self._settings_dialog)
             return self._settings_dialog
@@ -18808,6 +18854,45 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         chart_calculation_section.addWidget(lilith_mean_radio)
         chart_calculation_section.addWidget(lilith_true_radio)
+
+
+        data_visualization_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Data Visualization",
+        )
+        data_visualization_section.addWidget(
+            QLabel(
+                "Controls graph overlays and statistical-significance handling for Database View analytics."
+            )
+        )
+        significance_row = QHBoxLayout()
+        significance_label = QLabel("Significance correction:")
+        significance_combo = QComboBox()
+        for correction_key, correction_label in SIGNIFICANCE_CORRECTION_LABELS.items():
+            significance_combo.addItem(correction_label, correction_key)
+        current_correction = getattr(self, "_significance_correction", SIGNIFICANCE_CORRECTION_DEFAULT)
+        correction_index = significance_combo.findData(current_correction)
+        significance_combo.setCurrentIndex(correction_index if correction_index >= 0 else 0)
+        significance_combo.setToolTip(
+            "Multiple-comparison correction for Database View z-score/p-value exports. "
+            "Benjamini-Hochberg FDR is recommended for exploratory analytics."
+        )
+        significance_combo.currentIndexChanged.connect(
+            lambda _index: self._on_significance_correction_changed(
+                str(significance_combo.currentData() or SIGNIFICANCE_CORRECTION_DEFAULT)
+            )
+        )
+        significance_row.addWidget(significance_label)
+        significance_row.addWidget(significance_combo)
+        significance_row.addStretch(1)
+        data_visualization_section.addLayout(significance_row)
+        significance_help_label = QLabel(
+            "Category charts use a selection-vs-database proportion z-test; dashed red guides show "
+            "typical ±1/±2 standard-error noise bands when a selection is active."
+        )
+        significance_help_label.setWordWrap(True)
+        data_visualization_section.addWidget(significance_help_label)
+        self._settings_significance_correction_combo = significance_combo
 
         property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
         property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
@@ -19095,6 +19180,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
+        )
+        self._significance_correction = load_significance_correction(self._settings)
+        self._settings.setValue(
+            SIGNIFICANCE_CORRECTION_SETTINGS_KEY,
+            self._significance_correction,
         )
         parent = self.parent()
         if isinstance(parent, MainWindow):
@@ -19856,6 +19946,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     f"Maximum: {calibration.maximum:.1f}%",
                     f"Average: {calibration.average:.1f}%",
                     f"Median: {calibration.median:.1f}%",
+                    f"Standard deviation: {calibration.standard_deviation:.2f}%",
                     f"Mode: {mode_label} ({calibration.mode_count} pair(s))",
                     "",
                     *describe_similarity_bands(thresholds),
@@ -20355,6 +20446,11 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION,
             int(self._astrotwin_granular_explanation),
+        )
+        self._significance_correction = load_significance_correction(self._settings)
+        self._settings.setValue(
+            SIGNIFICANCE_CORRECTION_SETTINGS_KEY,
+            self._significance_correction,
         )
         self._similar_predictions_default_zero_for_unassigned_alignment = (
             _load_predictions_alignment_default_zero_when_unassigned(self._settings, fallback=True)
@@ -22330,6 +22426,7 @@ class MainWindow(QMainWindow):
             algorithm_mode=algorithm_mode,
             similarity_settings=getattr(self, "_similarity_calculator_settings", None),
         )
+        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
         for rank, match in enumerate(matches, start=1):
             display_name = format_similar_chart_name_html(
                 chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
@@ -22342,6 +22439,12 @@ class MainWindow(QMainWindow):
                 match=match,
                 component_keys=component_keys,
             )
+            z_score = similarity_z_score(
+                similarity_percent,
+                similarity_average,
+                similarity_standard_deviation,
+            )
+            z_score_html = f"; z={z_score:+.2f}" if z_score is not None else ""
             rank_label = (
                 f'<span style="font-weight: bold; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                 f"{rank}."
@@ -22352,7 +22455,7 @@ class MainWindow(QMainWindow):
                     f'{rank_label} #{match.chart_id} — <a href="{match.chart_id}">{display_name}</a> '
                     f'<a href="{make_similar_info_target(info_link_prefix="sim-info:panel", chart_id=int(match.chart_id))}">ⓘ</a><br>'
                     f'Similarity <span style="color: {band_color}; font-weight: 600;">'
-                    f"{similarity_percent:.1f}% ({band_label})"
+                    f"{similarity_percent:.1f}% ({band_label}{z_score_html})"
                     f"</span>"
                     f' <span style="font-weight: 400; color: {CHART_DATA_HIGHLIGHT_COLOR};">'
                     f"({component_summary})"
@@ -22366,6 +22469,7 @@ class MainWindow(QMainWindow):
                     "chart_name": match.chart_name,
                     "similarity_percent": round(similarity_percent, 1),
                     "similarity_band": band_label,
+                    "similarity_z_score": None if z_score is None else round(z_score, 3),
                     "placement_percent": round(match.placement_score * 100.0, 1),
                     "aspect_percent": round(match.aspect_score * 100.0, 1),
                     "distribution_percent": round(match.distribution_score * 100.0, 1),
