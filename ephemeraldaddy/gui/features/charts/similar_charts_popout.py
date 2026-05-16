@@ -1387,6 +1387,9 @@ def _human_design_gate_overlap_lines(subject_chart: Any, compared_chart: Any) ->
 
 
 def _human_design_gate_difference_lines(subject_chart: Any, compared_chart: Any) -> list[str]:
+    subject_label = _chart_possessive_label(subject_chart, "Chart 1")
+    compared_label = _chart_possessive_label(compared_chart, "Chart 2")
+
     subject_gates = _human_design_gate_set(subject_chart)
     compared_gates = _human_design_gate_set(compared_chart)
     subject_only = sorted(subject_gates - compared_gates)
