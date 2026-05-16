@@ -1126,6 +1126,8 @@ class DatabaseAnalyticsChartsMixin:
         selection_counts: list[float | int],
         database_counts: list[float | int],
         loaded_charts: int | float,
+        selection_total: float | None = None,
+        database_total: float | None = None,
     ) -> None:
         if not self._standard_deviation_indicators_visible():
             return
@@ -1137,6 +1139,8 @@ class DatabaseAnalyticsChartsMixin:
             database_counts=database_counts,
             loaded_charts=loaded_charts,
             correction=correction,
+            selection_total=selection_total,
+            database_total=database_total,
         )
         draw_standard_deviation_guides(
             ax,
@@ -1558,6 +1562,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
         sign_labels: list[str] | None = None,
+        selection_total: float | None = None,
+        database_total: float | None = None,
+        include_significance_guides: bool = True,
     ) -> FigureCanvas:
         dominant_figure = Figure(figsize=(2.7, 5.8))
         dominant_figure.patch.set_facecolor(self._database_analytics_figure_facecolor())
@@ -1636,6 +1643,15 @@ class DatabaseAnalyticsChartsMixin:
             dominant_ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             dominant_ax.set_xlabel("")
             dominant_ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
+            if include_significance_guides:
+                self._draw_category_significance_guides(
+                    dominant_ax,
+                    [selection_sign_counts.get(label, 0) for label in sign_labels],
+                    [database_sign_counts.get(label, 0) for label in sign_labels],
+                    loaded_charts,
+                    selection_total=selection_total,
+                    database_total=database_total,
+                )
             for bar, diff_value in zip(sign_bars, sign_differences):
                 bar_center = bar.get_y() + (bar.get_height() / 2)
                 selection_value = bar.get_width()
@@ -1676,6 +1692,9 @@ class DatabaseAnalyticsChartsMixin:
         height_scale: float = 1.0,
         force_value_fallback_colors: bool = False,
         label_colors: dict[str, str] | None = None,
+        selection_total: float | None = None,
+        database_total: float | None = None,
+        include_significance_guides: bool = True,
     ) -> FigureCanvas:
         clamped_height_scale = max(0.5, float(height_scale))
         # Keep bottom margin visually consistent in pixels when chart height is scaled up.
@@ -1774,12 +1793,15 @@ class DatabaseAnalyticsChartsMixin:
             ax.tick_params(axis="y", labelsize=7.5, colors=CHART_THEME_COLORS["text"], pad=6)
             ax.tick_params(axis="x", labelsize=7, colors=CHART_THEME_COLORS["muted_text"])
             ax.axvline(0, color=CHART_THEME_COLORS["spine"], linewidth=1.5, zorder=1)
-            self._draw_category_significance_guides(
-                ax,
-                [selection_planet_counts.get(label, 0) for label in labels],
-                [database_planet_counts.get(label, 0) for label in labels],
-                loaded_charts,
-            )
+            if include_significance_guides:
+                self._draw_category_significance_guides(
+                    ax,
+                    [selection_planet_counts.get(label, 0) for label in labels],
+                    [database_planet_counts.get(label, 0) for label in labels],
+                    loaded_charts,
+                    selection_total=selection_total,
+                    database_total=database_total,
+                )
             for bar, diff_value in zip(bars, differences):
                 width = bar.get_width()
                 if width <= 0:
@@ -1808,6 +1830,9 @@ class DatabaseAnalyticsChartsMixin:
         loaded_charts: int,
         bar_height: float = 0.6,
         labels: list[str] | None = None,
+        selection_total: float | None = None,
+        database_total: float | None = None,
+        include_significance_guides: bool = True,
     ) -> FigureCanvas:
         return self._build_dominant_planet_chart(
             selection_planets=selection_houses,
@@ -1817,6 +1842,9 @@ class DatabaseAnalyticsChartsMixin:
             loaded_charts=loaded_charts,
             bar_height=bar_height,
             labels=labels,
+            selection_total=selection_total,
+            database_total=database_total,
+            include_significance_guides=include_significance_guides,
         )
 
     def _build_gender_distribution_chart(
