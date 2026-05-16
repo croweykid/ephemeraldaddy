@@ -34,6 +34,40 @@ class SimilarityPercentBar(QProgressBar):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._standard_deviation_guides: tuple[tuple[float, int], ...] = ()
+        self._norm_delta_overlay: (
+            tuple[float, float, tuple[int, int, int]] | None
+        ) = None
+
+    def set_norm_delta_overlay(
+        self,
+        *,
+        selection_percent: int | float,
+        db_norm_percent: int | float,
+        delta_rgb: tuple[int, int, int],
+    ) -> None:
+        """Set the selected-vs-DB-norm delta overlay for the progress bar.
+
+        ``selection_percent`` is the row's filled progress value, while
+        ``db_norm_percent`` is the baseline percentage for the full database.
+        The overlay paints the signed distance between those two percentages so
+        below-norm rows remain visually distinct from above-norm rows.
+        """
+        selection_value = float(selection_percent)
+        db_norm_value = float(db_norm_percent)
+        if not math.isfinite(selection_value) or not math.isfinite(db_norm_value):
+            self._norm_delta_overlay = None
+            self.update()
+            return
+
+        normalized_rgb = tuple(
+            max(0, min(255, int(channel))) for channel in delta_rgb
+        )
+        self._norm_delta_overlay = (
+            max(0.0, min(100.0, selection_value)),
+            max(0.0, min(100.0, db_norm_value)),
+            normalized_rgb,
+        )
+        self.update()
 
     def set_standard_deviation_guides(
         self,
@@ -48,7 +82,7 @@ class SimilarityPercentBar(QProgressBar):
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().paintEvent(event)
-        if not self._standard_deviation_guides:
+        if not self._norm_delta_overlay and not self._standard_deviation_guides:
             return
 
         painter = QPainter(self)
@@ -57,6 +91,40 @@ class SimilarityPercentBar(QProgressBar):
             content_rect = self.rect().adjusted(2, 2, -2, -2)
             if content_rect.width() <= 0:
                 return
+
+            if self._norm_delta_overlay:
+                selection_percent, db_norm_percent, delta_rgb = self._norm_delta_overlay
+                selection_x = content_rect.left() + round(
+                    (selection_percent / 100.0) * content_rect.width()
+                )
+                db_norm_x = content_rect.left() + round(
+                    (db_norm_percent / 100.0) * content_rect.width()
+                )
+                delta_left = min(selection_x, db_norm_x)
+                delta_width = max(1, abs(selection_x - db_norm_x))
+                overlay_color = QColor(*delta_rgb, 72)
+                painter.fillRect(
+                    delta_left,
+                    content_rect.top(),
+                    delta_width,
+                    content_rect.height(),
+                    overlay_color,
+                )
+
+                norm_pen = QPen(QColor(230, 230, 230, 185))
+                norm_pen.setWidth(1)
+                painter.setPen(norm_pen)
+                painter.drawLine(
+                    db_norm_x, content_rect.top(), db_norm_x, content_rect.bottom()
+                )
+
+                selection_pen = QPen(QColor(*delta_rgb, 230))
+                selection_pen.setWidth(2)
+                painter.setPen(selection_pen)
+                painter.drawLine(
+                    selection_x, content_rect.top(), selection_x, content_rect.bottom()
+                )
+
             unique_guides = sorted(
                 set(
                     (round(value, 4), alpha)
