@@ -22,14 +22,39 @@ from PySide6.QtWidgets import (
 from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
 
 
+from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
+    similarity_delta_points,
+    similarity_deviation_z_score,
+)
+
+
 class SimilarityPercentBar(QProgressBar):
     """Progress bar that can overlay DB standard-error guide lines."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._standard_deviation_guides: tuple[tuple[float, int], ...] = ()
+        self._db_norm_percent: float | None = None
+        self._selection_percent: float | None = None
+        self._delta_rgb: tuple[int, int, int] | None = None
 
-    def set_standard_deviation_guides(self, guide_percents: list[tuple[float, int]]) -> None:
+    def set_norm_delta_overlay(
+        self,
+        *,
+        selection_percent: int | float,
+        db_norm_percent: int | float,
+        delta_rgb: tuple[int, int, int],
+    ) -> None:
+        """Configure the signed DB-norm delta overlay drawn on top of the bar."""
+        self._selection_percent = max(0.0, min(100.0, float(selection_percent)))
+        self._db_norm_percent = max(0.0, min(100.0, float(db_norm_percent)))
+        self._delta_rgb = tuple(max(0, min(255, int(channel))) for channel in delta_rgb)
+        self.update()
+
+    def set_standard_deviation_guides(
+        self,
+        guide_percents: list[tuple[float, int]],
+    ) -> None:
         self._standard_deviation_guides = tuple(
             (max(0.0, min(100.0, float(value))), max(0, min(255, int(alpha))))
             for value, alpha in guide_percents
@@ -39,7 +64,11 @@ class SimilarityPercentBar(QProgressBar):
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().paintEvent(event)
-        if not self._standard_deviation_guides:
+        if (
+            not self._standard_deviation_guides
+            and self._db_norm_percent is None
+            and self._selection_percent is None
+        ):
             return
 
         painter = QPainter(self)
@@ -48,14 +77,48 @@ class SimilarityPercentBar(QProgressBar):
             content_rect = self.rect().adjusted(2, 2, -2, -2)
             if content_rect.width() <= 0:
                 return
-            unique_guides = sorted(set((round(value, 4), alpha) for value, alpha in self._standard_deviation_guides))
-            for guide_percent, alpha in unique_guides:
-                color = QColor(255, 45, 45, alpha)
-                pen = QPen(color)
-                pen.setWidth(1)
-                painter.setPen(pen)
-                x = content_rect.left() + round((guide_percent / 100.0) * content_rect.width())
-                painter.drawLine(x, content_rect.top(), x, content_rect.bottom())
+
+            if (
+                self._db_norm_percent is not None
+                and self._selection_percent is not None
+                and self._delta_rgb is not None
+            ):
+                db_x = content_rect.left() + round(
+                    (self._db_norm_percent / 100.0) * content_rect.width()
+                )
+                selection_x = content_rect.left() + round(
+                    (self._selection_percent / 100.0) * content_rect.width()
+                )
+                if db_x != selection_x:
+                    red, green, blue = self._delta_rgb
+                    painter.fillRect(
+                        min(db_x, selection_x),
+                        content_rect.top(),
+                        max(1, abs(selection_x - db_x)),
+                        content_rect.height(),
+                        QColor(red, green, blue, 135),
+                    )
+                db_pen = QPen(QColor(245, 245, 245, 230))
+                db_pen.setWidth(2)
+                painter.setPen(db_pen)
+                painter.drawLine(db_x, content_rect.top(), db_x, content_rect.bottom())
+
+            if self._standard_deviation_guides:
+                unique_guides = sorted(
+                    set(
+                        (round(value, 4), alpha)
+                        for value, alpha in self._standard_deviation_guides
+                    )
+                )
+                for guide_percent, alpha in unique_guides:
+                    color = QColor(255, 45, 45, alpha)
+                    pen = QPen(color)
+                    pen.setWidth(1)
+                    painter.setPen(pen)
+                    x = content_rect.left() + round(
+                        (guide_percent / 100.0) * content_rect.width()
+                    )
+                    painter.drawLine(x, content_rect.top(), x, content_rect.bottom())
         finally:
             painter.end()
 
@@ -69,14 +132,19 @@ def _standard_error_guide_percents(
     if not show_standard_deviation_guides or total_count <= 0:
         return []
     probability = max(0.0, min(1.0, float(db_percent_value) / 100.0))
-    standard_error_percent = math.sqrt(probability * (1.0 - probability) / float(total_count)) * 100.0
+    standard_error_percent = (
+        math.sqrt(probability * (1.0 - probability) / float(total_count)) * 100.0
+    )
     if standard_error_percent <= 0.0 or not math.isfinite(standard_error_percent):
         return []
     guides: list[tuple[float, int]] = []
     for multiplier in (1, 2):
         offset = standard_error_percent * multiplier
         alpha = 220 if multiplier == 1 else 145
-        for guide in (float(db_percent_value) - offset, float(db_percent_value) + offset):
+        for guide in (
+            float(db_percent_value) - offset,
+            float(db_percent_value) + offset,
+        ):
             if 0.0 <= guide <= 100.0:
                 guides.append((guide, alpha))
     return guides
@@ -203,6 +271,23 @@ def add_similarity_match_row(
     percent_bar.setTextVisible(False)
     percent_bar.setFixedWidth(120)
     percent_bar.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    percent_bar.set_norm_delta_overlay(
+        selection_percent=percent_value,
+        db_norm_percent=db_percent_value,
+        delta_rgb=similarity_rgb,
+    )
+    delta_points = similarity_delta_points(percent_value, db_percent_value)
+    z_score = similarity_deviation_z_score(percent_value, db_percent_value, total_count)
+    direction_label = (
+        "above DB norm"
+        if delta_points > 0
+        else "below DB norm" if delta_points < 0 else "at DB norm"
+    )
+    z_score_text = "" if z_score is None else f" ({z_score:+.2f} standard-error units)"
+    percent_bar.setToolTip(
+        f"Selection is {abs(delta_points):.0f} percentage points "
+        f"{direction_label}{z_score_text}."
+    )
     percent_bar.set_standard_deviation_guides(
         _standard_error_guide_percents(
             db_percent_value=db_percent_value,
@@ -216,17 +301,26 @@ def add_similarity_match_row(
     unknown_suffix = ""
     if selection_total_count > 0 and total_count < selection_total_count:
         unknown_count = selection_total_count - total_count
-        unknown_percent_value = int(round((unknown_count / selection_total_count) * 100))
+        unknown_percent_value = int(
+            round((unknown_count / selection_total_count) * 100)
+        )
         unknown_suffix = f" | {unknown_percent_value}% unknown"
 
     selection_percent_text = f"{percent_value}% of selection"
+    delta_suffix = ""
+    if delta_points != 0.0:
+        delta_suffix = f" | {delta_points:+.0f} percentage points {direction_label}"
     if percent_value < db_percent_value:
-        selection_percent_text = f'<span style="color: #ff2d2d;">{selection_percent_text}</span>'
+        selection_percent_text = (
+            f'<span style="color: #ff2d2d;">{selection_percent_text}</span>'
+        )
     elif percent_value > db_percent_value:
-        selection_percent_text = f'<span style="color: #7fff00;">{selection_percent_text}</span>'
+        selection_percent_text = (
+            f'<span style="color: #7fff00;">{selection_percent_text}</span>'
+        )
 
     tiny_label = QLabel(
-        f"{selection_percent_text} | {db_percent_value}% of DB{unknown_suffix}"
+        f"{selection_percent_text} | {db_percent_value}% of DB{delta_suffix}{unknown_suffix}"
     )
     tiny_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
     tiny_label.setTextFormat(Qt.RichText)
