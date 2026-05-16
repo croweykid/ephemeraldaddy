@@ -1935,6 +1935,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._incremental_metrics_force_full_refresh: bool = False
         self._incremental_metrics_refresh_scheduled = False
         self._database_metrics_chart_layouts: dict[str, QVBoxLayout] = {}
+        self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[
             tuple[str, list[tuple[str, int, int, int, int, str]]]
@@ -2403,6 +2404,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         header_layout.addWidget(dropdown, alignment=Qt.AlignRight)
         self._analysis_chart_dropdowns[chart_key] = dropdown
+
+        popout_button = QPushButton("⤢")
+        popout_button.setFlat(True)
+        popout_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
+        popout_button.setCursor(Qt.PointingHandCursor)
+        popout_button.setToolTip(f"Open {title_text} graph in a larger popout window")
+        popout_button.clicked.connect(
+            lambda _checked=False, key=chart_key, title=title_text: self._show_database_analytics_popout(
+                key,
+                title,
+            )
+        )
+        header_layout.addWidget(popout_button, alignment=Qt.AlignRight)
 
         export_button = QPushButton()
         share_icon_path = _get_share_icon_path()
@@ -11905,6 +11919,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             self._on_import_astrotheme_from_search_panel()
             return True
+        database_analytics_key = None
+        if isinstance(obj, FigureCanvas):
+            database_analytics_key = self._database_analytics_chart_key_for_canvas(obj)
+        if database_analytics_key is not None:
+            if event.type() == QEvent.Enter:
+                obj.setCursor(Qt.PointingHandCursor)
+            if event.type() == QEvent.Wheel:
+                return self._handle_database_analytics_canvas_wheel(event)
+            if (
+                event.type() == QEvent.MouseButtonRelease
+                and event.button() == Qt.LeftButton
+            ):
+                self._show_database_analytics_popout(
+                    database_analytics_key,
+                    self._database_analytics_title_for_key(database_analytics_key),
+                )
+                return True
         if obj in self._transit_chart_canvases:
             if event.type() == QEvent.Enter:
                 obj.setCursor(Qt.PointingHandCursor)
