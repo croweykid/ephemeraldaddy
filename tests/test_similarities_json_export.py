@@ -5,6 +5,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
 )
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     build_similarities_json_export_payload,
+    format_similarities_json_export_payload,
     similarities_json_payload_has_factors,
 )
 
@@ -34,7 +35,7 @@ def test_similarities_json_export_keeps_beyond_second_std_tier_deltas_signed():
     assert profile["name"] == "Test Selection"
     assert profile["signs"] == {"Aries": 40, "Taurus": -40}
     assert profile["antisigns"] == {}
-    assert profile["gates"] == {"1": 35}
+    assert profile["gates"] == {1: 35}
     assert profile["antigates"] == {}
     assert similarities_json_payload_has_factors(payload, "Test Selection")
 
@@ -164,3 +165,23 @@ def test_normalized_similarities_json_criteria_are_accepted_by_profile_consumers
     )
     assert weighted_house_entries(profile["houses"]) == {12: -40.0}
     assert weighted_gate_entries(profile["gates"]) == {1: 30.0}
+
+
+def test_similarities_json_export_formats_gate_and_channel_keys_for_profiles():
+    payload = build_similarities_json_export_payload(
+        "Profile Ready",
+        [
+            ("Gates in common", [("Gate 44", 5, 10, 0, 100, "A")]),
+            ("Channels in common", [("57-20", 5, 10, 0, 100, "A")]),
+        ],
+    )
+
+    profile = payload["Profile Ready"]
+    assert profile["gates"] == {44: 50}
+    assert profile["channels"] == {(20, 57): 50}
+
+    formatted = format_similarities_json_export_payload(payload)
+    assert '"gates": {\n            44: 50,' in formatted
+    assert '"channels": {\n            (20, 57): 50,' in formatted
+    assert '"44": 50' not in formatted
+    assert '"20-57": 50' not in formatted
