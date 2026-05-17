@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QThread, Qt, QSize
+from PySide6.QtCore import QThread, Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -173,10 +173,13 @@ class ChartAnalysisSectionsController:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             if on_toggled is not None:
                 on_toggled(checked)
-            content.adjustSize()
-            section.adjustSize()
-            panel.adjustSize()
-            panel.updateGeometry()
+
+            def update_panel_geometry() -> None:
+                content.updateGeometry()
+                section.updateGeometry()
+                panel.updateGeometry()
+
+            QTimer.singleShot(0, update_panel_geometry)
 
         toggle.toggled.connect(toggle_content)
 
