@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import re
 from collections import OrderedDict
+from collections.abc import Mapping
 
 from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
@@ -111,7 +114,10 @@ def similarities_json_category_for_section(
     return SIMILARITIES_JSON_SECTION_CATEGORIES.get(section_title)
 
 
-def normalize_similarities_json_criterion(section_title: str, label: object) -> str | None:
+def normalize_similarities_json_criterion(
+    section_title: str,
+    label: object,
+) -> str | int | tuple[int, int] | None:
     """Convert UI labels into criterion strings consumed by profile scoring."""
     text = str(label).strip()
     if not text:
@@ -149,9 +155,26 @@ def normalize_similarities_json_criterion(section_title: str, label: object) -> 
         gate_num = text.replace("Gate ", "", 1).strip()
         if not gate_num.isdigit():
             return None
-        return str(int(gate_num))
+        return int(gate_num)
+
+    if section_title == "Channels in common":
+        normalized = _normalize_channel_criterion(text)
+        if normalized is None:
+            return None
+        return normalized
 
     return text
+
+
+def _normalize_channel_criterion(text: str) -> tuple[int, int] | None:
+    """Convert a channel label into a canonical two-gate tuple."""
+    match = re.fullmatch(r"\s*(\d{1,2})\s*[-/,]\s*(\d{1,2})\s*", text)
+    if not match:
+        return None
+    gate_a, gate_b = (int(value) for value in match.groups())
+    if not (1 <= gate_a <= 64 and 1 <= gate_b <= 64 and gate_a != gate_b):
+        return None
+    return (min(gate_a, gate_b), max(gate_a, gate_b))
 
 
 def similarity_delta_exceeds_export_standard_deviation_tier(
@@ -254,6 +277,46 @@ def build_similarities_json_export_payload(
             profile[category][criterion] = ratio
     sort_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
+
+
+def _format_similarities_export_key(key: object) -> str:
+    if isinstance(key, int):
+        return str(key)
+    if isinstance(key, tuple) and len(key) == 2:
+        gate_a, gate_b = key
+        return f"({gate_a}, {gate_b})"
+    return json.dumps(str(key), ensure_ascii=False)
+
+
+def _format_similarities_export_value(value: object, *, indent: int = 0) -> str:
+    if isinstance(value, Mapping):
+        if not value:
+            return "{}"
+        next_indent = indent + 4
+        lines = ["{"]
+        for key, child in value.items():
+            formatted_key = _format_similarities_export_key(key)
+            formatted_child = _format_similarities_export_value(child, indent=next_indent)
+            lines.append(f"{' ' * next_indent}{formatted_key}: {formatted_child},")
+        lines.append(f"{' ' * indent}}}")
+        return "\n".join(lines)
+    if isinstance(value, tuple):
+        tuple_items = ", ".join(
+            _format_similarities_export_value(item, indent=indent) for item in value
+        )
+        return f"({tuple_items})"
+    return json.dumps(value, ensure_ascii=False)
+
+
+def format_similarities_json_export_payload(payload: OrderedDict) -> str:
+    """Format Similarities Analysis exports as profile-compatible Python literals.
+
+    The consuming profile definitions use integer gate keys and tuple channel
+    keys. Standard JSON cannot represent those key types, so this formatter keeps
+    the historical JSON-style double-quoted strings while preserving numeric and
+    tuple keys for direct profile reuse.
+    """
+    return f"{_format_similarities_export_value(payload, indent=0)}\n"
 
 
 def similarities_json_payload_has_factors(payload: OrderedDict, selection_name: str) -> bool:

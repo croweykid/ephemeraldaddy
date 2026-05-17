@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import datetime
-import json
 import re
 from collections import OrderedDict
 from typing import Callable
@@ -13,6 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
 
 from ephemeraldaddy.gui.features.charts.similarities_export import (
     build_similarities_json_export_payload,
+    format_similarities_json_export_payload,
     similarities_json_payload_has_factors,
 )
 
@@ -160,8 +160,7 @@ def export_similarities_analysis_json_dialog(
 
     try:
         with open(file_path, "w", encoding="utf-8") as json_file:
-            json.dump(payload, json_file, ensure_ascii=False, indent=4)
-            json_file.write("\n")
+            json_file.write(format_similarities_json_export_payload(payload))
     except Exception as exc:
         QMessageBox.critical(
             parent,
