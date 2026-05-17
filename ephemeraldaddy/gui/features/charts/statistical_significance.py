@@ -179,15 +179,24 @@ def compute_proportion_significance_results(
         if database_total is not None
         else float(sum(max(0.0, float(value)) for value in database_counts))
     )
+    loaded_chart_count = float(loaded_charts or 0)
     has_selection = (
-        float(loaded_charts or 0) > 0
+        loaded_chart_count > 0
         and resolved_selection_total > 0.0
         and resolved_database_total > 0.0
+    )
+    suppress_inference = has_selection and (
+        loaded_chart_count <= 1.0 or resolved_selection_total <= 1.0
+    )
+    model = (
+        "category proportion z-test (requires n≥2)"
+        if suppress_inference
+        else "category proportion z-test"
     )
     provisional: list[SignificanceResult] = []
     p_values: list[float | None] = []
     for selection_count, database_count in zip(selection_counts, database_counts):
-        if not has_selection:
+        if not has_selection or suppress_inference:
             result = SignificanceResult(
                 standard_error=None,
                 z_score=None,
@@ -195,7 +204,7 @@ def compute_proportion_significance_results(
                 adjusted_p_value=None,
                 correction=normalized_correction,
                 band="n/a",
-                model="category proportion z-test",
+                model=model,
             )
             provisional.append(result)
             p_values.append(None)
@@ -220,7 +229,7 @@ def compute_proportion_significance_results(
                 adjusted_p_value=None,
                 correction=normalized_correction,
                 band="n/a",
-                model="category proportion z-test",
+                model=model,
             )
         )
         p_values.append(p_value)
