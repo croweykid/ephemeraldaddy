@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QThread, Qt, QSize, QTimer
+from PySide6.QtCore import QPoint, QThread, Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -157,6 +157,11 @@ class ChartAnalysisSectionsController:
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
         )
+        # The Chart View right-panel scroll areas try to keep the focused child
+        # visible while section geometry is changing.  Let the scroll area keep
+        # keyboard focus instead of giving focus to the clicked header, otherwise
+        # expanding a section can trigger an automatic jump to the header.
+        toggle.setFocusPolicy(Qt.NoFocus)
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -181,8 +186,17 @@ class ChartAnalysisSectionsController:
             scroll_area = nearest_scroll_area(section)
             vertical_scrollbar = scroll_area.verticalScrollBar() if scroll_area is not None else None
             horizontal_scrollbar = scroll_area.horizontalScrollBar() if scroll_area is not None else None
-            vertical_scroll_value = vertical_scrollbar.value() if vertical_scrollbar is not None else 0
+            scroll_widget = scroll_area.widget() if scroll_area is not None else None
+            viewport = scroll_area.viewport() if scroll_area is not None else None
+            anchor_viewport_y = (
+                section.mapTo(viewport, QPoint(0, 0)).y()
+                if viewport is not None
+                else None
+            )
             horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
+
+            if viewport is not None:
+                viewport.setUpdatesEnabled(False)
 
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
@@ -190,13 +204,25 @@ class ChartAnalysisSectionsController:
                 on_toggled(checked)
 
             def restore_scroll_position() -> None:
-                if vertical_scrollbar is not None:
+                if (
+                    vertical_scrollbar is not None
+                    and scroll_widget is not None
+                    and anchor_viewport_y is not None
+                ):
+                    section_content_y = section.mapTo(scroll_widget, QPoint(0, 0)).y()
+                    target_vertical_value = section_content_y - anchor_viewport_y
                     vertical_scrollbar.setValue(
-                        min(vertical_scroll_value, vertical_scrollbar.maximum())
+                        max(
+                            vertical_scrollbar.minimum(),
+                            min(target_vertical_value, vertical_scrollbar.maximum()),
+                        )
                     )
                 if horizontal_scrollbar is not None:
                     horizontal_scrollbar.setValue(
-                        min(horizontal_scroll_value, horizontal_scrollbar.maximum())
+                        max(
+                            horizontal_scrollbar.minimum(),
+                            min(horizontal_scroll_value, horizontal_scrollbar.maximum()),
+                        )
                     )
 
             def update_panel_geometry() -> None:
@@ -205,9 +231,17 @@ class ChartAnalysisSectionsController:
                 panel.updateGeometry()
                 restore_scroll_position()
 
+            def unfreeze_viewport() -> None:
+                restore_scroll_position()
+                if viewport is not None:
+                    viewport.setUpdatesEnabled(True)
+                    viewport.update()
+
             restore_scroll_position()
             QTimer.singleShot(0, update_panel_geometry)
-            QTimer.singleShot(0, restore_scroll_position)
+            for delay_ms in (0, 16, 50, 120):
+                QTimer.singleShot(delay_ms, restore_scroll_position)
+            QTimer.singleShot(120, unfreeze_viewport)
 
         toggle.toggled.connect(toggle_content)
 
