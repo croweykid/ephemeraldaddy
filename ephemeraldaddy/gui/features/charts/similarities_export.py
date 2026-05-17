@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES
+from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
+    SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS,
+    similarity_deviation_z_score,
+)
+
 SIMILARITIES_JSON_FACTOR_KEYS: tuple[str, ...] = (
     "signs",
     "antisigns",
@@ -47,6 +53,37 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Profiles in common": "profiles",
 }
 
+SIMILARITIES_JSON_PRIMARY_POSITION_BODIES: tuple[str, ...] = (
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+    "Chiron",
+    "Ceres",
+    "Pallas",
+    "Juno",
+    "Vesta",
+    "Lilith",
+    "Rahu",
+    "Ketu",
+    "Part of Fortune",
+)
+SIMILARITIES_JSON_PRIMARY_POSITION_BODY_SET = set(SIMILARITIES_JSON_PRIMARY_POSITION_BODIES)
+SIMILARITIES_JSON_POSITION_BODY_ORDER: tuple[str, ...] = (
+    *SIMILARITIES_JSON_PRIMARY_POSITION_BODIES,
+    *(body for body in PLANET_ORDER if body not in SIMILARITIES_JSON_PRIMARY_POSITION_BODY_SET),
+    *ZODIAC_NAMES,
+)
+SIMILARITIES_JSON_POSITION_BODY_INDEX = {
+    body: index for index, body in enumerate(SIMILARITIES_JSON_POSITION_BODY_ORDER)
+}
+
 
 def empty_similarities_json_profile(selection_name: str) -> OrderedDict:
     """Build the skeleton profile used by Similarities Analysis JSON exports."""
@@ -64,13 +101,14 @@ def similarities_json_category_for_section(
     section_title: str,
     percent_difference: float,
 ) -> str | None:
-    """Return the JSON bucket for a Similarities Analysis section and delta."""
-    category = SIMILARITIES_JSON_SECTION_CATEGORIES.get(section_title)
-    if category is None:
-        return None
-    if percent_difference < 0:
-        return f"anti{category}"
-    return category
+    """Return the JSON bucket for a Similarities Analysis section.
+
+    Similarities exports keep both over- and under-represented factors in the
+    positive factor category. Under-represented factors carry a negative weight,
+    leaving ``anti*`` buckets available for manually curated antithetical traits.
+    """
+    _ = percent_difference
+    return SIMILARITIES_JSON_SECTION_CATEGORIES.get(section_title)
 
 
 def normalize_similarities_json_criterion(section_title: str, label: object) -> str | None:
@@ -116,6 +154,56 @@ def normalize_similarities_json_criterion(section_title: str, label: object) -> 
     return text
 
 
+def similarity_delta_exceeds_export_standard_deviation_tier(
+    selection_percent: float,
+    database_percent: float,
+    total_count: int,
+) -> bool:
+    """Return True when a factor lies beyond the second standard-error tier."""
+    percent_difference = selection_percent - database_percent
+    if percent_difference == 0.0:
+        return False
+    z_score = similarity_deviation_z_score(selection_percent, database_percent, total_count)
+    if z_score is not None:
+        return abs(z_score) > SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS
+    return database_percent in {0.0, 100.0}
+
+
+def _split_position_criterion(criterion: str) -> tuple[str, str]:
+    body, separator, placement = criterion.partition(" in ")
+    if not separator:
+        return criterion, ""
+    return body, placement
+
+
+def _placement_sort_key(placement: str) -> tuple[int, int | str]:
+    if placement.startswith("H") and placement[1:].isdigit():
+        return (1, int(placement[1:]))
+    zodiac_index = {sign: index for index, sign in enumerate(ZODIAC_NAMES)}.get(placement)
+    if zodiac_index is not None:
+        return (0, zodiac_index)
+    return (2, placement.casefold())
+
+
+def _position_sort_key(item: tuple[str, int]) -> tuple[int, str, tuple[int, int | str], str]:
+    criterion, _weight = item
+    body, placement = _split_position_criterion(criterion)
+    body_index = SIMILARITIES_JSON_POSITION_BODY_INDEX.get(body)
+    return (
+        body_index if body_index is not None else len(SIMILARITIES_JSON_POSITION_BODY_ORDER),
+        body.casefold(),
+        _placement_sort_key(placement),
+        criterion.casefold(),
+    )
+
+
+def sort_similarities_json_positions(profile: OrderedDict) -> None:
+    """Sort exported position factors by body/planet order for readability."""
+    positions = profile.get("positions")
+    if isinstance(positions, OrderedDict):
+        profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
+
+
 def build_similarities_json_export_payload(
     selection_name: str,
     export_sections,
@@ -145,7 +233,11 @@ def build_similarities_json_export_payload(
                 else 0.0
             )
             percent_difference = selection_percent - database_percent
-            if abs(percent_difference) <= 3.0:
+            if not similarity_delta_exceeds_export_standard_deviation_tier(
+                selection_percent,
+                database_percent,
+                total_count,
+            ):
                 continue
             category = similarities_json_category_for_section(
                 section_title,
@@ -153,13 +245,14 @@ def build_similarities_json_export_payload(
             )
             if category is None:
                 continue
-            ratio = int(round(abs(percent_difference)))
-            if ratio <= 0:
+            ratio = int(round(percent_difference))
+            if ratio == 0:
                 continue
             criterion = normalize_similarities_json_criterion(section_title, label)
             if criterion is None:
                 continue
             profile[category][criterion] = ratio
+    sort_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
 
 
