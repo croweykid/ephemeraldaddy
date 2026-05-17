@@ -1014,7 +1014,7 @@ class DatabaseAnalyticsChartsMixin:
         if self._standard_deviation_indicators_visible():
             std_dev_line = (
                 "<p><b>Standard deviation / SE guide lines:</b> The red dashed lines mark about one and two standard errors away from the baseline. "
-                "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection may genuinely differ from the database, though it is still not proof by itself.</p>"
+                "A bar inside the first pair is usually ordinary noise; reaching the ±1 line is a mild signal; reaching or passing the ±2 line is a stronger clue that the selection genuinely differs from raw probability.</p>"
             )
         return (
             f"<h3>{html.escape(clean_label)}</h3>"
