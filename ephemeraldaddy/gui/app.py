@@ -7825,433 +7825,435 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
 
         progress = show_similarities_loading_progress(parent=self)
-        update_similarities_loading_progress(
-            progress,
-            "Calculating selected-chart similarities…",
-        )
-        common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
-        common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
-        common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
-        common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
-        common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
-        common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
-        common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
-        common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
-        common_hd_gates = self._build_common_human_design_gates(selected_non_placeholder_chart_ids)
-        common_hd_channels = self._build_common_human_design_channels(selected_non_placeholder_chart_ids)
-        common_hd_defined_centers = self._build_common_human_design_defined_centers(
-            selected_non_placeholder_chart_ids
-        )
-        common_hd_authorities = self._build_common_human_design_authorities(
-            selected_non_placeholder_chart_ids
-        )
-        common_hd_profiles = self._build_common_human_design_profiles(
-            selected_non_placeholder_chart_ids
-        )
-        update_similarities_loading_progress(
-            progress,
-            "Loading cached database comparison baselines…",
-        )
-        db_baselines = self._similarities_db_baseline_cache.get(
-            db_chart_ids,
-            lambda ids: build_similarity_db_baselines(self, ids),
-        )
-        db_common_positions = db_baselines["common_positions"]
-        db_common_positions_totals = db_baselines["common_positions_totals"]
-        db_common_houses_in_positions = db_baselines["common_houses_in_positions"]
-        db_common_houses_in_positions_totals = db_baselines["common_houses_in_positions_totals"]
-        db_common_signs_in_houses = db_baselines["common_signs_in_houses"]
-        db_common_signs_in_houses_totals = db_baselines["common_signs_in_houses_totals"]
-        db_common_dominant_signs = db_baselines["common_dominant_signs"]
-        db_common_dominant_bodies = db_baselines["common_dominant_bodies"]
-        db_common_dominant_houses = db_baselines["common_dominant_houses"]
-        db_common_dominant_nakshatras = db_baselines["common_dominant_nakshatras"]
-        db_common_aspects = db_baselines["common_aspects"]
-        db_common_aspects_totals = db_baselines["common_aspects_totals"]
-        db_common_hd_gates = db_baselines["common_hd_gates"]
-        db_common_hd_channels = db_baselines["common_hd_channels"]
-        db_common_hd_defined_centers = db_baselines["common_hd_defined_centers"]
-        db_common_hd_authorities = db_baselines["common_hd_authorities"]
-        db_common_hd_profiles = db_baselines["common_hd_profiles"]
-        update_similarities_loading_progress(
-            progress,
-            "Preparing similarities export data…",
-        )
-        self._similarities_export_sections = [
-            (
-                "Signs in positions in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_positions.get(label, 0)),
-                        int(db_common_positions_totals.get(label, db_total_count)),
-                        self._similarity_matching_chart_names(
-                            "Signs in positions in common",
+        try:
+            update_similarities_loading_progress(
+                progress,
+                "Calculating selected-chart similarities…",
+            )
+            common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
+            common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
+            common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
+            common_dominant_signs = self._build_common_dominant_signs(selected_non_placeholder_chart_ids)
+            common_dominant_bodies = self._build_common_dominant_bodies(selected_non_placeholder_chart_ids)
+            common_dominant_houses = self._build_common_dominant_houses(selected_non_placeholder_chart_ids)
+            common_dominant_nakshatras = self._build_common_dominant_nakshatras(selected_non_placeholder_chart_ids)
+            common_aspects = self._build_common_aspects(selected_non_placeholder_chart_ids)
+            common_hd_gates = self._build_common_human_design_gates(selected_non_placeholder_chart_ids)
+            common_hd_channels = self._build_common_human_design_channels(selected_non_placeholder_chart_ids)
+            common_hd_defined_centers = self._build_common_human_design_defined_centers(
+                selected_non_placeholder_chart_ids
+            )
+            common_hd_authorities = self._build_common_human_design_authorities(
+                selected_non_placeholder_chart_ids
+            )
+            common_hd_profiles = self._build_common_human_design_profiles(
+                selected_non_placeholder_chart_ids
+            )
+            update_similarities_loading_progress(
+                progress,
+                "Loading cached database comparison baselines…",
+            )
+            db_baselines = self._similarities_db_baseline_cache.get(
+                db_chart_ids,
+                lambda ids: build_similarity_db_baselines(self, ids),
+            )
+            db_common_positions = db_baselines["common_positions"]
+            db_common_positions_totals = db_baselines["common_positions_totals"]
+            db_common_houses_in_positions = db_baselines["common_houses_in_positions"]
+            db_common_houses_in_positions_totals = db_baselines["common_houses_in_positions_totals"]
+            db_common_signs_in_houses = db_baselines["common_signs_in_houses"]
+            db_common_signs_in_houses_totals = db_baselines["common_signs_in_houses_totals"]
+            db_common_dominant_signs = db_baselines["common_dominant_signs"]
+            db_common_dominant_bodies = db_baselines["common_dominant_bodies"]
+            db_common_dominant_houses = db_baselines["common_dominant_houses"]
+            db_common_dominant_nakshatras = db_baselines["common_dominant_nakshatras"]
+            db_common_aspects = db_baselines["common_aspects"]
+            db_common_aspects_totals = db_baselines["common_aspects_totals"]
+            db_common_hd_gates = db_baselines["common_hd_gates"]
+            db_common_hd_channels = db_baselines["common_hd_channels"]
+            db_common_hd_defined_centers = db_baselines["common_hd_defined_centers"]
+            db_common_hd_authorities = db_baselines["common_hd_authorities"]
+            db_common_hd_profiles = db_baselines["common_hd_profiles"]
+            update_similarities_loading_progress(
+                progress,
+                "Preparing similarities export data…",
+            )
+            self._similarities_export_sections = [
+                (
+                    "Signs in positions in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_positions
-                ],
-            ),
-            (
-                "Houses in positions in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_houses_in_positions.get(label, 0)),
-                        int(db_common_houses_in_positions_totals.get(label, db_total_count)),
-                        self._similarity_matching_chart_names(
-                            "Houses in positions in common",
+                            match_count,
+                            total_count,
+                            int(db_common_positions.get(label, 0)),
+                            int(db_common_positions_totals.get(label, db_total_count)),
+                            self._similarity_matching_chart_names(
+                                "Signs in positions in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_positions
+                    ],
+                ),
+                (
+                    "Houses in positions in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_houses_in_positions
-                ],
-            ),
-            (
-                "Signs in houses in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_signs_in_houses.get(label, 0)),
-                        int(db_common_signs_in_houses_totals.get(label, db_total_count)),
-                        self._similarity_matching_chart_names(
-                            "Signs in houses in common",
+                            match_count,
+                            total_count,
+                            int(db_common_houses_in_positions.get(label, 0)),
+                            int(db_common_houses_in_positions_totals.get(label, db_total_count)),
+                            self._similarity_matching_chart_names(
+                                "Houses in positions in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_houses_in_positions
+                    ],
+                ),
+                (
+                    "Signs in houses in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_signs_in_houses
-                ],
-            ),
-            (
-                "Top 3 Dominant Signs in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_dominant_signs.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Top 3 Dominant Signs in common",
+                            match_count,
+                            total_count,
+                            int(db_common_signs_in_houses.get(label, 0)),
+                            int(db_common_signs_in_houses_totals.get(label, db_total_count)),
+                            self._similarity_matching_chart_names(
+                                "Signs in houses in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_signs_in_houses
+                    ],
+                ),
+                (
+                    "Top 3 Dominant Signs in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_dominant_signs
-                ],
-            ),
-            (
-                "Top 3 Dominant Bodies in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_dominant_bodies.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Top 3 Dominant Bodies in common",
+                            match_count,
+                            total_count,
+                            int(db_common_dominant_signs.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Top 3 Dominant Signs in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_dominant_signs
+                    ],
+                ),
+                (
+                    "Top 3 Dominant Bodies in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_dominant_bodies
-                ],
-            ),
-            (
-                "Top 3 Dominant Houses in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_dominant_houses.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Top 3 Dominant Houses in common",
+                            match_count,
+                            total_count,
+                            int(db_common_dominant_bodies.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Top 3 Dominant Bodies in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_dominant_bodies
+                    ],
+                ),
+                (
+                    "Top 3 Dominant Houses in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_dominant_houses
-                ],
-            ),
-            (
-                "Dominant nakshatras in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_dominant_nakshatras.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Dominant nakshatras in common",
+                            match_count,
+                            total_count,
+                            int(db_common_dominant_houses.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Top 3 Dominant Houses in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_dominant_houses
+                    ],
+                ),
+                (
+                    "Dominant nakshatras in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_dominant_nakshatras
-                ],
-            ),
-            (
-                "Aspects in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_aspects.get(label, 0)),
-                        int(db_common_aspects_totals.get(label, db_total_count)),
-                        self._similarity_matching_chart_names(
-                            "Aspects in common",
+                            match_count,
+                            total_count,
+                            int(db_common_dominant_nakshatras.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Dominant nakshatras in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_dominant_nakshatras
+                    ],
+                ),
+                (
+                    "Aspects in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_aspects
-                ],
-            ),
-            (
-                "Gates in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_hd_gates.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Gates in common",
+                            match_count,
+                            total_count,
+                            int(db_common_aspects.get(label, 0)),
+                            int(db_common_aspects_totals.get(label, db_total_count)),
+                            self._similarity_matching_chart_names(
+                                "Aspects in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_aspects
+                    ],
+                ),
+                (
+                    "Gates in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_hd_gates
-                ],
-            ),
-            (
-                "Channels in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_hd_channels.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Channels in common",
+                            match_count,
+                            total_count,
+                            int(db_common_hd_gates.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Gates in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_gates
+                    ],
+                ),
+                (
+                    "Channels in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_hd_channels
-                ],
-            ),
-            (
-                "Defined Centers in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_hd_defined_centers.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Defined Centers in common",
+                            match_count,
+                            total_count,
+                            int(db_common_hd_channels.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Channels in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_channels
+                    ],
+                ),
+                (
+                    "Defined Centers in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_hd_defined_centers
-                ],
-            ),
-            (
-                "Authorities in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_hd_authorities.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Authorities in common",
+                            match_count,
+                            total_count,
+                            int(db_common_hd_defined_centers.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Defined Centers in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_defined_centers
+                    ],
+                ),
+                (
+                    "Authorities in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_hd_authorities
-                ],
-            ),
-            (
-                "Profiles in common",
-                [
-                    (
-                        label,
-                        match_count,
-                        total_count,
-                        int(db_common_hd_profiles.get(label, 0)),
-                        db_total_count,
-                        self._similarity_matching_chart_names(
-                            "Profiles in common",
+                            match_count,
+                            total_count,
+                            int(db_common_hd_authorities.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Authorities in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_authorities
+                    ],
+                ),
+                (
+                    "Profiles in common",
+                    [
+                        (
                             label,
-                            selected_non_placeholder_chart_ids,
-                        ),
-                    )
-                    for label, match_count, total_count in common_hd_profiles
-                ],
-            ),
-        ]
+                            match_count,
+                            total_count,
+                            int(db_common_hd_profiles.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "Profiles in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_hd_profiles
+                    ],
+                ),
+            ]
 
-        total_matches = (
-            len(common_positions)
-            + len(common_houses_in_positions)
-            + len(common_signs_in_houses)
-            + len(common_dominant_signs)
-            + len(common_dominant_bodies)
-            + len(common_dominant_houses)
-            + len(common_dominant_nakshatras)
-            + len(common_aspects)
-            + len(common_hd_gates)
-            + len(common_hd_channels)
-            + len(common_hd_defined_centers)
-            + len(common_hd_authorities)
-            + len(common_hd_profiles)
-        )
-        if total_matches > 0:
-            self.similarities_status_label.setText(
-                f"{total_matches} shared pattern(s) found across "
-                f"{len(selected_non_placeholder_chart_ids)} selected chart(s), each present in at least 2 charts."
+            total_matches = (
+                len(common_positions)
+                + len(common_houses_in_positions)
+                + len(common_signs_in_houses)
+                + len(common_dominant_signs)
+                + len(common_dominant_bodies)
+                + len(common_dominant_houses)
+                + len(common_dominant_nakshatras)
+                + len(common_aspects)
+                + len(common_hd_gates)
+                + len(common_hd_channels)
+                + len(common_hd_defined_centers)
+                + len(common_hd_authorities)
+                + len(common_hd_profiles)
             )
-        else:
-            self.similarities_status_label.setText(
-                f"No shared similarities found in at least 2 charts across "
-                f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
+            if total_matches > 0:
+                self.similarities_status_label.setText(
+                    f"{total_matches} shared pattern(s) found across "
+                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s), each present in at least 2 charts."
+                )
+            else:
+                self.similarities_status_label.setText(
+                    f"No shared similarities found in at least 2 charts across "
+                    f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
+                )
+            update_similarities_loading_progress(
+                progress,
+                "Rendering similarities results…",
             )
-        update_similarities_loading_progress(
-            progress,
-            "Rendering similarities results…",
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_positions_list,
-            self.similarities_common_positions_toggle,
-            common_positions,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_positions,
-            db_total_count=db_total_count,
-            db_total_counts_by_label=db_common_positions_totals,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_houses_in_positions_list,
-            self.similarities_houses_in_positions_toggle,
-            common_houses_in_positions,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_houses_in_positions,
-            db_total_count=db_total_count,
-            db_total_counts_by_label=db_common_houses_in_positions_totals,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_signs_in_houses_list,
-            self.similarities_signs_in_houses_toggle,
-            common_signs_in_houses,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_signs_in_houses,
-            db_total_count=db_total_count,
-            db_total_counts_by_label=db_common_signs_in_houses_totals,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_dominant_signs_list,
-            self.similarities_dominant_signs_toggle,
-            common_dominant_signs,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_dominant_signs,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_dominant_bodies_list,
-            self.similarities_dominant_bodies_toggle,
-            common_dominant_bodies,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_dominant_bodies,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_dominant_houses_list,
-            self.similarities_dominant_houses_toggle,
-            common_dominant_houses,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_dominant_houses,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_dominant_nakshatras_list,
-            self.similarities_dominant_nakshatras_toggle,
-            common_dominant_nakshatras,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_dominant_nakshatras,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_aspects_list,
-            self.similarities_common_aspects_toggle,
-            common_aspects,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_aspects,
-            db_total_count=db_total_count,
-            db_total_counts_by_label=db_common_aspects_totals,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_hd_gates_list,
-            self.similarities_common_hd_gates_toggle,
-            common_hd_gates,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_hd_gates,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_hd_channels_list,
-            self.similarities_common_hd_channels_toggle,
-            common_hd_channels,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_hd_channels,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_hd_defined_centers_list,
-            self.similarities_common_hd_defined_centers_toggle,
-            common_hd_defined_centers,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_hd_defined_centers,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_hd_authorities_list,
-            self.similarities_common_hd_authorities_toggle,
-            common_hd_authorities,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_hd_authorities,
-            db_total_count=db_total_count,
-        )
-        self._set_similarities_section_matches(
-            self.similarities_common_hd_profiles_list,
-            self.similarities_common_hd_profiles_toggle,
-            common_hd_profiles,
-            selection_total_count=len(selected_non_placeholder_chart_ids),
-            db_match_counts=db_common_hd_profiles,
-            db_total_count=db_total_count,
-        )
-        close_similarities_loading_progress(progress)
+            self._set_similarities_section_matches(
+                self.similarities_common_positions_list,
+                self.similarities_common_positions_toggle,
+                common_positions,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_positions,
+                db_total_count=db_total_count,
+                db_total_counts_by_label=db_common_positions_totals,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_houses_in_positions_list,
+                self.similarities_houses_in_positions_toggle,
+                common_houses_in_positions,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_houses_in_positions,
+                db_total_count=db_total_count,
+                db_total_counts_by_label=db_common_houses_in_positions_totals,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_signs_in_houses_list,
+                self.similarities_signs_in_houses_toggle,
+                common_signs_in_houses,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_signs_in_houses,
+                db_total_count=db_total_count,
+                db_total_counts_by_label=db_common_signs_in_houses_totals,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_signs_list,
+                self.similarities_dominant_signs_toggle,
+                common_dominant_signs,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_dominant_signs,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_bodies_list,
+                self.similarities_dominant_bodies_toggle,
+                common_dominant_bodies,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_dominant_bodies,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_houses_list,
+                self.similarities_dominant_houses_toggle,
+                common_dominant_houses,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_dominant_houses,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_dominant_nakshatras_list,
+                self.similarities_dominant_nakshatras_toggle,
+                common_dominant_nakshatras,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_dominant_nakshatras,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_aspects_list,
+                self.similarities_common_aspects_toggle,
+                common_aspects,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_aspects,
+                db_total_count=db_total_count,
+                db_total_counts_by_label=db_common_aspects_totals,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_gates_list,
+                self.similarities_common_hd_gates_toggle,
+                common_hd_gates,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_gates,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_channels_list,
+                self.similarities_common_hd_channels_toggle,
+                common_hd_channels,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_channels,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_defined_centers_list,
+                self.similarities_common_hd_defined_centers_toggle,
+                common_hd_defined_centers,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_defined_centers,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_authorities_list,
+                self.similarities_common_hd_authorities_toggle,
+                common_hd_authorities,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_authorities,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_hd_profiles_list,
+                self.similarities_common_hd_profiles_toggle,
+                common_hd_profiles,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_hd_profiles,
+                db_total_count=db_total_count,
+            )
+        finally:
+            close_similarities_loading_progress(progress)
 
     def _export_similarities_analysis_json(self) -> None:
         _export_similarities_analysis_json_dialog(
