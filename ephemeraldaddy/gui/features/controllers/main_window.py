@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QThread, Qt, QSize, QTimer
+from PySide6.QtCore import QPoint, QThread, Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
+    QScrollArea,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -156,6 +157,11 @@ class ChartAnalysisSectionsController:
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
         )
+        # The Chart View right-panel scroll areas try to keep the focused child
+        # visible while section geometry is changing.  Let the scroll area keep
+        # keyboard focus instead of giving focus to the clicked header, otherwise
+        # expanding a section can trigger an automatic jump to the header.
+        toggle.setFocusPolicy(Qt.NoFocus)
 
         content = QWidget()
         content_layout = QVBoxLayout()
@@ -168,18 +174,64 @@ class ChartAnalysisSectionsController:
         content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
+        def nearest_scroll_area(widget: QWidget) -> QScrollArea | None:
+            parent = widget.parentWidget()
+            while parent is not None:
+                if isinstance(parent, QScrollArea):
+                    return parent
+                parent = parent.parentWidget()
+            return None
+
         def toggle_content(checked: bool) -> None:
+            scroll_area = nearest_scroll_area(section)
+            vertical_scrollbar = scroll_area.verticalScrollBar() if scroll_area is not None else None
+            horizontal_scrollbar = scroll_area.horizontalScrollBar() if scroll_area is not None else None
+            scroll_widget = scroll_area.widget() if scroll_area is not None else None
+            viewport = scroll_area.viewport() if scroll_area is not None else None
+            anchor_viewport_y = (
+                section.mapTo(viewport, QPoint(0, 0)).y()
+                if viewport is not None
+                else None
+            )
+            horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
+
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             if on_toggled is not None:
                 on_toggled(checked)
 
+            def restore_scroll_position() -> None:
+                if (
+                    vertical_scrollbar is not None
+                    and scroll_widget is not None
+                    and anchor_viewport_y is not None
+                ):
+                    section_content_y = section.mapTo(scroll_widget, QPoint(0, 0)).y()
+                    target_vertical_value = section_content_y - anchor_viewport_y
+                    vertical_scrollbar.setValue(
+                        max(
+                            vertical_scrollbar.minimum(),
+                            min(target_vertical_value, vertical_scrollbar.maximum()),
+                        )
+                    )
+                if horizontal_scrollbar is not None:
+                    horizontal_scrollbar.setValue(
+                        max(
+                            horizontal_scrollbar.minimum(),
+                            min(horizontal_scroll_value, horizontal_scrollbar.maximum()),
+                        )
+                    )
+
             def update_panel_geometry() -> None:
                 content.updateGeometry()
                 section.updateGeometry()
                 panel.updateGeometry()
+                restore_scroll_position()
 
+            restore_scroll_position()
             QTimer.singleShot(0, update_panel_geometry)
+            for delay_ms in (0, 16, 50, 120):
+                QTimer.singleShot(delay_ms, restore_scroll_position)
 
         toggle.toggled.connect(toggle_content)
 
