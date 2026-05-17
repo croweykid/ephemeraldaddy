@@ -489,7 +489,7 @@ STANDARD_NCV_HORIZONTAL_BAR_CHART = {
     "y_tick_label_size": 8,
     "x_tick_pad": 2,
     "x_margin": 0.03,
-    "left": 0.10, #padding
+    "left": 0.18, #padding; keeps 5+ character y-axis tick labels inside the matplotlib canvas
     "bottom": 0.20, #padding
     "top": 0.92, #padding
     "right": 0.96, #padding
