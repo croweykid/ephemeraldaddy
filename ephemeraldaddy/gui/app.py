@@ -23128,15 +23128,14 @@ class MainWindow(QMainWindow):
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
         figure = canvas.figure
         figure_width, figure_height = figure.get_size_inches()
-        width = canvas.width()
-        if width <= 0:
-            width = int(round(figure_width * figure.get_dpi()))
-        height = int(round(width * (figure_height / figure_width))) if figure_width > 0 else 0
-        if height > 0:
-            canvas.setMinimumHeight(height)
+        display_height = canvas.property("metric_display_height")
+        if not isinstance(display_height, int) or display_height <= 0:
+            display_height = int(round(figure_height * figure.get_dpi()))
+        if display_height <= 0 and figure_width > 0:
+            display_height = int(round(figure_width * figure.get_dpi()))
+        if display_height > 0:
+            canvas.setMinimumHeight(display_height)
             canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
-            if canvas.height() != height:
-                canvas.resize(width, height)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         canvas.updateGeometry()
 
@@ -28347,6 +28346,8 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
+        display_height = max(1, int(round(figsize[1] * figure.get_dpi())))
+        canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
         try:
