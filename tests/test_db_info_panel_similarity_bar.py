@@ -91,3 +91,48 @@ def test_similarity_percent_bar_clears_invalid_norm_delta_overlay():
 
     assert bar._norm_delta_overlay is None
     assert bar.updated is True
+
+
+def test_similarity_percent_bar_centers_database_norm_for_selection_delta():
+    center = SimilarityPercentBar._centered_percent_x(
+        content_left=0,
+        content_width=100,
+        percent_value=70,
+        db_norm_percent=70,
+        axis_span_percent=20,
+    )
+    right_of_center = SimilarityPercentBar._centered_percent_x(
+        content_left=0,
+        content_width=100,
+        percent_value=80,
+        db_norm_percent=70,
+        axis_span_percent=20,
+    )
+    left_of_center = SimilarityPercentBar._centered_percent_x(
+        content_left=0,
+        content_width=100,
+        percent_value=60,
+        db_norm_percent=70,
+        axis_span_percent=20,
+    )
+
+    assert center == 50
+    assert right_of_center > center
+    assert left_of_center < center
+
+
+def test_standard_error_guides_are_hidden_for_tiny_samples():
+    from ephemeraldaddy.gui.features.charts.db_info_panel import (
+        _standard_error_guide_percents,
+    )
+
+    assert _standard_error_guide_percents(
+        db_percent_value=50,
+        total_count=2,
+        show_standard_deviation_guides=True,
+    ) == []
+    assert _standard_error_guide_percents(
+        db_percent_value=50,
+        total_count=5,
+        show_standard_deviation_guides=True,
+    )

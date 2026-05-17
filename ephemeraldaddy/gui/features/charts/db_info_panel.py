@@ -23,13 +23,14 @@ from ephemeraldaddy.gui.style import DATABASE_VIEW_PANEL_HEADER_STYLE
 
 
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
+    SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE,
     similarity_delta_points,
     similarity_deviation_z_score,
 )
 
 
 class SimilarityPercentBar(QProgressBar):
-    """Progress bar that can overlay DB standard-error guide lines."""
+    """Centered DB-norm gauge with a selection overlay and SE guide lines."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -80,50 +81,98 @@ class SimilarityPercentBar(QProgressBar):
         )
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
-        super().paintEvent(event)
-        if not self._norm_delta_overlay and not self._standard_deviation_guides:
-            return
+    @staticmethod
+    def _centered_axis_span_percent(
+        selection_percent: float,
+        db_norm_percent: float,
+        guide_percents: tuple[tuple[float, int], ...],
+    ) -> float:
+        distances = [abs(selection_percent - db_norm_percent), 1.0]
+        distances.extend(
+            abs(guide_percent - db_norm_percent)
+            for guide_percent, _ in guide_percents
+        )
+        return min(100.0, max(distances) * 1.15)
 
+    @staticmethod
+    def _centered_percent_x(
+        *,
+        content_left: int,
+        content_width: int,
+        percent_value: float,
+        db_norm_percent: float,
+        axis_span_percent: float,
+    ) -> int:
+        center_x = content_left + round(content_width / 2.0)
+        half_width = content_width / 2.0
+        if axis_span_percent <= 0.0:
+            return center_x
+        normalized_delta = (percent_value - db_norm_percent) / axis_span_percent
+        normalized_delta = max(-1.0, min(1.0, normalized_delta))
+        return center_x + round(normalized_delta * half_width)
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt override
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.Antialiasing, False)
             content_rect = self.rect().adjusted(2, 2, -2, -2)
-            if content_rect.width() <= 0:
+            if content_rect.width() <= 0 or content_rect.height() <= 0:
                 return
+
+            painter.fillRect(content_rect, QColor(38, 38, 38, 235))
+            border_pen = QPen(QColor(115, 115, 115, 180))
+            border_pen.setWidth(1)
+            painter.setPen(border_pen)
+            painter.drawRect(content_rect)
+
+            center_x = content_rect.left() + round(content_rect.width() / 2.0)
+            midline_pen = QPen(QColor(95, 95, 95, 150))
+            midline_pen.setWidth(1)
+            painter.setPen(midline_pen)
+            painter.drawLine(
+                center_x, content_rect.top(), center_x, content_rect.bottom()
+            )
 
             if self._norm_delta_overlay:
                 selection_percent, db_norm_percent, delta_rgb = self._norm_delta_overlay
-                selection_x = content_rect.left() + round(
-                    (selection_percent / 100.0) * content_rect.width()
+                axis_span_percent = self._centered_axis_span_percent(
+                    selection_percent,
+                    db_norm_percent,
+                    self._standard_deviation_guides,
                 )
-                db_norm_x = content_rect.left() + round(
-                    (db_norm_percent / 100.0) * content_rect.width()
+                selection_x = self._centered_percent_x(
+                    content_left=content_rect.left(),
+                    content_width=content_rect.width(),
+                    percent_value=selection_percent,
+                    db_norm_percent=db_norm_percent,
+                    axis_span_percent=axis_span_percent,
                 )
-                delta_left = min(selection_x, db_norm_x)
-                delta_width = max(1, abs(selection_x - db_norm_x))
-                overlay_color = QColor(*delta_rgb, 72)
+                delta_left = min(selection_x, center_x)
+                delta_width = max(1, abs(selection_x - center_x))
                 painter.fillRect(
                     delta_left,
                     content_rect.top(),
                     delta_width,
                     content_rect.height(),
-                    overlay_color,
+                    QColor(127, 255, 0, 74),
                 )
 
-                norm_pen = QPen(QColor(230, 230, 230, 185))
-                norm_pen.setWidth(1)
+                norm_pen = QPen(QColor(230, 230, 230, 210))
+                norm_pen.setWidth(2)
                 painter.setPen(norm_pen)
                 painter.drawLine(
-                    db_norm_x, content_rect.top(), db_norm_x, content_rect.bottom()
+                    center_x, content_rect.top(), center_x, content_rect.bottom()
                 )
 
-                selection_pen = QPen(QColor(*delta_rgb, 230))
+                selection_pen = QPen(QColor(*delta_rgb, 235))
                 selection_pen.setWidth(2)
                 painter.setPen(selection_pen)
                 painter.drawLine(
                     selection_x, content_rect.top(), selection_x, content_rect.bottom()
                 )
+            else:
+                db_norm_percent = 50.0
+                axis_span_percent = 50.0
 
             unique_guides = sorted(
                 set(
@@ -136,8 +185,12 @@ class SimilarityPercentBar(QProgressBar):
                 pen = QPen(color)
                 pen.setWidth(1)
                 painter.setPen(pen)
-                x = content_rect.left() + round(
-                    (guide_percent / 100.0) * content_rect.width()
+                x = self._centered_percent_x(
+                    content_left=content_rect.left(),
+                    content_width=content_rect.width(),
+                    percent_value=guide_percent,
+                    db_norm_percent=db_norm_percent,
+                    axis_span_percent=axis_span_percent,
                 )
                 painter.drawLine(x, content_rect.top(), x, content_rect.bottom())
         finally:
@@ -150,7 +203,10 @@ def _standard_error_guide_percents(
     total_count: int,
     show_standard_deviation_guides: bool,
 ) -> list[tuple[float, int]]:
-    if not show_standard_deviation_guides or total_count <= 0:
+    if (
+        not show_standard_deviation_guides
+        or total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE
+    ):
         return []
     probability = max(0.0, min(1.0, float(db_percent_value) / 100.0))
     standard_error_percent = (
@@ -298,16 +354,30 @@ def add_similarity_match_row(
         delta_rgb=similarity_rgb,
     )
     delta_points = similarity_delta_points(percent_value, db_percent_value)
-    z_score = similarity_deviation_z_score(percent_value, db_percent_value, total_count)
+    z_score = (
+        similarity_deviation_z_score(percent_value, db_percent_value, total_count)
+        if total_count >= SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE
+        else None
+    )
     direction_label = (
         "above DB norm"
         if delta_points > 0
         else "below DB norm" if delta_points < 0 else "at DB norm"
     )
-    z_score_text = "" if z_score is None else f" ({z_score:+.2f} standard-error units)"
+    if total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE:
+        z_score_text = (
+            f" Sample size n={total_count} is too small for reliable standard-error "
+            "guide marks, so the guides are hidden."
+        )
+    else:
+        z_score_text = (
+            ""
+            if z_score is None
+            else f" ({z_score:+.2f} standard-error units)"
+        )
     percent_bar.setToolTip(
-        f"Selection is {abs(delta_points):.0f}% pt(s) "
-        f"{direction_label}{z_score_text}."
+        f"Database norm is centered; the green selection rectangle extends "
+        f"{abs(delta_points):.0f}% pt(s) {direction_label}.{z_score_text}"
     )
     percent_bar.set_standard_deviation_guides(
         _standard_error_guide_percents(
@@ -331,6 +401,8 @@ def add_similarity_match_row(
     delta_suffix = ""
     if delta_points != 0.0:
         delta_suffix = f" | {delta_points:+.0f}% pts {direction_label}"
+    if total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE:
+        delta_suffix += " | n too small for SE"
     if percent_value < db_percent_value:
         selection_percent_text = (
             f'<span style="color: #ff2d2d;">{selection_percent_text}</span>'
