@@ -7,6 +7,7 @@ from PySide6.QtCore import QThread, Qt, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
+    QScrollArea,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -168,18 +169,45 @@ class ChartAnalysisSectionsController:
         content.setStyleSheet(content_style)
         content.setVisible(expanded)
 
+        def nearest_scroll_area(widget: QWidget) -> QScrollArea | None:
+            parent = widget.parentWidget()
+            while parent is not None:
+                if isinstance(parent, QScrollArea):
+                    return parent
+                parent = parent.parentWidget()
+            return None
+
         def toggle_content(checked: bool) -> None:
+            scroll_area = nearest_scroll_area(section)
+            vertical_scrollbar = scroll_area.verticalScrollBar() if scroll_area is not None else None
+            horizontal_scrollbar = scroll_area.horizontalScrollBar() if scroll_area is not None else None
+            vertical_scroll_value = vertical_scrollbar.value() if vertical_scrollbar is not None else 0
+            horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
+
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             if on_toggled is not None:
                 on_toggled(checked)
 
+            def restore_scroll_position() -> None:
+                if vertical_scrollbar is not None:
+                    vertical_scrollbar.setValue(
+                        min(vertical_scroll_value, vertical_scrollbar.maximum())
+                    )
+                if horizontal_scrollbar is not None:
+                    horizontal_scrollbar.setValue(
+                        min(horizontal_scroll_value, horizontal_scrollbar.maximum())
+                    )
+
             def update_panel_geometry() -> None:
                 content.updateGeometry()
                 section.updateGeometry()
                 panel.updateGeometry()
+                restore_scroll_position()
 
+            restore_scroll_position()
             QTimer.singleShot(0, update_panel_geometry)
+            QTimer.singleShot(0, restore_scroll_position)
 
         toggle.toggled.connect(toggle_content)
 
