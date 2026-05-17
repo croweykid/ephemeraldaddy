@@ -870,8 +870,7 @@ def build_chart_view_right_panel(
     metrics_content = QWidget()
     metrics_content.setFocusPolicy(Qt.StrongFocus)
     owner.metrics_layout = QVBoxLayout()
-    owner.metrics_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
-    owner.metrics_layout.setContentsMargins(6, 6, 6, 6)
+    owner.metrics_layout.setContentsMargins(10, 6, 6, 6)
     owner.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     metrics_content.setLayout(owner.metrics_layout)
 
