@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLayout,
+    #QLayout,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
@@ -870,8 +870,8 @@ def build_chart_view_right_panel(
     metrics_content = QWidget()
     metrics_content.setFocusPolicy(Qt.StrongFocus)
     owner.metrics_layout = QVBoxLayout()
-    owner.metrics_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
-    owner.metrics_layout.setContentsMargins(10, 6, 6, 6)
+    #owner.metrics_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
+    owner.metrics_layout.setContentsMargins(6, 6, 6, 6)
     owner.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     metrics_content.setLayout(owner.metrics_layout)
 
@@ -885,7 +885,6 @@ def build_chart_view_right_panel(
 
     predictions_panel = QWidget()
     predictions_layout = QVBoxLayout()
-    predictions_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
     predictions_layout.setContentsMargins(6, 6, 6, 6)
     predictions_layout.setSpacing(6)
     predictions_panel.setLayout(predictions_layout)

@@ -868,6 +868,10 @@ GENDER_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
 GEN_POP_UNSUPPORTED_GENDER_MODES: frozenset[str] = frozenset(
     {"guessed_weight", "guessed_prevalence"}
 )
+# Metric canvases live in narrow scroll panels.  Use a stable logical width
+# for height calculations so they keep the intended aspect ratio without
+# reacting to transient resize widths during section expand/collapse.
+METRIC_CHART_REFERENCE_WIDTH_PX = 280
 GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     {
         "sentiment_prevalence",
@@ -28337,7 +28341,13 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        display_height = max(1, int(round(figsize[1] * figure.get_dpi())))
+        figure_width, figure_height = figsize
+        display_height = max(
+            1,
+            int(round(METRIC_CHART_REFERENCE_WIDTH_PX * (figure_height / figure_width)))
+            if figure_width > 0
+            else int(round(figure_height * figure.get_dpi())),
+        )
         canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
