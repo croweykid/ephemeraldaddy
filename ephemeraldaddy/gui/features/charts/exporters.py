@@ -137,7 +137,7 @@ def export_similarities_analysis_json_dialog(
         QMessageBox.information(
             parent,
             "No JSON factors",
-            "No similarities differ from the database by more than 3%.",
+            "No similarities fall beyond the second standard-error tier from the database norm.",
         )
         return
 
