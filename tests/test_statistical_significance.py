@@ -61,3 +61,34 @@ def test_proportion_z_test_accepts_explicit_totals_for_multilabel_categories():
 
     assert results[0].z_score is not None
     assert results[0].z_score > 4.0
+
+
+def test_proportion_z_test_suppresses_inference_for_single_selected_chart():
+    results = compute_proportion_significance_results(
+        selection_counts=[1, 0],
+        database_counts=[6, 94],
+        loaded_charts=1,
+        correction=SIGNIFICANCE_CORRECTION_BH,
+    )
+
+    assert all(result.standard_error is None for result in results)
+    assert all(result.z_score is None for result in results)
+    assert all(result.p_value is None for result in results)
+    assert all(result.adjusted_p_value is None for result in results)
+    assert all(result.band == "n/a" for result in results)
+    assert all(result.model == "category proportion z-test (requires n≥2)" for result in results)
+    assert typical_standard_error(results) is None
+
+
+def test_proportion_z_test_suppresses_inference_for_single_observation_total():
+    results = compute_proportion_significance_results(
+        selection_counts=[1],
+        database_counts=[6],
+        loaded_charts=2,
+        selection_total=1,
+        database_total=100,
+    )
+
+    assert results[0].standard_error is None
+    assert results[0].z_score is None
+    assert results[0].band == "n/a"
