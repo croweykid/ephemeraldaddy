@@ -1949,6 +1949,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similarities_second_chart_input: QLineEdit | None = None
         self._similarities_first_use_checkbox: QCheckBox | None = None
         self._similarities_second_use_checkbox: QCheckBox | None = None
+        self._similarities_db_baseline_cache_key: tuple[int, ...] | None = None
+        self._similarities_db_baseline_cache: dict[str, Any] | None = None
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
@@ -7697,6 +7699,118 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 matching_names.append(self._display_name_for_chart_id(int(chart_id)))
         return ", ".join(matching_names)
 
+    def _show_similarities_loading_progress(
+        self,
+        message: str = "Calculating similarities analysis…",
+    ) -> QProgressDialog:
+        progress = QProgressDialog(message, None, 0, 0, self)
+        progress.setWindowTitle("Similarities Analysis")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setValue(0)
+        progress.show()
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+        return progress
+
+    @staticmethod
+    def _update_similarities_loading_progress(
+        progress: QProgressDialog | None,
+        message: str,
+    ) -> None:
+        if progress is None:
+            return
+        progress.setLabelText(message)
+        progress.setValue(0)
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+    @staticmethod
+    def _close_similarities_loading_progress(
+        progress: QProgressDialog | None,
+    ) -> None:
+        if progress is None:
+            return
+        progress.close()
+        QApplication.processEvents(QEventLoop.AllEvents, 50)
+
+    def _build_similarity_db_baselines(self, db_chart_ids: list[int]) -> dict[str, Any]:
+        db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
+        db_common_houses_in_positions_matches = self._build_common_houses_in_positions(db_chart_ids)
+        db_common_signs_in_houses_matches = self._build_common_signs_in_houses(db_chart_ids)
+        db_common_aspects_matches = self._build_common_aspects(db_chart_ids)
+        return {
+            "common_positions": dict(
+                (label, count) for label, count, _total in db_common_positions_matches
+            ),
+            "common_positions_totals": dict(
+                (label, total) for label, _count, total in db_common_positions_matches
+            ),
+            "common_houses_in_positions": dict(
+                (label, count) for label, count, _total in db_common_houses_in_positions_matches
+            ),
+            "common_houses_in_positions_totals": dict(
+                (label, total) for label, _count, total in db_common_houses_in_positions_matches
+            ),
+            "common_signs_in_houses": dict(
+                (label, count) for label, count, _total in db_common_signs_in_houses_matches
+            ),
+            "common_signs_in_houses_totals": dict(
+                (label, total) for label, _count, total in db_common_signs_in_houses_matches
+            ),
+            "common_dominant_signs": dict(
+                (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
+            ),
+            "common_dominant_bodies": dict(
+                (label, count) for label, count, _total in self._build_common_dominant_bodies(db_chart_ids)
+            ),
+            "common_dominant_houses": dict(
+                (label, count) for label, count, _total in self._build_common_dominant_houses(db_chart_ids)
+            ),
+            "common_dominant_nakshatras": dict(
+                (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
+            ),
+            "common_aspects": dict(
+                (label, count) for label, count, _total in db_common_aspects_matches
+            ),
+            "common_aspects_totals": dict(
+                (label, total) for label, _count, total in db_common_aspects_matches
+            ),
+            "common_hd_gates": dict(
+                (label, count)
+                for label, count, _total in self._build_common_human_design_gates(db_chart_ids)
+            ),
+            "common_hd_channels": dict(
+                (label, count)
+                for label, count, _total in self._build_common_human_design_channels(db_chart_ids)
+            ),
+            "common_hd_defined_centers": dict(
+                (label, count)
+                for label, count, _total in self._build_common_human_design_defined_centers(db_chart_ids)
+            ),
+            "common_hd_authorities": dict(
+                (label, count)
+                for label, count, _total in self._build_common_human_design_authorities(db_chart_ids)
+            ),
+            "common_hd_profiles": dict(
+                (label, count)
+                for label, count, _total in self._build_common_human_design_profiles(db_chart_ids)
+            ),
+        }
+
+    def _get_similarity_db_baselines(self, db_chart_ids: list[int]) -> dict[str, Any]:
+        cache_key = tuple(int(chart_id) for chart_id in db_chart_ids)
+        if (
+            self._similarities_db_baseline_cache_key == cache_key
+            and self._similarities_db_baseline_cache is not None
+        ):
+            return self._similarities_db_baseline_cache
+        baselines = self._build_similarity_db_baselines(db_chart_ids)
+        self._similarities_db_baseline_cache_key = cache_key
+        self._similarities_db_baseline_cache = baselines
+        return baselines
+
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
         db_chart_ids = [
@@ -7816,6 +7930,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        progress = self._show_similarities_loading_progress()
+        self._update_similarities_loading_progress(
+            progress,
+            "Calculating selected-chart similarities…",
+        )
         common_positions = self._build_common_position_signs(selected_non_placeholder_chart_ids)
         common_houses_in_positions = self._build_common_houses_in_positions(selected_non_placeholder_chart_ids)
         common_signs_in_houses = self._build_common_signs_in_houses(selected_non_placeholder_chart_ids)
@@ -7835,65 +7954,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         common_hd_profiles = self._build_common_human_design_profiles(
             selected_non_placeholder_chart_ids
         )
-        db_common_positions_matches = self._build_common_position_signs(db_chart_ids)
-        db_common_positions = dict(
-            (label, count) for label, count, _total in db_common_positions_matches
+        self._update_similarities_loading_progress(
+            progress,
+            "Loading cached database comparison baselines…",
         )
-        db_common_positions_totals = dict(
-            (label, total) for label, _count, total in db_common_positions_matches
-        )
-        db_common_houses_in_positions_matches = self._build_common_houses_in_positions(db_chart_ids)
-        db_common_houses_in_positions = dict(
-            (label, count) for label, count, _total in db_common_houses_in_positions_matches
-        )
-        db_common_houses_in_positions_totals = dict(
-            (label, total) for label, _count, total in db_common_houses_in_positions_matches
-        )
-        db_common_signs_in_houses_matches = self._build_common_signs_in_houses(db_chart_ids)
-        db_common_signs_in_houses = dict(
-            (label, count) for label, count, _total in db_common_signs_in_houses_matches
-        )
-        db_common_signs_in_houses_totals = dict(
-            (label, total) for label, _count, total in db_common_signs_in_houses_matches
-        )
-        db_common_dominant_signs = dict(
-            (label, count) for label, count, _total in self._build_common_dominant_signs(db_chart_ids)
-        )
-        db_common_dominant_bodies = dict(
-            (label, count) for label, count, _total in self._build_common_dominant_bodies(db_chart_ids)
-        )
-        db_common_dominant_houses = dict(
-            (label, count) for label, count, _total in self._build_common_dominant_houses(db_chart_ids)
-        )
-        db_common_dominant_nakshatras = dict(
-            (label, count) for label, count, _total in self._build_common_dominant_nakshatras(db_chart_ids)
-        )
-        db_common_aspects_matches = self._build_common_aspects(db_chart_ids)
-        db_common_aspects = dict(
-            (label, count) for label, count, _total in db_common_aspects_matches
-        )
-        db_common_aspects_totals = dict(
-            (label, total) for label, _count, total in db_common_aspects_matches
-        )
-        db_common_hd_gates = dict(
-            (label, count)
-            for label, count, _total in self._build_common_human_design_gates(db_chart_ids)
-        )
-        db_common_hd_channels = dict(
-            (label, count)
-            for label, count, _total in self._build_common_human_design_channels(db_chart_ids)
-        )
-        db_common_hd_defined_centers = dict(
-            (label, count)
-            for label, count, _total in self._build_common_human_design_defined_centers(db_chart_ids)
-        )
-        db_common_hd_authorities = dict(
-            (label, count)
-            for label, count, _total in self._build_common_human_design_authorities(db_chart_ids)
-        )
-        db_common_hd_profiles = dict(
-            (label, count)
-            for label, count, _total in self._build_common_human_design_profiles(db_chart_ids)
+        db_baselines = self._get_similarity_db_baselines(db_chart_ids)
+        db_common_positions = db_baselines["common_positions"]
+        db_common_positions_totals = db_baselines["common_positions_totals"]
+        db_common_houses_in_positions = db_baselines["common_houses_in_positions"]
+        db_common_houses_in_positions_totals = db_baselines["common_houses_in_positions_totals"]
+        db_common_signs_in_houses = db_baselines["common_signs_in_houses"]
+        db_common_signs_in_houses_totals = db_baselines["common_signs_in_houses_totals"]
+        db_common_dominant_signs = db_baselines["common_dominant_signs"]
+        db_common_dominant_bodies = db_baselines["common_dominant_bodies"]
+        db_common_dominant_houses = db_baselines["common_dominant_houses"]
+        db_common_dominant_nakshatras = db_baselines["common_dominant_nakshatras"]
+        db_common_aspects = db_baselines["common_aspects"]
+        db_common_aspects_totals = db_baselines["common_aspects_totals"]
+        db_common_hd_gates = db_baselines["common_hd_gates"]
+        db_common_hd_channels = db_baselines["common_hd_channels"]
+        db_common_hd_defined_centers = db_baselines["common_hd_defined_centers"]
+        db_common_hd_authorities = db_baselines["common_hd_authorities"]
+        db_common_hd_profiles = db_baselines["common_hd_profiles"]
+        self._update_similarities_loading_progress(
+            progress,
+            "Preparing similarities export data…",
         )
         self._similarities_export_sections = [
             (
@@ -8157,6 +8242,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 f"No shared similarities found in at least 2 charts across "
                 f"{len(selected_non_placeholder_chart_ids)} selected chart(s)."
             )
+        self._update_similarities_loading_progress(
+            progress,
+            "Rendering similarities results…",
+        )
         self._set_similarities_section_matches(
             self.similarities_common_positions_list,
             self.similarities_common_positions_toggle,
@@ -8265,6 +8354,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             db_match_counts=db_common_hd_profiles,
             db_total_count=db_total_count,
         )
+        self._close_similarities_loading_progress(progress)
 
     def _export_similarities_analysis_json(self) -> None:
         _export_similarities_analysis_json_dialog(
@@ -16869,8 +16959,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
             self._database_metrics_dirty_ids.clear()
+            self._similarities_db_baseline_cache_key = None
+            self._similarities_db_baseline_cache = None
         elif changed_ids:
             self._database_metrics_dirty_ids.update(changed_ids)
+            self._similarities_db_baseline_cache_key = None
+            self._similarities_db_baseline_cache = None
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
             owner = self.parent()
