@@ -28,3 +28,10 @@ def test_similarity_deviation_z_score_is_signed_standard_error_distance():
     assert z_score == (20.0 - 70.0) / expected_standard_error_percent
     assert z_score < 0
     assert similarity_deviation_z_score(70, 70, 10) == 0.0
+
+
+def test_similarity_delta_rgb_deemphasizes_tiny_selection_samples():
+    tiny_sample_color = similarity_delta_rgb(100, 20, total_count=2)
+
+    assert tiny_sample_color != SIMILARITY_DELTA_POSITIVE_RGB
+    assert tiny_sample_color[1] > SIMILARITY_DELTA_NEUTRAL_RGB[1]

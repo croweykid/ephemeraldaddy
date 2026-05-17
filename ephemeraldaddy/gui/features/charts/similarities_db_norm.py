@@ -6,6 +6,7 @@ import math
 
 SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS = 2.0
 SIMILARITY_DELTA_FALLBACK_SIGNIFICANCE_PERCENTAGE_POINTS = 10.0
+SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE = 5
 SIMILARITY_DELTA_NEUTRAL_RGB = (150, 150, 150)
 SIMILARITY_DELTA_POSITIVE_RGB = (127, 255, 0)
 SIMILARITY_DELTA_NEGATIVE_RGB = (255, 45, 45)
@@ -76,6 +77,13 @@ def similarity_delta_rgb(
             min(abs(z_score), SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS)
             / SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS
         )
+        if (
+            total_count is not None
+            and total_count < SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE
+        ):
+            ratio *= max(0.0, float(total_count)) / float(
+                SIMILARITY_DELTA_MIN_GUIDE_SAMPLE_SIZE
+            )
     else:
         ratio = (
             min(abs(delta), SIMILARITY_DELTA_FALLBACK_SIGNIFICANCE_PERCENTAGE_POINTS)
