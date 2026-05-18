@@ -194,9 +194,6 @@ class ChartAnalysisSectionsController:
             )
             horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
 
-            if viewport is not None:
-                viewport.setUpdatesEnabled(False)
-
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             if on_toggled is not None:
@@ -230,17 +227,10 @@ class ChartAnalysisSectionsController:
                 panel.updateGeometry()
                 restore_scroll_position()
 
-            def unfreeze_viewport() -> None:
-                restore_scroll_position()
-                if viewport is not None:
-                    viewport.setUpdatesEnabled(True)
-                    viewport.update()
-
             restore_scroll_position()
             QTimer.singleShot(0, update_panel_geometry)
             for delay_ms in (0, 16, 50, 120):
                 QTimer.singleShot(delay_ms, restore_scroll_position)
-            QTimer.singleShot(120, unfreeze_viewport)
 
         toggle.toggled.connect(toggle_content)
 
