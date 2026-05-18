@@ -769,6 +769,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityPairResolution,
     build_chart_lookup,
     resolve_similarity_pair_targets,
+    similarity_breakdown_chart_ids,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
@@ -796,6 +797,9 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import (
 )
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
+)
+from ephemeraldaddy.gui.features.charts.similarities_layout import (
+    bounded_similarity_section_height,
 )
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
@@ -6949,6 +6953,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"aspects {aspect_score * 100.0:.0f}%, "
             f"distribution {distribution_score * 100.0:.0f}%)."
         )
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is not None:
+            self._update_similarities_analysis(breakdown_chart_ids)
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
@@ -6996,7 +7003,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_list.setFocusPolicy(Qt.NoFocus)
         section_list.setAlternatingRowColors(True)
         section_list.setStyleSheet(list_style)
-        section_list.setMinimumHeight(min_height)
+        section_list.setProperty("similarities_expanded_max_height", int(min_height))
+        section_list.setFixedHeight(int(min_height))
         content_layout.addWidget(section_list)
 
         def toggle_content(checked: bool) -> None:
@@ -7010,6 +7018,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         layout.addWidget(section)
 
         return toggle, section_list
+
+    def _resize_similarities_section_to_contents(self, section_list: QListWidget) -> None:
+        max_height = int(section_list.property("similarities_expanded_max_height") or 0)
+        row_heights: list[int] = []
+        for index in range(section_list.count()):
+            item_height = section_list.item(index).sizeHint().height()
+            if item_height <= 0:
+                item_height = section_list.sizeHintForRow(index)
+            if item_height <= 0:
+                item_height = 32
+            row_heights.append(item_height)
+        frame_padding = (section_list.frameWidth() * 2) + 2
+        target_height = bounded_similarity_section_height(
+            row_heights,
+            max_height,
+            frame_padding=frame_padding,
+        )
+        section_list.setFixedHeight(target_height)
 
     def _set_similarities_section_matches(
         self,
@@ -7065,11 +7091,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "charts.standard_deviation_indicators"
                     ),
                 )
+            self._resize_similarities_section_to_contents(section_list)
             toggle.setChecked(True)
             return
 
         if show_no_match_row:
             section_list.addItem("No matches found.")
+        self._resize_similarities_section_to_contents(section_list)
         toggle.setChecked(False)
 
 
