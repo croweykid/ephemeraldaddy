@@ -41,6 +41,7 @@ from ephemeraldaddy.core.interpretations import (
     normalize_body_name,
 )
 from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshatra_weights
+from ephemeraldaddy.analysis.weighted_chart_predictor import active_human_design_channels
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
@@ -63,6 +64,9 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "nakshatra_dominance",
     "defined_centers",
     "human_design_gates",
+    "human_design_channels",
+    "inner_planet_placement",
+    "outer_planet_placement",
 )
 
 CORE_BODIES: tuple[str, ...] = (
@@ -77,6 +81,9 @@ CORE_BODIES: tuple[str, ...] = (
     "Neptune",
     "Pluto",
 )
+INNER_PLACEMENT_BODIES: tuple[str, ...] = ("Sun", "Moon", "Mercury", "Venus", "Mars")
+OUTER_PLACEMENT_BODIES: tuple[str, ...] = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+
 
 BODY_WEIGHTS: dict[str, float] = {
     "Sun": 1.25,
@@ -368,6 +375,9 @@ class AstroTwinMatch:
     nakshatra_dominance_score: float | None = None
     hd_centers_score: float | None = None
     human_design_gates_score: float | None = None
+    human_design_channels_score: float | None = None
+    inner_planet_placement_score: float | None = None
+    outer_planet_placement_score: float | None = None
     algorithm_mode: str = SIMILAR_CHARTS_ALGORITHM_DEFAULT
     chart_uses_houses: bool = True
 
@@ -377,19 +387,25 @@ class SimilarityCalculatorSettings:
     use_placement: bool = True
     weight_placement: float = 0.33
     use_aspect: bool = True
-    weight_aspect: float = 0.18
+    weight_aspect: float = 0.07
     use_distribution: bool = True
-    weight_distribution: float = 0.03
+    weight_distribution: float = 0.10
     use_combined_dominance: bool = True
-    weight_combined_dominance: float = 0.26
+    weight_combined_dominance: float = 0.15
     use_nakshatra_placement: bool = True
-    weight_nakshatra_placement: float = 0.12
+    weight_nakshatra_placement: float = 0.07
     use_nakshatra_dominance: bool = False
     weight_nakshatra_dominance: float = 0.00
-    use_defined_centers: bool = True
-    weight_defined_centers: float = 0.08
-    use_human_design_gates: bool = False
-    weight_human_design_gates: float = 0.00
+    use_defined_centers: bool = False
+    weight_defined_centers: float = 0.00
+    use_human_design_gates: bool = True
+    weight_human_design_gates: float = 0.18
+    use_human_design_channels: bool = False
+    weight_human_design_channels: float = 0.00
+    use_inner_planet_placement: bool = False
+    weight_inner_planet_placement: float = 0.00
+    use_outer_planet_placement: bool = False
+    weight_outer_planet_placement: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
 
     @classmethod
@@ -406,6 +422,9 @@ class SimilarityCalculatorSettings:
             "nakshatra_dominance": max(0.0, float(self.weight_nakshatra_dominance)),
             "defined_centers": max(0.0, float(self.weight_defined_centers)),
             "human_design_gates": max(0.0, float(self.weight_human_design_gates)),
+            "human_design_channels": max(0.0, float(self.weight_human_design_channels)),
+            "inner_planet_placement": max(0.0, float(self.weight_inner_planet_placement)),
+            "outer_planet_placement": max(0.0, float(self.weight_outer_planet_placement)),
         }
 
     def enabled_components(self) -> dict[str, bool]:
@@ -418,6 +437,9 @@ class SimilarityCalculatorSettings:
             "nakshatra_dominance": bool(self.use_nakshatra_dominance),
             "defined_centers": bool(self.use_defined_centers),
             "human_design_gates": bool(self.use_human_design_gates),
+            "human_design_channels": bool(self.use_human_design_channels),
+            "inner_planet_placement": bool(self.use_inner_planet_placement),
+            "outer_planet_placement": bool(self.use_outer_planet_placement),
         }
 
     def normalized_placement_weighting_mode(self) -> str:
@@ -551,6 +573,7 @@ def _placement_similarity(
     candidate: Chart,
     *,
     weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+    bodies: tuple[str, ...] = CORE_BODIES,
 ) -> float:
     q_positions = getattr(query, "positions", None) or {}
     c_positions = getattr(candidate, "positions", None) or {}
@@ -565,7 +588,7 @@ def _placement_similarity(
         and bool(getattr(candidate, "houses", None))
     )
 
-    for body in CORE_BODIES:
+    for body in bodies:
         q_lon = q_positions.get(body)
         c_lon = c_positions.get(body)
         if q_lon is None or c_lon is None:
@@ -587,7 +610,7 @@ def _placement_similarity(
 
     similarity = _safe_divide(total, possible)
     normalized_mode = normalize_placement_weighting_mode(weighting_mode)
-    if normalized_mode != PLACEMENT_WEIGHTING_MODE_HYBRID:
+    if normalized_mode != PLACEMENT_WEIGHTING_MODE_HYBRID or tuple(bodies) != CORE_BODIES:
         return similarity
 
     # Hybrid mode intentionally blends chart-defined dominance with generic
@@ -1012,6 +1035,18 @@ def _human_design_gates_similarity(query: Chart, candidate: Chart) -> float:
     return len(intersection) / len(union)
 
 
+def _human_design_channels_similarity(query: Chart, candidate: Chart) -> float:
+    q_channels = active_human_design_channels(query)
+    c_channels = active_human_design_channels(candidate)
+    if not q_channels and not c_channels:
+        return 1.0
+    union = q_channels | c_channels
+    if not union:
+        return 0.0
+    intersection = q_channels & c_channels
+    return len(intersection) / len(union)
+
+
 def _similarity_component_scores(
     query: Chart,
     candidate: Chart,
@@ -1031,6 +1066,19 @@ def _similarity_component_scores(
         "nakshatra_dominance": _nakshatra_dominance_similarity(query, candidate),
         "defined_centers": _defined_centers_similarity(query, candidate),
         "human_design_gates": _human_design_gates_similarity(query, candidate),
+        "human_design_channels": _human_design_channels_similarity(query, candidate),
+        "inner_planet_placement": _placement_similarity(
+            query,
+            candidate,
+            weighting_mode=placement_weighting_mode,
+            bodies=INNER_PLACEMENT_BODIES,
+        ),
+        "outer_planet_placement": _placement_similarity(
+            query,
+            candidate,
+            weighting_mode=placement_weighting_mode,
+            bodies=OUTER_PLACEMENT_BODIES,
+        ),
     }
 
 
@@ -1253,6 +1301,9 @@ def find_astro_twins(
                 nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
                 human_design_gates_score = component_scores["human_design_gates"]
+                human_design_channels_score = component_scores["human_design_channels"]
+                inner_planet_placement_score = component_scores["inner_planet_placement"]
+                outer_planet_placement_score = component_scores["outer_planet_placement"]
             elif use_comprehensive:
                 (
                     rank_score,
@@ -1274,6 +1325,9 @@ def find_astro_twins(
                 )
                 nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
                 human_design_gates_score = comprehensive_component_scores["human_design_gates"]
+                human_design_channels_score = comprehensive_component_scores["human_design_channels"]
+                inner_planet_placement_score = comprehensive_component_scores["inner_planet_placement"]
+                outer_planet_placement_score = comprehensive_component_scores["outer_planet_placement"]
             else:
                 rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
                     query_chart,
@@ -1284,6 +1338,9 @@ def find_astro_twins(
                 hd_centers_score = None
                 nakshatra_dominance_score = None
                 human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = None
+                outer_planet_placement_score = None
         else:
             if use_custom:
                 final_score, component_scores = chart_similarity_score_custom(
@@ -1298,6 +1355,9 @@ def find_astro_twins(
                 nakshatra_dominance_score = component_scores["nakshatra_dominance"]
                 hd_centers_score = component_scores["defined_centers"]
                 human_design_gates_score = component_scores["human_design_gates"]
+                human_design_channels_score = component_scores["human_design_channels"]
+                inner_planet_placement_score = component_scores["inner_planet_placement"]
+                outer_planet_placement_score = component_scores["outer_planet_placement"]
             elif use_comprehensive:
                 (
                     final_score,
@@ -1318,6 +1378,9 @@ def find_astro_twins(
                 )
                 nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
                 human_design_gates_score = comprehensive_component_scores["human_design_gates"]
+                human_design_channels_score = comprehensive_component_scores["human_design_channels"]
+                inner_planet_placement_score = comprehensive_component_scores["inner_planet_placement"]
+                outer_planet_placement_score = comprehensive_component_scores["outer_planet_placement"]
             else:
                 final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
                     query_chart,
@@ -1328,6 +1391,9 @@ def find_astro_twins(
                 hd_centers_score = None
                 nakshatra_dominance_score = None
                 human_design_gates_score = None
+                human_design_channels_score = None
+                inner_planet_placement_score = None
+                outer_planet_placement_score = None
             rank_score = final_score
 
         dominance_score = _combined_dominance_similarity(query_chart, candidate)
@@ -1343,6 +1409,9 @@ def find_astro_twins(
             nakshatra_dominance_score=nakshatra_dominance_score,
             hd_centers_score=hd_centers_score,
             human_design_gates_score=human_design_gates_score,
+            human_design_channels_score=human_design_channels_score,
+            inner_planet_placement_score=inner_planet_placement_score,
+            outer_planet_placement_score=outer_planet_placement_score,
             algorithm_mode=normalized_mode,
             chart_uses_houses=chart_uses_houses(candidate),
         )

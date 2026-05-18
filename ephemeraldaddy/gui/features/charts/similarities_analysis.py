@@ -33,6 +33,9 @@ class PairSimilarityResult:
     nakshatra_dominance_score: float | None = None
     hd_centers_score: float | None = None
     human_design_gates_score: float | None = None
+    human_design_channels_score: float | None = None
+    inner_planet_placement_score: float | None = None
+    outer_planet_placement_score: float | None = None
     algorithm_mode: str = "default"
 
 
@@ -60,6 +63,9 @@ def calculate_pair_similarity_result(
             nakshatra_dominance_score=component_scores["nakshatra_dominance"],
             hd_centers_score=component_scores["defined_centers"],
             human_design_gates_score=component_scores["human_design_gates"],
+            human_design_channels_score=component_scores["human_design_channels"],
+            inner_planet_placement_score=component_scores["inner_planet_placement"],
+            outer_planet_placement_score=component_scores["outer_planet_placement"],
             algorithm_mode=normalized_mode,
         )
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -90,6 +96,9 @@ def calculate_pair_similarity_result(
             nakshatra_dominance_score=component_scores["nakshatra_dominance"],
             hd_centers_score=hd_centers_score,
             human_design_gates_score=component_scores["human_design_gates"],
+            human_design_channels_score=component_scores["human_design_channels"],
+            inner_planet_placement_score=component_scores["inner_planet_placement"],
+            outer_planet_placement_score=component_scores["outer_planet_placement"],
             algorithm_mode=normalized_mode,
         )
 

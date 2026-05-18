@@ -250,6 +250,9 @@ _SIMILARITY_COMPONENT_LABELS: dict[str, str] = {
     "nakshatra_dominance": "nakshatra dominance",
     "defined_centers": "defined centers (HD)",
     "human_design_gates": "active gates (HD)",
+    "human_design_channels": "defined channels (HD)",
+    "inner_planet_placement": "inner placements",
+    "outer_planet_placement": "outer placements",
 }
 _PLANET_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in PLANET_COLORS.items() if color}
 _SIGN_COLOR_MAP: dict[str, str] = {str(name): str(color) for name, color in SIGN_COLORS.items() if color}
@@ -1477,6 +1480,9 @@ def format_similarity_component_summary(
         "nakshatra_dominance": getattr(match, "nakshatra_dominance_score", None),
         "defined_centers": getattr(match, "hd_centers_score", None),
         "human_design_gates": getattr(match, "human_design_gates_score", None),
+        "human_design_channels": getattr(match, "human_design_channels_score", None),
+        "inner_planet_placement": getattr(match, "inner_planet_placement_score", None),
+        "outer_planet_placement": getattr(match, "outer_planet_placement_score", None),
     }
     bits: list[str] = []
     for key in keys:

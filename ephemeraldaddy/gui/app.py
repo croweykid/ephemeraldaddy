@@ -105,6 +105,12 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "weight_defined_centers": float(payload.get("weight_defined_centers", defaults.weight_defined_centers)),
         "use_human_design_gates": _as_bool(payload.get("use_human_design_gates", defaults.use_human_design_gates), defaults.use_human_design_gates),
         "weight_human_design_gates": float(payload.get("weight_human_design_gates", defaults.weight_human_design_gates)),
+        "use_human_design_channels": _as_bool(payload.get("use_human_design_channels", defaults.use_human_design_channels), defaults.use_human_design_channels),
+        "weight_human_design_channels": float(payload.get("weight_human_design_channels", defaults.weight_human_design_channels)),
+        "use_inner_planet_placement": _as_bool(payload.get("use_inner_planet_placement", defaults.use_inner_planet_placement), defaults.use_inner_planet_placement),
+        "weight_inner_planet_placement": float(payload.get("weight_inner_planet_placement", defaults.weight_inner_planet_placement)),
+        "use_outer_planet_placement": _as_bool(payload.get("use_outer_planet_placement", defaults.use_outer_planet_placement), defaults.use_outer_planet_placement),
+        "weight_outer_planet_placement": float(payload.get("weight_outer_planet_placement", defaults.weight_outer_planet_placement)),
         "placement_weighting_mode": _normalize_placement_weighting_mode(
             payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
         ),
@@ -132,6 +138,12 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "weight_defined_centers": float(value.weight_defined_centers),
             "use_human_design_gates": bool(value.use_human_design_gates),
             "weight_human_design_gates": float(value.weight_human_design_gates),
+            "use_human_design_channels": bool(value.use_human_design_channels),
+            "weight_human_design_channels": float(value.weight_human_design_channels),
+            "use_inner_planet_placement": bool(value.use_inner_planet_placement),
+            "weight_inner_planet_placement": float(value.weight_inner_planet_placement),
+            "use_outer_planet_placement": bool(value.use_outer_planet_placement),
+            "weight_outer_planet_placement": float(value.weight_outer_planet_placement),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
         },
     )
@@ -19272,6 +19284,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "nakshatra_dominance": ("use_nakshatra_dominance", "weight_nakshatra_dominance"),
             "defined_centers": ("use_defined_centers", "weight_defined_centers"),
             "human_design_gates": ("use_human_design_gates", "weight_human_design_gates"),
+            "human_design_channels": ("use_human_design_channels", "weight_human_design_channels"),
+            "inner_planet_placement": ("use_inner_planet_placement", "weight_inner_planet_placement"),
+            "outer_planet_placement": ("use_outer_planet_placement", "weight_outer_planet_placement"),
         }
         for key, (enabled_attr, weight_attr) in mapping.items():
             checkbox = self._similarity_calculator_checkboxes.get(key)
@@ -19520,6 +19535,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             weight_defined_centers=float(self._similarity_calculator_weights["defined_centers"].value()),
             use_human_design_gates=bool(self._similarity_calculator_checkboxes["human_design_gates"].isChecked()),
             weight_human_design_gates=float(self._similarity_calculator_weights["human_design_gates"].value()),
+            use_human_design_channels=bool(self._similarity_calculator_checkboxes["human_design_channels"].isChecked()),
+            weight_human_design_channels=float(self._similarity_calculator_weights["human_design_channels"].value()),
+            use_inner_planet_placement=bool(self._similarity_calculator_checkboxes["inner_planet_placement"].isChecked()),
+            weight_inner_planet_placement=float(self._similarity_calculator_weights["inner_planet_placement"].value()),
+            use_outer_planet_placement=bool(self._similarity_calculator_checkboxes["outer_planet_placement"].isChecked()),
+            weight_outer_planet_placement=float(self._similarity_calculator_weights["outer_planet_placement"].value()),
             placement_weighting_mode=_normalize_placement_weighting_mode(
                 getattr(
                     getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None),

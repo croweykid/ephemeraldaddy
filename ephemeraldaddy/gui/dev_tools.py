@@ -108,7 +108,7 @@ def add_enneagram_predictions_debug_setting(
 
 
 SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
-    ("placement", "Placement score"),
+    ("placement", "Placement by weight"),
     ("aspect", "Aspect score"),
     ("distribution", "Distribution score"),
     ("combined_dominance", "Combined dominance score"),
@@ -116,13 +116,16 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("nakshatra_dominance", "Nakshatra dominance score"),
     ("defined_centers", "Defined centers score"),
     ("human_design_gates", "Human Design gates score"),
+    ("human_design_channels", "Human Design channels score"),
+    ("inner_planet_placement", "Inner planet placement"),
+    ("outer_planet_placement", "Outer planet placement"),
 )
 
 
 SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
     "placement": (
         "Compares where each core body lands (sign, and house when houses are available) "
-        "between the two charts, using body-specific weights."
+        "between the two charts, weighting each body by its selected chart/body weight."
     ),
     "aspect": (
         "Compares inter-body aspect patterns (planet pair + aspect type), and rewards close "
@@ -149,6 +152,15 @@ SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
     ),
     "human_design_gates": (
         "Compares Human Design active gates by set overlap (shared gates vs total unique gates)."
+    ),
+    "human_design_channels": (
+        "Compares Human Design defined channels by set overlap (shared channels vs total unique channels)."
+    ),
+    "inner_planet_placement": (
+        "Compares Sun, Moon, Mercury, Venus, and Mars placements only, using the same weighted sign/house placement logic."
+    ),
+    "outer_planet_placement": (
+        "Compares Jupiter, Saturn, Uranus, Neptune, and Pluto placements only, using the same weighted sign/house placement logic."
     ),
 }
 
