@@ -17,12 +17,14 @@ from ephemeraldaddy.core.interpretations import (
     FALL_WEIGHT,
     HOUSE_WEIGHTS,
     HOUSE_CUSP_BLEND_DEGREES,
+    INNER_PLANETS,
     MODES,
     NATAL_WEIGHT,
     NATURAL_HOUSE_PLANET_BONUS,
     NATURAL_HOUSE_PLANETS,
     NATURAL_HOUSE_SIGN_BONUS,
     NATURAL_HOUSE_SIGNS,
+    OUTER_PLANETS,
     PLANET_DETRIMENT,
     PLANET_EXALTATION,
     PLANET_FALL,
@@ -81,10 +83,6 @@ CORE_BODIES: tuple[str, ...] = (
     "Neptune",
     "Pluto",
 )
-INNER_PLACEMENT_BODIES: tuple[str, ...] = ("Sun", "Moon", "Mercury", "Venus", "Mars")
-OUTER_PLACEMENT_BODIES: tuple[str, ...] = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
-
-
 BODY_WEIGHTS: dict[str, float] = {
     "Sun": 1.25,
     "Moon": 1.25,
@@ -573,8 +571,9 @@ def _placement_similarity(
     candidate: Chart,
     *,
     weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-    bodies: tuple[str, ...] = CORE_BODIES,
+    bodies: Iterable[str] = CORE_BODIES,
 ) -> float:
+    body_sequence = tuple(bodies)
     q_positions = getattr(query, "positions", None) or {}
     c_positions = getattr(candidate, "positions", None) or {}
     body_weights = _placement_body_weights(query, weighting_mode)
@@ -588,7 +587,7 @@ def _placement_similarity(
         and bool(getattr(candidate, "houses", None))
     )
 
-    for body in bodies:
+    for body in body_sequence:
         q_lon = q_positions.get(body)
         c_lon = c_positions.get(body)
         if q_lon is None or c_lon is None:
@@ -610,7 +609,7 @@ def _placement_similarity(
 
     similarity = _safe_divide(total, possible)
     normalized_mode = normalize_placement_weighting_mode(weighting_mode)
-    if normalized_mode != PLACEMENT_WEIGHTING_MODE_HYBRID or tuple(bodies) != CORE_BODIES:
+    if normalized_mode != PLACEMENT_WEIGHTING_MODE_HYBRID or body_sequence != CORE_BODIES:
         return similarity
 
     # Hybrid mode intentionally blends chart-defined dominance with generic
@@ -1071,13 +1070,13 @@ def _similarity_component_scores(
             query,
             candidate,
             weighting_mode=placement_weighting_mode,
-            bodies=INNER_PLACEMENT_BODIES,
+            bodies=INNER_PLANETS,
         ),
         "outer_planet_placement": _placement_similarity(
             query,
             candidate,
             weighting_mode=placement_weighting_mode,
-            bodies=OUTER_PLACEMENT_BODIES,
+            bodies=OUTER_PLANETS,
         ),
     }
 
