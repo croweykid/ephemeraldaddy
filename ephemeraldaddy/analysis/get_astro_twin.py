@@ -1160,8 +1160,12 @@ def chart_similarity_score_comprehensive(
         candidate,
         placement_weighting_mode=placement_weighting_mode,
     )
-    weights = SimilarityCalculatorSettings.defaults_from_comprehensive().weights_by_component()
-    comprehensive_score = _weighted_similarity_score(component_scores, weights)
+    settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+    comprehensive_score = _weighted_similarity_score(
+        component_scores,
+        settings.weights_by_component(),
+        enabled_components=settings.enabled_components(),
+    )
     return (
         comprehensive_score,
         component_scores["placement"],
@@ -1222,26 +1226,29 @@ def chart_dissimilarity_score_comprehensive(
     *,
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
 ) -> tuple[float, float, float, float, float, float, float]:
-    (
-        similarity_score,
-        placement_score,
-        aspect_score,
-        distribution_score,
-        nakshatra_score,
-        hd_centers_score,
-    ) = chart_similarity_score_comprehensive(
+    component_scores = _similarity_component_scores(
         query,
         candidate,
         placement_weighting_mode=placement_weighting_mode,
     )
-    inverse_weighted = (
-        ((1.0 - placement_score) * 0.26)
-        + ((1.0 - aspect_score) * 0.17)
-        + ((1.0 - distribution_score) * 0.08)
-        + ((1.0 - _combined_dominance_similarity(query, candidate)) * 0.28)
-        + ((1.0 - nakshatra_score) * 0.13)
-        + ((1.0 - hd_centers_score) * 0.08)
+    settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+    weights = settings.weights_by_component()
+    enabled = settings.enabled_components()
+    similarity_score = _weighted_similarity_score(
+        component_scores,
+        weights,
+        enabled_components=enabled,
     )
+    inverse_weighted = _weighted_similarity_score(
+        {key: 1.0 - float(score) for key, score in component_scores.items()},
+        weights,
+        enabled_components=enabled,
+    )
+    placement_score = component_scores["placement"]
+    aspect_score = component_scores["aspect"]
+    distribution_score = component_scores["distribution"]
+    nakshatra_score = component_scores["nakshatra_placement"]
+    hd_centers_score = component_scores["defined_centers"]
     dominance_similarity = _sign_dominance_similarity(query, candidate)
     dominance_penalty = 0.35 * dominance_similarity
     dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)

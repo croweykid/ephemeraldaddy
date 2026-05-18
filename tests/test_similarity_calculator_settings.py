@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SimilarityCalculatorSettings,
+    chart_dissimilarity_score_comprehensive,
     chart_similarity_score_custom,
 )
 
@@ -97,3 +98,41 @@ def test_custom_similarity_can_score_inner_and_outer_placements_separately():
 
     assert components["inner_planet_placement"] == 1.0
     assert components["outer_planet_placement"] < 1.0
+
+
+def test_comprehensive_dissimilarity_ranking_includes_human_design_gates():
+    positions = {
+        "Sun": 0.0,
+        "Moon": 30.0,
+        "Mercury": 60.0,
+        "Venus": 90.0,
+        "Mars": 120.0,
+        "Jupiter": 150.0,
+        "Saturn": 180.0,
+        "Uranus": 210.0,
+        "Neptune": 240.0,
+        "Pluto": 270.0,
+    }
+    subject = SimpleNamespace(
+        positions=positions,
+        human_design_gates=[1, 2, 3],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+    same_gates = SimpleNamespace(
+        positions=dict(positions),
+        human_design_gates=[1, 2, 3],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+    different_gates = SimpleNamespace(
+        positions=dict(positions),
+        human_design_gates=[61, 62, 63],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+
+    same_rank_score = chart_dissimilarity_score_comprehensive(subject, same_gates)[0]
+    different_rank_score = chart_dissimilarity_score_comprehensive(subject, different_gates)[0]
+
+    assert different_rank_score > same_rank_score
