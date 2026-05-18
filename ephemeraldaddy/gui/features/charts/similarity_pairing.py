@@ -133,3 +133,18 @@ def resolve_similarity_pair_targets(
         guidance=None,
         allow_click=True,
     )
+
+
+def similarity_breakdown_chart_ids(
+    resolution: SimilarityPairResolution,
+) -> list[int] | None:
+    """Return the chart IDs that should feed the Similarities Analysis breakdown.
+
+    The pair-comparison controls can resolve two charts without those charts being
+    selected in the Database View list.  When a concrete pair is resolved, the
+    breakdown panel should analyze that pair exactly as if both charts were
+    selected.
+    """
+    if resolution.first_chart_id is None or resolution.second_chart_id is None:
+        return None
+    return [int(resolution.first_chart_id), int(resolution.second_chart_id)]
