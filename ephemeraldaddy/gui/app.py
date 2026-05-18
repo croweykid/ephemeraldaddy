@@ -798,6 +798,10 @@ from ephemeraldaddy.gui.features.charts.db_info_panel import (
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     similarity_delta_rgb,
 )
+from ephemeraldaddy.gui.features.charts.similarities_layout import (
+    configure_similarity_section_list_height,
+    resize_similarity_section_to_contents,
+)
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
     build_similarity_db_baselines,
@@ -7000,7 +7004,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_list.setFocusPolicy(Qt.NoFocus)
         section_list.setAlternatingRowColors(True)
         section_list.setStyleSheet(list_style)
-        section_list.setMinimumHeight(min_height)
+        configure_similarity_section_list_height(section_list, min_height)
         content_layout.addWidget(section_list)
 
         def toggle_content(checked: bool) -> None:
@@ -7069,11 +7073,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "charts.standard_deviation_indicators"
                     ),
                 )
+            resize_similarity_section_to_contents(section_list)
             toggle.setChecked(True)
             return
 
         if show_no_match_row:
             section_list.addItem("No matches found.")
+        resize_similarity_section_to_contents(section_list)
         toggle.setChecked(False)
 
 
