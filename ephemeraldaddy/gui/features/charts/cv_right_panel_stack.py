@@ -187,28 +187,31 @@ def build_chart_right_panel_stack(
     stack.setMinimumWidth(0)
     layout.addWidget(stack, 1)
 
-    def configure_panel_scroll_area(content_widget: QWidget) -> QScrollArea:
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QScrollArea.NoFrame)
-        scroll_area.setMinimumWidth(240)
-        # The right panel is intentionally a single vertical column.  Allowing
-        # horizontal scrolling lets oversized children (notably Matplotlib
-        # canvases whose sizeHint is wider than the side panel) come back with a
-        # restored non-zero horizontal offset after switching stacked panels.
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet(scrollbar_style)
-        scroll_area.setFocusPolicy(Qt.StrongFocus)
-        scroll_area.setWidget(content_widget)
-        return scroll_area
-
-    analytics_scroll = configure_panel_scroll_area(analytics_content_widget)
+    analytics_scroll = QScrollArea()
+    analytics_scroll.setWidgetResizable(True)
+    analytics_scroll.setFrameShape(QScrollArea.NoFrame)
+    analytics_scroll.setMinimumWidth(240)
+    analytics_scroll.setStyleSheet(scrollbar_style)
+    analytics_scroll.setFocusPolicy(Qt.StrongFocus)
+    analytics_scroll.setWidget(analytics_content_widget)
     stack.addWidget(analytics_scroll)
 
-    predictions_scroll = configure_panel_scroll_area(predictions_content_widget)
+    predictions_scroll = QScrollArea()
+    predictions_scroll.setWidgetResizable(True)
+    predictions_scroll.setFrameShape(QScrollArea.NoFrame)
+    predictions_scroll.setMinimumWidth(240)
+    predictions_scroll.setStyleSheet(scrollbar_style)
+    predictions_scroll.setFocusPolicy(Qt.StrongFocus)
+    predictions_scroll.setWidget(predictions_content_widget)
     stack.addWidget(predictions_scroll)
 
-    subjective_notes_scroll = configure_panel_scroll_area(subjective_notes_content_widget)
+    subjective_notes_scroll = QScrollArea()
+    subjective_notes_scroll.setWidgetResizable(True)
+    subjective_notes_scroll.setFrameShape(QScrollArea.NoFrame)
+    subjective_notes_scroll.setMinimumWidth(240)
+    subjective_notes_scroll.setStyleSheet(scrollbar_style)
+    subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
+    subjective_notes_scroll.setWidget(subjective_notes_content_widget)
     stack.addWidget(subjective_notes_scroll)
 
     return ChartRightPanelStack(

@@ -23131,14 +23131,7 @@ class MainWindow(QMainWindow):
         if display_height > 0:
             canvas.setMinimumHeight(display_height)
             canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
-        # FigureCanvas reports a sizeHint based on the Matplotlib figure inches
-        # (often wider than the Chart View side panel).  If a hidden stacked
-        # panel is shown again, QScrollArea can honor that stale hint by
-        # creating/restoring a horizontal scroll offset, which makes charts look
-        # enlarged and shifted under a new left margin.  Let the layout use the
-        # viewport width instead of the figure's preferred width.
-        canvas.setMinimumWidth(0)
-        canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
