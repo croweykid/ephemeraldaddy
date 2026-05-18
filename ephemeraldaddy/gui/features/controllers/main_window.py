@@ -157,11 +157,10 @@ class ChartAnalysisSectionsController:
             expanded=expanded,
             style_sheet=DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
         )
-        # The Chart View right-panel scroll areas try to keep the focused child
-        # visible while section geometry is changing.  Let the scroll area keep
-        # keyboard focus instead of giving focus to the clicked header, otherwise
-        # expanding a section can trigger an automatic jump to the header.
-        toggle.setFocusPolicy(Qt.NoFocus)
+        # Keep collapsible headers reachable by keyboard tab navigation while
+        # avoiding mouse-click focus, which can make the right-panel scroll area
+        # auto-scroll the clicked header during expansion geometry changes.
+        toggle.setFocusPolicy(Qt.TabFocus)
 
         content = QWidget()
         content_layout = QVBoxLayout()
