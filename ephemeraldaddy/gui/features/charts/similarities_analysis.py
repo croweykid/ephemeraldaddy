@@ -2,10 +2,135 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
 from PySide6.QtCore import QEventLoop, Qt
-from PySide6.QtWidgets import QApplication, QProgressDialog, QWidget
+from PySide6.QtWidgets import QApplication, QListWidget, QProgressDialog, QWidget
+
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+    SimilarityCalculatorSettings,
+    chart_similarity_score,
+    chart_similarity_score_comprehensive,
+    chart_similarity_score_custom,
+    normalize_similar_charts_algorithm_mode,
+)
+from ephemeraldaddy.core.chart import Chart
+
+
+@dataclass(slots=True)
+class PairSimilarityResult:
+    """Similarity result for the Database View two-chart calculator."""
+
+    score: float
+    placement_score: float
+    aspect_score: float
+    distribution_score: float
+    dominance_score: float | None = None
+    nakshatra_score: float | None = None
+    nakshatra_dominance_score: float | None = None
+    hd_centers_score: float | None = None
+    human_design_gates_score: float | None = None
+    algorithm_mode: str = "default"
+
+
+def calculate_pair_similarity_result(
+    first: Chart,
+    second: Chart,
+    *,
+    algorithm_mode: str,
+    custom_settings: SimilarityCalculatorSettings | None,
+) -> PairSimilarityResult:
+    """Calculate a pair score using the currently selected Similarities Calculator mode."""
+
+    normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
+    settings = custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    placement_weighting_mode = settings.normalized_placement_weighting_mode()
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+        final_score, component_scores = chart_similarity_score_custom(first, second, settings)
+        return PairSimilarityResult(
+            score=final_score,
+            placement_score=component_scores["placement"],
+            aspect_score=component_scores["aspect"],
+            distribution_score=component_scores["distribution"],
+            dominance_score=component_scores["combined_dominance"],
+            nakshatra_score=component_scores["nakshatra_placement"],
+            nakshatra_dominance_score=component_scores["nakshatra_dominance"],
+            hd_centers_score=component_scores["defined_centers"],
+            human_design_gates_score=component_scores["human_design_gates"],
+            algorithm_mode=normalized_mode,
+        )
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+        (
+            final_score,
+            placement_score,
+            aspect_score,
+            distribution_score,
+            nakshatra_score,
+            hd_centers_score,
+        ) = chart_similarity_score_comprehensive(
+            first,
+            second,
+            placement_weighting_mode=placement_weighting_mode,
+        )
+        component_scores = chart_similarity_score_custom(
+            first,
+            second,
+            SimilarityCalculatorSettings.defaults_from_comprehensive(),
+        )[1]
+        return PairSimilarityResult(
+            score=final_score,
+            placement_score=placement_score,
+            aspect_score=aspect_score,
+            distribution_score=distribution_score,
+            dominance_score=component_scores["combined_dominance"],
+            nakshatra_score=nakshatra_score,
+            nakshatra_dominance_score=component_scores["nakshatra_dominance"],
+            hd_centers_score=hd_centers_score,
+            human_design_gates_score=component_scores["human_design_gates"],
+            algorithm_mode=normalized_mode,
+        )
+
+    final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+        first,
+        second,
+        placement_weighting_mode=placement_weighting_mode,
+    )
+    return PairSimilarityResult(
+        score=final_score,
+        placement_score=placement_score,
+        aspect_score=aspect_score,
+        distribution_score=distribution_score,
+        algorithm_mode=normalized_mode,
+    )
+
+
+def resize_similarities_list_to_contents(
+    section_list: QListWidget,
+    *,
+    max_expanded_height: int,
+    minimum_empty_height: int = 0,
+) -> None:
+    """Shrink an expanded similarities list to its rows while preserving a max height."""
+
+    row_count = section_list.count()
+    if row_count <= 0:
+        desired_height = max(0, int(minimum_empty_height))
+    else:
+        fallback_row_height = max(24, section_list.fontMetrics().height() + 12)
+        rows_height = 0
+        for row_index in range(row_count):
+            row_height = section_list.sizeHintForRow(row_index)
+            rows_height += row_height if row_height > 0 else fallback_row_height
+        frame_height = section_list.frameWidth() * 2
+        spacing_height = max(0, row_count - 1) * int(section_list.spacing())
+        desired_height = rows_height + frame_height + spacing_height + 2
+    bounded_height = max(0, min(int(max_expanded_height), int(desired_height)))
+    section_list.setMinimumHeight(bounded_height)
+    section_list.setMaximumHeight(int(max_expanded_height))
+    section_list.updateGeometry()
 
 
 class SimilaritiesBaselineProvider(Protocol):

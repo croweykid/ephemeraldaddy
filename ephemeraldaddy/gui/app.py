@@ -393,7 +393,6 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
-    chart_similarity_score,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
@@ -801,7 +800,9 @@ from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
 from ephemeraldaddy.gui.features.charts.similarities_analysis import (
     SimilaritiesDbBaselineCache,
     build_similarity_db_baselines,
+    calculate_pair_similarity_result,
     close_similarities_loading_progress,
+    resize_similarities_list_to_contents,
     show_similarities_loading_progress,
     update_similarities_loading_progress,
 )
@@ -6928,27 +6929,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if first is None or second is None:
             self._similarities_pair_result_label.setText("Could not load both selected charts.")
             return
-        final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        similarity_settings = getattr(self, "_similarity_calculator_settings", None)
+        pair_result = calculate_pair_similarity_result(
             first,
             second,
-            placement_weighting_mode=getattr(
-                getattr(self, "_similarity_calculator_settings", None),
-                "placement_weighting_mode",
-                PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-            ),
+            algorithm_mode=algorithm_mode,
+            custom_settings=similarity_settings,
         )
         first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
         second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
-        similarity_percent = final_score * 100.0
+        similarity_percent = pair_result.score * 100.0
         band_label, band_color = self._similarity_band_for_percent(similarity_percent)
+        component_summary = format_similarity_component_summary(
+            match=pair_result,
+            component_keys=resolve_similarity_component_keys_for_display(
+                algorithm_mode=algorithm_mode,
+                similarity_settings=similarity_settings,
+            ),
+        )
         self._similarities_pair_result_label.setText(
             f"{first_name} ↔ {second_name}: "
             f'<span style="color: {band_color}; font-weight: 600;">'
             f"{similarity_percent:.1f}% ({band_label})"
             f"</span> "
-            f"(placements {placement_score * 100.0:.0f}%, "
-            f"aspects {aspect_score * 100.0:.0f}%, "
-            f"distribution {distribution_score * 100.0:.0f}%)."
+            f"({component_summary})."
         )
         breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
         if breakdown_chart_ids is not None:
@@ -7000,7 +7008,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_list.setFocusPolicy(Qt.NoFocus)
         section_list.setAlternatingRowColors(True)
         section_list.setStyleSheet(list_style)
-        section_list.setMinimumHeight(min_height)
+        section_list.setProperty("similarities_max_expanded_height", int(min_height))
+        section_list.setMaximumHeight(int(min_height))
+        resize_similarities_list_to_contents(
+            section_list,
+            max_expanded_height=int(min_height),
+        )
         content_layout.addWidget(section_list)
 
         def toggle_content(checked: bool) -> None:
@@ -7069,11 +7082,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "charts.standard_deviation_indicators"
                     ),
                 )
+            max_expanded_height = int(
+                section_list.property("similarities_max_expanded_height")
+                or section_list.maximumHeight()
+            )
+            resize_similarities_list_to_contents(
+                section_list,
+                max_expanded_height=max_expanded_height,
+            )
             toggle.setChecked(True)
             return
 
         if show_no_match_row:
             section_list.addItem("No matches found.")
+        max_expanded_height = int(
+            section_list.property("similarities_max_expanded_height")
+            or section_list.maximumHeight()
+        )
+        resize_similarities_list_to_contents(
+            section_list,
+            max_expanded_height=max_expanded_height,
+        )
         toggle.setChecked(False)
 
 
