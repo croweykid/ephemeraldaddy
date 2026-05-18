@@ -769,6 +769,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     SimilarityPairResolution,
     build_chart_lookup,
     resolve_similarity_pair_targets,
+    similarity_breakdown_chart_ids,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
@@ -6949,6 +6950,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             f"aspects {aspect_score * 100.0:.0f}%, "
             f"distribution {distribution_score * 100.0:.0f}%)."
         )
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is not None:
+            self._update_similarities_analysis(breakdown_chart_ids)
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
