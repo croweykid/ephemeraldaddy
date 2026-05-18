@@ -6956,7 +6956,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
         if breakdown_chart_ids is not None:
-            self._update_similarities_analysis(breakdown_chart_ids)
+            self._update_similarities_analysis(
+                breakdown_chart_ids,
+                refresh_pair_controls=False,
+            )
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
@@ -7719,7 +7722,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 matching_names.append(self._display_name_for_chart_id(int(chart_id)))
         return ", ".join(matching_names)
 
-    def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
+    def _update_similarities_analysis(
+        self,
+        chart_ids: list[int],
+        *,
+        refresh_pair_controls: bool = True,
+    ) -> None:
         selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
         db_chart_ids = [
             int(normalized[0])
@@ -7728,21 +7736,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not _chart_row_is_non_aggregable(normalized)
         ]
         db_total_count = len(db_chart_ids)
-        if self._similarities_pair_button is not None:
+        if refresh_pair_controls:
+            # Pair-comparison result rendering may pass a resolved two-chart pair
+            # here solely to refresh the breakdown.  In that path, keep the
+            # original input/selection validation state instead of re-resolving
+            # one checked input against two analysis IDs.
             resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
-            self._similarities_pair_button.setStyleSheet(
-                SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
-                if resolution.allow_click
-                else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
-            )
-            self._similarities_pair_button.setToolTip(
-                "Calculate similarity between the selected/input charts."
-                if resolution.allow_click
-                else (resolution.guidance or "Select 2 charts to compare.")
-            )
-        if self._similarities_pair_result_label is not None:
-            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
-            if not resolution.allow_click:
+            if self._similarities_pair_button is not None:
+                self._similarities_pair_button.setStyleSheet(
+                    SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
+                    if resolution.allow_click
+                    else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
+                )
+                self._similarities_pair_button.setToolTip(
+                    "Calculate similarity between the selected/input charts."
+                    if resolution.allow_click
+                    else (resolution.guidance or "Select 2 charts to compare.")
+                )
+            if (
+                self._similarities_pair_result_label is not None
+                and not resolution.allow_click
+            ):
                 self._similarities_pair_result_label.setText(
                     resolution.guidance or "Select 2 charts to compare."
                 )

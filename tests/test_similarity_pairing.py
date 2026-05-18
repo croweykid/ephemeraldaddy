@@ -26,6 +26,27 @@ def test_checked_chart_inputs_drive_similarity_breakdown_ids():
     assert similarity_breakdown_chart_ids(resolution) == [101, 202]
 
 
+def test_one_checked_input_and_one_selected_chart_drive_breakdown_ids():
+    chart_lookup = {
+        "Alice  [#101]": 101,
+        "Bob  [#202]": 202,
+    }
+    input_state = SimilarityInputState(
+        selected_chart_ids=[202],
+        first_checked=True,
+        second_checked=False,
+        first_input_value="Alice  [#101]",
+        second_input_value="",
+    )
+
+    resolution = resolve_similarity_pair_targets(input_state, chart_lookup)
+
+    assert resolution.first_chart_id == 101
+    assert resolution.second_chart_id == 202
+    assert resolution.allow_click is True
+    assert similarity_breakdown_chart_ids(resolution) == [101, 202]
+
+
 def test_unresolved_pair_has_no_breakdown_ids():
     chart_lookup = {"Alice  [#101]": 101}
     input_state = SimilarityInputState(
