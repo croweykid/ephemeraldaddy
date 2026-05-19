@@ -218,28 +218,30 @@ class ChartAnalysisSectionsController:
 
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-            if on_toggled is not None:
-                on_toggled(checked)
 
             content.updateGeometry()
             section.updateGeometry()
             panel.updateGeometry()
             restore_scroll_position()
 
-            # Let Qt finish the scroll area's relayout, then restore the same
-            # header anchor once before repaint.  Repeated delayed corrections
-            # and long viewport update freezes make the right-hand Chart
-            # Analytics/Predictions panels visibly flicker or "turbo-jump" as
-            # sections expand.
+            # Defer expensive on_toggled callbacks (which may schedule chart
+            # renders) until after the initial relayout, then re-anchor again.
+            # This avoids a fast double-scroll effect when lower sections open
+            # while upper chart sections are already expanded.
             def finish_relayout() -> None:
                 content.updateGeometry()
                 section.updateGeometry()
                 panel.updateGeometry()
                 restore_scroll_position()
+                if on_toggled is not None:
+                    on_toggled(checked)
+                restore_scroll_position()
                 if viewport is not None:
                     viewport.update()
 
             QTimer.singleShot(0, finish_relayout)
+            if checked:
+                QTimer.singleShot(16, restore_scroll_position)
 
         toggle.toggled.connect(toggle_content)
 
