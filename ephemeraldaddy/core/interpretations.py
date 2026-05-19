@@ -3039,7 +3039,7 @@ DOMINANT_BODY_MEANINGS = {
     "Sun": {
         "symbol": "☉",
         "category": "planet",
-        "core_theme": "Identity, vitality, central purpose, self-definition, will.",
+        "core_theme": "Identity, vitality, central purpose, self-definition, will",
         "summary": (
             "A Sun-dominant person is usually trying, consciously or not, to become "
             "more fully themselves. Their life often revolves around authorship, "
@@ -3075,7 +3075,7 @@ DOMINANT_BODY_MEANINGS = {
     "Moon": {
         "symbol": "☽",
         "category": "planet",
-        "core_theme": "Emotional life, instinct, needs, bonding, memory, internal safety.",
+        "core_theme": "Emotional life, instinct, needs, bonding, memory, internal safety",
         "summary": (
             "A Moon-dominant person lives through felt experience first. Their inner "
             "weather is not background—it is infrastructure. They often absorb atmosphere "
@@ -3115,7 +3115,7 @@ DOMINANT_BODY_MEANINGS = {
     "Mercury": {
         "symbol": "☿",
         "category": "planet",
-        "core_theme": "Mind, language, pattern recognition, interpretation, exchange.",
+        "core_theme": "Mind, language, pattern recognition, interpretation, exchange",
         "summary": (
             "A Mercury-dominant person lives by naming, sorting, comparing, decoding, "
             "and articulating. Their relationship to reality is often mediated through "
@@ -3158,7 +3158,7 @@ DOMINANT_BODY_MEANINGS = {
     "Venus": {
         "symbol": "♀",
         "category": "planet",
-        "core_theme": "Attraction, harmony, values, pleasure, aesthetics, social magnetism, relating.",
+        "core_theme": "Attraction, harmony, values, pleasure, aesthetics, social magnetism, relating",
         "summary": (
             "A Venus-dominant person is often organized around taste, connection, "
             "desirability, reciprocity, and what feels worth loving. Venus is not just "
@@ -3197,7 +3197,7 @@ DOMINANT_BODY_MEANINGS = {
     "Mars": {
         "symbol": "♂",
         "category": "planet",
-        "core_theme": "Drive, assertion, action, desire, courage, aggression, survival force.",
+        "core_theme": "Drive, assertion, action, desire, courage, aggression, survival force",
         "summary": (
             "A Mars-dominant person tends to meet life as a thing to engage, pursue, "
             "challenge, confront, or move through. Mars dominance often produces a person "
@@ -3237,7 +3237,7 @@ DOMINANT_BODY_MEANINGS = {
     "Jupiter": {
         "symbol": "♃",
         "category": "planet",
-        "core_theme": "Growth, meaning, faith, expansion, philosophy, abundance, worldview.",
+        "core_theme": "Growth, meaning, faith, expansion, philosophy, abundance, worldview",
         "summary": (
             "A Jupiter-dominant person often lives in relation to possibility. They tend "
             "to orient toward growth, perspective, big-picture meaning, and what could be "
@@ -3278,7 +3278,7 @@ DOMINANT_BODY_MEANINGS = {
     "Saturn": {
         "symbol": "♄",
         "category": "planet",
-        "core_theme": "Structure, responsibility, time, discipline, fear, legitimacy, endurance, mastery.",
+        "core_theme": "Structure, responsibility, time, discipline, fear, legitimacy, endurance, mastery",
         "summary": (
             "A Saturn-dominant person often develops early around constraint, seriousness, "
             "pressure, standards, or the need to become competent. Saturn dominance often "
@@ -3319,7 +3319,7 @@ DOMINANT_BODY_MEANINGS = {
     "Uranus": {
         "symbol": "♅",
         "category": "planet",
-        "core_theme": "Freedom, disruption, originality, individuation, awakening, unconventionality.",
+        "core_theme": "Freedom, disruption, originality, individuation, awakening, unconventionality",
         "summary": (
             "A Uranus-dominant person is usually built to differentiate. They often have "
             "a sharp instinct to detach from stale systems, reject false conformity, and "
@@ -3361,7 +3361,7 @@ DOMINANT_BODY_MEANINGS = {
     "Neptune": {
         "symbol": "♆",
         "category": "planet",
-        "core_theme": "Imagination, transcendence, sensitivity, spirituality, longing, permeability, illusion.",
+        "core_theme": "Imagination, transcendence, sensitivity, spirituality, longing, permeability, illusion",
         "summary": (
             "A Neptune-dominant person often experiences life through symbol, atmosphere, "
             "longing, beauty, mystery, and porous boundaries. This often creates a major "
@@ -3403,7 +3403,7 @@ DOMINANT_BODY_MEANINGS = {
     "Pluto": {
         "symbol": "♇",
         "category": "planet",
-        "core_theme": "Intensity, transformation, power, compulsion, depth, taboo, psychological truth.",
+        "core_theme": "Intensity, transformation, power, compulsion, depth, taboo, psychological truth",
         "summary": (
             "A Pluto-dominant person rarely does 'light and easy' in any sustained way. "
             "Even when externally calm, they often carry a deep instinct toward penetration, "
@@ -3445,7 +3445,7 @@ DOMINANT_BODY_MEANINGS = {
     "Rahu": {
         "symbol": "☊",
         "category": "lunar_node",
-        "core_theme": "Appetite, obsession, amplification, worldly hunger, future pull, destabilizing desire.",
+        "core_theme": "Appetite, obsession, amplification, worldly hunger, future pull, destabilizing desire",
         "summary": (
             "A Rahu-dominant person is often organized around appetite, ambition, fascination, "
             "and unfinished desire. Rahu tends to act like a magnifier: it makes certain life "
@@ -3487,7 +3487,7 @@ DOMINANT_BODY_MEANINGS = {
     "Ketu": {
         "symbol": "☋",
         "category": "lunar_node",
-        "core_theme": "Detachment, past mastery, renunciation, karmic residue, spiritual subtraction, release.",
+        "core_theme": "Detachment, past mastery, renunciation, karmic residue, spiritual subtraction, release",
         "summary": (
             "A Ketu-dominant person often feels partially disenchanted with ordinary worldly "
             "rewards. Ketu can indicate old mastery, old exhaustion, and a tendency to withdraw "
@@ -3528,7 +3528,7 @@ DOMINANT_BODY_MEANINGS = {
     "Lilith": {
         "symbol": "⚸",
         "category": "lunar_apogee",
-        "core_theme": "Raw autonomy, refusal, erotic sovereignty, exile, taboo selfhood, untamed instinct.",
+        "core_theme": "Raw autonomy, refusal, erotic sovereignty, exile, taboo selfhood, untamed instinct",
         "summary": (
             "A Lilith-dominant person often carries themes of refusal, autonomy, erotic charge, "
             "social noncompliance, and the parts of the psyche that will not submit politely. "
@@ -3567,7 +3567,7 @@ DOMINANT_BODY_MEANINGS = {
     "Chiron": {
         "symbol": "⚷",
         "category": "asteroid",
-        "core_theme": "Wound, wisdom, sensitivity, apprenticeship through pain, healing intelligence.",
+        "core_theme": "Wound, wisdom, sensitivity, apprenticeship through pain, healing intelligence",
         "summary": (
             "A Chiron-dominant person often develops identity around a core sensitivity, rupture, "
             "or unresolved ache that becomes a source of unusual understanding. Chiron tends to "
@@ -3603,7 +3603,7 @@ DOMINANT_BODY_MEANINGS = {
     "Ceres": {
         "symbol": "⚳",
         "category": "asteroid",
-        "core_theme": "Nourishment, caretaking, provision, grief, cycles of attachment and loss.",
+        "core_theme": "Nourishment, caretaking, provision, grief, cycles of attachment and loss",
         "summary": (
             "A Ceres-dominant person is often organized around feeding, protecting, supporting, "
             "or sustaining life. Ceres tends to describe how someone nourishes and how they cope "
@@ -3638,7 +3638,7 @@ DOMINANT_BODY_MEANINGS = {
     "Pallas": {
         "symbol": "⚴",
         "category": "asteroid",
-        "core_theme": "Pattern intelligence, strategy, design, wisdom, systems thinking, tactical perception.",
+        "core_theme": "Pattern intelligence, strategy, design, wisdom, systems thinking, tactical perception",
         "summary": (
             "A Pallas-dominant person often leads with pattern recognition, strategic intelligence, "
             "and elegant problem-solving. Pallas tends to describe the mind as architect: seeing "
@@ -3672,7 +3672,7 @@ DOMINANT_BODY_MEANINGS = {
     "Juno": {
         "symbol": "⚵",
         "category": "asteroid",
-        "core_theme": "Commitment, partnership, vows, loyalty, power in union, relational contract.",
+        "core_theme": "Commitment, partnership, vows, loyalty, power in union, relational contract",
         "summary": (
             "A Juno-dominant person often organizes life around the meaning of commitment, reciprocity, "
             "and what constitutes a true bond. Juno tends to describe how a person approaches formal "
@@ -3707,7 +3707,7 @@ DOMINANT_BODY_MEANINGS = {
     "Vesta": {
         "symbol": "⚶",
         "category": "asteroid",
-        "core_theme": "Devotion, focus, sacred work, inner flame, disciplined consecration.",
+        "core_theme": "Devotion, focus, sacred work, inner flame, disciplined consecration",
         "summary": (
             "A Vesta-dominant person often has a strong capacity for concentration, devotion, "
             "and self-contained purpose. Vesta tends to describe what a person treats as sacred, "
@@ -3744,7 +3744,7 @@ DOMINANT_BODY_MEANINGS = {
     "Psyche": {
         "symbol": "Ψ",
         "category": "asteroid",
-        "core_theme": "Soul sensitivity, intimacy of perception, longing for deep recognition, psychic receptivity.",
+        "core_theme": "Soul sensitivity, intimacy of perception, longing for deep recognition, psychic receptivity",
         "summary": (
             "A Psyche-dominant person often experiences relationships and meaning through unusually "
             "fine emotional or symbolic sensitivity. Psyche tends to describe where the soul wants "
@@ -3778,7 +3778,7 @@ DOMINANT_BODY_MEANINGS = {
     "Eros": {
         "symbol": "♥",
         "category": "asteroid",
-        "core_theme": "Erotic vitality, creative desire, fascination, arousal, enlivening intensity.",
+        "core_theme": "Erotic vitality, creative desire, fascination, arousal, enlivening intensity",
         "summary": (
             "A Eros-dominant person often leads with desire, fascination, creative hunger, and the "
             "animating force of attraction itself. Eros is not just sexuality; it is the principle "
