@@ -11,6 +11,6 @@ class ChartRightPanelState:
 
     active_tab: str = "subjective_notes"
     expanded_sections: dict[str, bool] = field(default_factory=dict)
-    dirty_render_sections: set[str] = field(default_factory=set)
+    lucy_goosey_render_sections: set[str] = field(default_factory=set)
     last_render_chart_token: str | None = None
 
