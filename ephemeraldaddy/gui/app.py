@@ -513,6 +513,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_GLYPHS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
+    DECANS,
     RELATION_TYPE,
     RODDEN_RATING,
     FAMILIARITY_INDEX,
@@ -25300,6 +25301,14 @@ class MainWindow(QMainWindow):
                         if entry.get("kind") == "nakshatra":
                             self._show_nakshatra_info(str(entry.get("nakshatra", "")))
                             return True
+                        if entry.get("kind") == "decan":
+                            self._show_decan_info(
+                                body=str(entry.get("body", "")),
+                                sign=str(entry.get("sign", "")),
+                                decan=int(entry.get("decan", 1)),
+                                decan_sign=str(entry.get("decan_sign", "")),
+                            )
+                            return True
                         if entry.get("kind") == "hd_gate_line":
                             self._show_human_design_gate_line_info(
                                 int(entry.get("gate", 0)),
@@ -25558,6 +25567,35 @@ class MainWindow(QMainWindow):
             )
             header = f"{body} in {sign} • House {house_num}"
         self._set_chart_info_lines_with_segments(header, unique_lines)
+
+    def _show_decan_info(self, body: str, sign: str, decan: int, decan_sign: str) -> None:
+        sign_key = str(sign).title()
+        decan_number = max(1, min(3, int(decan)))
+        decan_sign_key = str(decan_sign).title() or sign_key
+        if decan_sign_key not in DECANS.get(sign_key, []):
+            decan_sign_key = DECANS.get(sign_key, [sign_key, sign_key, sign_key])[decan_number - 1]
+        rulers = [
+            planet
+            for planet, ruled_signs in PLANET_RULERSHIP.items()
+            if decan_sign_key in set(ruled_signs or set())
+        ]
+        if not rulers:
+            ruler_text = "Unknown"
+        elif len(rulers) == 1:
+            ruler_text = rulers[0]
+        else:
+            ruler_text = " & ".join(rulers)
+        suffix = "th"
+        if decan_number % 10 == 1 and decan_number != 11:
+            suffix = "st"
+        elif decan_number % 10 == 2 and decan_number != 12:
+            suffix = "nd"
+        elif decan_number % 10 == 3 and decan_number != 13:
+            suffix = "rd"
+        self.chart_info_output.setPlainText(
+            f"{body} in {sign_key} is in the {decan_number}{suffix} "
+            f"[\"{decan_sign_key}/{ruler_text}\" in this case] decan."
+        )
 
     def _set_chart_info_lines_with_segments(
         self,
