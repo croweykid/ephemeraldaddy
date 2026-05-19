@@ -25289,7 +25289,11 @@ class MainWindow(QMainWindow):
                             self._show_planet_keyword_info(str(entry.get("body", "")))
                             return True
                         if entry.get("kind") == "sign_keyword":
-                            self._show_sign_keyword_info(str(entry.get("sign", "")))
+                            self._show_sign_keyword_info(
+                                str(entry.get("sign", "")),
+                                body_name=str(entry.get("body", "")),
+                                longitude=entry.get("longitude"),
+                            )
                             return True
                         if entry.get("kind") == "house_keyword":
                             try:
@@ -25300,14 +25304,6 @@ class MainWindow(QMainWindow):
                             return True
                         if entry.get("kind") == "nakshatra":
                             self._show_nakshatra_info(str(entry.get("nakshatra", "")))
-                            return True
-                        if entry.get("kind") == "decan":
-                            self._show_decan_info(
-                                body=str(entry.get("body", "")),
-                                sign=str(entry.get("sign", "")),
-                                decan=int(entry.get("decan", 1)),
-                                decan_sign=str(entry.get("decan_sign", "")),
-                            )
                             return True
                         if entry.get("kind") == "hd_gate_line":
                             self._show_human_design_gate_line_info(
@@ -25645,8 +25641,14 @@ class MainWindow(QMainWindow):
         lines = [f"• {keyword}" for keyword in clean_verbs]
         self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
 
-    def _show_sign_keyword_info(self, sign_name: str) -> None:
+    def _show_sign_keyword_info(
+        self,
+        sign_name: str,
+        body_name: str = "",
+        longitude: object | None = None,
+    ) -> None:
         sign_key = str(sign_name or "").strip().title()
+        body_key = str(body_name or "").strip()
         sign_keywords = SIGN_KEYWORDS.get(sign_key, {})
         best_keywords = [
             str(item).strip() for item in sign_keywords.get("best", []) if str(item).strip()
@@ -25657,6 +25659,34 @@ class MainWindow(QMainWindow):
         if not (best_keywords or worst_keywords):
             self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
             return
+        decan_intro = ""
+        try:
+            lon_value = float(longitude) if longitude is not None else None
+        except (TypeError, ValueError):
+            lon_value = None
+        if lon_value is not None:
+            degree_in_sign = lon_value % 30.0
+            decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
+            decan_sign = DECANS.get(sign_key, [sign_key, sign_key, sign_key])[decan_number - 1]
+            rulers = [
+                planet
+                for planet, ruled_signs in PLANET_RULERSHIP.items()
+                if decan_sign in set(ruled_signs or set())
+            ]
+            ruler_text = " & ".join(rulers) if rulers else "Unknown"
+            suffix = "th"
+            if decan_number == 1:
+                suffix = "st"
+            elif decan_number == 2:
+                suffix = "nd"
+            elif decan_number == 3:
+                suffix = "rd"
+            display_body = body_key or "Body"
+            decan_intro = (
+                f"{display_body} is in the {decan_number}{suffix} "
+                f"({decan_sign}/{ruler_text}) decan of {sign_key}."
+            )
+
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
@@ -25667,16 +25697,26 @@ class MainWindow(QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        cursor.insertText(f"{sign_key}\n\n")
+        if decan_intro:
+            cursor.insertText(f"{decan_intro}\n\n", plain_fmt)
+        theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
+        if theme:
+            theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+            theme_fmt = QTextCharFormat()
+            theme_fmt.setForeground(QColor(theme_color))
+            cursor.insertText(f"{theme} ", theme_fmt)
+            cursor.insertText("is...\n\n", plain_fmt)
+        else:
+            cursor.insertText(f"{sign_key}\n\n", plain_fmt)
         if best_keywords:
-            cursor.insertText("Best:", header_fmt)
+            cursor.insertText("At Best:", header_fmt)
             cursor.insertText("\n", plain_fmt)
             for keyword in best_keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
         if worst_keywords:
             if best_keywords:
                 cursor.insertText("\n", plain_fmt)
-            cursor.insertText("Worst:", header_fmt)
+            cursor.insertText("At Worst:", header_fmt)
             cursor.insertText("\n", plain_fmt)
             for keyword in worst_keywords:
                 cursor.insertText(f"• {keyword}\n", plain_fmt)
