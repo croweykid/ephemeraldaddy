@@ -194,14 +194,6 @@ class ChartAnalysisSectionsController:
             )
             horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
 
-            if viewport is not None:
-                viewport.setUpdatesEnabled(False)
-
-            content.setVisible(checked)
-            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-            if on_toggled is not None:
-                on_toggled(checked)
-
             def restore_scroll_position() -> None:
                 if (
                     vertical_scrollbar is not None
@@ -224,23 +216,32 @@ class ChartAnalysisSectionsController:
                         )
                     )
 
-            def update_panel_geometry() -> None:
+            content.setVisible(checked)
+            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+
+            content.updateGeometry()
+            section.updateGeometry()
+            panel.updateGeometry()
+            restore_scroll_position()
+
+            # Defer expensive on_toggled callbacks (which may schedule chart
+            # renders) until after the initial relayout, then re-anchor again.
+            # This avoids a fast double-scroll effect when lower sections open
+            # while upper chart sections are already expanded.
+            def finish_relayout() -> None:
                 content.updateGeometry()
                 section.updateGeometry()
                 panel.updateGeometry()
                 restore_scroll_position()
-
-            def unfreeze_viewport() -> None:
+                if on_toggled is not None:
+                    on_toggled(checked)
                 restore_scroll_position()
                 if viewport is not None:
-                    viewport.setUpdatesEnabled(True)
                     viewport.update()
 
-            restore_scroll_position()
-            QTimer.singleShot(0, update_panel_geometry)
-            for delay_ms in (0, 16, 50, 120):
-                QTimer.singleShot(delay_ms, restore_scroll_position)
-            QTimer.singleShot(120, unfreeze_viewport)
+            QTimer.singleShot(0, finish_relayout)
+            if checked:
+                QTimer.singleShot(16, restore_scroll_position)
 
         toggle.toggled.connect(toggle_content)
 
