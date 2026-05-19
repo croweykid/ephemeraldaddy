@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QThread, Qt, QSize, QTimer
+from PySide6.QtCore import QPoint, QThread, Qt, QSize
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -184,7 +184,6 @@ class ChartAnalysisSectionsController:
         def toggle_content(checked: bool) -> None:
             scroll_area = nearest_scroll_area(section)
             vertical_scrollbar = scroll_area.verticalScrollBar() if scroll_area is not None else None
-            horizontal_scrollbar = scroll_area.horizontalScrollBar() if scroll_area is not None else None
             scroll_widget = scroll_area.widget() if scroll_area is not None else None
             viewport = scroll_area.viewport() if scroll_area is not None else None
             anchor_viewport_y = (
@@ -192,7 +191,6 @@ class ChartAnalysisSectionsController:
                 if viewport is not None
                 else None
             )
-            horizontal_scroll_value = horizontal_scrollbar.value() if horizontal_scrollbar is not None else 0
 
             def restore_scroll_position() -> None:
                 if (
@@ -208,40 +206,13 @@ class ChartAnalysisSectionsController:
                             min(target_vertical_value, vertical_scrollbar.maximum()),
                         )
                     )
-                if horizontal_scrollbar is not None:
-                    horizontal_scrollbar.setValue(
-                        max(
-                            horizontal_scrollbar.minimum(),
-                            min(horizontal_scroll_value, horizontal_scrollbar.maximum()),
-                        )
-                    )
 
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-
-            content.updateGeometry()
-            section.updateGeometry()
             panel.updateGeometry()
             restore_scroll_position()
-
-            # Defer expensive on_toggled callbacks (which may schedule chart
-            # renders) until after the initial relayout, then re-anchor again.
-            # This avoids a fast double-scroll effect when lower sections open
-            # while upper chart sections are already expanded.
-            def finish_relayout() -> None:
-                content.updateGeometry()
-                section.updateGeometry()
-                panel.updateGeometry()
-                restore_scroll_position()
-                if on_toggled is not None:
-                    on_toggled(checked)
-                restore_scroll_position()
-                if viewport is not None:
-                    viewport.update()
-
-            QTimer.singleShot(0, finish_relayout)
-            if checked:
-                QTimer.singleShot(16, restore_scroll_position)
+            if on_toggled is not None:
+                on_toggled(checked)
 
         toggle.toggled.connect(toggle_content)
 
