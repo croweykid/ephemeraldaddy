@@ -31,6 +31,7 @@ from ephemeraldaddy.core.interpretations import (
     aspect_score,
     PLANET_GLYPHS,
     PLANET_ORDER,
+    DECANS,
 )
 from ephemeraldaddy.core.house_definitions import HOUSE_DEFINITIONS
 from ephemeraldaddy.gui.features.charts.aspect_sorting import sort_natal_aspects
@@ -61,6 +62,23 @@ def _display_cell_width(text: str) -> int:
 def _pad_display_column(text: str, width: int) -> str:
     padding = max(width - _display_cell_width(text), 0)
     return f"{text}{' ' * padding}"
+
+
+def _decan_info_from_longitude(longitude: float) -> dict[str, object]:
+    normalized_longitude = float(longitude) % 360.0
+    sign_index = int(normalized_longitude // 30.0) % 12
+    sign = sign_for_longitude(normalized_longitude)
+    degree_in_sign = normalized_longitude % 30.0
+    decan = int(degree_in_sign // 10.0) + 1
+    decan_signs = DECANS.get(sign, [sign, sign, sign])
+    decan_sign = decan_signs[decan - 1] if len(decan_signs) >= decan else sign
+    return {
+        "sign_index": sign_index,
+        "sign": sign,
+        "degree_in_sign": degree_in_sign,
+        "decan": decan,
+        "decan_sign": decan_sign,
+    }
 
 
 # _AXIS_LABEL_OVERRIDES: dict[str, str] = {
@@ -498,6 +516,7 @@ def format_chart_text(
     degree_width = 12
     nakshatra_width = 22
     house_width = 5
+    decan_width = 3
     if use_houses:
         lines.append(
             "  ".join(
@@ -507,6 +526,7 @@ def format_chart_text(
                     _pad_display_column("Degree", degree_width),
                     _pad_display_column("Nakshatra", nakshatra_width),
                     _pad_display_column("House", house_width),
+                    _pad_display_column("dec", decan_width),
                 ]
             )
         )
@@ -596,13 +616,16 @@ def format_chart_text(
 
         if use_houses:
             house_num = house_for_longitude(houses, lon)
+            decan_info = _decan_info_from_longitude(lon)
+            decan_text = str(decan_info["decan"])
             house_label = f"H{house_num}" if house_num is not None else "-"
             body_column = _pad_display_column(display_body, body_width)
             sign_column = _pad_display_column(sign_label, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
             nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
             house_column = _pad_display_column(house_label, house_width)
-            columns = [body_column, sign_column, degree_column, nakshatra_column, house_column]
+            decan_column = _pad_display_column(decan_text, decan_width)
+            columns = [body_column, sign_column, degree_column, nakshatra_column, house_column, decan_column]
             column_offsets: list[int] = []
             line_cursor = 0
             for index, column in enumerate(columns):
@@ -644,17 +667,29 @@ def format_chart_text(
                         "span_end": column_offsets[4] + len(house_label),
                     }
                 )
-                line = f"{line} ⓘ"
-                entry_list.append(
-                    {
-                        "kind": "position",
-                        "body": body,
-                        "sign": sign_for_longitude(lon),
-                        "house": house_num,
-                        "column": 4,
-                        "icon_index": line.rfind("ⓘ"),
-                    }
-                )
+            entry_list.append(
+                {
+                    "kind": "decan",
+                    "body": body,
+                    "sign": sign_label,
+                    "decan": decan_info["decan"],
+                    "decan_sign": decan_info["decan_sign"],
+                    "column": 5,
+                    "span_start": column_offsets[5],
+                    "span_end": column_offsets[5] + len(decan_text),
+                }
+            )
+            line = f"{line} ⓘ"
+            entry_list.append(
+                {
+                    "kind": "position",
+                    "body": body,
+                    "sign": sign_for_longitude(lon),
+                    "house": house_num,
+                    "column": 4,
+                    "icon_index": line.rfind("ⓘ"),
+                }
+            )
             position_info_map[len(lines)] = entry_list
             lines.append(line)
         else:
