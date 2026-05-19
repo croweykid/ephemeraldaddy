@@ -15104,6 +15104,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return collection_id
 
     def _on_create_custom_collection(self) -> None:
+        selected_chart_ids = set(self._selected_chart_ids())
+        include_selected_charts = False
+        if selected_chart_ids:
+            selected_count = len(selected_chart_ids)
+            chart_label = "chart" if selected_count == 1 else "charts"
+            answer = QMessageBox.question(
+                self,
+                "New Collection",
+                f"Create new collection from the selected {selected_count} {chart_label}?",
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            include_selected_charts = True
         name, accepted = QInputDialog.getText(self, "New Collection", "Collection name:")
         if not accepted:
             return
@@ -15117,7 +15132,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections[candidate] = CustomCollection(
             collection_id=candidate,
             name=clean_name,
-            chart_ids=frozenset(),
+            chart_ids=frozenset(selected_chart_ids if include_selected_charts else ()),
         )
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
