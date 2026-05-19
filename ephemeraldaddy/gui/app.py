@@ -387,6 +387,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     PersonalTransitLocationError,
     build_personal_transit_header_lines,
@@ -20697,6 +20698,9 @@ class MainWindow(QMainWindow):
             "similar_charts",
             "anagrams",
         }
+        self._chart_right_panel_state = ChartRightPanelState(
+            dirty_render_sections=set(self._chart_analytics_dirty_sections)
+        )
         self._render_flush_timer = QTimer(self)
         self._render_flush_timer.setSingleShot(True)
         self._render_flush_timer.timeout.connect(self._flush_scheduled_chart_render)
@@ -20708,7 +20712,7 @@ class MainWindow(QMainWindow):
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
-        self._chart_analysis_section_expanded: dict[str, bool] = {}
+        self._chart_analysis_section_expanded = self._chart_right_panel_state.expanded_sections
         self._chart_analysis_section_visible: dict[str, bool] = {}
         self._chart_analysis_section_layouts: dict[str, QVBoxLayout] = {}
         self._chart_analysis_section_widgets: dict[str, QWidget] = {}
@@ -26339,21 +26343,11 @@ class MainWindow(QMainWindow):
             active_scroll = self.chart_analytics_panel_scroll
         panel_stack.setCurrentWidget(active_scroll)
         self.metrics_scroll = active_scroll
+        self._chart_right_panel_state.active_tab = panel_key
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        if panel_key == "analytics" and self._latest_chart is not None:
-            self._schedule_chart_render(self._latest_chart)
-        if (
-            panel_key == "subjective_notes"
-            and self._latest_chart is not None
-            and self._is_chart_analysis_section_visible("anagrams")
-        ):
-            self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
-        if panel_key == "predictions" and self._latest_chart is not None:
-            self._render_enneagram_predictions(self._latest_chart)
-            self._render_dndification_predictions(self._latest_chart)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
@@ -28445,7 +28439,7 @@ class MainWindow(QMainWindow):
             return False
         if not self.metrics_panel.isVisible():
             return False
-        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        active_panel = self._chart_right_panel_state.active_tab
         expected_panel = "subjective_notes" if render_key == "anagrams" else "analytics"
         if active_panel != expected_panel:
             return False
@@ -28484,7 +28478,7 @@ class MainWindow(QMainWindow):
     def _schedule_passive_chart_analysis_preload(self, chart: Chart) -> None:
         if not self.metrics_panel.isVisible():
             return
-        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        active_panel = self._chart_right_panel_state.active_tab
         if active_panel == "subjective_notes":
             if not self._is_chart_analysis_section_visible("anagrams"):
                 return
