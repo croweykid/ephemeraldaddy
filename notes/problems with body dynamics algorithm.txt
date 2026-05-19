@@ -1,0 +1,34 @@
+problems with body dynamics algorithm
+
+I don't care about broad categorical flattening into 3 major buckets, for now. The experiment is just to assess "friction", "smoothness" and "escalation". That's all. Gotta keep sight of scope here. But that said, accuracy within that scope is critical.
+Secondly, a lot of what you said ignores prior discussion regarding what I already have, so it was just an inaccurate assessment of the full structure.
+
+Your most valid & useful points:
+
+4. It ignores asymmetry.
+Your dictionary treats a pair as one unit. Real charts often do not.
+Example:
+Saturn square Moon may burden the Moon far more than it “burdens Saturn”
+Jupiter trine Sun may strengthen the Sun’s functioning more than it changes Jupiter’s role
+Mercury conjunct Neptune may blur Mercury more than it empowers Neptune
+So there are really two questions:
+what is the pair dynamic
+how does the aspect affect body A specifically and body B specifically
+Your current model answers only the first.
+
+8. It assumes “benefic” and “malefic” pair logic is universally stable.
+That is partly true, but not enough to be safe.
+
+Example:
+Mars can be highly enabling in charts that require assertion, severance, speed, immunity to dithering
+Saturn can be enabling in charts that are otherwise diffuse, manic, inflated, or porous
+Jupiter can be destabilizing when it inflates nonsense rather than capacity
+So pair priors should probably be continuous values, not categorical labels.
+
+10. It ignores aspect pattern context.
+A single aspect rarely acts alone.
+Examples:
+a square inside a grand trine-heavy chart behaves differently from the same square in a chart built on oppositions
+a conjunction tied into a T-square is not just “this pair fused”
+a trine feeding a larger avoidance pattern may be pleasant but not productive
+Your model is pairwise. Charts are networks.
