@@ -514,6 +514,19 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                             self._plain_bold_format,
                         )
                     token_start = token_end
+        if all(token in stripped_text for token in ("Body", "Sign", "Degree", "Nakshatra", "House", "G.L.")):
+            for header_token in ("Body", "Sign", "Degree", "Nakshatra", "House", "G.L."):
+                token_start = 0
+                while True:
+                    token_start = text.find(header_token, token_start)
+                    if token_start == -1:
+                        break
+                    self.setFormat(
+                        self._qt_index(text, token_start),
+                        self._qt_len(header_token),
+                        self._plain_bold_format,
+                    )
+                    token_start += len(header_token)
         if lowered_stripped in {"defined", "undefined"}:
             self.setFormat(0, self._qt_len(text), self._copper_header_format)
         if (

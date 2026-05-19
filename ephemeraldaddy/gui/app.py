@@ -549,6 +549,7 @@ from ephemeraldaddy.core.interpretations import (
     ASPECT_TYPES,
     ENNEAGRAM,
 )
+from ephemeraldaddy.core.decans import ZODIAC_DECANS
 
 from ephemeraldaddy.gui.features.charts.delegates import CHART_ROW_PLACE_COLOR, ChartRowDelegate
 from ephemeraldaddy.gui.features.charts.provenance import (
@@ -25292,7 +25293,13 @@ class MainWindow(QMainWindow):
                             self._show_sign_keyword_info(
                                 str(entry.get("sign", "")),
                                 body_name=str(entry.get("body", "")),
-                                longitude=entry.get("longitude"),
+                            )
+                            return True
+                        if entry.get("kind") == "decan_keyword":
+                            self._show_decan_info(
+                                str(entry.get("body", "")),
+                                str(entry.get("sign", "")),
+                                entry.get("longitude"),
                             )
                             return True
                         if entry.get("kind") == "house_keyword":
@@ -25564,34 +25571,54 @@ class MainWindow(QMainWindow):
             header = f"{body} in {sign} • House {house_num}"
         self._set_chart_info_lines_with_segments(header, unique_lines)
 
-    def _show_decan_info(self, body: str, sign: str, decan: int, decan_sign: str) -> None:
-        sign_key = str(sign).title()
-        decan_number = max(1, min(3, int(decan)))
-        decan_sign_key = str(decan_sign).title() or sign_key
-        if decan_sign_key not in DECANS.get(sign_key, []):
-            decan_sign_key = DECANS.get(sign_key, [sign_key, sign_key, sign_key])[decan_number - 1]
-        rulers = [
-            planet
-            for planet, ruled_signs in PLANET_RULERSHIP.items()
-            if decan_sign_key in set(ruled_signs or set())
-        ]
-        if not rulers:
-            ruler_text = "Unknown"
-        elif len(rulers) == 1:
-            ruler_text = rulers[0]
-        else:
-            ruler_text = " & ".join(rulers)
+    def _show_decan_info(self, body: str, sign: str, longitude: object | None) -> None:
+        sign_key = str(sign or "").strip().title()
+        body_key = str(body or "").strip()
+        display_body = _display_body_name(body_key)
+        try:
+            lon_value = float(longitude) if longitude is not None else None
+        except (TypeError, ValueError):
+            lon_value = None
+        if lon_value is None:
+            self.chart_info_output.setPlainText(f"{display_body}: no decan data available.")
+            return
+        degree_in_sign = lon_value % 30.0
+        decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
         suffix = "th"
-        if decan_number % 10 == 1 and decan_number != 11:
+        if decan_number == 1:
             suffix = "st"
-        elif decan_number % 10 == 2 and decan_number != 12:
+        elif decan_number == 2:
             suffix = "nd"
-        elif decan_number % 10 == 3 and decan_number != 13:
+        elif decan_number == 3:
             suffix = "rd"
-        self.chart_info_output.setPlainText(
-            f"{body} in {sign_key} is in the {decan_number}{suffix} "
-            f"[\"{decan_sign_key}/{ruler_text}\" in this case] decan."
+        decan_entries = ZODIAC_DECANS.get(sign_key, [])
+        selected_decan = next(
+            (entry for entry in decan_entries if int(entry.get("decan", 0)) == decan_number),
+            {},
         )
+        subsign_ruler = str(selected_decan.get("subsign_ruler", "")).strip() or "Unknown"
+        description = str(selected_decan.get("description", "")).strip()
+        keywords = [str(k).strip() for k in selected_decan.get("keywords", []) if str(k).strip()]
+        title_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+        decan_color = PLANET_COLORS.get(subsign_ruler, CHART_THEME_COLORS.get("text", "#f5f5f5"))
+
+        self.chart_info_output.clear()
+        cursor = self.chart_info_output.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        title_fmt = QTextCharFormat()
+        title_fmt.setForeground(QColor(title_color))
+        title_fmt.setFontWeight(QFont.Bold)
+        subheader_fmt = QTextCharFormat()
+        subheader_fmt.setForeground(QColor(decan_color))
+        subheader_fmt.setFontItalic(True)
+        plain_fmt = QTextCharFormat()
+        plain_fmt.setFontWeight(QFont.Normal)
+        cursor.insertText(f"{display_body}: {decan_number}{suffix} decan of {sign_key}\n\n", title_fmt)
+        if description:
+            cursor.insertText(f"{description}\n\n", subheader_fmt)
+        for keyword in keywords:
+            cursor.insertText(f"• {keyword}\n", plain_fmt)
+        self.chart_info_output.setTextCursor(cursor)
 
     def _set_chart_info_lines_with_segments(
         self,
@@ -25659,37 +25686,13 @@ class MainWindow(QMainWindow):
         if not (best_keywords or worst_keywords):
             self.chart_info_output.setPlainText(f"{sign_key}\n\nNo keyword data available.")
             return
-        decan_intro = ""
-        try:
-            lon_value = float(longitude) if longitude is not None else None
-        except (TypeError, ValueError):
-            lon_value = None
-        if lon_value is not None:
-            degree_in_sign = lon_value % 30.0
-            decan_number = min(3, max(1, int(degree_in_sign // 10.0) + 1))
-            decan_sign = DECANS.get(sign_key, [sign_key, sign_key, sign_key])[decan_number - 1]
-            rulers = [
-                planet
-                for planet, ruled_signs in PLANET_RULERSHIP.items()
-                if decan_sign in set(ruled_signs or set())
-            ]
-            ruler_text = " & ".join(rulers) if rulers else "Unknown"
-            suffix = "th"
-            if decan_number == 1:
-                suffix = "st"
-            elif decan_number == 2:
-                suffix = "nd"
-            elif decan_number == 3:
-                suffix = "rd"
-            display_body = body_key or "Body"
-            decan_intro = (
-                f"{display_body} is in the {decan_number}{suffix} "
-                f"({decan_sign}/{ruler_text}) decan of {sign_key}."
-            )
-
         self.chart_info_output.clear()
         cursor = self.chart_info_output.textCursor()
         cursor.movePosition(QTextCursor.Start)
+        title_fmt = QTextCharFormat()
+        title_fmt.setForeground(QColor(PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))))
+        title_fmt.setFontWeight(QFont.Bold)
+        title_fmt.setFontPointSize(13)
         header_fmt = QTextCharFormat()
         header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
         header_fmt.setFontWeight(QFont.Bold)
@@ -25697,8 +25700,8 @@ class MainWindow(QMainWindow):
         plain_fmt.setFontWeight(QFont.Normal)
         plain_fmt.setFontItalic(False)
 
-        if decan_intro:
-            cursor.insertText(f"{decan_intro}\n\n", plain_fmt)
+        display_body = _display_body_name(body_key) if body_key else "Body"
+        cursor.insertText(f"{display_body} in {sign_key}\n\n", title_fmt)
         theme = DOMINANT_BODY_MEANINGS.get(body_key, {}).get("core_theme", "")
         if theme:
             theme_color = PLANET_COLORS.get(body_key, CHART_THEME_COLORS.get("text", "#f5f5f5"))
