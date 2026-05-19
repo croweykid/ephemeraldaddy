@@ -3926,6 +3926,23 @@ ASPECT_KEYWORDS = {
     ],
 }
 
+DECANS = {
+    "Aries":       ["Aries", "Leo", "Sagittarius"],
+    "Taurus":      ["Taurus", "Virgo", "Capricorn"],
+    "Gemini":      ["Gemini", "Libra", "Aquarius"],
+    "Cancer":      ["Cancer", "Scorpio", "Pisces"],
+
+    "Leo":         ["Leo", "Sagittarius", "Aries"],
+    "Virgo":       ["Virgo", "Capricorn", "Taurus"],
+    "Libra":       ["Libra", "Aquarius", "Gemini"],
+    "Scorpio":     ["Scorpio", "Pisces", "Cancer"],
+
+    "Sagittarius": ["Sagittarius", "Aries", "Leo"],
+    "Capricorn":   ["Capricorn", "Taurus", "Virgo"],
+    "Aquarius":    ["Aquarius", "Gemini", "Libra"],
+    "Pisces":      ["Pisces", "Cancer", "Scorpio"],
+}
+
 #=================== SOCIOLOGICAL STUFF
 
 GENERATIONAL_COHORTS = [

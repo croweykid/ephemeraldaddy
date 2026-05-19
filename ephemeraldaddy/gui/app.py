@@ -4,7 +4,9 @@ import calendar
 import copy
 import ctypes
 import datetime
+from dataclasses import asdict
 import html
+import hashlib
 import imojify
 import json
 import math
@@ -442,6 +444,7 @@ from ephemeraldaddy.core.curse_scoring import (
 from ephemeraldaddy.graphics.wheel_plot import draw_chart_wheel
 from ephemeraldaddy.graphics._chartwheel_generator_impl import draw_chartwheel
 from ephemeraldaddy.core.db import (
+    DB_PATH,
     save_chart,
     list_charts,
     load_chart,
@@ -20706,6 +20709,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name: str = ""
         self._similar_charts_reasoning_by_target: dict[str, Any] = {}
         self._similar_charts_popout_dialogs: list[QDialog] = []
+        self._similar_charts_popout_cache: OrderedDict[tuple[str, str, str, str], dict[str, Any]] = OrderedDict()
         self._similar_charts_request_id: str | None = None
         self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
         self._anagrams_summary_label: QLabel | None = None
@@ -21967,13 +21971,118 @@ class MainWindow(QMainWindow):
                 ),
             )
 
-    def _load_similar_chart_candidates(self) -> list[tuple[int, Chart]]:
-        rows = list_charts()
+    def _load_similar_chart_candidates(
+        self,
+        *,
+        rows: list[tuple[Any, ...]] | None = None,
+        current_chart_id: int | None = None,
+    ) -> list[tuple[int, Chart]]:
+        if rows is None:
+            rows = list_charts()
         return load_similar_chart_candidates(
             rows=rows,
-            current_chart_id=self.current_chart_id,
+            current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
         )
+
+    def _similar_charts_popout_database_signature(self, rows: list[tuple[Any, ...]]) -> str:
+        database_files: list[tuple[str, int | None, int | None]] = []
+        for path in (DB_PATH, Path(f"{DB_PATH}-wal")):
+            try:
+                stat = path.stat()
+            except OSError:
+                database_files.append((str(path), None, None))
+                continue
+            database_files.append((str(path), int(stat.st_mtime_ns), int(stat.st_size)))
+        payload = json.dumps(
+            {"rows": rows, "database_files": database_files},
+            default=str,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _similar_charts_popout_subject_signature(
+        self,
+        *,
+        chart: Chart,
+        subject_chart_id: int | None,
+    ) -> str:
+        dt_value = getattr(chart, "dt", None)
+        signature_payload = {
+            "id": subject_chart_id,
+            "name": str(getattr(chart, "name", "") or ""),
+            "alias": str(getattr(chart, "alias", "") or ""),
+            "dt": dt_value.isoformat() if dt_value is not None else None,
+            "lat": round(float(getattr(chart, "lat", 0.0) or 0.0), 8),
+            "lon": round(float(getattr(chart, "lon", 0.0) or 0.0), 8),
+            "birthtime_unknown": bool(getattr(chart, "birthtime_unknown", False)),
+            "retcon_time_used": bool(getattr(chart, "retcon_time_used", False)),
+            "retcon_hour": getattr(chart, "retcon_hour", None),
+            "retcon_minute": getattr(chart, "retcon_minute", None),
+            "positions": sorted((str(key), round(float(value), 8)) for key, value in (getattr(chart, "positions", None) or {}).items()),
+            "houses": [round(float(value), 8) for value in (getattr(chart, "houses", None) or [])],
+            "human_design_gates": list(getattr(chart, "human_design_gates", None) or []),
+            "human_design_channels": list(getattr(chart, "human_design_channels", None) or []),
+        }
+        payload = json.dumps(signature_payload, default=str, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _similar_charts_popout_settings_signature(self, algorithm_mode: str) -> str:
+        settings = getattr(self, "_similarity_calculator_settings", None)
+        payload = {
+            "algorithm_mode": _normalize_similar_charts_algorithm_mode(algorithm_mode),
+            "calculator": asdict(settings) if settings is not None else None,
+        }
+        encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    def _similar_charts_popout_cache_key(
+        self,
+        *,
+        chart: Chart,
+        subject_chart_id: int | None,
+        algorithm_mode: str,
+        rows: list[tuple[Any, ...]],
+    ) -> tuple[str, str, str, str]:
+        return (
+            self._similar_charts_popout_subject_signature(chart=chart, subject_chart_id=subject_chart_id),
+            self._similar_charts_popout_database_signature(rows),
+            self._similar_charts_popout_settings_signature(algorithm_mode),
+            "top-bottom-25-v1",
+        )
+
+    def _get_cached_similar_charts_popout_payload(
+        self,
+        cache_key: tuple[str, str, str, str],
+    ) -> dict[str, Any] | None:
+        cache = getattr(self, "_similar_charts_popout_cache", None)
+        if not isinstance(cache, OrderedDict):
+            return None
+        payload = cache.get(cache_key)
+        if payload is None:
+            return None
+        cache.move_to_end(cache_key)
+        return copy.deepcopy(payload)
+
+    def _store_similar_charts_popout_payload(
+        self,
+        *,
+        cache_key: tuple[str, str, str, str],
+        most_similar_matches: list[Any],
+        least_similar_matches: list[Any],
+    ) -> None:
+        cache = getattr(self, "_similar_charts_popout_cache", None)
+        if not isinstance(cache, OrderedDict):
+            self._similar_charts_popout_cache = OrderedDict()
+            cache = self._similar_charts_popout_cache
+        cache[cache_key] = {
+            "most_similar_matches": copy.deepcopy(list(most_similar_matches)),
+            "least_similar_matches": copy.deepcopy(list(least_similar_matches)),
+        }
+        cache.move_to_end(cache_key)
+        while len(cache) > 20:
+            cache.popitem(last=False)
 
     def _on_similar_chart_link_activated(self, target: str) -> None:
         normalized_target = str(target or "").strip()
@@ -22708,75 +22817,89 @@ class MainWindow(QMainWindow):
             )
             return
 
-        
-        progress_parent = (
-            requester if isinstance(requester, QWidget) and requester.isVisible() else None
-        )
-        if progress_parent is None:
-            active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
-            if isinstance(active_window, QWidget) and active_window.isVisible():
-                progress_parent = active_window
-        progress = show_similar_charts_loading_progress(
-            parent=progress_parent,
-            message="Analyzing database to match similar charts…",
-        )
-        try:
-            try:
-                candidates = self._load_similar_chart_candidates()
-            except Exception as exc:
-                close_similar_charts_loading_progress(progress)
-                QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
-                return
-            if not candidates:
-                close_similar_charts_loading_progress(progress)
-                QMessageBox.information(
-                    self,
-                    "Similar Charts",
-                    "Need at least one additional saved chart that is not placeholder/hypothetical.",
-                )
-                return
 
-            algorithm_mode = _normalize_similar_charts_algorithm_mode(
-                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        try:
+            chart_rows = list_charts()
+        except Exception as exc:
+            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+            return
+        cache_key = self._similar_charts_popout_cache_key(
+            chart=chart,
+            subject_chart_id=subject_chart_id,
+            algorithm_mode=algorithm_mode,
+            rows=chart_rows,
+        )
+        cached_payload = self._get_cached_similar_charts_popout_payload(cache_key)
+        if cached_payload is not None:
+            most_similar_matches = list(cached_payload.get("most_similar_matches") or [])
+            least_similar_matches = list(cached_payload.get("least_similar_matches") or [])
+            least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        else:
+            progress_parent = (
+                requester if isinstance(requester, QWidget) and requester.isVisible() else None
             )
-            self._similar_charts_algorithm_mode = algorithm_mode
+            if progress_parent is None:
+                active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
+                if isinstance(active_window, QWidget) and active_window.isVisible():
+                    progress_parent = active_window
+            progress = show_similar_charts_loading_progress(
+                parent=progress_parent,
+                message="Analyzing database to match similar charts…",
+            )
             try:
-                update_similar_charts_loading_progress(
-                    progress,
-                    "Calculating most similar charts…",
+                candidates = self._load_similar_chart_candidates(
+                    rows=chart_rows,
+                    current_chart_id=subject_chart_id,
                 )
-                most_similar_matches = find_astro_twins(
-                    chart,
-                    candidates,
-                    top_k=25,
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=False,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-                update_similar_charts_loading_progress(
-                    progress,
-                    "Calculating least similar charts…",
-                )
-                least_similar_matches = find_astro_twins(
-                    chart,
-                    candidates,
-                    top_k=25,
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=True,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-            except Exception as exc:
-                if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                    self._report_similar_charts_comprehensive_failure(
-                        context="_show_similar_charts_popout",
-                        detail="comprehensive algorithm execution failed",
-                        error=exc,
+                if not candidates:
+                    QMessageBox.information(
+                        self,
+                        "Similar Charts",
+                        "Need at least one additional saved chart that is not placeholder/hypothetical.",
                     )
-                raise
-        finally:
-            close_similar_charts_loading_progress(progress)
+                    return
+
+                try:
+                    update_similar_charts_loading_progress(
+                        progress,
+                        "Calculating most similar charts…",
+                    )
+                    most_similar_matches = find_astro_twins(
+                        chart,
+                        candidates,
+                        top_k=25,
+                        exclude_chart_id=subject_chart_id,
+                        least_similar=False,
+                        algorithm_mode=algorithm_mode,
+                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    )
+                    update_similar_charts_loading_progress(
+                        progress,
+                        "Calculating least similar charts…",
+                    )
+                    least_similar_matches = find_astro_twins(
+                        chart,
+                        candidates,
+                        top_k=25,
+                        exclude_chart_id=subject_chart_id,
+                        least_similar=True,
+                        algorithm_mode=algorithm_mode,
+                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    )
+                except Exception as exc:
+                    if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                        self._report_similar_charts_comprehensive_failure(
+                            context="_show_similar_charts_popout",
+                            detail="comprehensive algorithm execution failed",
+                            error=exc,
+                        )
+                    raise
+            finally:
+                close_similar_charts_loading_progress(progress)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
@@ -22794,6 +22917,12 @@ class MainWindow(QMainWindow):
                 )
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        if cached_payload is None:
+            self._store_similar_charts_popout_payload(
+                cache_key=cache_key,
+                most_similar_matches=most_similar_matches,
+                least_similar_matches=least_similar_matches,
+            )
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         popout_reasoning_by_target = {}
         popout_reasoning_by_target.update(
