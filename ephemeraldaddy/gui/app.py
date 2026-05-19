@@ -387,6 +387,7 @@ from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
 )
+from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     PersonalTransitLocationError,
     build_personal_transit_header_lines,
@@ -2002,7 +2003,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_metric_snapshots: dict[int, dict[str, Any]] = {}
         self._database_metrics_cache: dict[str, Any] | None = None
         self._database_metrics_snapshot_sections: frozenset[str] = frozenset()
-        self._database_metrics_dirty_ids: set[int] = set()
+        self._database_metrics_lucy_goosey_ids: set[int] = set()
         self._transit_chart_canvases: dict[QWidget, Chart] = {}
         self._transit_popout_dialogs: list[QDialog] = []
         self._transit_popout_chart_by_dialog: dict[QDialog, Chart] = {}
@@ -9303,7 +9304,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._apply_snapshot_delta(cache, snapshot, 1)
             self._database_metrics_cache = cache
             self._database_metrics_snapshot_sections = computed_sections
-            self._database_metrics_dirty_ids.clear()
+            self._database_metrics_lucy_goosey_ids.clear()
             return
         cache = self._database_metrics_cache
         active_ids = {row[0] for row in self._chart_rows}
@@ -9312,7 +9313,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             previous = self._database_metric_snapshots.pop(removed_id, None)
             if previous:
                 self._apply_snapshot_delta(cache, previous, -1)
-        changed_ids = (self._database_metrics_dirty_ids | (active_ids - set(cache["chart_ids"]))) & active_ids
+        changed_ids = (self._database_metrics_lucy_goosey_ids | (active_ids - set(cache["chart_ids"]))) & active_ids
         for chart_id in changed_ids:
             previous = self._database_metric_snapshots.get(chart_id)
             if previous:
@@ -9326,7 +9327,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._apply_snapshot_delta(cache, current, 1)
         cache["chart_ids"] = set(active_ids)
         self._database_metrics_snapshot_sections = computed_sections
-        self._database_metrics_dirty_ids.clear()
+        self._database_metrics_lucy_goosey_ids.clear()
 
     def _iter_database_metric_snapshots(self, chart_ids: list[int] | set[int] | None = None):
         ids = list(chart_ids) if chart_ids is not None else list((self._database_metrics_cache or {}).get("chart_ids", set()))
@@ -9809,7 +9810,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         sections_to_refresh: set[str] | None = None,
     ) -> None:
         if changed_ids:
-            self._database_metrics_dirty_ids.update(changed_ids)
+            self._database_metrics_lucy_goosey_ids.update(changed_ids)
 
         self._update_selection_header()
         if not update_database_metrics and not update_similarities:
@@ -13712,7 +13713,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._batch_refresh_in_progress,
         )
         if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
-            self._mark_chart_analytics_sections_dirty()
+            self._mark_chart_analytics_sections_lucy_goosey()
             if self._latest_chart is not None:
                 self._schedule_chart_render(self._latest_chart)
 
@@ -16571,7 +16572,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_cache.clear()
         self._database_metrics_cache = None
         self._database_metric_snapshots = {}
-        self._database_metrics_dirty_ids.clear()
+        self._database_metrics_lucy_goosey_ids.clear()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_force_refresh_database_analysis(self) -> None:
@@ -16676,7 +16677,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._chart_cache.clear()
         self._database_metrics_cache = None
         self._database_metric_snapshots = {}
-        self._database_metrics_dirty_ids.clear()
+        self._database_metrics_lucy_goosey_ids.clear()
         self._refresh_charts(force_full_analysis_refresh=True)
 
     def _on_import_database(self) -> None:
@@ -16924,10 +16925,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 owner._invalidate_chart_view_navigation_cache()
             self._database_metrics_cache = None
             self._database_metric_snapshots = {}
-            self._database_metrics_dirty_ids.clear()
+            self._database_metrics_lucy_goosey_ids.clear()
             self._similarities_db_baseline_cache.clear()
         elif changed_ids:
-            self._database_metrics_dirty_ids.update(changed_ids)
+            self._database_metrics_lucy_goosey_ids.update(changed_ids)
             self._similarities_db_baseline_cache.clear()
             for chart_id in changed_ids:
                 self._chart_cache.pop(chart_id, None)
@@ -19239,7 +19240,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         set_lilith_calculation_mode(normalized)
         self._chart_cache.clear()
         self._database_metrics_cache = None
-        self._database_metrics_dirty_ids.clear()
+        self._database_metrics_lucy_goosey_ids.clear()
         invalidate_all_dominant_weight_caches()
         self._refresh_lilith_body_labels_in_filters()
         self._refresh_todays_transits_panel()
@@ -20684,7 +20685,7 @@ class MainWindow(QMainWindow):
         self._pending_render_chart: Chart | None = None
         self._chart_render_queue_state = ChartRenderQueueState()
         self._chart_analytics_render_tokens: dict[str, str] = {}
-        self._chart_analytics_dirty_sections: set[str] = {
+        self._chart_analytics_lucy_goosey_sections: set[str] = {
             "signs",
             "planets",
             "houses",
@@ -20697,6 +20698,9 @@ class MainWindow(QMainWindow):
             "similar_charts",
             "anagrams",
         }
+        self._chart_right_panel_state = ChartRightPanelState(
+            lucy_goosey_render_sections=set(self._chart_analytics_lucy_goosey_sections)
+        )
         self._render_flush_timer = QTimer(self)
         self._render_flush_timer.setSingleShot(True)
         self._render_flush_timer.timeout.connect(self._flush_scheduled_chart_render)
@@ -20708,7 +20712,7 @@ class MainWindow(QMainWindow):
         self._gemstone_chartwheel_popouts: list[QDialog] = []
         self._chart_analysis_chart_dropdowns: dict[str, QComboBox] = {}
         self._chart_analysis_chart_filenames: dict[str, str] = {}
-        self._chart_analysis_section_expanded: dict[str, bool] = {}
+        self._chart_analysis_section_expanded = self._chart_right_panel_state.expanded_sections
         self._chart_analysis_section_visible: dict[str, bool] = {}
         self._chart_analysis_section_layouts: dict[str, QVBoxLayout] = {}
         self._chart_analysis_section_widgets: dict[str, QWidget] = {}
@@ -21801,7 +21805,7 @@ class MainWindow(QMainWindow):
         self._visibility.set(f"chart_analytics.{section_key}", visible)
         self._sync_chart_analysis_section_visibility()
         if section_key == "anagrams" and visible and self._latest_chart is not None:
-            self._mark_chart_analytics_sections_dirty({"anagrams"})
+            self._mark_chart_analytics_sections_lucy_goosey({"anagrams"})
             self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
 
     def _sync_chart_analysis_section_visibility(self) -> None:
@@ -26339,21 +26343,24 @@ class MainWindow(QMainWindow):
             active_scroll = self.chart_analytics_panel_scroll
         panel_stack.setCurrentWidget(active_scroll)
         self.metrics_scroll = active_scroll
+        self._chart_right_panel_state.active_tab = panel_key
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        if panel_key == "analytics" and self._latest_chart is not None:
-            self._schedule_chart_render(self._latest_chart)
-        if (
-            panel_key == "subjective_notes"
-            and self._latest_chart is not None
-            and self._is_chart_analysis_section_visible("anagrams")
-        ):
-            self._schedule_chart_render(self._latest_chart, sections={"anagrams"})
-        if panel_key == "predictions" and self._latest_chart is not None:
-            self._render_enneagram_predictions(self._latest_chart)
-            self._render_dndification_predictions(self._latest_chart)
+        self._schedule_chart_render_for_active_right_panel()
+
+    def _schedule_chart_render_for_active_right_panel(self) -> None:
+        """Queue any now-renderable sections after right-panel tab switches."""
+        chart = self._latest_chart
+        if chart is None:
+            return
+        active_panel = self._chart_right_panel_state.active_tab
+        if active_panel == "analytics":
+            self._schedule_chart_render(chart)
+            return
+        if active_panel == "subjective_notes" and self._is_chart_analysis_section_visible("anagrams"):
+            self._schedule_chart_render(chart, sections={"anagrams"})
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
@@ -27417,7 +27424,7 @@ class MainWindow(QMainWindow):
 
         self.current_chart_id = chart_id
         self._cache_chart_view_navigation_entry(chart_id, chart)
-        self._mark_chart_analytics_sections_dirty()
+        self._mark_chart_analytics_sections_lucy_goosey()
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place
@@ -28198,7 +28205,7 @@ class MainWindow(QMainWindow):
         if normalized == previous_mode or self._latest_chart is None:
             return
 
-        self._mark_chart_analytics_sections_dirty({"similar_charts"})
+        self._mark_chart_analytics_sections_lucy_goosey({"similar_charts"})
         self._schedule_chart_render(
             self._latest_chart,
             sections={"similar_charts"},
@@ -28407,7 +28414,7 @@ class MainWindow(QMainWindow):
             f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}"
         )
 
-    def _mark_chart_analytics_sections_dirty(self, sections: set[str] | None = None) -> None:
+    def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
             sections = {
                 "signs",
@@ -28424,14 +28431,14 @@ class MainWindow(QMainWindow):
             }
         for section in sections:
             if self._is_chart_analytics_render_key(section):
-                self._chart_analytics_dirty_sections.add(section)
+                self._chart_analytics_lucy_goosey_sections.add(section)
 
     def _mark_chart_analytics_sections_clean(self, sections: set[str], chart: Chart) -> None:
         token = self._chart_analytics_cache_token(chart)
         for section in sections:
             if not self._is_chart_analytics_render_key(section):
                 continue
-            self._chart_analytics_dirty_sections.discard(section)
+            self._chart_analytics_lucy_goosey_sections.discard(section)
             self._chart_analytics_render_tokens[section] = token
 
     def _is_chart_analytics_section_renderable(
@@ -28445,7 +28452,7 @@ class MainWindow(QMainWindow):
             return False
         if not self.metrics_panel.isVisible():
             return False
-        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        active_panel = self._chart_right_panel_state.active_tab
         expected_panel = "subjective_notes" if render_key == "anagrams" else "analytics"
         if active_panel != expected_panel:
             return False
@@ -28474,7 +28481,7 @@ class MainWindow(QMainWindow):
             ):
                 continue
             if (
-                section not in self._chart_analytics_dirty_sections
+                section not in self._chart_analytics_lucy_goosey_sections
                 and self._chart_analytics_render_tokens.get(section) == token
             ):
                 continue
@@ -28484,7 +28491,7 @@ class MainWindow(QMainWindow):
     def _schedule_passive_chart_analysis_preload(self, chart: Chart) -> None:
         if not self.metrics_panel.isVisible():
             return
-        active_panel = getattr(self, "_active_chart_right_panel", "analytics")
+        active_panel = self._chart_right_panel_state.active_tab
         if active_panel == "subjective_notes":
             if not self._is_chart_analysis_section_visible("anagrams"):
                 return
