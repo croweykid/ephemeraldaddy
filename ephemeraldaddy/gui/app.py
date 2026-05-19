@@ -26386,6 +26386,19 @@ class MainWindow(QMainWindow):
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
+        self._schedule_chart_render_for_active_right_panel()
+
+    def _schedule_chart_render_for_active_right_panel(self) -> None:
+        """Queue any now-renderable sections after right-panel tab switches."""
+        chart = self._latest_chart
+        if chart is None:
+            return
+        active_panel = self._chart_right_panel_state.active_tab
+        if active_panel == "analytics":
+            self._schedule_chart_render(chart)
+            return
+        if active_panel == "subjective_notes" and self._is_chart_analysis_section_visible("anagrams"):
+            self._schedule_chart_render(chart, sections={"anagrams"})
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
