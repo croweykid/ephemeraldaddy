@@ -14833,6 +14833,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._run_main_window_chart_action("see_similar_charts")
         dialog.activateWindow()
 
+    def _on_open_sign_degrees_reference_circle(self) -> None:
+        parent = self.parent()
+        if parent is not None and hasattr(parent, "on_open_sign_degrees_reference_circle"):
+            parent.on_open_sign_degrees_reference_circle()
+            return
+        from ephemeraldaddy.gui.features.charts.sign_degrees_reference_popout import show_sign_degrees_reference_popout
+
+        show_sign_degrees_reference_popout(self, register_popout_shortcuts=self._register_popout_shortcuts)
+
     def _ensure_right_panel_widget(self, panel_name: str) -> QWidget:
         if panel_name == "search":
             widget = self.search_panel_scroll
@@ -30054,6 +30063,11 @@ class MainWindow(QMainWindow):
             self._help_icon_close.x() - 8 - self._help_icon_button.width(),
             12,
         )
+
+    def on_open_sign_degrees_reference_circle(self) -> None:
+        from ephemeraldaddy.gui.features.charts.sign_degrees_reference_popout import show_sign_degrees_reference_popout
+
+        show_sign_degrees_reference_popout(self, register_popout_shortcuts=self._register_popout_shortcuts)
 
     def _toggle_help_overlay(self) -> None:
         if self._help_overlay_active:
