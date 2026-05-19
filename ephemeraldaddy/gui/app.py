@@ -4,6 +4,7 @@ import calendar
 import copy
 import ctypes
 import datetime
+from dataclasses import asdict
 import html
 import hashlib
 import imojify
@@ -21986,7 +21987,7 @@ class MainWindow(QMainWindow):
 
     def _similar_charts_popout_database_signature(self, rows: list[tuple[Any, ...]]) -> str:
         database_files: list[tuple[str, int | None, int | None]] = []
-        for path in (DB_PATH, Path(f"{DB_PATH}-wal"), Path(f"{DB_PATH}-shm")):
+        for path in (DB_PATH, Path(f"{DB_PATH}-wal")):
             try:
                 stat = path.stat()
             except OSError:
@@ -22031,7 +22032,7 @@ class MainWindow(QMainWindow):
         settings = getattr(self, "_similarity_calculator_settings", None)
         payload = {
             "algorithm_mode": _normalize_similar_charts_algorithm_mode(algorithm_mode),
-            "calculator": vars(settings) if settings is not None else None,
+            "calculator": asdict(settings) if settings is not None else None,
         }
         encoded = json.dumps(payload, default=str, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -22855,7 +22856,6 @@ class MainWindow(QMainWindow):
                     current_chart_id=subject_chart_id,
                 )
                 if not candidates:
-                    close_similar_charts_loading_progress(progress)
                     QMessageBox.information(
                         self,
                         "Similar Charts",
