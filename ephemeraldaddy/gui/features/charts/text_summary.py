@@ -15,6 +15,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     score_dnd_statblock,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import assign_top_three_species_with_evidence
+from ephemeraldaddy.analysis.human_design import build_human_design_result
 from ephemeraldaddy.core.aspects import ASPECT_DEFS
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
 from ephemeraldaddy.core.curse_scoring import AspectRecord, MOST_CURSED_SCORE, chart_cursedness
@@ -78,6 +79,17 @@ def _decan_info_from_longitude(longitude: float) -> dict[str, object]:
         "degree_in_sign": degree_in_sign,
         "decan": decan,
         "decan_sign": decan_sign,
+    }
+
+
+def _personality_gate_line_map(chart: Chart) -> dict[str, str]:
+    try:
+        hd_result = build_human_design_result(chart)
+    except Exception:
+        return {}
+    return {
+        str(activation.body): f"{activation.gate}.{activation.line}"
+        for activation in hd_result.personality_activations
     }
 
 
@@ -516,7 +528,7 @@ def format_chart_text(
     degree_width = 12
     nakshatra_width = 22
     house_width = 5
-    decan_width = 3
+    gl_width = 5
     if use_houses:
         lines.append(
             "  ".join(
@@ -526,7 +538,7 @@ def format_chart_text(
                     _pad_display_column("Degree", degree_width),
                     _pad_display_column("Nakshatra", nakshatra_width),
                     _pad_display_column("House", house_width),
-                    _pad_display_column("dec", decan_width),
+                    _pad_display_column("G.L", gl_width),
                 ]
             )
         )
@@ -570,6 +582,7 @@ def format_chart_text(
     ]
     extras = sorted(set(chart.positions).difference(ordered_bodies))
     ordered_bodies.extend(extras)
+    personality_gate_lines = _personality_gate_line_map(chart)
     for body in ordered_bodies:
         display_body = _display_body_with_glyph(body)
         lon = chart.positions.get(body)
@@ -617,15 +630,15 @@ def format_chart_text(
         if use_houses:
             house_num = house_for_longitude(houses, lon)
             decan_info = _decan_info_from_longitude(lon)
-            decan_text = str(decan_info["decan"])
+            gl_text = personality_gate_lines.get(body, "")
             house_label = f"H{house_num}" if house_num is not None else "-"
             body_column = _pad_display_column(display_body, body_width)
             sign_column = _pad_display_column(sign_label, sign_width)
             degree_column = _pad_display_column(degree_text, degree_width)
             nakshatra_column = _pad_display_column(nakshatra, nakshatra_width)
             house_column = _pad_display_column(house_label, house_width)
-            decan_column = _pad_display_column(decan_text, decan_width)
-            columns = [body_column, sign_column, degree_column, nakshatra_column, house_column, decan_column]
+            gl_column = _pad_display_column(gl_text, gl_width)
+            columns = [body_column, sign_column, degree_column, nakshatra_column, house_column, gl_column]
             column_offsets: list[int] = []
             line_cursor = 0
             for index, column in enumerate(columns):
@@ -645,6 +658,8 @@ def format_chart_text(
                 {
                     "kind": "sign_keyword",
                     "sign": sign_label,
+                    "body": body,
+                    "longitude": float(lon),
                     "column": 1,
                     "span_start": column_offsets[1],
                     "span_end": column_offsets[1] + len(sign_label),
@@ -667,18 +682,18 @@ def format_chart_text(
                         "span_end": column_offsets[4] + len(house_label),
                     }
                 )
-            entry_list.append(
-                {
-                    "kind": "decan",
-                    "body": body,
-                    "sign": sign_label,
-                    "decan": decan_info["decan"],
-                    "decan_sign": decan_info["decan_sign"],
-                    "column": 5,
-                    "span_start": column_offsets[5],
-                    "span_end": column_offsets[5] + len(decan_text),
-                }
-            )
+            if gl_text:
+                gate_text, line_text = gl_text.split(".", 1)
+                entry_list.append(
+                    {
+                        "kind": "hd_gate_line",
+                        "gate": int(gate_text),
+                        "line": int(line_text),
+                        "column": 5,
+                        "span_start": column_offsets[5],
+                        "span_end": column_offsets[5] + len(gl_text),
+                    }
+                )
             line = f"{line} ⓘ"
             entry_list.append(
                 {
@@ -718,6 +733,8 @@ def format_chart_text(
                 {
                     "kind": "sign_keyword",
                     "sign": sign_label,
+                    "body": body,
+                    "longitude": float(lon),
                     "column": 1,
                     "span_start": column_offsets[1],
                     "span_end": column_offsets[1] + len(sign_label),
