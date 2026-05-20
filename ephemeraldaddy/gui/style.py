@@ -250,6 +250,21 @@ QComboBox QAbstractItemView::indicator {
     width: 0px;
     height: 0px;
 }
+QComboBox::item {
+    padding: 3px 6px;
+}
+QComboBox::item:selected {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QComboBox::item:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QComboBox::indicator {
+    width: 0px;
+    height: 0px;
+}
 """
 
 WINDOW_CHROME_MENU_STYLE = """
