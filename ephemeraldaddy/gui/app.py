@@ -1897,6 +1897,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._isolated_dominant_sign_filter_combo = None
         self._body_dynamics_filters = []
         self._dominant_mode_filters = []
+        self._decan_sign_filter_combo = None
+        self._decan_number_filter_combo = None
         self._dominant_nakshatra_filters = []
         self._human_design_channel_filters = []
         self._human_design_gate_filters = []
@@ -9533,6 +9535,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
             if filters["mode"].currentData() != "Any"
         ]
+        selected_decan_sign = (
+            str(self._decan_sign_filter_combo.currentData())
+            if self._decan_sign_filter_combo is not None
+            else "Any"
+        )
+        selected_decan_number = (
+            str(self._decan_number_filter_combo.currentData())
+            if self._decan_number_filter_combo is not None
+            else "Any"
+        )
         active_dominant_nakshatra_filters = [
             filters
             for filters in self._dominant_nakshatra_filters
@@ -9730,6 +9742,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not active_dominant_planet_filters
             and selected_isolated_dominant_body == "Any"
             and selected_isolated_dominant_sign == "Any"
+            and selected_decan_sign == "Any"
+            and selected_decan_number == "Any"
             and not active_body_dynamics_filter_rows
             and not active_dominant_mode_filters
             and not active_dominant_nakshatra_filters
@@ -15670,6 +15684,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
         ):
             return True
+        if (
+            self._decan_sign_filter_combo is not None
+            and str(self._decan_sign_filter_combo.currentData()) != "Any"
+        ):
+            return True
+        if (
+            self._decan_number_filter_combo is not None
+            and str(self._decan_number_filter_combo.currentData()) != "Any"
+        ):
+            return True
         if any(
             str(filters["nakshatra"].currentData()) != "Any"
             for filters in self._dominant_nakshatra_filters
@@ -15837,6 +15861,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._isolated_dominant_body_filter_combo.setCurrentIndex(0)
             if self._isolated_dominant_sign_filter_combo is not None:
                 self._isolated_dominant_sign_filter_combo.setCurrentIndex(0)
+            if self._decan_sign_filter_combo is not None:
+                self._decan_sign_filter_combo.setCurrentIndex(0)
+            if self._decan_number_filter_combo is not None:
+                self._decan_number_filter_combo.setCurrentIndex(0)
             reset_body_dynamics_filters(self)
             for filters in self._dominant_mode_filters:
                 filters["mode"].setCurrentIndex(0)
@@ -17467,6 +17495,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for filters in self._dominant_mode_filters
             if filters["mode"].currentData() != "Any"
         ]
+        selected_decan_sign = (
+            str(self._decan_sign_filter_combo.currentData())
+            if self._decan_sign_filter_combo is not None
+            else "Any"
+        )
+        selected_decan_number = (
+            str(self._decan_number_filter_combo.currentData())
+            if self._decan_number_filter_combo is not None
+            else "Any"
+        )
         active_dominant_nakshatra_filters = [
             filters
             for filters in self._dominant_nakshatra_filters
@@ -18262,6 +18300,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self, chart, active_body_dynamics_filter_rows
             ):
                 return False
+        if selected_decan_sign != "Any" or selected_decan_number != "Any":
+            if not self._chart_has_decan_match(
+                chart,
+                sign=selected_decan_sign,
+                decan_number=selected_decan_number,
+            ):
+                return False
 
         if active_dominant_nakshatra_filters:
             dominant_nakshatra_and_filters = [
@@ -18708,6 +18753,26 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if nakshatra == "Any":
             return True
         return nakshatra in self._chart_top_three_dominant_nakshatras(chart)
+
+    def _chart_has_decan_match(
+        self,
+        chart: Chart,
+        sign: str,
+        decan_number: str,
+    ) -> bool:
+        positions = getattr(chart, "positions", {}) or {}
+        selected_decan = int(decan_number) if decan_number in {"1", "2", "3"} else None
+        for longitude in positions.values():
+            if not isinstance(longitude, (int, float)):
+                continue
+            position_sign = _sign_for_longitude(float(longitude))
+            position_decan = min(3, max(1, int((float(longitude) % 30.0) // 10.0) + 1))
+            if sign != "Any" and position_sign != sign:
+                continue
+            if selected_decan is not None and position_decan != selected_decan:
+                continue
+            return True
+        return False
 
     def _chart_top_three_dominant_nakshatras(self, chart: Chart) -> set[str]:
         dominant_nakshatra_weights = _calculate_dominant_nakshatra_weights(chart)

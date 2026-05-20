@@ -717,6 +717,42 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     layout.addWidget(dominant_mode_section)
 
+    # Search: Decans section
+    decan_section, decan_group_layout = add_collapsible_section("🪐Decans")
+    decan_layout = QFormLayout()
+    decan_layout.setLabelAlignment(Qt.AlignLeft)
+    decan_group_layout.addLayout(decan_layout)
+
+    decan_row = QWidget()
+    decan_row_layout = QHBoxLayout()
+    decan_row_layout.setContentsMargins(0, 0, 0, 0)
+    decan_row.setLayout(decan_row_layout)
+
+    decan_sign_combo = QComboBox()
+    apply_default_dropdown_style(decan_sign_combo)
+    decan_sign_combo.addItem("Any", "Any")
+    for sign_name in ZODIAC_NAMES:
+        decan_sign_combo.addItem(str(sign_name), str(sign_name))
+    decan_sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+    decan_number_combo = QComboBox()
+    apply_default_dropdown_style(decan_number_combo)
+    decan_number_combo.addItem("Any", "Any")
+    decan_number_combo.addItem("1", "1")
+    decan_number_combo.addItem("2", "2")
+    decan_number_combo.addItem("3", "3")
+    decan_number_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
+
+    decan_row_layout.addWidget(QLabel("🔟"))
+    decan_row_layout.addWidget(decan_sign_combo, 1)
+    decan_row_layout.addWidget(decan_number_combo, 1)
+    decan_row_layout.addStretch(1)
+
+    window._decan_sign_filter_combo = decan_sign_combo
+    window._decan_number_filter_combo = decan_number_combo
+    decan_layout.addRow(decan_row)
+    layout.addWidget(decan_section)
+
     #Search: Dominant Nakshatra section
     dominant_nakshatra_section, dominant_nakshatra_group_layout = add_collapsible_section(
         "🪐Dominant Nakshatra"
