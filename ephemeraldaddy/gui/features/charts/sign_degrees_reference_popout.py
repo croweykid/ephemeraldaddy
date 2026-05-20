@@ -72,12 +72,12 @@ def _build_gate_segments() -> list[Segment]:
             end = sign_base + _parse_dms_degree(end_txt)
             if end <= start:
                 end = sign_base + 30.0
-            raw_segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
+            segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
 
-    raw_segments.sort(key=lambda seg: seg.start)
+    segments.sort(key=lambda seg: seg.start)
     merged_segments: list[Segment] = []
     epsilon = 1e-6
-    for segment in raw_segments:
+    for segment in segments:
         if not merged_segments:
             merged_segments.append(segment)
             continue
