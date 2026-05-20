@@ -246,9 +246,19 @@ QComboBox QAbstractItemView::item:hover {
     background-color: #6a532d;
     color: #fff2d8;
 }
+QComboBox QAbstractItemView::item:checked {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QComboBox QAbstractItemView::item:checked:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
 QComboBox QAbstractItemView::indicator {
     width: 0px;
     height: 0px;
+    margin: 0px;
+    padding: 0px;
 }
 """
 
@@ -260,10 +270,23 @@ QMenu {
 }
 QMenu::item {
     background-color: transparent;
-    padding: 4px 22px;
+    padding: 4px 12px;
 }
 QMenu::item:selected {
-    background-color: #2f2f2f;
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QMenu::item:checked {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QMenu::item:checked:selected {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QMenu::indicator {
+    width: 0px;
+    height: 0px;
 }
 QMenu::separator {
     background: #2a2a2a;
