@@ -28,6 +28,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_CONTENT_MARGINS,
     DATABASE_ANALYTICS_CONTENT_SPACING,
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
+    apply_shared_dropdown_style,
     DATABASE_ANALYTICS_DROPDOWN_TOP_PADDING,
     DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE,
     DATABASE_ANALYTICS_EXPORT_ICON_SIZE,
@@ -88,7 +89,7 @@ class ChartAnalysisSectionsController:
         dropdown.setFont(dropdown_font)
         dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         dropdown.setMinimumContentsLength(14)
-        dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        apply_shared_dropdown_style(dropdown)
         for option_label, option_value in options:
             dropdown.addItem(option_label.upper(), option_value)
         dropdown.currentIndexChanged.connect(

@@ -1,7 +1,7 @@
 """Shared GUI styling and interface constants."""
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QAbstractButton, QSizePolicy, QToolButton
+from PySide6.QtWidgets import QAbstractButton, QComboBox, QListView, QSizePolicy, QToolButton
 
 DARK_THEME = {
     "background": "#111111",
@@ -223,6 +223,7 @@ QComboBox {
     color: #f0f0f0;
     padding: 3px 6px;
     min-height: 24px;
+    combobox-popup: 1;
 }
 QComboBox::drop-down {
     border: none;
@@ -236,7 +237,8 @@ QComboBox QAbstractItemView {
     outline: 0;
 }
 QComboBox QAbstractItemView::item {
-    padding: 3px 6px;
+    padding: 3px 6px 3px 6px;
+    margin: 0px;
 }
 QComboBox QAbstractItemView::item:selected {
     background-color: #4f3f25;
@@ -246,9 +248,19 @@ QComboBox QAbstractItemView::item:hover {
     background-color: #6a532d;
     color: #fff2d8;
 }
+QComboBox QAbstractItemView::item:checked {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QComboBox QAbstractItemView::item:checked:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
 QComboBox QAbstractItemView::indicator {
     width: 0px;
     height: 0px;
+    margin: 0px;
+    padding: 0px;
 }
 """
 
@@ -260,10 +272,23 @@ QMenu {
 }
 QMenu::item {
     background-color: transparent;
-    padding: 4px 22px;
+    padding: 4px 12px;
 }
 QMenu::item:selected {
-    background-color: #2f2f2f;
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QMenu::item:checked {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QMenu::item:checked:selected {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QMenu::indicator {
+    width: 0px;
+    height: 0px;
 }
 QMenu::separator {
     background: #2a2a2a;
@@ -469,6 +494,48 @@ def configure_collapsible_header_toggle(
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     toggle.setStyleSheet(style_sheet)
+
+
+def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
+    """Force shared dropdown styling on a combo and its popup view."""
+    dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+    popup_view = QListView(dropdown)
+    popup_view.setStyleSheet(
+        """
+QListView {
+    background-color: #242424;
+    color: #f0f0f0;
+    outline: 0;
+}
+QListView::item {
+    padding: 3px 6px;
+    margin: 0px;
+}
+QListView::item:selected {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QListView::item:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QListView::item:checked {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QListView::item:checked:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QListView::indicator {
+    width: 0px;
+    height: 0px;
+    margin: 0px;
+    padding: 0px;
+}
+"""
+    )
+    dropdown.setView(popup_view)
 
 # About dialog typography/color hierarchy (aligned to Database View middle panel palette).
 ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"
