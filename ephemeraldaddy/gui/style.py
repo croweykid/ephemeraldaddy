@@ -223,6 +223,7 @@ QComboBox {
     color: #f0f0f0;
     padding: 3px 6px;
     min-height: 24px;
+    combobox-popup: 1;
 }
 QComboBox::drop-down {
     border: none;
@@ -236,7 +237,8 @@ QComboBox QAbstractItemView {
     outline: 0;
 }
 QComboBox QAbstractItemView::item {
-    padding: 3px 6px;
+    padding: 3px 6px 3px 6px;
+    margin: 0px;
 }
 QComboBox QAbstractItemView::item:selected {
     background-color: #4f3f25;
