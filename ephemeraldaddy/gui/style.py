@@ -231,12 +231,14 @@ QComboBox::drop-down {
 }
 QComboBox QAbstractItemView {
     background-color: #242424;
+    alternate-background-color: #242424;
     color: #f0f0f0;
     selection-background-color: #4f3f25;
     selection-color: #f6ead1;
     outline: 0;
 }
 QComboBox QAbstractItemView::item {
+    background-color: #242424;
     padding: 3px 6px 3px 6px;
     margin: 0px;
 }
@@ -504,10 +506,15 @@ def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
         """
 QListView {
     background-color: #242424;
+    alternate-background-color: #242424;
     color: #f0f0f0;
     outline: 0;
 }
+QListView::viewport {
+    background-color: #242424;
+}
 QListView::item {
+    background-color: #242424;
     padding: 3px 6px;
     margin: 0px;
 }
