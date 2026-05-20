@@ -1041,6 +1041,17 @@ NAKSHATRA_PLANET_COLOR = {
     "Revati": ("Mercury", PLANET_COLORS["Mercury"]),
 }
 
+NAKSHATRA_ABBREVIATIONS = {
+    nakshatra: (
+        nakshatra.replace("Purva ", "P. ", 1)
+        if nakshatra.startswith("Purva ")
+        else nakshatra.replace("Uttara ", "U. ", 1)
+        if nakshatra.startswith("Uttara ")
+        else nakshatra
+    )
+    for nakshatra in NAKSHATRA_PLANET_COLOR
+}
+
 NAKSHATRA_DESCRIPTIONS = {
     "Ashwini": {
         "name": "Ashwini",

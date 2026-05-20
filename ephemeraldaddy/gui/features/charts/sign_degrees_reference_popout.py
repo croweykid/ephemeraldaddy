@@ -11,17 +11,20 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QSplitter, QTextBrowser, QVBoxLayout
 
 from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
-from ephemeraldaddy.analysis.human_design_reference import GATE_REFERENCE
+from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, GATE_REFERENCE
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
+    NAKSHATRA_ABBREVIATIONS,
     NAKSHATRA_RANGES,
     PLANET_COLORS,
     SIGN_KEYWORDS_CANONICAL,
     SIGN_COLORS,
     ZODIAC_SIGNS,
 )
+
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 SIGN_ORDER = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -35,24 +38,6 @@ class Segment:
     start: float
     end: float
     label: str
-
-
-def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    value = color.lstrip("#")
-    if len(value) != 6:
-        return (170, 170, 170)
-    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
-
-
-def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
-    r, g, b = rgb
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
-def _blend_hex(color_a: str, color_b: str) -> str:
-    r1, g1, b1 = _hex_to_rgb(color_a)
-    r2, g2, b2 = _hex_to_rgb(color_b)
-    return _rgb_to_hex(((r1 + r2) // 2, (g1 + g2) // 2, (b1 + b2) // 2))
 
 
 def _normalize_degree(value: float) -> float:
@@ -90,16 +75,6 @@ def _build_gate_segments() -> list[Segment]:
             segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
     return segments
 
-
-def _sign_color_for_gate_segment(start: float, end: float) -> str:
-    epsilon = 1e-6
-    start_sign = SIGN_ORDER[int(_normalize_degree(start) // 30.0)]
-    end_sign = SIGN_ORDER[int(_normalize_degree(end - epsilon) // 30.0)]
-    start_color = SIGN_COLORS[start_sign]
-    if start_sign == end_sign:
-        return start_color
-    end_color = SIGN_COLORS[end_sign]
-    return _blend_hex(start_color, end_color)
 
 
 def _segment_for_degree(segments: list[Segment], degree: float) -> Segment | None:
@@ -175,8 +150,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=sign_color, edgecolor="#1e1e1e", linewidth=1.1))
         glyph = ZODIAC_SIGNS[i]
         mid = math.radians(90.0 - (start + 15.0))
-        r = (inner_radius + outer_radius) / 2.0
-        ax.text(r * math.cos(mid), r * math.sin(mid), glyph, color="black", fontsize=16, ha="center", va="center", fontweight="bold")
+        r = inner_radius + ((outer_radius - inner_radius) * 0.64)
+        ax.text(r * math.cos(mid), r * math.sin(mid), glyph, color="black", fontsize=14, ha="center", va="center", fontweight="bold")
 
         for decan in ZODIAC_DECANS[sign_name]:
             d_start = start + float(decan["degree_start"])
@@ -207,13 +182,15 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
             mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
             rr = (inner_radius + outer_radius) / 2.0
-            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak.label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
+            nak_label = NAKSHATRA_ABBREVIATIONS.get(nak.label, nak.label)
+            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak_label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
 
     for gate in gate_segments:
         theta1 = 90.0 - gate.end
         theta2 = 90.0 - gate.start
         inner_radius, outer_radius = ring_map["gate"]
-        gate_color = _sign_color_for_gate_segment(gate.start, gate.end)
+        gate_number = int(gate.label[1:])
+        gate_color = GATE_COLORS.get(gate_number, "#666666")
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
         mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
@@ -258,25 +235,29 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         info_output.setHtml(
             f"<h3 style='margin:0; color:#f7f7f7;'>{absolute_degree:.4f}°</h3>"
             f"<h3 style='margin:10px 0 6px 0; color:{sign_color};'>{sign_name}</h3>"
-            "<ul style='margin-top:0;'>"
-            "<li><b>Talents</b><ul>"
+            "<ul style='margin:0; padding-left:18px;'>"
+            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Talents</span>"
+            "<ul style='margin:0; padding-left:18px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("talents", []))
             + "</ul></li>"
-            "<li><b>Challenges</b><ul>"
+            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Challenges</span>"
+            "<ul style='margin:0; padding-left:18px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("challenges", []))
             + "</ul></li>"
-            "<li><b>Fears</b><ul>"
+            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Fears</span>"
+            "<ul style='margin:0; padding-left:18px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("greatest_fears", []))
             + "</ul></li>"
-            "<li><b>Motivations</b><ul>"
+            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Motivations</span>"
+            "<ul style='margin:0; padding-left:18px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("motivations", []))
             + "</ul></li>"
             "</ul>"
             f"<h3 style='margin:10px 0 6px 0; color:{decan_ruler_color};'>Decan {decan_data['decan']}</h3>"
             f"<p style='margin-top:0;'>{decan_data.get('description', 'No decan description available.')}</p>"
-            f"<h3 style='margin:10px 0 6px 0; color:#e0e0e0;'>{nak_name}</h3>"
+            f"<h3 style='margin:10px 0 6px 0; color:{NAKSHATRA_PLANET_COLOR.get(nak_name, ('', '#e0e0e0'))[1]};'>{nak_name}</h3>"
             f"<p style='margin-top:0;'>{nak_shakti}</p>"
-            f"<h3 style='margin:10px 0 6px 0; color:#e0e0e0;'>{gate_match.label if gate_match else 'Unknown Gate'}</h3>"
+            f"<h3 style='margin:10px 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{gate_match.label if gate_match else 'Unknown Gate'}</h3>"
             f"<p style='margin-top:0;'>{gate_meaning}</p>"
         )
         canvas.draw_idle()
