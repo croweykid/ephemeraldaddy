@@ -2401,22 +2401,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._initialize_transit_location_defaults()
         self._refresh_todays_transits_panel()
         self._refresh_charts()
-        self._apply_default_dropdown_styles()
         apply_default_text_tooltips(self)
 
     # Database & Selection Analysis Panel (left sidebar).
     #export chart function:
-    def _apply_default_dropdown_styles(self) -> None:
-        """Apply shared dropdown styling to all combo boxes in this window tree."""
-        for combo in self.findChildren(QComboBox):
-            existing_style = combo.styleSheet().strip()
-            if not existing_style:
-                combo.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
-                continue
-            if "QComboBox" in existing_style and "QAbstractItemView" in existing_style:
-                continue
-            combo.setStyleSheet(f"{DEFAULT_DROPDOWN_STYLE}\n{existing_style}")
-
     def _create_analysis_chart_header(
         self,
         layout: QVBoxLayout,
