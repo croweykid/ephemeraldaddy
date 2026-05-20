@@ -231,6 +231,7 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
 
     help_menu = menu_bar.addMenu("Help")
     _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
+    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
 
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
@@ -307,6 +308,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
 
     help_menu = menu_bar.addMenu("Help")
     _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
+    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
 
     layout.setMenuBar(menu_bar)
