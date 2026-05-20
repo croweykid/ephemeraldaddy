@@ -815,15 +815,15 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         element_combo = QComboBox()
         apply_default_dropdown_style(element_combo)
-        element_combo.addItem("Any", "Any")
+        element_combo.addItem("Any: 🔥🌬️💧🌱", "Any")
         for element in ("Fire", "Earth", "Air", "Water"):
             element_combo.addItem(element, element)
         narrow_dropdown_for_not_option(element_combo)
         element_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("AND")
+        filter_and = QRadioButton("&")
         filter_or = QRadioButton("OR")
-        filter_not = QRadioButton("NOT")
+        filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_element_row)
         filter_group.setExclusive(True)
         filter_group.addButton(filter_and)
@@ -855,10 +855,10 @@ def build_dbv_search_panel(window) -> "QWidget":
     )
 
     isolated_body_row = QHBoxLayout()
-    isolated_body_row.addWidget(QLabel("Solo dominance of body"))
+    isolated_body_row.addWidget(QLabel("Isolated dominance of"))
     window._isolated_dominant_body_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_body_filter_combo)
-    window._isolated_dominant_body_filter_combo.addItem("Any", "Any")
+    window._isolated_dominant_body_filter_combo.addItem("Any 🪐", "Any")
     for body_label, body_key in window._searchable_bodies():
         if body_key in {"AS", "IC", "DS", "MC"}:
             continue
@@ -869,15 +869,25 @@ def build_dbv_search_panel(window) -> "QWidget":
     isolated_body_row.addWidget(window._isolated_dominant_body_filter_combo, 1)
     isolated_factors_group_layout.addLayout(isolated_body_row)
 
-    isolated_or_label = QLabel("or")
-    isolated_or_label.setAlignment(Qt.AlignCenter)
-    isolated_factors_group_layout.addWidget(isolated_or_label)
+    isolated_operator_row = QHBoxLayout()
+    isolated_operator_row.addStretch(1)
+    isolated_and_radio = QRadioButton("AND")
+    isolated_and_radio.setChecked(True)
+    isolated_and_radio.setEnabled(False)
+    isolated_operator_row.addWidget(isolated_and_radio)
+    isolated_operator_row.addWidget(QLabel("&"))
+    isolated_or_radio = QRadioButton("OR")
+    isolated_or_radio.setEnabled(False)
+    isolated_operator_row.addWidget(isolated_or_radio)
+    isolated_operator_row.addWidget(QLabel("OR"))
+    isolated_operator_row.addStretch(1)
+    isolated_factors_group_layout.addLayout(isolated_operator_row)
 
     isolated_sign_row = QHBoxLayout()
-    isolated_sign_row.addWidget(QLabel("Solo dominance of sign"))
+    isolated_sign_row.addWidget(QLabel("Isolated dominance of"))
     window._isolated_dominant_sign_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_sign_filter_combo)
-    window._isolated_dominant_sign_filter_combo.addItem("Any", "Any")
+    window._isolated_dominant_sign_filter_combo.addItem("Any 🪧", "Any")
     for sign in ZODIAC_NAMES:
         window._isolated_dominant_sign_filter_combo.addItem(sign, sign)
     window._isolated_dominant_sign_filter_combo.currentIndexChanged.connect(
@@ -914,7 +924,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
         hd_channels_row.addWidget(channel_combo, 1)
-    window._human_design_channel_filter_and = QRadioButton("AND")
+    window._human_design_channel_filter_and = QRadioButton("&")
     window._human_design_channel_filter_or = QRadioButton("OR")
     hd_channel_group = QButtonGroup(window)
     hd_channel_group.setExclusive(True)
@@ -938,7 +948,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
         hd_gates_row.addWidget(gate_combo, 1)
-    window._human_design_gate_filter_and = QRadioButton("AND")
+    window._human_design_gate_filter_and = QRadioButton("&")
     window._human_design_gate_filter_or = QRadioButton("OR")
     hd_gate_group = QButtonGroup(window)
     hd_gate_group.setExclusive(True)
@@ -975,7 +985,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     human_design_group_layout.addLayout(hd_profile_row)
 
     hd_defined_centers_row = QHBoxLayout()
-    hd_defined_centers_row.addWidget(QLabel("Defined Centers"))
+    hd_defined_centers_row.addWidget(QLabel("Defined:"))
     for _ in range(3):
         center_combo = QComboBox()
         apply_default_dropdown_style(center_combo)
@@ -985,7 +995,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         center_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_defined_center_filters.append(center_combo)
         hd_defined_centers_row.addWidget(center_combo, 1)
-    window._human_design_defined_center_filter_and = QRadioButton("AND")
+    window._human_design_defined_center_filter_and = QRadioButton("&")
     window._human_design_defined_center_filter_or = QRadioButton("OR")
     hd_defined_center_group = QButtonGroup(window)
     hd_defined_center_group.setExclusive(True)
