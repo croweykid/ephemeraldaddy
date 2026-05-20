@@ -1895,6 +1895,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._dominant_planet_filters = []
         self._isolated_dominant_body_filter_combo = None
         self._isolated_dominant_sign_filter_combo = None
+        self._isolated_dominant_filter_and = None
+        self._isolated_dominant_filter_or = None
         self._body_dynamics_filters = []
         self._dominant_mode_filters = []
         self._decan_sign_filter_combo = None
@@ -15861,6 +15863,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self._isolated_dominant_body_filter_combo.setCurrentIndex(0)
             if self._isolated_dominant_sign_filter_combo is not None:
                 self._isolated_dominant_sign_filter_combo.setCurrentIndex(0)
+            if self._isolated_dominant_filter_and is not None:
+                self._isolated_dominant_filter_and.setChecked(True)
             if self._decan_sign_filter_combo is not None:
                 self._decan_sign_filter_combo.setCurrentIndex(0)
             if self._decan_number_filter_combo is not None:
@@ -18280,19 +18284,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_isolated_dominant_body != "Any"
             or selected_isolated_dominant_sign != "Any"
         ):
+            isolated_body_active = selected_isolated_dominant_body != "Any"
+            isolated_sign_active = selected_isolated_dominant_sign != "Any"
             isolated_body_matches = (
-                selected_isolated_dominant_body != "Any"
+                isolated_body_active
                 and self._chart_isolated_dominant_planet_matches(
                     chart, selected_isolated_dominant_body
                 )
             )
             isolated_sign_matches = (
-                selected_isolated_dominant_sign != "Any"
+                isolated_sign_active
                 and self._chart_isolated_dominant_sign_matches(
                     chart, selected_isolated_dominant_sign
                 )
             )
-            if not (isolated_body_matches or isolated_sign_matches):
+            isolated_use_and = bool(
+                self._isolated_dominant_filter_and is not None
+                and self._isolated_dominant_filter_and.isChecked()
+            )
+            if isolated_body_active and isolated_sign_active:
+                if isolated_use_and:
+                    if not (isolated_body_matches and isolated_sign_matches):
+                        return False
+                elif not (isolated_body_matches or isolated_sign_matches):
+                    return False
+            elif isolated_body_active and not isolated_body_matches:
+                return False
+            elif isolated_sign_active and not isolated_sign_matches:
                 return False
 
         if active_body_dynamics_filter_rows:
