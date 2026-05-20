@@ -231,7 +231,10 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         gate_match = _segment_for_degree(gate_segments, absolute_degree)
 
         gate_number = int(gate_match.label[1:]) if gate_match else None
-        gate_meaning = GATE_REFERENCE.get(gate_number, {}).get("meaning", "No gate reference available.")
+        gate_reference = GATE_REFERENCE.get(gate_number, {})
+        gate_name = str(gate_reference.get("name", "")).strip() or "Unknown"
+        gate_theme = str(gate_reference.get("theme", "")).strip()
+        gate_meaning = str(gate_reference.get("meaning", "")).strip() or "No gate reference available."
         sign_profile = SIGN_KEYWORDS_CANONICAL.get(sign_name.lower(), {})
         sign_color = SIGN_COLORS.get(sign_name, "#f7f7f7")
         nak_name = nak_match.label if nak_match else "Unknown"
@@ -270,7 +273,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             f"<p style='margin-top:0;'>{decan_data.get('description', 'No decan description available.')}</p>"
             f"<h3 style='margin:10px 0 6px 0; color:{NAKSHATRA_PLANET_COLOR.get(nak_name, ('', '#e0e0e0'))[1]};'>{nak_name}</h3>"
             f"<p style='margin-top:0;'>{nak_shakti}</p>"
-            f"<h3 style='margin:10px 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{gate_match.label if gate_match else 'Unknown Gate'}</h3>"
+            f"<h3 style='margin:10px 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{f'Gate {gate_number}: {gate_name}' if gate_number else 'Unknown Gate'}</h3>"
+            f"<p style='margin:0 0 4px 0;'><i>{gate_theme if gate_theme else 'No gate theme available.'}</i></p>"
             f"<p style='margin-top:0;'>{gate_meaning}</p>"
         )
         canvas.draw_idle()
