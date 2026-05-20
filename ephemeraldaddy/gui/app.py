@@ -9499,8 +9499,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_body_filters = [
             filters
             for filters in self._search_body_filters
-            if filters["sign"].currentText() != "Any"
-            or filters["house"].currentText() != "Any"
+            if str(filters["sign"].currentData()) != "Any"
+            or str(filters["house"].currentData()) != "Any"
         ]
         active_aspect_filters = [
             filters
@@ -15645,8 +15645,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _has_active_astrological_filters(self) -> bool:
         if any(
-            filters["sign"].currentText() != "Any"
-            or filters["house"].currentText() != "Any"
+            str(filters["sign"].currentData()) != "Any"
+            or str(filters["house"].currentData()) != "Any"
             for filters in self._search_body_filters
         ):
             return True
@@ -17459,8 +17459,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_body_filters = [
             filters
             for filters in self._search_body_filters
-            if filters["sign"].currentText() != "Any"
-            or filters["house"].currentText() != "Any"
+            if str(filters["sign"].currentData()) != "Any"
+            or str(filters["house"].currentData()) != "Any"
         ]
         active_aspect_filters = [
             filters
@@ -18125,8 +18125,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             def _body_filter_matches(filters: dict[str, Any]) -> bool:
                 body = str(filters["body"].currentData())
-                sign_value = filters["sign"].currentText()
-                house_value = filters["house"].currentText()
+                sign_value = str(filters["sign"].currentData())
+                house_value = str(filters["house"].currentData())
                 sign_active = sign_value != "Any"
                 house_active = house_value != "Any"
                 if sign_active and house_active:
