@@ -385,7 +385,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     bodies_layout.setLabelAlignment(Qt.AlignLeft)
     bodies_group_layout.addLayout(bodies_layout)
 
-    for idx in range(len(window._searchable_bodies())):
+    for _ in range(10):
         filter_row = QWidget()
         filter_layout = QHBoxLayout()
         filter_layout.setContentsMargins(0, 0, 0, 0)
@@ -393,29 +393,27 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         body_combo = QComboBox()
         apply_default_dropdown_style(body_combo)
-        for body_label, body_key in window._searchable_body_options():
+        body_combo.addItem("Any 🪐", "Any")
+        for body_label, body_key in window._searchable_bodies():
             body_combo.addItem(body_label, body_key)
         body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
-        sign_combo.addItem("Any")
+        sign_combo.addItem("Any 🪧", "Any")
         for sign in ZODIAC_NAMES:
-            sign_combo.addItem(sign)
+            sign_combo.addItem(sign, sign)
         sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         house_combo = QComboBox()
         apply_default_dropdown_style(house_combo)
-        house_combo.addItem("Any")
+        house_combo.addItem("Any 🏠", "Any")
         for house_num in range(1, 13):
-            house_combo.addItem(str(house_num))
+            house_combo.addItem(str(house_num), str(house_num))
         house_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_layout.addWidget(QLabel("🪐"))
         filter_layout.addWidget(body_combo)
-        filter_layout.addWidget(QLabel("🪧"))
         filter_layout.addWidget(sign_combo, 1)
-        filter_layout.addWidget(QLabel("🏠"))
         filter_layout.addWidget(house_combo)
         filter_and = QRadioButton("AND")
         filter_or = QRadioButton("OR")
