@@ -529,3 +529,22 @@ RELATIVE_YEAR_COLORS = {
     "year after next":"#ffff66",
     "other":"#ffffff"
 }
+
+#hex color blender
+def blend_hex_colors(hex_a, hex_b, weight_a=0.5):
+    """
+    Blend two hex colors.
+    weight_a = share of first color.
+    """
+    hex_a = hex_a.lstrip("#")
+    hex_b = hex_b.lstrip("#")
+
+    rgb_a = tuple(int(hex_a[i:i+2], 16) for i in (0, 2, 4))
+    rgb_b = tuple(int(hex_b[i:i+2], 16) for i in (0, 2, 4))
+
+    rgb = tuple(
+        round(a * weight_a + b * (1 - weight_a))
+        for a, b in zip(rgb_a, rgb_b)
+    )
+
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
