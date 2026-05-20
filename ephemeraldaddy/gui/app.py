@@ -783,6 +783,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
     similarity_breakdown_chart_ids,
 )
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
+from ephemeraldaddy.gui.features.charts.similar_charts_cache import SimilarChartsPopoutCache
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similar_chart_bio_panel_content,
     build_similar_charts_export_lines,
@@ -20706,6 +20707,7 @@ class MainWindow(QMainWindow):
         self._similar_charts_subject_name: str = ""
         self._similar_charts_reasoning_by_target: dict[str, Any] = {}
         self._similar_charts_popout_dialogs: list[QDialog] = []
+        self._similar_charts_popout_cache = SimilarChartsPopoutCache(max_entries=20)
         self._similar_charts_request_id: str | None = None
         self._similar_charts_worker_jobs: list[tuple[QThread, SimilarChartsWorker]] = []
         self._anagrams_summary_label: QLabel | None = None
@@ -21967,11 +21969,17 @@ class MainWindow(QMainWindow):
                 ),
             )
 
-    def _load_similar_chart_candidates(self) -> list[tuple[int, Chart]]:
-        rows = list_charts()
+    def _load_similar_chart_candidates(
+        self,
+        *,
+        rows: list[tuple[Any, ...]] | None = None,
+        current_chart_id: int | None = None,
+    ) -> list[tuple[int, Chart]]:
+        if rows is None:
+            rows = list_charts()
         return load_similar_chart_candidates(
             rows=rows,
-            current_chart_id=self.current_chart_id,
+            current_chart_id=self.current_chart_id if current_chart_id is None else current_chart_id,
             load_chart_by_id=load_chart,
         )
 
@@ -22708,75 +22716,89 @@ class MainWindow(QMainWindow):
             )
             return
 
-        
-        progress_parent = (
-            requester if isinstance(requester, QWidget) and requester.isVisible() else None
-        )
-        if progress_parent is None:
-            active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
-            if isinstance(active_window, QWidget) and active_window.isVisible():
-                progress_parent = active_window
-        progress = show_similar_charts_loading_progress(
-            parent=progress_parent,
-            message="Analyzing database to match similar charts…",
-        )
-        try:
-            try:
-                candidates = self._load_similar_chart_candidates()
-            except Exception as exc:
-                close_similar_charts_loading_progress(progress)
-                QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
-                return
-            if not candidates:
-                close_similar_charts_loading_progress(progress)
-                QMessageBox.information(
-                    self,
-                    "Similar Charts",
-                    "Need at least one additional saved chart that is not placeholder/hypothetical.",
-                )
-                return
 
-            algorithm_mode = _normalize_similar_charts_algorithm_mode(
-                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        algorithm_mode = _normalize_similar_charts_algorithm_mode(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        )
+        self._similar_charts_algorithm_mode = algorithm_mode
+        try:
+            chart_rows = list_charts()
+        except Exception as exc:
+            QMessageBox.warning(self, "Similar Charts", f"Could not read saved charts:\n{exc}")
+            return
+        cache_key = self._similar_charts_popout_cache.build_key(
+            chart=chart,
+            subject_chart_id=subject_chart_id,
+            algorithm_mode=algorithm_mode,
+            similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+        )
+        cached_payload = self._similar_charts_popout_cache.get(cache_key)
+        if cached_payload is not None:
+            most_similar_matches = list(cached_payload.get("most_similar_matches") or [])
+            least_similar_matches = list(cached_payload.get("least_similar_matches") or [])
+            least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        else:
+            progress_parent = (
+                requester if isinstance(requester, QWidget) and requester.isVisible() else None
             )
-            self._similar_charts_algorithm_mode = algorithm_mode
+            if progress_parent is None:
+                active_window = QApplication.activeModalWidget() or QApplication.activeWindow()
+                if isinstance(active_window, QWidget) and active_window.isVisible():
+                    progress_parent = active_window
+            progress = show_similar_charts_loading_progress(
+                parent=progress_parent,
+                message="Analyzing database to match similar charts…",
+            )
             try:
-                update_similar_charts_loading_progress(
-                    progress,
-                    "Calculating most similar charts…",
+                candidates = self._load_similar_chart_candidates(
+                    rows=chart_rows,
+                    current_chart_id=subject_chart_id,
                 )
-                most_similar_matches = find_astro_twins(
-                    chart,
-                    candidates,
-                    top_k=25,
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=False,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-                update_similar_charts_loading_progress(
-                    progress,
-                    "Calculating least similar charts…",
-                )
-                least_similar_matches = find_astro_twins(
-                    chart,
-                    candidates,
-                    top_k=25,
-                    exclude_chart_id=subject_chart_id,
-                    least_similar=True,
-                    algorithm_mode=algorithm_mode,
-                    custom_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-            except Exception as exc:
-                if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-                    self._report_similar_charts_comprehensive_failure(
-                        context="_show_similar_charts_popout",
-                        detail="comprehensive algorithm execution failed",
-                        error=exc,
+                if not candidates:
+                    QMessageBox.information(
+                        self,
+                        "Similar Charts",
+                        "Need at least one additional saved chart that is not placeholder/hypothetical.",
                     )
-                raise
-        finally:
-            close_similar_charts_loading_progress(progress)
+                    return
+
+                try:
+                    update_similar_charts_loading_progress(
+                        progress,
+                        "Calculating most similar charts…",
+                    )
+                    most_similar_matches = find_astro_twins(
+                        chart,
+                        candidates,
+                        top_k=25,
+                        exclude_chart_id=subject_chart_id,
+                        least_similar=False,
+                        algorithm_mode=algorithm_mode,
+                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    )
+                    update_similar_charts_loading_progress(
+                        progress,
+                        "Calculating least similar charts…",
+                    )
+                    least_similar_matches = find_astro_twins(
+                        chart,
+                        candidates,
+                        top_k=25,
+                        exclude_chart_id=subject_chart_id,
+                        least_similar=True,
+                        algorithm_mode=algorithm_mode,
+                        custom_settings=getattr(self, "_similarity_calculator_settings", None),
+                    )
+                except Exception as exc:
+                    if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
+                        self._report_similar_charts_comprehensive_failure(
+                            context="_show_similar_charts_popout",
+                            detail="comprehensive algorithm execution failed",
+                            error=exc,
+                        )
+                    raise
+            finally:
+                close_similar_charts_loading_progress(progress)
         if algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             invalid_mode = any(
                 match.algorithm_mode != SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
@@ -22794,6 +22816,12 @@ class MainWindow(QMainWindow):
                 )
                 return
         least_similar_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        if cached_payload is None:
+            self._similar_charts_popout_cache.put(
+                key=cache_key,
+                most_similar_matches=most_similar_matches,
+                least_similar_matches=least_similar_matches,
+            )
         subject_name = str(getattr(chart, "name", "") or "Current chart").strip()
         popout_reasoning_by_target = {}
         popout_reasoning_by_target.update(
