@@ -511,6 +511,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_EXALTATION,
     PLANET_FALL,
     PLANET_GLYPHS,
+    PLANETARY_JOYS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
     DECANS,
@@ -25287,7 +25288,22 @@ class MainWindow(QMainWindow):
                         and span_start <= cursor_pos < span_end
                     ):
                         if entry.get("kind") == "planet_keyword":
-                            self._show_planet_keyword_info(str(entry.get("body", "")))
+                            position_entry = next(
+                                (
+                                    info_item
+                                    for info_item in info_entries
+                                    if info_item.get("kind") == "position"
+                                ),
+                                {},
+                            )
+                            house_value = position_entry.get("house")
+                            house_num = house_value if isinstance(house_value, int) else None
+                            self._show_planet_keyword_info(
+                                str(entry.get("body", "")),
+                                sign_name=str(position_entry.get("sign", "")),
+                                house_num=house_num,
+                                chart_uses_houses=house_num is not None,
+                            )
                             return True
                         if entry.get("kind") == "sign_keyword":
                             self._show_sign_keyword_info(
@@ -25657,7 +25673,13 @@ class MainWindow(QMainWindow):
         bullet_lines = [f"• {line}" for line in lines[1:] if line.strip()]
         self.chart_info_output.setPlainText("\n".join([title, "", *bullet_lines]))
 
-    def _show_planet_keyword_info(self, body: str) -> None:
+    def _show_planet_keyword_info(
+        self,
+        body: str,
+        sign_name: str = "",
+        house_num: int | None = None,
+        chart_uses_houses: bool | None = None,
+    ) -> None:
         body_name = str(body or "").strip()
         display_body = _display_body_name(body_name)
         verbs = PLANET_KEYWORDS.get(body_name, {}).get("verbs", [])
@@ -25665,7 +25687,44 @@ class MainWindow(QMainWindow):
         if not clean_verbs:
             self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
             return
+        status_line = ""
+        resolved_sign_name = str(sign_name or "").strip().title()
+        resolved_house_num = house_num if isinstance(house_num, int) else None
+        resolved_uses_houses = bool(chart_uses_houses) if chart_uses_houses is not None else None
+        chart = self._latest_chart
+        if not resolved_sign_name and chart is not None:
+            sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+            resolved_sign_name = str(sign_by_body.get(body_name, "")).strip().title()
+        if resolved_house_num is None and chart is not None and hasattr(chart, "get_house"):
+            chart_house = chart.get_house(body_name)
+            resolved_house_num = chart_house if isinstance(chart_house, int) else None
+        if resolved_uses_houses is None and chart is not None:
+            resolved_uses_houses = _chart_uses_houses(chart)
+
+        rulership_signs = PLANET_RULERSHIP.get(body_name, set())
+        exaltation = PLANET_EXALTATION.get(body_name, {})
+        detriment_signs = PLANET_DETRIMENT.get(body_name, set())
+        fall = PLANET_FALL.get(body_name, {})
+        if (
+            resolved_sign_name
+            and exaltation
+            and resolved_sign_name == str(exaltation.get("sign", "")).strip().title()
+        ):
+            status_line = f"Exalted in {resolved_sign_name}."
+        elif resolved_sign_name and resolved_sign_name in rulership_signs:
+            status_line = f"Ruler of {resolved_sign_name}."
+        elif resolved_sign_name and resolved_sign_name in detriment_signs:
+            status_line = f"Detriment in {resolved_sign_name}."
+        elif resolved_sign_name and fall and resolved_sign_name == str(fall.get("sign", "")).strip().title():
+            status_line = f"Fall in {resolved_sign_name}."
+        elif resolved_uses_houses:
+            joy_house = PLANETARY_JOYS.get(body_name)
+            if isinstance(joy_house, int) and resolved_house_num == joy_house:
+                status_line = f"With joy in house {joy_house}."
         lines = [f"• {keyword}" for keyword in clean_verbs]
+        if status_line:
+            self.chart_info_output.setPlainText("\n".join([display_body, status_line, "", *lines]))
+            return
         self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
 
     def _show_sign_keyword_info(
