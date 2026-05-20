@@ -231,7 +231,39 @@ QComboBox::drop-down {
 QComboBox QAbstractItemView {
     background-color: #242424;
     color: #f0f0f0;
-    selection-background-color: #3b3b3b;
+    selection-background-color: #4f3f25;
+    selection-color: #f6ead1;
+    outline: 0;
+}
+QComboBox QAbstractItemView::item {
+    padding: 3px 6px;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QComboBox QAbstractItemView::item:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QComboBox QAbstractItemView::indicator {
+    width: 0px;
+    height: 0px;
+}
+QComboBox::item {
+    padding: 3px 6px;
+}
+QComboBox::item:selected {
+    background-color: #4f3f25;
+    color: #f6ead1;
+}
+QComboBox::item:hover {
+    background-color: #6a532d;
+    color: #fff2d8;
+}
+QComboBox::indicator {
+    width: 0px;
+    height: 0px;
 }
 """
 
