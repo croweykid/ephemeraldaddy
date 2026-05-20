@@ -25629,6 +25629,9 @@ class MainWindow(QMainWindow):
         for keyword in keywords:
             cursor.insertText(f"• {keyword}\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
+        reset_cursor = self.chart_info_output.textCursor()
+        reset_cursor.movePosition(QTextCursor.Start)
+        self.chart_info_output.setTextCursor(reset_cursor)
 
     def _set_chart_info_lines_with_segments(
         self,
