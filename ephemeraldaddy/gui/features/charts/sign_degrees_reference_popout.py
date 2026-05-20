@@ -62,7 +62,7 @@ def _parse_dms_degree(text: str) -> float:
 
 
 def _build_gate_segments() -> list[Segment]:
-    segments: list[Segment] = []
+    raw_segments: list[Segment] = []
     for sign_name in SIGN_ORDER:
         entries = HD_GATES_BY_SIGN.get(sign_name, [])
         sign_base = _sign_index(sign_name) * 30.0
@@ -72,8 +72,21 @@ def _build_gate_segments() -> list[Segment]:
             end = sign_base + _parse_dms_degree(end_txt)
             if end <= start:
                 end = sign_base + 30.0
-            segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
-    return segments
+            raw_segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
+
+    raw_segments.sort(key=lambda seg: seg.start)
+    merged_segments: list[Segment] = []
+    epsilon = 1e-6
+    for segment in raw_segments:
+        if not merged_segments:
+            merged_segments.append(segment)
+            continue
+        previous = merged_segments[-1]
+        if previous.label == segment.label and abs(previous.end - segment.start) < epsilon:
+            merged_segments[-1] = Segment(previous.ring, previous.start, segment.end, previous.label)
+            continue
+        merged_segments.append(segment)
+    return merged_segments
 
 
 
