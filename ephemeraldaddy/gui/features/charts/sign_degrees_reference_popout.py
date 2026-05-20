@@ -62,7 +62,7 @@ def _parse_dms_degree(text: str) -> float:
 
 
 def _build_gate_segments() -> list[Segment]:
-    segments: list[Segment] = []
+    raw_segments: list[Segment] = []
     for sign_name in SIGN_ORDER:
         entries = HD_GATES_BY_SIGN.get(sign_name, [])
         sign_base = _sign_index(sign_name) * 30.0
