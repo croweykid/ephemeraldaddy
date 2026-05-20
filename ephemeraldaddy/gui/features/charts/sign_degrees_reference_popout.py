@@ -16,6 +16,7 @@ from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
+    NAKSHATRA_ABBREVIATIONS,
     NAKSHATRA_RANGES,
     PLANET_COLORS,
     SIGN_KEYWORDS_CANONICAL,
@@ -149,8 +150,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=sign_color, edgecolor="#1e1e1e", linewidth=1.1))
         glyph = ZODIAC_SIGNS[i]
         mid = math.radians(90.0 - (start + 15.0))
-        r = (inner_radius + outer_radius) / 2.0
-        ax.text(r * math.cos(mid), r * math.sin(mid), glyph, color="black", fontsize=16, ha="center", va="center", fontweight="bold")
+        r = inner_radius + ((outer_radius - inner_radius) * 0.64)
+        ax.text(r * math.cos(mid), r * math.sin(mid), glyph, color="black", fontsize=14, ha="center", va="center", fontweight="bold")
 
         for decan in ZODIAC_DECANS[sign_name]:
             d_start = start + float(decan["degree_start"])
@@ -181,7 +182,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
             mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
             rr = (inner_radius + outer_radius) / 2.0
-            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak.label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
+            nak_label = NAKSHATRA_ABBREVIATIONS.get(nak.label, nak.label)
+            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak_label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
 
     for gate in gate_segments:
         theta1 = 90.0 - gate.end
