@@ -815,7 +815,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         element_combo = QComboBox()
         apply_default_dropdown_style(element_combo)
-        element_combo.addItem("Any: 🔥🌬️💧🌱", "Any")
+        element_combo.addItem("🔥🌬️💧🌱", "Any")
         for element in ("Fire", "Earth", "Air", "Water"):
             element_combo.addItem(element, element)
         narrow_dropdown_for_not_option(element_combo)
