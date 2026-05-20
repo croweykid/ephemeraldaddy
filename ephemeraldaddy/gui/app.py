@@ -511,6 +511,7 @@ from ephemeraldaddy.core.interpretations import (
     PLANET_EXALTATION,
     PLANET_FALL,
     PLANET_GLYPHS,
+    PLANETARY_JOYS,
     PLANET_ORDER,
     PLANET_RULERSHIP,
     DECANS,
@@ -25665,7 +25666,32 @@ class MainWindow(QMainWindow):
         if not clean_verbs:
             self.chart_info_output.setPlainText(f"{display_body}\n\nNo verb keywords available.")
             return
+        status_line = ""
+        chart = self._latest_chart
+        if chart is not None:
+            sign_by_body = chart.signs() if hasattr(chart, "signs") else {}
+            sign_name = str(sign_by_body.get(body_name, "")).strip().title()
+            rulership_signs = PLANET_RULERSHIP.get(body_name, set())
+            exaltation = PLANET_EXALTATION.get(body_name, {})
+            detriment_signs = PLANET_DETRIMENT.get(body_name, set())
+            fall = PLANET_FALL.get(body_name, {})
+            if sign_name and exaltation and sign_name == str(exaltation.get("sign", "")).strip().title():
+                status_line = f"Exalted in {sign_name}."
+            elif sign_name and sign_name in rulership_signs:
+                status_line = f"Ruler of {sign_name}."
+            elif sign_name and sign_name in detriment_signs:
+                status_line = f"Detriment in {sign_name}."
+            elif sign_name and fall and sign_name == str(fall.get("sign", "")).strip().title():
+                status_line = f"Fall in {sign_name}."
+            elif _chart_uses_houses(chart):
+                joy_house = PLANETARY_JOYS.get(body_name)
+                house_num = chart.get_house(body_name) if hasattr(chart, "get_house") else None
+                if isinstance(joy_house, int) and house_num == joy_house:
+                    status_line = f"With joy in house {joy_house}."
         lines = [f"• {keyword}" for keyword in clean_verbs]
+        if status_line:
+            self.chart_info_output.setPlainText("\n".join([display_body, status_line, "", *lines]))
+            return
         self.chart_info_output.setPlainText("\n".join([display_body, "", *lines]))
 
     def _show_sign_keyword_info(
