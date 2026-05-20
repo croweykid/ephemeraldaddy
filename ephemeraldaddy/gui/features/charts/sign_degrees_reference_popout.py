@@ -1,0 +1,252 @@
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib.patches import Wedge
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QPlainTextEdit, QSplitter, QVBoxLayout
+
+from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
+from ephemeraldaddy.core.decans import ZODIAC_DECANS
+from ephemeraldaddy.core.interpretations import (
+    NAKSHATRA_PLANET_COLOR,
+    NAKSHATRA_RANGES,
+    PLANET_COLORS,
+    SIGN_COLORS,
+    ZODIAC_SIGNS,
+)
+
+SIGN_ORDER = [
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+]
+
+
+@dataclass(frozen=True)
+class Segment:
+    ring: str
+    start: float
+    end: float
+    label: str
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    value = color.lstrip("#")
+    if len(value) != 6:
+        return (170, 170, 170)
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    r, g, b = rgb
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _blend_hex(color_a: str, color_b: str) -> str:
+    r1, g1, b1 = _hex_to_rgb(color_a)
+    r2, g2, b2 = _hex_to_rgb(color_b)
+    return _rgb_to_hex(((r1 + r2) // 2, (g1 + g2) // 2, (b1 + b2) // 2))
+
+
+def _normalize_degree(value: float) -> float:
+    wrapped = value % 360.0
+    if wrapped < 0:
+        wrapped += 360.0
+    return wrapped
+
+
+def _sign_index(name: str) -> int:
+    return SIGN_ORDER.index(name)
+
+
+def _absolute_deg(sign: str, degree: int, minute: int) -> float:
+    return (_sign_index(sign) * 30.0) + degree + (minute / 60.0)
+
+
+def _parse_dms_degree(text: str) -> float:
+    cleaned = text.replace('"', "")
+    deg_part, minute_part, sec_part = cleaned.split("°")[0], cleaned.split("°")[1].split("'")[0], cleaned.split("'")[1]
+    return float(deg_part) + (float(minute_part) / 60.0) + (float(sec_part) / 3600.0)
+
+
+def _build_gate_segments() -> list[Segment]:
+    segments: list[Segment] = []
+    for sign_name in SIGN_ORDER:
+        entries = HD_GATES_BY_SIGN.get(sign_name, [])
+        sign_base = _sign_index(sign_name) * 30.0
+        for entry in entries:
+            start_txt, end_txt = entry["degree_range"].split("–")
+            start = sign_base + _parse_dms_degree(start_txt)
+            end = sign_base + _parse_dms_degree(end_txt)
+            if end <= start:
+                end = sign_base + 30.0
+            segments.append(Segment("gate", start, end, f"G{entry['gate']}"))
+    return segments
+
+
+def _sign_color_for_gate_segment(start: float, end: float) -> str:
+    epsilon = 1e-6
+    start_sign = SIGN_ORDER[int(_normalize_degree(start) // 30.0)]
+    end_sign = SIGN_ORDER[int(_normalize_degree(end - epsilon) // 30.0)]
+    start_color = SIGN_COLORS[start_sign]
+    if start_sign == end_sign:
+        return start_color
+    end_color = SIGN_COLORS[end_sign]
+    return _blend_hex(start_color, end_color)
+
+
+def _segment_for_degree(segments: list[Segment], degree: float) -> Segment | None:
+    for segment in segments:
+        if segment.start <= degree < segment.end:
+            return segment
+    return None
+
+
+def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -> QDialog:
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Sign Degrees Reference Circle")
+    dialog.resize(980, 860)
+
+    layout = QVBoxLayout(dialog)
+    splitter = QSplitter(Qt.Horizontal, dialog)
+    layout.addWidget(splitter)
+
+    figure = Figure(figsize=(8, 8), facecolor="#111111")
+    canvas = FigureCanvas(figure)
+    ax = figure.add_subplot(111)
+    ax.set_facecolor("#111111")
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    info_output = QPlainTextEdit(dialog)
+    info_output.setReadOnly(True)
+    info_output.setPlainText("Click a segment in any ring to see degree, sign, decan, nakshatra, and gate details.")
+
+    splitter.addWidget(canvas)
+    splitter.addWidget(info_output)
+    splitter.setSizes([700, 280])
+
+    ring_map = {
+        "sign": (0.00, 0.25),
+        "decan": (0.25, 0.50),
+        "nakshatra": (0.50, 0.75),
+        "gate": (0.75, 1.00),
+    }
+
+    nak_segments: list[Segment] = []
+    for nakshatra, start_sign, start_deg, start_min, end_sign, end_deg, end_min in NAKSHATRA_RANGES:
+        start = _absolute_deg(start_sign, start_deg, start_min)
+        end = _absolute_deg(end_sign, end_deg, end_min)
+        if end <= start:
+            end += 360.0
+        nak_segments.append(Segment("nakshatra", start, end, nakshatra))
+
+    gate_segments = _build_gate_segments()
+
+    for i, sign_name in enumerate(SIGN_ORDER):
+        start = i * 30.0
+        end = start + 30.0
+        sign_color = SIGN_COLORS[sign_name]
+        theta1 = 90.0 - end
+        theta2 = 90.0 - start
+
+        inner_radius, outer_radius = ring_map["sign"]
+        ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=sign_color, edgecolor="#1e1e1e", linewidth=1.1))
+        glyph = ZODIAC_SIGNS[i]
+        mid = math.radians(90.0 - (start + 15.0))
+        r = (inner_radius + outer_radius) / 2.0
+        ax.text(r * math.cos(mid), r * math.sin(mid), glyph, color="black", fontsize=16, ha="center", va="center", fontweight="bold")
+
+        for decan in ZODIAC_DECANS[sign_name]:
+            d_start = start + float(decan["degree_start"])
+            d_end = start + float(decan["degree_end"])
+            dtheta1 = 90.0 - d_end
+            dtheta2 = 90.0 - d_start
+            color = PLANET_COLORS.get(str(decan["subsign_ruler"]), "#aaaaaa")
+            inner_radius, outer_radius = ring_map["decan"]
+            ax.add_patch(Wedge((0, 0), outer_radius, dtheta1, dtheta2, width=outer_radius-inner_radius, facecolor=color, alpha=0.45, edgecolor="#1e1e1e", linewidth=0.8))
+            dmid = math.radians(90.0 - ((d_start + d_end) / 2.0))
+            dr = (inner_radius + outer_radius) / 2.0
+            ax.text(dr * math.cos(dmid), dr * math.sin(dmid), f"d{decan['decan']}", color="#f0f0f0", fontsize=8, ha="center", va="center")
+
+    for nak in nak_segments:
+        draw_start, draw_end = nak.start, nak.end
+        while draw_start >= 360.0:
+            draw_start -= 360.0
+            draw_end -= 360.0
+        if draw_end > 360.0:
+            parts = [(draw_start, 360.0), (0.0, draw_end - 360.0)]
+        else:
+            parts = [(draw_start, draw_end)]
+        for p_start, p_end in parts:
+            theta1 = 90.0 - p_end
+            theta2 = 90.0 - p_start
+            inner_radius, outer_radius = ring_map["nakshatra"]
+            nak_color = NAKSHATRA_PLANET_COLOR.get(nak.label, ("Unknown", "#66ccff"))[1]
+            ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
+            mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
+            rr = (inner_radius + outer_radius) / 2.0
+            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak.label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
+
+    for gate in gate_segments:
+        theta1 = 90.0 - gate.end
+        theta2 = 90.0 - gate.start
+        inner_radius, outer_radius = ring_map["gate"]
+        gate_color = _sign_color_for_gate_segment(gate.start, gate.end)
+        ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
+        mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
+        rr = (inner_radius + outer_radius) / 2.0
+        ax.text(rr * math.cos(mid), rr * math.sin(mid), gate.label, color="#ffffff", fontsize=6.2, ha="center", va="center")
+
+    def _on_click(event) -> None:
+        if event.inaxes != ax or event.xdata is None or event.ydata is None:
+            return
+        x, y = float(event.xdata), float(event.ydata)
+        radius = math.hypot(x, y)
+        if radius <= 0.0 or radius > 1.0:
+            return
+
+        theta = (90.0 - math.degrees(math.atan2(y, x))) % 360.0
+        absolute_degree = _normalize_degree(theta)
+        sign_index = int(absolute_degree // 30.0)
+        sign_name = SIGN_ORDER[sign_index]
+        sign_local_degree = absolute_degree - (sign_index * 30.0)
+        decan_index = min(2, int(sign_local_degree // 10.0))
+        decan_data = ZODIAC_DECANS[sign_name][decan_index]
+
+        nak_match = _segment_for_degree(nak_segments, absolute_degree)
+        if nak_match is None:
+            nak_match = _segment_for_degree(nak_segments, absolute_degree + 360.0)
+        gate_match = _segment_for_degree(gate_segments, absolute_degree)
+
+        clicked_ring = "unknown"
+        for ring_name, (inner_r, outer_r) in ring_map.items():
+            if inner_r <= radius <= outer_r:
+                clicked_ring = ring_name
+                break
+
+        info_output.setPlainText(
+            f"Clicked ring: {clicked_ring}\n"
+            f"Absolute degree: {absolute_degree:.4f}°\n"
+            f"Sign: {sign_name} ({sign_local_degree:.4f}° of sign)\n"
+            f"Decan: d{decan_data['decan']} ({decan_data['subsign_ruler']} subsign ruler)\n"
+            f"Nakshatra: {nak_match.label if nak_match else 'Unknown'}\n"
+            f"Gate: {gate_match.label if gate_match else 'Unknown'}"
+        )
+
+    canvas.mpl_connect("button_press_event", _on_click)
+    ax.set_xlim(-1.12, 1.12)
+    ax.set_ylim(-1.12, 1.12)
+    canvas.draw_idle()
+
+    if callable(register_popout_shortcuts):
+        register_popout_shortcuts(dialog)
+
+    dialog.show()
+    dialog.raise_()
+    dialog.activateWindow()
+    return dialog
