@@ -8,14 +8,17 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QPlainTextEdit, QSplitter, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QSplitter, QTextBrowser, QVBoxLayout
 
 from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
+from ephemeraldaddy.analysis.human_design_reference import GATE_REFERENCE
 from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
+    NAKSHATRA_DESCRIPTIONS,
     NAKSHATRA_RANGES,
     PLANET_COLORS,
+    SIGN_KEYWORDS_CANONICAL,
     SIGN_COLORS,
     ZODIAC_SIGNS,
 )
@@ -110,6 +113,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     dialog = QDialog(parent)
     dialog.setWindowTitle("Sign Degrees Reference Circle")
     dialog.resize(980, 860)
+    dialog.setAttribute(Qt.WA_DeleteOnClose, True)
 
     layout = QVBoxLayout(dialog)
     splitter = QSplitter(Qt.Horizontal, dialog)
@@ -122,13 +126,26 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     ax.set_aspect("equal")
     ax.axis("off")
 
-    info_output = QPlainTextEdit(dialog)
+    info_output = QTextBrowser(dialog)
+    info_output.setOpenExternalLinks(False)
     info_output.setReadOnly(True)
-    info_output.setPlainText("Click a segment in any ring to see degree, sign, decan, nakshatra, and gate details.")
+    info_output.setHtml("<b>Click a segment in any ring to see details.</b>")
 
     splitter.addWidget(canvas)
     splitter.addWidget(info_output)
     splitter.setSizes([700, 280])
+    status_text = ax.text(
+        0.01,
+        0.01,
+        "Degree selected: —",
+        transform=ax.transAxes,
+        color="#f7f7f7",
+        fontsize=9.2,
+        ha="left",
+        va="bottom",
+        bbox={"facecolor": "#111111cc", "edgecolor": "#3a3a3a", "boxstyle": "round,pad=0.3"},
+        zorder=99,
+    )
 
     ring_map = {
         "sign": (0.00, 0.25),
@@ -223,20 +240,46 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             nak_match = _segment_for_degree(nak_segments, absolute_degree + 360.0)
         gate_match = _segment_for_degree(gate_segments, absolute_degree)
 
-        clicked_ring = "unknown"
-        for ring_name, (inner_r, outer_r) in ring_map.items():
-            if inner_r <= radius <= outer_r:
-                clicked_ring = ring_name
-                break
+        gate_number = int(gate_match.label[1:]) if gate_match else None
+        gate_meaning = GATE_REFERENCE.get(gate_number, {}).get("meaning", "No gate reference available.")
+        sign_profile = SIGN_KEYWORDS_CANONICAL.get(sign_name.lower(), {})
+        sign_color = SIGN_COLORS.get(sign_name, "#f7f7f7")
+        nak_name = nak_match.label if nak_match else "Unknown"
+        nak_shakti = NAKSHATRA_DESCRIPTIONS.get(nak_name, {}).get("shakti", "No shakti reference available.")
+        decan_ruler_color = PLANET_COLORS.get(str(decan_data["subsign_ruler"]), "#f7f7f7")
 
-        info_output.setPlainText(
-            f"Clicked ring: {clicked_ring}\n"
-            f"Absolute degree: {absolute_degree:.4f}°\n"
+        status_text.set_text(
+            f"Degree selected: {absolute_degree:.4f}°\n"
             f"Sign: {sign_name} ({sign_local_degree:.4f}° of sign)\n"
-            f"Decan: d{decan_data['decan']} ({decan_data['subsign_ruler']} subsign ruler)\n"
-            f"Nakshatra: {nak_match.label if nak_match else 'Unknown'}\n"
+            f"Decan: d{decan_data['decan']} ({decan_data['elemental_subsign']}/{decan_data['subsign_ruler']})\n"
+            f"Nakshatra: {nak_name}\n"
             f"Gate: {gate_match.label if gate_match else 'Unknown'}"
         )
+        info_output.setHtml(
+            f"<h3 style='margin:0; color:#f7f7f7;'>{absolute_degree:.4f}°</h3>"
+            f"<h3 style='margin:10px 0 6px 0; color:{sign_color};'>{sign_name}</h3>"
+            "<ul style='margin-top:0;'>"
+            "<li><b>Talents</b><ul>"
+            + "".join(f"<li>{item}</li>" for item in sign_profile.get("talents", []))
+            + "</ul></li>"
+            "<li><b>Challenges</b><ul>"
+            + "".join(f"<li>{item}</li>" for item in sign_profile.get("challenges", []))
+            + "</ul></li>"
+            "<li><b>Fears</b><ul>"
+            + "".join(f"<li>{item}</li>" for item in sign_profile.get("greatest_fears", []))
+            + "</ul></li>"
+            "<li><b>Motivations</b><ul>"
+            + "".join(f"<li>{item}</li>" for item in sign_profile.get("motivations", []))
+            + "</ul></li>"
+            "</ul>"
+            f"<h3 style='margin:10px 0 6px 0; color:{decan_ruler_color};'>Decan {decan_data['decan']}</h3>"
+            f"<p style='margin-top:0;'>{decan_data.get('description', 'No decan description available.')}</p>"
+            f"<h3 style='margin:10px 0 6px 0; color:#e0e0e0;'>{nak_name}</h3>"
+            f"<p style='margin-top:0;'>{nak_shakti}</p>"
+            f"<h3 style='margin:10px 0 6px 0; color:#e0e0e0;'>{gate_match.label if gate_match else 'Unknown Gate'}</h3>"
+            f"<p style='margin-top:0;'>{gate_meaning}</p>"
+        )
+        canvas.draw_idle()
 
     canvas.mpl_connect("button_press_event", _on_click)
     ax.set_xlim(-1.12, 1.12)
