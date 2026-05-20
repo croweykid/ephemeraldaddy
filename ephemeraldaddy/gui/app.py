@@ -9512,7 +9512,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_dominant_sign_filters = [
             filters
             for filters in self._dominant_sign_filters
-            if filters["sign"].currentText() != "Any"
+            if str(filters["sign"].currentData()) != "Any"
         ]
         active_dominant_planet_filters = [
             filters
@@ -15658,7 +15658,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ):
             return True
         if any(
-            filters["sign"].currentText() != "Any"
+            str(filters["sign"].currentData()) != "Any"
             for filters in self._dominant_sign_filters
         ):
             return True
@@ -17472,7 +17472,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         active_dominant_sign_filters = [
             filters
             for filters in self._dominant_sign_filters
-            if filters["sign"].currentText() != "Any"
+            if str(filters["sign"].currentData()) != "Any"
         ]
         active_dominant_planet_filters = [
             filters
