@@ -14,7 +14,14 @@ class WindowPlacement:
 
 
 def capture_window_placement(window: QWidget) -> WindowPlacement:
-    geometry = window.normalGeometry()
+    if window.isMaximized() or window.isFullScreen():
+        # When a window is maximized, normalGeometry() can point to a stale
+        # restore rectangle from a different monitor on Windows multi-display
+        # setups. Capture the current on-screen frame instead so monitor
+        # handoff between Database View and Chart View remains stable.
+        geometry = window.geometry()
+    else:
+        geometry = window.normalGeometry()
     if not geometry.isValid():
         geometry = window.geometry()
     return WindowPlacement(
