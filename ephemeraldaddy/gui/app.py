@@ -964,6 +964,7 @@ from ephemeraldaddy.gui.style import (
     SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     WINDOW_CHROME_MENU_STYLE,
+    apply_shared_dropdown_style,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
     CHART_AXES_STYLE,
@@ -1615,10 +1616,10 @@ def _get_qapp():
 
 
 def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
-    """Ensure dropdown/menu rules apply even when widgets do not set local style sheets."""
+    """Apply only safe global menu rules; dropdown rules are opt-in per-combobox."""
     global_rules = (
         "\n"
-        f"{DEFAULT_DROPDOWN_STYLE}\n"
+        #f"{DEFAULT_DROPDOWN_STYLE}\n"
         f"{WINDOW_CHROME_MENU_STYLE}\n"
     )
     existing = app.styleSheet() or ""
@@ -2455,7 +2456,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         dropdown.setFont(dropdown_font)
         dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         dropdown.setMinimumContentsLength(14)
-        dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        apply_shared_dropdown_style(dropdown)
         for option_label, option_value in options:
             dropdown.addItem(option_label.upper(), option_value)
         preferred_mode_by_chart = {
@@ -22045,7 +22046,7 @@ class MainWindow(QMainWindow):
         dropdown.setFont(dropdown_font)
         dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         dropdown.setMinimumContentsLength(14)
-        dropdown.setStyleSheet(DATABASE_ANALYTICS_DROPDOWN_STYLE)
+        apply_shared_dropdown_style(dropdown)
         dropdown.addItem("Most Similar", "most_similar")
         dropdown.addItem("Least Similar", "least_similar")
         dropdown.currentIndexChanged.connect(
