@@ -108,6 +108,19 @@ def _segment_for_degree(segments: list[Segment], degree: float) -> Segment | Non
     return None
 
 
+def _split_segment_for_drawing(start: float, end: float) -> tuple[list[tuple[float, float]], float]:
+    draw_start, draw_end = start, end
+    while draw_start >= 360.0:
+        draw_start -= 360.0
+        draw_end -= 360.0
+    while draw_start < 0.0:
+        draw_start += 360.0
+        draw_end += 360.0
+    if draw_end > 360.0:
+        return [(draw_start, 360.0), (0.0, draw_end - 360.0)], ((draw_start + draw_end) / 2.0) % 360.0
+    return [(draw_start, draw_end)], (draw_start + draw_end) / 2.0
+
+
 def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle("Sign Degrees Reference Circle")
