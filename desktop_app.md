@@ -13,7 +13,6 @@ python -m pip install --upgrade pip wheel setuptools
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller pillow
 python -m pip install Pyside6
-python -m pip install imojify
 python -m pip install matplotlib
 python -m pip install skyfield
 python -m pip install pyswisseph
