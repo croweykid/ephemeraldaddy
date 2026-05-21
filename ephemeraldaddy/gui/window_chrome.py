@@ -120,40 +120,10 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     if not content:
         content = "About content is unavailable."
 
-    about_subheaders = {
-        "1) Debunking/Bunking",
-        "2) Dark mode",
-        "3) Privacy / Data Control",
-        "4) Nakshatras",
-        "5) Anti-Cloud",
-        "6) Sociological/Psychological Intrigue",
-        "1) Nothing Similar Existed",
-        "2) Accessibility Features",
-        "3) GOOD Open Source Astro Apps are Scarce",
-        "4) Offline-Only Is Hard To Find for Mobile",
-        "5) Hedge Against Enshittification",
-        "A. Chart View (Chart Entry / Editor)",
-        "B. Database View (Manage Charts)",
-        "C. Transit View",
-        "D. Composite / Synastry tools",
-        "Chart calculation: methods & philosophy",
-        "“Planet” / Sign / House weighting methods",
-        "Chart Types",
-        "Sign/Position descriptions (important reality check)",
-        "Placeholder charts",
-        "Nakshatras",
-        "Gates, Lines & Channels",
-        "Weird toy metrics (D&D Species, Cursedness, Gender Guesser)",
-        "Synastry/composite status",
-    }
-    about_major_headers = {
-        "FAQs:",
-        "1) Where things are in the app",
-        "2) Core features of Ephemeral Daddy (what they’re called + how they work)",
-        "3) Data + privacy essentials",
-        "4) Suggested new-user workflow (fast start)",
-        "Final Takeaways",
-    }
+    def _apply_inline_markdown_formatting(text: str) -> str:
+        formatted = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        formatted = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", formatted)
+        return formatted
 
     styled_content_lines: list[str] = []
     for line in content.splitlines():
@@ -163,6 +133,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             heading_text = stripped[4:].strip()
             if heading_text.startswith("**") and heading_text.endswith("**"):
                 heading_text = heading_text[2:-2].strip()
+            heading_text = _apply_inline_markdown_formatting(heading_text)
             if heading_text.startswith("Q."):
                 styled_content_lines.append(
                     f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>\n"
@@ -177,6 +148,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
                 )
         elif stripped.startswith("## "):
             heading_text = stripped[3:].strip()
+            heading_text = _apply_inline_markdown_formatting(heading_text)
             is_major_header = bool(
                 re.match(r"^\d+\)", heading_text)
                 or heading_text.lower().startswith("faq")
@@ -188,35 +160,25 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             )
         elif stripped.startswith("#### "):
             heading_text = stripped[5:].strip()
+            heading_text = _apply_inline_markdown_formatting(heading_text)
             styled_content_lines.append(
                 f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>\n"
             )
         elif stripped.startswith("Q."):
             styled_content_lines.append(
                 f"{prefix_whitespace}<span class='about-question'>{stripped}</span>"
+             f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>\n"
+            )
+        elif stripped.startswith("Q."):
+            styled_content_lines.append(
+                f"{prefix_whitespace}<span class='about-question'>{_apply_inline_markdown_formatting(stripped)}</span>"
             )
         elif stripped.startswith("A."):
             styled_content_lines.append(
-                f"{prefix_whitespace}<span class='about-answer'>{stripped}</span>"
-            )
-        elif stripped.startswith("#### ") and stripped[5:] in about_subheaders:
-            styled_content_lines.append(
-                f"{prefix_whitespace}<h4 class='about-subheader'>{stripped[5:]}</h4>"
-            )
-        elif stripped.startswith("### **") and stripped[6:-2] in about_subheaders:
-            styled_content_lines.append(
-                f"{prefix_whitespace}<h3 class='about-subheader'>{stripped[6:-2]}</h3>"
-            )
-        elif stripped.startswith("## ") and stripped[3:] in about_subheaders:
-            styled_content_lines.append(
-                f"{prefix_whitespace}<h2 class='about-subheader'>{stripped[3:]}</h2>"
-            )
-        elif stripped.startswith("## ") and stripped[3:] in about_major_headers:
-            styled_content_lines.append(
-                f"{prefix_whitespace}<h2 class='about-major-header'>{stripped[3:]}</h2>"
+                f"{prefix_whitespace}<span class='about-answer'>{_apply_inline_markdown_formatting(stripped)}</span>"
             )
         else:
-            styled_content_lines.append(line)
+            styled_content_lines.append(_apply_inline_markdown_formatting(line))
     styled_content = "\n".join(styled_content_lines)
 
     dialog = QDialog(owner)
