@@ -165,15 +165,15 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
                 heading_text = heading_text[2:-2].strip()
             if heading_text.startswith("Q."):
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>"
+                    f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>\n"
                 )
             elif heading_text.startswith("A."):
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-answer'>{heading_text}</h3>"
+                    f"{prefix_whitespace}<h3 class='about-answer'>{heading_text}</h3>\n"
                 )
             else:
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-subheader'>{heading_text}</h3>"
+                    f"{prefix_whitespace}<h3 class='about-subheader'>{heading_text}</h3>\n"
                 )
         elif stripped.startswith("## "):
             heading_text = stripped[3:].strip()
@@ -184,12 +184,12 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             )
             heading_class = "about-major-header" if is_major_header else "about-subheader"
             styled_content_lines.append(
-                f"{prefix_whitespace}<h2 class='{heading_class}'>{heading_text}</h2>"
+                f"{prefix_whitespace}<h2 class='{heading_class}'>{heading_text}</h2>\n"
             )
         elif stripped.startswith("#### "):
             heading_text = stripped[5:].strip()
             styled_content_lines.append(
-                f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>"
+                f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>\n"
             )
         elif stripped.startswith("Q."):
             styled_content_lines.append(
