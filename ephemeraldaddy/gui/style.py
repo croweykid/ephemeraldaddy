@@ -217,8 +217,8 @@ QScrollBar::sub-page:vertical {
 
 DEFAULT_DROPDOWN_STYLE = """
 QComboBox {
-    background-color: #222222;
-    alternate-background-color: #222222;
+    background-color: #1c1c1c;
+    alternate-background-color: #1c1c1c;
     border: 1px solid #3f3f3f;
     border-radius: 4px;
     #color: #f0f0f0;
@@ -227,13 +227,13 @@ QComboBox {
     combobox-popup: 1;
 }
 QComboBox::drop-down {
-    background-color: #222222;
+    background-color: #1c1c1c;
     border: none;
     width: 18px;
 }
 QComboBox QAbstractItemView {
-    background-color: #222222;
-    alternate-background-color: #222222;
+    background-color: #1c1c1c;
+    alternate-background-color: #1c1c1c;
     #color: #f0f0f0;
     selection-background-color: #4f3f25;
     #selection-color: #f6ead1;
@@ -506,16 +506,16 @@ def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
     popup_view.setStyleSheet(
         """
 QListView {
-    background-color: #222222;
-    alternate-background-color: #222222;
+    background-color: #1c1c1c;
+    alternate-background-color: #1c1c1c;
     #color: #f0f0f0;
     outline: 0;
 }
 QListView::viewport {
-    background-color: #222222;
+    background-color: #1c1c1c;
 }
 QListView::item {
-    background-color: #222222;
+    background-color: #1c1c1c;
     padding: 3px 6px;
     margin: 0px;
 }
