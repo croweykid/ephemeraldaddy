@@ -97,6 +97,17 @@ def _build_gate_segments() -> list[Segment]:
         ):
             merged_segments[0] = Segment(first.ring, last.start, first.end + 360.0, first.label)
             merged_segments.pop()
+
+    if len(merged_segments) > 1:
+        first = merged_segments[0]
+        last = merged_segments[-1]
+        if (
+            first.label == last.label
+            and abs(last.end - 360.0) < epsilon
+            and abs(first.start - 0.0) < epsilon
+        ):
+            merged_segments[0] = Segment(first.ring, last.start, first.end + 360.0, first.label)
+            merged_segments.pop()
     return merged_segments
 
 
