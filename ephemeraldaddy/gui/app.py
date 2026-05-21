@@ -28216,6 +28216,7 @@ class MainWindow(QMainWindow):
         manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts(
             progress_callback=startup_progress,
+            use_launch_pulse=bool(startup_progress),
         )
         if not opened:
             return
