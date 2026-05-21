@@ -482,8 +482,6 @@ class ChartsController:
     def open_manage_charts(
         self,
         progress_callback: Callable[[str, int], None] | None = None,
-        *,
-        use_launch_pulse: bool = False,
     ) -> bool:
         if progress_callback:
             progress_callback("Checking unsaved changes…", 91)
@@ -513,8 +511,7 @@ class ChartsController:
             progress_callback("Finishing Database View setup…", 96)
         self._clear_pending_changed_ids()
         apply_launch_window_policy = getattr(dialog, "apply_launch_window_policy", None)
-        if use_launch_pulse and bool(getattr(dialog, "_launch_foreground_completed", False)):
-            use_launch_pulse = False
+        use_launch_pulse = not bool(getattr(dialog, "_launch_foreground_completed", False))
         if dialog.isVisible():
             if callable(apply_launch_window_policy):
                 apply_launch_window_policy(use_topmost_pulse=use_launch_pulse)
