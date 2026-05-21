@@ -123,8 +123,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     splitter.addWidget(info_output)
     splitter.setSizes([700, 280])
     status_text = ax.text(
-        0.01,
-        0.01,
+        -0.14,
+        -0.08,
         "Degree selected: —",
         transform=ax.transAxes,
         color="#f7f7f7",
@@ -196,7 +196,17 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
             rr = (inner_radius + outer_radius) / 2.0
             nak_label = NAKSHATRA_ABBREVIATIONS.get(nak.label, nak.label)
-            ax.text(rr * math.cos(mid), rr * math.sin(mid), nak_label, color="#f7f7f7", fontsize=6.6, ha="center", va="center")
+            oval_x_scale = 0.95
+            oval_y_scale = 1.08
+            ax.text(
+                (rr * oval_x_scale) * math.cos(mid),
+                (rr * oval_y_scale) * math.sin(mid),
+                nak_label,
+                color="#f7f7f7",
+                fontsize=6.6,
+                ha="center",
+                va="center",
+            )
 
     for gate in gate_segments:
         theta1 = 90.0 - gate.end
@@ -207,7 +217,17 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
         mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
-        ax.text(rr * math.cos(mid), rr * math.sin(mid), gate.label, color="#ffffff", fontsize=6.2, ha="center", va="center")
+        oval_x_scale = 0.95
+        oval_y_scale = 1.10
+        ax.text(
+            (rr * oval_x_scale) * math.cos(mid),
+            (rr * oval_y_scale) * math.sin(mid),
+            gate.label,
+            color="#ffffff",
+            fontsize=6.2,
+            ha="center",
+            va="center",
+        )
 
     def _on_click(event) -> None:
         if event.inaxes != ax or event.xdata is None or event.ydata is None:

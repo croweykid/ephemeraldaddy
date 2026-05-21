@@ -476,7 +476,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             planet_2_combo.addItem(label, key)
         planet_2_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_group = QButtonGroup(aspect_row)
         filter_group.setExclusive(True)
@@ -527,7 +527,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         narrow_dropdown_for_not_option(sign_combo)
         sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_row)
@@ -579,7 +579,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         narrow_dropdown_for_not_option(planet_combo)
         planet_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_planet_row)
@@ -635,7 +635,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             role_combo.addItem(role_label, role_key)
         role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_exclude = QRadioButton("🚫")
         filter_group = QButtonGroup(body_dynamics_row)
@@ -686,7 +686,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     narrow_dropdown_for_not_option(mode_combo)
     mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-    filter_and = QRadioButton("&")
+    filter_and = QRadioButton("&&")
     filter_or = QRadioButton("OR")
     filter_not = QRadioButton("🚫")
     filter_group = QButtonGroup(dominant_mode_row)
@@ -772,7 +772,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         narrow_dropdown_for_not_option(nakshatra_combo)
         nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_nakshatra_row)
@@ -821,7 +821,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         narrow_dropdown_for_not_option(element_combo)
         element_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_element_row)
@@ -871,7 +871,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     isolated_operator_row = QHBoxLayout()
     isolated_operator_row.addStretch(1)
-    window._isolated_dominant_filter_and = QRadioButton("&")
+    window._isolated_dominant_filter_and = QRadioButton("&&")
     window._isolated_dominant_filter_or = QRadioButton("OR")
     isolated_operator_group = QButtonGroup(window)
     isolated_operator_group.setExclusive(True)
@@ -925,7 +925,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
         hd_channels_row.addWidget(channel_combo, 1)
-    window._human_design_channel_filter_and = QRadioButton("&")
+    window._human_design_channel_filter_and = QRadioButton("&&")
     window._human_design_channel_filter_or = QRadioButton("OR")
     hd_channel_group = QButtonGroup(window)
     hd_channel_group.setExclusive(True)
@@ -949,7 +949,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
         hd_gates_row.addWidget(gate_combo, 1)
-    window._human_design_gate_filter_and = QRadioButton("&")
+    window._human_design_gate_filter_and = QRadioButton("&&")
     window._human_design_gate_filter_or = QRadioButton("OR")
     hd_gate_group = QButtonGroup(window)
     hd_gate_group.setExclusive(True)
@@ -996,7 +996,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         center_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_defined_center_filters.append(center_combo)
         hd_defined_centers_row.addWidget(center_combo, 1)
-    window._human_design_defined_center_filter_and = QRadioButton("&")
+    window._human_design_defined_center_filter_and = QRadioButton("&&")
     window._human_design_defined_center_filter_or = QRadioButton("OR")
     hd_defined_center_group = QButtonGroup(window)
     hd_defined_center_group.setExclusive(True)
