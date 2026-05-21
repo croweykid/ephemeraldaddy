@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
+from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
     ABOUT_DIALOG_INTRO_STYLE,
@@ -18,6 +19,21 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
 APP_DISPLAY_NAME = "Ephemeral Daddy"
+
+
+_ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
+
+
+def _show_about_close_sparkles(target_rect) -> None:
+    overlay = AboutCloseSparkleOverlay(target_rect, duration_ms=1000)
+    _ACTIVE_ABOUT_SPARKLES.append(overlay)
+
+    def _cleanup(*_args) -> None:
+        if overlay in _ACTIVE_ABOUT_SPARKLES:
+            _ACTIVE_ABOUT_SPARKLES.remove(overlay)
+
+    overlay.destroyed.connect(_cleanup)
+    overlay.start()
 
 
 def _resolve_current_chart_name(window: "QWidget") -> str:
@@ -104,6 +120,41 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     if not content:
         content = "About content is unavailable."
 
+    about_subheaders = {
+        "1) Debunking/Bunking",
+        "2) Dark mode",
+        "3) Privacy / Data Control",
+        "4) Nakshatras",
+        "5) Anti-Cloud",
+        "6) Sociological/Psychological Intrigue",
+        "1) Nothing Similar Existed",
+        "2) Accessibility Features",
+        "3) GOOD Open Source Astro Apps are Scarce",
+        "4) Offline-Only Is Hard To Find for Mobile",
+        "5) Hedge Against Enshittification",
+        "A. Chart View (Chart Entry / Editor)",
+        "B. Database View (Manage Charts)",
+        "C. Transit View",
+        "D. Composite / Synastry tools",
+        "Chart calculation: methods & philosophy",
+        "“Planet” / Sign / House weighting methods",
+        "Chart Types",
+        "Sign/Position descriptions (important reality check)",
+        "Placeholder charts",
+        "Nakshatras",
+        "Gates, Lines & Channels",
+        "Weird toy metrics (D&D Species, Cursedness, Gender Guesser)",
+        "Synastry/composite status",
+    }
+    about_major_headers = {
+        "FAQs:",
+        "1) Where things are in the app",
+        "2) Core features of Ephemeral Daddy (what they’re called + how they work)",
+        "3) Data + privacy essentials",
+        "4) Suggested new-user workflow (fast start)",
+        "Final Takeaways",
+    }
+
     styled_content_lines: list[str] = []
     for line in content.splitlines():
         stripped = line.lstrip()
@@ -148,11 +199,28 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             styled_content_lines.append(
                 f"{prefix_whitespace}<span class='about-answer'>{stripped}</span>"
             )
+        elif stripped.startswith("#### ") and stripped[5:] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h4 class='about-subheader'>{stripped[5:]}</h4>"
+            )
+        elif stripped.startswith("### **") and stripped[6:-2] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h3 class='about-subheader'>{stripped[6:-2]}</h3>"
+            )
+        elif stripped.startswith("## ") and stripped[3:] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h2 class='about-subheader'>{stripped[3:]}</h2>"
+            )
+        elif stripped.startswith("## ") and stripped[3:] in about_major_headers:
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h2 class='about-major-header'>{stripped[3:]}</h2>"
+            )
         else:
             styled_content_lines.append(line)
     styled_content = "\n".join(styled_content_lines)
 
     dialog = QDialog(owner)
+    dialog.setModal(False)
     dialog.setWindowTitle(title)
     dialog.resize(720, 560)
 
@@ -175,7 +243,8 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     buttons.accepted.connect(dialog.accept)
     layout.addWidget(buttons)
 
-    dialog.exec()
+    dialog.finished.connect(lambda _result: _show_about_close_sparkles(dialog.frameGeometry()))
+    dialog.show()
 
 def _minimize_window(owner: "QWidget") -> None:
     """Minimize the provided top-level window to the taskbar/dock."""
