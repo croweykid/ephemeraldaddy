@@ -157,18 +157,58 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     splitter.addWidget(canvas)
     splitter.addWidget(info_output)
     splitter.setSizes([700, 280])
-    status_text = ax.text(
+    status_box = ax.text(
         -0.14,
         -0.08,
-        "Degree selected: —",
+        "",
         transform=ax.transAxes,
-        color="#f7f7f7",
+        color=(0, 0, 0, 0),
         fontsize=9.2,
         ha="left",
         va="bottom",
         bbox={"facecolor": "#111111cc", "edgecolor": "#3a3a3a", "boxstyle": "round,pad=0.3"},
-        zorder=99,
+        zorder=98,
     )
+    status_line_texts = []
+
+    def _set_status_line_items(items: list[tuple[str, str, str]]) -> None:
+        nonlocal status_line_texts
+        for old_text in status_line_texts:
+            old_text.remove()
+        status_line_texts = []
+        base_x = -0.132
+        base_y = -0.068
+        line_step = 0.034
+        char_step = 0.0081
+        for idx, (header, value, value_color) in enumerate(items):
+            y = base_y + ((len(items) - 1 - idx) * line_step)
+            ax.text(
+                base_x,
+                y,
+                header,
+                transform=ax.transAxes,
+                color=CHART_DATA_HIGHLIGHT_COLOR,
+                fontsize=9.2,
+                ha="left",
+                va="bottom",
+                fontweight="bold",
+                zorder=99,
+            )
+            status_line_texts.append(
+                ax.text(
+                    base_x + (len(header) * char_step),
+                    y,
+                    value,
+                    transform=ax.transAxes,
+                    color=value_color,
+                    fontsize=9.2,
+                    ha="left",
+                    va="bottom",
+                    zorder=99,
+                )
+            )
+
+    _set_status_line_items([("Degree selected: ", "—", "#f7f7f7")])
 
     ring_map = {
         "sign": (0.00, 0.25),
@@ -292,40 +332,41 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         nak_shakti = NAKSHATRA_DESCRIPTIONS.get(nak_name, {}).get("shakti", "No shakti reference available.")
         decan_ruler_color = PLANET_COLORS.get(str(decan_data["subsign_ruler"]), "#f7f7f7")
 
-        status_text.set_text(
-            f"Degree selected: {absolute_degree:.4f}°\n"
-            f"Sign: {sign_name} ({sign_local_degree:.4f}° of sign)\n"
-            f"Decan: d{decan_data['decan']} ({decan_data['elemental_subsign']}/{decan_data['subsign_ruler']})\n"
-            f"Nakshatra: {nak_name}\n"
-            f"Gate: {gate_match.label if gate_match else 'Unknown'}"
+        status_box.set_text("")
+        _set_status_line_items(
+            [
+                ("Degree selected: ", f"{absolute_degree:.4f}°", "#f7f7f7"),
+                ("Sign: ", f"{sign_name} ({sign_local_degree:.4f}° of sign)", sign_color),
+                ("Decan: ", f"d{decan_data['decan']} ({decan_data['elemental_subsign']}/{decan_data['subsign_ruler']})", decan_ruler_color),
+                ("Nakshatra: ", nak_name, NAKSHATRA_PLANET_COLOR.get(nak_name, ("", "#e0e0e0"))[1]),
+                ("Gate: ", gate_match.label if gate_match else "Unknown", GATE_COLORS.get(gate_number, "#e0e0e0") if gate_number else "#e0e0e0"),
+            ]
         )
         info_output.setHtml(
             f"<h3 style='margin:0; color:#f7f7f7;'>{absolute_degree:.4f}°</h3>"
             f"<h3 style='margin:10px 0 6px 0; color:{sign_color};'>{sign_name}</h3>"
-            "<ul style='margin:0; padding-left:18px;'>"
-            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Talents</span>"
-            "<ul style='margin:0; padding-left:18px;'>"
+            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Talents</span>"
+            "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("talents", []))
-            + "</ul></li>"
-            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Challenges</span>"
-            "<ul style='margin:0; padding-left:18px;'>"
+            + "</ul></div>"
+            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Challenges</span>"
+            "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("challenges", []))
-            + "</ul></li>"
-            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Fears</span>"
-            "<ul style='margin:0; padding-left:18px;'>"
+            + "</ul></div>"
+            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Fears</span>"
+            "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("greatest_fears", []))
-            + "</ul></li>"
-            f"<li><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Motivations</span>"
-            "<ul style='margin:0; padding-left:18px;'>"
+            + "</ul></div>"
+            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Motivations</span>"
+            "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("motivations", []))
-            + "</ul></li>"
-            "</ul>"
+            + "</ul></div>"
             f"<h3 style='margin:10px 0 6px 0; color:{decan_ruler_color};'>Decan {decan_data['decan']}</h3>"
             f"<p style='margin-top:0;'>{decan_data.get('description', 'No decan description available.')}</p>"
             f"<h3 style='margin:10px 0 6px 0; color:{NAKSHATRA_PLANET_COLOR.get(nak_name, ('', '#e0e0e0'))[1]};'>{nak_name}</h3>"
             f"<p style='margin-top:0;'>{nak_shakti}</p>"
             f"<h3 style='margin:10px 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{f'Gate {gate_number}: {gate_name}' if gate_number else 'Unknown Gate'}</h3>"
-            f"<p style='margin:0 0 4px 0;'><i>{gate_theme if gate_theme else 'No gate theme available.'}</i></p>"
+            f"<p style='margin:0 0 4px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'><i>{gate_theme if gate_theme else 'No gate theme available.'}</i></p>"
             f"<p style='margin-top:0;'>{gate_meaning}</p>"
         )
         canvas.draw_idle()
