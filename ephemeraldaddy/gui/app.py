@@ -1549,21 +1549,21 @@ def _maybe_reexec_with_macos_app_name() -> None:
 def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
     QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
-    #QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
+    QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
+    if sys.platform == "win32":
+        # Keep the explicit AppUserModelID in both code paths (new and reused
+        # QApplication) so Terminal/bootstrap launches still get a taskbar icon.
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+                "ephemeraldaddy.desktop"
+            )
+        except Exception:
+            pass
     app = QApplication.instance()
     if app is None:
         logger.debug("Creating new QApplication instance.")
         _configure_qt_input_scaling()
-        if sys.platform == "win32":
-            # Ensure Windows treats this process as the Ephemeral Daddy app
-            # so the taskbar uses our icon/name instead of Python's defaults.
-            try:
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
-                    "ephemeraldaddy.desktop"
-                )
-            except Exception:
-                pass
 
         if sys.platform == "darwin":
             # On macOS, process naming for interpreter-launched GUI apps can default
@@ -30404,6 +30404,9 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     startup_loading.update_status("Loading main window…", 45)
     logger.debug("Constructing MainWindow.")
     window = MainWindow()
+    # App-level quit requests (menu Exit, Ctrl+C in some terminals, OS session
+    # shutdown) must bypass MainWindow's close interception.
+    app.aboutToQuit.connect(window.allow_close_for_app_exit)
     configure_initial_window_state(
         app=app,
         window=window,

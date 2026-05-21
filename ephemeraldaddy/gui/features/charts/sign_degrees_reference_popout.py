@@ -6,6 +6,7 @@ from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.offsetbox import AnnotationBbox, HPacker, TextArea
 from matplotlib.patches import Wedge
 
 from PySide6.QtCore import QSettings, Qt
@@ -236,42 +237,41 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
 
     def _set_status_line_items(items: list[tuple[str, str, str]]) -> None:
         nonlocal status_line_texts
-        for old_text in status_line_texts:
-            old_text.remove()
+        for old_artist in status_line_texts:
+            old_artist.remove()
         status_line_texts = []
         base_x = -0.132
         base_y = -0.068
         line_step = 0.034
-        char_step = 0.0081
         for idx, (header, value, value_color) in enumerate(items):
             y = base_y + ((len(items) - 1 - idx) * line_step)
-            status_line_texts.append(
-                ax.text(
-                    base_x,
-                    y,
-                    header,
-                    transform=ax.transAxes,
-                    color=CHART_DATA_HIGHLIGHT_COLOR,
-                    fontsize=9.2,
-                    ha="left",
-                    va="bottom",
-                    fontweight="bold",
-                    zorder=99,
-                )
+            header_area = TextArea(
+                header,
+                textprops={
+                    "color": CHART_DATA_HIGHLIGHT_COLOR,
+                    "fontsize": 9.2,
+                    "fontweight": "bold",
+                },
             )
-            status_line_texts.append(
-                ax.text(
-                    base_x + (len(header) * char_step),
-                    y,
-                    value,
-                    transform=ax.transAxes,
-                    color=value_color,
-                    fontsize=9.2,
-                    ha="left",
-                    va="bottom",
-                    zorder=99,
-                )
+            value_area = TextArea(
+                value,
+                textprops={
+                    "color": value_color,
+                    "fontsize": 9.2,
+                },
             )
+            line_box = HPacker(children=[header_area, value_area], align="baseline", pad=0, sep=0)
+            line_artist = AnnotationBbox(
+                line_box,
+                (base_x, y),
+                xycoords=ax.transAxes,
+                box_alignment=(0.0, 0.0),
+                frameon=False,
+                pad=0.0,
+                zorder=99,
+            )
+            ax.add_artist(line_artist)
+            status_line_texts.append(line_artist)
 
     _set_status_line_items([("Degree selected: ", "—", "#f7f7f7")])
 
