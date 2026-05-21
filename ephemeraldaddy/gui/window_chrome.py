@@ -222,16 +222,17 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
         "on_show_similar_charts_popout",
     )
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
-    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
+    _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    _bind_menu_action(tools_menu, "Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
                       "on_open_sign_degrees_reference_circle")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
     help_menu = menu_bar.addMenu("HALP!")
-    _bind_menu_action(help_menu, "HALP!", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
+    _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
     _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
@@ -286,8 +287,8 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         dialog,
         "_on_menu_see_similar_charts",
     )
-    _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
-    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", dialog, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
     _bind_menu_action(
@@ -297,7 +298,7 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
-    _bind_menu_action(tools_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
+    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
                       "on_open_sign_degrees_reference_circle")
 
     view_menu = menu_bar.addMenu("View")
