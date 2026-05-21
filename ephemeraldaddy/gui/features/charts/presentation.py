@@ -11,7 +11,6 @@ from matplotlib import font_manager as mpl_font_manager
 
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.interpretations import (
-    NAKSHATRA_ABBREVIATIONS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
     NAKSHATRA_RANGES,
@@ -107,13 +106,25 @@ def abbreviate_nakshatra_label(nakshatra: str) -> str:
     label = str(nakshatra).strip()
     if not label or label not in _NAKSHATRA_NAME_SET:
         return label
-    mapped = NAKSHATRA_ABBREVIATIONS.get(label)
-    if isinstance(mapped, str) and mapped.strip():
-        return mapped.strip()
 
-    parts = label.split()
-    if len(parts) >= 2 and parts[0] in {"Purva", "Uttara"}:
-        return f"{parts[0][0]}. {' '.join(parts[1:])}"
+    abbreviated = label
+    if abbreviated.startswith("Purva "):
+        abbreviated = abbreviated.replace("Purva", "P.", 1)
+    elif abbreviated.startswith("Uttara "):
+        abbreviated = abbreviated.replace("Uttara", "U.", 1)
+
+    abbreviated = abbreviated.replace("Bhadrapada", "Bhad.", 1)
+    abbreviated = abbreviated.replace("Bhadrapadha", "Bhad.", 1)
+    abbreviated = abbreviated.replace("Phalguni", "Phal.", 1)
+    abbreviated = abbreviated.replace("Ashadha", "Ash.", 1)
+    return abbreviated
+
+
+def abbreviate_body_label(body: str) -> str:
+    """Return compact body labels used in dense UI contexts."""
+    label = str(body).strip()
+    if label == "Part of Fortune":
+        return "Fortune"
     return label
 
 
