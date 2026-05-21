@@ -139,6 +139,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QGridLayout = app_module.QGridLayout
     QFormLayout = app_module.QFormLayout
     QIntValidator = app_module.QIntValidator
+    QSizePolicy = app_module.QSizePolicy
 
     # Shared styles/constants/helpers already resolved in app.py.
     DEFAULT_DROPDOWN_STYLE = app_module.DEFAULT_DROPDOWN_STYLE
@@ -185,7 +186,11 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     def set_dropdown_width_chars(dropdown: QComboBox, chars: int) -> None:
         metrics = dropdown.fontMetrics()
-        dropdown.setFixedWidth((metrics.horizontalAdvance("0") * int(chars)) + 24)
+        width_px = (metrics.horizontalAdvance("0") * int(chars)) + 24
+        dropdown.setMinimumWidth(width_px)
+        dropdown.setMaximumWidth(width_px)
+        dropdown.setFixedWidth(width_px)
+        dropdown.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
     def compact_body_label(label: str) -> str:
         return str(label).replace("Part of Fortune", "Fortune")
