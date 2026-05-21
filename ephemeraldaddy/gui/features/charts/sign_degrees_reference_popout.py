@@ -245,17 +245,19 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         char_step = 0.0081
         for idx, (header, value, value_color) in enumerate(items):
             y = base_y + ((len(items) - 1 - idx) * line_step)
-            ax.text(
-                base_x,
-                y,
-                header,
-                transform=ax.transAxes,
-                color=CHART_DATA_HIGHLIGHT_COLOR,
-                fontsize=9.2,
-                ha="left",
-                va="bottom",
-                fontweight="bold",
-                zorder=99,
+            status_line_texts.append(
+                ax.text(
+                    base_x,
+                    y,
+                    header,
+                    transform=ax.transAxes,
+                    color=CHART_DATA_HIGHLIGHT_COLOR,
+                    fontsize=9.2,
+                    ha="left",
+                    va="bottom",
+                    fontweight="bold",
+                    zorder=99,
+                )
             )
             status_line_texts.append(
                 ax.text(
