@@ -139,6 +139,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     QGridLayout = app_module.QGridLayout
     QFormLayout = app_module.QFormLayout
     QIntValidator = app_module.QIntValidator
+    QSizePolicy = app_module.QSizePolicy
 
     # Shared styles/constants/helpers already resolved in app.py.
     DEFAULT_DROPDOWN_STYLE = app_module.DEFAULT_DROPDOWN_STYLE
@@ -174,15 +175,28 @@ def build_dbv_search_panel(window) -> "QWidget":
         dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
     def center_dropdown_items(dropdown: QComboBox) -> None:
-        dropdown.setEditable(True)
-        dropdown.lineEdit().setReadOnly(True)
-        dropdown.lineEdit().setAlignment(Qt.AlignCenter)
+        dropdown.setEditable(False)
         for item_index in range(dropdown.count()):
             dropdown.setItemData(item_index, Qt.AlignCenter, Qt.TextAlignmentRole)
+        dropdown.setStyleSheet(f"{DEFAULT_DROPDOWN_STYLE} QComboBox {{ text-align: center; }}")
 
     def narrow_dropdown_for_not_option(dropdown: QComboBox) -> None:
         target_width = max(120, dropdown.sizeHint().width() - 100)
         dropdown.setFixedWidth(target_width)
+
+    def set_dropdown_width_chars(dropdown: QComboBox, chars: int) -> None:
+        metrics = dropdown.fontMetrics()
+        width_px = (metrics.horizontalAdvance("0") * int(chars)) + 24
+        dropdown.setMinimumWidth(width_px)
+        dropdown.setMaximumWidth(width_px)
+        dropdown.setFixedWidth(width_px)
+        dropdown.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+    def compact_body_label(label: str) -> str:
+        return str(label).replace("Part of Fortune", "Fortune")
+
+    def compact_nakshatra_label(label: str) -> str:
+        return str(label).replace("Purva", "P.").replace("Uttara", "U.")
 
     search_title = QLabel("Database search")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
@@ -394,13 +408,15 @@ def build_dbv_search_panel(window) -> "QWidget":
         body_combo = QComboBox()
         apply_default_dropdown_style(body_combo)
         body_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(body_combo, 10)
         for body_label, body_key in window._searchable_bodies():
-            body_combo.addItem(body_label, body_key)
+            body_combo.addItem(compact_body_label(body_label), body_key)
         body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
         sign_combo.addItem("Any 🪧", "Any")
+        set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign, sign)
         sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
@@ -408,6 +424,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         house_combo = QComboBox()
         apply_default_dropdown_style(house_combo)
         house_combo.addItem("Any 🏠", "Any")
+        set_dropdown_width_chars(house_combo, 6)
         for house_num in range(1, 13):
             house_combo.addItem(str(house_num), str(house_num))
         house_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
@@ -415,16 +432,19 @@ def build_dbv_search_panel(window) -> "QWidget":
         filter_layout.addWidget(body_combo)
         filter_layout.addWidget(sign_combo, 1)
         filter_layout.addWidget(house_combo)
-        filter_and = QRadioButton("AND")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
+        filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(filter_row)
         filter_group.setExclusive(True)
         filter_group.addButton(filter_and)
         filter_group.addButton(filter_or)
+        filter_group.addButton(filter_not)
         filter_and.setChecked(True)
         filter_group.buttonClicked.connect(window._on_filter_changed)
         filter_layout.addWidget(filter_and)
         filter_layout.addWidget(filter_or)
+        filter_layout.addWidget(filter_not)
 
         window._search_body_filters.append({
             "body": body_combo,
@@ -432,6 +452,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             "house": house_combo,
             "and": filter_and,
             "or": filter_or,
+            "not": filter_not,
         })
         bodies_layout.addRow(filter_row)
 
@@ -459,24 +480,27 @@ def build_dbv_search_panel(window) -> "QWidget":
         planet_1_combo = QComboBox()
         apply_default_dropdown_style(planet_1_combo)
         planet_1_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(planet_1_combo, 10)
         for label, key in searchable_planets:
-            planet_1_combo.addItem(label, key)
+            planet_1_combo.addItem(compact_body_label(label), key)
         planet_1_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         aspect_combo = QComboBox()
         apply_default_dropdown_style(aspect_combo)
         for label, key in aspect_options:
             aspect_combo.addItem(label, key)
+        set_dropdown_width_chars(aspect_combo, 17)
         aspect_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         planet_2_combo = QComboBox()
         apply_default_dropdown_style(planet_2_combo)
         planet_2_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(planet_2_combo, 10)
         for label, key in searchable_planets:
-            planet_2_combo.addItem(label, key)
+            planet_2_combo.addItem(compact_body_label(label), key)
         planet_2_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_group = QButtonGroup(aspect_row)
         filter_group.setExclusive(True)
@@ -522,12 +546,13 @@ def build_dbv_search_panel(window) -> "QWidget":
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
         sign_combo.addItem("Any 🪧", "Any")
+        set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign)
         narrow_dropdown_for_not_option(sign_combo)
         sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_row)
@@ -575,11 +600,11 @@ def build_dbv_search_panel(window) -> "QWidget":
         for planet_label, planet_key in window._searchable_bodies():
             if planet_key in {"AS", "IC", "DS", "MC"}:
                 continue
-            planet_combo.addItem(planet_label, planet_key)
+            planet_combo.addItem(compact_body_label(planet_label), planet_key)
         narrow_dropdown_for_not_option(planet_combo)
         planet_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_planet_row)
@@ -624,18 +649,20 @@ def build_dbv_search_panel(window) -> "QWidget":
         body_combo = QComboBox()
         apply_default_dropdown_style(body_combo)
         body_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(body_combo, 10)
         for body in JONES_PLANETS:
-            body_combo.addItem(body, body)
+            body_combo.addItem(compact_body_label(body), body)
         body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         role_combo = QComboBox()
         apply_default_dropdown_style(role_combo)
         role_combo.addItem("Any ±", "any")
+        set_dropdown_width_chars(role_combo, 10)
         for role_label, role_key in BODY_DYNAMICS_ROLE_OPTIONS:
             role_combo.addItem(role_label, role_key)
         role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_exclude = QRadioButton("🚫")
         filter_group = QButtonGroup(body_dynamics_row)
@@ -686,7 +713,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     narrow_dropdown_for_not_option(mode_combo)
     mode_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-    filter_and = QRadioButton("&")
+    filter_and = QRadioButton("&&")
     filter_or = QRadioButton("OR")
     filter_not = QRadioButton("🚫")
     filter_group = QButtonGroup(dominant_mode_row)
@@ -768,11 +795,11 @@ def build_dbv_search_panel(window) -> "QWidget":
         apply_default_dropdown_style(nakshatra_combo)
         nakshatra_combo.addItem("Any", "Any")
         for nakshatra_name, *_ in NAKSHATRA_RANGES:
-            nakshatra_combo.addItem(str(nakshatra_name), str(nakshatra_name))
+            nakshatra_combo.addItem(compact_nakshatra_label(str(nakshatra_name)), str(nakshatra_name))
         narrow_dropdown_for_not_option(nakshatra_combo)
         nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_nakshatra_row)
@@ -821,7 +848,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         narrow_dropdown_for_not_option(element_combo)
         element_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-        filter_and = QRadioButton("&")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
         filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(dominant_element_row)
@@ -859,10 +886,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._isolated_dominant_body_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_body_filter_combo)
     window._isolated_dominant_body_filter_combo.addItem("Any 🪐", "Any")
+    set_dropdown_width_chars(window._isolated_dominant_body_filter_combo, 10)
     for body_label, body_key in window._searchable_bodies():
         if body_key in {"AS", "IC", "DS", "MC"}:
             continue
-        window._isolated_dominant_body_filter_combo.addItem(body_label, body_key)
+        window._isolated_dominant_body_filter_combo.addItem(compact_body_label(body_label), body_key)
     window._isolated_dominant_body_filter_combo.currentIndexChanged.connect(
         window._on_astrological_filter_changed
     )
@@ -871,7 +899,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
     isolated_operator_row = QHBoxLayout()
     isolated_operator_row.addStretch(1)
-    window._isolated_dominant_filter_and = QRadioButton("&")
+    window._isolated_dominant_filter_and = QRadioButton("&&")
     window._isolated_dominant_filter_or = QRadioButton("OR")
     isolated_operator_group = QButtonGroup(window)
     isolated_operator_group.setExclusive(True)
@@ -889,6 +917,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._isolated_dominant_sign_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_sign_filter_combo)
     window._isolated_dominant_sign_filter_combo.addItem("Any 🪧", "Any")
+    set_dropdown_width_chars(window._isolated_dominant_sign_filter_combo, 6)
     for sign in ZODIAC_NAMES:
         window._isolated_dominant_sign_filter_combo.addItem(sign, sign)
     window._isolated_dominant_sign_filter_combo.currentIndexChanged.connect(
@@ -922,10 +951,11 @@ def build_dbv_search_panel(window) -> "QWidget":
         )
         for channel_label in channel_options:
             channel_combo.addItem(channel_label, channel_label)
+        set_dropdown_width_chars(channel_combo, 4)
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
-        hd_channels_row.addWidget(channel_combo, 1)
-    window._human_design_channel_filter_and = QRadioButton("&")
+        hd_channels_row.addWidget(channel_combo)
+    window._human_design_channel_filter_and = QRadioButton("&&")
     window._human_design_channel_filter_or = QRadioButton("OR")
     hd_channel_group = QButtonGroup(window)
     hd_channel_group.setExclusive(True)
@@ -946,10 +976,11 @@ def build_dbv_search_panel(window) -> "QWidget":
         for gate_value in range(1, 65):
             gate_combo.addItem(str(gate_value), gate_value)
         center_dropdown_items(gate_combo)
+        set_dropdown_width_chars(gate_combo, 3)
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
-        hd_gates_row.addWidget(gate_combo, 1)
-    window._human_design_gate_filter_and = QRadioButton("&")
+        hd_gates_row.addWidget(gate_combo)
+    window._human_design_gate_filter_and = QRadioButton("&&")
     window._human_design_gate_filter_or = QRadioButton("OR")
     hd_gate_group = QButtonGroup(window)
     hd_gate_group.setExclusive(True)
@@ -970,8 +1001,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_type_filter_combo.addItem("Generator", "Generator")
     window._human_design_type_filter_combo.addItem("Manifesting Generator", "Manifesting Generator")
     window._human_design_type_filter_combo.addItem("Projector", "Projector")
+    set_dropdown_width_chars(window._human_design_type_filter_combo, 22)
     window._human_design_type_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_type_row.addWidget(window._human_design_type_filter_combo, 1)
+    hd_type_row.addWidget(window._human_design_type_filter_combo)
     human_design_group_layout.addLayout(hd_type_row)
 
     hd_profile_row = QHBoxLayout()
@@ -981,8 +1013,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_profile_filter_combo.addItem("Any", "Any")
     for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
         window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
+    set_dropdown_width_chars(window._human_design_profile_filter_combo, 3)
     window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_profile_row.addWidget(window._human_design_profile_filter_combo, 1)
+    hd_profile_row.addWidget(window._human_design_profile_filter_combo)
     human_design_group_layout.addLayout(hd_profile_row)
 
     hd_defined_centers_row = QHBoxLayout()
@@ -993,10 +1026,11 @@ def build_dbv_search_panel(window) -> "QWidget":
         center_combo.addItem("Any", "Any")
         for center_label in getattr(window, "HD_DEFINED_CENTER_ORDER", ()):
             center_combo.addItem(center_label, center_label)
+        set_dropdown_width_chars(center_combo, 11)
         center_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_defined_center_filters.append(center_combo)
-        hd_defined_centers_row.addWidget(center_combo, 1)
-    window._human_design_defined_center_filter_and = QRadioButton("&")
+        hd_defined_centers_row.addWidget(center_combo)
+    window._human_design_defined_center_filter_and = QRadioButton("&&")
     window._human_design_defined_center_filter_or = QRadioButton("OR")
     hd_defined_center_group = QButtonGroup(window)
     hd_defined_center_group.setExclusive(True)
