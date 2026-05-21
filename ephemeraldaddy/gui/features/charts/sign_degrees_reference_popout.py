@@ -197,7 +197,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             rr = (inner_radius + outer_radius) / 2.0
             nak_label = abbreviate_nakshatra_label(nak.label)
             oval_x_scale = 1.0
-            oval_y_scale = 1.05
+            oval_y_scale = 1.0
             ax.text(
                 (rr * oval_x_scale) * math.cos(mid),
                 (rr * oval_y_scale) * math.sin(mid),
