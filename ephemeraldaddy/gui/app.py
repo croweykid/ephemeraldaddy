@@ -670,6 +670,7 @@ from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
 )
 
 from ephemeraldaddy.gui.features.charts.presentation import (
+    abbreviate_nakshatra_labels as _abbreviate_nakshatra_labels,
     apply_nakshatra_tick_info_markers as _apply_nakshatra_tick_info_markers,
     format_degree_minutes as _format_degree_minutes,
     format_hd_annotation as _format_hd_annotation,
@@ -24442,8 +24443,9 @@ class MainWindow(QMainWindow):
         return max(0.0, y1_data)
 
     def _apply_standard_ncv_bar_chart_axes(self, ax, labels: list[str]) -> None:
+        display_labels = _abbreviate_nakshatra_labels(labels)
         ax.margins(x=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_margin"])
-        ax.set_xticks(range(len(labels)), labels)
+        ax.set_xticks(range(len(display_labels)), display_labels)
         ax.tick_params(
             axis="x",
             labelrotation=STANDARD_NCV_HORIZONTAL_BAR_CHART["x_tick_label_rotation"],
