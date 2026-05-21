@@ -184,6 +184,16 @@ def build_dbv_search_panel(window) -> "QWidget":
         target_width = max(120, dropdown.sizeHint().width() - 100)
         dropdown.setFixedWidth(target_width)
 
+    def set_dropdown_width_chars(dropdown: QComboBox, chars: int) -> None:
+        metrics = dropdown.fontMetrics()
+        dropdown.setFixedWidth((metrics.horizontalAdvance("0") * int(chars)) + 24)
+
+    def compact_body_label(label: str) -> str:
+        return str(label).replace("Part of Fortune", "Fortune")
+
+    def compact_nakshatra_label(label: str) -> str:
+        return str(label).replace("Purva", "P.").replace("Uttara", "U.")
+
     search_title = QLabel("Database search")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
     layout.addWidget(search_title)
@@ -394,13 +404,15 @@ def build_dbv_search_panel(window) -> "QWidget":
         body_combo = QComboBox()
         apply_default_dropdown_style(body_combo)
         body_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(body_combo, 10)
         for body_label, body_key in window._searchable_bodies():
-            body_combo.addItem(body_label, body_key)
+            body_combo.addItem(compact_body_label(body_label), body_key)
         body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
         sign_combo.addItem("Any 🪧", "Any")
+        set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign, sign)
         sign_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
@@ -408,6 +420,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         house_combo = QComboBox()
         apply_default_dropdown_style(house_combo)
         house_combo.addItem("Any 🏠", "Any")
+        set_dropdown_width_chars(house_combo, 6)
         for house_num in range(1, 13):
             house_combo.addItem(str(house_num), str(house_num))
         house_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
@@ -415,16 +428,19 @@ def build_dbv_search_panel(window) -> "QWidget":
         filter_layout.addWidget(body_combo)
         filter_layout.addWidget(sign_combo, 1)
         filter_layout.addWidget(house_combo)
-        filter_and = QRadioButton("AND")
+        filter_and = QRadioButton("&&")
         filter_or = QRadioButton("OR")
+        filter_not = QRadioButton("🚫")
         filter_group = QButtonGroup(filter_row)
         filter_group.setExclusive(True)
         filter_group.addButton(filter_and)
         filter_group.addButton(filter_or)
+        filter_group.addButton(filter_not)
         filter_and.setChecked(True)
         filter_group.buttonClicked.connect(window._on_filter_changed)
         filter_layout.addWidget(filter_and)
         filter_layout.addWidget(filter_or)
+        filter_layout.addWidget(filter_not)
 
         window._search_body_filters.append({
             "body": body_combo,
@@ -432,6 +448,7 @@ def build_dbv_search_panel(window) -> "QWidget":
             "house": house_combo,
             "and": filter_and,
             "or": filter_or,
+            "not": filter_not,
         })
         bodies_layout.addRow(filter_row)
 
@@ -459,21 +476,24 @@ def build_dbv_search_panel(window) -> "QWidget":
         planet_1_combo = QComboBox()
         apply_default_dropdown_style(planet_1_combo)
         planet_1_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(planet_1_combo, 10)
         for label, key in searchable_planets:
-            planet_1_combo.addItem(label, key)
+            planet_1_combo.addItem(compact_body_label(label), key)
         planet_1_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         aspect_combo = QComboBox()
         apply_default_dropdown_style(aspect_combo)
         for label, key in aspect_options:
             aspect_combo.addItem(label, key)
+        set_dropdown_width_chars(aspect_combo, 17)
         aspect_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         planet_2_combo = QComboBox()
         apply_default_dropdown_style(planet_2_combo)
         planet_2_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(planet_2_combo, 10)
         for label, key in searchable_planets:
-            planet_2_combo.addItem(label, key)
+            planet_2_combo.addItem(compact_body_label(label), key)
         planet_2_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         filter_and = QRadioButton("&&")
@@ -522,6 +542,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
         sign_combo.addItem("Any 🪧", "Any")
+        set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign)
         narrow_dropdown_for_not_option(sign_combo)
@@ -575,7 +596,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         for planet_label, planet_key in window._searchable_bodies():
             if planet_key in {"AS", "IC", "DS", "MC"}:
                 continue
-            planet_combo.addItem(planet_label, planet_key)
+            planet_combo.addItem(compact_body_label(planet_label), planet_key)
         narrow_dropdown_for_not_option(planet_combo)
         planet_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
@@ -624,13 +645,15 @@ def build_dbv_search_panel(window) -> "QWidget":
         body_combo = QComboBox()
         apply_default_dropdown_style(body_combo)
         body_combo.addItem("Any 🪐", "Any")
+        set_dropdown_width_chars(body_combo, 10)
         for body in JONES_PLANETS:
-            body_combo.addItem(body, body)
+            body_combo.addItem(compact_body_label(body), body)
         body_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
         role_combo = QComboBox()
         apply_default_dropdown_style(role_combo)
         role_combo.addItem("Any ±", "any")
+        set_dropdown_width_chars(role_combo, 10)
         for role_label, role_key in BODY_DYNAMICS_ROLE_OPTIONS:
             role_combo.addItem(role_label, role_key)
         role_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
@@ -768,7 +791,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         apply_default_dropdown_style(nakshatra_combo)
         nakshatra_combo.addItem("Any", "Any")
         for nakshatra_name, *_ in NAKSHATRA_RANGES:
-            nakshatra_combo.addItem(str(nakshatra_name), str(nakshatra_name))
+            nakshatra_combo.addItem(compact_nakshatra_label(str(nakshatra_name)), str(nakshatra_name))
         narrow_dropdown_for_not_option(nakshatra_combo)
         nakshatra_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
@@ -859,10 +882,11 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._isolated_dominant_body_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_body_filter_combo)
     window._isolated_dominant_body_filter_combo.addItem("Any 🪐", "Any")
+    set_dropdown_width_chars(window._isolated_dominant_body_filter_combo, 10)
     for body_label, body_key in window._searchable_bodies():
         if body_key in {"AS", "IC", "DS", "MC"}:
             continue
-        window._isolated_dominant_body_filter_combo.addItem(body_label, body_key)
+        window._isolated_dominant_body_filter_combo.addItem(compact_body_label(body_label), body_key)
     window._isolated_dominant_body_filter_combo.currentIndexChanged.connect(
         window._on_astrological_filter_changed
     )
@@ -889,6 +913,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._isolated_dominant_sign_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_sign_filter_combo)
     window._isolated_dominant_sign_filter_combo.addItem("Any 🪧", "Any")
+    set_dropdown_width_chars(window._isolated_dominant_sign_filter_combo, 6)
     for sign in ZODIAC_NAMES:
         window._isolated_dominant_sign_filter_combo.addItem(sign, sign)
     window._isolated_dominant_sign_filter_combo.currentIndexChanged.connect(

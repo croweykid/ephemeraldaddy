@@ -15856,6 +15856,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 filters["sign"].setCurrentIndex(0)
                 filters["house"].setCurrentIndex(0)
                 filters["or"].setChecked(False)
+                if "not" in filters and filters["not"] is not None:
+                    filters["not"].setChecked(False)
                 filters["and"].setChecked(True)
             for filters in self._aspect_filters:
                 filters["planet_1"].setCurrentIndex(0)
@@ -18142,6 +18144,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             body_or_filters = [
                 filters for filters in active_body_filters if filters["or"].isChecked()
             ]
+            body_not_filters = [
+                filters for filters in active_body_filters
+                if "not" in filters and filters["not"].isChecked()
+            ]
 
             def _body_filter_matches(filters: dict[str, Any]) -> bool:
                 body = str(filters["body"].currentData())
@@ -18164,6 +18170,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 _body_filter_matches(filters) for filters in body_or_filters
             ):
                 return False
+            for filters in body_not_filters:
+                if _body_filter_matches(filters):
+                    return False
 
         if active_aspect_filters:
             aspect_and_filters = [
