@@ -197,15 +197,20 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             rr = (inner_radius + outer_radius) / 2.0
             nak_label = abbreviate_nakshatra_label(nak.label)
             oval_x_scale = 1.0
-            oval_y_scale = 1.0
+            oval_y_scale = 1.05
+            x = (rr * oval_x_scale) * math.cos(mid)
+            y = (rr * oval_y_scale) * math.sin(mid)
+            is_vertical_axis_label = abs(math.cos(mid)) < 0.10
             ax.text(
-                (rr * oval_x_scale) * math.cos(mid),
-                (rr * oval_y_scale) * math.sin(mid),
+                x,
+                y,
                 nak_label,
                 color="#f7f7f7",
                 fontsize=6.6,
                 ha="center",
                 va="center",
+                rotation=-30 if is_vertical_axis_label else 0,
+                rotation_mode="anchor",
             )
 
     for gate in gate_segments:
