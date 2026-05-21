@@ -16,7 +16,6 @@ from ephemeraldaddy.core.decans import ZODIAC_DECANS
 from ephemeraldaddy.core.interpretations import (
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
-    NAKSHATRA_ABBREVIATIONS,
     NAKSHATRA_RANGES,
     PLANET_COLORS,
     SIGN_KEYWORDS_CANONICAL,
@@ -24,6 +23,7 @@ from ephemeraldaddy.core.interpretations import (
     ZODIAC_SIGNS,
 )
 
+from ephemeraldaddy.gui.features.charts.presentation import abbreviate_nakshatra_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
 SIGN_ORDER = [
@@ -195,9 +195,9 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
             mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
             rr = (inner_radius + outer_radius) / 2.0
-            nak_label = NAKSHATRA_ABBREVIATIONS.get(nak.label, nak.label)
+            nak_label = abbreviate_nakshatra_label(nak.label)
             oval_x_scale = 1.0
-            oval_y_scale = 1.15
+            oval_y_scale = 1.05
             ax.text(
                 (rr * oval_x_scale) * math.cos(mid),
                 (rr * oval_y_scale) * math.sin(mid),
@@ -217,7 +217,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
         mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
-        oval_x_scale = 1.1
+        oval_x_scale = 1.0
         oval_y_scale = 1.0
         ax.text(
             (rr * oval_x_scale) * math.cos(mid),

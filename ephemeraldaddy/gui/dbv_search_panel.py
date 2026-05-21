@@ -165,6 +165,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     SEARCH_GENDER_GUESSED_OPTIONS = app_module.SEARCH_GENDER_GUESSED_OPTIONS
     SOURCE_OPTIONS = app_module.SOURCE_OPTIONS
     configure_collapsible_header_toggle = app_module.configure_collapsible_header_toggle
+    from ephemeraldaddy.gui.features.charts.presentation import abbreviate_body_label, abbreviate_nakshatra_label
     # Search panel (right sidebar).
     panel = EmojiTiledPanel("🔎", font_size=100, opacity=0.12) #Search panel background
     panel.setMinimumWidth(260)
@@ -193,10 +194,10 @@ def build_dbv_search_panel(window) -> "QWidget":
         dropdown.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
     def compact_body_label(label: str) -> str:
-        return str(label).replace("Part of Fortune", "Fortune")
+        return abbreviate_body_label(str(label))
 
     def compact_nakshatra_label(label: str) -> str:
-        return str(label).replace("Purva", "P.").replace("Uttara", "U.").replace("Bhadrapada", "Bhad.").replace("Phalguni", "Phal.")
+        return abbreviate_nakshatra_label(str(label))
 
     search_title = QLabel("Database search")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
