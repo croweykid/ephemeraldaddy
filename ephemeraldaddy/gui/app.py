@@ -1549,7 +1549,6 @@ def _maybe_reexec_with_macos_app_name() -> None:
 def _get_qapp():
     """Return a QApplication instance, creating one if needed."""
     QCoreApplication.setApplicationName(APP_DISPLAY_NAME)
-    QCoreApplication.setApplicationDisplayName(APP_DISPLAY_NAME)
     QCoreApplication.setOrganizationName(APP_DISPLAY_NAME)
     if sys.platform == "win32":
         # Keep the explicit AppUserModelID in both code paths (new and reused
@@ -1608,6 +1607,15 @@ def _get_qapp():
         app = QApplication(qt_argv)
     else:
         logger.debug("Reusing existing QApplication instance.")
+        
+        # PySide6 builds vary: some expose setApplicationDisplayName on the app
+    # instance (not QCoreApplication class), while older builds omit it.
+    if hasattr(app, "setApplicationDisplayName"):
+        try:
+            app.setApplicationDisplayName(APP_DISPLAY_NAME)
+        except Exception:
+            pass
+
     configure_application_identity(app)
     if not hasattr(app, "_edd_global_close_filter"):
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
@@ -2489,7 +2497,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         header_layout.addWidget(dropdown, alignment=Qt.AlignRight)
         self._analysis_chart_dropdowns[chart_key] = dropdown
 
-        popout_button = QPushButton("⤢")
+        popout_button = QPushButton()
+        popout_icon_path = _get_popout_window_icon_path()
+        if popout_icon_path:
+            popout_button.setIcon(QIcon(popout_icon_path))
+            popout_button.setIconSize(QSize(*DATABASE_ANALYTICS_EXPORT_ICON_SIZE))
         popout_button.setFlat(True)
         popout_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
         popout_button.setCursor(Qt.PointingHandCursor)
