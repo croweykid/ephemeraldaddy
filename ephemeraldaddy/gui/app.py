@@ -9,7 +9,6 @@ import datetime
 from dataclasses import asdict
 import html
 import hashlib
-import imojify
 import json
 import math
 import logging
@@ -327,10 +326,7 @@ from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import Patch
-from PIL import Image as PILImage
-from imojify import imojify as imojify_emoji
 
 from ephemeraldaddy.core.deps import ensure_all_deps
 from ephemeraldaddy.io.geocode import geocode_location, LocationLookupError, search_locations
@@ -1478,38 +1474,10 @@ def _configure_matplotlib_info_marker_font() -> None:
 
 
 def _apply_emoji_tick_images(ax, emojis: list[str]) -> bool:
-    """Render emoji x-axis labels as images via imojify when available."""
+    """Legacy imojify integration removed; rely on native text tick labels only."""
 
-    xticks = list(ax.get_xticks())
-    if len(xticks) != len(emojis):
-        return False
-
-    y_min, y_max = ax.get_ylim()
-    y_span = max(1e-6, (y_max - y_min))
-    y_pos = y_min - (0.10 * y_span)
-
-    for xpos, emoji in zip(xticks, emojis, strict=True):
-        try:
-            image_source = imojify_emoji(emoji)
-            if isinstance(image_source, PILImage.Image):
-                rgba = np.array(image_source.convert("RGBA"))
-            else:
-                with PILImage.open(image_source) as image_obj:
-                    rgba = np.array(image_obj.convert("RGBA"))
-            image_box = OffsetImage(rgba, zoom=0.23)
-            annotation = AnnotationBbox(
-                image_box,
-                (xpos, y_pos),
-                frameon=False,
-                box_alignment=(0.5, 1.0),
-                xycoords="data",
-                annotation_clip=False,
-            )
-            ax.add_artist(annotation)
-        except Exception:
-            return False
-
-    return True
+    _ = (ax, emojis)
+    return False
 
 
 def _maybe_reexec_with_macos_app_name() -> None:
