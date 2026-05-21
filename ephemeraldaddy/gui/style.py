@@ -547,13 +547,16 @@ QListView::indicator {
 
 # About dialog typography/color hierarchy (aligned to Database View middle panel palette).
 ABOUT_DIALOG_INTRO_STYLE = f"font-weight: 700; color: {MIDDLE_PANEL_ACCENT_COLOR};"
+ABOUT_DIALOG_SUBHEADER_COLOR = CHART_DATA_HIGHLIGHT_COLOR
+ABOUT_DIALOG_ACCENT_BUTTON_COLOR = "#7a4cd6"
+ABOUT_DIALOG_QUESTION_COLOR = "#d6b15a"
 ABOUT_DIALOG_MARKDOWN_STYLESHEET = f"""
 h1 {{
     color: {MIDDLE_PANEL_ACCENT_COLOR};
     font-weight: 700;
 }}
 h2 {{
-    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    color: {ABOUT_DIALOG_ACCENT_BUTTON_COLOR};
     font-weight: 650;
 }}
 h3, h4, h5, h6 {{
@@ -561,12 +564,20 @@ h3, h4, h5, h6 {{
     font-weight: 600;
 }}
 .about-question {{
-    color: {MIDDLE_PANEL_ACCENT_COLOR};
+    color: {ABOUT_DIALOG_QUESTION_COLOR};
     font-weight: 650;
 }}
 .about-answer {{
-    color: {MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA};
+    color: #ffffff;
     font-weight: 600;
+}}
+.about-major-header {{
+    color: {ABOUT_DIALOG_ACCENT_BUTTON_COLOR};
+    font-weight: 650;
+}}
+.about-subheader {{
+    color: {ABOUT_DIALOG_SUBHEADER_COLOR};
+    font-weight: 650;
 }}
 """
 
