@@ -6,7 +6,9 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
+from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
 from ephemeraldaddy.gui.style import (
+    ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
     ABOUT_DIALOG_INTRO_STYLE,
     ABOUT_DIALOG_MARKDOWN_STYLESHEET,
     WINDOW_CHROME_MENU_STYLE,
@@ -16,6 +18,21 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
 APP_DISPLAY_NAME = "Ephemeral Daddy"
+
+
+_ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
+
+
+def _show_about_close_sparkles(target_rect) -> None:
+    overlay = AboutCloseSparkleOverlay(target_rect, duration_ms=1000)
+    _ACTIVE_ABOUT_SPARKLES.append(overlay)
+
+    def _cleanup(*_args) -> None:
+        if overlay in _ACTIVE_ABOUT_SPARKLES:
+            _ACTIVE_ABOUT_SPARKLES.remove(overlay)
+
+    overlay.destroyed.connect(_cleanup)
+    overlay.start()
 
 
 def _resolve_current_chart_name(window: "QWidget") -> str:
@@ -102,6 +119,41 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     if not content:
         content = "About content is unavailable."
 
+    about_subheaders = {
+        "1) Debunking/Bunking",
+        "2) Dark mode",
+        "3) Privacy / Data Control",
+        "4) Nakshatras",
+        "5) Anti-Cloud",
+        "6) Sociological/Psychological Intrigue",
+        "1) Nothing Similar Existed",
+        "2) Accessibility Features",
+        "3) GOOD Open Source Astro Apps are Scarce",
+        "4) Offline-Only Is Hard To Find for Mobile",
+        "5) Hedge Against Enshittification",
+        "A. Chart View (Chart Entry / Editor)",
+        "B. Database View (Manage Charts)",
+        "C. Transit View",
+        "D. Composite / Synastry tools",
+        "Chart calculation: methods & philosophy",
+        "“Planet” / Sign / House weighting methods",
+        "Chart Types",
+        "Sign/Position descriptions (important reality check)",
+        "Placeholder charts",
+        "Nakshatras",
+        "Gates, Lines & Channels",
+        "Weird toy metrics (D&D Species, Cursedness, Gender Guesser)",
+        "Synastry/composite status",
+    }
+    about_major_headers = {
+        "FAQs:",
+        "1) Where things are in the app",
+        "2) Core features of Ephemeral Daddy (what they’re called + how they work)",
+        "3) Data + privacy essentials",
+        "4) Suggested new-user workflow (fast start)",
+        "Final Takeaways",
+    }
+
     styled_content_lines: list[str] = []
     for line in content.splitlines():
         stripped = line.lstrip()
@@ -114,11 +166,28 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             styled_content_lines.append(
                 f"{prefix_whitespace}<span class='about-answer'>{stripped}</span>"
             )
+        elif stripped.startswith("#### ") and stripped[5:] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}#### <span class='about-subheader'>{stripped[5:]}</span>"
+            )
+        elif stripped.startswith("### **") and stripped[6:-2] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}### **<span class='about-subheader'>{stripped[6:-2]}</span>**"
+            )
+        elif stripped.startswith("## ") and stripped[3:] in about_subheaders:
+            styled_content_lines.append(
+                f"{prefix_whitespace}## <span class='about-subheader'>{stripped[3:]}</span>"
+            )
+        elif stripped.startswith("## ") and stripped[3:] in about_major_headers:
+            styled_content_lines.append(
+                f"{prefix_whitespace}## <span class='about-major-header'>{stripped[3:]}</span>"
+            )
         else:
             styled_content_lines.append(line)
     styled_content = "\n".join(styled_content_lines)
 
     dialog = QDialog(owner)
+    dialog.setModal(False)
     dialog.setWindowTitle(title)
     dialog.resize(720, 560)
 
@@ -133,11 +202,16 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     content_view.setMarkdown(styled_content)
     layout.addWidget(content_view, 1)
 
-    buttons = QDialogButtonBox(QDialogButtonBox.Ok, parent=dialog)
+    buttons = QDialogButtonBox(parent=dialog)
+    groovy_button = buttons.addButton("Groovy", QDialogButtonBox.AcceptRole)
+    groovy_button.setStyleSheet(
+        f"background-color: {ABOUT_DIALOG_ACCENT_BUTTON_COLOR}; color: #ffffff; font-weight: 700;"
+    )
     buttons.accepted.connect(dialog.accept)
     layout.addWidget(buttons)
 
-    dialog.exec()
+    dialog.finished.connect(lambda _result: _show_about_close_sparkles(dialog.frameGeometry()))
+    dialog.show()
 
 def _minimize_window(owner: "QWidget") -> None:
     """Minimize the provided top-level window to the taskbar/dock."""
@@ -222,17 +296,18 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
         "on_show_similar_charts_popout",
     )
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
-    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
+    _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", window, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
-    help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
-    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
-
+    help_menu = menu_bar.addMenu("HALP!")
+    _bind_menu_action(help_menu, "Tutorial", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
+    _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
     """Attach a Database View menu bar matching the requested hierarchy."""
@@ -286,8 +361,8 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         dialog,
         "_on_menu_see_similar_charts",
     )
-    _bind_menu_action(tools_menu, "Retcon Engine", dialog, "_on_retcon_engine")
-    _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
+    _bind_menu_action(tools_menu, "🕗 Rectification Engine", dialog, "_on_retcon_engine")
+    _bind_menu_action(tools_menu, "🧓 Interpret Astro Age (alpha)", dialog, "_on_menu_interpret_astro_age")
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", dialog, "_on_menu_create_gemstone_chart")
     #to do: add a link here to find charts most similar to the currently selected chart if one is selected, the text will say "Find Similar Charts"
     _bind_menu_action(
@@ -297,6 +372,8 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
+    _bind_menu_action(tools_menu, "🔘 Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
@@ -306,9 +383,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
     _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
 
-    help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
-    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
+    help_menu = menu_bar.addMenu("HALP!")
+    _bind_menu_action(help_menu, "HALP!", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
+    #_bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
 
     layout.setMenuBar(menu_bar)
