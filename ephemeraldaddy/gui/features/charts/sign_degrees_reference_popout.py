@@ -86,6 +86,17 @@ def _build_gate_segments() -> list[Segment]:
             merged_segments[-1] = Segment(previous.ring, previous.start, segment.end, previous.label)
             continue
         merged_segments.append(segment)
+
+    if len(merged_segments) > 1:
+        first = merged_segments[0]
+        last = merged_segments[-1]
+        if (
+            first.label == last.label
+            and abs(last.end - 360.0) < epsilon
+            and abs(first.start - 0.0) < epsilon
+        ):
+            merged_segments[0] = Segment(first.ring, last.start, first.end + 360.0, first.label)
+            merged_segments.pop()
     return merged_segments
 
 
@@ -179,46 +190,37 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             ax.text(dr * math.cos(dmid), dr * math.sin(dmid), f"d{decan['decan']}", color="#f0f0f0", fontsize=8, ha="center", va="center")
 
     for nak in nak_segments:
-        draw_start, draw_end = nak.start, nak.end
-        while draw_start >= 360.0:
-            draw_start -= 360.0
-            draw_end -= 360.0
-        if draw_end > 360.0:
-            parts = [(draw_start, 360.0), (0.0, draw_end - 360.0)]
-        else:
-            parts = [(draw_start, draw_end)]
-        for p_start, p_end in parts:
-            theta1 = 90.0 - p_end
-            theta2 = 90.0 - p_start
-            inner_radius, outer_radius = ring_map["nakshatra"]
-            nak_color = NAKSHATRA_PLANET_COLOR.get(nak.label, ("Unknown", "#66ccff"))[1]
-            ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
-            mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
-            rr = (inner_radius + outer_radius) / 2.0
-            nak_label = abbreviate_nakshatra_label(nak.label)
-            oval_x_scale = 1.0
-            oval_y_scale = 1.05
-            x = (rr * oval_x_scale) * math.cos(mid)
-            y = (rr * oval_y_scale) * math.sin(mid)
-            is_vertical_axis_label = abs(math.cos(mid)) < 0.10
-            ax.text(
-                x,
-                y,
-                nak_label,
-                color="#f7f7f7",
-                fontsize=6.6,
-                ha="center",
-                va="center",
-                rotation=-30 if is_vertical_axis_label else 0,
-                rotation_mode="anchor",
-            )
+        theta1 = 90.0 - nak.end
+        theta2 = 90.0 - nak.start
+        inner_radius, outer_radius = ring_map["nakshatra"]
+        nak_color = NAKSHATRA_PLANET_COLOR.get(nak.label, ("Unknown", "#66ccff"))[1]
+        ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
+        mid = math.radians(90.0 - ((nak.start + nak.end) / 2.0))
+        rr = (inner_radius + outer_radius) / 2.0
+        nak_label = abbreviate_nakshatra_label(nak.label)
+        oval_x_scale = 1.0
+        oval_y_scale = 1.05
+        x = (rr * oval_x_scale) * math.cos(mid)
+        y = (rr * oval_y_scale) * math.sin(mid)
+        is_vertical_axis_label = abs(math.cos(mid)) < 0.10
+        ax.text(
+            x,
+            y,
+            nak_label,
+            color="#f7f7f7",
+            fontsize=6.6,
+            ha="center",
+            va="center",
+            rotation=-30 if is_vertical_axis_label else 0,
+            rotation_mode="anchor",
+        )
 
     for gate in gate_segments:
-        theta1 = 90.0 - gate.end
-        theta2 = 90.0 - gate.start
         inner_radius, outer_radius = ring_map["gate"]
         gate_number = int(gate.label[1:])
         gate_color = GATE_COLORS.get(gate_number, "#666666")
+        theta1 = 90.0 - gate.end
+        theta2 = 90.0 - gate.start
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
         mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
