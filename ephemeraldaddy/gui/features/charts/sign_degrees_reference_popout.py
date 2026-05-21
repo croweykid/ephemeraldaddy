@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QSplitter, QTextBrowser, QVBoxLayout
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QScrollArea, QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, GATE_REFERENCE
@@ -24,7 +25,8 @@ from ephemeraldaddy.core.interpretations import (
 )
 
 from ephemeraldaddy.gui.features.charts.presentation import abbreviate_nakshatra_label
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+from ephemeraldaddy.gui.features.charts.exporters import get_text_export_path
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, configure_collapsible_header_toggle, configure_share_export_icon_button
 
 SIGN_ORDER = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -149,13 +151,74 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     ax.set_aspect("equal")
     ax.axis("off")
 
-    info_output = QTextBrowser(dialog)
-    info_output.setOpenExternalLinks(False)
-    info_output.setReadOnly(True)
-    info_output.setHtml("<b>Click a segment in any ring to see details.</b>")
+    right_panel = QWidget(dialog)
+    right_layout = QVBoxLayout(right_panel)
+    right_layout.setContentsMargins(8, 8, 8, 8)
+    right_layout.setSpacing(8)
+    header_row = QHBoxLayout()
+    degree_header = QLabel("—")
+    degree_header.setAlignment(Qt.AlignCenter)
+    degree_header.setStyleSheet("font-size: 16px; font-weight: 700; color: #f7f7f7;")
+    export_button = QToolButton(right_panel)
+    configure_share_export_icon_button(
+        export_button,
+        share_icon_path=str((Path(__file__).resolve().parents[3] / "graphics" / "share_icon2.png")) if (Path(__file__).resolve().parents[3] / "graphics" / "share_icon2.png").exists() else None,
+        tooltip="Export sign degree analysis as TXT/MD",
+    )
+    header_row.addWidget(degree_header, 1)
+    header_row.addWidget(export_button, 0, Qt.AlignRight)
+    right_layout.addLayout(header_row)
+
+    scroll = QScrollArea(right_panel)
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QScrollArea.NoFrame)
+    scroll_host = QWidget(scroll)
+    scroll_layout = QVBoxLayout(scroll_host)
+    scroll_layout.setContentsMargins(0, 0, 0, 0)
+    scroll_layout.setSpacing(6)
+    scroll.setWidget(scroll_host)
+    right_layout.addWidget(scroll, 1)
+
+    section_contents: dict[str, QTextBrowser] = {}
+    section_toggles: dict[str, QToolButton] = {}
+    section_bodies: dict[str, QWidget] = {}
+    section_order = ("Sign", "Decan", "Nakshatra", "Gate")
+    for section_name in section_order:
+        section = QWidget(scroll_host)
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(3)
+        toggle = QToolButton(section)
+        configure_collapsible_header_toggle(
+            toggle,
+            title=section_name,
+            expanded=True,
+            style_sheet=(
+                "QToolButton { border: none; color: #d4b06a; font-weight: 700; padding: 4px 2px; background: transparent; text-align: left; }"
+                "QToolButton:hover { color: #f0cb7b; }"
+            ),
+        )
+        section_layout.addWidget(toggle)
+        body = QWidget(section)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(10, 0, 0, 0)
+        body_layout.setSpacing(0)
+        text = QTextBrowser(body)
+        text.setOpenExternalLinks(False)
+        text.setReadOnly(True)
+        text.setFrameStyle(QTextBrowser.NoFrame)
+        text.setStyleSheet("background: transparent;")
+        body_layout.addWidget(text)
+        section_layout.addWidget(body)
+        toggle.toggled.connect(lambda checked, body_widget=body, btn=toggle: (body_widget.setVisible(checked), btn.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)))
+        scroll_layout.addWidget(section)
+        section_contents[section_name] = text
+        section_toggles[section_name] = toggle
+        section_bodies[section_name] = body
+    scroll_layout.addStretch(1)
 
     splitter.addWidget(canvas)
-    splitter.addWidget(info_output)
+    splitter.addWidget(right_panel)
     splitter.setSizes([700, 280])
     status_box = ax.text(
         -0.14,
@@ -342,33 +405,85 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
                 ("Gate: ", gate_match.label if gate_match else "Unknown", GATE_COLORS.get(gate_number, "#e0e0e0") if gate_number else "#e0e0e0"),
             ]
         )
-        info_output.setHtml(
-            f"<h3 style='margin:0; color:#f7f7f7;'>{absolute_degree:.4f}°</h3>"
-            f"<h3 style='margin:10px 0 6px 0; color:{sign_color};'>{sign_name}</h3>"
+        degree_header.setText(f"{absolute_degree:.4f}°")
+        section_contents["Sign"].setHtml(
+            f"<h3 style='margin:0 0 6px 0; color:{sign_color};'>{sign_name}</h3>"
             f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Talents</span>"
             "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("talents", []))
             + "</ul></div>"
-            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Challenges</span>"
+            f"<div style='margin:4px 0 0 0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Challenges</span>"
             "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("challenges", []))
             + "</ul></div>"
-            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Fears</span>"
+            f"<div style='margin:4px 0 0 0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Fears</span>"
             "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("greatest_fears", []))
             + "</ul></div>"
-            f"<div style='margin:0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Motivations</span>"
+            f"<div style='margin:4px 0 0 0;'><span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR};'>Motivations</span>"
             "<ul style='margin:0; padding-left:12px;'>"
             + "".join(f"<li>{item}</li>" for item in sign_profile.get("motivations", []))
             + "</ul></div>"
-            f"<h3 style='margin:10px 0 6px 0; color:{decan_ruler_color};'>Decan {decan_data['decan']}</h3>"
+        )
+        section_contents["Decan"].setHtml(
+            f"<h3 style='margin:0 0 6px 0; color:{decan_ruler_color};'>Decan {decan_data['decan']}</h3>"
             f"<p style='margin-top:0;'>{decan_data.get('description', 'No decan description available.')}</p>"
-            f"<h3 style='margin:10px 0 6px 0; color:{NAKSHATRA_PLANET_COLOR.get(nak_name, ('', '#e0e0e0'))[1]};'>{nak_name}</h3>"
+        )
+        section_contents["Nakshatra"].setHtml(
+            f"<h3 style='margin:0 0 6px 0; color:{NAKSHATRA_PLANET_COLOR.get(nak_name, ('', '#e0e0e0'))[1]};'>{nak_name}</h3>"
             f"<p style='margin-top:0;'>{nak_shakti}</p>"
-            f"<h3 style='margin:10px 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{f'Gate {gate_number}: {gate_name}' if gate_number else 'Unknown Gate'}</h3>"
+        )
+        section_contents["Gate"].setHtml(
+            f"<h3 style='margin:0 0 6px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'>{f'Gate {gate_number}: {gate_name}' if gate_number else 'Unknown Gate'}</h3>"
             f"<p style='margin:0 0 4px 0; color:{GATE_COLORS.get(gate_number, '#e0e0e0') if gate_number else '#e0e0e0'};'><i>{gate_theme if gate_theme else 'No gate theme available.'}</i></p>"
             f"<p style='margin-top:0;'>{gate_meaning}</p>"
         )
+        def _export_analysis() -> None:
+            rounded_degree = int(round(absolute_degree))
+            default_stem = f"ephemeraldaddy_{rounded_degree}degree_analysis"
+            settings = QSettings("Ephemeraldaddy", "Ephemeraldaddy")
+            export_path = get_text_export_path(
+                dialog,
+                settings,
+                dialog_title="Export degree analysis as TXT/MD",
+                default_stem=default_stem,
+                preference_key="sign_degree_analysis_export_extension",
+            )
+            if not export_path:
+                return
+            export_md = export_path.lower().endswith(".md")
+            lines = [
+                f"Degree: {absolute_degree:.4f}°",
+                "",
+                "## Sign",
+                f"{sign_name}",
+                "",
+                "Talents:",
+            ]
+            for item in sign_profile.get("talents", []):
+                lines.append(f"- {item}")
+            lines.append("")
+            lines.append("Challenges:")
+            for item in sign_profile.get("challenges", []):
+                lines.append(f"- {item}")
+            lines.append("")
+            lines.append("Fears:")
+            for item in sign_profile.get("greatest_fears", []):
+                lines.append(f"- {item}")
+            lines.append("")
+            lines.append("Motivations:")
+            for item in sign_profile.get("motivations", []):
+                lines.append(f"- {item}")
+            lines.extend(["", "## Decan", f"Decan {decan_data['decan']}", str(decan_data.get("description", "")), "", "## Nakshatra", nak_name, nak_shakti, "", "## Gate", f"Gate {gate_number}: {gate_name}" if gate_number else "Unknown Gate", gate_theme if gate_theme else "No gate theme available.", gate_meaning])
+            content = "\n".join(lines)
+            if not export_md:
+                content = content.replace("## ", "")
+            Path(export_path).write_text(content, encoding="utf-8")
+        try:
+            export_button.clicked.disconnect()
+        except Exception:
+            pass
+        export_button.clicked.connect(_export_analysis)
         canvas.draw_idle()
 
     canvas.mpl_connect("button_press_event", _on_click)
