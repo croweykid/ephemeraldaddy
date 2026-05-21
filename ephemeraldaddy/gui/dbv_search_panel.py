@@ -416,7 +416,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
-        sign_combo.addItem("Any 🪧", "Any")
+        sign_combo.addItem("Any 🌟", "Any")
         set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign, sign)
@@ -546,7 +546,7 @@ def build_dbv_search_panel(window) -> "QWidget":
 
         sign_combo = QComboBox()
         apply_default_dropdown_style(sign_combo)
-        sign_combo.addItem("Any 🪧", "Any")
+        sign_combo.addItem("Any 🌟", "Any")
         set_dropdown_width_chars(sign_combo, 6)
         for sign in ZODIAC_NAMES:
             sign_combo.addItem(sign)
@@ -917,7 +917,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     isolated_sign_row.addWidget(QLabel("Isolated dominance of"))
     window._isolated_dominant_sign_filter_combo = QComboBox()
     apply_default_dropdown_style(window._isolated_dominant_sign_filter_combo)
-    window._isolated_dominant_sign_filter_combo.addItem("Any 🪧", "Any")
+    window._isolated_dominant_sign_filter_combo.addItem("Any 🌟", "Any")
     set_dropdown_width_chars(window._isolated_dominant_sign_filter_combo, 6)
     for sign in ZODIAC_NAMES:
         window._isolated_dominant_sign_filter_combo.addItem(sign, sign)
