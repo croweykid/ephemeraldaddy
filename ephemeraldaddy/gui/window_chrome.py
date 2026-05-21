@@ -168,19 +168,19 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             )
         elif stripped.startswith("#### ") and stripped[5:] in about_subheaders:
             styled_content_lines.append(
-                f"{prefix_whitespace}#### <span class='about-subheader'>{stripped[5:]}</span>"
+                f"{prefix_whitespace}<h4 class='about-subheader'>{stripped[5:]}</h4>"
             )
         elif stripped.startswith("### **") and stripped[6:-2] in about_subheaders:
             styled_content_lines.append(
-                f"{prefix_whitespace}### **<span class='about-subheader'>{stripped[6:-2]}</span>**"
+                f"{prefix_whitespace}<h3 class='about-subheader'>{stripped[6:-2]}</h3>"
             )
         elif stripped.startswith("## ") and stripped[3:] in about_subheaders:
             styled_content_lines.append(
-                f"{prefix_whitespace}## <span class='about-subheader'>{stripped[3:]}</span>"
+                f"{prefix_whitespace}<h2 class='about-subheader'>{stripped[3:]}</h2>"
             )
         elif stripped.startswith("## ") and stripped[3:] in about_major_headers:
             styled_content_lines.append(
-                f"{prefix_whitespace}## <span class='about-major-header'>{stripped[3:]}</span>"
+                f"{prefix_whitespace}<h2 class='about-major-header'>{stripped[3:]}</h2>"
             )
         else:
             styled_content_lines.append(line)
