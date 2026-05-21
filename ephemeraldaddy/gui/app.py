@@ -15527,10 +15527,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             use_topmost_pulse,
         )
         clear_fullscreen_and_minimized(self)
-        if not self.isMaximized():
-            self.setWindowState(
-                (self.windowState() & ~Qt.WindowFullScreen) | Qt.WindowMaximized
-            )
+        # Show directly in maximized state to avoid a visible normal-size flash
+        # during Chart View -> Database View transitions on Windows.
+        if not self.isVisible() or not self.isMaximized():
+            self.showMaximized()
         bring_window_to_front(self, use_topmost_pulse=use_topmost_pulse)
         if use_topmost_pulse:
             self._launch_foreground_completed = True
@@ -28248,6 +28248,7 @@ class MainWindow(QMainWindow):
         manage_dialog.adopt_window_placement(self)
         opened = self._charts_controller.open_manage_charts(
             progress_callback=startup_progress,
+            use_launch_pulse=bool(startup_progress),
         )
         if not opened:
             return
