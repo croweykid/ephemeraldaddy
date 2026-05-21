@@ -18,6 +18,8 @@ from ephemeraldaddy.core.interpretations import (
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
 
+_NAKSHATRA_NAME_SET = {str(name) for name, *_ in NAKSHATRA_RANGES}
+
 
 def format_longitude(lon: float) -> str:
     """Return something like 10°23' Aries."""
@@ -96,6 +98,23 @@ def get_nakshatra(lon: float) -> str:
                 return name
     return "Unknown"
 
+
+
+
+def abbreviate_nakshatra_label(nakshatra: str) -> str:
+    """Return a compact display label for a nakshatra name."""
+    label = str(nakshatra).strip()
+    if not label or label not in _NAKSHATRA_NAME_SET:
+        return label
+
+    parts = label.split()
+    if len(parts) >= 2 and parts[0] in {"Purva", "Uttara"}:
+        return f"{parts[0][0]}. {' '.join(parts[1:])}"
+    return label
+
+
+def abbreviate_nakshatra_labels(labels: list[str]) -> list[str]:
+    return [abbreviate_nakshatra_label(label) for label in labels]
 
 def format_hd_annotation(lon: float, active_channels: set[tuple[int, int]]) -> str:
     gate, line = get_line(lon)
@@ -193,7 +212,8 @@ def format_nakshatra_description_html(nakshatra: str) -> str:
 
 
 def apply_nakshatra_tick_info_markers(ax: Any, nakshatras: list[str]) -> None:
-    ax.set_xticks(range(len(nakshatras)), nakshatras)
+    abbreviated_labels = abbreviate_nakshatra_labels(nakshatras)
+    ax.set_xticks(range(len(nakshatras)), abbreviated_labels)
     info_font_name = _nakshatra_info_marker_font_name()
     for label, nakshatra_name in zip(ax.get_xticklabels(), nakshatras, strict=True):
         if info_font_name:

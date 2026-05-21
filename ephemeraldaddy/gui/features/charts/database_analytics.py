@@ -61,7 +61,10 @@ from ephemeraldaddy.analysis.human_design_reference import (
     canonicalize_hd_authority_label,
     normalize_hd_authority_key,
 )
-from ephemeraldaddy.gui.features.charts.presentation import format_percent as _format_percent
+from ephemeraldaddy.gui.features.charts.presentation import (
+    abbreviate_nakshatra_label as _abbreviate_nakshatra_label,
+    format_percent as _format_percent,
+)
 from ephemeraldaddy.gui.features.charts.statistical_significance import (
     compute_proportion_significance_results,
     draw_standard_deviation_guides,
@@ -784,7 +787,7 @@ class DatabaseAnalyticsChartsMixin:
                     statistical_model = statistical_values[5] if len(statistical_values) > 5 else "category proportion z-test"
                     writer.writerow(
                         [
-                            label,
+                            display_label_by_label.get(label, str(label)),
                             round(selection_value, 8),
                             round(database_value, 8),
                             round(difference, 8),
@@ -1575,7 +1578,7 @@ class DatabaseAnalyticsChartsMixin:
                 key=lambda label: (
                     int(label.split("-")[0]) if "-" in label and label.split("-")[0].isdigit() else 999,
                     int(label.split("-")[1]) if "-" in label and len(label.split("-")) > 1 and label.split("-")[1].isdigit() else 999,
-                    label,
+                    display_label_by_label.get(label, str(label)),
                 ),
             )
             selection_counts = {
@@ -2219,10 +2222,14 @@ class DatabaseAnalyticsChartsMixin:
         ax = figure.add_subplot(111)
         ax.set_facecolor(self._database_analytics_axes_facecolor())
         labels = list(labels or selection_planets.keys())
+        display_label_by_label = {
+            label: _abbreviate_nakshatra_label(str(label))
+            for label in labels
+        }
         if include_count_prefixes:
             display_labels = [
                 self._format_selection_database_count_label(
-                    label,
+                    display_label_by_label.get(label, str(label)),
                     database_planet_counts.get(label, 0),
                     selection_planet_counts.get(label, 0),
                     loaded_charts > 0,
@@ -2230,7 +2237,7 @@ class DatabaseAnalyticsChartsMixin:
                 for label in labels
             ]
         else:
-            display_labels = [str(label) for label in labels]
+            display_labels = [display_label_by_label.get(label, str(label)) for label in labels]
         def _resolve_distribution_color(label: str) -> str:
             authority_key = normalize_hd_authority_key(
                 canonicalize_hd_authority_label(str(label).strip())
