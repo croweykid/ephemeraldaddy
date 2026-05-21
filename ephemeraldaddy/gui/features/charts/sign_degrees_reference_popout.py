@@ -203,14 +203,12 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             ax.text(dr * math.cos(dmid), dr * math.sin(dmid), f"d{decan['decan']}", color="#f0f0f0", fontsize=8, ha="center", va="center")
 
     for nak in nak_segments:
-        parts, label_mid_degree = _split_segment_for_drawing(nak.start, nak.end)
-        for p_start, p_end in parts:
-            theta1 = 90.0 - p_end
-            theta2 = 90.0 - p_start
-            inner_radius, outer_radius = ring_map["nakshatra"]
-            nak_color = NAKSHATRA_PLANET_COLOR.get(nak.label, ("Unknown", "#66ccff"))[1]
-            ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
-        mid = math.radians(90.0 - label_mid_degree)
+        theta1 = 90.0 - nak.end
+        theta2 = 90.0 - nak.start
+        inner_radius, outer_radius = ring_map["nakshatra"]
+        nak_color = NAKSHATRA_PLANET_COLOR.get(nak.label, ("Unknown", "#66ccff"))[1]
+        ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=nak_color, alpha=0.30, edgecolor="#1e1e1e", linewidth=0.7))
+        mid = math.radians(90.0 - ((nak.start + nak.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
         nak_label = abbreviate_nakshatra_label(nak.label)
         oval_x_scale = 1.0
@@ -234,12 +232,10 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         inner_radius, outer_radius = ring_map["gate"]
         gate_number = int(gate.label[1:])
         gate_color = GATE_COLORS.get(gate_number, "#666666")
-        parts, label_mid_degree = _split_segment_for_drawing(gate.start, gate.end)
-        for part_start, part_end in parts:
-            theta1 = 90.0 - part_end
-            theta2 = 90.0 - part_start
-            ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
-        mid = math.radians(90.0 - label_mid_degree)
+        theta1 = 90.0 - gate.end
+        theta2 = 90.0 - gate.start
+        ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
+        mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
         oval_x_scale = 1.0
         oval_y_scale = 1.0
