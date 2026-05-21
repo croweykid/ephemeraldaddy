@@ -224,15 +224,15 @@ def configure_main_window_chrome(window: "QMainWindow") -> None:
     _bind_menu_action(tools_menu, "💎 Create Gemstone Chart", window, "on_create_gemstone_chartwheel")
     _bind_menu_action(tools_menu, "Interpret Astro Age (alpha)", window, "on_interpret_astro_age")
     _bind_menu_action(tools_menu, "🔮 Chart Predictor Quiz (alpha)", window, "on_open_chart_predictor_quiz")
-    
+    _bind_menu_action(tools_menu, "Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
 
     # view_menu = menu_bar.addMenu("View")
     # _bind_menu_action(view_menu, "Chart Analytics", window, "on_show_chart_analytics_panel")
 
-    help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
-    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", window, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
-
+    help_menu = menu_bar.addMenu("HALP!")
+    _bind_menu_action(help_menu, "HALP!", window, "_on_manage_help_overlay", "on_manage_help_overlay", "_toggle_help_overlay")
+    _bind_menu_action(help_menu, "About", window, "_show_about_from_onboarding(dialog)")
 
 def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None:
     """Attach a Database View menu bar matching the requested hierarchy."""
@@ -297,6 +297,8 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
         "_on_menu_open_chart_predictor_quiz",
         "on_open_chart_predictor_quiz",
     )
+    _bind_menu_action(tools_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle",
+                      "on_open_sign_degrees_reference_circle")
 
     view_menu = menu_bar.addMenu("View")
     _bind_menu_action(view_menu, "Database Analytics", dialog, "_show_database_analytics_panel")
@@ -306,9 +308,9 @@ def configure_manage_dialog_chrome(dialog: "QWidget", layout: "QLayout") -> None
     _bind_menu_action(view_menu, "Search Database", dialog, "_show_search_database_panel")
     _bind_menu_action(view_menu, "Database Manager", dialog, "_toggle_edit_panel")
 
-    help_menu = menu_bar.addMenu("Help")
-    _bind_menu_action(help_menu, "Help", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
-    _bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
+    help_menu = menu_bar.addMenu("HALP!")
+    _bind_menu_action(help_menu, "HALP!", dialog, "_on_manage_help_overlay", "on_manage_help_overlay")
+    #_bind_menu_action(help_menu, "Sign Degrees Reference Circle", dialog, "_on_open_sign_degrees_reference_circle", "on_open_sign_degrees_reference_circle")
     help_menu.addAction("About", lambda: _show_about_from_onboarding(dialog))
 
     layout.setMenuBar(menu_bar)
