@@ -1616,10 +1616,10 @@ def _get_qapp():
 
 
 def _apply_global_dropdown_and_menu_styles(app: QApplication) -> None:
-    """Apply only safe global menu rules; dropdown rules are opt-in per-combobox."""
+    """Apply global menu and dropdown styling so all combos look like input fields."""
     global_rules = (
         "\n"
-        #f"{DEFAULT_DROPDOWN_STYLE}\n"
+        f"{DEFAULT_DROPDOWN_STYLE}\n"
         f"{WINDOW_CHROME_MENU_STYLE}\n"
     )
     existing = app.styleSheet() or ""
