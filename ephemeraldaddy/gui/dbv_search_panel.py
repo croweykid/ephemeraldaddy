@@ -174,11 +174,10 @@ def build_dbv_search_panel(window) -> "QWidget":
         dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
 
     def center_dropdown_items(dropdown: QComboBox) -> None:
-        dropdown.setEditable(True)
-        dropdown.lineEdit().setReadOnly(True)
-        dropdown.lineEdit().setAlignment(Qt.AlignCenter)
+        dropdown.setEditable(False)
         for item_index in range(dropdown.count()):
             dropdown.setItemData(item_index, Qt.AlignCenter, Qt.TextAlignmentRole)
+        dropdown.setStyleSheet(f"{DEFAULT_DROPDOWN_STYLE} QComboBox {{ text-align: center; }}")
 
     def narrow_dropdown_for_not_option(dropdown: QComboBox) -> None:
         target_width = max(120, dropdown.sizeHint().width() - 100)
@@ -947,9 +946,10 @@ def build_dbv_search_panel(window) -> "QWidget":
         )
         for channel_label in channel_options:
             channel_combo.addItem(channel_label, channel_label)
+        set_dropdown_width_chars(channel_combo, 4)
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
-        hd_channels_row.addWidget(channel_combo, 1)
+        hd_channels_row.addWidget(channel_combo)
     window._human_design_channel_filter_and = QRadioButton("&&")
     window._human_design_channel_filter_or = QRadioButton("OR")
     hd_channel_group = QButtonGroup(window)
@@ -971,9 +971,10 @@ def build_dbv_search_panel(window) -> "QWidget":
         for gate_value in range(1, 65):
             gate_combo.addItem(str(gate_value), gate_value)
         center_dropdown_items(gate_combo)
+        set_dropdown_width_chars(gate_combo, 3)
         gate_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_gate_filters.append(gate_combo)
-        hd_gates_row.addWidget(gate_combo, 1)
+        hd_gates_row.addWidget(gate_combo)
     window._human_design_gate_filter_and = QRadioButton("&&")
     window._human_design_gate_filter_or = QRadioButton("OR")
     hd_gate_group = QButtonGroup(window)
@@ -995,8 +996,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_type_filter_combo.addItem("Generator", "Generator")
     window._human_design_type_filter_combo.addItem("Manifesting Generator", "Manifesting Generator")
     window._human_design_type_filter_combo.addItem("Projector", "Projector")
+    set_dropdown_width_chars(window._human_design_type_filter_combo, 22)
     window._human_design_type_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_type_row.addWidget(window._human_design_type_filter_combo, 1)
+    hd_type_row.addWidget(window._human_design_type_filter_combo)
     human_design_group_layout.addLayout(hd_type_row)
 
     hd_profile_row = QHBoxLayout()
@@ -1006,8 +1008,9 @@ def build_dbv_search_panel(window) -> "QWidget":
     window._human_design_profile_filter_combo.addItem("Any", "Any")
     for profile_label in getattr(window, "HD_STANDARD_PROFILES", ()):
         window._human_design_profile_filter_combo.addItem(profile_label, profile_label)
+    set_dropdown_width_chars(window._human_design_profile_filter_combo, 3)
     window._human_design_profile_filter_combo.currentIndexChanged.connect(window._on_filter_changed)
-    hd_profile_row.addWidget(window._human_design_profile_filter_combo, 1)
+    hd_profile_row.addWidget(window._human_design_profile_filter_combo)
     human_design_group_layout.addLayout(hd_profile_row)
 
     hd_defined_centers_row = QHBoxLayout()
@@ -1018,9 +1021,10 @@ def build_dbv_search_panel(window) -> "QWidget":
         center_combo.addItem("Any", "Any")
         for center_label in getattr(window, "HD_DEFINED_CENTER_ORDER", ()):
             center_combo.addItem(center_label, center_label)
+        set_dropdown_width_chars(center_combo, 11)
         center_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_defined_center_filters.append(center_combo)
-        hd_defined_centers_row.addWidget(center_combo, 1)
+        hd_defined_centers_row.addWidget(center_combo)
     window._human_design_defined_center_filter_and = QRadioButton("&&")
     window._human_design_defined_center_filter_or = QRadioButton("OR")
     hd_defined_center_group = QButtonGroup(window)
