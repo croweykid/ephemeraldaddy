@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
+from ephemeraldaddy.gui.about_sparkle import AboutCloseSparkleOverlay
 from ephemeraldaddy.gui.style import (
     ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
     ABOUT_DIALOG_INTRO_STYLE,
@@ -17,6 +18,21 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication, QLayout, QMainWindow, QWidget
 
 APP_DISPLAY_NAME = "Ephemeral Daddy"
+
+
+_ACTIVE_ABOUT_SPARKLES: list[AboutCloseSparkleOverlay] = []
+
+
+def _show_about_close_sparkles(target_rect) -> None:
+    overlay = AboutCloseSparkleOverlay(target_rect, duration_ms=1000)
+    _ACTIVE_ABOUT_SPARKLES.append(overlay)
+
+    def _cleanup(*_args) -> None:
+        if overlay in _ACTIVE_ABOUT_SPARKLES:
+            _ACTIVE_ABOUT_SPARKLES.remove(overlay)
+
+    overlay.destroyed.connect(_cleanup)
+    overlay.start()
 
 
 def _resolve_current_chart_name(window: "QWidget") -> str:
@@ -171,6 +187,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     styled_content = "\n".join(styled_content_lines)
 
     dialog = QDialog(owner)
+    dialog.setModal(False)
     dialog.setWindowTitle(title)
     dialog.resize(720, 560)
 
@@ -193,7 +210,8 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     buttons.accepted.connect(dialog.accept)
     layout.addWidget(buttons)
 
-    dialog.exec()
+    dialog.finished.connect(lambda _result: _show_about_close_sparkles(dialog.frameGeometry()))
+    dialog.show()
 
 def _minimize_window(owner: "QWidget") -> None:
     """Minimize the provided top-level window to the taskbar/dock."""
