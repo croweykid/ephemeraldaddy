@@ -171,7 +171,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     panel.setLayout(layout)
 
     def apply_default_dropdown_style(dropdown: QComboBox) -> None:
-        dropdown.setStyleSheet(DEFAULT_DROPDOWN_STYLE)
+        app_module.apply_shared_dropdown_style(dropdown)
 
     def center_dropdown_items(dropdown: QComboBox) -> None:
         dropdown.setEditable(False)
