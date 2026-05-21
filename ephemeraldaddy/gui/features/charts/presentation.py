@@ -113,9 +113,9 @@ def abbreviate_nakshatra_label(nakshatra: str) -> str:
     elif abbreviated.startswith("Uttara "):
         abbreviated = abbreviated.replace("Uttara", "U.", 1)
 
-    abbreviated = abbreviated.replace("Bhadrapada", "Bhad.", 1)
-    abbreviated = abbreviated.replace("Bhadrapadha", "Bhad.", 1)
-    abbreviated = abbreviated.replace("Phalguni", "Phal.", 1)
+    abbreviated = abbreviated.replace("Bhadrapada", "Bha.", 1)
+    abbreviated = abbreviated.replace("Bhadrapadha", "Bha.", 1)
+    abbreviated = abbreviated.replace("Phalguni", "Pha.", 1)
     abbreviated = abbreviated.replace("Ashadha", "Ash.", 1)
     return abbreviated
 
