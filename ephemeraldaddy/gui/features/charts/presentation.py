@@ -11,6 +11,7 @@ from matplotlib import font_manager as mpl_font_manager
 
 from ephemeraldaddy.core.hd import get_channels_for_gate, get_line
 from ephemeraldaddy.core.interpretations import (
+    NAKSHATRA_ABBREVIATIONS,
     NAKSHATRA_PLANET_COLOR,
     NAKSHATRA_DESCRIPTIONS,
     NAKSHATRA_RANGES,
@@ -106,6 +107,9 @@ def abbreviate_nakshatra_label(nakshatra: str) -> str:
     label = str(nakshatra).strip()
     if not label or label not in _NAKSHATRA_NAME_SET:
         return label
+    mapped = NAKSHATRA_ABBREVIATIONS.get(label)
+    if isinstance(mapped, str) and mapped.strip():
+        return mapped.strip()
 
     parts = label.split()
     if len(parts) >= 2 and parts[0] in {"Purva", "Uttara"}:
