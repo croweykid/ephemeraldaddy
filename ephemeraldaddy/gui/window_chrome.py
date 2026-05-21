@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ephemeraldaddy.gui.about import ABOUT_ONBOARDING_MARKDOWN
 from ephemeraldaddy.gui.style import (
+    ABOUT_DIALOG_ACCENT_BUTTON_COLOR,
     ABOUT_DIALOG_INTRO_STYLE,
     ABOUT_DIALOG_MARKDOWN_STYLESHEET,
     WINDOW_CHROME_MENU_STYLE,
@@ -106,7 +108,39 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     for line in content.splitlines():
         stripped = line.lstrip()
         prefix_whitespace = line[: len(line) - len(stripped)]
-        if stripped.startswith("Q."):
+        if stripped.startswith("### "):
+            heading_text = stripped[4:].strip()
+            if heading_text.startswith("**") and heading_text.endswith("**"):
+                heading_text = heading_text[2:-2].strip()
+            if heading_text.startswith("Q."):
+                styled_content_lines.append(
+                    f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>"
+                )
+            elif heading_text.startswith("A."):
+                styled_content_lines.append(
+                    f"{prefix_whitespace}<h3 class='about-answer'>{heading_text}</h3>"
+                )
+            else:
+                styled_content_lines.append(
+                    f"{prefix_whitespace}<h3 class='about-subheader'>{heading_text}</h3>"
+                )
+        elif stripped.startswith("## "):
+            heading_text = stripped[3:].strip()
+            is_major_header = bool(
+                re.match(r"^\d+\)", heading_text)
+                or heading_text.lower().startswith("faq")
+                or heading_text == "Final Takeaways"
+            )
+            heading_class = "about-major-header" if is_major_header else "about-subheader"
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h2 class='{heading_class}'>{heading_text}</h2>"
+            )
+        elif stripped.startswith("#### "):
+            heading_text = stripped[5:].strip()
+            styled_content_lines.append(
+                f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>"
+            )
+        elif stripped.startswith("Q."):
             styled_content_lines.append(
                 f"{prefix_whitespace}<span class='about-question'>{stripped}</span>"
             )
@@ -133,7 +167,11 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     content_view.setMarkdown(styled_content)
     layout.addWidget(content_view, 1)
 
-    buttons = QDialogButtonBox(QDialogButtonBox.Ok, parent=dialog)
+    buttons = QDialogButtonBox(parent=dialog)
+    groovy_button = buttons.addButton("Groovy", QDialogButtonBox.AcceptRole)
+    groovy_button.setStyleSheet(
+        f"background-color: {ABOUT_DIALOG_ACCENT_BUTTON_COLOR}; color: #ffffff; font-weight: 700;"
+    )
     buttons.accepted.connect(dialog.accept)
     layout.addWidget(buttons)
 
