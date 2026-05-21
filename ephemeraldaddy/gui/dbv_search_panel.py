@@ -196,7 +196,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         return str(label).replace("Part of Fortune", "Fortune")
 
     def compact_nakshatra_label(label: str) -> str:
-        return str(label).replace("Purva", "P.").replace("Uttara", "U.")
+        return str(label).replace("Purva", "P.").replace("Uttara", "U.").replace("Bhadrapada", "Bhad.").replace("Phalguni", "Phal.")
 
     search_title = QLabel("Database search")
     search_title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
@@ -766,7 +766,7 @@ def build_dbv_search_panel(window) -> "QWidget":
     decan_number_combo.addItem("3", "3")
     decan_number_combo.currentIndexChanged.connect(window._on_astrological_filter_changed)
 
-    decan_row_layout.addWidget(QLabel("🔟"))
+    #decan_row_layout.addWidget(QLabel("")) #🔟
     decan_row_layout.addWidget(decan_sign_combo, 1)
     decan_row_layout.addWidget(decan_number_combo, 1)
     decan_row_layout.addStretch(1)
@@ -859,7 +859,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         filter_and.setChecked(True)
         filter_group.buttonClicked.connect(window._on_filter_changed)
 
-        dominant_element_row_layout.addWidget(QLabel("🧪"))
+        #dominant_element_row_layout.addWidget(QLabel("")) #🧪
         dominant_element_row_layout.addWidget(element_combo)
         dominant_element_row_layout.addWidget(filter_and)
         dominant_element_row_layout.addWidget(filter_or)
@@ -951,7 +951,7 @@ def build_dbv_search_panel(window) -> "QWidget":
         )
         for channel_label in channel_options:
             channel_combo.addItem(channel_label, channel_label)
-        set_dropdown_width_chars(channel_combo, 4)
+        set_dropdown_width_chars(channel_combo, 5)
         channel_combo.currentIndexChanged.connect(window._on_filter_changed)
         window._human_design_channel_filters.append(channel_combo)
         hd_channels_row.addWidget(channel_combo)

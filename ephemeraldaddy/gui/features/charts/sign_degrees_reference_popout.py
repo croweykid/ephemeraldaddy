@@ -196,8 +196,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             mid = math.radians(90.0 - ((p_start + p_end) / 2.0))
             rr = (inner_radius + outer_radius) / 2.0
             nak_label = NAKSHATRA_ABBREVIATIONS.get(nak.label, nak.label)
-            oval_x_scale = 0.95
-            oval_y_scale = 1.08
+            oval_x_scale = 1.0
+            oval_y_scale = 1.15
             ax.text(
                 (rr * oval_x_scale) * math.cos(mid),
                 (rr * oval_y_scale) * math.sin(mid),
@@ -217,8 +217,8 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         ax.add_patch(Wedge((0, 0), outer_radius, theta1, theta2, width=outer_radius-inner_radius, facecolor=gate_color, alpha=0.38, edgecolor="#1e1e1e", linewidth=0.6))
         mid = math.radians(90.0 - ((gate.start + gate.end) / 2.0))
         rr = (inner_radius + outer_radius) / 2.0
-        oval_x_scale = 0.95
-        oval_y_scale = 1.10
+        oval_x_scale = 1.1
+        oval_y_scale = 1.0
         ax.text(
             (rr * oval_x_scale) * math.cos(mid),
             (rr * oval_y_scale) * math.sin(mid),
