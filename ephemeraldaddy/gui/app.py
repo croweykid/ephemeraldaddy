@@ -322,6 +322,7 @@ class _ComboItemColorDelegate(QStyledItemDelegate):
 
 
 from ephemeraldaddy.gui.startup import StartupLoadingWidget, StartupProgress
+from ephemeraldaddy.gui.emoji_render import install_emoji_png_rendering
 
 from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -30385,6 +30386,7 @@ def main(startup_loading: StartupProgress | QWidget | None = None):
     startup_loading.update_status("Loading main window…", 45)
     logger.debug("Constructing MainWindow.")
     window = MainWindow()
+    install_emoji_png_rendering(app, window)
     # App-level quit requests (menu Exit, Ctrl+C in some terminals, OS session
     # shutdown) must bypass MainWindow's close interception.
     app.aboutToQuit.connect(window.allow_close_for_app_exit)
