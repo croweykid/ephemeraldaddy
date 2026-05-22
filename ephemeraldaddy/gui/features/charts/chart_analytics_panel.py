@@ -97,19 +97,3 @@ def style_dominant_body_axis_labels(ax: Any, chart: Chart, bodies: Iterable[str]
         role_color = dominant_body_axis_label_color(body_dynamics_roles.get(body))
         if role_color:
             tick_label.set_color(role_color)
-
-
-def apply_metric_canvas_display_sizing(canvas: Any) -> None:
-    """Apply stable metric-canvas sizing to avoid tab-switch resize jitter."""
-    figure = canvas.figure
-    figure_width, figure_height = figure.get_size_inches()
-    display_height = canvas.property("metric_display_height")
-    if not isinstance(display_height, int) or display_height <= 0:
-        display_height = int(round(figure_height * figure.get_dpi()))
-    if display_height <= 0 and figure_width > 0:
-        display_height = int(round(figure_width * figure.get_dpi()))
-    if display_height > 0:
-        canvas.setMinimumHeight(display_height)
-        canvas.setMaximumHeight(display_height)
-    canvas.setSizePolicy(canvas.sizePolicy().horizontalPolicy(), canvas.sizePolicy().Fixed)
-    canvas.updateGeometry()
