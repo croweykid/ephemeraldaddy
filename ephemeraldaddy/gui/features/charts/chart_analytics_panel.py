@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Iterable
 
+from PySide6.QtWidgets import QSizePolicy
+
 from ephemeraldaddy.core.interpretations import PLANET_ORDER
 from ephemeraldaddy.gui.features.charts.metrics import calculate_planet_dynamics_scores
 
@@ -111,5 +113,5 @@ def apply_metric_canvas_display_sizing(canvas: Any) -> None:
     if display_height > 0:
         canvas.setMinimumHeight(display_height)
         canvas.setMaximumHeight(display_height)
-    canvas.setSizePolicy(canvas.sizePolicy().horizontalPolicy(), canvas.sizePolicy().Fixed)
+    canvas.setSizePolicy(canvas.sizePolicy().horizontalPolicy(), QSizePolicy.Fixed)
     canvas.updateGeometry()
