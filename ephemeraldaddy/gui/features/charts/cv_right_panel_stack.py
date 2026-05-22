@@ -275,14 +275,29 @@ def reveal_chart_right_panel_after_loading(owner: object) -> None:
         setattr(owner, "_chart_right_panel_fade_in_progress", False)
         set_chart_right_panel_container_visible(owner, True)
         return
-    panel.setVisible(True)
+    set_chart_right_panel_container_visible(owner, True)
     effect.setOpacity(0.0)
     setattr(owner, "_chart_right_panel_fade_in_progress", True)
+    active_scroll = getattr(owner, "metrics_scroll", None)
+    active_scrollbar = (
+        active_scroll.verticalScrollBar()
+        if active_scroll is not None and hasattr(active_scroll, "verticalScrollBar")
+        else None
+    )
+    locked_scroll_value = (
+        int(active_scrollbar.value())
+        if active_scrollbar is not None and hasattr(active_scrollbar, "value")
+        else None
+    )
     animation = QPropertyAnimation(effect, b"opacity", panel)
     animation.setDuration(650)
     animation.setStartValue(0.0)
     animation.setEndValue(1.0)
     animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+    if locked_scroll_value is not None and active_scrollbar is not None:
+        animation.valueChanged.connect(
+            lambda _value, bar=active_scrollbar, locked=locked_scroll_value: bar.setValue(locked)
+        )
     animation.finished.connect(lambda: effect.setOpacity(1.0))
     animation.finished.connect(lambda: setattr(owner, "_chart_right_panel_fade_in_progress", False))
     setattr(owner, "_chart_right_panel_fade_animation", animation)
