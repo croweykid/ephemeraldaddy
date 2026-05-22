@@ -161,6 +161,8 @@ EphemeralDaddy no longer auto-installs Python packages at runtime. In locked-dow
 
 For first-time Windows EXE build steps (clean venv, build, smoke-test, signing notes) plus a turnkey Windows installer workflow (Inno Setup), see `desktop_app.md`.
 
+For Linux packaging targets (AppImage + Flatpak), see `linux_packaging.md`.
+
 ### Offline location search (optional)
 By default, ephemeraldaddy will build the database from the bundled `tools/cities15000.txt` file when available, or automatically download a small GeoNames dataset if the bundled file is missing. 
 
