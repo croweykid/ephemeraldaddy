@@ -384,6 +384,8 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
+    prepare_chart_right_panel_for_loading,
+    reveal_chart_right_panel_after_loading,
     schedule_chart_render_for_active_right_panel,
     set_chart_right_panel,
     set_chart_right_panel_container_visible,
@@ -27667,6 +27669,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
         else:
+            prepare_chart_right_panel_for_loading(self)
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart, sections={
                 "summary",
@@ -27972,6 +27975,9 @@ class MainWindow(QMainWindow):
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
         cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
+        should_fade_right_panel = cached_chart is None
+        if should_fade_right_panel:
+            prepare_chart_right_panel_for_loading(self)
         use_fast_navigation_swap = (
             from_chart_link
             and not is_same_chart_request
@@ -27989,6 +27995,7 @@ class MainWindow(QMainWindow):
             try:
                 chart = load_chart(chart_id)
             except Exception as e:
+                reveal_chart_right_panel_after_loading(self)
                 self._hide_chart_loading_overlay()
                 QMessageBox.critical(
                     self,
@@ -28132,6 +28139,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel("subjective_notes")
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
+            reveal_chart_right_panel_after_loading(self)
             self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel("analytics")
@@ -28570,6 +28578,7 @@ class MainWindow(QMainWindow):
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
+        reveal_chart_right_panel_after_loading(self)
         self._hide_chart_loading_overlay()
         QTimer.singleShot(
             0,
