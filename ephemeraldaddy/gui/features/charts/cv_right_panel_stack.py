@@ -248,6 +248,7 @@ def prepare_chart_right_panel_for_loading(owner: object) -> None:
     panel = getattr(owner, "metrics_panel", None)
     if not isinstance(panel, QWidget):
         return
+    setattr(owner, "_chart_right_panel_transition_active", True)
     animation = getattr(owner, "_chart_right_panel_fade_animation", None)
     if isinstance(animation, QPropertyAnimation):
         animation.stop()
@@ -262,6 +263,10 @@ def prepare_chart_right_panel_for_loading(owner: object) -> None:
 
 def reveal_chart_right_panel_after_loading(owner: object) -> None:
     """Fade in Chart View right-hand panel once all chart sections are rendered."""
+    transition_active = bool(getattr(owner, "_chart_right_panel_transition_active", False))
+    if not transition_active:
+        return
+    setattr(owner, "_chart_right_panel_transition_active", False)
     panel = getattr(owner, "metrics_panel", None)
     effect = getattr(owner, "_chart_right_panel_opacity_effect", None)
     if not isinstance(panel, QWidget) or not isinstance(effect, QGraphicsOpacityEffect):

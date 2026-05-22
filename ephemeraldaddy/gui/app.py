@@ -27669,6 +27669,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
         else:
+            prepare_chart_right_panel_for_loading(self)
             self._set_chart_right_panel_container_visible(True)
             self._schedule_chart_render(chart, sections={
                 "summary",
@@ -27975,6 +27976,9 @@ class MainWindow(QMainWindow):
             self._chart_view_history.clear()
             self._chart_view_history_index = -1
         cached_chart = self._chart_view_navigation_cache.get(int(chart_id))
+        should_fade_right_panel = cached_chart is None
+        if should_fade_right_panel:
+            prepare_chart_right_panel_for_loading(self)
         use_fast_navigation_swap = (
             from_chart_link
             and not is_same_chart_request
