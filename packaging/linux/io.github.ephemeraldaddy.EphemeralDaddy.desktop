@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=EphemeralDaddy
+Exec=ephemeraldaddy
+Icon=io.github.ephemeraldaddy.EphemeralDaddy
+Type=Application
+Categories=Education;Science;
+Comment=Private astrology research app with dark mode
+Terminal=false
+StartupNotify=true
