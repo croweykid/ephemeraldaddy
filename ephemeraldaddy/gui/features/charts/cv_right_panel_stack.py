@@ -392,18 +392,18 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     if subjective_notes_button is not None:
         subjective_notes_button.setChecked(panel_key == "subjective_notes")
 
-    if panel_key == "predictions":
-        latest_chart = getattr(owner, "_latest_chart", None)
-        rerender_enneagram = getattr(owner, "_render_enneagram_predictions", None)
-        if latest_chart is not None and callable(rerender_enneagram):
-            predictions_scroll = getattr(owner, "predictions_panel_scroll", None)
-            predictions_widget = predictions_scroll.widget() if isinstance(predictions_scroll, QScrollArea) else None
-            if isinstance(predictions_widget, QWidget):
-                predictions_widget.setUpdatesEnabled(False)
-            rerender_enneagram(latest_chart)
-            if isinstance(predictions_widget, QWidget):
-                predictions_widget.setUpdatesEnabled(True)
-                predictions_widget.update()
+    # if panel_key == "predictions":
+    #     latest_chart = getattr(owner, "_latest_chart", None)
+    #     rerender_enneagram = getattr(owner, "_render_enneagram_predictions", None)
+    #     if latest_chart is not None and callable(rerender_enneagram):
+    #         predictions_scroll = getattr(owner, "predictions_panel_scroll", None)
+    #         predictions_widget = predictions_scroll.widget() if isinstance(predictions_scroll, QScrollArea) else None
+    #         if isinstance(predictions_widget, QWidget):
+    #             predictions_widget.setUpdatesEnabled(False)
+    #         rerender_enneagram(latest_chart)
+    #         if isinstance(predictions_widget, QWidget):
+    #             predictions_widget.setUpdatesEnabled(True)
+    #             predictions_widget.update()
 
     schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
     if callable(schedule):
