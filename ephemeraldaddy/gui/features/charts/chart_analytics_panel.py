@@ -5,9 +5,6 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Iterable
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QScrollArea, QToolButton, QWidget
-
 from ephemeraldaddy.core.interpretations import PLANET_ORDER
 from ephemeraldaddy.gui.features.charts.metrics import calculate_planet_dynamics_scores
 
@@ -100,24 +97,3 @@ def style_dominant_body_axis_labels(ax: Any, chart: Chart, bodies: Iterable[str]
         role_color = dominant_body_axis_label_color(body_dynamics_roles.get(body))
         if role_color:
             tick_label.set_color(role_color)
-
-
-def toggle_panel_section_content(
-    *,
-    toggle: QToolButton,
-    content_widget: QWidget,
-    expanded: bool,
-    scroll_area: QScrollArea | None = None,
-) -> None:
-    """Toggle collapsible Chart View section content and auto-scroll to revealed bottom."""
-    content_widget.setVisible(expanded)
-    toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-    if not expanded or scroll_area is None:
-        return
-
-    def _scroll_to_bottom() -> None:
-        bar = scroll_area.verticalScrollBar()
-        if bar is not None:
-            bar.setValue(bar.maximum())
-
-    QTimer.singleShot(0, _scroll_to_bottom)

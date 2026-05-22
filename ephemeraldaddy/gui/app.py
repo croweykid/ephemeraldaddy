@@ -657,7 +657,6 @@ from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
     style_dominant_body_axis_labels as _style_dominant_body_axis_labels,
-    toggle_panel_section_content as _toggle_panel_section_content,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import (
     build_body_dominance_section_html as _build_body_dominance_section_html,
@@ -26619,17 +26618,12 @@ class MainWindow(QMainWindow):
             panel_key = "analytics"
             active_scroll = self.chart_analytics_panel_scroll
         panel_stack.setCurrentWidget(active_scroll)
-        panel_widget = active_scroll.widget()
-        if panel_widget is not None:
-            panel_widget.adjustSize()
-        active_scroll.viewport().update()
         self.metrics_scroll = active_scroll
         self._chart_right_panel_state.active_tab = panel_key
         self._active_chart_right_panel = panel_key
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        self._schedule_chart_render_for_active_right_panel()
         QTimer.singleShot(0, self._schedule_chart_render_for_active_right_panel)
 
     def _schedule_chart_render_for_active_right_panel(self) -> None:
@@ -28356,12 +28350,8 @@ class MainWindow(QMainWindow):
         content_widget: QWidget,
         expanded: bool,
     ) -> None:
-        _toggle_panel_section_content(
-            toggle=toggle,
-            content_widget=content_widget,
-            expanded=expanded,
-            scroll_area=getattr(self, "subjective_notes_panel_scroll", None),
-        )
+        content_widget.setVisible(expanded)
+        toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
 
     def _on_birth_date_field_changed(self, _value: str) -> None:
         # Avoid validating/computing on every keystroke in birth-date fields.
