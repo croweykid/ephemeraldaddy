@@ -26628,6 +26628,10 @@ class MainWindow(QMainWindow):
         if active_panel == "analytics":
             self._schedule_chart_render(chart)
             return
+        if active_panel == "predictions":
+            self._render_enneagram_predictions(chart)
+            self._render_dndification_predictions(chart)
+            return
         if active_panel == "subjective_notes" and self._is_chart_analysis_section_visible("anagrams"):
             self._schedule_chart_render(chart, sections={"anagrams"})
 
@@ -29329,29 +29333,23 @@ class MainWindow(QMainWindow):
 
     def _render_enneagram_predictions(self, chart: Chart | None) -> None:
         tritype_label = getattr(self, "enneagram_prediction_tritype_label", None)
-        if chart is None:
-            self._clear_layout_widgets(self.enneagram_prediction_chart_layout)
-            self.enneagram_prediction_canvas = None
-            if tritype_label is not None:
-                tritype_label.setText("<b>Predicted Tritype:</b> —")
-            return
-        if self._is_placeholder_chart(chart):
-            def _draw_no_data(ax, _chart: Chart) -> None:
-                ax.clear()
-                ax.set_facecolor(CHART_THEME_COLORS["panel"])
-                ax.set_axis_off()
-                ax.text(
-                    0.5,
-                    0.5,
-                    "No data",
-                    transform=ax.transAxes,
-                    ha="center",
-                    va="center",
-                    color=CHART_THEME_COLORS["text"],
-                    fontsize=11,
-                    fontweight="bold",
-                )
+        def _draw_no_data(ax, _chart: Chart | None) -> None:
+            ax.clear()
+            ax.set_facecolor(CHART_THEME_COLORS["panel"])
+            ax.set_axis_off()
+            ax.text(
+                0.5,
+                0.5,
+                "No data",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                color=CHART_THEME_COLORS["text"],
+                fontsize=11,
+                fontweight="bold",
+            )
 
+        if chart is None or self._is_placeholder_chart(chart):
             self._render_metric_panel(
                 canvas_attr="enneagram_prediction_canvas",
                 container_layout=self.enneagram_prediction_chart_layout,
@@ -29361,7 +29359,9 @@ class MainWindow(QMainWindow):
                 chart=chart,
             )
             if tritype_label is not None:
-                tritype_label.setText("<b>Predicted Tritype:</b> No data")
+                tritype_label.setText(
+                    "<b>Predicted Tritype:</b> —" if chart is None else "<b>Predicted Tritype:</b> No data"
+                )
             return
         self._render_metric_panel(
             canvas_attr="enneagram_prediction_canvas",
@@ -29393,17 +29393,6 @@ class MainWindow(QMainWindow):
         chart_layout = getattr(self, "dnd_predictions_chart_layout", None)
         if chart_layout is None:
             return
-        if chart is None or self._is_placeholder_chart(chart):
-            self._clear_layout_widgets(chart_layout)
-            return
-        self._render_metric_panel(
-            canvas_attr="dnd_prediction_statblock_canvas",
-            container_layout=chart_layout,
-            figsize=(5.5, 2.8),
-            title="D&D Statblock",
-            draw_fn=self._draw_dnd_statblock_predictions,
-            chart=chart,
-        )
         summary_label = getattr(self, "dnd_prediction_top_three_label", None)
         summary_label_is_usable = False
         if summary_label is not None:
@@ -29416,7 +29405,44 @@ class MainWindow(QMainWindow):
             summary_label.setWordWrap(True)
             summary_label.setTextFormat(Qt.RichText)
             self.dnd_prediction_top_three_label = summary_label
+        if chart_layout.indexOf(summary_label) < 0:
             chart_layout.addWidget(summary_label)
+
+        def _draw_no_data(ax, _chart: Chart | None) -> None:
+            ax.clear()
+            ax.set_facecolor(CHART_THEME_COLORS["panel"])
+            ax.set_axis_off()
+            ax.text(
+                0.5,
+                0.5,
+                "No data",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                color=CHART_THEME_COLORS["text"],
+                fontsize=11,
+                fontweight="bold",
+            )
+
+        if chart is None or self._is_placeholder_chart(chart):
+            self._render_metric_panel(
+                canvas_attr="dnd_prediction_statblock_canvas",
+                container_layout=chart_layout,
+                figsize=(5.5, 2.8),
+                title="D&D Statblock",
+                draw_fn=_draw_no_data,
+                chart=chart,
+            )
+            summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
+            return
+        self._render_metric_panel(
+            canvas_attr="dnd_prediction_statblock_canvas",
+            container_layout=chart_layout,
+            figsize=(5.5, 2.8),
+            title="D&D Statblock",
+            draw_fn=self._draw_dnd_statblock_predictions,
+            chart=chart,
+        )
         _configure_dnd_top_three_summary_label(
             summary_label,
             chart,
