@@ -10,6 +10,9 @@ from pathlib import Path
 
 EMOJI_DIR = Path(__file__).resolve().parent / "emoji"
 
+VARIATION_SELECTOR_15 = "︎"
+VARIATION_SELECTOR_16 = "️"
+
 # Primary mapping for emojis already used across the UI.
 EMOJI_TO_PNG: dict[str, str] = {
     "🏠": "house-openmoji-512.png",
@@ -62,9 +65,15 @@ EMOJI_ALIASES: dict[str, str] = {
 }
 
 
+def _normalize_emoji_lookup_key(emoji: str) -> str:
+    """Normalize variation-selector emoji forms before map lookup."""
+    return emoji.replace(VARIATION_SELECTOR_15, "").replace(VARIATION_SELECTOR_16, "")
+
+
 def emoji_png_path(emoji: str) -> Path | None:
     """Return the PNG path for an emoji (or alias), if mapped."""
-    key = EMOJI_ALIASES.get(emoji, emoji)
+    normalized = _normalize_emoji_lookup_key(emoji)
+    key = EMOJI_ALIASES.get(normalized, normalized)
     filename = EMOJI_TO_PNG.get(key)
     if not filename:
         return None
