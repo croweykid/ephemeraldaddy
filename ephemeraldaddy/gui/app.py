@@ -26624,7 +26624,7 @@ class MainWindow(QMainWindow):
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        self._schedule_chart_render_for_active_right_panel()
+        QTimer.singleShot(0, self._schedule_chart_render_for_active_right_panel)
 
     def _schedule_chart_render_for_active_right_panel(self) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
@@ -28837,6 +28837,18 @@ class MainWindow(QMainWindow):
         canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
+        x_tick_labels = [
+            str(tick.get_text() or "").strip()
+            for tick in ax.get_xticklabels()
+            if str(tick.get_text() or "").strip()
+        ]
+        if x_tick_labels:
+            longest_label = max((len(label) for label in x_tick_labels), default=0)
+            estimated_bottom = min(0.48, max(0.18, 0.16 + (longest_label * 0.008)))
+            try:
+                figure.subplots_adjust(bottom=estimated_bottom)
+            except Exception:
+                pass
         try:
             canvas.draw()
         except RuntimeError:
@@ -28893,6 +28905,7 @@ class MainWindow(QMainWindow):
             self.planet_dynamics_container_layout,
             self.chart_type_container_layout,
             self.enneagram_prediction_chart_layout,
+            self.dnd_predictions_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -28924,6 +28937,7 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.dnd_prediction_statblock_canvas = None
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
