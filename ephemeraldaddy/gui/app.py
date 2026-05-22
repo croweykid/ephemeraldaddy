@@ -747,6 +747,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_STRATEGIES,
     HD_TYPES,
     LINE_ARCHETYPES,
+    HD_LINE_COLORS,
     canonicalize_hd_authority_label,
     #format_gate_line_info,
 )
@@ -11256,6 +11257,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 for label in human_design_labels
             }
+            line_label_colors = (
+                {str(line): str(HD_LINE_COLORS.get(line, "#6fa8dc")).strip() or "#6fa8dc" for line in range(1, 7)}
+                if human_design_mode == "hd_lines"
+                else None
+            )
             if _should_refresh_database_metric_section("human_design"):
                 human_design_canvas = self._build_dominant_planet_chart(
                     selection_planets=selection_human_design,
@@ -11272,6 +11278,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         else 1.0
                     ),
                     force_value_fallback_colors=(human_design_mode == "hd_gates"),
+                    label_colors=line_label_colors,
                 )
                 self._clear_layout(self.human_design_chart_layout)
                 self.human_design_chart_layout.addWidget(
