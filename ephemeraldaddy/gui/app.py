@@ -2341,6 +2341,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         list_header_row.setLayout(list_header_layout)
 
         self.collection_combo = QComboBox()
+        apply_shared_dropdown_style(self.collection_combo)
         self.collection_combo.setItemDelegate(_ComboItemColorDelegate(self.collection_combo))
         for collection_label, collection_id in DEFAULT_COLLECTION_OPTIONS:
             self._add_collection_combo_item(
@@ -21027,6 +21028,7 @@ class MainWindow(QMainWindow):
         self.from_whence_edit.setPlaceholderText("Ptolemic Dynasty")
         self.from_whence_edit.textChanged.connect(self._mark_lucygoosey)
         self.gender_combo = QComboBox()
+        apply_shared_dropdown_style(self.gender_combo)
         self.gender_combo.addItem("Gender", "")
         for gender_option in GENDER_OPTIONS:
             self.gender_combo.addItem(gender_option, gender_option)
@@ -21034,6 +21036,7 @@ class MainWindow(QMainWindow):
         self.gender_combo.setFixedWidth(max(80, 120 - (3 * gender_char_width)))
         self.gender_combo.currentIndexChanged.connect(self._mark_lucygoosey)
         self.data_rating_combo = QComboBox()
+        apply_shared_dropdown_style(self.data_rating_combo)
         self.data_rating_combo.addItem("RR", "blank")
         for rating in RODDEN_RATING:
             grade = str(rating.get("grade", "")).strip()
@@ -21045,6 +21048,7 @@ class MainWindow(QMainWindow):
         self.data_rating_combo.setToolTip("Rodden Rating")
         self.data_rating_combo.currentIndexChanged.connect(self._on_sentiment_metric_changed)
         self.chart_source_combo = QComboBox()
+        apply_shared_dropdown_style(self.chart_source_combo)
         for source_label, source_value in SOURCE_OPTIONS:
             self.chart_source_combo.addItem(source_label, source_value)
         self._chart_type_previous_index = self.chart_source_combo.currentIndex()

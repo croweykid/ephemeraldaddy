@@ -27,7 +27,11 @@ from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_planet_weights,
     calculate_dominant_sign_weights,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, similarity_gradient_rgb_for_range
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    apply_shared_dropdown_style,
+    similarity_gradient_rgb_for_range,
+)
 
 _DB_INFO_CACHE_KEY = "settings/database_info/cache_v2"
 _DB_INFO_EXPORT_EXTENSION_KEY = "settings/database_info/export_extension"
@@ -455,6 +459,7 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
 
     controls_row = QHBoxLayout()
     collection_combo = QComboBox()
+    apply_shared_dropdown_style(collection_combo)
     for label, value in _DB_INFO_COLLECTION_OPTIONS:
         collection_combo.addItem(label, value)
     collection_combo.currentIndexChanged.connect(
