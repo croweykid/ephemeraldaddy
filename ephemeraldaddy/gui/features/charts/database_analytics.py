@@ -15,6 +15,7 @@ import warnings
 from collections import Counter
 from typing import Any, Callable
 
+from matplotlib import font_manager as mpl_font_manager
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
@@ -114,6 +115,7 @@ class DatabaseAnalyticsChartsMixin:
         "Noto Emoji",
         "Symbola",
     )
+    _BAZI_AVAILABLE_EMOJI_FONT_FAMILIES: tuple[str, ...] | None = None
     DND_STAT_KEYS: tuple[str, ...] = ("STR", "DEX", "CON", "INT", "WIS", "CHA")
     HD_DEFINED_CENTER_ORDER: tuple[str, ...] = (
         "Head",
@@ -3813,7 +3815,7 @@ class DatabaseAnalyticsChartsMixin:
                     auto_height=True,
                     bar_colors=bazi_bar_colors,
                     emoji_label_font_family=(
-                        list(self.BAZI_EMOJI_FONT_FAMILIES)
+                        self._available_bazi_emoji_font_families()
                         if any(self._label_contains_emoji(label) for label in display_labels)
                         else None
                     ),
@@ -4011,6 +4013,25 @@ class DatabaseAnalyticsChartsMixin:
         self._configure_left_panel_canvas(canvas, figure)
         canvas.draw_idle()
         return canvas
+
+    def _available_bazi_emoji_font_families(self) -> list[str]:
+        """Return emoji-capable font families that are available on this machine."""
+        cached = self._BAZI_AVAILABLE_EMOJI_FONT_FAMILIES
+        if cached is not None:
+            return list(cached)
+
+        available_names = {
+            str(entry.name).strip()
+            for entry in getattr(mpl_font_manager.fontManager, "ttflist", [])
+            if getattr(entry, "name", None)
+        }
+        selected = tuple(
+            family
+            for family in self.BAZI_EMOJI_FONT_FAMILIES
+            if family in available_names
+        )
+        self._BAZI_AVAILABLE_EMOJI_FONT_FAMILIES = selected
+        return list(selected)
 
     def _build_tag_distribution_chart(
         self,
