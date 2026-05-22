@@ -23602,7 +23602,7 @@ class MainWindow(QMainWindow):
                 info_panel.setHtml(self._build_mode_popout_info(popout_chart, raw_value))
 
             popout_canvas.mpl_connect("pick_event", _on_pick)
-        elif title == "💭Enneagram":
+        elif title in {"Enneagram", "💭Enneagram"}:
             info_panel.setPlaceholderText(
                 "Click an Enneagram bar to view type motivation and interpretation details."
             )
@@ -28820,7 +28820,8 @@ class MainWindow(QMainWindow):
             container_layout.addWidget(canvas)
         else:
             figure = canvas.figure
-            figure.set_size_inches(*figsize, forward=True)
+            # Keep logical figure sizing for redraws, but avoid forcing a Qt widget resize.
+            figure.set_size_inches(*figsize, forward=False)
             ax = figure.gca()
             ax.clear()
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
