@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
+from ephemeraldaddy.analysis.human_design_reference import HD_LINE_COLORS
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -145,10 +146,11 @@ def build_human_design_top_splitter(
 
     line_numbers = list(range(1, 7))
     line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
+    line_colors = [str(HD_LINE_COLORS.get(line_number, "#5dc26a")).strip() or "#5dc26a" for line_number in line_numbers]
     bars = hd_line_chart_ax.bar(
         line_numbers,
         line_values,
-        color="#5dc26a",
+        color=line_colors,
         edgecolor="#E0E0E0",
         linewidth=0.5,
         alpha=0.95,
