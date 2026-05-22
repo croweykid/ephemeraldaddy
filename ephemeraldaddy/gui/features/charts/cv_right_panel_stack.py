@@ -152,7 +152,7 @@ def build_chart_right_panel_stack(
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(4)
     container.setLayout(layout)
-    container.setMinimumWidth(200)
+    container.setMinimumWidth(240)
 
     analytics_button = QPushButton("📊")
     analytics_button.setObjectName("chart_view_toggle_analytics_panel_button")
