@@ -28581,8 +28581,9 @@ class MainWindow(QMainWindow):
         # be tied to actual completion of the final render pass here.
         reveal_chart_right_panel_after_loading(self)
         self._hide_chart_loading_overlay()
+        preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
         QTimer.singleShot(
-            0,
+            preload_delay_ms,
             lambda chart_snapshot=chart: self._schedule_passive_chart_analysis_preload_if_current(
                 chart_snapshot
             ),

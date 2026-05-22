@@ -250,6 +250,7 @@ def prepare_chart_right_panel_for_loading(owner: object) -> None:
     if not isinstance(panel, QWidget):
         return
     setattr(owner, "_chart_right_panel_transition_active", True)
+    setattr(owner, "_chart_right_panel_fade_in_progress", False)
     animation = getattr(owner, "_chart_right_panel_fade_animation", None)
     if isinstance(animation, QPropertyAnimation):
         animation.stop()
@@ -271,16 +272,19 @@ def reveal_chart_right_panel_after_loading(owner: object) -> None:
     panel = getattr(owner, "metrics_panel", None)
     effect = getattr(owner, "_chart_right_panel_opacity_effect", None)
     if not isinstance(panel, QWidget) or not isinstance(effect, QGraphicsOpacityEffect):
+        setattr(owner, "_chart_right_panel_fade_in_progress", False)
         set_chart_right_panel_container_visible(owner, True)
         return
     panel.setVisible(True)
     effect.setOpacity(0.0)
+    setattr(owner, "_chart_right_panel_fade_in_progress", True)
     animation = QPropertyAnimation(effect, b"opacity", panel)
     animation.setDuration(650)
     animation.setStartValue(0.0)
     animation.setEndValue(1.0)
     animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
     animation.finished.connect(lambda: effect.setOpacity(1.0))
+    animation.finished.connect(lambda: setattr(owner, "_chart_right_panel_fade_in_progress", False))
     setattr(owner, "_chart_right_panel_fade_animation", animation)
     animation.start()
 
