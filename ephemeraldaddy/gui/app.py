@@ -384,6 +384,10 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
+    schedule_chart_render_for_active_right_panel,
+    set_chart_right_panel,
+    set_chart_right_panel_container_visible,
+    sync_chart_right_panel_placeholder_state,
 )
 from ephemeraldaddy.gui.features.charts.right_panel_state import ChartRightPanelState
 from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
@@ -26579,68 +26583,19 @@ class MainWindow(QMainWindow):
         self._configure_main_splitter()
 
     def _set_chart_right_panel_container_visible(self, visible: bool) -> None:
-        """Show/hide Chart View's entire right-hand panel container.
-
-        This controls the whole right-side column (toggle buttons + panel stack),
-        not just the Chart Analytics sub-panel.
-        """
-        panel = getattr(self, "metrics_panel", None)
-        if panel is None:
-            return
-        panel.setVisible(visible)
-        if visible:
-            sizes = self._main_splitter.sizes()
-            if len(sizes) >= 3 and sizes[2] == 0:
-                self._configure_main_splitter()
+        """Show/hide Chart View's entire right-hand panel container."""
+        set_chart_right_panel_container_visible(self, visible)
 
     def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
         """Backward-compatible alias for _set_chart_right_panel_container_visible."""
         self._set_chart_right_panel_container_visible(visible)
 
     def _set_chart_right_panel(self, panel_key: str) -> None:
-        panel_stack = getattr(self, "chart_right_panel_stack", None)
-        if panel_stack is None:
-            self._collapse_similar_charts_section()
-            return
-        analytics_enabled = bool(
-            getattr(self, "chart_analytics_panel_button", None)
-            and self.chart_analytics_panel_button.isEnabled()
-        )
-        if panel_key == "analytics" and not analytics_enabled:
-            panel_key = "subjective_notes"
-        if panel_key == "analytics":
-            self._collapse_similar_charts_section()
-        if panel_key == "subjective_notes":
-            active_scroll = self.subjective_notes_panel_scroll
-        elif panel_key == "predictions":
-            active_scroll = self.predictions_panel_scroll
-        else:
-            panel_key = "analytics"
-            active_scroll = self.chart_analytics_panel_scroll
-        panel_stack.setCurrentWidget(active_scroll)
-        self.metrics_scroll = active_scroll
-        self._chart_right_panel_state.active_tab = panel_key
-        self._active_chart_right_panel = panel_key
-        self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
-        self.predictions_panel_button.setChecked(panel_key == "predictions")
-        self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        self._schedule_chart_render_for_active_right_panel()
+        set_chart_right_panel(self, panel_key)
 
     def _schedule_chart_render_for_active_right_panel(self) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
-        chart = self._latest_chart
-        if chart is None:
-            return
-        active_panel = self._chart_right_panel_state.active_tab
-        if active_panel == "analytics":
-            self._schedule_chart_render(chart)
-            return
-        if active_panel == "predictions":
-            self._render_enneagram_predictions(chart)
-            self._render_dndification_predictions(chart)
-            return
-        if active_panel == "subjective_notes" and self._is_chart_analysis_section_visible("anagrams"):
-            self._schedule_chart_render(chart, sections={"anagrams"})
+        schedule_chart_render_for_active_right_panel(self)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
         if chart is None:
@@ -26653,19 +26608,7 @@ class MainWindow(QMainWindow):
         return chart_type == "placeholder"
 
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
-        analytics_button = getattr(self, "chart_analytics_panel_button", None)
-        predictions_button = getattr(self, "predictions_panel_button", None)
-        if analytics_button is None or predictions_button is None:
-            return
-        is_placeholder = self._is_placeholder_chart(chart)
-        is_saved_chart = bool(chart is not None and self.current_chart_id is not None)
-        analytics_available = bool(is_saved_chart and not is_placeholder)
-        analytics_button.setVisible(analytics_available)
-        analytics_button.setEnabled(analytics_available)
-        predictions_button.setVisible(analytics_available)
-        predictions_button.setEnabled(analytics_available)
-        if not analytics_available:
-            self._set_chart_right_panel("subjective_notes")
+        sync_chart_right_panel_placeholder_state(self, chart)
 
     def _restore_window_settings(self) -> None:
         splitter_key = "main_window/splitter_sizes"

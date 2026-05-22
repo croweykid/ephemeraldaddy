@@ -224,3 +224,104 @@ def build_chart_right_panel_stack(
         predictions_scroll=predictions_scroll,
         subjective_notes_scroll=subjective_notes_scroll,
     )
+
+
+def set_chart_right_panel_container_visible(owner: object, visible: bool) -> None:
+    """Show/hide Chart View's entire right-hand panel container."""
+    panel = getattr(owner, "metrics_panel", None)
+    if panel is None:
+        return
+    panel.setVisible(visible)
+    if visible:
+        main_splitter = getattr(owner, "_main_splitter", None)
+        configure_splitter = getattr(owner, "_configure_main_splitter", None)
+        if main_splitter is None or not callable(configure_splitter):
+            return
+        sizes = main_splitter.sizes()
+        if len(sizes) >= 3 and sizes[2] == 0:
+            configure_splitter()
+
+
+def set_chart_right_panel(owner: object, panel_key: str) -> None:
+    """Activate a Chart View right-panel tab and synchronize toggle state."""
+    panel_stack = getattr(owner, "chart_right_panel_stack", None)
+    if panel_stack is None:
+        collapse = getattr(owner, "_collapse_similar_charts_section", None)
+        if callable(collapse):
+            collapse()
+        return
+
+    analytics_button = getattr(owner, "chart_analytics_panel_button", None)
+    analytics_enabled = bool(analytics_button and analytics_button.isEnabled())
+    if panel_key == "analytics" and not analytics_enabled:
+        panel_key = "subjective_notes"
+    if panel_key == "analytics":
+        collapse = getattr(owner, "_collapse_similar_charts_section", None)
+        if callable(collapse):
+            collapse()
+
+    if panel_key == "subjective_notes":
+        active_scroll = getattr(owner, "subjective_notes_panel_scroll", None)
+    elif panel_key == "predictions":
+        active_scroll = getattr(owner, "predictions_panel_scroll", None)
+    else:
+        panel_key = "analytics"
+        active_scroll = getattr(owner, "chart_analytics_panel_scroll", None)
+
+    if active_scroll is None:
+        return
+    panel_stack.setCurrentWidget(active_scroll)
+    setattr(owner, "metrics_scroll", active_scroll)
+
+    state = getattr(owner, "_chart_right_panel_state", None)
+    if state is not None:
+        state.active_tab = panel_key
+    setattr(owner, "_active_chart_right_panel", panel_key)
+
+    if analytics_button is not None:
+        analytics_button.setChecked(panel_key == "analytics")
+    predictions_button = getattr(owner, "predictions_panel_button", None)
+    if predictions_button is not None:
+        predictions_button.setChecked(panel_key == "predictions")
+    subjective_notes_button = getattr(owner, "subjective_notes_panel_button", None)
+    if subjective_notes_button is not None:
+        subjective_notes_button.setChecked(panel_key == "subjective_notes")
+
+    schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
+    if callable(schedule):
+        schedule()
+
+
+def schedule_chart_render_for_active_right_panel(owner: object) -> None:
+    """Queue now-renderable sections after Chart View right-panel tab switches."""
+    chart = getattr(owner, "_latest_chart", None)
+    if chart is None:
+        return
+    state = getattr(owner, "_chart_right_panel_state", None)
+    active_panel = getattr(state, "active_tab", None)
+    if active_panel == "analytics":
+        owner._schedule_chart_render(chart)
+        return
+    if active_panel == "predictions":
+        owner._render_enneagram_predictions(chart)
+        owner._render_dndification_predictions(chart)
+        return
+    if active_panel == "subjective_notes" and owner._is_chart_analysis_section_visible("anagrams"):
+        owner._schedule_chart_render(chart, sections={"anagrams"})
+
+
+def sync_chart_right_panel_placeholder_state(owner: object, chart: object | None) -> None:
+    """Update right-panel toggle availability for placeholder vs saved charts."""
+    analytics_button = getattr(owner, "chart_analytics_panel_button", None)
+    predictions_button = getattr(owner, "predictions_panel_button", None)
+    if analytics_button is None or predictions_button is None:
+        return
+    is_placeholder = bool(getattr(owner, "_is_placeholder_chart")(chart))
+    is_saved_chart = bool(chart is not None and getattr(owner, "current_chart_id", None) is not None)
+    analytics_available = bool(is_saved_chart and not is_placeholder)
+    analytics_button.setVisible(analytics_available)
+    analytics_button.setEnabled(analytics_available)
+    predictions_button.setVisible(analytics_available)
+    predictions_button.setEnabled(analytics_available)
+    if not analytics_available:
+        set_chart_right_panel(owner, "subjective_notes")
