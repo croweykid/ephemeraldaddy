@@ -234,7 +234,6 @@ QComboBox QAbstractItemView {
     background-color: #1c1c1c;
     alternate-background-color: #1c1c1c;
     selection-background-color: #4f3f25;
-    #selection-color: #f6ead1;
     outline: 0;
 }
 QComboBox QAbstractItemView::item {
