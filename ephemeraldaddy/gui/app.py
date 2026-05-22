@@ -19009,6 +19009,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(human_design_alpha_checkbox)
 
+        visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Synastry Charts (Popout Charts)"))
 
         synastry_aspect_weights_checkbox = QCheckBox("Show Synastry popout Aspect Weights")
@@ -19034,8 +19035,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         visibility_section.addWidget(planet_dynamics_checkbox)
 
+        visibility_section.addSpacing(8)
         visibility_section.addWidget(self._build_settings_subheader_label("Subjective Notes Panel (Chart View)"))
 
+        visibility_section.addSpacing(8)
         anagrams_checkbox = QCheckBox("Show Anagrams (Subjective Notes)")
         anagrams_checkbox.setChecked(
             isinstance(parent, MainWindow)
