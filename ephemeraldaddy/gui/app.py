@@ -27970,6 +27970,7 @@ class MainWindow(QMainWindow):
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
+        prepare_chart_right_panel_for_loading(self)
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
