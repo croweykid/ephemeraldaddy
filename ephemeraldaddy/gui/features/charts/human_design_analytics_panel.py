@@ -136,7 +136,7 @@ def build_human_design_top_splitter(
         if 1 <= int(activation.line) <= 6:
             line_counts[int(activation.line)] += 1
 
-    hd_line_chart_figure = Figure(figsize=(3.2, 2.6))
+    hd_line_chart_figure = Figure(figsize=(3.0, 2.6))
     hd_line_chart_canvas = FigureCanvas(hd_line_chart_figure)
     hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
     
