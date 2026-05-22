@@ -27992,6 +27992,7 @@ class MainWindow(QMainWindow):
             try:
                 chart = load_chart(chart_id)
             except Exception as e:
+                reveal_chart_right_panel_after_loading(self)
                 self._hide_chart_loading_overlay()
                 QMessageBox.critical(
                     self,
@@ -28135,6 +28136,7 @@ class MainWindow(QMainWindow):
             self._set_chart_right_panel("subjective_notes")
             self._set_chart_right_panel_container_visible(True)
             self._clear_chart_displays(reset_anagrams=False)
+            reveal_chart_right_panel_after_loading(self)
             self._hide_chart_loading_overlay()
         else:
             self._set_chart_right_panel("analytics")
