@@ -129,6 +129,9 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     for line in content.splitlines():
         stripped = line.lstrip()
         prefix_whitespace = line[: len(line) - len(stripped)]
+        if not stripped:
+            styled_content_lines.append("")
+            continue
         if stripped.startswith("### "):
             heading_text = stripped[4:].strip()
             if heading_text.startswith("**") and heading_text.endswith("**"):
@@ -136,15 +139,15 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             heading_text = _apply_inline_markdown_formatting(heading_text)
             if heading_text.startswith("Q."):
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>\n"
+                    f"{prefix_whitespace}<h3 class='about-question'>{heading_text}</h3>"
                 )
             elif heading_text.startswith("A."):
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-answer'>{heading_text}</h3>\n"
+                    f"{prefix_whitespace}<h3 class='about-answer'>{heading_text}</h3>"
                 )
             else:
                 styled_content_lines.append(
-                    f"{prefix_whitespace}<h3 class='about-subheader'>{heading_text}</h3>\n"
+                    f"{prefix_whitespace}<h3 class='about-subheader'>{heading_text}</h3>"
                 )
         elif stripped.startswith("## "):
             heading_text = stripped[3:].strip()
@@ -156,29 +159,24 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
             )
             heading_class = "about-major-header" if is_major_header else "about-subheader"
             styled_content_lines.append(
-                f"{prefix_whitespace}<h2 class='{heading_class}'>{heading_text}</h2>\n"
+                f"{prefix_whitespace}<h2 class='{heading_class}'>{heading_text}</h2>"
             )
         elif stripped.startswith("#### "):
             heading_text = stripped[5:].strip()
             heading_text = _apply_inline_markdown_formatting(heading_text)
             styled_content_lines.append(
-                f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>\n"
+                f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>"
             )
         elif stripped.startswith("Q."):
             styled_content_lines.append(
-                f"{prefix_whitespace}<span class='about-question'>{stripped}</span>"
-             f"{prefix_whitespace}<h4 class='about-subheader'>{heading_text}</h4>\n"
-            )
-        elif stripped.startswith("Q."):
-            styled_content_lines.append(
-                f"{prefix_whitespace}<span class='about-question'>{_apply_inline_markdown_formatting(stripped)}</span>"
+                f"{prefix_whitespace}<span class='about-question'>{_apply_inline_markdown_formatting(stripped)}</span><br/>"
             )
         elif stripped.startswith("A."):
             styled_content_lines.append(
-                f"{prefix_whitespace}<span class='about-answer'>{_apply_inline_markdown_formatting(stripped)}</span>"
+                f"{prefix_whitespace}<span class='about-answer'>{_apply_inline_markdown_formatting(stripped)}</span><br/>"
             )
         else:
-            styled_content_lines.append(_apply_inline_markdown_formatting(line))
+            styled_content_lines.append(f"{_apply_inline_markdown_formatting(line)}<br/>")
     styled_content = "\n".join(styled_content_lines)
 
     dialog = QDialog(owner)
@@ -194,7 +192,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     content_view = QTextBrowser(dialog)
     content_view.setOpenExternalLinks(True)
     content_view.document().setDefaultStyleSheet(ABOUT_DIALOG_MARKDOWN_STYLESHEET)
-    content_view.setMarkdown(styled_content)
+    content_view.setHtml(styled_content)
     layout.addWidget(content_view, 1)
 
     buttons = QDialogButtonBox(parent=dialog)
