@@ -264,7 +264,6 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QSlider,
     QToolTip,
-    QGraphicsOpacityEffect,
 )
 from PySide6.QtCore import (
     Qt,
@@ -284,8 +283,6 @@ from PySide6.QtCore import (
     QEventLoop,
     QRegularExpression,
     QItemSelectionModel,
-    QPropertyAnimation,
-    QEasingCurve,
 )
 from PySide6.QtPositioning import QGeoPositionInfoSource
 
@@ -387,6 +384,8 @@ from ephemeraldaddy.gui.features.controllers.db_info import (
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (
     apply_mode_pick_metadata,
     format_mode_popout_info_html,
+    prepare_chart_right_panel_for_loading,
+    reveal_chart_right_panel_after_loading,
     schedule_chart_render_for_active_right_panel,
     set_chart_right_panel,
     set_chart_right_panel_container_visible,
@@ -27970,7 +27969,7 @@ class MainWindow(QMainWindow):
     def load_chart_by_id(self, chart_id: int, *, from_chart_link: bool = False) -> bool:
         if not self._confirm_discard_or_save():
             return False
-        self._prepare_chart_right_panel_for_loading()
+        prepare_chart_right_panel_for_loading(self)
         is_same_chart_request = self.current_chart_id == chart_id
         if not from_chart_link and not is_same_chart_request:
             self._chart_view_history.clear()
@@ -28456,38 +28455,6 @@ class MainWindow(QMainWindow):
         # Keep as a no-op while overlay is disabled.
         return
 
-    def _prepare_chart_right_panel_for_loading(self) -> None:
-        panel = getattr(self, "metrics_panel", None)
-        if not isinstance(panel, QWidget):
-            return
-        animation = getattr(self, "_chart_right_panel_fade_animation", None)
-        if isinstance(animation, QPropertyAnimation):
-            animation.stop()
-        effect = getattr(self, "_chart_right_panel_opacity_effect", None)
-        if not isinstance(effect, QGraphicsOpacityEffect) or effect.parent() is not panel:
-            effect = QGraphicsOpacityEffect(panel)
-            panel.setGraphicsEffect(effect)
-            self._chart_right_panel_opacity_effect = effect
-        effect.setOpacity(0.0)
-        panel.setVisible(False)
-
-    def _reveal_chart_right_panel_after_loading(self) -> None:
-        panel = getattr(self, "metrics_panel", None)
-        effect = getattr(self, "_chart_right_panel_opacity_effect", None)
-        if not isinstance(panel, QWidget) or not isinstance(effect, QGraphicsOpacityEffect):
-            self._set_chart_right_panel_container_visible(True)
-            return
-        panel.setVisible(True)
-        effect.setOpacity(0.0)
-        animation = QPropertyAnimation(effect, b"opacity", panel)
-        animation.setDuration(650)
-        animation.setStartValue(0.0)
-        animation.setEndValue(1.0)
-        animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        animation.finished.connect(lambda: effect.setOpacity(1.0))
-        self._chart_right_panel_fade_animation = animation
-        animation.start()
-
     def _schedule_passive_chart_analysis_preload_if_current(self, chart: Chart) -> None:
         if self._latest_chart is not chart:
             return
@@ -28606,7 +28573,7 @@ class MainWindow(QMainWindow):
         self._pending_render_chart = None
         # draw() is synchronous for chart/metric canvases, so overlay shutdown can
         # be tied to actual completion of the final render pass here.
-        self._reveal_chart_right_panel_after_loading()
+        reveal_chart_right_panel_after_loading(self)
         self._hide_chart_loading_overlay()
         QTimer.singleShot(
             0,
