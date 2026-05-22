@@ -26624,7 +26624,7 @@ class MainWindow(QMainWindow):
         self.chart_analytics_panel_button.setChecked(panel_key == "analytics")
         self.predictions_panel_button.setChecked(panel_key == "predictions")
         self.subjective_notes_panel_button.setChecked(panel_key == "subjective_notes")
-        QTimer.singleShot(0, self._schedule_chart_render_for_active_right_panel)
+        self._schedule_chart_render_for_active_right_panel()
 
     def _schedule_chart_render_for_active_right_panel(self) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
@@ -28827,32 +28827,20 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        draw_fn(ax, chart)
-        try:
-            canvas.draw()
-        except RuntimeError:
-            return
-        # Auto-size metric panel height from rendered content bounds so long tick
-        # labels (e.g., predictions x-axis labels) don't clip after tab switches.
         figure_width, figure_height = figsize
-        default_display_height = max(
+        display_height = max(
             1,
             int(round(METRIC_CHART_REFERENCE_WIDTH_PX * (figure_height / figure_width)))
             if figure_width > 0
             else int(round(figure_height * figure.get_dpi())),
         )
-        rendered_display_height = default_display_height
-        try:
-            renderer = canvas.get_renderer()
-            tight_bbox = figure.get_tightbbox(renderer)
-            if tight_bbox is not None:
-                tight_height_px = int(round(tight_bbox.height * figure.get_dpi()))
-                if tight_height_px > 0:
-                    rendered_display_height = max(default_display_height, tight_height_px + 18)
-        except Exception:
-            rendered_display_height = default_display_height
-        canvas.setProperty("metric_display_height", rendered_display_height)
+        canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
+        draw_fn(ax, chart)
+        try:
+            canvas.draw()
+        except RuntimeError:
+            return
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -28905,7 +28893,6 @@ class MainWindow(QMainWindow):
             self.planet_dynamics_container_layout,
             self.chart_type_container_layout,
             self.enneagram_prediction_chart_layout,
-            self.dnd_predictions_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -28937,7 +28924,6 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
-        self.dnd_prediction_statblock_canvas = None
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
