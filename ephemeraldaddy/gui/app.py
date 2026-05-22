@@ -28828,18 +28828,6 @@ class MainWindow(QMainWindow):
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
         draw_fn(ax, chart)
-        x_tick_labels = [
-            str(tick.get_text() or "").strip()
-            for tick in ax.get_xticklabels()
-            if str(tick.get_text() or "").strip()
-        ]
-        if x_tick_labels:
-            longest_label = max((len(label) for label in x_tick_labels), default=0)
-            estimated_bottom = min(0.48, max(0.18, 0.16 + (longest_label * 0.008)))
-            try:
-                figure.subplots_adjust(bottom=estimated_bottom)
-            except Exception:
-                pass
         try:
             canvas.draw()
         except RuntimeError:
