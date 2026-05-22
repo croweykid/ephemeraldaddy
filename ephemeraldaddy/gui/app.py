@@ -656,7 +656,6 @@ from ephemeraldaddy.gui.features.charts.body_dynamics_summary import (
     build_body_dynamics_summary_html as _build_body_dynamics_summary_html,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_panel import (
-    apply_metric_canvas_display_sizing as _apply_metric_canvas_display_sizing,
     style_dominant_body_axis_labels as _style_dominant_body_axis_labels,
 )
 from ephemeraldaddy.gui.features.charts.chart_analytics_popout import (
@@ -23459,7 +23458,18 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
-        _apply_metric_canvas_display_sizing(canvas)
+        figure = canvas.figure
+        figure_width, figure_height = figure.get_size_inches()
+        display_height = canvas.property("metric_display_height")
+        if not isinstance(display_height, int) or display_height <= 0:
+            display_height = int(round(figure_height * figure.get_dpi()))
+        if display_height <= 0 and figure_width > 0:
+            display_height = int(round(figure_width * figure.get_dpi()))
+        if display_height > 0:
+            canvas.setMinimumHeight(display_height)
+            canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
         if widget is None:
