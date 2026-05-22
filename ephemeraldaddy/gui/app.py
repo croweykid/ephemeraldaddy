@@ -18978,7 +18978,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         visibility_section = self._add_settings_collapsible_section(
             content_layout,
-            "Visibility", #should use header format: bold & copper
+            "Optional Modules",
         )
         visibility_section.addWidget(self._build_settings_subheader_label("Chart Data Panel (Chart View)"))
 
@@ -19157,14 +19157,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         data_visualization_section.addWidget(significance_help_label)
         self._settings_significance_correction_combo = significance_combo
 
-        property_managers_section = self._add_settings_collapsible_section(content_layout, "Property Managers")
-        property_managers_section.addWidget(QLabel("Manage reusable chart metadata and property groups."))
+        self._add_settings_action_section(
+            content_layout,
+            "Property Managers",
+            self._launch_property_manager_dialog,
+        )
 
-        manage_property_manager_button = QPushButton("Open Property Manager")
-        manage_property_manager_button.clicked.connect(self._launch_property_manager_dialog)
-        property_managers_section.addWidget(manage_property_manager_button)
-
-        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Dev Tools") #should use header format: bold & copper
+        dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
         size_checker_button = QPushButton("Toggle Size Checker")
@@ -19230,7 +19229,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         similarity_calculator_section = self._add_settings_collapsible_section(
             content_layout,
-            "Similarities Calculator",
+            "Similar Charts Calculator",
         )
         similarity_controls = build_similarity_calculator_settings_section(
             dialog=dialog,
@@ -19281,7 +19280,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._enneagram_predictor_total_label = enneagram_controls["total_label"]
         self._load_enneagram_predictor_controls()
 
-        age_tools_section = self._add_settings_collapsible_section(content_layout, "Age Tools") #should use header format: bold & copper
+        age_tools_section = self._add_settings_collapsible_section(content_layout, "User Profile")
         age_tools_section.addWidget(QLabel("Age inference tools."))
 
         self._dev_user_age_label = QLabel("User Age: unavailable")
@@ -19313,7 +19312,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         self._refresh_dev_age_predictor()
 
-        reset_section = self._add_settings_collapsible_section(content_layout, "Reset") #should use header format: bold & copper
+        reset_section = self._add_settings_collapsible_section(content_layout, "Reset All to Defaults")
         reset_section.addWidget(QLabel("Reset the interface to first-launch defaults."))
 
         reset_interface_button = QPushButton("Reset interface to default")
@@ -19922,6 +19921,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container.setMinimumWidth(320)
         parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
         return section_content_layout
+
+    def _add_settings_action_section(
+        self,
+        parent_layout: QVBoxLayout,
+        title: str,
+        callback: Callable[[], None],
+    ) -> None:
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(4)
+
+        button = QToolButton()
+        button.setText(title)
+        button.setCheckable(False)
+        button.setCursor(Qt.PointingHandCursor)
+        button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        button.setStyleSheet(SETTINGS_COLLAPSIBLE_TOGGLE_STYLE)
+        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        button.clicked.connect(callback)
+        container_layout.addWidget(button)
+
+        container.setMaximumWidth(640)
+        container.setMinimumWidth(320)
+        parent_layout.addWidget(container, alignment=Qt.AlignHCenter)
 
     def _build_settings_subheader_label(self, text: str) -> QLabel:
         label = QLabel(text)

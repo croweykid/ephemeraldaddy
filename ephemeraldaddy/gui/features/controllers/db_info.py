@@ -208,7 +208,7 @@ def _export_database_info(owner: Any) -> None:
     file_path = get_text_export_path(
         owner,
         settings,
-        dialog_title="Export Database Info",
+        dialog_title="Export Database Statistics",
         default_stem=_current_default_export_stem(),
         preference_key=_DB_INFO_EXPORT_EXTENSION_KEY,
         default_extension=".txt",
@@ -218,7 +218,7 @@ def _export_database_info(owner: Any) -> None:
 
     selected_collection_label = rendered.get("collection_label", "All")
     lines = [
-        f"Database Info ({selected_collection_label})",
+        f"Database Statistics ({selected_collection_label})",
         "",
         f"Charts Assessed: {int(rendered.get('charts_assessed', 0))}",
         "",
@@ -231,7 +231,7 @@ def _export_database_info(owner: Any) -> None:
 
     suffix = Path(file_path).suffix.lower()
     if suffix == ".md":
-        markdown_lines: list[str] = [f"# Database Info ({selected_collection_label})", ""]
+        markdown_lines: list[str] = [f"# Database Statistics ({selected_collection_label})", ""]
         markdown_lines.append(f"*Charts Assessed: {int(rendered.get('charts_assessed', 0))}*")
         markdown_lines.append("")
         for section in ("body", "sign", "house"):
@@ -430,7 +430,7 @@ def refresh_database_info(owner: Any, *, force_recompute: bool = False) -> None:
 
 
 def add_database_info_settings_section(owner: Any, content_layout) -> None:
-    section_layout = owner._add_settings_collapsible_section(content_layout, "Database Info")
+    section_layout = owner._add_settings_collapsible_section(content_layout, "Database Statistics")
 
     top_row = QHBoxLayout()
     subheader_label = QLabel(
@@ -447,7 +447,7 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
         export_button.setIcon(QIcon(str(share_icon_path)))
     else:
         export_button.setText("⇪")
-    export_button.setToolTip("Export Database Info as TXT or MD")
+    export_button.setToolTip("Export Database Statistics as TXT or MD")
     export_button.setCursor(Qt.PointingHandCursor)
     export_button.clicked.connect(lambda _checked=False: _export_database_info(owner))
     top_row.addWidget(export_button, 0, Qt.AlignTop | Qt.AlignRight)
@@ -462,9 +462,9 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     )
     controls_row.addWidget(collection_combo, 0, Qt.AlignLeft)
 
-    refresh_button = QPushButton("Refresh Database Info")
+    refresh_button = QPushButton("Refresh Database Statistics")
     refresh_button.setToolTip(
-        "Recalculate and reset persisted Database Info values for the selected collection."
+        "Recalculate and reset persisted Database Statistics values for the selected collection."
     )
     refresh_button.clicked.connect(lambda _checked=False: refresh_database_info(owner, force_recompute=True))
     controls_row.addWidget(refresh_button, 0, Qt.AlignLeft)
