@@ -226,7 +226,7 @@ QComboBox {
     combobox-popup: 1;
 }
 QComboBox::drop-down {
-    background-color: #1c1c1c;
+    background-color: transparent;
     border: none;
     width: 18px;
 }
