@@ -6,8 +6,9 @@ import html
 from dataclasses import dataclass
 from typing import Callable
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QTimer, Qt
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QPushButton,
@@ -303,8 +304,66 @@ def reveal_chart_right_panel_after_loading(owner: object) -> None:
     animation.start()
 
 
+
+def _scroll_expanded_section_into_view(toggle: QAbstractButton) -> None:
+    """Scroll the nearest scroll area so an expanded collapsible section bottom stays visible."""
+    if not toggle.isChecked():
+        return
+
+    section = toggle.parentWidget()
+    while section is not None and section.layout() is None:
+        section = section.parentWidget()
+    if section is None:
+        return
+
+    parent = section.parentWidget()
+    scroll_area = None
+    while parent is not None:
+        if isinstance(parent, QScrollArea):
+            scroll_area = parent
+            break
+        parent = parent.parentWidget()
+    if scroll_area is None:
+        return
+
+    scroll_widget = scroll_area.widget()
+    viewport = scroll_area.viewport()
+    scrollbar = scroll_area.verticalScrollBar()
+    if scroll_widget is None or viewport is None or scrollbar is None:
+        return
+
+    section_bottom_y = section.mapTo(scroll_widget, QPoint(0, section.height())).y()
+    target_value = section_bottom_y - viewport.height()
+    scrollbar.setValue(max(scrollbar.minimum(), min(target_value, scrollbar.maximum())))
+
+
+def _install_expand_autoscroll(owner: object) -> None:
+    """Attach one-shot expandable-section autoscroll handlers for right-panel tabs."""
+    if bool(getattr(owner, "_right_panel_expand_autoscroll_installed", False)):
+        return
+    setattr(owner, "_right_panel_expand_autoscroll_installed", True)
+
+    for scroll_attr in ("chart_analytics_panel_scroll", "predictions_panel_scroll", "subjective_notes_panel_scroll"):
+        scroll_area = getattr(owner, scroll_attr, None)
+        if not isinstance(scroll_area, QScrollArea):
+            continue
+        content_widget = scroll_area.widget()
+        if content_widget is None:
+            continue
+        for toggle in content_widget.findChildren(QAbstractButton):
+            if not toggle.isCheckable():
+                continue
+            toggle.toggled.connect(
+                lambda checked, current_toggle=toggle: (
+                    QTimer.singleShot(0, lambda t=current_toggle: _scroll_expanded_section_into_view(t))
+                    if checked
+                    else None
+                )
+            )
+
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
     """Activate a Chart View right-panel tab and synchronize toggle state."""
+    _install_expand_autoscroll(owner)
     panel_stack = getattr(owner, "chart_right_panel_stack", None)
     if panel_stack is None:
         collapse = getattr(owner, "_collapse_similar_charts_section", None)
@@ -347,6 +406,19 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     subjective_notes_button = getattr(owner, "subjective_notes_panel_button", None)
     if subjective_notes_button is not None:
         subjective_notes_button.setChecked(panel_key == "subjective_notes")
+
+    # if panel_key == "predictions":
+    #     latest_chart = getattr(owner, "_latest_chart", None)
+    #     rerender_enneagram = getattr(owner, "_render_enneagram_predictions", None)
+    #     if latest_chart is not None and callable(rerender_enneagram):
+    #         predictions_scroll = getattr(owner, "predictions_panel_scroll", None)
+    #         predictions_widget = predictions_scroll.widget() if isinstance(predictions_scroll, QScrollArea) else None
+    #         if isinstance(predictions_widget, QWidget):
+    #             predictions_widget.setUpdatesEnabled(False)
+    #         rerender_enneagram(latest_chart)
+    #         if isinstance(predictions_widget, QWidget):
+    #             predictions_widget.setUpdatesEnabled(True)
+    #             predictions_widget.update()
 
     schedule = getattr(owner, "_schedule_chart_render_for_active_right_panel", None)
     if callable(schedule):

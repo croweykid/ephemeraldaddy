@@ -92,6 +92,15 @@ GATE_COLORS = {
     64: SIGN_COLORS["Virgo"],
 }
 
+HD_LINE_COLORS = {
+    1:"669900", #the investigator, needs data - used e5 green
+    2:"#9933ff", #the hermit, naturally gifted, needs seclusion: used 'Uranus' violet
+    3:"#b94646", #the martyr, experimenter, has to try everything, makes & breaks bonds, burns bridges; used Mars red.
+    4:"#ffff00", #the nepotist, uses people to achieve; used e3 gold
+    5:"#b7ffff", #the heretic, gets projected onto by others for better or worse; used a unique pale aqua rather than Moon blue #00ffff
+    6:"#6b946b", #the elder, role model; used Saturn's grandpa green
+}
+
 GATE_REFERENCE: dict[int, dict[str, str]] = {
     1: {
         "name": "The Creative",
