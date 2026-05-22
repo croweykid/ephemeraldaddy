@@ -192,7 +192,7 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
     content_view = QTextBrowser(dialog)
     content_view.setOpenExternalLinks(True)
     content_view.document().setDefaultStyleSheet(ABOUT_DIALOG_MARKDOWN_STYLESHEET)
-    content_view.setMarkdown(styled_content)
+    content_view.setHtml(styled_content)
     layout.addWidget(content_view, 1)
 
     buttons = QDialogButtonBox(parent=dialog)

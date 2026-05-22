@@ -266,7 +266,7 @@ QComboBox QAbstractItemView::indicator {
 
 WINDOW_CHROME_MENU_STYLE = """
 QMenu {
-    background-color: #000000;
+    background-color: #1c1c1c;
     color: #f0f0f0;
     border: 1px solid #2a2a2a;
 }
