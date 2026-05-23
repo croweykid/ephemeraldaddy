@@ -752,6 +752,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_AUTHORITIES,
     HD_CENTERS,
     HD_CHANNELS,
+    HD_COLORS,
     HD_DEFINITIONS,
     GATE_REFERENCE,
     HD_PROFILES,
@@ -759,6 +760,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_TYPES,
     LINE_ARCHETYPES,
     HD_LINE_COLORS,
+    HD_TONES,
     canonicalize_hd_authority_label,
     #format_gate_line_info,
 )
@@ -25599,6 +25601,12 @@ class MainWindow(QMainWindow):
                                 str(entry.get("center", "")),
                             )
                             return True
+                        if entry.get("kind") == "hd_color":
+                            self._show_human_design_color_info(int(entry.get("color", 0)))
+                            return True
+                        if entry.get("kind") == "hd_tone":
+                            self._show_human_design_tone_info(int(entry.get("tone", 0)))
+                            return True
                 selected_entry = None
                 icon_entries = [
                     entry
@@ -25631,6 +25639,12 @@ class MainWindow(QMainWindow):
                             int(selected_entry.get("gate_b", 0)),
                             str(selected_entry.get("center", "")),
                         )
+                        return True
+                    if selected_entry.get("kind") == "hd_color":
+                        self._show_human_design_color_info(int(selected_entry.get("color", 0)))
+                        return True
+                    if selected_entry.get("kind") == "hd_tone":
+                        self._show_human_design_tone_info(int(selected_entry.get("tone", 0)))
                         return True
                     self._show_position_info(
                         selected_entry["body"],
@@ -26323,6 +26337,32 @@ class MainWindow(QMainWindow):
         if explanation:
             lines.append(f"• {explanation}")
         self._set_human_design_info_text(header, lines[2:])
+
+    def _show_human_design_color_info(self, color_value: int) -> None:
+        color_entry = next((entry for entry in HD_COLORS if int(entry.get("value", -1)) == int(color_value)), None)
+        color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
+        self._set_human_design_info_text(
+            f"Color {color_value}: {color_name}",
+            [
+                "• C represents Human Design Color (1–6).",
+                f"• Color {color_value} maps to {color_name}.",
+            ],
+        )
+
+    def _show_human_design_tone_info(self, tone_value: int) -> None:
+        tone_entry = next((entry for entry in HD_TONES if int(entry.get("value", -1)) == int(tone_value)), None)
+        tone_name = str(tone_entry.get("name", "Unknown")) if tone_entry else "Unknown"
+        orientation = str(tone_entry.get("orientation", "")).strip() if tone_entry else ""
+        tone_line = f"• Tone {tone_value} maps to {tone_name}."
+        if orientation:
+            tone_line += f" Orientation: {orientation}."
+        self._set_human_design_info_text(
+            f"Tone {tone_value}: {tone_name}",
+            [
+                "• T represents Human Design Tone (1–6).",
+                tone_line,
+            ],
+        )
 
     def _show_species_info(
         self,
