@@ -11258,7 +11258,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for label in human_design_labels
             }
             line_label_colors = (
-                {str(line): str(HD_LINE_COLORS.get(line, "#6fa8dc")).strip() or "#6fa8dc" for line in range(1, 7)}
+                {
+                    str(line): (
+                        f"#{raw_color}"
+                        if raw_color and not raw_color.startswith("#") and len(raw_color) in {3, 6}
+                        and all(char in "0123456789abcdefABCDEF" for char in raw_color)
+                        else (raw_color or "#6fa8dc")
+                    )
+                    for line in range(1, 7)
+                    for raw_color in [str(HD_LINE_COLORS.get(line, "#6fa8dc") or "").strip()]
+                }
                 if human_design_mode == "hd_lines"
                 else None
             )

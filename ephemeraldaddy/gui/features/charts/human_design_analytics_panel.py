@@ -146,7 +146,20 @@ def build_human_design_top_splitter(
 
     line_numbers = list(range(1, 7))
     line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
-    line_colors = [str(HD_LINE_COLORS.get(line_number, "#5dc26a")).strip() or "#5dc26a" for line_number in line_numbers]
+    def _normalize_matplotlib_hex(color_value: str, fallback: str) -> str:
+        color_text = str(color_value or "").strip()
+        if not color_text:
+            return fallback
+        if color_text.startswith("#"):
+            return color_text
+        if len(color_text) in {3, 6} and all(char in "0123456789abcdefABCDEF" for char in color_text):
+            return f"#{color_text}"
+        return color_text
+
+    line_colors = [
+        _normalize_matplotlib_hex(HD_LINE_COLORS.get(line_number, "#5dc26a"), "#5dc26a")
+        for line_number in line_numbers
+    ]
     bars = hd_line_chart_ax.bar(
         line_numbers,
         line_values,
