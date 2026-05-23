@@ -361,6 +361,27 @@ def _install_expand_autoscroll(owner: object) -> None:
                 )
             )
 
+
+
+def _chart_right_panel_definitions(owner: object) -> dict[str, tuple[str, str]]:
+    """Return tab key -> (scroll attr, button attr) mapping for right panel."""
+    return {
+        "analytics": ("chart_analytics_panel_scroll", "chart_analytics_panel_button"),
+        "predictions": ("predictions_panel_scroll", "predictions_panel_button"),
+        "subjective_notes": ("subjective_notes_panel_scroll", "subjective_notes_panel_button"),
+    }
+
+
+def _resolve_chart_right_panel_key(owner: object, panel_key: str) -> str:
+    """Normalize + gate requested right-panel tab key."""
+    definitions = _chart_right_panel_definitions(owner)
+    normalized = panel_key if panel_key in definitions else "analytics"
+    analytics_button = getattr(owner, "chart_analytics_panel_button", None)
+    analytics_enabled = bool(analytics_button and analytics_button.isEnabled())
+    if normalized == "analytics" and not analytics_enabled:
+        return "subjective_notes"
+    return normalized
+
 def set_chart_right_panel(owner: object, panel_key: str) -> None:
     """Activate a Chart View right-panel tab and synchronize toggle state."""
     _install_expand_autoscroll(owner)
@@ -371,23 +392,15 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
             collapse()
         return
 
-    analytics_button = getattr(owner, "chart_analytics_panel_button", None)
-    analytics_enabled = bool(analytics_button and analytics_button.isEnabled())
-    if panel_key == "analytics" and not analytics_enabled:
-        panel_key = "subjective_notes"
+    panel_key = _resolve_chart_right_panel_key(owner, panel_key)
     if panel_key == "analytics":
         collapse = getattr(owner, "_collapse_similar_charts_section", None)
         if callable(collapse):
             collapse()
 
-    if panel_key == "subjective_notes":
-        active_scroll = getattr(owner, "subjective_notes_panel_scroll", None)
-    elif panel_key == "predictions":
-        active_scroll = getattr(owner, "predictions_panel_scroll", None)
-    else:
-        panel_key = "analytics"
-        active_scroll = getattr(owner, "chart_analytics_panel_scroll", None)
-
+    definitions = _chart_right_panel_definitions(owner)
+    scroll_attr, _button_attr = definitions[panel_key]
+    active_scroll = getattr(owner, scroll_attr, None)
     if active_scroll is None:
         return
     panel_stack.setCurrentWidget(active_scroll)
@@ -396,16 +409,11 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is not None:
         state.active_tab = panel_key
-    setattr(owner, "_active_chart_right_panel", panel_key)
 
-    if analytics_button is not None:
-        analytics_button.setChecked(panel_key == "analytics")
-    predictions_button = getattr(owner, "predictions_panel_button", None)
-    if predictions_button is not None:
-        predictions_button.setChecked(panel_key == "predictions")
-    subjective_notes_button = getattr(owner, "subjective_notes_panel_button", None)
-    if subjective_notes_button is not None:
-        subjective_notes_button.setChecked(panel_key == "subjective_notes")
+    for tab_key, (_scroll_attr, button_attr) in definitions.items():
+        button = getattr(owner, button_attr, None)
+        if button is not None:
+            button.setChecked(panel_key == tab_key)
 
     # if panel_key == "predictions":
     #     latest_chart = getattr(owner, "_latest_chart", None)
