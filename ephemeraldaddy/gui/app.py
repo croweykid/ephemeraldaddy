@@ -3634,7 +3634,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=decans_dropdown_options(),
             show_title=False,
         )
-        decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body in selection/database")
+        decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body (selection-only when charts are selected)")
         decans_section_layout.addWidget(decans_subheader)
         (
             self.decans_chart_container,
