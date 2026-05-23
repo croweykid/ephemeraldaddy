@@ -17,21 +17,21 @@ LINE_ARCHETYPES: dict[int, str] = {
 }
 
 LINE_NICKNAMES: dict[int, dict[str, str]] = {
-    1: {"name":"Seeker","color":"","emoji":""},
-    2: {"name":"Natural","color":"","emoji":""},
-    3: {"name":"Experimenter","color":"","emoji":""},
-    4: {"name":"Nepotist","color":"","emoji":""},
-    5: {"name":"Hero","color":"","emoji":""},
-    6: {"name":"Veterano","color":"","emoji":""},
+    1: {"name":"Seeker","color":"","emoji":"📚"},
+    2: {"name":"Natural","color":"","emoji":"🤾"},
+    3: {"name":"Experimenter","color":"","emoji":"🧪"},
+    4: {"name":"Nepotist","color":"","emoji":"🧑‍🧑‍🧒‍🧒"},
+    5: {"name":"Hero","color":"","emoji":"🦸🏻"},
+    6: {"name":"Veterano","color":"","emoji":"🧌"},
 }
 
-HD_COLOR_ENVIRONMENTS = {
-    1:{"name":"caves","motivation":"fear"},
-    2:{"name":"markets","motivation":"hope"},
-    3:{"name":"kitchens","motivation":"desire"},
-    4:{"name":"mountains","motivation":"need"},
-    5:{"name":"valleys","motivation":"guilt"},
-    6:{"name":"shores","motivation":"innocence"},
+HD_COLORS = {
+    1:{"name":"caves","motivation":"fear","color":"red"},
+    2:{"name":"markets","motivation":"hope","color":"orange"},
+    3:{"name":"kitchens","motivation":"desire","color":"yellow"},
+    4:{"name":"mountains","motivation":"need","color":"green"},
+    5:{"name":"valleys","motivation":"guilt","color":"blue"},
+    6:{"name":"shores","motivation":"innocence","color":"violet"},
 }
 
 HD_TONES = {
