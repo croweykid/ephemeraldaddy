@@ -838,6 +838,60 @@ def apply_chart_view_middle_panel_typography(
     )
 
 
+
+
+def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
+    """Build Subjective Notes tab body widget + layout."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(6)
+    panel.setLayout(layout)
+    layout.addWidget(owner.sentiment_metrics_widget)
+    layout.addWidget(owner.sentiment_relation_row_widget)
+    return panel, layout
+
+
+def _build_predictions_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
+    """Build Predictions tab body widget + layout."""
+    panel = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(6, 6, 6, 6)
+    layout.setSpacing(6)
+    panel.setLayout(layout)
+
+    enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Enneagram",
+        expanded=True,
+    )
+    owner.enneagram_prediction_chart_panel = QWidget()
+    owner.enneagram_prediction_chart_layout = QVBoxLayout()
+    owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
+    owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
+    owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
+    owner.enneagram_prediction_tritype_label.setWordWrap(True)
+    owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
+    enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
+
+    dnd_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="D&&D-ification",
+        expanded=True,
+    )
+    owner.dnd_predictions_chart_panel = QWidget()
+    owner.dnd_predictions_chart_layout = QVBoxLayout()
+    owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.dnd_predictions_chart_layout.setSpacing(6)
+    owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
+    dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+    layout.addStretch(1)
+    return panel, layout
+
 def build_chart_view_right_panel(
     owner: QWidget,
     *,
@@ -876,50 +930,11 @@ def build_chart_view_right_panel(
     owner.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     metrics_content.setLayout(owner.metrics_layout)
 
-    subjective_notes_panel = QWidget()
-    subjective_notes_layout = QVBoxLayout()
-    subjective_notes_layout.setContentsMargins(6, 6, 6, 6)
-    subjective_notes_layout.setSpacing(6)
-    subjective_notes_panel.setLayout(subjective_notes_layout)
-    subjective_notes_layout.addWidget(owner.sentiment_metrics_widget)
-    subjective_notes_layout.addWidget(owner.sentiment_relation_row_widget)
+    subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
 
-    predictions_panel = QWidget()
-    predictions_layout = QVBoxLayout()
-    predictions_layout.setContentsMargins(6, 6, 6, 6)
-    predictions_layout.setSpacing(6)
-    predictions_panel.setLayout(predictions_layout)
+    predictions_panel, _predictions_layout = _build_predictions_panel(owner)
 
-    enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
-        panel=predictions_panel,
-        layout=predictions_layout,
-        title="Enneagram",
-        expanded=True,
-    )
-    owner.enneagram_prediction_chart_panel = QWidget()
-    owner.enneagram_prediction_chart_layout = QVBoxLayout()
-    owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
-    owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
-    enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
-    owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
-    owner.enneagram_prediction_tritype_label.setTextFormat(Qt.RichText)
-    owner.enneagram_prediction_tritype_label.setWordWrap(True)
-    owner.enneagram_prediction_tritype_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
-    enneagram_section_layout.addWidget(owner.enneagram_prediction_tritype_label)
-
-    dnd_section_layout = owner._add_chart_analysis_collapsible_section(
-        panel=predictions_panel,
-        layout=predictions_layout,
-        title="D&&D-ification",
-        expanded=True,
-    )
-    owner.dnd_predictions_chart_panel = QWidget()
-    owner.dnd_predictions_chart_layout = QVBoxLayout()
-    owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
-    owner.dnd_predictions_chart_layout.setSpacing(6)
-    owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
-    dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
-    predictions_layout.addStretch(1)
+    owner._chart_right_panel_controller = ChartRightPanelController(owner)
 
     owner._chart_right_panel_controller = ChartRightPanelController(owner)
 
@@ -974,7 +989,9 @@ def build_chart_view_right_panel(
     owner._sync_chart_analysis_section_visibility()
     owner.metrics_layout.addStretch(1)
     subjective_notes_layout.addStretch(1)
-    owner._active_chart_right_panel = "subjective_notes"
+    state = getattr(owner, "_chart_right_panel_state", None)
+    if state is not None:
+        state.active_tab = "subjective_notes"
     owner._set_chart_right_panel("subjective_notes")
 
 
