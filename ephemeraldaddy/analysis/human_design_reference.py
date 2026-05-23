@@ -25,6 +25,24 @@ LINE_NICKNAMES: dict[int, dict[str, str]] = {
     6: {"name":"Veterano","color":"","emoji":""},
 }
 
+HD_COLOR_ENVIRONMENTS = {
+    1:{"name":"caves","motivation":"fear"},
+    2:{"name":"markets","motivation":"hope"},
+    3:{"name":"kitchens","motivation":"desire"},
+    4:{"name":"mountains","motivation":"need"},
+    5:{"name":"valleys","motivation":"guilt"},
+    6:{"name":"shores","motivation":"innocence"},
+}
+
+HD_TONES = {
+    1:{"name":"smell",},
+    2:{"name":"taste",},
+    3:{"name":"outer vision",},
+    4:{"name":"inner vision",},
+    5:{"name":"feeling",},
+    6:{"name":"touch",},
+}
+
 GATE_COLORS = {
     1: SIGN_COLORS["Scorpio"],
     2: SIGN_COLORS["Taurus"],
