@@ -974,7 +974,9 @@ def build_chart_view_right_panel(
     owner._sync_chart_analysis_section_visibility()
     owner.metrics_layout.addStretch(1)
     subjective_notes_layout.addStretch(1)
-    owner._active_chart_right_panel = "subjective_notes"
+    state = getattr(owner, "_chart_right_panel_state", None)
+    if state is not None:
+        state.active_tab = "subjective_notes"
     owner._set_chart_right_panel("subjective_notes")
 
 

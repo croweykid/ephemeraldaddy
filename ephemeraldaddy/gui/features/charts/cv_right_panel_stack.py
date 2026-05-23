@@ -409,7 +409,6 @@ def set_chart_right_panel(owner: object, panel_key: str) -> None:
     state = getattr(owner, "_chart_right_panel_state", None)
     if state is not None:
         state.active_tab = panel_key
-    setattr(owner, "_active_chart_right_panel", panel_key)
 
     for tab_key, (_scroll_attr, button_attr) in definitions.items():
         button = getattr(owner, button_attr, None)
