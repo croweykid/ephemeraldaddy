@@ -1256,7 +1256,7 @@ QComboBox QAbstractItemView {
             "Assign tag category",
             f"Add {len(cleaned_labels)} tags to '{category_name}' category?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if confirm != QMessageBox.Yes:
             return
@@ -1350,7 +1350,7 @@ QComboBox QAbstractItemView {
             confirm_title,
             confirm_message,
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if confirm != QMessageBox.Yes:
             return
@@ -1470,7 +1470,7 @@ QComboBox QAbstractItemView {
             "Rename tag category",
             f"Rename category '{old_display_name}' to '{new_display_name}' for {len(affected_labels)} tags?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if confirm != QMessageBox.Yes:
             return
@@ -1544,7 +1544,7 @@ QComboBox QAbstractItemView {
     #         "Delete label",
     #         f"Delete '{old_label}' from all charts?\n\nThis cannot be undone except by restoring a backup.",
     #         QMessageBox.Yes | QMessageBox.No,
-    #         QMessageBox.No,
+    #         QMessageBox.Yes,
     #     )
     #     if confirm != QMessageBox.Yes:
     #         return
