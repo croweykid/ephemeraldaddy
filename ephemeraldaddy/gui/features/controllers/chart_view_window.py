@@ -849,10 +849,10 @@ def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]
     panel.setLayout(layout)
     layout.addWidget(owner.sentiment_metrics_widget)
     layout.addWidget(owner.sentiment_relation_row_widget)
-    return panel, layout
+    return panel
 
 
-def _build_predictions_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
+def _build_predictions_panel(owner: QWidget) -> QWidget:
     """Build Predictions tab body widget + layout."""
     panel = QWidget()
     layout = QVBoxLayout()
@@ -890,7 +890,7 @@ def _build_predictions_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]:
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
     layout.addStretch(1)
-    return panel, layout
+    return panel
 
 def build_chart_view_right_panel(
     owner: QWidget,
@@ -932,9 +932,7 @@ def build_chart_view_right_panel(
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)
 
-    predictions_panel, _predictions_layout = _build_predictions_panel(owner)
-
-    owner._chart_right_panel_controller = ChartRightPanelController(owner)
+    predictions_panel = _build_predictions_panel(owner)
 
     owner._chart_right_panel_controller = ChartRightPanelController(owner)
 

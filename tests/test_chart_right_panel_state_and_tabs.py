@@ -211,3 +211,86 @@ def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible()
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == [(owner._latest_chart, {"anagrams"})]
+
+
+from ephemeraldaddy.gui.features.controllers.chart_right_panel import (  # noqa: E402
+    ChartRightPanelController,
+)
+
+
+def test_controller_methods_delegate_to_helper_functions():
+    calls = []
+
+    class _Owner:
+        pass
+
+    owner = _Owner()
+    controller = ChartRightPanelController(owner)
+
+    import ephemeraldaddy.gui.features.controllers.chart_right_panel as module
+
+    original_set_visible = module.set_chart_right_panel_container_visible
+    original_set_panel = module.set_chart_right_panel
+    original_schedule = module.schedule_chart_render_for_active_right_panel
+    original_sync = module.sync_chart_right_panel_placeholder_state
+    try:
+        module.set_chart_right_panel_container_visible = lambda o, visible: calls.append(("visible", o, visible))
+        module.set_chart_right_panel = lambda o, key: calls.append(("panel", o, key))
+        module.schedule_chart_render_for_active_right_panel = lambda o: calls.append(("schedule", o))
+        module.sync_chart_right_panel_placeholder_state = lambda o, chart: calls.append(("sync", o, chart))
+
+        chart = object()
+        controller.set_container_visible(True)
+        controller.set_active_panel("predictions")
+        controller.schedule_render_for_active_panel()
+        controller.sync_placeholder_state(chart)
+    finally:
+        module.set_chart_right_panel_container_visible = original_set_visible
+        module.set_chart_right_panel = original_set_panel
+        module.schedule_chart_render_for_active_right_panel = original_schedule
+        module.sync_chart_right_panel_placeholder_state = original_sync
+
+    assert calls == [
+        ("visible", owner, True),
+        ("panel", owner, "predictions"),
+        ("schedule", owner),
+        ("sync", owner, chart),
+    ]
+
+
+def test_set_chart_right_panel_invalid_key_defaults_to_analytics():
+    owner = _owner()
+
+    set_chart_right_panel(owner, "does_not_exist")
+
+    assert owner._chart_right_panel_state.active_tab == "analytics"
+    assert owner.chart_right_panel_stack.current is owner.chart_analytics_panel_scroll
+
+
+def test_schedule_render_skips_when_no_latest_chart():
+    owner = _owner()
+    calls = []
+    owner._schedule_chart_render = lambda chart, sections=None: calls.append(("analytics", chart, sections))
+    owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram",))
+    owner._render_dndification_predictions = lambda _chart: calls.append(("dnd",))
+    owner._is_chart_analysis_section_visible = lambda _key: True
+    owner._chart_right_panel_state.active_tab = "analytics"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == []
+
+
+def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
+    owner = _owner()
+    owner._latest_chart = object()
+    calls = []
+    owner._schedule_chart_render = lambda chart, sections=None: calls.append((chart, sections))
+    owner._render_enneagram_predictions = lambda _chart: None
+    owner._render_dndification_predictions = lambda _chart: None
+    owner._is_chart_analysis_section_visible = lambda _key: False
+    owner._chart_right_panel_state.active_tab = "subjective_notes"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == []
