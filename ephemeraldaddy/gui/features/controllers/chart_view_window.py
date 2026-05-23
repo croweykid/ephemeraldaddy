@@ -47,6 +47,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.anagrams import AnagramsPresenter, build_anagrams_section
 from ephemeraldaddy.gui.features.charts.loading_overlay import ChartLoadingOverlay
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import build_chart_right_panel_stack
+from ephemeraldaddy.gui.features.controllers.chart_right_panel import ChartRightPanelController
 from ephemeraldaddy.gui.features.charts.tagging import (
     normalize_tag_list,
     parse_tag_text,
@@ -920,13 +921,15 @@ def build_chart_view_right_panel(
     dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
     predictions_layout.addStretch(1)
 
+    owner._chart_right_panel_controller = ChartRightPanelController(owner)
+
     chart_right_panel = build_chart_right_panel_stack(
         analytics_content_widget=metrics_content,
         predictions_content_widget=predictions_panel,
         subjective_notes_content_widget=subjective_notes_panel,
-        on_show_analytics=lambda: owner._set_chart_right_panel("analytics"),
-        on_show_predictions=lambda: owner._set_chart_right_panel("predictions"),
-        on_show_subjective_notes=lambda: owner._set_chart_right_panel("subjective_notes"),
+        on_show_analytics=lambda: owner._chart_right_panel_controller.set_active_panel("analytics"),
+        on_show_predictions=lambda: owner._chart_right_panel_controller.set_active_panel("predictions"),
+        on_show_subjective_notes=lambda: owner._chart_right_panel_controller.set_active_panel("subjective_notes"),
         scrollbar_style=scrollbar_style,
     )
     owner.metrics_panel = chart_right_panel.container

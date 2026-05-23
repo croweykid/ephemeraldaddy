@@ -26594,6 +26594,10 @@ class MainWindow(QMainWindow):
 
     def _set_chart_right_panel_container_visible(self, visible: bool) -> None:
         """Show/hide Chart View's entire right-hand panel container."""
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.set_container_visible(visible)
+            return
         set_chart_right_panel_container_visible(self, visible)
 
     def _set_chart_analysis_panel_visible(self, visible: bool) -> None:
@@ -26601,10 +26605,18 @@ class MainWindow(QMainWindow):
         self._set_chart_right_panel_container_visible(visible)
 
     def _set_chart_right_panel(self, panel_key: str) -> None:
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.set_active_panel(panel_key)
+            return
         set_chart_right_panel(self, panel_key)
 
     def _schedule_chart_render_for_active_right_panel(self) -> None:
         """Queue any now-renderable sections after right-panel tab switches."""
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.schedule_render_for_active_panel()
+            return
         schedule_chart_render_for_active_right_panel(self)
 
     def _is_placeholder_chart(self, chart: Chart | None) -> bool:
@@ -26618,6 +26630,10 @@ class MainWindow(QMainWindow):
         return chart_type == "placeholder"
 
     def _sync_chart_right_panel_placeholder_state(self, chart: Chart | None) -> None:
+        controller = getattr(self, "_chart_right_panel_controller", None)
+        if controller is not None:
+            controller.sync_placeholder_state(chart)
+            return
         sync_chart_right_panel_placeholder_state(self, chart)
 
     def _restore_window_settings(self) -> None:
