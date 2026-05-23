@@ -8219,20 +8219,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 for section_title, matches in self._similarities_export_sections
             ]
 
-            total_matches = (
-                len(common_positions)
-                + len(common_houses_in_positions)
-                + len(common_signs_in_houses)
-                + len(common_dominant_signs)
-                + len(common_dominant_bodies)
-                + len(common_dominant_houses)
-                + len(common_dominant_nakshatras)
-                + len(common_aspects)
-                + len(common_hd_gates)
-                + len(common_hd_channels)
-                + len(common_hd_defined_centers)
-                + len(common_hd_authorities)
-                + len(common_hd_profiles)
+            total_matches = sum(
+                len(section_matches)
+                for _section_title, section_matches in self._similarities_export_sections
             )
             if total_matches > 0:
                 self.similarities_status_label.setText(
