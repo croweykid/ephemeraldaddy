@@ -86,6 +86,34 @@ SIMILARITIES_JSON_POSITION_BODY_ORDER: tuple[str, ...] = (
 SIMILARITIES_JSON_POSITION_BODY_INDEX = {
     body: index for index, body in enumerate(SIMILARITIES_JSON_POSITION_BODY_ORDER)
 }
+SIMILARITIES_MIN_PERCENT_DIFFERENCE = 3.0
+SIMILARITIES_EXCLUDED_BODIES_PATTERN = re.compile(r"\b(Ketu|DS|IC)\b")
+
+
+def similarities_label_has_excluded_bodies(label: object) -> bool:
+    """Return True when a label includes a mirrored factor that should be omitted."""
+    text = str(label or "")
+    if not text:
+        return False
+    return bool(SIMILARITIES_EXCLUDED_BODIES_PATTERN.search(text))
+
+
+def similarities_match_clears_delta_threshold(
+    match_count: int,
+    total_count: int,
+    database_match_count: int,
+    database_total_count: int,
+    *,
+    threshold: float = SIMILARITIES_MIN_PERCENT_DIFFERENCE,
+) -> bool:
+    """Return True when selection-vs-database percent delta is at least threshold."""
+    selection_percent = ((match_count / total_count) * 100.0) if total_count else 0.0
+    database_percent = (
+        ((database_match_count / database_total_count) * 100.0)
+        if database_total_count
+        else 0.0
+    )
+    return abs(selection_percent - database_percent) >= threshold
 
 
 def empty_similarities_json_profile(selection_name: str) -> OrderedDict:
