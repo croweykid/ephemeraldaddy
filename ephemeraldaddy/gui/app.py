@@ -613,6 +613,13 @@ from ephemeraldaddy.gui.features.charts.tag_search import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
+from ephemeraldaddy.gui.features.charts.db_analytics_panel import (
+    apply_decan_snapshot_delta,
+    decans_dropdown_options,
+    decans_empty_cache_fields,
+    render_decans_chart,
+    snapshot_add_decan,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
@@ -1997,6 +2004,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sign_distribution_mode = "Sun"
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
+        self._decans_mode = "Sun"
         self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_species"
         self._alignment_social_mode = "alignment"
@@ -2455,6 +2463,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "planetary_sign_prevalence": self._sign_distribution_mode,
             "sign_prevalence": self._prevalence_mode,
             "dominant_signs": self._dominant_factors_mode,
+            "decans": self._decans_mode,
             "cumulativedom_factors": self._cumulativedom_factors_mode,
             "species_distribution": self._species_distribution_mode,
             "alignment_summary": self._alignment_social_mode,
@@ -2703,6 +2712,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "matched_expectations_summary",
             "sign_prevalence",
             "dominant_signs",
+            "decans",
             "cumulativedom_factors",
             "enneagram",
             "species_distribution",
@@ -3095,6 +3105,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "decans":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._decans_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/decans_mode",
+                        self._decans_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "cumulativedom_factors":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -3170,6 +3197,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_dominant_factors_mode, str):
             self._dominant_factors_mode = {"dominant_signs":"top3_signs","dominant_planets":"top3_planets","dominant_houses":"top3_houses","dominant_sign_frequency":"top3_signs","dominant_nakshatras":"top3_nakshatras"}.get(stored_dominant_factors_mode, stored_dominant_factors_mode)
+
+        stored_decans_mode = self._settings.value(
+            "manage_charts/decans_mode",
+            self._decans_mode,
+        )
+        if isinstance(stored_decans_mode, str):
+            self._decans_mode = stored_decans_mode
 
         stored_cumulativedom_factors_mode = self._settings.value(
             "manage_charts/cumulativedom_factors_mode",
@@ -3576,6 +3610,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.dominant_sign_chart_layout
         )
         dominant_sign_section_layout.addWidget(self.dominant_sign_chart_container)
+
+        # DECANS SECTION
+        decans_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "🪐Decans",
+            section_key="decans",
+            expanded=self._is_database_metrics_section_expanded("decans"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "decans",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["decans"] = self._is_database_metrics_section_expanded("decans")
+        self._create_analysis_chart_header(
+            decans_section_layout,
+            "🪐Decans",
+            "decans",
+            "decans",
+            dropdown_options=decans_dropdown_options(),
+            show_title=False,
+        )
+        decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body in selection/database")
+        decans_section_layout.addWidget(decans_subheader)
+        (
+            self.decans_chart_container,
+            self.decans_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["decans"] = self.decans_chart_layout
+        decans_section_layout.addWidget(self.decans_chart_container)
 
         #cumulativedom FACTORS SECTION
         cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
@@ -8797,6 +8861,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "position_sign_count_by_body": {
                 body: 0.0 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
             },
+            **decans_empty_cache_fields(),
             "dominant_sign_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
             "dominant_sign_total_weight": 0.0,
             "dominant_sign_frequency_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
@@ -8884,6 +8949,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "planetary_sign_prevalence",
             "sign_prevalence",
             "dominant_signs",
+            "decans",
             "cumulativedom_factors",
         }
         compute_sign_metrics = bool(sign_sections & sections)
@@ -8959,6 +9025,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign = _sign_for_longitude(lon)
                 snapshot["position_sign_totals_by_body"][body][sign] += 1
                 snapshot["position_sign_count_by_body"][body] += 1
+                snapshot_add_decan(snapshot, body, float(lon))
 
             dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
             if not getattr(chart, "dominant_sign_weights", None):
@@ -9178,6 +9245,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
             totals["position_sign_count_by_body"][body] += direction * float(count)
+        apply_decan_snapshot_delta(totals, snapshot, direction)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
             totals["species_total_count_by_mode"][mode] += direction * int(count)
         for mode, count in snapshot.get("class_total_count_by_mode", {}).items():
@@ -10770,6 +10838,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     loaded_charts=loaded_charts,
                 )
             )
+
+            if _should_refresh_database_metric_section("decans"):
+                render_decans_chart(self, selection_cache, database_cache, loaded_charts)
 
             if _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
