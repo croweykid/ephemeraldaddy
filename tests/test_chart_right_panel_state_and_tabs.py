@@ -77,6 +77,7 @@ def _install_pyside_stubs() -> None:
 _install_pyside_stubs()
 
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (  # noqa: E402
+    schedule_chart_render_for_active_right_panel,
     set_chart_right_panel,
     sync_chart_right_panel_placeholder_state,
 )
@@ -165,3 +166,48 @@ def test_sync_placeholder_state_hides_analytics_and_predictions_for_placeholder_
     assert owner.predictions_panel_button.visible is False
     assert owner.predictions_panel_button.enabled is False
     assert owner._chart_right_panel_state.active_tab == "subjective_notes"
+
+
+def test_schedule_render_for_active_tab_analytics():
+    owner = _owner()
+    owner._latest_chart = object()
+    calls = []
+    owner._schedule_chart_render = lambda chart, sections=None: calls.append(("analytics", chart, sections))
+    owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram",))
+    owner._render_dndification_predictions = lambda _chart: calls.append(("dnd",))
+    owner._is_chart_analysis_section_visible = lambda _key: False
+    owner._chart_right_panel_state.active_tab = "analytics"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == [("analytics", owner._latest_chart, None)]
+
+
+def test_schedule_render_for_active_tab_predictions():
+    owner = _owner()
+    owner._latest_chart = object()
+    calls = []
+    owner._schedule_chart_render = lambda chart, sections=None: calls.append(("analytics", chart, sections))
+    owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram",))
+    owner._render_dndification_predictions = lambda _chart: calls.append(("dnd",))
+    owner._is_chart_analysis_section_visible = lambda _key: False
+    owner._chart_right_panel_state.active_tab = "predictions"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == [("enneagram",), ("dnd",)]
+
+
+def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible():
+    owner = _owner()
+    owner._latest_chart = object()
+    calls = []
+    owner._schedule_chart_render = lambda chart, sections=None: calls.append((chart, sections))
+    owner._render_enneagram_predictions = lambda _chart: None
+    owner._render_dndification_predictions = lambda _chart: None
+    owner._is_chart_analysis_section_visible = lambda key: key == "anagrams"
+    owner._chart_right_panel_state.active_tab = "subjective_notes"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == [(owner._latest_chart, {"anagrams"})]
