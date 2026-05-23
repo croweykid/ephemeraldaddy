@@ -697,6 +697,10 @@ from ephemeraldaddy.gui.features.charts.exporters import (
     get_text_export_path as _get_text_export_path,
     sanitize_export_token as _sanitize_export_token,
 )
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
+    similarities_match_clears_delta_threshold as _similarities_match_clears_delta_threshold,
+)
 from ephemeraldaddy.gui.features.charts.popout_helpers import (
     attach_popout_share_button as _attach_popout_share_button,
     export_popout_chart_data_output as _export_popout_chart_data_output,
@@ -7060,25 +7064,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         return toggle, section_list
 
-    @staticmethod
-    def _similarities_label_has_excluded_bodies(label: object) -> bool:
-        text = str(label or "")
-        if not text:
-            return False
-        return bool(re.search(r"\b(Ketu|DS|IC)\b", text))
-
-    @staticmethod
-    def _similarities_match_clears_delta_threshold(
-        match_count: int,
-        total_count: int,
-        database_match_count: int,
-        database_total_count: int,
-    ) -> bool:
-        selection_percent = ((match_count / total_count) * 100.0) if total_count else 0.0
-        database_percent = ((database_match_count / database_total_count) * 100.0) if database_total_count else 0.0
-        return abs(selection_percent - database_percent) >= 3.0
-
-
     def _set_similarities_section_matches(
         self,
         section_list: QListWidget,
@@ -7106,9 +7091,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if db_total_count
                     else 0
                 )
-                if self._similarities_label_has_excluded_bodies(label):
+                if _similarities_label_has_excluded_bodies(label):
                     continue
-                if not self._similarities_match_clears_delta_threshold(
+                if not _similarities_match_clears_delta_threshold(
                     match_count,
                     total_count,
                     db_match_count,
@@ -8222,8 +8207,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     [
                         match
                         for match in matches
-                        if not self._similarities_label_has_excluded_bodies(match[0])
-                        and self._similarities_match_clears_delta_threshold(
+                        if not _similarities_label_has_excluded_bodies(match[0])
+                        and _similarities_match_clears_delta_threshold(
                             int(match[1]),
                             int(match[2]),
                             int(match[3]),
