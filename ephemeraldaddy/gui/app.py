@@ -697,6 +697,10 @@ from ephemeraldaddy.gui.features.charts.exporters import (
     get_text_export_path as _get_text_export_path,
     sanitize_export_token as _sanitize_export_token,
 )
+from ephemeraldaddy.gui.features.charts.similarities_export import (
+    similarities_label_has_excluded_bodies as _similarities_label_has_excluded_bodies,
+    similarities_match_clears_delta_threshold as _similarities_match_clears_delta_threshold,
+)
 from ephemeraldaddy.gui.features.charts.popout_helpers import (
     attach_popout_share_button as _attach_popout_share_button,
     export_popout_chart_data_output as _export_popout_chart_data_output,
@@ -7079,14 +7083,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             toggle.setText(f"{len(matches)} {base_title}")
         if matches:
+            filtered_matches: list[tuple[str, int, int, int, int]] = []
             for label, match_count, total_count in matches:
-                percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
-                db_match_count = (db_match_counts or {}).get(label, 0)
+                db_match_count = int((db_match_counts or {}).get(label, 0))
                 db_label_total_count = (
                     int((db_total_counts_by_label or {}).get(label, db_total_count))
                     if db_total_count
                     else 0
                 )
+                if _similarities_label_has_excluded_bodies(label):
+                    continue
+                if not _similarities_match_clears_delta_threshold(
+                    match_count,
+                    total_count,
+                    db_match_count,
+                    db_label_total_count,
+                ):
+                    continue
+                filtered_matches.append((label, match_count, total_count, db_match_count, db_label_total_count))
+
+            toggle.setText(f"{len(filtered_matches)} {base_title}")
+            for label, match_count, total_count, db_match_count, db_label_total_count in filtered_matches:
+                percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_percent_value = (
                     int(round((db_match_count / db_label_total_count) * 100))
                     if db_label_total_count
@@ -8183,21 +8201,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     ],
                 ),
             ]
+            self._similarities_export_sections = [
+                (
+                    section_title,
+                    [
+                        match
+                        for match in matches
+                        if not _similarities_label_has_excluded_bodies(match[0])
+                        and _similarities_match_clears_delta_threshold(
+                            int(match[1]),
+                            int(match[2]),
+                            int(match[3]),
+                            int(match[4]),
+                        )
+                    ],
+                )
+                for section_title, matches in self._similarities_export_sections
+            ]
 
-            total_matches = (
-                len(common_positions)
-                + len(common_houses_in_positions)
-                + len(common_signs_in_houses)
-                + len(common_dominant_signs)
-                + len(common_dominant_bodies)
-                + len(common_dominant_houses)
-                + len(common_dominant_nakshatras)
-                + len(common_aspects)
-                + len(common_hd_gates)
-                + len(common_hd_channels)
-                + len(common_hd_defined_centers)
-                + len(common_hd_authorities)
-                + len(common_hd_profiles)
+            total_matches = sum(
+                len(section_matches)
+                for _section_title, section_matches in self._similarities_export_sections
             )
             if total_matches > 0:
                 self.similarities_status_label.setText(
