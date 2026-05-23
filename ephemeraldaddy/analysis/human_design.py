@@ -151,8 +151,13 @@ def _build_hd_positions_lines(
         )
         lines.append(line_text)
         gl_start = line_text.find(gl_text)
+        color_text = str(int(activation.color))
+        tone_text = str(int(activation.tone))
+        color_start = line_text.find(color_text, gl_start + len(gl_text))
+        tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
+        line_entries: list[dict[str, object]] = []
         if gl_start != -1:
-            info_map[len(lines) - 1] = [
+            line_entries.append(
                 {
                     "kind": "hd_gate_line",
                     "gate": activation.gate,
@@ -160,7 +165,27 @@ def _build_hd_positions_lines(
                     "span_start": gl_start,
                     "span_end": gl_start + len(gl_text),
                 }
-            ]
+            )
+        if color_start != -1:
+            line_entries.append(
+                {
+                    "kind": "hd_color",
+                    "color": int(activation.color),
+                    "span_start": color_start,
+                    "span_end": color_start + len(color_text),
+                }
+            )
+        if tone_start != -1:
+            line_entries.append(
+                {
+                    "kind": "hd_tone",
+                    "tone": int(activation.tone),
+                    "span_start": tone_start,
+                    "span_end": tone_start + len(tone_text),
+                }
+            )
+        if line_entries:
+            info_map[len(lines) - 1] = line_entries
     return lines, info_map
 
 

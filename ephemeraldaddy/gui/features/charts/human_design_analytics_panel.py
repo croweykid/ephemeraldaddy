@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
-from ephemeraldaddy.analysis.human_design_reference import HD_LINE_COLORS
+from ephemeraldaddy.analysis.human_design_reference import HD_COLORS, HD_LINE_COLORS, HD_TONES
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -31,6 +31,17 @@ HD_ANALYTICS_EXPANDED_WIDTH = 400
 def _theme_color(theme: dict[str, str], key: str, fallback: str) -> str:
     value = str(theme.get(key, "") or "").strip()
     return value or fallback
+
+
+def _normalize_matplotlib_hex(color_value: str, fallback: str) -> str:
+    color_text = str(color_value or "").strip()
+    if not color_text:
+        return fallback
+    if color_text.startswith("#"):
+        return color_text
+    if len(color_text) in {3, 6} and all(char in "0123456789abcdefABCDEF" for char in color_text):
+        return f"#{color_text}"
+    return color_text
 
 def build_human_design_top_splitter(
     *,
@@ -146,16 +157,6 @@ def build_human_design_top_splitter(
 
     line_numbers = list(range(1, 7))
     line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
-    def _normalize_matplotlib_hex(color_value: str, fallback: str) -> str:
-        color_text = str(color_value or "").strip()
-        if not color_text:
-            return fallback
-        if color_text.startswith("#"):
-            return color_text
-        if len(color_text) in {3, 6} and all(char in "0123456789abcdefABCDEF" for char in color_text):
-            return f"#{color_text}"
-        return color_text
-
     line_colors = [
         _normalize_matplotlib_hex(HD_LINE_COLORS.get(line_number, "#5dc26a"), "#5dc26a")
         for line_number in line_numbers
@@ -194,6 +195,64 @@ def build_human_design_top_splitter(
     hd_line_chart_canvas.setMinimumHeight(210)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     hd_section_layout.addWidget(hd_line_chart_canvas)
+
+    color_counts = {entry["value"]: 0 for entry in HD_COLORS if isinstance(entry.get("value"), int)}
+    tone_counts = {entry["value"]: 0 for entry in HD_TONES if isinstance(entry.get("value"), int)}
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        if int(activation.color) in color_counts:
+            color_counts[int(activation.color)] += 1
+        if int(activation.tone) in tone_counts:
+            tone_counts[int(activation.tone)] += 1
+
+    color_labels = [f"C{value}" for value in sorted(color_counts)]
+    color_values = [color_counts[value] for value in sorted(color_counts)]
+    color_bar_colors = [
+        _normalize_matplotlib_hex(HD_LINE_COLORS.get(value, "#6fa8dc"), "#6fa8dc")
+        for value in sorted(color_counts)
+    ]
+    hd_color_chart_figure = Figure(figsize=(3.0, 2.4))
+    hd_color_chart_canvas = FigureCanvas(hd_color_chart_figure)
+    hd_color_chart_ax = hd_color_chart_figure.add_subplot(111)
+    hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
+    hd_color_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
+    color_bars = hd_color_chart_ax.bar(color_labels, color_values, color=color_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
+    hd_color_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    hd_color_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    hd_color_chart_ax.set_ylim(0, max(1, max(color_values) + 1))
+    hd_color_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
+    for spine in hd_color_chart_ax.spines.values():
+        spine.set_visible(False)
+    for bar, value in zip(color_bars, color_values):
+        hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
+    hd_color_chart_figure.subplots_adjust(left=0.14, bottom=0.20, right=0.98, top=0.98)
+    hd_color_chart_canvas.setMinimumHeight(190)
+    hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    hd_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
+    hd_section_layout.addWidget(hd_color_chart_canvas)
+
+    tone_labels = [f"T{value}" for value in sorted(tone_counts)]
+    tone_values = [tone_counts[value] for value in sorted(tone_counts)]
+    tone_palette = ["#9ecae1", "#6baed6", "#4292c6", "#3182bd", "#2171b5", "#08519c"]
+    tone_bar_colors = [tone_palette[index % len(tone_palette)] for index, _ in enumerate(sorted(tone_counts))]
+    hd_tone_chart_figure = Figure(figsize=(3.0, 2.4))
+    hd_tone_chart_canvas = FigureCanvas(hd_tone_chart_figure)
+    hd_tone_chart_ax = hd_tone_chart_figure.add_subplot(111)
+    hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
+    hd_tone_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
+    tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
+    hd_tone_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    hd_tone_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    hd_tone_chart_ax.set_ylim(0, max(1, max(tone_values) + 1))
+    hd_tone_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
+    for spine in hd_tone_chart_ax.spines.values():
+        spine.set_visible(False)
+    for bar, value in zip(tone_bars, tone_values):
+        hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
+    hd_tone_chart_figure.subplots_adjust(left=0.14, bottom=0.20, right=0.98, top=0.98)
+    hd_tone_chart_canvas.setMinimumHeight(190)
+    hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    hd_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
+    hd_section_layout.addWidget(hd_tone_chart_canvas)
 
     hd_analytics_layout.addStretch(1)
     hd_analytics_scroll.setWidget(hd_analytics_panel)
