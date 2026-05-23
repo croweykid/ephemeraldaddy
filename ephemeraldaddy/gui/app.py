@@ -7060,6 +7060,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         return toggle, section_list
 
+    @staticmethod
+    def _similarities_label_has_excluded_bodies(label: object) -> bool:
+        text = str(label or "")
+        if not text:
+            return False
+        return bool(re.search(r"\b(Ketu|DS|IC)\b", text))
+
+    @staticmethod
+    def _similarities_match_clears_delta_threshold(
+        match_count: int,
+        total_count: int,
+        database_match_count: int,
+        database_total_count: int,
+    ) -> bool:
+        selection_percent = ((match_count / total_count) * 100.0) if total_count else 0.0
+        database_percent = ((database_match_count / database_total_count) * 100.0) if database_total_count else 0.0
+        return abs(selection_percent - database_percent) >= 3.0
+
+
     def _set_similarities_section_matches(
         self,
         section_list: QListWidget,
@@ -7079,14 +7098,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         else:
             toggle.setText(f"{len(matches)} {base_title}")
         if matches:
+            filtered_matches: list[tuple[str, int, int, int, int]] = []
             for label, match_count, total_count in matches:
-                percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
-                db_match_count = (db_match_counts or {}).get(label, 0)
+                db_match_count = int((db_match_counts or {}).get(label, 0))
                 db_label_total_count = (
                     int((db_total_counts_by_label or {}).get(label, db_total_count))
                     if db_total_count
                     else 0
                 )
+                if self._similarities_label_has_excluded_bodies(label):
+                    continue
+                if not self._similarities_match_clears_delta_threshold(
+                    match_count,
+                    total_count,
+                    db_match_count,
+                    db_label_total_count,
+                ):
+                    continue
+                filtered_matches.append((label, match_count, total_count, db_match_count, db_label_total_count))
+
+            toggle.setText(f"{len(filtered_matches)} {base_title}")
+            for label, match_count, total_count, db_match_count, db_label_total_count in filtered_matches:
+                percent_value = int(round((match_count / total_count) * 100)) if total_count else 0
                 db_percent_value = (
                     int(round((db_match_count / db_label_total_count) * 100))
                     if db_label_total_count
@@ -8182,6 +8215,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         for label, match_count, total_count in common_hd_profiles
                     ],
                 ),
+            ]
+            self._similarities_export_sections = [
+                (
+                    section_title,
+                    [
+                        match
+                        for match in matches
+                        if not self._similarities_label_has_excluded_bodies(match[0])
+                        and self._similarities_match_clears_delta_threshold(
+                            int(match[1]),
+                            int(match[2]),
+                            int(match[3]),
+                            int(match[4]),
+                        )
+                    ],
+                )
+                for section_title, matches in self._similarities_export_sections
             ]
 
             total_matches = (
