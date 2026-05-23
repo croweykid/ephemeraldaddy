@@ -32,6 +32,7 @@ DATABASE_ANALYTICS_SECTION_KEYS: dict[str, bool] = {
     "database_metrics.alignment_summary": False,
     "database_metrics.sign_prevalence": False,
     "database_metrics.dominant_signs": False,
+    "database_metrics.decans": False,
     "database_metrics.subordinant_factors": False,
     "database_metrics.species_distribution": False,
     "database_metrics.enneagram": False,
