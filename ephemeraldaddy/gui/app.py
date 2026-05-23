@@ -613,6 +613,13 @@ from ephemeraldaddy.gui.features.charts.tag_search import (
 )
 
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
+from ephemeraldaddy.gui.features.charts.db_analytics_panel import (
+    apply_decan_snapshot_delta,
+    decans_dropdown_options,
+    decans_empty_cache_fields,
+    render_decans_chart,
+    snapshot_add_decan,
+)
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
     body_dynamics_filters_are_active,
@@ -3618,7 +3625,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "🪐Decans",
             "decans",
             "decans",
-            dropdown_options=list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS),
+            dropdown_options=decans_dropdown_options(),
             show_title=False,
         )
         decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body in selection/database")
@@ -8830,13 +8837,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "position_sign_count_by_body": {
                 body: 0.0 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
             },
-            "position_decan_totals_by_body": {
-                body: {1: 0, 2: 0, 3: 0}
-                for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
-            },
-            "position_decan_count_by_body": {
-                body: 0.0 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
-            },
+            **decans_empty_cache_fields(),
             "dominant_sign_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
             "dominant_sign_total_weight": 0.0,
             "dominant_sign_frequency_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
@@ -9000,9 +9001,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sign = _sign_for_longitude(lon)
                 snapshot["position_sign_totals_by_body"][body][sign] += 1
                 snapshot["position_sign_count_by_body"][body] += 1
-                decan_number = min(3, max(1, int((float(lon) % 30.0) // 10.0) + 1))
-                snapshot["position_decan_totals_by_body"][body][decan_number] += 1
-                snapshot["position_decan_count_by_body"][body] += 1
+                snapshot_add_decan(snapshot, body, float(lon))
 
             dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
             if not getattr(chart, "dominant_sign_weights", None):
@@ -9222,8 +9221,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         totals["alignment_score_total"] += direction * float(snapshot.get("alignment_score", 0.0))
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
             totals["position_sign_count_by_body"][body] += direction * float(count)
-        for body, count in snapshot.get("position_decan_count_by_body", {}).items():
-            totals["position_decan_count_by_body"][body] += direction * float(count)
+        apply_decan_snapshot_delta(totals, snapshot, direction)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
             totals["species_total_count_by_mode"][mode] += direction * int(count)
         for mode, count in snapshot.get("class_total_count_by_mode", {}).items():
@@ -9277,9 +9275,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for body, sign_totals in snapshot.get("position_sign_totals_by_body", {}).items():
             for sign in ZODIAC_NAMES:
                 totals["position_sign_totals_by_body"][body][sign] += direction * int(sign_totals.get(sign, 0))
-        for body, decan_totals in snapshot.get("position_decan_totals_by_body", {}).items():
-            for decan in (1, 2, 3):
-                totals["position_decan_totals_by_body"][body][decan] += direction * int(decan_totals.get(decan, 0))
         for relationship in RELATION_TYPE:
             totals["relationship_totals"][relationship] += direction * int(snapshot["relationship_totals"].get(relationship, 0))
         for mode in ("top_species", "top_three_species"):
@@ -10820,26 +10815,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             )
 
-            decans_mode = self._decans_mode
-            selection_decan_counts = selection_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
-            database_decan_counts = database_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
             if _should_refresh_database_metric_section("decans"):
-                decans_canvas = self._build_count_distribution_chart(
-                    labels=["Decan 1", "Decan 2", "Decan 3"],
-                    selection_counts=[int(selection_decan_counts[i]) for i in (1, 2, 3)],
-                    database_counts=[int(database_decan_counts[i]) for i in (1, 2, 3)],
-                    loaded_charts=loaded_charts,
-                )
-                self._clear_layout(self.decans_chart_layout)
-                self.decans_chart_layout.addWidget(decans_canvas, 0)
-            self._analysis_chart_export_rows["decans"] = self._build_analysis_export_rows(
-                labels=["Decan 1", "Decan 2", "Decan 3"],
-                selection_values=[float(selection_decan_counts[i]) for i in (1, 2, 3)],
-                database_values=[float(database_decan_counts[i]) for i in (1, 2, 3)],
-                selection_counts=[int(selection_decan_counts[i]) for i in (1, 2, 3)],
-                database_counts=[int(database_decan_counts[i]) for i in (1, 2, 3)],
-                loaded_charts=loaded_charts,
-            )
+                render_decans_chart(self, selection_cache, database_cache, loaded_charts)
 
             if _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
