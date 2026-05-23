@@ -14333,7 +14333,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "There's only one you, baby. ('Self' relationship already assigned)",
             f"Remove 'self' from {former_chart_name}? y/n",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if choice != QMessageBox.Yes:
             return False
@@ -15158,7 +15158,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "New Collection",
                 f"Create new collection from the selected {selected_count} {chart_label}?",
                 QMessageBox.Yes | QMessageBox.Cancel,
-                QMessageBox.Cancel,
+                QMessageBox.Yes,
             )
             if answer != QMessageBox.Yes:
                 return
@@ -15221,7 +15221,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Delete Collection",
             f"Delete '{collection.name}'?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if answer != QMessageBox.Yes:
             return
@@ -16662,7 +16662,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Continue?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
         if confirmation != QMessageBox.StandardButton.Yes:
             return
@@ -16758,7 +16758,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "Continue?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
@@ -18859,7 +18859,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Confirm delete",
             f"Delete {len(chart_ids)} selected chart(s)?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
@@ -19860,7 +19860,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Reset interface",
             "Reset all interface visuals and saved view state to defaults?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if choice != QMessageBox.Yes:
             return
@@ -26557,7 +26557,7 @@ class MainWindow(QMainWindow):
                 "Change Chart Type",
                 prompt,
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                QMessageBox.Yes,
             )
             if choice == QMessageBox.No:
                 self.chart_source_combo.blockSignals(True)
@@ -26951,7 +26951,7 @@ class MainWindow(QMainWindow):
             "There's only one you, baby. ('Self' relationship already assigned)",
             f"Remove 'self' from {former_chart_name}? y/n",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         if choice != QMessageBox.Yes:
             return False
@@ -27000,7 +27000,7 @@ class MainWindow(QMainWindow):
                     "Any existing partial birth date values will be preserved on save. "
                     "Chart drawing will be removed.",
                     QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No,
+                    QMessageBox.Yes,
                 )
                 if revert_choice == QMessageBox.No:
                     blocker = QSignalBlocker(self.placeholder_chart_checkbox)
@@ -27180,7 +27180,7 @@ class MainWindow(QMainWindow):
                         "Click 'No' to edit the location and try again."
                     ),
                     QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No,
+                    QMessageBox.Yes,
                 )
 
                 if choice == QMessageBox.No:
@@ -27487,7 +27487,7 @@ class MainWindow(QMainWindow):
             warning.title,
             warning.message,
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
         return choice == QMessageBox.Yes
 
@@ -27804,7 +27804,7 @@ class MainWindow(QMainWindow):
             "Confirm delete",
             "Delete this chart and return to Database View?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
