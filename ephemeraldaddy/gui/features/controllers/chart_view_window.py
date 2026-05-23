@@ -849,7 +849,7 @@ def _build_subjective_notes_panel(owner: QWidget) -> tuple[QWidget, QVBoxLayout]
     panel.setLayout(layout)
     layout.addWidget(owner.sentiment_metrics_widget)
     layout.addWidget(owner.sentiment_relation_row_widget)
-    return panel
+    return panel, layout
 
 
 def _build_predictions_panel(owner: QWidget) -> QWidget:
