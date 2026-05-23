@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ephemeraldaddy.gui.constants import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 
+from ephemeraldaddy.gui.features.charts.sign_distribution import (
+    SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
+)
 
 def decans_dropdown_options() -> list[tuple[str, str]]:
     return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
