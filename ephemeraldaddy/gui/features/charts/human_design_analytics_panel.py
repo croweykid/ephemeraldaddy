@@ -43,6 +43,18 @@ def _normalize_matplotlib_hex(color_value: str, fallback: str) -> str:
         return f"#{color_text}"
     return color_text
 
+
+def _color_name_to_hex(color_name: str) -> str:
+    color_lookup = {
+        "red": "#ff4d4d",
+        "orange": "#ff9f1c",
+        "yellow": "#ffd60a",
+        "green": "#5dc26a",
+        "blue": "#4f8cff",
+        "violet": "#b388ff",
+    }
+    return color_lookup.get(str(color_name or "").strip().lower(), "#6fa8dc")
+
 def build_human_design_analytics_panel(
     *,
     hd_result: HumanDesignResult,
@@ -205,8 +217,13 @@ def build_human_design_analytics_panel(
 
     color_labels = [f"C{value}" for value in sorted(color_counts)]
     color_values = [color_counts[value] for value in sorted(color_counts)]
+    color_meta_by_value = {
+        int(entry["value"]): entry
+        for entry in HD_COLORS
+        if isinstance(entry, dict) and isinstance(entry.get("value"), int)
+    }
     color_bar_colors = [
-        _normalize_matplotlib_hex(HD_LINE_COLORS.get(value, "#6fa8dc"), "#6fa8dc")
+        _color_name_to_hex(str(color_meta_by_value.get(value, {}).get("color", "")))
         for value in sorted(color_counts)
     ]
     hd_color_chart_figure = Figure(figsize=(2.6, 2.4))
@@ -235,7 +252,15 @@ def build_human_design_analytics_panel(
     color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
     color_section_layout.addWidget(hd_color_chart_canvas)
 
-    tone_labels = [f"T{value}" for value in sorted(tone_counts)]
+    tone_meta_by_value = {
+        int(entry["value"]): entry
+        for entry in HD_TONES
+        if isinstance(entry, dict) and isinstance(entry.get("value"), int)
+    }
+    tone_labels = [
+        f"{value} ({str(tone_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
+        for value in sorted(tone_counts)
+    ]
     tone_values = [tone_counts[value] for value in sorted(tone_counts)]
     tone_palette = ["#9ecae1", "#6baed6", "#4292c6", "#3182bd", "#2171b5", "#08519c"]
     tone_bar_colors = [tone_palette[index % len(tone_palette)] for index, _ in enumerate(sorted(tone_counts))]

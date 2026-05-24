@@ -26165,7 +26165,12 @@ class MainWindow(QMainWindow):
 
         cursor.insertText(f"{header}\n\n", header_fmt)
         for idx, line in enumerate(body_lines):
-            cursor.insertText(line, plain_fmt)
+            is_section_header = (
+                bool(line)
+                and not str(line).lstrip().startswith("•")
+                and str(line).rstrip().endswith(":")
+            )
+            cursor.insertText(line, header_fmt if is_section_header else plain_fmt)
             if idx < len(body_lines) - 1:
                 cursor.insertText("\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
@@ -26341,17 +26346,24 @@ class MainWindow(QMainWindow):
     def _show_human_design_color_info(self, color_value: int) -> None:
         color_entry = next((entry for entry in HD_COLORS if int(entry.get("value", -1)) == int(color_value)), None)
         color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
+        color_motivation = str(color_entry.get("motivation", "Unknown")) if color_entry else "Unknown"
+        color_label = str(color_entry.get("color", "Unknown")) if color_entry else "Unknown"
         self._set_human_design_info_text(
             f"Color {color_value}: {color_name}",
             [
+                "Color System:",
                 "• C represents Human Design Color (1–6).",
-                f"• Color {color_value} maps to {color_name}.",
+                "Details:",
+                f"• Environment name: {color_name}.",
+                f"• Motivation: {color_motivation}.",
+                f"• Color family: {color_label}.",
             ],
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
         tone_entry = next((entry for entry in HD_TONES if int(entry.get("value", -1)) == int(tone_value)), None)
         tone_name = str(tone_entry.get("name", "Unknown")) if tone_entry else "Unknown"
+        meaning = str(tone_entry.get("meaning", "Unknown")) if tone_entry else "Unknown"
         orientation = str(tone_entry.get("orientation", "")).strip() if tone_entry else ""
         tone_line = f"• Tone {tone_value} maps to {tone_name}."
         if orientation:
@@ -26359,8 +26371,11 @@ class MainWindow(QMainWindow):
         self._set_human_design_info_text(
             f"Tone {tone_value}: {tone_name}",
             [
+                "Tone System:",
                 "• T represents Human Design Tone (1–6).",
+                "Details:",
                 tone_line,
+                f"• Meaning: {meaning}.",
             ],
         )
 
