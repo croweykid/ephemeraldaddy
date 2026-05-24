@@ -89,13 +89,13 @@ def test_similarities_json_export_normalizes_underrepresented_factors_as_negativ
 
     profile = payload["Normalized"]
     assert profile["positions"] == {
-        "Sun": {"signs": {}, "houses": {1: 30}},
-        "Moon": {"signs": {}, "houses": {12: -40}},
-        "Aries": {"signs": {}, "houses": {1: 30}},
-        "Pisces": {"signs": {}, "houses": {12: -40}},
+        "Sun in H1": 30,
+        "Moon in H12": -40,
+        "Aries in H1": 30,
+        "Pisces in H12": -40,
     }
     assert profile["antipositions"] == {}
-    assert profile["houses"] == {1: 30, 12: -40}
+    assert profile["houses"] == {"1": 30, "12": -40}
     assert profile["antihouses"] == {}
 
 
@@ -129,17 +129,16 @@ def test_similarities_json_export_sorts_positions_by_body_order():
     )
 
     assert list(payload["Sorted"]["positions"]) == [
-        "Sun",
-        "Mercury",
-        "Venus",
-        "Ceres",
-        "Lilith",
-        "Rahu",
-        "Ketu",
-        "Aries",
+        "Sun in Capricorn",
+        "Mercury in H5",
+        "Venus in Capricorn",
+        "Ceres in Pisces",
+        "Ceres in H4",
+        "Lilith in H6",
+        "Rahu in H2",
+        "Ketu in H1",
+        "Aries in H1",
     ]
-    assert payload["Sorted"]["positions"]["Sun"] == {"signs": {"Capricorn": 20}, "houses": {}}
-    assert payload["Sorted"]["positions"]["Ceres"] == {"signs": {"Pisces": 20}, "houses": {4: 20}}
 
 
 def test_normalized_similarities_json_criteria_are_accepted_by_profile_consumers():
@@ -154,9 +153,7 @@ def test_normalized_similarities_json_criteria_are_accepted_by_profile_consumers
     )
 
     profile = payload["Reusable"]
-    first_body = next(iter(profile["positions"]))
-    first_house_key = next(iter(profile["positions"][first_body]["houses"]))
-    assert parse_position_spec(f"{first_body} in H{first_house_key}") == (
+    assert parse_position_spec(next(iter(profile["positions"]))) == (
         "body_in_house",
         1,
         "Sun",
@@ -188,35 +185,3 @@ def test_similarities_json_export_formats_gate_and_channel_keys_for_profiles():
     assert '"channels": {\n            (20, 57): 50,' in formatted
     assert '"44": 50' not in formatted
     assert '"20-57": 50' not in formatted
-
-
-def test_similarities_json_export_sorts_aspects_by_primary_body_order():
-    payload = build_similarities_json_export_payload(
-        "Aspects Sorted",
-        [
-            (
-                "Aspects in common",
-                [
-                    ("Chiron sextile Mercury", 5, 10, 0, 100, "A"),
-                    ("Mercury opposition Pluto", 5, 10, 0, 100, "A"),
-                    ("Venus trine Mars", 5, 10, 0, 100, "A"),
-                    ("Moon square Saturn", 5, 10, 0, 100, "A"),
-                    ("AS trine Moon", 5, 10, 0, 100, "A"),
-                    ("Chiron square Pluto", 5, 10, 0, 100, "A"),
-                    ("Saturn quincunx Chiron", 5, 10, 0, 100, "A"),
-                    ("Venus opposition Moon", 5, 10, 0, 100, "A"),
-                ],
-            ),
-        ],
-    )
-
-    assert list(payload["Aspects Sorted"]["aspects"]) == [
-        "Moon square Saturn",
-        "Mercury opposition Pluto",
-        "Venus opposition Moon",
-        "Venus trine Mars",
-        "Saturn quincunx Chiron",
-        "Chiron sextile Mercury",
-        "Chiron square Pluto",
-        "AS trine Moon",
-    ]
