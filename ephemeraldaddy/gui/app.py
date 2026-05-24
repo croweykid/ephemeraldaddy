@@ -780,6 +780,11 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_analytics_panel,
 )
+from ephemeraldaddy.gui.features.charts.human_design_info_panel import (
+    render_human_design_info_text_with_accent,
+    render_human_design_line_info,
+    resolve_hd_color_hex,
+)
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
     create_human_design_synastry_dialog,
 )
@@ -26469,7 +26474,9 @@ class MainWindow(QMainWindow):
         color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
         color_motivation = str(color_entry.get("motivation", "Unknown")) if color_entry else "Unknown"
         color_label = str(color_entry.get("color", "Unknown")) if color_entry else "Unknown"
-        self._set_human_design_info_text(
+        accent_color = resolve_hd_color_hex(color_label)
+        render_human_design_info_text_with_accent(
+            self.chart_info_output,
             f"Color {color_value}: {color_name}",
             [
                 "Color System:",
@@ -26479,6 +26486,7 @@ class MainWindow(QMainWindow):
                 f"• Motivation: {color_motivation}.",
                 f"• Color family: {color_label}.",
             ],
+            accent_color=accent_color,
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
@@ -26496,10 +26504,25 @@ class MainWindow(QMainWindow):
         tone_name = str(tone_entry.get("name", "Unknown")) if tone_entry else "Unknown"
         meaning = str(tone_entry.get("meaning", "Unknown")) if tone_entry else "Unknown"
         orientation = str(tone_entry.get("orientation", "")).strip() if tone_entry else ""
+        tone_color_entry = (
+            HD_COLORS.get(int(tone_value))
+            if isinstance(HD_COLORS, dict)
+            else next(
+                (
+                    entry
+                    for entry in HD_COLORS
+                    if isinstance(entry, dict) and int(entry.get("value", -1)) == int(tone_value)
+                ),
+                {},
+            )
+        )
+        tone_color_name = str(tone_color_entry.get("color", "")).strip()
+        accent_color = resolve_hd_color_hex(tone_color_name)
         tone_line = f"• Tone {tone_value} maps to {tone_name}."
         if orientation:
             tone_line += f" Orientation: {orientation}."
-        self._set_human_design_info_text(
+        render_human_design_info_text_with_accent(
+            self.chart_info_output,
             f"Tone {tone_value}: {tone_name}",
             [
                 "Tone System:",
@@ -26508,6 +26531,7 @@ class MainWindow(QMainWindow):
                 tone_line,
                 f"• Meaning: {meaning}.",
             ],
+            accent_color=accent_color,
         )
 
     def _show_species_info(
@@ -30172,12 +30196,7 @@ class MainWindow(QMainWindow):
         def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
             def _render_metric_info() -> None:
                 if metric_kind == "hd_line":
-                    line_number = int(metric_value)
-                    line_text = LINE_ARCHETYPES.get(line_number, "No line archetype available.")
-                    self._set_human_design_info_text(
-                        f"Line {line_number} Archetype",
-                        [f"• {line_text}"],
-                    )
+                    render_human_design_line_info(self.chart_info_output, int(metric_value))
                     return
                 if metric_kind == "hd_color":
                     self._show_human_design_color_info(int(metric_value))
