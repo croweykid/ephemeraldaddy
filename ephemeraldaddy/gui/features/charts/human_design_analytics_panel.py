@@ -354,7 +354,7 @@ def build_human_design_analytics_panel(
     for bar, value in zip(tone_bars, tone_values):
         hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
-    hd_tone_chart_canvas.setMinimumHeight(235)
+    hd_tone_chart_canvas.setMinimumHeight(235) #defines graph canvas height
     hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     tone_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,
