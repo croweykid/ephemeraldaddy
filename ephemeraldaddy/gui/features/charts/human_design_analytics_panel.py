@@ -219,7 +219,7 @@ def build_human_design_analytics_panel(
         if 1 <= int(activation.line) <= 6:
             line_counts[int(activation.line)] += 1
 
-    hd_line_chart_figure = Figure(figsize=(2.6, 2.1))
+    hd_line_chart_figure = Figure(figsize=(2.6, 1.68))
     hd_line_chart_canvas = HDAnalyticsFigureCanvas(hd_line_chart_figure)
     hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
     
@@ -271,7 +271,7 @@ def build_human_design_analytics_panel(
             fontweight="bold",
         )
     hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.18, right=0.94, top=0.98)
-    hd_line_chart_canvas.setMinimumHeight(240)
+    hd_line_chart_canvas.setMinimumHeight(255)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     line_section_layout.addWidget(hd_line_chart_canvas)
     
@@ -294,7 +294,7 @@ def build_human_design_analytics_panel(
         _color_name_to_hex(str(color_meta_by_value.get(value, {}).get("color", "")))
         for value in sorted(color_counts)
     ]
-    hd_color_chart_figure = Figure(figsize=(2.6, 1.9))
+    hd_color_chart_figure = Figure(figsize=(2.6, 1.52))
     hd_color_chart_canvas = HDAnalyticsFigureCanvas(hd_color_chart_figure)
     hd_color_chart_ax = hd_color_chart_figure.add_subplot(111)
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -315,7 +315,7 @@ def build_human_design_analytics_panel(
     for bar, value in zip(color_bars, color_values):
         hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
-    hd_color_chart_canvas.setMinimumHeight(220)
+    hd_color_chart_canvas.setMinimumHeight(235)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     color_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,
@@ -333,7 +333,7 @@ def build_human_design_analytics_panel(
     tone_values = [tone_counts[value] for value in sorted(tone_counts)]
     tone_palette = ["#9ecae1", "#6baed6", "#4292c6", "#3182bd", "#2171b5", "#08519c"]
     tone_bar_colors = [tone_palette[index % len(tone_palette)] for index, _ in enumerate(sorted(tone_counts))]
-    hd_tone_chart_figure = Figure(figsize=(2.6, 1.9))
+    hd_tone_chart_figure = Figure(figsize=(2.6, 1.52))
     hd_tone_chart_canvas = HDAnalyticsFigureCanvas(hd_tone_chart_figure)
     hd_tone_chart_ax = hd_tone_chart_figure.add_subplot(111)
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -354,7 +354,7 @@ def build_human_design_analytics_panel(
     for bar, value in zip(tone_bars, tone_values):
         hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
-    hd_tone_chart_canvas.setMinimumHeight(220)
+    hd_tone_chart_canvas.setMinimumHeight(235) #defines graph canvas height
     hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     tone_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,

@@ -30170,7 +30170,12 @@ class MainWindow(QMainWindow):
         def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
             def _render_metric_info() -> None:
                 if metric_kind == "hd_line":
-                    self._show_human_design_property_info("profile", f"{int(metric_value)}/?")
+                    line_number = int(metric_value)
+                    line_text = LINE_ARCHETYPES.get(line_number, "No line archetype available.")
+                    self._set_human_design_info_text(
+                        f"Line {line_number} Archetype",
+                        [f"• {line_text}"],
+                    )
                     return
                 if metric_kind == "hd_color":
                     self._show_human_design_color_info(int(metric_value))
