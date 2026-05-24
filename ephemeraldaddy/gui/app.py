@@ -1972,6 +1972,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._search_location_state_input = None
         self.living_checkbox = None
         self.generation_filter_checkboxes: dict[str, QuadStateSlider] = {}
+        self._birthdate_earliest_month_input = None
+        self._birthdate_earliest_day_input = None
+        self._birthdate_earliest_year_input = None
+        self._birthdate_latest_month_input = None
+        self._birthdate_latest_day_input = None
+        self._birthdate_latest_year_input = None
         self._dominant_element_filters = []
         self._suppress_filter_refresh = False
         self._filter_refresh_running = False
@@ -9656,6 +9662,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for name, checkbox in self.generation_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        birthdate_earliest_month = self._parse_integer_filter_text(
+            self._birthdate_earliest_month_input.text()
+            if self._birthdate_earliest_month_input is not None
+            else ""
+        )
+        birthdate_earliest_day = self._parse_integer_filter_text(
+            self._birthdate_earliest_day_input.text()
+            if self._birthdate_earliest_day_input is not None
+            else ""
+        )
+        birthdate_earliest_year = self._parse_integer_filter_text(
+            self._birthdate_earliest_year_input.text()
+            if self._birthdate_earliest_year_input is not None
+            else ""
+        )
+        birthdate_latest_month = self._parse_integer_filter_text(
+            self._birthdate_latest_month_input.text()
+            if self._birthdate_latest_month_input is not None
+            else ""
+        )
+        birthdate_latest_day = self._parse_integer_filter_text(
+            self._birthdate_latest_day_input.text()
+            if self._birthdate_latest_day_input is not None
+            else ""
+        )
+        birthdate_latest_year = self._parse_integer_filter_text(
+            self._birthdate_latest_year_input.text()
+            if self._birthdate_latest_year_input is not None
+            else ""
+        )
         selected_search_tags = {
             name
             for name, checkbox in getattr(self, "search_tag_filter_checkboxes", {}).items()
@@ -9934,6 +9970,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not excluded_data_ratings
             and not selected_generations
             and not excluded_generations
+            and birthdate_earliest_month is None
+            and birthdate_earliest_day is None
+            and birthdate_earliest_year is None
+            and birthdate_latest_month is None
+            and birthdate_latest_day is None
+            and birthdate_latest_year is None
             and self.species_filter_combo.currentData() == "Any"
             and (
                 not hasattr(self, "dnd_class_filter_combo")
@@ -13477,6 +13519,27 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.batch_alignment_slider.setToolTip("")
 
     @staticmethod
+    def _build_birthdate_filter_date(
+        *,
+        month: int | None,
+        day: int | None,
+        year: int | None,
+        is_latest: bool,
+    ) -> datetime.date | None:
+        if month is None and day is None and year is None:
+            return None
+        resolved_year = int(year) if year is not None else (9999 if is_latest else 1)
+        resolved_month = int(month) if month is not None else (12 if is_latest else 1)
+        if day is not None:
+            resolved_day = int(day)
+        else:
+            resolved_day = calendar.monthrange(resolved_year, resolved_month)[1] if is_latest else 1
+        try:
+            return datetime.date(resolved_year, resolved_month, resolved_day)
+        except ValueError:
+            return None
+
+    @staticmethod
     def _parse_year_first_encountered_text(raw_value: str | None) -> int | None:
         value = (raw_value or "").strip()
         if value == "":
@@ -15938,6 +16001,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 self.living_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             for checkbox in self.generation_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
+            if self._birthdate_earliest_month_input is not None:
+                self._birthdate_earliest_month_input.setText("")
+            if self._birthdate_earliest_day_input is not None:
+                self._birthdate_earliest_day_input.setText("")
+            if self._birthdate_earliest_year_input is not None:
+                self._birthdate_earliest_year_input.setText("")
+            if self._birthdate_latest_month_input is not None:
+                self._birthdate_latest_month_input.setText("")
+            if self._birthdate_latest_day_input is not None:
+                self._birthdate_latest_day_input.setText("")
+            if self._birthdate_latest_year_input is not None:
+                self._birthdate_latest_year_input.setText("")
             for checkbox in self.chart_type_filter_checkboxes.values():
                 checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             if hasattr(self, "dnd_class_filter_combo") and self.dnd_class_filter_combo is not None:
@@ -17595,6 +17670,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for name, checkbox in self.generation_filter_checkboxes.items()
             if checkbox.mode() == QuadStateSlider.MODE_FALSE
         }
+        birthdate_earliest_month = self._parse_integer_filter_text(
+            self._birthdate_earliest_month_input.text()
+            if self._birthdate_earliest_month_input is not None
+            else ""
+        )
+        birthdate_earliest_day = self._parse_integer_filter_text(
+            self._birthdate_earliest_day_input.text()
+            if self._birthdate_earliest_day_input is not None
+            else ""
+        )
+        birthdate_earliest_year = self._parse_integer_filter_text(
+            self._birthdate_earliest_year_input.text()
+            if self._birthdate_earliest_year_input is not None
+            else ""
+        )
+        birthdate_latest_month = self._parse_integer_filter_text(
+            self._birthdate_latest_month_input.text()
+            if self._birthdate_latest_month_input is not None
+            else ""
+        )
+        birthdate_latest_day = self._parse_integer_filter_text(
+            self._birthdate_latest_day_input.text()
+            if self._birthdate_latest_day_input is not None
+            else ""
+        )
+        birthdate_latest_year = self._parse_integer_filter_text(
+            self._birthdate_latest_year_input.text()
+            if self._birthdate_latest_year_input is not None
+            else ""
+        )
         selected_species = self.species_filter_combo.currentData()
         selected_dnd_class = (
             self.dnd_class_filter_combo.currentData()
@@ -17951,6 +18056,34 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if generation_name in excluded_generations:
                 return False
             if selected_generations and generation_name not in selected_generations:
+                return False
+
+        chart_birthdate_earliest = self._build_birthdate_filter_date(
+            month=birthdate_earliest_month,
+            day=birthdate_earliest_day,
+            year=birthdate_earliest_year,
+            is_latest=False,
+        )
+        chart_birthdate_latest = self._build_birthdate_filter_date(
+            month=birthdate_latest_month,
+            day=birthdate_latest_day,
+            year=birthdate_latest_year,
+            is_latest=True,
+        )
+        if chart_birthdate_earliest is not None and chart_birthdate_latest is not None and chart_birthdate_earliest > chart_birthdate_latest:
+            chart_birthdate_earliest, chart_birthdate_latest = chart_birthdate_latest, chart_birthdate_earliest
+        if chart_birthdate_earliest is not None or chart_birthdate_latest is not None:
+            chart_for_birthdate = self._get_chart_for_filter(chart_id)
+            chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_birthdate)
+            if chart_birth_year is None:
+                return False
+            chart_datetime = getattr(chart_for_birthdate, "dt", None) if chart_for_birthdate is not None else None
+            chart_birthdate = chart_datetime.date() if chart_datetime is not None else None
+            if chart_birthdate is None:
+                return False
+            if chart_birthdate_earliest is not None and chart_birthdate < chart_birthdate_earliest:
+                return False
+            if chart_birthdate_latest is not None and chart_birthdate > chart_birthdate_latest:
                 return False
 
         if selected_species != "Any":
