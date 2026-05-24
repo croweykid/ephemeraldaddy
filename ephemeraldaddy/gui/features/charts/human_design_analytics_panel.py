@@ -284,6 +284,11 @@ def build_human_design_analytics_panel(
             color_counts[int(activation.color)] += 1
         if int(activation.tone) in tone_counts:
             tone_counts[int(activation.tone)] += 1
+    design_sun_activation = next(
+        (activation for activation in hd_result.design_activations if activation.body == "Sun"),
+        None,
+    )
+    design_sun_color_value = int(design_sun_activation.color) if design_sun_activation is not None else None
 
     color_labels = [
         f"C{value} ({str(color_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
@@ -312,8 +317,11 @@ def build_human_design_analytics_panel(
     hd_color_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_color_chart_ax.spines.values():
         spine.set_visible(False)
-    for bar, value in zip(color_bars, color_values):
-        hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
+    for color_value, bar, value in zip(sorted(color_counts), color_bars, color_values):
+        bar_label = str(value)
+        if design_sun_color_value is not None and int(color_value) == design_sun_color_value:
+            bar_label = f"🌟{value}"
+        hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, bar_label, ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
     hd_color_chart_canvas.setMinimumHeight(235)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
