@@ -62,6 +62,33 @@ def _color_name_to_hex(color_name: str) -> str:
     }
     return color_lookup.get(str(color_name or "").strip().lower(), "#6fa8dc")
 
+def _hd_meta_by_value(entries: object) -> dict[int, dict[str, object]]:
+    """Normalize HD reference data into {value: metadata} for dict/list inputs."""
+    if isinstance(entries, dict):
+        normalized: dict[int, dict[str, object]] = {}
+        for raw_key, raw_entry in entries.items():
+            if not isinstance(raw_entry, dict):
+                continue
+            try:
+                key = int(raw_key)
+            except (TypeError, ValueError):
+                continue
+            normalized[key] = raw_entry
+        return normalized
+
+    normalized = {}
+    if isinstance(entries, (list, tuple)):
+        for raw_entry in entries:
+            if not isinstance(raw_entry, dict):
+                continue
+            raw_value = raw_entry.get("value")
+            try:
+                key = int(raw_value)
+            except (TypeError, ValueError):
+                continue
+            normalized[key] = raw_entry
+    return normalized
+
 def build_human_design_analytics_panel(
     *,
     hd_result: HumanDesignResult,
@@ -223,16 +250,17 @@ def build_human_design_analytics_panel(
     hd_line_chart_canvas.setMinimumHeight(210)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     line_section_layout.addWidget(hd_line_chart_canvas)
-
-    color_counts = {int(value): 0 for value in HD_COLORS}
-    tone_counts = {int(value): 0 for value in HD_TONES}
+    
+    color_meta_by_value = _hd_meta_by_value(HD_COLORS)
+    tone_meta_by_value = _hd_meta_by_value(HD_TONES)
+    color_counts = {int(value): 0 for value in color_meta_by_value}
+    tone_counts = {int(value): 0 for value in tone_meta_by_value}
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
         if int(activation.color) in color_counts:
             color_counts[int(activation.color)] += 1
         if int(activation.tone) in tone_counts:
             tone_counts[int(activation.tone)] += 1
 
-    color_meta_by_value = {int(value): entry for value, entry in HD_COLORS.items()}
     color_labels = [
         f"C{value} ({str(color_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
         for value in sorted(color_counts)
@@ -274,7 +302,6 @@ def build_human_design_analytics_panel(
     color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
     color_section_layout.addWidget(hd_color_chart_canvas)
 
-    tone_meta_by_value = {int(value): entry for value, entry in HD_TONES.items()}
     tone_labels = [
         f"{value} ({str(tone_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
         for value in sorted(tone_counts)
