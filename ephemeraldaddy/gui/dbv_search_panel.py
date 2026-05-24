@@ -1305,14 +1305,71 @@ def build_dbv_search_panel(window) -> "QWidget":
     mortality_row.addStretch(1)
     mortality_section_layout.addLayout(mortality_row)
 
+    layout.addWidget(mortality_section)
+
+    timing_section, timing_section_layout = add_collapsible_section("Timing")
+
+    def add_birthdate_bound_row(
+        row_label: str,
+        month_attr: str,
+        day_attr: str,
+        year_attr: str,
+    ) -> None:
+        bound_row = QHBoxLayout()
+        bound_row.setContentsMargins(0, 0, 0, 0)
+        bound_row.setSpacing(4)
+        bound_row.addWidget(QLabel(row_label))
+
+        month_input = QLineEdit()
+        month_input.setMaxLength(2)
+        month_input.setFixedWidth(34)
+        month_input.setValidator(QIntValidator(1, 12, window))
+        month_input.setPlaceholderText("MM")
+        month_input.textChanged.connect(window._on_filter_changed)
+        setattr(window, month_attr, month_input)
+        bound_row.addWidget(month_input)
+
+        day_input = QLineEdit()
+        day_input.setMaxLength(2)
+        day_input.setFixedWidth(34)
+        day_input.setValidator(QIntValidator(1, 31, window))
+        day_input.setPlaceholderText("DD")
+        day_input.textChanged.connect(window._on_filter_changed)
+        setattr(window, day_attr, day_input)
+        bound_row.addWidget(day_input)
+
+        year_input = QLineEdit()
+        year_input.setMaxLength(4)
+        year_input.setFixedWidth(56)
+        year_input.setValidator(QIntValidator(1, 9999, window))
+        year_input.setPlaceholderText("YYYY")
+        year_input.textChanged.connect(window._on_filter_changed)
+        setattr(window, year_attr, year_input)
+        bound_row.addWidget(year_input)
+        bound_row.addStretch(1)
+        timing_section_layout.addLayout(bound_row)
+
+    add_birthdate_bound_row(
+        "earliest:",
+        "_birthdate_earliest_month_input",
+        "_birthdate_earliest_day_input",
+        "_birthdate_earliest_year_input",
+    )
+    add_birthdate_bound_row(
+        "latest:",
+        "_birthdate_latest_month_input",
+        "_birthdate_latest_day_input",
+        "_birthdate_latest_year_input",
+    )
+
     generation_divider = QFrame()
     generation_divider.setFrameShape(QFrame.HLine)
     generation_divider.setStyleSheet("color: #2f2f2f;")
-    mortality_section_layout.addWidget(generation_divider)
+    timing_section_layout.addWidget(generation_divider)
 
     generation_header = QLabel("Generation")
     generation_header.setStyleSheet(DATABASE_ANALYTICS_SUBHEADER_STYLE)
-    mortality_section_layout.addWidget(generation_header)
+    timing_section_layout.addWidget(generation_header)
 
     generation_layout = QGridLayout()
     generation_layout.setContentsMargins(0, 0, 0, 0)
@@ -1325,9 +1382,8 @@ def build_dbv_search_panel(window) -> "QWidget":
         row = idx % generation_rows
         col = idx // generation_rows
         generation_layout.addWidget(checkbox, row, col)
-    mortality_section_layout.addLayout(generation_layout)
-
-    layout.addWidget(mortality_section)
+    timing_section_layout.addLayout(generation_layout)
+    layout.addWidget(timing_section)
 
     #Search: gender section
     gender_section, gender_group_layout = add_collapsible_section("Gender")
