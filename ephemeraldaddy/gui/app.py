@@ -17407,7 +17407,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
-                if _chart_row_is_hypothetical(
+                is_hypothetical = _chart_row_is_hypothetical(
                     (
                         cid,
                         name,
@@ -17430,7 +17430,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         _birth_day,
                         _birth_year,
                     )
-                ):
+                )
+                if is_hypothetical:
                     item.setForeground(QBrush(QColor("#c9b3ff")))
                     hypothetical_font = item.font()
                     hypothetical_font.setItalic(True)
@@ -17498,6 +17499,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "retcon_time": retcon_time_label,
                         "place": place_with_gender,
                         "is_placeholder": bool(is_placeholder),
+                        "is_hypothetical": bool(is_hypothetical),
                         "is_deceased": bool(is_deceased),
                         "duplicate_likelihood": self._possible_duplicate_likelihoods.get(cid, ""),
                     },
