@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -34,6 +35,30 @@ from ephemeraldaddy.gui.style import (
 HD_ANALYTICS_SCROLL_MIN_WIDTH = 340
 HD_ANALYTICS_CONTAINER_MIN_WIDTH = 320
 HD_ANALYTICS_EXPANDED_WIDTH = 400
+
+class HDAnalyticsFigureCanvas(FigureCanvas):
+    """Matplotlib canvas that preserves parent-panel wheel/trackpad scrolling."""
+
+    def wheelEvent(self, event: object) -> None:  # noqa: N802 (Qt API)
+        widget_parent = self.parentWidget()
+        while widget_parent is not None and not isinstance(widget_parent, QScrollArea):
+            widget_parent = widget_parent.parentWidget()
+        if isinstance(widget_parent, QScrollArea):
+            scrollbar = widget_parent.verticalScrollBar()
+            pixel_delta = event.pixelDelta().y() if hasattr(event, "pixelDelta") else 0
+            angle_delta = event.angleDelta().y() if hasattr(event, "angleDelta") else 0
+            if pixel_delta:
+                scrollbar.setValue(scrollbar.value() - pixel_delta)
+                event.accept()
+                return
+            if angle_delta:
+                scroll_amount = int(angle_delta / 120) * scrollbar.singleStep() * 3
+                scrollbar.setValue(scrollbar.value() - scroll_amount)
+                event.accept()
+                return
+        QApplication.sendEvent(self.parentWidget(), event)
+        super().wheelEvent(event)
+
 
 def _theme_color(theme: dict[str, str], key: str, fallback: str) -> str:
     value = str(theme.get(key, "") or "").strip()
@@ -194,8 +219,8 @@ def build_human_design_analytics_panel(
         if 1 <= int(activation.line) <= 6:
             line_counts[int(activation.line)] += 1
 
-    hd_line_chart_figure = Figure(figsize=(2.6, 2.6))
-    hd_line_chart_canvas = FigureCanvas(hd_line_chart_figure)
+    hd_line_chart_figure = Figure(figsize=(2.6, 2.1))
+    hd_line_chart_canvas = HDAnalyticsFigureCanvas(hd_line_chart_figure)
     hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
     
     hd_line_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -232,8 +257,7 @@ def build_human_design_analytics_panel(
     hd_line_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_line_chart_ax.spines.values():
         spine.set_visible(False)
-    for bar, value in zip(bars, line_values):
-        line_value = int(round(float(bar.get_x() + 0.5)))
+    for line_value, bar, value in zip(line_numbers, bars, line_values):
         bar.set_gid(f"hd_line:{line_value}")
         bar.set_picker(True)
         hd_line_chart_ax.text(
@@ -247,7 +271,7 @@ def build_human_design_analytics_panel(
             fontweight="bold",
         )
     hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.18, right=0.94, top=0.98)
-    hd_line_chart_canvas.setMinimumHeight(210)
+    hd_line_chart_canvas.setMinimumHeight(240)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     line_section_layout.addWidget(hd_line_chart_canvas)
     
@@ -270,8 +294,8 @@ def build_human_design_analytics_panel(
         _color_name_to_hex(str(color_meta_by_value.get(value, {}).get("color", "")))
         for value in sorted(color_counts)
     ]
-    hd_color_chart_figure = Figure(figsize=(2.6, 2.4))
-    hd_color_chart_canvas = FigureCanvas(hd_color_chart_figure)
+    hd_color_chart_figure = Figure(figsize=(2.6, 1.9))
+    hd_color_chart_canvas = HDAnalyticsFigureCanvas(hd_color_chart_figure)
     hd_color_chart_ax = hd_color_chart_figure.add_subplot(111)
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_color_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -291,7 +315,7 @@ def build_human_design_analytics_panel(
     for bar, value in zip(color_bars, color_values):
         hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
-    hd_color_chart_canvas.setMinimumHeight(190)
+    hd_color_chart_canvas.setMinimumHeight(220)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     color_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,
@@ -309,8 +333,8 @@ def build_human_design_analytics_panel(
     tone_values = [tone_counts[value] for value in sorted(tone_counts)]
     tone_palette = ["#9ecae1", "#6baed6", "#4292c6", "#3182bd", "#2171b5", "#08519c"]
     tone_bar_colors = [tone_palette[index % len(tone_palette)] for index, _ in enumerate(sorted(tone_counts))]
-    hd_tone_chart_figure = Figure(figsize=(2.6, 2.4))
-    hd_tone_chart_canvas = FigureCanvas(hd_tone_chart_figure)
+    hd_tone_chart_figure = Figure(figsize=(2.6, 1.9))
+    hd_tone_chart_canvas = HDAnalyticsFigureCanvas(hd_tone_chart_figure)
     hd_tone_chart_ax = hd_tone_chart_figure.add_subplot(111)
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_tone_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -330,7 +354,7 @@ def build_human_design_analytics_panel(
     for bar, value in zip(tone_bars, tone_values):
         hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
     hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
-    hd_tone_chart_canvas.setMinimumHeight(190)
+    hd_tone_chart_canvas.setMinimumHeight(220)
     hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     tone_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,
