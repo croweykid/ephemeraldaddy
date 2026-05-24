@@ -520,7 +520,19 @@ def build_human_design_chart_data_output(
         None,
     )
     design_sun_color = int(design_sun_activation.color) if design_sun_activation else 0
-    environment_entry = HD_COLORS.get(design_sun_color, {}) if isinstance(HD_COLORS, dict) else {}
+    if isinstance(HD_COLORS, dict):
+        environment_entry = HD_COLORS.get(design_sun_color, {})
+    elif isinstance(HD_COLORS, (list, tuple)):
+        environment_entry = next(
+            (
+                entry
+                for entry in HD_COLORS
+                if isinstance(entry, dict) and int(entry.get("value", -1)) == design_sun_color
+            ),
+            {},
+        )
+    else:
+        environment_entry = {}
     environment_name = str(environment_entry.get("name", "Unknown")).strip().title() or "Unknown"
 
 #Chart Data Output panel output for Human Design Charts:
