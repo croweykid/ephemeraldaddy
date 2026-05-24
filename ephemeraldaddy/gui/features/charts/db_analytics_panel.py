@@ -6,7 +6,7 @@ from ephemeraldaddy.data.genpop import (
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
-from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import NAKSHATRA_DESCRIPTIONS, NAKSHATRA_RANGES, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
 from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 
@@ -75,6 +75,26 @@ def _gen_pop_nakshatra_counts_for_body(*, body: str, sample_size: int, labels: l
             rounded[idx] += 1
     return rounded
 
+
+
+
+DECAN_STABLE_BLUE_COLORS = ["#1f4e79", "#2f75b5", "#6fa8dc"]
+
+
+def decan_bar_colors() -> list[str]:
+    """Stable decan color mapping (Decan 1/2/3)."""
+    return list(DECAN_STABLE_BLUE_COLORS)
+
+
+def nakshatra_bar_colors(labels: list[str]) -> list[str]:
+    """Resolve each nakshatra bar color from interpretations.py metadata."""
+    fallback = "#6fa8dc"
+    colors: list[str] = []
+    for label in labels:
+        details = NAKSHATRA_DESCRIPTIONS.get(str(label), {})
+        color = str(details.get("color", "")).strip()
+        colors.append(color or fallback)
+    return colors
 
 def _decan_baseline_counts(*, baseline_mode: str, database_counts: list[int]) -> list[int]:
     if baseline_mode != "gen_pop":
@@ -179,6 +199,7 @@ def render_decans_chart(
         selection_counts=display_counts,
         database_counts=display_counts,
         loaded_charts=0,
+        bar_colors=decan_bar_colors(),
     )
     dialog._clear_layout(dialog.decans_chart_layout)
     dialog.decans_chart_layout.addWidget(decans_canvas, 0)
@@ -227,6 +248,7 @@ def render_nakshatras_chart(
         database_counts=display_counts,
         loaded_charts=0,
         auto_height=True,
+        bar_colors=nakshatra_bar_colors(labels),
     )
     dialog._clear_layout(dialog.nakshatras_chart_layout)
     dialog.nakshatras_chart_layout.addWidget(nak_canvas, 0)
