@@ -615,10 +615,15 @@ from ephemeraldaddy.gui.features.charts.tag_search import (
 from ephemeraldaddy.gui.features.charts.database_analytics import DatabaseAnalyticsChartsMixin
 from ephemeraldaddy.gui.features.charts.db_analytics_panel import (
     apply_decan_snapshot_delta,
+    apply_nakshatra_snapshot_delta,
     decans_dropdown_options,
     decans_empty_cache_fields,
+    nakshatras_dropdown_options,
+    nakshatras_empty_cache_fields,
     render_decans_chart,
+    render_nakshatras_chart,
     snapshot_add_decan,
+    snapshot_add_nakshatra,
 )
 from ephemeraldaddy.gui.dbv_search_panel import (
     active_body_dynamics_filters as get_active_body_dynamics_filters,
@@ -2007,6 +2012,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._prevalence_mode = "sign_prevalence"
         self._dominant_factors_mode = "top3_signs"
         self._decans_mode = "Sun"
+        self._nakshatras_mode = "Sun"
         self._cumulativedom_factors_mode = "cumulative_signs"
         self._species_distribution_mode = "top_species"
         self._alignment_social_mode = "alignment"
@@ -2466,6 +2472,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence": self._prevalence_mode,
             "dominant_signs": self._dominant_factors_mode,
             "decans": self._decans_mode,
+            "nakshatras": self._nakshatras_mode,
             "cumulativedom_factors": self._cumulativedom_factors_mode,
             "species_distribution": self._species_distribution_mode,
             "alignment_summary": self._alignment_social_mode,
@@ -2715,6 +2722,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             "dominant_signs",
             "decans",
+            "nakshatras",
             "cumulativedom_factors",
             "enneagram",
             "species_distribution",
@@ -3124,6 +3132,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
+        if chart_key == "nakshatras":
+            dropdown = self._analysis_chart_dropdowns.get(chart_key)
+            if dropdown is not None:
+                selected_mode = dropdown.currentData()
+                if isinstance(selected_mode, str):
+                    self._nakshatras_mode = selected_mode
+                    self._settings.setValue(
+                        "manage_charts/nakshatras_mode",
+                        self._nakshatras_mode,
+                    )
+            self._update_sentiment_tally(
+                update_database_metrics=True,
+                update_similarities=False,
+                sections_to_refresh={chart_key},
+            )
+            return
+
         if chart_key == "cumulativedom_factors":
             dropdown = self._analysis_chart_dropdowns.get(chart_key)
             if dropdown is not None:
@@ -3206,6 +3231,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         if isinstance(stored_decans_mode, str):
             self._decans_mode = stored_decans_mode
+
+        stored_nakshatras_mode = self._settings.value(
+            "manage_charts/nakshatras_mode",
+            self._nakshatras_mode,
+        )
+        if isinstance(stored_nakshatras_mode, str):
+            self._nakshatras_mode = stored_nakshatras_mode
 
         stored_cumulativedom_factors_mode = self._settings.value(
             "manage_charts/cumulativedom_factors_mode",
@@ -3634,7 +3666,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dropdown_options=decans_dropdown_options(),
             show_title=False,
         )
-        decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body in selection/database")
+        decans_subheader = add_database_subheader("Decan (1/2/3) distribution for the selected body (selection-only when charts are selected)")
         decans_section_layout.addWidget(decans_subheader)
         (
             self.decans_chart_container,
@@ -3642,6 +3674,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         ) = self._create_database_analytics_chart_container()
         self._database_metrics_chart_layouts["decans"] = self.decans_chart_layout
         decans_section_layout.addWidget(self.decans_chart_container)
+
+        # NAKSHATRAS SECTION
+        nakshatras_section_layout = self._add_left_panel_collapsible_section(
+            panel,
+            layout,
+            "✨Nakshatras",
+            section_key="nakshatras",
+            expanded=self._is_database_metrics_section_expanded("nakshatras"),
+            on_toggled=lambda checked: self._set_database_metrics_section_expanded(
+                "nakshatras",
+                checked,
+            ),
+        )
+        self._database_metrics_section_expanded["nakshatras"] = self._is_database_metrics_section_expanded("nakshatras")
+        self._create_analysis_chart_header(
+            nakshatras_section_layout,
+            "✨Nakshatras",
+            "nakshatras",
+            "nakshatras",
+            dropdown_options=nakshatras_dropdown_options(),
+            show_title=False,
+        )
+        nakshatras_subheader = add_database_subheader("Nakshatra distribution for the selected body (selection-only when charts are selected)")
+        nakshatras_section_layout.addWidget(nakshatras_subheader)
+        (
+            self.nakshatras_chart_container,
+            self.nakshatras_chart_layout,
+        ) = self._create_database_analytics_chart_container()
+        self._database_metrics_chart_layouts["nakshatras"] = self.nakshatras_chart_layout
+        nakshatras_section_layout.addWidget(self.nakshatras_chart_container)
 
         #cumulativedom FACTORS SECTION
         cumulativedom_sign_section_layout = self._add_left_panel_collapsible_section(
@@ -8864,6 +8926,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 body: 0.0 for _label, body in SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
             },
             **decans_empty_cache_fields(),
+            **nakshatras_empty_cache_fields(),
             "dominant_sign_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
             "dominant_sign_total_weight": 0.0,
             "dominant_sign_frequency_totals": {sign: 0.0 for sign in ZODIAC_NAMES},
@@ -8952,6 +9015,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "sign_prevalence",
             "dominant_signs",
             "decans",
+            "nakshatras",
             "cumulativedom_factors",
         }
         compute_sign_metrics = bool(sign_sections & sections)
@@ -9028,6 +9092,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 snapshot["position_sign_totals_by_body"][body][sign] += 1
                 snapshot["position_sign_count_by_body"][body] += 1
                 snapshot_add_decan(snapshot, body, float(lon))
+                snapshot_add_nakshatra(snapshot, body, float(lon))
 
             dominant_weights = getattr(chart, "dominant_sign_weights", None) or _calculate_dominant_sign_weights(chart)
             if not getattr(chart, "dominant_sign_weights", None):
@@ -9248,6 +9313,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for body, count in snapshot.get("position_sign_count_by_body", {}).items():
             totals["position_sign_count_by_body"][body] += direction * float(count)
         apply_decan_snapshot_delta(totals, snapshot, direction)
+        apply_nakshatra_snapshot_delta(totals, snapshot, direction)
         for mode, count in snapshot.get("species_total_count_by_mode", {}).items():
             totals["species_total_count_by_mode"][mode] += direction * int(count)
         for mode, count in snapshot.get("class_total_count_by_mode", {}).items():
@@ -10843,6 +10909,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
             if _should_refresh_database_metric_section("decans"):
                 render_decans_chart(self, selection_cache, database_cache, loaded_charts)
+            if _should_refresh_database_metric_section("nakshatras"):
+                render_nakshatras_chart(self, selection_cache, database_cache, loaded_charts)
 
             if _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
