@@ -119,6 +119,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Environment",
         "Combined Type",
         "Combined Authority",
         "Combined Definition",

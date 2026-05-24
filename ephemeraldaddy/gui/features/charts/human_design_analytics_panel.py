@@ -341,7 +341,7 @@ def build_human_design_analytics_panel(
         ):
             star_artist = AnnotationBbox(
                 OffsetImage(star_image, zoom=0.025),
-                (bar.get_x() + (bar.get_width() / 2), value + 0.52),
+                (bar.get_x() + (bar.get_width() / 2) - (bar.get_width() * 0.32), value + 0.24),
                 frameon=False,
                 box_alignment=(0.5, 0.5),
             )
