@@ -13,7 +13,7 @@ LINE_ARCHETYPES: dict[int, str] = {
     3: "Experimenter: lives experimentally; grows through trial & error, and adaptation.",
     4: "Nepotist: influence and opportunities come through relationships.",
     5: "Hero: people believe this person can save them through practical leadership.",
-    6: "Veterano: world weary, wizened, this isn't their first rodeo and Rambo's not sure if he wants this 'one last job'.",
+    6: "Veteran: world weary, wizened, this isn't their first rodeo and Rambo's not sure if he wants this 'one last job'.",
 }
 
 LINE_NICKNAMES: dict[int, dict[str, str]] = {
@@ -22,7 +22,7 @@ LINE_NICKNAMES: dict[int, dict[str, str]] = {
     3: {"name":"Experimenter","color":"","emoji":"🧪"},
     4: {"name":"Nepotist","color":"","emoji":"🧑‍🧑‍🧒‍🧒"},
     5: {"name":"Hero","color":"","emoji":"🦸🏻"},
-    6: {"name":"Veterano","color":"","emoji":"🧌"},
+    6: {"name":"Veteran","color":"","emoji":"🧌"},
 }
 
 HD_COLORS = {
