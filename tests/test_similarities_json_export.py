@@ -198,7 +198,7 @@ def test_similarities_json_export_sorts_aspects_by_primary_body_order():
                 "Aspects in common",
                 [
                     ("Chiron sextile Mercury", 5, 10, 0, 100, "A"),
-                    ("Mercury opposite Pluto", 5, 10, 0, 100, "A"),
+                    ("Mercury opposition Pluto", 5, 10, 0, 100, "A"),
                     ("Venus trine Mars", 5, 10, 0, 100, "A"),
                     ("Moon square Saturn", 5, 10, 0, 100, "A"),
                     ("AS trine Moon", 5, 10, 0, 100, "A"),
@@ -212,7 +212,7 @@ def test_similarities_json_export_sorts_aspects_by_primary_body_order():
 
     assert list(payload["Aspects Sorted"]["aspects"]) == [
         "Moon square Saturn",
-        "Mercury opposite Pluto",
+        "Mercury opposition Pluto",
         "Venus opposition Moon",
         "Venus trine Mars",
         "Saturn quincunx Chiron",

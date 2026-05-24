@@ -7,7 +7,7 @@ import re
 from collections import OrderedDict
 from collections.abc import Mapping
 
-from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import ASPECT_ANGLE_DEGREES, PLANET_ORDER, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS,
     similarity_deviation_z_score,
@@ -86,14 +86,9 @@ SIMILARITIES_JSON_POSITION_BODY_ORDER: tuple[str, ...] = (
 SIMILARITIES_JSON_POSITION_BODY_INDEX = {
     body: index for index, body in enumerate(SIMILARITIES_JSON_POSITION_BODY_ORDER)
 }
-SIMILARITIES_JSON_ASPECT_SEPARATORS: tuple[str, ...] = (
-    " conjunct ",
-    " opposition ",
-    " opposite ",
-    " trine ",
-    " square ",
-    " sextile ",
-    " quincunx ",
+SIMILARITIES_JSON_ASPECT_SEPARATORS: tuple[str, ...] = tuple(
+    f" {aspect_name.replace('conjunction', 'conjunct')} "
+    for aspect_name in ASPECT_ANGLE_DEGREES
 )
 SIMILARITIES_MIN_PERCENT_DIFFERENCE = 3.0
 SIMILARITIES_EXCLUDED_BODIES_PATTERN = re.compile(r"\b(Ketu|DS|IC)\b")
