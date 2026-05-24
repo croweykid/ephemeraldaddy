@@ -18074,6 +18074,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             chart_birthdate_earliest, chart_birthdate_latest = chart_birthdate_latest, chart_birthdate_earliest
         if chart_birthdate_earliest is not None or chart_birthdate_latest is not None:
             chart_for_birthdate = self._get_chart_for_filter(chart_id)
+            chart_birth_year = self._chart_birth_year_for_filters(chart_row, chart_for_birthdate)
+            if chart_birth_year is None:
+                return False
             chart_datetime = getattr(chart_for_birthdate, "dt", None) if chart_for_birthdate is not None else None
             chart_birthdate = chart_datetime.date() if chart_datetime is not None else None
             if chart_birthdate is None:
