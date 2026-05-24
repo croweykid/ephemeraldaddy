@@ -780,6 +780,11 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_analytics_panel,
 )
+from ephemeraldaddy.gui.features.charts.human_design_info_panel import (
+    render_human_design_info_text_with_accent,
+    render_human_design_line_info,
+    resolve_hd_color_hex,
+)
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
     create_human_design_synastry_dialog,
 )
@@ -26289,66 +26294,6 @@ class MainWindow(QMainWindow):
         reset_cursor.movePosition(QTextCursor.Start)
         self.chart_info_output.setTextCursor(reset_cursor)
 
-    @staticmethod
-    def _resolve_hd_color_hex(color_name: str) -> str:
-        color_lookup = {
-            "red": "#ff4d4d",
-            "orange": "#ff9f1c",
-            "yellow": "#ffd60a",
-            "green": "#5dc26a",
-            "blue": "#4f8cff",
-            "violet": "#b388ff",
-        }
-        return color_lookup.get(str(color_name or "").strip().lower(), CHART_DATA_HIGHLIGHT_COLOR)
-
-    def _set_human_design_info_text_with_accent(
-        self,
-        header: str,
-        body_lines: list[str],
-        *,
-        accent_color: str,
-    ) -> None:
-        self.chart_info_output.clear()
-        cursor = self.chart_info_output.textCursor()
-        cursor.movePosition(QTextCursor.Start)
-
-        header_fmt = QTextCharFormat()
-        header_fmt.setForeground(QColor(CHART_DATA_HIGHLIGHT_COLOR))
-        header_fmt.setFontWeight(QFont.Bold)
-
-        accent_fmt = QTextCharFormat()
-        accent_fmt.setForeground(QColor(accent_color))
-        accent_fmt.setFontWeight(QFont.Bold)
-
-        plain_fmt = QTextCharFormat()
-        plain_fmt.setFontWeight(QFont.Normal)
-        plain_fmt.setFontItalic(False)
-
-        cursor.insertText(f"{header}\n\n", accent_fmt)
-        for idx, line in enumerate(body_lines):
-            is_section_header = (
-                bool(line)
-                and not str(line).lstrip().startswith("•")
-                and str(line).rstrip().endswith(":")
-            )
-            cursor.insertText(line, header_fmt if is_section_header else plain_fmt)
-            if idx < len(body_lines) - 1:
-                cursor.insertText("\n", plain_fmt)
-        self.chart_info_output.setTextCursor(cursor)
-        reset_cursor = self.chart_info_output.textCursor()
-        reset_cursor.movePosition(QTextCursor.Start)
-        self.chart_info_output.setTextCursor(reset_cursor)
-
-    def _show_human_design_line_info(self, line_number: int) -> None:
-        raw_line_color = str(HD_LINE_COLORS.get(int(line_number), CHART_DATA_HIGHLIGHT_COLOR))
-        line_color = raw_line_color if raw_line_color.startswith("#") else f"#{raw_line_color}"
-        line_text = LINE_ARCHETYPES.get(int(line_number), "No line archetype available.")
-        self._set_human_design_info_text_with_accent(
-            f"Line {int(line_number)} Archetype",
-            [f"• {line_text}"],
-            accent_color=line_color,
-        )
-
     def _show_human_design_property_info(self, property_key: str, property_value: str = "") -> None:
         key = str(property_key or "").strip().lower()
         raw_value = str(property_value or "").strip()
@@ -26529,8 +26474,9 @@ class MainWindow(QMainWindow):
         color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
         color_motivation = str(color_entry.get("motivation", "Unknown")) if color_entry else "Unknown"
         color_label = str(color_entry.get("color", "Unknown")) if color_entry else "Unknown"
-        accent_color = self._resolve_hd_color_hex(color_label)
-        self._set_human_design_info_text_with_accent(
+        accent_color = resolve_hd_color_hex(color_label)
+        render_human_design_info_text_with_accent(
+            self.chart_info_output,
             f"Color {color_value}: {color_name}",
             [
                 "Color System:",
@@ -26571,11 +26517,12 @@ class MainWindow(QMainWindow):
             )
         )
         tone_color_name = str(tone_color_entry.get("color", "")).strip()
-        accent_color = self._resolve_hd_color_hex(tone_color_name)
+        accent_color = resolve_hd_color_hex(tone_color_name)
         tone_line = f"• Tone {tone_value} maps to {tone_name}."
         if orientation:
             tone_line += f" Orientation: {orientation}."
-        self._set_human_design_info_text_with_accent(
+        render_human_design_info_text_with_accent(
+            self.chart_info_output,
             f"Tone {tone_value}: {tone_name}",
             [
                 "Tone System:",
@@ -30249,7 +30196,7 @@ class MainWindow(QMainWindow):
         def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
             def _render_metric_info() -> None:
                 if metric_kind == "hd_line":
-                    self._show_human_design_line_info(int(metric_value))
+                    render_human_design_line_info(self.chart_info_output, int(metric_value))
                     return
                 if metric_kind == "hd_color":
                     self._show_human_design_color_info(int(metric_value))
