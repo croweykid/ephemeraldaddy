@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtCore import Qt
@@ -17,7 +19,12 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.human_design_system import HumanDesignResult
-from ephemeraldaddy.analysis.human_design_reference import HD_COLORS, HD_LINE_COLORS, HD_TONES
+from ephemeraldaddy.analysis.human_design_reference import (
+    HD_COLORS,
+    HD_LINE_COLORS,
+    HD_TONES,
+    LINE_NICKNAMES,
+)
 from ephemeraldaddy.gui.style import (
     COLLAPSIBLE_SECTION_CONTENT_STYLE,
     DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE,
@@ -60,6 +67,7 @@ def build_human_design_analytics_panel(
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
+    on_metric_selected: Callable[[str, int], None] | None = None,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -181,9 +189,15 @@ def build_human_design_analytics_panel(
         alpha=0.95,
     )
     hd_line_chart_ax.set_xticks(line_numbers)
+    line_labels = [
+        f"L{line_number} ({str(LINE_NICKNAMES.get(line_number, {}).get('name', 'unknown'))})"
+        for line_number in line_numbers
+    ]
     hd_line_chart_ax.set_xticklabels(
-        [f"L{line_number}" for line_number in line_numbers],
+        line_labels,
         color=_theme_color(chart_theme_colors, "text", "#f0f0f0"),
+        rotation=45,
+        ha="right",
     )
     hd_line_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
     hd_line_chart_ax.tick_params(axis="x", labelsize=8)
@@ -192,6 +206,9 @@ def build_human_design_analytics_panel(
     for spine in hd_line_chart_ax.spines.values():
         spine.set_visible(False)
     for bar, value in zip(bars, line_values):
+        line_value = int(round(float(bar.get_x() + 0.5)))
+        bar.set_gid(f"hd_line:{line_value}")
+        bar.set_picker(True)
         hd_line_chart_ax.text(
             bar.get_x() + (bar.get_width() / 2),
             value + 0.05,
@@ -207,21 +224,20 @@ def build_human_design_analytics_panel(
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     line_section_layout.addWidget(hd_line_chart_canvas)
 
-    color_counts = {entry["value"]: 0 for entry in HD_COLORS if isinstance(entry.get("value"), int)}
-    tone_counts = {entry["value"]: 0 for entry in HD_TONES if isinstance(entry.get("value"), int)}
+    color_counts = {int(value): 0 for value in HD_COLORS}
+    tone_counts = {int(value): 0 for value in HD_TONES}
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
         if int(activation.color) in color_counts:
             color_counts[int(activation.color)] += 1
         if int(activation.tone) in tone_counts:
             tone_counts[int(activation.tone)] += 1
 
-    color_labels = [f"C{value}" for value in sorted(color_counts)]
+    color_meta_by_value = {int(value): entry for value, entry in HD_COLORS.items()}
+    color_labels = [
+        f"C{value} ({str(color_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
+        for value in sorted(color_counts)
+    ]
     color_values = [color_counts[value] for value in sorted(color_counts)]
-    color_meta_by_value = {
-        int(entry["value"]): entry
-        for entry in HD_COLORS
-        if isinstance(entry, dict) and isinstance(entry.get("value"), int)
-    }
     color_bar_colors = [
         _color_name_to_hex(str(color_meta_by_value.get(value, {}).get("color", "")))
         for value in sorted(color_counts)
@@ -232,7 +248,13 @@ def build_human_design_analytics_panel(
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_color_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     color_bars = hd_color_chart_ax.bar(color_labels, color_values, color=color_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
+    for color_value, bar in zip(sorted(color_counts), color_bars):
+        bar.set_gid(f"hd_color:{int(color_value)}")
+        bar.set_picker(True)
     hd_color_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    for label in hd_color_chart_ax.get_xticklabels():
+        label.set_rotation(45)
+        label.set_ha("right")
     hd_color_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
     hd_color_chart_ax.set_ylim(0, max(1, max(color_values) + 1))
     hd_color_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
@@ -252,11 +274,7 @@ def build_human_design_analytics_panel(
     color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
     color_section_layout.addWidget(hd_color_chart_canvas)
 
-    tone_meta_by_value = {
-        int(entry["value"]): entry
-        for entry in HD_TONES
-        if isinstance(entry, dict) and isinstance(entry.get("value"), int)
-    }
+    tone_meta_by_value = {int(value): entry for value, entry in HD_TONES.items()}
     tone_labels = [
         f"{value} ({str(tone_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
         for value in sorted(tone_counts)
@@ -270,7 +288,13 @@ def build_human_design_analytics_panel(
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_tone_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
+    for tone_value, bar in zip(sorted(tone_counts), tone_bars):
+        bar.set_gid(f"hd_tone:{int(tone_value)}")
+        bar.set_picker(True)
     hd_tone_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
+    for label in hd_tone_chart_ax.get_xticklabels():
+        label.set_rotation(45)
+        label.set_ha("right")
     hd_tone_chart_ax.tick_params(axis="y", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
     hd_tone_chart_ax.set_ylim(0, max(1, max(tone_values) + 1))
     hd_tone_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
@@ -289,6 +313,28 @@ def build_human_design_analytics_panel(
     )
     tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
     tone_section_layout.addWidget(hd_tone_chart_canvas)
+
+    def _connect_metric_pick_events(canvas: FigureCanvas) -> None:
+        if on_metric_selected is None:
+            return
+
+        def _on_pick(event: object) -> None:
+            artist = getattr(event, "artist", None)
+            gid = str(getattr(artist, "get_gid", lambda: "")() or "")
+            if ":" not in gid:
+                return
+            metric_kind, _, raw_value = gid.partition(":")
+            if metric_kind not in {"hd_line", "hd_color", "hd_tone"}:
+                return
+            if not raw_value.isdigit():
+                return
+            on_metric_selected(metric_kind, int(raw_value))
+
+        canvas.mpl_connect("pick_event", _on_pick)
+
+    _connect_metric_pick_events(hd_line_chart_canvas)
+    _connect_metric_pick_events(hd_color_chart_canvas)
+    _connect_metric_pick_events(hd_tone_chart_canvas)
 
     hd_analytics_layout.addStretch(1)
     hd_analytics_scroll.setWidget(hd_analytics_panel)
