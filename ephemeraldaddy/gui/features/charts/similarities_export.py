@@ -86,6 +86,15 @@ SIMILARITIES_JSON_POSITION_BODY_ORDER: tuple[str, ...] = (
 SIMILARITIES_JSON_POSITION_BODY_INDEX = {
     body: index for index, body in enumerate(SIMILARITIES_JSON_POSITION_BODY_ORDER)
 }
+SIMILARITIES_JSON_ASPECT_SEPARATORS: tuple[str, ...] = (
+    " conjunct ",
+    " opposition ",
+    " opposite ",
+    " trine ",
+    " square ",
+    " sextile ",
+    " quincunx ",
+)
 SIMILARITIES_MIN_PERCENT_DIFFERENCE = 3.0
 SIMILARITIES_EXCLUDED_BODIES_PATTERN = re.compile(r"\b(Ketu|DS|IC)\b")
 
@@ -255,6 +264,31 @@ def sort_similarities_json_positions(profile: OrderedDict) -> None:
         profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
 
 
+def _aspect_primary_body(criterion: str) -> str:
+    for separator in SIMILARITIES_JSON_ASPECT_SEPARATORS:
+        if separator in criterion:
+            return criterion.split(separator, 1)[0].strip()
+    return criterion.strip().split(" ", 1)[0]
+
+
+def _aspect_sort_key(item: tuple[str, int]) -> tuple[int, str, str]:
+    criterion, _weight = item
+    primary_body = _aspect_primary_body(criterion)
+    body_index = SIMILARITIES_JSON_POSITION_BODY_INDEX.get(primary_body)
+    return (
+        body_index if body_index is not None else len(SIMILARITIES_JSON_POSITION_BODY_ORDER),
+        primary_body.casefold(),
+        criterion.casefold(),
+    )
+
+
+def sort_similarities_json_aspects(profile: OrderedDict) -> None:
+    """Sort exported aspects by the first body in each aspect criterion."""
+    aspects = profile.get("aspects")
+    if isinstance(aspects, OrderedDict):
+        profile["aspects"] = OrderedDict(sorted(aspects.items(), key=_aspect_sort_key))
+
+
 def nest_similarities_json_positions(profile: OrderedDict) -> None:
     """Group flat ``positions`` criteria into body/sign + body/house submaps."""
     positions = profile.get("positions")
@@ -329,6 +363,7 @@ def build_similarities_json_export_payload(
                 continue
             profile[category][criterion] = ratio
     sort_similarities_json_positions(profile)
+    sort_similarities_json_aspects(profile)
     nest_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
 

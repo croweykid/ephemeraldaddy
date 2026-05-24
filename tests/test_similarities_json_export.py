@@ -188,3 +188,35 @@ def test_similarities_json_export_formats_gate_and_channel_keys_for_profiles():
     assert '"channels": {\n            (20, 57): 50,' in formatted
     assert '"44": 50' not in formatted
     assert '"20-57": 50' not in formatted
+
+
+def test_similarities_json_export_sorts_aspects_by_primary_body_order():
+    payload = build_similarities_json_export_payload(
+        "Aspects Sorted",
+        [
+            (
+                "Aspects in common",
+                [
+                    ("Chiron sextile Mercury", 5, 10, 0, 100, "A"),
+                    ("Mercury opposite Pluto", 5, 10, 0, 100, "A"),
+                    ("Venus trine Mars", 5, 10, 0, 100, "A"),
+                    ("Moon square Saturn", 5, 10, 0, 100, "A"),
+                    ("AS trine Moon", 5, 10, 0, 100, "A"),
+                    ("Chiron square Pluto", 5, 10, 0, 100, "A"),
+                    ("Saturn quincunx Chiron", 5, 10, 0, 100, "A"),
+                    ("Venus opposition Moon", 5, 10, 0, 100, "A"),
+                ],
+            ),
+        ],
+    )
+
+    assert list(payload["Aspects Sorted"]["aspects"]) == [
+        "Moon square Saturn",
+        "Mercury opposite Pluto",
+        "Venus opposition Moon",
+        "Venus trine Mars",
+        "Saturn quincunx Chiron",
+        "Chiron sextile Mercury",
+        "Chiron square Pluto",
+        "AS trine Moon",
+    ]
