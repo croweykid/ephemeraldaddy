@@ -157,3 +157,40 @@ def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypa
     weights = bazi_getter.bazi_sign_weights_from_chart(chart)
 
     assert weights == {"Horse": 2.0, "Dog": 1.0}
+
+
+def test_scores_nested_positions_shape_from_similarities_export():
+    chart = SimpleNamespace(
+        positions={"Sun": 15.0},
+        house_cusps=[i * 30.0 for i in range(12)],
+        dominant_sign_weights={"Aries": 0.5},
+        dominant_planet_weights={"Sun": 0.75},
+    )
+    predictors = {
+        "nested": {
+            "positions": {
+                "Sun": {
+                    "signs": {"Aries": 4},
+                    "houses": {1: 5},
+                }
+            }
+        },
+        "flat": {
+            "positions": {
+                "Sun in Aries": 4,
+                "Sun in H1": 5,
+            }
+        },
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda c: c.dominant_sign_weights,
+        calculate_body_weights=lambda c: c.dominant_planet_weights,
+        calculate_house_weights=lambda _c: {1: 0.6},
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _c: True,
+    )
+
+    assert scores["nested"] == scores["flat"]
