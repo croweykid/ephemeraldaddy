@@ -565,6 +565,7 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PUBLIC_DB,
     chart_is_non_aggregable as _chart_is_non_aggregable,
     chart_is_placeholder as _chart_is_placeholder,
+    chart_row_is_hypothetical as _chart_row_is_hypothetical,
     chart_row_is_non_aggregable as _chart_row_is_non_aggregable,
     normalize_gui_source as _normalize_gui_source,
 )
@@ -17406,6 +17407,35 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
+                is_hypothetical = _chart_row_is_hypothetical(
+                    (
+                        cid,
+                        name,
+                        alias,
+                        gender,
+                        dt_iso,
+                        birth_place,
+                        _created_at,
+                        used_fallback,
+                        birthtime_unknown,
+                        retcon_time_used,
+                        _familiarity,
+                        _age_when_first_met,
+                        _year_first_encountered,
+                        _social_score,
+                        _source,
+                        is_placeholder,
+                        is_deceased,
+                        _birth_month,
+                        _birth_day,
+                        _birth_year,
+                    )
+                )
+                if is_hypothetical:
+                    item.setForeground(QBrush(QColor("#c9b3ff")))
+                    hypothetical_font = item.font()
+                    hypothetical_font.setItalic(True)
+                    item.setFont(hypothetical_font)
                 if self._active_collection_id == DEFAULT_COLLECTION_POSSIBLE_DUPLICATES:
                     related_names = self._possible_duplicate_related_names.get(cid, {})
                     if related_names:
@@ -17469,6 +17499,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         "retcon_time": retcon_time_label,
                         "place": place_with_gender,
                         "is_placeholder": bool(is_placeholder),
+                        "is_hypothetical": bool(is_hypothetical),
                         "is_deceased": bool(is_deceased),
                         "duplicate_likelihood": self._possible_duplicate_likelihoods.get(cid, ""),
                     },

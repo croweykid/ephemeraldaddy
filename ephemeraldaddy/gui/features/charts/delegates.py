@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from ephemeraldaddy.gui.style import MIDDLE_PANEL_ACCENT_COLOR
 CHART_ROW_PLACE_COLOR = "#9c7a53"
+HYPOTHETICAL_ROW_COLOR = "#c9b3ff"
 
 
 class ChartRowDelegate(QStyledItemDelegate):
@@ -81,6 +82,7 @@ class ChartRowDelegate(QStyledItemDelegate):
         status_text = "💀" if bool(segment_data.get("is_deceased", False)) else ""
 
         is_placeholder = bool(segment_data.get("is_placeholder", False))
+        is_hypothetical = bool(segment_data.get("is_hypothetical", False))
         duplicate_likelihood = str(segment_data.get("duplicate_likelihood", "")).strip()
 
         segments: list[dict[str, object]] = [
@@ -108,7 +110,9 @@ class ChartRowDelegate(QStyledItemDelegate):
                 if color_value
                 else self._segment_colors.get(key, opt.palette.text().color())
             )
-            if is_placeholder and key != "chart_info":
+            if is_hypothetical:
+                color = QColor(HYPOTHETICAL_ROW_COLOR)
+            elif is_placeholder and key != "chart_info":
                 color = QColor("#4a7bd1")
             elif duplicate_likelihood and key in {
                 "chart",
@@ -123,7 +127,7 @@ class ChartRowDelegate(QStyledItemDelegate):
             if opt.state & QStyle.State_Selected:
                 color = color.lighter(125)
             painter.setPen(color)
-            if is_placeholder or key == "retcon_time":
+            if is_hypothetical or is_placeholder or key == "retcon_time":
                 italic_font = painter.font()
                 italic_font.setItalic(True)
                 painter.setFont(italic_font)
