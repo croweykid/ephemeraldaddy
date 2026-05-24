@@ -35,12 +35,12 @@ HD_COLORS = {
 }
 
 HD_TONES = {
-    1:{"name":"smell",},
-    2:{"name":"taste",},
-    3:{"name":"outer vision",},
-    4:{"name":"inner vision",},
-    5:{"name":"feeling",},
-    6:{"name":"touch",},
+    1:{"name":"smell","meaning":"security","orientation":"left"},
+    2:{"name":"taste","meaning":"uncertainty","orientation":"left"},
+    3:{"name":"outer vision","meaning":"action","orientation":"left"},
+    4:{"name":"inner vision","meaning":"meditation","orientation":"right"},
+    5:{"name":"feeling","meaning":"judgement","orientation":"right"},
+    6:{"name":"touch","meaning":"acceptance","orientation":"right"},
 }
 
 GATE_COLORS = {
