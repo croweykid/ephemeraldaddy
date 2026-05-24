@@ -2,13 +2,91 @@ from __future__ import annotations
 
 from typing import Any
 
-from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
-from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
-from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES
-
-from ephemeraldaddy.gui.features.charts.sign_distribution import (
-    SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
+from ephemeraldaddy.data.genpop import (
+    INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
+    SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
+from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
+from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
+
+def _gen_pop_decan_counts(sample_size: int) -> list[int]:
+    if sample_size <= 0:
+        return [0, 0, 0]
+    base = sample_size // 3
+    remainder = sample_size % 3
+    return [base + (1 if idx < remainder else 0) for idx in range(3)]
+
+
+def _gen_pop_nakshatra_counts(sample_size: int, label_count: int) -> list[int]:
+    if sample_size <= 0 or label_count <= 0:
+        return [0] * max(0, label_count)
+    base = sample_size // label_count
+    remainder = sample_size % label_count
+    return [base + (1 if idx < remainder else 0) for idx in range(label_count)]
+
+def _gen_pop_sign_norms_for_body(body: str) -> dict[str, float]:
+    if body == "Sun":
+        return {
+            sign: float(details.get("percent", 0.0)) / 100.0
+            for sign, details in SUN_SIGN_DISTRIBUTION_AGGREGATED.items()
+        }
+    if body in {"Mercury", "Venus"}:
+        aggregated = INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED.get(body, {})
+        return {
+            sign: float(details.get("percent", 0.0)) / 100.0
+            for sign, details in aggregated.items()
+        }
+    equal = 1.0 / float(len(ZODIAC_NAMES))
+    return {sign: equal for sign in ZODIAC_NAMES}
+
+
+def _gen_pop_nakshatra_counts_for_body(*, body: str, sample_size: int, labels: list[str]) -> list[int]:
+    if sample_size <= 0:
+        return [0 for _ in labels]
+    sign_norms = _gen_pop_sign_norms_for_body(body)
+    # Use a fine-grained grid to map sign-weighted longitude likelihood to nakshatras.
+    # This keeps the baseline tied to the same aggregated birth data used by sign prevalence.
+    points_per_sign = 600
+    total_points = points_per_sign * len(ZODIAC_NAMES)
+    nak_probs = {label: 0.0 for label in labels}
+    for sign_idx, sign in enumerate(ZODIAC_NAMES):
+        sign_weight = float(sign_norms.get(sign, 0.0))
+        if sign_weight <= 0:
+            continue
+        per_point_weight = sign_weight / float(points_per_sign)
+        sign_start = float(sign_idx * 30.0)
+        step = 30.0 / float(points_per_sign)
+        for point in range(points_per_sign):
+            longitude = sign_start + ((point + 0.5) * step)
+            nak_label = str(get_nakshatra(longitude)).strip()
+            if nak_label in nak_probs:
+                nak_probs[nak_label] += per_point_weight
+    raw_counts = [nak_probs[label] * float(sample_size) for label in labels]
+    rounded = [int(value) for value in raw_counts]
+    remainder = int(sample_size - sum(rounded))
+    if remainder > 0:
+        fractional = sorted(
+            enumerate(raw_counts),
+            key=lambda item: (item[1] - int(item[1])),
+            reverse=True,
+        )
+        for idx, _ in fractional[:remainder]:
+            rounded[idx] += 1
+    return rounded
+
+
+def _decan_baseline_counts(*, baseline_mode: str, database_counts: list[int]) -> list[int]:
+    if baseline_mode != "gen_pop":
+        return list(database_counts)
+    return _gen_pop_decan_counts(sum(int(count) for count in database_counts))
+
+
+def _nakshatra_baseline_counts(*, baseline_mode: str, database_counts: list[int], label_count: int) -> list[int]:
+    if baseline_mode != "gen_pop":
+        return list(database_counts)
+    return _gen_pop_nakshatra_counts(sum(int(count) for count in database_counts), label_count)
+
 
 def decans_dropdown_options() -> list[tuple[str, str]]:
     return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
@@ -77,14 +155,24 @@ def apply_nakshatra_snapshot_delta(totals: dict[str, Any], snapshot: dict[str, A
             totals["position_nakshatra_totals_by_body"][body][nakshatra_name] += direction * int(count)
 
 
-def render_decans_chart(dialog: Any, selection_cache: dict[str, Any], database_cache: dict[str, Any], loaded_charts: int) -> None:
+def render_decans_chart(
+    dialog: Any,
+    selection_cache: dict[str, Any],
+    database_cache: dict[str, Any],
+    loaded_charts: int,
+    baseline_mode: str = "database",
+) -> None:
     decans_mode = dialog._decans_mode
     selection_decan_counts = selection_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
     database_decan_counts = database_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
 
     selection_counts = [int(selection_decan_counts[i]) for i in (1, 2, 3)]
     database_counts = [int(database_decan_counts[i]) for i in (1, 2, 3)]
-    display_counts = selection_counts if loaded_charts > 0 else database_counts
+    baseline_counts = _decan_baseline_counts(
+        baseline_mode=baseline_mode,
+        database_counts=database_counts,
+    )
+    display_counts = selection_counts if loaded_charts > 0 else baseline_counts
 
     decans_canvas = dialog._build_count_distribution_chart(
         labels=["Decan 1", "Decan 2", "Decan 3"],
@@ -106,14 +194,32 @@ def render_decans_chart(dialog: Any, selection_cache: dict[str, Any], database_c
     )
 
 
-def render_nakshatras_chart(dialog: Any, selection_cache: dict[str, Any], database_cache: dict[str, Any], loaded_charts: int) -> None:
+def render_nakshatras_chart(
+    dialog: Any,
+    selection_cache: dict[str, Any],
+    database_cache: dict[str, Any],
+    loaded_charts: int,
+    baseline_mode: str = "database",
+) -> None:
     nakshatras_mode = dialog._nakshatras_mode
     labels = [str(name) for name, *_ in NAKSHATRA_RANGES]
     selection_totals = selection_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     database_totals = database_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     selection_counts = [int(selection_totals.get(label, 0)) for label in labels]
     database_counts = [int(database_totals.get(label, 0)) for label in labels]
-    display_counts = selection_counts if loaded_charts > 0 else database_counts
+    if baseline_mode == "gen_pop":
+        baseline_counts = _gen_pop_nakshatra_counts_for_body(
+            body=nakshatras_mode,
+            sample_size=sum(database_counts),
+            labels=labels,
+        )
+    else:
+        baseline_counts = _nakshatra_baseline_counts(
+            baseline_mode=baseline_mode,
+            database_counts=database_counts,
+            label_count=len(labels),
+        )
+    display_counts = selection_counts if loaded_charts > 0 else baseline_counts
 
     nak_canvas = dialog._build_count_distribution_chart(
         labels=labels,
