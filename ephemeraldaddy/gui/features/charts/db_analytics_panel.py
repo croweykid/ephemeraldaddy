@@ -4,7 +4,7 @@ from typing import Any
 
 from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
-from ephemeraldaddy.core.constants import NAKSHATRA_RANGES
+from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES
 
 from ephemeraldaddy.gui.features.charts.sign_distribution import (
     SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
