@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ephemeraldaddy.gui.constants import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
+from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
 from ephemeraldaddy.core.constants import NAKSHATRA_RANGES
 
