@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.image import imread
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
@@ -113,6 +116,16 @@ def _hd_meta_by_value(entries: object) -> dict[int, dict[str, object]]:
                 continue
             normalized[key] = raw_entry
     return normalized
+
+
+def _glowing_star_image() -> object | None:
+    star_path = Path(__file__).resolve().parents[3] / "graphics" / "emoji" / "glowing-star-noto-512.png"
+    if not star_path.exists():
+        return None
+    try:
+        return imread(star_path)
+    except Exception:
+        return None
 
 def build_human_design_analytics_panel(
     *,
@@ -284,6 +297,11 @@ def build_human_design_analytics_panel(
             color_counts[int(activation.color)] += 1
         if int(activation.tone) in tone_counts:
             tone_counts[int(activation.tone)] += 1
+    design_sun_activation = next(
+        (activation for activation in hd_result.design_activations if activation.body == "Sun"),
+        None,
+    )
+    design_sun_color_value = int(design_sun_activation.color) if design_sun_activation is not None else None
 
     color_labels = [
         f"C{value} ({str(color_meta_by_value.get(value, {}).get('name', 'unknown')).lower()})"
@@ -312,8 +330,22 @@ def build_human_design_analytics_panel(
     hd_color_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_color_chart_ax.spines.values():
         spine.set_visible(False)
-    for bar, value in zip(color_bars, color_values):
-        hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
+    star_image = _glowing_star_image()
+    for color_value, bar, value in zip(sorted(color_counts), color_bars, color_values):
+        bar_label = str(value)
+        hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, bar_label, ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
+        if (
+            star_image is not None
+            and design_sun_color_value is not None
+            and int(color_value) == design_sun_color_value
+        ):
+            star_artist = AnnotationBbox(
+                OffsetImage(star_image, zoom=0.025),
+                (bar.get_x() + (bar.get_width() / 2) - (bar.get_width() * 0.32), value + 0.24),
+                frameon=False,
+                box_alignment=(0.5, 0.5),
+            )
+            hd_color_chart_ax.add_artist(star_artist)
     hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
     hd_color_chart_canvas.setMinimumHeight(235)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)

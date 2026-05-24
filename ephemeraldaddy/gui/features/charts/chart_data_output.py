@@ -14,7 +14,7 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     format_class_axis_label,
 )
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
-from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS
+from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS, HD_COLORS
 from ephemeraldaddy.core.interpretations import (
     ELEMENT_COLORS,
     HOUSE_COLORS,
@@ -79,6 +79,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
     _HD_DESIGN_GATE_COLOR = "#c24a4a"
     _HD_SYNASTRY_CHART_A_COLOR = "#ff9f1c"
     _HD_SYNASTRY_CHART_B_COLOR = "#4ea5ff"
+
+    _HD_COLOR_NAME_TO_HEX = {
+        "red": "#ff4d4d",
+        "orange": "#ff9f1c",
+        "yellow": "#ffd60a",
+        "green": "#5dc26a",
+        "blue": "#4f8cff",
+        "violet": "#b388ff",
+    }
     
     _NAKSHATRA_INFO_FIELD_LABELS = (
         "Symbol:",
@@ -110,6 +119,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         "Profile",
         "Definition",
         "Incarnation Cross",
+        "Environment",
         "Combined Type",
         "Combined Authority",
         "Combined Definition",
@@ -293,6 +303,20 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_design_gate_format = self._make_format(self._HD_DESIGN_GATE_COLOR)
         self._hd_synastry_chart_a_format = self._make_format(self._HD_SYNASTRY_CHART_A_COLOR)
         self._hd_synastry_chart_b_format = self._make_format(self._HD_SYNASTRY_CHART_B_COLOR)
+        hd_color_entries = (
+            HD_COLORS.values()
+            if isinstance(HD_COLORS, dict)
+            else HD_COLORS
+            if isinstance(HD_COLORS, (list, tuple))
+            else ()
+        )
+        self._hd_environment_color_formats = {
+            str(entry.get("name", "")).strip().title(): self._make_format(
+                self._HD_COLOR_NAME_TO_HEX.get(str(entry.get("color", "")).strip().lower(), CHART_DATA_HIGHLIGHT_COLOR)
+            )
+            for entry in hd_color_entries
+            if isinstance(entry, dict)
+        }
         self._hd_gate_side_cache_revision = -1
         self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
 
@@ -749,6 +773,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self.setFormat(start_qt, length_qt, text_format)
 
         self._apply_hd_gate_side_color(text, stripped_text)
+        if stripped_text.startswith("Environment:"):
+            environment_name = stripped_text.partition(":")[2].strip().title()
+            environment_fmt = self._hd_environment_color_formats.get(environment_name)
+            if environment_fmt and environment_name:
+                name_start = text.find(environment_name)
+                if name_start >= 0:
+                    self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_name), environment_fmt)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0

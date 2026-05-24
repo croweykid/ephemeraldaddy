@@ -16,7 +16,7 @@ from ephemeraldaddy.core.human_design_system import (
     _split_definition,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
@@ -515,6 +515,25 @@ def build_human_design_chart_data_output(
         awareness_lines.append(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
+    design_sun_activation = next(
+        (activation for activation in hd_result.design_activations if activation.body == "Sun"),
+        None,
+    )
+    design_sun_color = int(design_sun_activation.color) if design_sun_activation else 0
+    if isinstance(HD_COLORS, dict):
+        environment_entry = HD_COLORS.get(design_sun_color, {})
+    elif isinstance(HD_COLORS, (list, tuple)):
+        environment_entry = next(
+            (
+                entry
+                for entry in HD_COLORS
+                if isinstance(entry, dict) and int(entry.get("value", -1)) == design_sun_color
+            ),
+            {},
+        )
+    else:
+        environment_entry = {}
+    environment_name = str(environment_entry.get("name", "Unknown")).strip().title() or "Unknown"
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -528,6 +547,7 @@ def build_human_design_chart_data_output(
         strategy_line,
         defined_centers_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
+        f"Environment: {environment_name}",
         "",
         CHART_DATA_DIVIDER,
         *position_lines,
