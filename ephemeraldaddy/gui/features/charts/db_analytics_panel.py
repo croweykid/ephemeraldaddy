@@ -6,6 +6,9 @@ from ephemeraldaddy.gui.constants import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
 from ephemeraldaddy.core.constants import NAKSHATRA_RANGES
 
+from ephemeraldaddy.gui.features.charts.sign_distribution import (
+    SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
+)
 
 def decans_dropdown_options() -> list[tuple[str, str]]:
     return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
