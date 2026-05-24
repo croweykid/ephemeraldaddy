@@ -302,11 +302,18 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_design_gate_format = self._make_format(self._HD_DESIGN_GATE_COLOR)
         self._hd_synastry_chart_a_format = self._make_format(self._HD_SYNASTRY_CHART_A_COLOR)
         self._hd_synastry_chart_b_format = self._make_format(self._HD_SYNASTRY_CHART_B_COLOR)
+        hd_color_entries = (
+            HD_COLORS.values()
+            if isinstance(HD_COLORS, dict)
+            else HD_COLORS
+            if isinstance(HD_COLORS, (list, tuple))
+            else ()
+        )
         self._hd_environment_color_formats = {
             str(entry.get("name", "")).strip().title(): self._make_format(
                 self._HD_COLOR_NAME_TO_HEX.get(str(entry.get("color", "")).strip().lower(), CHART_DATA_HIGHLIGHT_COLOR)
             )
-            for entry in HD_COLORS.values()
+            for entry in hd_color_entries
             if isinstance(entry, dict)
         }
         self._hd_gate_side_cache_revision = -1
