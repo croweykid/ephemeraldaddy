@@ -772,7 +772,7 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     draw_human_design_chart,
 )
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
-    build_human_design_top_splitter,
+    build_human_design_analytics_panel,
 )
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
     create_human_design_synastry_dialog,
@@ -26165,7 +26165,12 @@ class MainWindow(QMainWindow):
 
         cursor.insertText(f"{header}\n\n", header_fmt)
         for idx, line in enumerate(body_lines):
-            cursor.insertText(line, plain_fmt)
+            is_section_header = (
+                bool(line)
+                and not str(line).lstrip().startswith("•")
+                and str(line).rstrip().endswith(":")
+            )
+            cursor.insertText(line, header_fmt if is_section_header else plain_fmt)
             if idx < len(body_lines) - 1:
                 cursor.insertText("\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
@@ -26341,17 +26346,24 @@ class MainWindow(QMainWindow):
     def _show_human_design_color_info(self, color_value: int) -> None:
         color_entry = next((entry for entry in HD_COLORS if int(entry.get("value", -1)) == int(color_value)), None)
         color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
+        color_motivation = str(color_entry.get("motivation", "Unknown")) if color_entry else "Unknown"
+        color_label = str(color_entry.get("color", "Unknown")) if color_entry else "Unknown"
         self._set_human_design_info_text(
             f"Color {color_value}: {color_name}",
             [
+                "Color System:",
                 "• C represents Human Design Color (1–6).",
-                f"• Color {color_value} maps to {color_name}.",
+                "Details:",
+                f"• Environment name: {color_name}.",
+                f"• Motivation: {color_motivation}.",
+                f"• Color family: {color_label}.",
             ],
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
         tone_entry = next((entry for entry in HD_TONES if int(entry.get("value", -1)) == int(tone_value)), None)
         tone_name = str(tone_entry.get("name", "Unknown")) if tone_entry else "Unknown"
+        meaning = str(tone_entry.get("meaning", "Unknown")) if tone_entry else "Unknown"
         orientation = str(tone_entry.get("orientation", "")).strip() if tone_entry else ""
         tone_line = f"• Tone {tone_value} maps to {tone_name}."
         if orientation:
@@ -26359,8 +26371,25 @@ class MainWindow(QMainWindow):
         self._set_human_design_info_text(
             f"Tone {tone_value}: {tone_name}",
             [
+                "Tone System:",
                 "• T represents Human Design Tone (1–6).",
+                "Details:",
                 tone_line,
+                f"• Meaning: {meaning}.",
+            ],
+        )
+
+    def _show_human_design_line_info(self, line_value: int) -> None:
+        line_nickname = str(LINE_NICKNAMES.get(int(line_value), {}).get("name", "Unknown"))
+        line_archetype = str(LINE_ARCHETYPES.get(int(line_value), "No line archetype available."))
+        self._set_human_design_info_text(
+            f"Line {line_value}: {line_nickname}",
+            [
+                "Line System:",
+                "• L represents Human Design Line (1–6).",
+                "Details:",
+                f"• Nickname: {line_nickname}.",
+                f"• Archetype: {line_archetype}",
             ],
         )
 
@@ -30003,16 +30032,9 @@ class MainWindow(QMainWindow):
         chart_container_layout.addWidget(canvas, 0, 0)
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
 
-        top_splitter = build_human_design_top_splitter(
-            chart_container=chart_container,
-            hd_result=hd_result,
-            chart_theme_colors=CHART_THEME_COLORS,
-            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
-        )
-
-        right_splitter = QSplitter(Qt.Vertical)
-        right_splitter.setChildrenCollapsible(False)
-        right_splitter.addWidget(top_splitter)
+        center_splitter = QSplitter(Qt.Vertical)
+        center_splitter.setChildrenCollapsible(False)
+        center_splitter.addWidget(chart_container)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -30026,10 +30048,28 @@ class MainWindow(QMainWindow):
         summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         summary_output.viewport().installEventFilter(self)
-        right_splitter.addWidget(summary_output)
-        right_splitter.setStretchFactor(0, 7)
-        right_splitter.setStretchFactor(1, 3)
-        right_layout.addWidget(right_splitter, 1)
+        center_splitter.addWidget(summary_output)
+        center_splitter.setStretchFactor(0, 7)
+        center_splitter.setStretchFactor(1, 3)
+
+        right_panel = build_human_design_analytics_panel(
+            hd_result=hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+            on_bar_click=lambda metric, value: (
+                self._show_human_design_line_info(value)
+                if metric == "line"
+                else self._show_human_design_color_info(value)
+            ),
+        )
+
+        middle_right_splitter = QSplitter(Qt.Horizontal)
+        middle_right_splitter.setChildrenCollapsible(False)
+        middle_right_splitter.addWidget(center_splitter)
+        middle_right_splitter.addWidget(right_panel)
+        middle_right_splitter.setStretchFactor(0, 5)
+        middle_right_splitter.setStretchFactor(1, 2)
+        right_layout.addWidget(middle_right_splitter, 1)
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
