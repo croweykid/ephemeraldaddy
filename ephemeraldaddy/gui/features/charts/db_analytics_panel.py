@@ -2,13 +2,37 @@ from __future__ import annotations
 
 from typing import Any
 
-from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
 from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES
+from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 
-from ephemeraldaddy.gui.features.charts.sign_distribution import (
-    SIGN_DISTRIBUTION_DROPDOWN_OPTIONS,
-)
+def _gen_pop_decan_counts(sample_size: int) -> list[int]:
+    if sample_size <= 0:
+        return [0, 0, 0]
+    base = sample_size // 3
+    remainder = sample_size % 3
+    return [base + (1 if idx < remainder else 0) for idx in range(3)]
+
+
+def _gen_pop_nakshatra_counts(sample_size: int, label_count: int) -> list[int]:
+    if sample_size <= 0 or label_count <= 0:
+        return [0] * max(0, label_count)
+    base = sample_size // label_count
+    remainder = sample_size % label_count
+    return [base + (1 if idx < remainder else 0) for idx in range(label_count)]
+
+
+def _decan_baseline_counts(*, baseline_mode: str, database_counts: list[int]) -> list[int]:
+    if baseline_mode != "gen_pop":
+        return list(database_counts)
+    return _gen_pop_decan_counts(sum(int(count) for count in database_counts))
+
+
+def _nakshatra_baseline_counts(*, baseline_mode: str, database_counts: list[int], label_count: int) -> list[int]:
+    if baseline_mode != "gen_pop":
+        return list(database_counts)
+    return _gen_pop_nakshatra_counts(sum(int(count) for count in database_counts), label_count)
+
 
 def decans_dropdown_options() -> list[tuple[str, str]]:
     return list(SIGN_DISTRIBUTION_DROPDOWN_OPTIONS)
@@ -77,14 +101,24 @@ def apply_nakshatra_snapshot_delta(totals: dict[str, Any], snapshot: dict[str, A
             totals["position_nakshatra_totals_by_body"][body][nakshatra_name] += direction * int(count)
 
 
-def render_decans_chart(dialog: Any, selection_cache: dict[str, Any], database_cache: dict[str, Any], loaded_charts: int) -> None:
+def render_decans_chart(
+    dialog: Any,
+    selection_cache: dict[str, Any],
+    database_cache: dict[str, Any],
+    loaded_charts: int,
+    baseline_mode: str = "database",
+) -> None:
     decans_mode = dialog._decans_mode
     selection_decan_counts = selection_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
     database_decan_counts = database_cache["position_decan_totals_by_body"].get(decans_mode, {1: 0, 2: 0, 3: 0})
 
     selection_counts = [int(selection_decan_counts[i]) for i in (1, 2, 3)]
     database_counts = [int(database_decan_counts[i]) for i in (1, 2, 3)]
-    display_counts = selection_counts if loaded_charts > 0 else database_counts
+    baseline_counts = _decan_baseline_counts(
+        baseline_mode=baseline_mode,
+        database_counts=database_counts,
+    )
+    display_counts = selection_counts if loaded_charts > 0 else baseline_counts
 
     decans_canvas = dialog._build_count_distribution_chart(
         labels=["Decan 1", "Decan 2", "Decan 3"],
@@ -106,14 +140,25 @@ def render_decans_chart(dialog: Any, selection_cache: dict[str, Any], database_c
     )
 
 
-def render_nakshatras_chart(dialog: Any, selection_cache: dict[str, Any], database_cache: dict[str, Any], loaded_charts: int) -> None:
+def render_nakshatras_chart(
+    dialog: Any,
+    selection_cache: dict[str, Any],
+    database_cache: dict[str, Any],
+    loaded_charts: int,
+    baseline_mode: str = "database",
+) -> None:
     nakshatras_mode = dialog._nakshatras_mode
     labels = [str(name) for name, *_ in NAKSHATRA_RANGES]
     selection_totals = selection_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     database_totals = database_cache["position_nakshatra_totals_by_body"].get(nakshatras_mode, {})
     selection_counts = [int(selection_totals.get(label, 0)) for label in labels]
     database_counts = [int(database_totals.get(label, 0)) for label in labels]
-    display_counts = selection_counts if loaded_charts > 0 else database_counts
+    baseline_counts = _nakshatra_baseline_counts(
+        baseline_mode=baseline_mode,
+        database_counts=database_counts,
+        label_count=len(labels),
+    )
+    display_counts = selection_counts if loaded_charts > 0 else baseline_counts
 
     nak_canvas = dialog._build_count_distribution_chart(
         labels=labels,

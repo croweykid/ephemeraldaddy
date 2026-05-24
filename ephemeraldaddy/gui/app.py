@@ -10908,9 +10908,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
 
             if _should_refresh_database_metric_section("decans"):
-                render_decans_chart(self, selection_cache, database_cache, loaded_charts)
+                render_decans_chart(
+                    self,
+                    selection_cache,
+                    database_cache,
+                    loaded_charts,
+                    baseline_mode=self._database_metrics_baseline_mode,
+                )
             if _should_refresh_database_metric_section("nakshatras"):
-                render_nakshatras_chart(self, selection_cache, database_cache, loaded_charts)
+                render_nakshatras_chart(
+                    self,
+                    selection_cache,
+                    database_cache,
+                    loaded_charts,
+                    baseline_mode=self._database_metrics_baseline_mode,
+                )
 
             if _should_refresh_database_metric_section("dominant_signs"):
                 dominant_mode = self._dominant_factors_mode
