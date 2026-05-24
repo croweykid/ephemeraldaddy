@@ -1432,21 +1432,21 @@ HD_PROFILES = {
 
 # Note: COLORS here use the standard Motivation naming convention.
 HD_COLORS = [
-    {"value": 1, "name": "Fear"},
-    {"value": 2, "name": "Hope"},
-    {"value": 3, "name": "Desire"},
-    {"value": 4, "name": "Need"},
-    {"value": 5, "name": "Guilt"},
-    {"value": 6, "name": "Innocence"},
+    {"value": 1, "name": "caves", "motivation": "fear", "color": "red"},
+    {"value": 2, "name": "markets", "motivation": "hope", "color": "orange"},
+    {"value": 3, "name": "kitchens", "motivation": "desire", "color": "yellow"},
+    {"value": 4, "name": "mountains", "motivation": "need", "color": "green"},
+    {"value": 5, "name": "valleys", "motivation": "guilt", "color": "blue"},
+    {"value": 6, "name": "shores", "motivation": "innocence", "color": "violet"},
 ]
 
 HD_TONES = [
-    {"value": 1, "name": "Security",    "orientation": "Left"},
-    {"value": 2, "name": "Uncertainty", "orientation": "Left"},
-    {"value": 3, "name": "Action",      "orientation": "Left"},
-    {"value": 4, "name": "Meditation",  "orientation": "Right"},
-    {"value": 5, "name": "Judgment",    "orientation": "Right"},
-    {"value": 6, "name": "Acceptance",  "orientation": "Right"},
+    {"value": 1, "name": "scent", "meaning": "security", "orientation": "left"},
+    {"value": 2, "name": "taste", "meaning": "uncertainty", "orientation": "left"},
+    {"value": 3, "name": "outer vision", "meaning": "action", "orientation": "left"},
+    {"value": 4, "name": "inner vision", "meaning": "meditation", "orientation": "right"},
+    {"value": 5, "name": "feeling", "meaning": "judgement", "orientation": "right"},
+    {"value": 6, "name": "touch", "meaning": "acceptance", "orientation": "right"},
 ]
 
 HD_BASES = [
