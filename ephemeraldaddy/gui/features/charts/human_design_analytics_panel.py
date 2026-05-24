@@ -43,14 +43,13 @@ def _normalize_matplotlib_hex(color_value: str, fallback: str) -> str:
         return f"#{color_text}"
     return color_text
 
-def build_human_design_top_splitter(
+def build_human_design_analytics_panel(
     *,
-    chart_container: QWidget,
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
-) -> QSplitter:
-    """Build the Human Design popout top row with chart + collapsible analytics panel."""
+) -> QWidget:
+    """Build the Human Design popout right-side analytics panel widget."""
 
     hd_analytics_container = QWidget()
     hd_analytics_container.setObjectName("hd_popout_analytics_container")
@@ -131,24 +130,24 @@ def build_human_design_top_splitter(
     hd_analytics_layout.setContentsMargins(0, 0, 0, 0)
     hd_analytics_layout.setSpacing(6)
 
-    hd_section_layout = _add_local_collapsible_section(
+    line_section_layout = _add_local_collapsible_section(
         hd_analytics_panel,
         hd_analytics_layout,
-        "HD Analytics",
+        "Line Distribution",
         expanded=True,
     )
 
     hd_line_summary = QLabel("Line Distribution (Personality + Design activations)")
     hd_line_summary.setWordWrap(True)
     hd_line_summary.setStyleSheet(subheader_style)
-    hd_section_layout.addWidget(hd_line_summary)
+    line_section_layout.addWidget(hd_line_summary)
 
     line_counts = {line: 0 for line in range(1, 7)}
     for activation in (*hd_result.personality_activations, *hd_result.design_activations):
         if 1 <= int(activation.line) <= 6:
             line_counts[int(activation.line)] += 1
 
-    hd_line_chart_figure = Figure(figsize=(3.0, 2.6))
+    hd_line_chart_figure = Figure(figsize=(2.6, 2.6))
     hd_line_chart_canvas = FigureCanvas(hd_line_chart_figure)
     hd_line_chart_ax = hd_line_chart_figure.add_subplot(111)
     
@@ -191,10 +190,10 @@ def build_human_design_top_splitter(
             fontsize=8,
             fontweight="bold",
         )
-    hd_line_chart_figure.subplots_adjust(left=0.14, bottom=0.18, right=0.98, top=0.98)
+    hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.18, right=0.94, top=0.98)
     hd_line_chart_canvas.setMinimumHeight(210)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    hd_section_layout.addWidget(hd_line_chart_canvas)
+    line_section_layout.addWidget(hd_line_chart_canvas)
 
     color_counts = {entry["value"]: 0 for entry in HD_COLORS if isinstance(entry.get("value"), int)}
     tone_counts = {entry["value"]: 0 for entry in HD_TONES if isinstance(entry.get("value"), int)}
@@ -210,7 +209,7 @@ def build_human_design_top_splitter(
         _normalize_matplotlib_hex(HD_LINE_COLORS.get(value, "#6fa8dc"), "#6fa8dc")
         for value in sorted(color_counts)
     ]
-    hd_color_chart_figure = Figure(figsize=(3.0, 2.4))
+    hd_color_chart_figure = Figure(figsize=(2.6, 2.4))
     hd_color_chart_canvas = FigureCanvas(hd_color_chart_figure)
     hd_color_chart_ax = hd_color_chart_figure.add_subplot(111)
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -224,17 +223,23 @@ def build_human_design_top_splitter(
         spine.set_visible(False)
     for bar, value in zip(color_bars, color_values):
         hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
-    hd_color_chart_figure.subplots_adjust(left=0.14, bottom=0.20, right=0.98, top=0.98)
+    hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
     hd_color_chart_canvas.setMinimumHeight(190)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    hd_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
-    hd_section_layout.addWidget(hd_color_chart_canvas)
+    color_section_layout = _add_local_collapsible_section(
+        hd_analytics_panel,
+        hd_analytics_layout,
+        "Color Distribution",
+        expanded=True,
+    )
+    color_section_layout.addWidget(QLabel("Color Distribution (C column)", styleSheet=subheader_style))
+    color_section_layout.addWidget(hd_color_chart_canvas)
 
     tone_labels = [f"T{value}" for value in sorted(tone_counts)]
     tone_values = [tone_counts[value] for value in sorted(tone_counts)]
     tone_palette = ["#9ecae1", "#6baed6", "#4292c6", "#3182bd", "#2171b5", "#08519c"]
     tone_bar_colors = [tone_palette[index % len(tone_palette)] for index, _ in enumerate(sorted(tone_counts))]
-    hd_tone_chart_figure = Figure(figsize=(3.0, 2.4))
+    hd_tone_chart_figure = Figure(figsize=(2.6, 2.4))
     hd_tone_chart_canvas = FigureCanvas(hd_tone_chart_figure)
     hd_tone_chart_ax = hd_tone_chart_figure.add_subplot(111)
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
@@ -248,23 +253,22 @@ def build_human_design_top_splitter(
         spine.set_visible(False)
     for bar, value in zip(tone_bars, tone_values):
         hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
-    hd_tone_chart_figure.subplots_adjust(left=0.14, bottom=0.20, right=0.98, top=0.98)
+    hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
     hd_tone_chart_canvas.setMinimumHeight(190)
     hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    hd_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
-    hd_section_layout.addWidget(hd_tone_chart_canvas)
+    tone_section_layout = _add_local_collapsible_section(
+        hd_analytics_panel,
+        hd_analytics_layout,
+        "Tone Distribution",
+        expanded=True,
+    )
+    tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
+    tone_section_layout.addWidget(hd_tone_chart_canvas)
 
     hd_analytics_layout.addStretch(1)
     hd_analytics_scroll.setWidget(hd_analytics_panel)
     hd_analytics_content_layout.addWidget(hd_analytics_scroll)
     hd_analytics_container_layout.addWidget(hd_analytics_content, 1)
-
-    top_splitter = QSplitter(Qt.Horizontal)
-    top_splitter.setChildrenCollapsible(False)
-    top_splitter.addWidget(chart_container)
-    top_splitter.addWidget(hd_analytics_container)
-    top_splitter.setStretchFactor(0, 5)
-    top_splitter.setStretchFactor(1, 2)
 
     hd_analytics_expanded_width = HD_ANALYTICS_EXPANDED_WIDTH
 
@@ -276,12 +280,7 @@ def build_human_design_top_splitter(
             hd_analytics_toggle.setToolTip("Collapse HD analytics panel")
             hd_analytics_container.setMinimumWidth(HD_ANALYTICS_CONTAINER_MIN_WIDTH)
             hd_analytics_container.setMaximumWidth(16777215)
-            top_splitter.setSizes(
-                [
-                    max(560, top_splitter.width() - hd_analytics_expanded_width),
-                    hd_analytics_expanded_width,
-                ]
-            )
+            hd_analytics_container.setFixedWidth(hd_analytics_expanded_width)
             return
         
         hd_analytics_expanded_width = max(
@@ -293,13 +292,8 @@ def build_human_design_top_splitter(
         hd_analytics_toggle.setToolTip("Expand HD analytics panel")
         hd_analytics_container.setMinimumWidth(hd_analytics_toggle.width() + 2)
         hd_analytics_container.setMaximumWidth(hd_analytics_toggle.width() + 2)
-        top_splitter.setSizes(
-            [
-                max(560, top_splitter.width() - (hd_analytics_toggle.width() + 2)),
-                hd_analytics_toggle.width() + 2,
-            ]
-        )
+        hd_analytics_container.setFixedWidth(hd_analytics_toggle.width() + 2)
 
     hd_analytics_toggle.toggled.connect(_set_hd_analytics_expanded)
     _set_hd_analytics_expanded(True)
-    return top_splitter
+    return hd_analytics_container

@@ -772,7 +772,7 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     draw_human_design_chart,
 )
 from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
-    build_human_design_top_splitter,
+    build_human_design_analytics_panel,
 )
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
     create_human_design_synastry_dialog,
@@ -30003,16 +30003,9 @@ class MainWindow(QMainWindow):
         chart_container_layout.addWidget(canvas, 0, 0)
         chart_container_layout.addWidget(header_label, 0, 0, Qt.AlignLeft | Qt.AlignTop)
 
-        top_splitter = build_human_design_top_splitter(
-            chart_container=chart_container,
-            hd_result=hd_result,
-            chart_theme_colors=CHART_THEME_COLORS,
-            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
-        )
-
-        right_splitter = QSplitter(Qt.Vertical)
-        right_splitter.setChildrenCollapsible(False)
-        right_splitter.addWidget(top_splitter)
+        center_splitter = QSplitter(Qt.Vertical)
+        center_splitter.setChildrenCollapsible(False)
+        center_splitter.addWidget(chart_container)
 
         summary_output = ChartDataTableOutput()
         summary_output.setReadOnly(True)
@@ -30026,10 +30019,23 @@ class MainWindow(QMainWindow):
         summary_output.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         summary_output.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         summary_output.viewport().installEventFilter(self)
-        right_splitter.addWidget(summary_output)
-        right_splitter.setStretchFactor(0, 7)
-        right_splitter.setStretchFactor(1, 3)
-        right_layout.addWidget(right_splitter, 1)
+        center_splitter.addWidget(summary_output)
+        center_splitter.setStretchFactor(0, 7)
+        center_splitter.setStretchFactor(1, 3)
+
+        right_panel = build_human_design_analytics_panel(
+            hd_result=hd_result,
+            chart_theme_colors=CHART_THEME_COLORS,
+            subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+        )
+
+        middle_right_splitter = QSplitter(Qt.Horizontal)
+        middle_right_splitter.setChildrenCollapsible(False)
+        middle_right_splitter.addWidget(center_splitter)
+        middle_right_splitter.addWidget(right_panel)
+        middle_right_splitter.setStretchFactor(0, 5)
+        middle_right_splitter.setStretchFactor(1, 2)
+        right_layout.addWidget(middle_right_splitter, 1)
 
         popout_context_key = summary_output.viewport()
         popout_context: dict[str, object] = {
