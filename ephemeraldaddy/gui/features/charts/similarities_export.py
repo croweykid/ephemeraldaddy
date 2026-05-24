@@ -7,7 +7,7 @@ import re
 from collections import OrderedDict
 from collections.abc import Mapping
 
-from ephemeraldaddy.core.interpretations import ASPECT_ANGLE_DEGREES, PLANET_ORDER, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import PLANET_ORDER, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.similarities_db_norm import (
     SIMILARITY_DELTA_SIGNIFICANCE_STANDARD_ERRORS,
     similarity_deviation_z_score,
@@ -86,10 +86,6 @@ SIMILARITIES_JSON_POSITION_BODY_ORDER: tuple[str, ...] = (
 SIMILARITIES_JSON_POSITION_BODY_INDEX = {
     body: index for index, body in enumerate(SIMILARITIES_JSON_POSITION_BODY_ORDER)
 }
-SIMILARITIES_JSON_ASPECT_SEPARATORS: tuple[str, ...] = tuple(
-    f" {aspect_name.replace('conjunction', 'conjunct')} "
-    for aspect_name in ASPECT_ANGLE_DEGREES
-)
 SIMILARITIES_MIN_PERCENT_DIFFERENCE = 3.0
 SIMILARITIES_EXCLUDED_BODIES_PATTERN = re.compile(r"\b(Ketu|DS|IC)\b")
 
@@ -179,7 +175,7 @@ def normalize_similarities_json_criterion(
         house_num = text.replace("House ", "", 1).strip()
         if not house_num.isdigit():
             return None
-        return int(house_num)
+        return str(int(house_num))
 
     if section_title == "Gates in common":
         if not text.startswith("Gate "):
@@ -259,56 +255,6 @@ def sort_similarities_json_positions(profile: OrderedDict) -> None:
         profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
 
 
-def _aspect_primary_body(criterion: str) -> str:
-    for separator in SIMILARITIES_JSON_ASPECT_SEPARATORS:
-        if separator in criterion:
-            return criterion.split(separator, 1)[0].strip()
-    return criterion.strip().split(" ", 1)[0]
-
-
-def _aspect_sort_key(item: tuple[str, int]) -> tuple[int, str, str]:
-    criterion, _weight = item
-    primary_body = _aspect_primary_body(criterion)
-    body_index = SIMILARITIES_JSON_POSITION_BODY_INDEX.get(primary_body)
-    return (
-        body_index if body_index is not None else len(SIMILARITIES_JSON_POSITION_BODY_ORDER),
-        primary_body.casefold(),
-        criterion.casefold(),
-    )
-
-
-def sort_similarities_json_aspects(profile: OrderedDict) -> None:
-    """Sort exported aspects by the first body in each aspect criterion."""
-    aspects = profile.get("aspects")
-    if isinstance(aspects, OrderedDict):
-        profile["aspects"] = OrderedDict(sorted(aspects.items(), key=_aspect_sort_key))
-
-
-def nest_similarities_json_positions(profile: OrderedDict) -> None:
-    """Group flat ``positions`` criteria into body/sign + body/house submaps."""
-    positions = profile.get("positions")
-    if not isinstance(positions, Mapping):
-        return
-    nested: OrderedDict[str, OrderedDict[str, OrderedDict[object, int]]] = OrderedDict()
-    for criterion, weight in positions.items():
-        if not isinstance(criterion, str):
-            continue
-        body, placement = _split_position_criterion(criterion)
-        body_key = body.strip()
-        placement_key = placement.strip()
-        if not body_key or not placement_key:
-            continue
-        bucket = nested.setdefault(
-            body_key,
-            OrderedDict((("signs", OrderedDict()), ("houses", OrderedDict()))),
-        )
-        if placement_key.startswith("H") and placement_key[1:].isdigit():
-            bucket["houses"][int(placement_key[1:])] = weight
-        else:
-            bucket["signs"][placement_key] = weight
-    profile["positions"] = nested
-
-
 def build_similarities_json_export_payload(
     selection_name: str,
     export_sections,
@@ -358,8 +304,6 @@ def build_similarities_json_export_payload(
                 continue
             profile[category][criterion] = ratio
     sort_similarities_json_positions(profile)
-    sort_similarities_json_aspects(profile)
-    nest_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
 
 

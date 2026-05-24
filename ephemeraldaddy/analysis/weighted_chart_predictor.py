@@ -497,48 +497,6 @@ def _weighted_text_entries(values: Any) -> dict[str, float]:
     }
 
 
-def weighted_position_entries(values: Any) -> dict[str, float]:
-    """Accept flat position specs and nested {body: {signs/houses}} position maps."""
-    entries: dict[str, float] = {}
-    if not isinstance(values, Mapping):
-        return _weighted_text_entries(values)
-
-    nested_shape = any(isinstance(raw_value, Mapping) for raw_value in values.values())
-    if not nested_shape:
-        return _weighted_text_entries(values)
-
-    for raw_body, raw_subpositions in values.items():
-        body = normalize_factor_value(str(raw_body).strip())
-        if not body or not isinstance(raw_subpositions, Mapping):
-            continue
-
-        signs = raw_subpositions.get("signs", {})
-        if isinstance(signs, Mapping):
-            for raw_sign, raw_weight in signs.items():
-                sign = str(raw_sign).strip()
-                if sign not in ZODIAC_NAMES:
-                    continue
-                try:
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    weight = 1.0
-                entries[f"{body} in {sign}"] = weight
-
-        houses = raw_subpositions.get("houses", {})
-        if isinstance(houses, Mapping):
-            for raw_house, raw_weight in houses.items():
-                house = int(raw_house) if str(raw_house).strip().isdigit() else None
-                if house is None or not (1 <= house <= 12):
-                    continue
-                try:
-                    weight = float(raw_weight)
-                except (TypeError, ValueError):
-                    weight = 1.0
-                entries[f"{body} in H{house}"] = weight
-
-    return entries
-
-
 def _has_any_predictor_criteria(predictors: Mapping[Any, Mapping[str, Any]], category_keys: set[str]) -> bool:
     for raw_factors in predictors.values():
         if not isinstance(raw_factors, Mapping):
@@ -675,8 +633,8 @@ def calculate_weighted_criteria_scores(
         antiauthorities = weighted_hd_authority_entries(factors.get("antiauthorities", set()))
         bazisigns = weighted_bazi_sign_entries(factors.get("bazisigns", set()))
         antibazisigns = weighted_bazi_sign_entries(factors.get("antibazisigns", set()))
-        positions = weighted_position_entries(factors.get("positions", set()))
-        antipositions = weighted_position_entries(factors.get("antipositions", set()))
+        positions = _weighted_text_entries(factors.get("positions", set()))
+        antipositions = _weighted_text_entries(factors.get("antipositions", set()))
         aspects = _weighted_text_entries(factors.get("aspects", set()))
         antiaspects = _weighted_text_entries(factors.get("antiaspects", set()))
 
