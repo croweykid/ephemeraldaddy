@@ -175,7 +175,7 @@ def normalize_similarities_json_criterion(
         house_num = text.replace("House ", "", 1).strip()
         if not house_num.isdigit():
             return None
-        return str(int(house_num))
+        return int(house_num)
 
     if section_title == "Gates in common":
         if not text.startswith("Gate "):
@@ -255,6 +255,31 @@ def sort_similarities_json_positions(profile: OrderedDict) -> None:
         profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
 
 
+def nest_similarities_json_positions(profile: OrderedDict) -> None:
+    """Group flat ``positions`` criteria into body/sign + body/house submaps."""
+    positions = profile.get("positions")
+    if not isinstance(positions, Mapping):
+        return
+    nested: OrderedDict[str, OrderedDict[str, OrderedDict[object, int]]] = OrderedDict()
+    for criterion, weight in positions.items():
+        if not isinstance(criterion, str):
+            continue
+        body, placement = _split_position_criterion(criterion)
+        body_key = body.strip()
+        placement_key = placement.strip()
+        if not body_key or not placement_key:
+            continue
+        bucket = nested.setdefault(
+            body_key,
+            OrderedDict((("signs", OrderedDict()), ("houses", OrderedDict()))),
+        )
+        if placement_key.startswith("H") and placement_key[1:].isdigit():
+            bucket["houses"][int(placement_key[1:])] = weight
+        else:
+            bucket["signs"][placement_key] = weight
+    profile["positions"] = nested
+
+
 def build_similarities_json_export_payload(
     selection_name: str,
     export_sections,
@@ -304,6 +329,7 @@ def build_similarities_json_export_payload(
                 continue
             profile[category][criterion] = ratio
     sort_similarities_json_positions(profile)
+    nest_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
 
 

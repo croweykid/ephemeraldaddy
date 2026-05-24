@@ -89,13 +89,13 @@ def test_similarities_json_export_normalizes_underrepresented_factors_as_negativ
 
     profile = payload["Normalized"]
     assert profile["positions"] == {
-        "Sun in H1": 30,
-        "Moon in H12": -40,
-        "Aries in H1": 30,
-        "Pisces in H12": -40,
+        "Sun": {"signs": {}, "houses": {1: 30}},
+        "Moon": {"signs": {}, "houses": {12: -40}},
+        "Aries": {"signs": {}, "houses": {1: 30}},
+        "Pisces": {"signs": {}, "houses": {12: -40}},
     }
     assert profile["antipositions"] == {}
-    assert profile["houses"] == {"1": 30, "12": -40}
+    assert profile["houses"] == {1: 30, 12: -40}
     assert profile["antihouses"] == {}
 
 
@@ -129,16 +129,17 @@ def test_similarities_json_export_sorts_positions_by_body_order():
     )
 
     assert list(payload["Sorted"]["positions"]) == [
-        "Sun in Capricorn",
-        "Mercury in H5",
-        "Venus in Capricorn",
-        "Ceres in Pisces",
-        "Ceres in H4",
-        "Lilith in H6",
-        "Rahu in H2",
-        "Ketu in H1",
-        "Aries in H1",
+        "Sun",
+        "Mercury",
+        "Venus",
+        "Ceres",
+        "Lilith",
+        "Rahu",
+        "Ketu",
+        "Aries",
     ]
+    assert payload["Sorted"]["positions"]["Sun"] == {"signs": {"Capricorn": 20}, "houses": {}}
+    assert payload["Sorted"]["positions"]["Ceres"] == {"signs": {"Pisces": 20}, "houses": {4: 20}}
 
 
 def test_normalized_similarities_json_criteria_are_accepted_by_profile_consumers():
@@ -153,7 +154,9 @@ def test_normalized_similarities_json_criteria_are_accepted_by_profile_consumers
     )
 
     profile = payload["Reusable"]
-    assert parse_position_spec(next(iter(profile["positions"]))) == (
+    first_body = next(iter(profile["positions"]))
+    first_house_key = next(iter(profile["positions"][first_body]["houses"]))
+    assert parse_position_spec(f"{first_body} in H{first_house_key}") == (
         "body_in_house",
         1,
         "Sun",
