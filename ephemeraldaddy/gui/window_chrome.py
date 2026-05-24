@@ -112,6 +112,7 @@ def _is_human_design_menu_enabled(owner: "QWidget") -> bool:
 
 def _show_about_from_onboarding(owner: "QWidget") -> None:
     """Show About dialog content bundled directly into the app binary."""
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextBrowser, QVBoxLayout
 
     title = f"About {APP_DISPLAY_NAME}"
@@ -181,6 +182,9 @@ def _show_about_from_onboarding(owner: "QWidget") -> None:
 
     dialog = QDialog(owner)
     dialog.setModal(False)
+    dialog.setWindowModality(Qt.NonModal)
+    dialog.setWindowFlag(Qt.Window, True)
+    dialog.setAttribute(Qt.WA_DeleteOnClose, True)
     dialog.setWindowTitle(title)
     dialog.resize(720, 560)
 
