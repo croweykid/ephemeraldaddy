@@ -26412,7 +26412,17 @@ class MainWindow(QMainWindow):
         self._set_human_design_info_text(header, lines[2:])
 
     def _show_human_design_color_info(self, color_value: int) -> None:
-        color_entry = next((entry for entry in HD_COLORS if int(entry.get("value", -1)) == int(color_value)), None)
+        if isinstance(HD_COLORS, dict):
+            color_entry = HD_COLORS.get(int(color_value))
+        else:
+            color_entry = next(
+                (
+                    entry
+                    for entry in HD_COLORS
+                    if isinstance(entry, dict) and int(entry.get("value", -1)) == int(color_value)
+                ),
+                None,
+            )
         color_name = str(color_entry.get("name", "Unknown")) if color_entry else "Unknown"
         color_motivation = str(color_entry.get("motivation", "Unknown")) if color_entry else "Unknown"
         color_label = str(color_entry.get("color", "Unknown")) if color_entry else "Unknown"
@@ -26429,7 +26439,17 @@ class MainWindow(QMainWindow):
         )
 
     def _show_human_design_tone_info(self, tone_value: int) -> None:
-        tone_entry = next((entry for entry in HD_TONES if int(entry.get("value", -1)) == int(tone_value)), None)
+        if isinstance(HD_TONES, dict):
+            tone_entry = HD_TONES.get(int(tone_value))
+        else:
+            tone_entry = next(
+                (
+                    entry
+                    for entry in HD_TONES
+                    if isinstance(entry, dict) and int(entry.get("value", -1)) == int(tone_value)
+                ),
+                None,
+            )
         tone_name = str(tone_entry.get("name", "Unknown")) if tone_entry else "Unknown"
         meaning = str(tone_entry.get("meaning", "Unknown")) if tone_entry else "Unknown"
         orientation = str(tone_entry.get("orientation", "")).strip() if tone_entry else ""
@@ -30106,10 +30126,25 @@ class MainWindow(QMainWindow):
         center_splitter.setStretchFactor(0, 7)
         center_splitter.setStretchFactor(1, 3)
 
+        def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
+            def _render_metric_info() -> None:
+                if metric_kind == "hd_line":
+                    self._show_human_design_property_info("profile", f"{int(metric_value)}/?")
+                    return
+                if metric_kind == "hd_color":
+                    self._show_human_design_color_info(int(metric_value))
+                    return
+                if metric_kind == "hd_tone":
+                    self._show_human_design_tone_info(int(metric_value))
+                    return
+
+            self._run_with_chart_info_output(chart_info_output, _render_metric_info)
+
         right_panel = build_human_design_analytics_panel(
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
+            on_metric_selected=_on_hd_metric_selected,
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
