@@ -29110,13 +29110,26 @@ class MainWindow(QMainWindow):
         chart_id = self.current_chart_id
         name_token = str(getattr(chart, "name", "") or "")
         alias_token = str(getattr(chart, "alias", "") or "")
-        if chart_id is not None:
-            return f"id:{int(chart_id)}|name:{name_token}|alias:{alias_token}"
         dt_value = getattr(chart, "dt", None)
         dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
+        birthtime_unknown_token = int(bool(getattr(chart, "birthtime_unknown", False)))
+        retcon_enabled_token = int(bool(getattr(chart, "retcon_time_used", False)))
+        retcon_hour = getattr(chart, "retcon_hour", None)
+        retcon_minute = getattr(chart, "retcon_minute", None)
+        retcon_time_token = (
+            f"{int(retcon_hour):02d}:{int(retcon_minute):02d}"
+            if retcon_hour is not None and retcon_minute is not None
+            else "none"
+        )
+        timing_token = (
+            f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
+            f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}"
+        )
+        if chart_id is not None:
+            return f"id:{int(chart_id)}|name:{name_token}|alias:{alias_token}|{timing_token}"
         return (
             f"draft:{name_token}|alias:{alias_token}|{dt_token}|"
-            f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}"
+            f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}|{timing_token}"
         )
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
