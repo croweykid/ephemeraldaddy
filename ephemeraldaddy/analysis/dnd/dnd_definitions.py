@@ -611,6 +611,7 @@ DND_STAT_EXPLANATIONS = {
     },
 }
 
+
 DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unless otherwise indicated
     "STR" : { #based on 33 charts:
         "signs":{
@@ -895,121 +896,119 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "quotes":{""},
     },
     "CHA" : { #looked at 147-400 charts. This was tricky to nail down - because what I find charismatic differs from public opinion quite a bit. So I started with a list of who I found charismatic, found norms. Then added who I thought other people find charismatic. Found norms. Mixed the two - found nothing. Tried to pick out just the MOST charismatic from both - found nothing. Picked out who I think are most universally agreed upon as charismatic, found patterns. The criteria below represent a mix of these findings.
-        "signs":{
-            "Gemini":3,"Capricorn":3,"Leo":3,"Taurus":2,
-            #noteworthy: Virgo & Taurus were LEAST represented in "Least CHA": "Virgo":7, "Taurus":8
+        "signs": {
+            "Cancer": 6,
+            "Leo":5, #dominated in "high CHA"  but not 'highest CHA'
         },
-        "antisigns":{
-            "Libra":4,"Sagittarius":8, #absent from "Most CHA"
-            "Aquarius":13 #present in "Least CHA", along with Sag:10
+        "antisigns": {},
+        "houses": {
+            "10": 9, #dominant in 'high cha' too.
+            "4": 6,
+            "9": 5,
+            "2": 6,
+            "11": 4, #dominant in 'high cha' too.
         },
-        "houses":{
-            10:5,4:10,3:5,2:6,11:4 #H10 is -4% in "Least CHA", H11 is -5%, H3 is -3%, H2 is -4% & H4 is -5%, too, so doubling down...
-            #H8 is -5% in "Least CHA", but neutral in "Most CHA". Maybe people don't like being set on fire, but there's no denying its brilliance. lol
-            #12:5 in "Most CHA", but also 12:6 in "Least CHA". All that tells us is what we expected: 12 is shifty.
+        "antihouses": {},
+        "bodies": {
+            "Sun":2,
+            "Mercury": 9,
+            "Venus":2,
+            "Saturn":1,
         },
-        "antihouses":{
-            #12:6 in "Least CHA" so I took it out of "most CHA"
+        "antibodies": {
+            "Pluto":1,
+            "Rahu":1,
+            "Moon":1,
         },
-        "bodies":{
-            "Mercury":7,"Sun":2,"Jupiter":2, #Sun was +3% in "Most CHA" but neutral in "Least CHA". Jupiter was neutral in "Most CHA" but -3% in "Least CHA", so I split the difference.
-            #least present in "Least CHA": "Mercury":8,"Jupiter":3. Sun was neutral.
+        "nakshatras": {
+            "Ashlesha": 5,
+            "Mrigashira": 4,
+            "Chitra":2,
+            "Swati":2,
+            "Dhanishta":4,
+            "Uttara Bhadrapada":3,
+            "Pushya":3,
+            "Revati":-3
         },
-        "antibodies":{
-            "Saturn":5,"Pluto":5,"Uranus":7 #most present in "Least CHA", neutral in "Most CHA"
+        "antinakshatras": {
+            "Ashwini":11,
+            "Magha":10,
+            "Punarvasu":11,
+            "Mula":8,
         },
-        "nakshatras":{
-            "Rohini":4,"Bharani":4,"Ashlesha":5,"Purva Ashadha":3,"Mrigashira":1,"Revati":3, #Rohini & Bharani are underrepresented in "Least CHA" as well as being overrepresented in "Most CHA"
-            "Purva Phalguni":6,"Mula":5 #may be neutral in "Most CHA", but is -6% in "Least CHA"
-            #"Uttara Ashadha":3 was also overrepresented in "Least CHA" so I removed it as 'polarizing but not definitive'.
-        }, 
-        "antinakshatras":{
-            "Hasta":2, #absent from "Most CHA"
-            "Anuradha":6,"Chitra":4,"Jyestha":4,"Shravana":4,
-            #Uttara Ashadha is also overrepresented in "Least CHA"
-        }, 
-        "positions":{
-            "Sun in Gemini":4,"Sun in Taurus":4,"Sun in Leo":4,"Sun in Capricorn":4,"Sun in H2":9,
-            "Moon in Capricorn":4,
-            "Mercury in Taurus":3,"Mercury in Leo":3,"Mercury in H3":4,"Mercury in H2":4,
-            "Venus in Taurus":2,"Venus in Gemini":5,"Venus in Aries":3,
-            "Mars in Aries":3,"Mars in H4":3,
-            "Jupiter in Aquarius":3,"Jupiter in Sagittarius":2,"Jupiter in H6":4,
-            "Saturn in H11":4,"Saturn in H10":4,
-            "Neptune in H6":5,"Neptune in Leo":4,
-            "Uranus in Pisces":4,"Uranus in H1":4,
-            "Pluto in Cancer":7,"Pluto in H4":5,
-            "Lilith in H10":4,"Juno in H4":5,"Pallas in H3":4,"Fortune in H8":5,"Chiron in Aries":4,"Vesta in Taurus":5,"Ceres in Leo":5,"Rahu in Aquarius":4,"Lilith in Sagittarius":4,
-            "Cancer in H1":2,"Taurus in H10":4,"Gemini in H12":4,"Pallas in Cancer":5,"Scorpio in H4":4,
-            "Chiron in Pisces":8,"Pisces in H7":6,"Neptune in Libra":6,"Pallas in Pisces":6,"Ceres in Taurus":7,"Mars in Pisces":5,
+        "positions": {
+            "Sun in Gemini": 5,
+            "Sun in Leo": 4,
+            "Sun in Sagittarius": 2,
+            "Sun in Aquarius": 2,
+            "Sun in Aries": 1,
+            "Sun in Capricorn": -2,
+            #Libra Decan 1 is NOT very CHA, Libra Decan 2 (Aqu) is high-moderate; Libra Decan 3 (Gem) is the most CHA. Chitra, Swati & Vishakha were most dom in high CHA Libras.
+            "Sun in Virgo": -1,
+            "Sun in H2": 6,
+            "Moon in H3": 5,
+            "Mercury in Taurus": 3,
+            "Uranus in Pisces": 4,
+            "Neptune in Leo": 6,
+            "Pluto in Cancer": 6,
+            "Ceres in Leo": 5,
+            "Ceres in Scorpio": -4,
+            "Pallas in Cancer": 4,
+            "Juno in Aries": 3,
+            "Vesta in Cancer": 5,
+            "Vesta in Aquarius": -3,
+            "Aries in H2": 4,
+            "Libra in H8": 4,
         },
-        "antipositions":{
-            "Sun in Aquarius":5,"Sun in Libra":3,
-            "Moon in Taurus":6,"Moon in H10":5,
-            "Mercury in Aquarius":4,"Mercury in Libra":4,"Mercury in H11":8,
-            "Venus in Leo":2,"Venus in Sagittarius":3,"Venus in Scorpio":3,
-            "Mars in Cancer":8,"Mars in H10":13,
-            "Jupiter in Aries":3,"Jupiter in Gemini":6,
-            "Saturn in Libra":2,"Saturn in H10":4,"Saturn in H12":6,
-            "Neptune in Capricorn":4,"Neptune in H5":6,"Neptune in H7":5, 
-            "Uranus in Sagittarius":5,
-            "Pluto in H4":9,
-            "Fortune in Leo":4,"Fortune in H7":4, #fortune in leo being a neg is interesting...what the heck's up with that?
-            "Chiron in Aquarius":6,"Chiron in H12":6,"Chiron in H5":8,
-            "Juno in Leo":5,"Juno in Cancer":5,
-            "Pallas in H10":7, "Pallas in Aquarius":5,"Pallas in H8":7,
-            "Ceres in Pisces":6,
-            "Ketu in Aries":8,"Ketu in H7":8,
-            "Rahu in Libra":8,"Rahu in H1":8,
-            "Fortune in Aquarius":5,
-            "Vesta in Leo":6,"Vesta in H12":7,
-            "Pisces in H10":9,"Cancer in H1":18,
-        }, 
-        "aspects":{
-            "Saturn trine Vesta":5,"Pallas square Uranus":3,"Chiron trine Neptune":4,"Mercury trine Moon":6,"Neptune trine Fortune":4,"Lilith trine Vesta":4,"Mars conjunction Mercury":4,"Fortune trine Venus":4,"Rahu trine Venus":4,"Chiron sextile Venus":4,"Pluto sextile Vesta":4,"Ketu square Neptune":4,"Lilith sextile Uranus":5,"Jupiter square Pluto":4,"Jupiter trine Neptune":4,"Mercury square Neptune":4,"Neptune square Saturn":4,"DS square Sun":4,"IC trine Moon":4
+        "antipositions": {},
+        "aspects": {
+            "Chiron trine Neptune": 6,
+            "Neptune square Saturn": 5,
+            "Jupiter trine Sun": 4,
+            "Neptune trine Venus": 4,
+            "True Lilith sextile Uranus": 3,
+            "Pluto sextile Venus": 3,
+            "Jupiter opposition Rahu": 3,
+            "Chiron quincunx Part of Fortune": 4,
+            "Pluto trine Uranus": 3,
+            "MC quincunx Part of Fortune": 4,
+            "Chiron trine Part of Fortune": -3,
+            "Ceres sextile Mercury": -4,
+            "Juno sextile Moon": -3,
+            "MC trine Part of Fortune": -4,
+            "MC conjunction Sun": -4,
         },
-        "antiaspects":{
-            "Chiron opposition Uranus":5,"Sun semisquare Venus":6, #absent from "Most CHA"
-            "Pallas square Saturn":10,"Juno square Venus":8,"Ceres square Uranus":6,"Ketu square Fortune":6,"Mars square Neptune":5,"Lilith sextile Uranus":7,"Jupiter square Vesta":6,"Saturn sextile Uranus":7,"Sun square Vesta":6,"Ketu square Vesta":5, #overpresent in "Least CHA"
-            
+        "antiaspects": {},
+        "gates": {
+            37: 8,
+            3: 7,
+            59: -6,
+            9: -6,
+            15: -7,
         },
-        "gates":{
-            7:7,62:7,1:6,37:6,53:5,40:4,61:4,13:4, #most present in "Most CHA"
-            50:7,52:6,56:6,55:6,42:6,49:8,54:7,27:9,36:6,39:10,60:10,24:5, #least present in "Least CHA"
-            4:21,16:12 #both most present in "Most CHA" and least present in "Least CHA": 4:12/4:9. 16:4/16:12.
-        },
-        "antigates":{
-            59:5,28:5,18:5,10:7,11:6,9:7,15:7, #absent from "Most CHA"
-            44:6,26:9,7:9,61:10,9:9,29:5,5:5,17:9,62:5,21:6,35:5,#present in "Least CHA"
-            34:11,32:10,#both least present in "Most CHA" and most present in "Least CHA": 34:5/34:6, 32:4/32:6.
-        },
+        "antigates": {},
         "channels": {
-            (2, 14): 1,
-            (4, 63): 1,
+            (37, 40): 5,
+            (30, 41): 6,
+            (5, 15): -4,
         },
-        "antichannels": {
-            (20, 34): 6,
-            (26, 44): 8,
-            (47, 64): 4,
-        },
-        "hdtypes":{},
-        "antihdtypes":{"MF Generator":4},
-        "centers":{},
-        "anticenters":{},
-        "profiles":{"6/2":5,"5/1":5},
-        "antiprofiles":{"3/5":4,"1/3":3},
-        "authorities":{"Emotional":2},
-        "antiauthorities":{"Sacral":2},
-        "bazisigns":{},
-        "antibazisigns":{},
-        "color":"#cc99ff",
-        "motivation":"",
-        "description":"",
-        "quotes":{""},
+        "antichannels": {},
+        "centers": {},
+        "anticenters": {},
+        "profiles": {},
+        "antiprofiles": {},
+        "authorities": {},
+        "antiauthorities": {},
+        "bazisigns": {},
+        "antibazisigns": {},
+        "color": "#cc99ff",
+        "motivation": "",
+        "description": "",
+        "quotes": {},
     },
 }
 
-DND_STATS_HYPOTHETICAL = {
+DND_STATS_HYPOTHETICAL = { #lore- x research-based. (GPT edited my findings to try and parse out white noise. But I'm not sure how good of a job it did)
     "STR": {
         "label": "Strength",
         "sample_note": "Mostly measures durable applied force, work capacity, bodily persistence, and resistance under load.",
@@ -1133,7 +1132,7 @@ DND_STATS_HYPOTHETICAL = {
         "antipositions": {},
 
         "aspects": {
-            "Neptune sextile Pluto": 20,
+            #"Neptune sextile Pluto": 20,
             "Chiron opposition Uranus": 16,
             "Moon square Fortune": 16,
             "Chiron trine Vesta": 16,

@@ -43,6 +43,233 @@ HD_TONES = {
     6:{"name":"touch","meaning":"acceptance","orientation":"right"},
 }
 
+HD_ENVIRONMENTS = {
+    1: {
+        "name": "Caves",
+        "core_theme": "Controlled access and territorial security.",
+        "summary": (
+            "Functions best in enclosed, controllable environments with clear "
+            "entry points and strong spatial boundaries."
+        ),
+        "preferences": [
+            "corner seating",
+            "facing doors",
+            "private rooms",
+            "alcoves",
+            "quiet spaces",
+            "defined personal territory",
+            "low-surprise environments",
+            "noise reduction"
+        ],
+        "thrives_in": [
+            "private offices",
+            "libraries",
+            "capsule hotels",
+            "reading nooks",
+            "panic rooms",
+            "microstudios",
+            "bunkers",
+            "burrows"
+        ],
+        "selective_variant": (
+            "Strongly curates access to people and space. Prefers highly "
+            "controlled environments."
+        ),
+        "blending_variant": (
+            "Prefers enclosure while remaining socially adjacent or ambiently connected."
+        ),
+        "pathologies": [
+            "social withdrawal",
+            "territorial defensiveness",
+            "hypervigilance",
+            "over-isolation"
+        ]
+    },
+
+    2: {
+        "name": "Markets",
+        "core_theme": "Exchange, movement, and social circulation.",
+        "summary": (
+            "Thrives amid variety, interaction, commerce, and informational flow."
+        ),
+        "preferences": [
+            "busy cafés",
+            "walkable districts",
+            "coworking spaces",
+            "urban density",
+            "mixed-use environments",
+            "social movement",
+            "novelty exposure"
+        ],
+        "thrives_in": [
+            "cities",
+            "markets",
+            "bookstores",
+            "conferences",
+            "public squares",
+            "shared creative spaces"
+        ],
+        "selective_variant": (
+            "Carefully curates networks and exchanges. Strategic social participation."
+        ),
+        "blending_variant": (
+            "Enjoys immersion in dynamic human flow and ambient activity."
+        ),
+        "pathologies": [
+            "overstimulation",
+            "networking compulsion",
+            "restlessness",
+            "transactional relationships"
+        ]
+    },
+
+    3: {
+        "name": "Kitchens",
+        "core_theme": "Transformation and process.",
+        "summary": (
+            "Functions best where things are actively being made, refined, "
+            "edited, repaired, or transformed."
+        ),
+        "preferences": [
+            "workshops",
+            "labs",
+            "creative studios",
+            "active households",
+            "collaborative production",
+            "hands-on environments",
+            "process-oriented spaces"
+        ],
+        "thrives_in": [
+            "maker spaces",
+            "recording studios",
+            "kitchens",
+            "editing suites",
+            "brewery environments",
+            "engineering labs"
+        ],
+        "selective_variant": (
+            "Prefers deliberate control over workflows and transformation processes."
+        ),
+        "blending_variant": (
+            "Enjoys collaborative creation and fluid participation in active systems."
+        ),
+        "pathologies": [
+            "constant tinkering",
+            "burnout",
+            "meddling",
+            "inability to leave systems alone"
+        ]
+    },
+
+    4: {
+        "name": "Mountains",
+        "core_theme": "Perspective, elevation, and clarity.",
+        "summary": (
+            "Regulates best with distance, openness, reduced interference, "
+            "and broad perspective."
+        ),
+        "preferences": [
+            "high elevations",
+            "panoramic views",
+            "minimalist spaces",
+            "solitude",
+            "fresh air",
+            "quiet observation points"
+        ],
+        "thrives_in": [
+            "hill towns",
+            "penthouses",
+            "remote cabins",
+            "observatories",
+            "minimalist apartments",
+            "wizard tower"
+        ],
+        "selective_variant": (
+            "Maintains strong distance and carefully chooses engagement."
+        ),
+        "blending_variant": (
+            "Absorbs perspective through open immersion and environmental spaciousness."
+        ),
+        "pathologies": [
+            "emotional detachment",
+            "isolation",
+            "intellectual aloofness",
+            "superiority complexes"
+        ]
+    },
+
+    5: {
+        "name": "Valleys",
+        "core_theme": "Communication and transmission.",
+        "summary": (
+            "Thrives where information, conversation, and social signals move freely."
+        ),
+        "preferences": [
+            "connected neighborhoods",
+            "communication hubs",
+            "accessible transit",
+            "conversation-rich spaces",
+            "social flow",
+            "signal-dense environments"
+        ],
+        "thrives_in": [
+            "universities",
+            "media spaces",
+            "city corridors",
+            "teaching environments",
+            "broadcasting settings"
+        ],
+        "selective_variant": (
+            "Carefully filters information and communication channels."
+        ),
+        "blending_variant": (
+            "Immerses naturally in conversational and informational flow."
+        ),
+        "pathologies": [
+            "gossip fixation",
+            "noise overload",
+            "social dependency",
+            "difficulty filtering input"
+        ]
+    },
+
+    6: {
+        "name": "Shores",
+        "core_theme": "Thresholds, transitions, and liminal spaces.",
+        "summary": (
+            "Functions best at boundaries where different worlds, systems, "
+            "or identities meet."
+        ),
+        "preferences": [
+            "waterfronts",
+            "border zones",
+            "hybrid spaces",
+            "transitional neighborhoods",
+            "travel",
+            "interdisciplinary environments"
+        ],
+        "thrives_in": [
+            "coastal cities",
+            "ports",
+            "airports",
+            "suburbs",
+            "cross-cultural environments"
+        ],
+        "selective_variant": (
+            "Carefully navigates transitions and chooses boundary-crossings intentionally."
+        ),
+        "blending_variant": (
+            "Feels at home in fluid movement between worlds and identities."
+        ),
+        "pathologies": [
+            "rootlessness",
+            "instability",
+            "identity diffusion",
+            "perpetual transition states"
+        ]
+    }
+}
+
 GATE_COLORS = {
     1: SIGN_COLORS["Scorpio"],
     2: SIGN_COLORS["Taurus"],
