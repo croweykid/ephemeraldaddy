@@ -23837,7 +23837,15 @@ class MainWindow(QMainWindow):
         if display_height > 0:
             canvas.setMinimumHeight(display_height)
             canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        # FigureCanvas reports a size hint derived from the Matplotlib figure's
+        # physical inches (often ~550 px wide here), which is wider than Chart
+        # View's right panel.  If the scroll-area layout honors that hint on
+        # repeated Predictions-tab renders, the canvas can force the content
+        # widget wider than the viewport and crop the graph off the app window.
+        # Ignore the horizontal hint so the canvas always shrinks to the current
+        # right-panel viewport; keep the explicit height above for readability.
+        canvas.setMinimumWidth(0)
+        canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:

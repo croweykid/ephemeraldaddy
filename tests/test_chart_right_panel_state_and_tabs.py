@@ -29,6 +29,9 @@ def _install_pyside_stubs() -> None:
         def findChildren(self, *_args, **_kwargs):
             return []
 
+        def setGraphicsEffect(self, _effect):
+            self._graphics_effect = _effect
+
     class _QScrollArea(_QWidget):
         def __init__(self):
             super().__init__()
@@ -294,3 +297,39 @@ def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == []
+
+def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
+    owner = _owner()
+    owner._latest_chart = SimpleNamespace(name="same")
+    calls = []
+    owner._chart_analytics_cache_token = lambda chart: f"token:{chart.name}"
+    owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram",))
+    owner._render_dndification_predictions = lambda _chart: calls.append(("dnd",))
+    owner._chart_right_panel_state.active_tab = "predictions"
+
+    schedule_chart_render_for_active_right_panel(owner)
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == [("enneagram",), ("dnd",)]
+
+
+def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_changes():
+    owner = _owner()
+    chart = SimpleNamespace(name="first")
+    owner._latest_chart = chart
+    calls = []
+    owner._chart_analytics_cache_token = lambda current_chart: f"token:{current_chart.name}"
+    owner._render_enneagram_predictions = lambda _chart: calls.append(("enneagram", _chart.name))
+    owner._render_dndification_predictions = lambda _chart: calls.append(("dnd", _chart.name))
+    owner._chart_right_panel_state.active_tab = "predictions"
+
+    schedule_chart_render_for_active_right_panel(owner)
+    chart.name = "second"
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == [
+        ("enneagram", "first"),
+        ("dnd", "first"),
+        ("enneagram", "second"),
+        ("dnd", "second"),
+    ]
