@@ -4806,23 +4806,28 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         },
     6:{
         "name":"Loyalist", #Acolyte, authority
-        "signs":{"Aries":10,"Virgo":12,"Capricorn":9,"Pisces":5},
+        "signs":{"Aries":16,"Virgo":12,"Capricorn":9,"Pisces":5},
         "antisigns":{"Scorpio":12,"Sagittarius":6,"Aquarius":5},
         "houses":{12:3,2:4,}, #6 was only weakly represented
         "antihouses":{7:4},
         "bodies":{"Sun":9,}, #Mars is also 5%, but maybe just due to Aries dominance? Don't want to double count it.
         "antibodies":{"Jupiter":5,"Saturn":3}, #Apparently Saturn isn't a joiner??? I suspect the aspects to Saturn matter tremendously, as much as how it's weighed.
-        "nakshatras":{"Anuradha":4,"Rohini":4,"Mrigashira":9,"Magha":9,"Dhanishta":3,"Shatabhisha":7,"Purva Phalguni":4,"Uttara Phalguni":6,"Mula":4,"Uttara Bhadrapada":3},
+        "nakshatras":{"Ashwini":15,"Anuradha":4,"Rohini":4,"Mrigashira":9,"Magha":9,"Dhanishta":3,"Shatabhisha":7,"Purva Phalguni":9,"Uttara Phalguni":6,"Mula":4,"Uttara Bhadrapada":3},
         "antinakshatras":{"Vishakha":9,"Ashwini":5,"Bharani":7,"Krittika":8,"Pushya":5,"Swati":6,"Purva Ashadha":3,}, 
         "positions":{
-            "Sun in Leo":8,"Sun in Capricorn":6,"Sun in Pisces":6,
+            "Sun in Leo":8,"Sun in Capricorn":6,"Sun in Pisces":6,"Sun in Aries":12,"Sun in H6":12,
             "Saturn in Sagittarius":7,"Saturn in Scorpio":5,"Saturn in Pisces":3,
-            "Moon in Taurus":4,
+            "Moon in Taurus":4,"Moon in Cancer":6,
             "Mercury in Virgo":10,"Mercury in Pisces":10,"Mercury in Capricorn":4,
-            "Venus in Virgo":5,"Venus in Pisces":7,"Venus in Gemini":4,
-            "Mars in Taurus":8,"Mars in Gemini":8,"Mars in Scorpio":4,
-            "Jupiter in Gemini":7,
-            "Aries in H1":4,"Cancer in H1":1,"Pisces in H1":7,}, 
+            "Venus in Virgo":5,"Venus in Pisces":7,"Venus in H4":6,"Venus in H7":5, #Venus in Gemini was overrepresented but I think that's because these are all very communicative, information-driven, chatty people - which is how it's clear they're e6. That's arguably what makes their e6ness identifiable.
+            "Mars in Taurus":8,"Mars in Gemini":8,"Mars in Scorpio":4,"Mars in Aries":4,
+            "Jupiter in Gemini":7,"Jupiter in Aries":5,
+            "Saturn in Pisces":10,"Saturn in H1":8,
+            "Chiron in Pisces":12,
+            "Ceres in Capricorn":2,
+            "Fortune in Libra":3,
+            "Lilith in H10":8, #unsure if this is more about them being a public traditionalist or about them needing to transgress to defend institutions. The lore supports either interpretation. May be a false signal based on selection bias (whoever is publicly controversial - in general - or specifically about traditionalism, Mrs. Waterford style), or not.
+            "Aries in H1":4,"Cancer in H1":1,"Cancer in H6":9,"Pisces in H1":7}, 
             #i might ignore venus in gem & thought about ignoring venus in pisces - don't buy it!
         "antipositions":{
             "Sun in Sagittarius":7,"Sun in Aquarius":5,"Sun in Gemini":4,"Sun in Scorpio":3,
@@ -4834,24 +4839,42 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
             "Saturn in Capricorn":9,"Saturn in Libra":6,
             "Virgo in H1":11,"Gemini in H1":4,}, #"Capricorn in H11":1,"Aquarius in H12":1,"Leo in H6":1,"Pisces in H3":1,"Virgo in H9":1,"Chiron in Aries":1,"Sun in H10":1,"Neptune in Sagittarius":1,"Pluto in Libra":1,"Juno in Scorpio":1,"Jupiter in Cancer":1,
         "aspects":{
-            "Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","Pallas sextile Saturn","Pallas square Rahu","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto",
-            "Chiron square Saturn","Saturn trine Sun","Juno square Saturn","Saturn square Vesta","Fortune opposition Saturn","Saturn sextile Sun"
+            "Chiron trine Neptune","Chiron opposition Pluto","Pluto conjunction Uranus","Saturn opposition Uranus", #highest correlation in predictive group
+            "Pallas sextile Saturn","Pallas square Rahu","Chiron square Saturn","Saturn trine Sun","Juno square Saturn","Saturn square Vesta","Saturn sextile Sun", #common correlation between e6 groups
+            "Juno conjunction Pallas","Chiron square Jupiter","Mercury conjunction Sun","Mars trine Vesta","Lilith square Vesta","Juno sextile Moon","Moon square Neptune","Mars trine Pallas","Rahu trine Saturn","Ceres square Uranus","Ketu square Lilith","Mars trine Neptune","Mercury trine Neptune","Neptune sextile Lilith","Fortune conjunction Sun","Rahu square Lilith","DS trine Jupiter","AS sextile Jupiter","AS trine Vesta","Ceres biquintile Jupiter","IC trine Moon","Moon quincunx Pluto","AS conjunction Lilith","AS trine Mars","AS trine Pluto","Fortune opposition Saturn", #original correlations before I found a predictive group
             },
         "antiaspects":{"Chiron trine Neptune","Saturn trine Uranus"},
-        "gates":{12,32,40,3,11,42,54,},
+        "gates": {
+            40: 39, #was in original set
+            64: 40,
+            1: 27,
+            21: 24,
+            52: 23,
+            60: 23,
+            44: -24,
+            57: -25,
+            #12,32,40,3,11,42,54, #that was the original set.
+        },
         "antigates":{28,26,58,15,18,64,55,41,17},
         "channels": {
-            (12, 22): 1,
-            (37, 40): 1,
+            (3, 60): 25,
+            (39, 55): 21,
+            (12, 22): 4,
+            (37, 40): 4,
         },
         "antichannels": {},
         "hdtypes":{},
         "antihdtypes":{},
-        "centers":{},
+        "centers": {
+            "Solar Plexus": 25,
+            "Spleen": -29,
+        },
         "anticenters":{},
         "profiles":{},
         "antiprofiles":{},
-        "authorities":{},
+        "authorities":{
+            "Emotional":25,
+        },
         "antiauthorities":{},
         "bazisigns":{},
         "antibazisigns":{},

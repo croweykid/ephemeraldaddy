@@ -747,28 +747,210 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "quotes":{""},
     },
     "CON" : {
-        "signs":{"Aquarius":6,"Capricorn":6,"Pisces":5},
-        "antisigns":{"Libra":8,"Sagittarius":4,"Gemini":4},
-        "houses":{1:6,12:6,},
-        "antihouses":{11:5,9:5},
-        "bodies":{"Sun":7,"Moon":4},
-        "antibodies":{"Mars":5,"Uranus":4},
-        "nakshatras":{"Purva Ashadha":5,"Uttara Ashadha":5,}, 
+        "signs":{"Aquarius":7,"Capricorn":6,"Pisces":5},
+        "antisigns":{"Libra":5,},
+        "houses":{
+            1:15, #high con list
+            9:-6,
+            11:-6,
+            12:10,
+
+            3:13, #'highest CON' list
+            },
+        "antihouses":{
+            },
+        "bodies":{
+            "Sun":2,
+            "Moon":1,
+            "Uranus":1,
+            },
+        "antibodies":{
+            "Mars":2,
+            "Neptune":1,
+            "Jupiter":1,
+            },
+        "nakshatras":{
+            "Purva Ashadha":3,
+            "Uttara Ashadha":4, #high con list
+            "Shravana":4,
+            "Magha":-6, #high con list
+        }, 
         "antinakshatras":{"Magha":7}, 
         "positions":{
-            "Sun in Capricorn":9,
-            "Mercury in H5":5,
-            "Venus in Capricorn":6,
+            #highest con list:
+            "Moon in H3": 33,
+            "Mercury in H7": 15,
+            "Venus in Libra": 10,
+            "Mars in Cancer": 16,
+            "Jupiter in Sagittarius": 13,
+            "Jupiter in H3": 19,
+            "Pluto in Taurus": 7,
+            "Pluto in H2": 14,
+            "Chiron in Gemini": 11,
+            "Ceres in H9": 21,
+            "Vesta in Leo": 16,
+            "MC in Pisces": 15,
+            "Virgo in H4": 15,
+            "Pisces in H10": 15,
+            "True Lilith in Aquarius": 23,
+            
+            #high con list:
+            "Sun in Capricorn":8, 
+            "Mercury in H9":-6,
+            "Mercury in H3":7,
+            "Mercury in Capricorn":4,
+            "Venus in Capricorn":5,
+            "Jupiter in H3":6,"Saturn in Libra": -5,
+            "Uranus in Virgo": 5,
+            "Neptune in Sagittarius": -6,
+            "Pluto in Libra": -6,
+            "Ceres in Pisces": 5,
+            "Pallas in Aquarius": 6,
+            "Pallas in H3": 7,
+            "Juno in Aries": 4,
+            "Part of Fortune in Aquarius": 4,
+            "Part of Fortune in H6": 6,
+            "Lilith in Aquarius": 6,
             "Mars in H8":4,
-            "Ceres in Pisces":6,"Ceres in H4":5,
-            "Lilith in H6":6,"Rahu in H2":6,"Ketu in H1":5,
         },
         "antipositions":{"Neptune in Sagittarius":8},
-        "aspects":{"Moon square Fortune":7,"Lilith trine Uranus":6,"Ceres trine Vesta":5,"Pluto sextile Vesta":5,"Uranus trine Vesta":4,"DS trine Pallas":7,"MC trine Neptune":5,"Pallas conjunction Uranus":5,"IC square Vesta":5,"MC trine Lilith":5},
+        "aspects":{
+            #high con
+            "Moon square Fortune":7,
+            "Pluto sextile Vesta":5,
+            "Pallas sextile Sun": 5,
+            "Mercury sextile Rahu": 4,
+            "Sun trine Uranus": 5,
+            "Pallas conjunction Uranus": 4,
+            "Ceres conjunction Chiron": 3,
+            "Juno opposition Saturn": 3,
+            "Juno quintile Vesta": 3,
+            "Jupiter quincunx Vesta": 3,
+            "Neptune biquintile Venus": 3,
+            "AS opposition Sun": 4,
+            "AS semisquare Juno": 5,
+            "Chiron square Mars": -5,
+            "Mars trine Pallas": -5,
+            "AS quincunx Chiron": 4,
+            "Chiron biquintile MC": 3,
+            "Mars square Part of Fortune": -4,
+            "AS biquintile Pluto": 3,
+            "MC quintile Part of Fortune": 3,
+            "MC quintile Pluto": 4,
+            "Part of Fortune sextile Vesta": -4,
+            "MC trine Mars": -7,
+            "Rahu opposition Uranus": -3,
+            "Pluto opposition Rahu": -4,
+
+            #highest con
+            "Mars trine Uranus": 21,
+            "Jupiter trine Moon": 18,
+            "Mars sextile True Lilith": 21,
+            "Pluto sextile Vesta": 15,
+            "Ceres semisextile Pallas": 14,
+            "Ceres trine Pluto": 12,
+            "Chiron sextile Mars": 12,
+            "Juno opposition Pluto": 17,
+            "Mars sextile Sun": 11,
+            "Mercury conjunction Vesta": 14,
+            "Mercury sextile Part of Fortune": 14,
+            "Mercury sextile Rahu": 12,
+            "Pallas trine Vesta": 13,
+            "Sun trine Uranus": 13,
+            "Chiron square Venus": 10,
+            "Jupiter sextile Saturn": 11,
+            "Part of Fortune conjunction Pluto": 12,
+            "Rahu opposition Saturn": 12,
+            "Sun opposition True Lilith": 12,
+            "Venus trine Vesta": 10,
+            "AS square Neptune": 21,
+            "AS square Uranus": 18,
+            "Ceres conjunction Saturn": 9,
+            "Ceres quincunx Uranus": 11,
+            "Chiron conjunction True Lilith": 9,
+            "Juno semisextile True Lilith": 11,
+            "Jupiter quintile Rahu": 12,
+            "Mars biquintile Part of Fortune": 11,
+            "MC square Sun": 21,
+            "Mercury biquintile Uranus": 11,
+            "Moon quintile Sun": 11,
+            "Neptune quincunx Pallas": 11,
+            "Pallas sesquiquadrate Saturn": 12,
+            "Pallas sextile Rahu": 9,
+            "Part of Fortune conjunction Saturn": 9,
+            "Saturn sesquiquadrate Vesta": 9,
+            "Sun opposition Uranus": 10,
+            "True Lilith opposition Vesta": 10,
+            "AS conjunction Vesta": 15,
+            "AS sextile Vesta": 14,
+            "Chiron quincunx Neptune": 7,
+            "Chiron quintile Mercury": 8,
+            "Juno biquintile Rahu": 8,
+            "Juno semisquare Pluto": 8,
+            "Juno semisquare Saturn": 9,
+            "Jupiter quincunx Vesta": 7,
+            "Jupiter semisextile Neptune": 8,
+            "Jupiter semisextile Pluto": 9,
+            "Jupiter semisextile Vesta": 7,
+            "Mars biquintile Saturn": 8,
+            "Mars semisextile Venus": 7,
+            "Mars semisquare Rahu": 8,
+            "MC quincunx Pluto": 18,
+            "MC quintile Part of Fortune": 19,
+            "MC square Neptune": 14,
+            "MC square Pallas": 15,
+            "Mercury quincunx Pluto": 8,
+            "Mercury quintile Saturn": 8,
+            "Mercury semisextile True Lilith": 8,
+            "Moon semisquare Neptune": 8,
+            "Neptune semisquare Part of Fortune": 9,
+            "Pallas opposition Uranus": 7,
+            "Pallas quintile Venus": 8,
+            "Part of Fortune quincunx Venus": 7,
+            "Part of Fortune quincunx Vesta": 7,
+            "Pluto semisextile Vesta": 8,
+            "Pluto sesquiquadrate Rahu": 7,
+            "Rahu quintile Venus": 8,
+            "AS opposition Neptune": 11,
+            "AS semisextile Moon": 12,
+            "AS semisextile Pluto": 12,
+            "AS semisquare True Lilith": 11,
+            "Ceres biquintile Jupiter": 5,
+            "Ceres semisquare Part of Fortune": 5,
+            "Chiron biquintile MC": 11,
+            "Chiron biquintile Venus": 5,
+            "Chiron quintile Juno": 5,
+            "Chiron semisextile Pallas": 5,
+            "Chiron semisquare Moon": 5,
+            "Chiron sesquiquadrate Rahu": 5,
+            "Juno biquintile Mercury": 5,
+            "Mars quintile Uranus": 5,
+            "Mars sesquiquadrate Moon": 5,
+            "MC biquintile Mars": 12,
+            "MC opposition Uranus": 11,
+            "MC semisextile True Lilith": 12,
+            "MC semisextile Vesta": 12,
+            "Mercury sesquiquadrate Uranus": 5,
+            "Neptune quintile Rahu": 5,
+            "Part of Fortune semisextile Uranus": 5,
+            "Pluto quintile Saturn": 5,
+            "Sun sesquiquadrate Vesta": 5,
+            "Uranus semisquare Venus": 6,
+            "Venus biquintile Vesta": 5,
+
+        },
         "antiaspects":{"Sun semisquare Venus":6},
-        "gates":{44:5,47:8,46:5,12:7,29:5,56:5,28:7,25:5,63:5,},
+        "gates":{
+            38: 7, #high con
+            27: 19, #highest con list
+            22: -18, #highest con list
+
+            },
         "antigates":{48:5,26:5,28:8,18:6,49:5,5:6,55:4,2:5},
-        "channels": {},
+        "channels": {
+            (27, 50): 18, #highest CON list
+            (28, 38): 11, #highest CON list
+        },
         "antichannels": {
             (20, 57): 5,
         },
@@ -778,7 +960,9 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "anticenters":{"Emotional":6},
         "profiles":{"4/1":2},
         "antiprofiles":{"5/1":3},
-        "authorities":{},
+        "authorities":{
+            "Sacral": 8,
+            },
         "antiauthorities":{},
         "bazisigns":{},
         "antibazisigns":{},
@@ -788,51 +972,80 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "quotes":{""},
     },
     "INT" : {
-        "signs":{"Gemini":8,"Cancer":5,"Libra":5,"Aries":3}, #Gem & Aries got 1% Cumulative
-        "antisigns":{"Sagittarius":5},
-        "houses":{3:2}, #even 1% cumulative.
+        "signs":{
+            "Gemini":6,
+            "Cancer":3,"Scorpio":3,
+            },
+        "antisigns":{},
+        "houses":{
+            7:-2,
+            12:-2
+            }, #even 1% cumulative.
         "antihouses":{}, #none
-        "bodies":{"Mars":8}, #what, you were expecting Mercury?? <_<
+        "bodies":{
+            "Neptune":4
+            }, #what, you were expecting Mercury?? <_<
         "antibodies":{"Mercury":6}, #lol yeah it got -6% in 'Similarities Analysis'
-        "nakshatras":{"Mrigashira":6,"Punarvasu":3,"Purva Phalguni":2,"Revati":2,}, 
-        "antinakshatras":{"Purva Ashadha":2}, 
+        "nakshatras":{"Mrigashira":3,"Punarvasu":4,"Vishakha":3,"Uttara Ashadha":3,}, 
+        "antinakshatras":{}, 
         "positions":{
-            "Moon in Aries":3,
+            "Sun in Gemini":3,
+            "Sun in Aries":2,
+            "Sun in Leo":-4,
+
+            "Mercury in Gemini":3,
             "Mercury in Scorpio":4,
-            "Venus in Scorpio":5,"Mars in Capricorn":4,
-            "Saturn in Gemini":4,
-            "Pluto in Leo":5,
-            "Neptune in Libra":4,
-            "Scorpio in H1":5,"Virgo in H1":4,"Leo in H10":5,
-            "Juno in Scorpio":4
+            "Mercury in Virgo":-3,
+
+            "Venus in Aquarius":-3,
+            "Venus in Virgo":-3,
+
+            "Mars in Capricorn":4,
+            "Mars in Taurus":-4,
+
+            "Saturn in Capricorn":-4,
+            "Uranus in Cancer":3,
+            "Neptune in Sagittarius":-5,
+            "Neptune in Scorpio":-4,
+
+            "Pluto in Virgo":-5,
+            "Pluto in Libra":-4,
+            "Pluto in Taurus":4,
+
+            "Virgo in H1":6,
+            "Aquarius in H1":-3,
+            "Aries in H1":-3,
+            "Capricorn in H10":-5,
+            "Gemini in H10":5,
         },
         "antipositions":{
-            "Sun in Leo":4,
-            "Saturn in Capricorn":4,
-            "Neptune in Scorpio":4,
-            "Pluto in Virgo":4,
-            "Aquarius in H1":4,
         },
         "aspects":{
             "Chiron opposition Uranus":8,"Mars trine Fortune":5,"Fortune trine Lilith":5,"Rahu trine Sun":4,"Moon trine Uranus":5,"Juno sextile Jupiter":5,"Neptune opposition Fortune":6,"AS square Mercury":5,"Mars conjunction Moon":5,"Pallas opposition Vesta":4,"AS square Juno":5,"Fortune opposition Vesta":4,"MC sextile Fortune":5
         },
         "antiaspects":{},
-        "gates":{45,62,51,12,61,36,},
-        "antigates":{59,44,29,5,63,37,13},
+        "gates":{
+            39: 6,
+            5: -6,
+            40: -6,
+            #45,62,51,12,61,36,
+            },
+        "antigates":{
+            #59,44,29,5,63,37,13
+            },
         "channels": {
-            (27, 50): 1,
-            (35, 36): 1,
+            (35, 36): 5,
         },
         "antichannels": {},
         "hdtypes":{},
         "antihdtypes":{},
         "centers":{},
         "anticenters":{},
-        "profiles":{"1/4":3,"3/5":4},
-        "antiprofiles":{"1/3":4,"6/2":4},
-        "authorities":{"Emotional":2},
+        "profiles":{},
+        "antiprofiles":{},
+        "authorities":{},
         "antiauthorities":{},
-        "bazisigns":{},
+        "bazisigns":{"Goat":-2},
         "antibazisigns":{},
         "color":"#cc99ff",
         "motivation":"",
@@ -900,7 +1113,10 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Cancer": 6,
             "Leo":5, #dominated in "high CHA"  but not 'highest CHA'
         },
-        "antisigns": {},
+        "antisigns": {
+            "Sagittarius":12,
+            "Aquarius":14, #Sun in Aqu d2 was most represented in low CHA. Moon in Aqu d1. Mercury in Aq d2. But it's pretty distributed. 
+        },
         "houses": {
             "10": 9, #dominant in 'high cha' too.
             "4": 6,
@@ -908,7 +1124,9 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "2": 6,
             "11": 4, #dominant in 'high cha' too.
         },
-        "antihouses": {},
+        "antihouses": {
+            12:7, #overrep in low CHA
+        },
         "bodies": {
             "Sun":2,
             "Mercury": 9,
@@ -919,6 +1137,7 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Pluto":1,
             "Rahu":1,
             "Moon":1,
+            "Mercury":-4, #both overrepresented in high CHA & underrep in low CHA
         },
         "nakshatras": {
             "Ashlesha": 5,
@@ -940,11 +1159,9 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Sun in Gemini": 5,
             "Sun in Leo": 4,
             "Sun in Sagittarius": 2,
-            "Sun in Aquarius": 2,
-            "Sun in Aries": 1,
+            #"Sun in Aquarius": 2, #both overrepresented in most CHA and least CHA
             "Sun in Capricorn": -2,
             #Libra Decan 1 is NOT very CHA, Libra Decan 2 (Aqu) is high-moderate; Libra Decan 3 (Gem) is the most CHA. Chitra, Swati & Vishakha were most dom in high CHA Libras.
-            "Sun in Virgo": -1,
             "Sun in H2": 6,
             "Moon in H3": 5,
             "Mercury in Taurus": 3,
@@ -960,7 +1177,24 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Aries in H2": 4,
             "Libra in H8": 4,
         },
-        "antipositions": {},
+        "antipositions": {
+            "Cancer in H1":17,
+            "Sun in Aries":-2, #1% overrepresented in most CHA, -3 in least CHA. 
+            "Sun in Virgo":-3,
+            #"Sun in Aquarius":3, #both overrepresented in most CHA and least CHA
+            "Sun in Scorpio":3, #their cha is built almost entirely around abrasivness, volition & shock value
+            "Moon in Aries":6,
+            "Moon in Taurus":-4,
+            "Mercury in Virgo":-5,
+            "Mercury in Aquarius":5,
+            "Venus in Aries":-3,
+            "Venus in Aquarius":4,
+            "Mars in Cancer":7,
+            "Mars in Sagittarius":-4,
+            "Mars in Pisces":-4,
+            "Jupiter in Gemini":5,
+            "Saturn in Sagittarius":6,
+            },
         "aspects": {
             "Chiron trine Neptune": 6,
             "Neptune square Saturn": 5,
@@ -1000,7 +1234,9 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
         "authorities": {},
         "antiauthorities": {},
         "bazisigns": {},
-        "antibazisigns": {},
+        "antibazisigns": {
+            "Rabbit":-3,
+        },
         "color": "#cc99ff",
         "motivation": "",
         "description": "",
