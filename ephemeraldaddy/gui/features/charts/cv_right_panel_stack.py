@@ -6,10 +6,9 @@ import html
 from dataclasses import dataclass
 from typing import Callable
 
-from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QTimer, Qt
+from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtWidgets import (
     QAbstractButton,
-    QGraphicsOpacityEffect,
     QHBoxLayout,
     QPushButton,
     QScrollArea,
@@ -244,64 +243,34 @@ def set_chart_right_panel_container_visible(owner: object, visible: bool) -> Non
             configure_splitter()
 
 
-def prepare_chart_right_panel_for_loading(owner: object) -> None:
-    """Hide Chart View right-hand panel while loading a chart transition."""
-    panel = getattr(owner, "metrics_panel", None)
-    if not isinstance(panel, QWidget):
-        return
-    setattr(owner, "_chart_right_panel_transition_active", True)
-    setattr(owner, "_chart_right_panel_fade_in_progress", False)
+def _stop_chart_right_panel_fade(owner: object) -> None:
+    """Stop and detach any stale right-panel opacity animation/effect."""
     animation = getattr(owner, "_chart_right_panel_fade_animation", None)
-    if isinstance(animation, QPropertyAnimation):
-        animation.stop()
-    effect = getattr(owner, "_chart_right_panel_opacity_effect", None)
-    if not isinstance(effect, QGraphicsOpacityEffect) or effect.parent() is not panel:
-        effect = QGraphicsOpacityEffect(panel)
-        panel.setGraphicsEffect(effect)
-        setattr(owner, "_chart_right_panel_opacity_effect", effect)
-    effect.setOpacity(0.0)
-    panel.setVisible(False)
+    stop_animation = getattr(animation, "stop", None)
+    if callable(stop_animation):
+        stop_animation()
+    setattr(owner, "_chart_right_panel_fade_animation", None)
+    setattr(owner, "_chart_right_panel_fade_in_progress", False)
+
+    panel = getattr(owner, "metrics_panel", None)
+    if isinstance(panel, QWidget):
+        panel.setGraphicsEffect(None)
+    setattr(owner, "_chart_right_panel_opacity_effect", None)
+
+
+def prepare_chart_right_panel_for_loading(owner: object) -> None:
+    """Prepare a chart transition without hiding the interactive right panel."""
+    # The loading overlay and per-section redraws already communicate chart-load
+    # progress.  Hiding the full right panel here causes visible blanking during
+    # normal render churn and can interrupt text entry in right-panel fields.
+    _stop_chart_right_panel_fade(owner)
+    setattr(owner, "_chart_right_panel_transition_active", False)
 
 
 def reveal_chart_right_panel_after_loading(owner: object) -> None:
-    """Fade in Chart View right-hand panel once all chart sections are rendered."""
-    transition_active = bool(getattr(owner, "_chart_right_panel_transition_active", False))
-    if not transition_active:
-        return
+    """Leave the right panel visible after chart rendering completes."""
+    _stop_chart_right_panel_fade(owner)
     setattr(owner, "_chart_right_panel_transition_active", False)
-    panel = getattr(owner, "metrics_panel", None)
-    effect = getattr(owner, "_chart_right_panel_opacity_effect", None)
-    if not isinstance(panel, QWidget) or not isinstance(effect, QGraphicsOpacityEffect):
-        setattr(owner, "_chart_right_panel_fade_in_progress", False)
-        set_chart_right_panel_container_visible(owner, True)
-        return
-    set_chart_right_panel_container_visible(owner, True)
-    effect.setOpacity(0.0)
-    setattr(owner, "_chart_right_panel_fade_in_progress", True)
-    active_scroll = getattr(owner, "metrics_scroll", None)
-    active_scrollbar = (
-        active_scroll.verticalScrollBar()
-        if active_scroll is not None and hasattr(active_scroll, "verticalScrollBar")
-        else None
-    )
-    locked_scroll_value = (
-        int(active_scrollbar.value())
-        if active_scrollbar is not None and hasattr(active_scrollbar, "value")
-        else None
-    )
-    animation = QPropertyAnimation(effect, b"opacity", panel)
-    animation.setDuration(650)
-    animation.setStartValue(0.0)
-    animation.setEndValue(1.0)
-    animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
-    if locked_scroll_value is not None and active_scrollbar is not None:
-        animation.valueChanged.connect(
-            lambda _value, bar=active_scrollbar, locked=locked_scroll_value: bar.setValue(locked)
-        )
-    animation.finished.connect(lambda: effect.setOpacity(1.0))
-    animation.finished.connect(lambda: setattr(owner, "_chart_right_panel_fade_in_progress", False))
-    setattr(owner, "_chart_right_panel_fade_animation", animation)
-    animation.start()
 
 
 

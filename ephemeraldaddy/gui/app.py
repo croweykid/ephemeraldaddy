@@ -23837,6 +23837,10 @@ class MainWindow(QMainWindow):
         if display_height > 0:
             canvas.setMinimumHeight(display_height)
             canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
+        # FigureCanvas can carry a wide minimum from its Matplotlib size hint.
+        # Keep the minimum width at zero so narrow right-panel scroll areas can
+        # shrink canvases to the viewport instead of expanding/cropping sideways.
+        canvas.setMinimumWidth(0)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         canvas.updateGeometry()
 

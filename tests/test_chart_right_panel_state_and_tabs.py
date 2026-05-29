@@ -29,6 +29,9 @@ def _install_pyside_stubs() -> None:
         def findChildren(self, *_args, **_kwargs):
             return []
 
+        def setGraphicsEffect(self, _effect):
+            self._graphics_effect = _effect
+
     class _QScrollArea(_QWidget):
         def __init__(self):
             super().__init__()
@@ -77,6 +80,8 @@ def _install_pyside_stubs() -> None:
 _install_pyside_stubs()
 
 from ephemeraldaddy.gui.features.charts.cv_right_panel_stack import (  # noqa: E402
+    prepare_chart_right_panel_for_loading,
+    reveal_chart_right_panel_after_loading,
     schedule_chart_render_for_active_right_panel,
     set_chart_right_panel,
     sync_chart_right_panel_placeholder_state,
@@ -294,3 +299,18 @@ def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == []
+
+
+def test_prepare_and_reveal_do_not_hide_visible_right_panel():
+    from PySide6.QtWidgets import QWidget
+
+    owner = _owner()
+    owner.metrics_panel = QWidget()
+    owner.metrics_panel.setVisible(True)
+    owner._chart_right_panel_transition_active = True
+
+    prepare_chart_right_panel_for_loading(owner)
+    reveal_chart_right_panel_after_loading(owner)
+
+    assert owner.metrics_panel.isVisible() is True
+    assert owner._chart_right_panel_transition_active is False
