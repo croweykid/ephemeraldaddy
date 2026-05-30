@@ -4,6 +4,14 @@ from ephemeraldaddy.core.interpretations import SIGN_GENDERS
 from .metrics import calculate_dominant_sign_weights, calculate_sign_prevalence_counts
 
 
+def _gender_score_interpreter(score: float) -> str:
+    if score > 5.0:
+        return "more feminine"
+    if score < 5.0:
+        return "more masculine"
+    return "balanced"
+
+
 def build_gender_guesser_breakdown_text(chart: Chart) -> str:
     sign_gender_scores = dict(SIGN_GENDERS)
     sign_counts = calculate_sign_prevalence_counts(chart)
@@ -28,7 +36,7 @@ def build_gender_guesser_breakdown_text(chart: Chart) -> str:
     weight_score = 5.0 if weight_total <= 0 else weight_weighted_total / weight_total
 
     lines = [
-        f"Gender Guesser's Reasoning — {chart.name or 'Unnamed Chart'}",
+        "10 is more feminine. 0 is more masculine. Based on canonical astrological gender binaries.",
         "",
         "1) Gender Prevalence score (equal-count method)",
         "   Formula: Σ(sign count × sign gender value) / Σ(sign count)",
@@ -51,7 +59,7 @@ def build_gender_guesser_breakdown_text(chart: Chart) -> str:
     lines.extend([
         f"   Σ contributions = {prevalence_weighted_total:.2f}",
         f"   Σ counts = {prevalence_total_count:.2f}",
-        f"   Final Gender Prevalence score = {prevalence_score:.4f}",
+        f"   Final Gender Prevalence score = {prevalence_score:.4f} ({_gender_score_interpreter(prevalence_score)})",
         "",
         "2) Gender Weight score (dominant-sign-weight method)",
         "   Formula: Σ(sign dominant weight × sign gender value) / Σ(sign dominant weight)",
@@ -74,9 +82,7 @@ def build_gender_guesser_breakdown_text(chart: Chart) -> str:
     lines.extend([
         f"   Σ weighted contributions = {weight_weighted_total:.4f}",
         f"   Σ dominant weights = {weight_total:.4f}",
-        f"   Final Gender Weight score = {weight_score:.4f}",
-        "",
-        "Sign gender values come from SIGN_GENDERS in core interpretations.",
+        f"   Final Gender Weight score = {weight_score:.4f} ({_gender_score_interpreter(weight_score)})",
     ])
 
     return "\n".join(lines)

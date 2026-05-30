@@ -1090,6 +1090,7 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
 )
 from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
+    build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
@@ -7007,12 +7008,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             file_path = f"{file_path}{selected_extension}"
         markdown = file_path.lower().endswith(".md")
         try:
+            algorithm_mode = _normalize_similar_charts_algorithm_mode(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+            )
+            self._similar_charts_algorithm_mode = algorithm_mode
+            similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
+                chart=chart,
+                subject_chart_id=chart_id,
+                markdown=markdown,
+                chart_rows=list_charts(),
+                load_chart_by_id=load_chart,
+                resolve_similarity_band=self._similarity_band_for_percent,
+                settings=self._settings,
+                algorithm_mode=algorithm_mode,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+            )
             export_text = _build_total_chart_export_text(
                 chart,
                 markdown=markdown,
                 show_cursedness=self._visibility.get("chart_data.cursedness"),
                 show_dnd_output=False,
                 calculate_enneagram_scores=self._calculate_enneagram_type_weights,
+                similar_charts_section=similar_charts_section,
             )
             with open(file_path, "w", encoding="utf-8") as output_file:
                 output_file.write(export_text)
@@ -7020,6 +7037,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             QMessageBox.critical(self, "Export failed", f"Could not export total chart:\n{exc}")
             return
         QMessageBox.information(self, "Export complete", f"Saved total chart export to:\n{file_path}")
+
 
     def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
         selected_chart_ids = self._selected_chart_ids()

@@ -995,6 +995,7 @@ def format_chart_text(
             lines.append(line)
 
     if cursedness_line:
+        lines.append("")
         lines.append("---------")
         lines.append("CURSEDNESS")
         lines.append("---------")

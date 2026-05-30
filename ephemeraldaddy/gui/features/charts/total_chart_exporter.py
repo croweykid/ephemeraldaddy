@@ -6,8 +6,14 @@ import datetime
 import html
 import re
 from collections.abc import Callable
+from typing import Any
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import score_dnd_statblock
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    find_astro_twins,
+    normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
     build_human_design_result,
@@ -23,6 +29,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     enneagram_realm_summary_html,
     tritype_text_for_scores,
 )
+from ephemeraldaddy.gui.features.charts.similarity_norms import load_similarity_calibration_stats
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
@@ -61,8 +68,8 @@ def _format_ranked_values(values: dict[str, object], *, limit: int | None = None
     if limit is not None:
         ranked = ranked[:limit]
     if not ranked:
-        return ["- No data"]
-    return [f"- {label}: {value:.2f}" for label, value in ranked]
+        return ["No data"]
+    return [f"{rank} {label}: {value:.2f}" for rank, (label, value) in enumerate(ranked, start=1)]
 
 
 def _section(title: str, body: str, *, markdown: bool) -> str:
@@ -131,10 +138,14 @@ def chart_type_summary_text(chart: Chart) -> str:
         str(ASPECT_PATTERN_DEFS.get(pattern_key, {}).get("name", pattern_key))
         for pattern_key in chart_type.get("patterns", []) or []
     ]
+    shape_meta = chart_type.get("shape_meta", {}) or {}
     chart_type_lines = [
         f"- Shape: {shape_key.replace('_', ' ').title()}",
         "- Aspect patterns: " + (", ".join(pattern_names) if pattern_names else "None detected"),
     ]
+    if shape_key == "locomotive":
+        leader = str(shape_meta.get("leader", "") or "").strip()
+        chart_type_lines.append("- Leader: " + (leader if leader else "Unknown"))
     return "\n".join(chart_type_lines)
 
 
@@ -156,12 +167,15 @@ def _build_predictions_export_text(
             lines.append(_plain_text_from_htmlish(enneagram_realm_summary_html(enneagram_scores)))
             lines.append("")
             lines.append("Enneagram type scores:")
-            for enneagram_type, score in sorted(
-                enneagram_scores.items(),
-                key=lambda item: float(item[1]),
-                reverse=True,
+            for rank, (enneagram_type, score) in enumerate(
+                sorted(
+                    enneagram_scores.items(),
+                    key=lambda item: float(item[1]),
+                    reverse=True,
+                ),
+                start=1,
             ):
-                lines.append(f"- Type {enneagram_type}: {float(score):.2f}")
+                lines.append(f"{rank} Type {enneagram_type}: {float(score):.2f}")
         except Exception as exc:
             lines.append(f"Enneagram predictions unavailable: {exc}")
         lines.append("")
@@ -219,22 +233,256 @@ def _build_human_design_export_text(chart: Chart, *, markdown: bool) -> str:
     return _section("Human Design Chart Popout", body, markdown=markdown)
 
 
+def _remove_bazi_identifying_header(body: str, *, markdown: bool) -> str:
+    text = str(body or "").strip()
+    if not text:
+        return text
+    if markdown:
+        year_match = re.search(r"^- \*\*Year:\*\*\s*(.+)$", text, flags=re.MULTILINE)
+        details_match = re.search(r"^## BAZI CHART DETAILS\s*$", text, flags=re.MULTILINE)
+        if details_match:
+            prefix = f"**Year:** {year_match.group(1).strip()}\n\n" if year_match else ""
+            return prefix + text[details_match.start():].lstrip()
+        return text
+
+    lines = text.splitlines()
+    year_line = next((line for line in lines if line.startswith("Year: ")), "")
+    details_index = next((idx for idx, line in enumerate(lines) if line.strip() == "BAZI CHART DETAILS"), None)
+    if details_index is None:
+        return text
+    kept: list[str] = []
+    if year_line:
+        kept.append(year_line)
+        kept.append("")
+    kept.extend(lines[details_index:])
+    return "\n".join(kept).strip()
+
+
 def _build_bazi_export_text(chart: Chart, *, markdown: bool) -> str:
     try:
         txt_payload, md_payload = build_bazi_export_payload_for_chart(chart)
-        body = md_payload if markdown else txt_payload
+        body = _remove_bazi_identifying_header(md_payload if markdown else txt_payload, markdown=markdown)
     except Exception as exc:
         body = f"BaZi chart unavailable: {exc}"
     return _section("BaZi Window", body, markdown=markdown)
+
+
+def _format_similarity_scoring_method(
+    *,
+    algorithm_mode: str | None,
+    similarity_settings: Any | None,
+) -> str:
+    mode = str(algorithm_mode or "default").strip().lower() or "default"
+    mode_label = {
+        "default": "Default",
+        "comprehensive": "Comprehensive",
+        "custom": "Custom",
+    }.get(mode, mode.replace("_", " ").title())
+    lines = [f"Current Settings > Similarities Calculator scoring system: {mode_label}."]
+
+    settings = similarity_settings
+    if mode == "comprehensive" or (mode == "custom" and settings is not None):
+        try:
+            enabled = settings.enabled_components()
+            weights = settings.weights_by_component()
+            active = [
+                (key.replace("_", " "), float(weights.get(key, 0.0)))
+                for key, is_enabled in enabled.items()
+                if bool(is_enabled) and float(weights.get(key, 0.0)) > 0.0
+            ]
+            total = sum(weight for _key, weight in active)
+            if active and total > 0:
+                component_text = ", ".join(
+                    f"{label} {weight / total * 100.0:.1f}%"
+                    for label, weight in active
+                )
+                lines.append(f"Enabled normalized component weights: {component_text}.")
+            placement_mode = getattr(settings, "placement_weighting_mode", None)
+            if placement_mode:
+                lines.append(f"Placement weighting mode: {str(placement_mode).replace('_', ' ')}.")
+        except Exception:
+            pass
+    else:
+        lines.append("Default mode combines placement, aspect, distribution, and dominance similarity components.")
+    return "\n".join(lines)
+
+
+def _markdown_table_cell(value: object) -> str:
+    """Return text safe to interpolate into a Markdown table cell."""
+    return (
+        str(value or "")
+        .replace("\r\n", "<br>")
+        .replace("\r", "<br>")
+        .replace("\n", "<br>")
+        .replace("|", r"\|")
+    )
+
+
+def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) -> list[str]:
+    if markdown:
+        lines = [
+            "| Rank | Chart ID | Chart | Similarity | Band | Z-score | Placement | Aspects | Distribution | Dominance |",
+            "|---:|---:|---|---:|---|---:|---:|---:|---:|---:|",
+        ]
+        for row in rows:
+            z_score = row.get("similarity_z_score")
+            z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
+            dominance = row.get("dominance_percent")
+            dominance_text = "" if dominance is None else f"{float(dominance):.1f}%"
+            chart_name = _markdown_table_cell(row.get("chart_name", ""))
+            band = _markdown_table_cell(row.get("similarity_band", ""))
+            lines.append(
+                f"| {row.get('rank', '')} | {row.get('chart_id', '')} | {chart_name} | "
+                f"{float(row.get('similarity_percent', 0.0)):.1f}% | {band} | "
+                f"{z_score_text} | {float(row.get('placement_percent', 0.0)):.1f}% | "
+                f"{float(row.get('aspect_percent', 0.0)):.1f}% | "
+                f"{float(row.get('distribution_percent', 0.0)):.1f}% | {dominance_text} |"
+            )
+        return lines
+
+    lines: list[str] = []
+    for row in rows:
+        z_score = row.get("similarity_z_score")
+        z_score_text = "" if z_score is None else f"; z={float(z_score):+.3f}"
+        dominance = row.get("dominance_percent")
+        dominance_text = "" if dominance is None else f", dominance {float(dominance):.1f}%"
+        lines.append(
+            f"{row.get('rank', '')}. #{row.get('chart_id', '')} — {row.get('chart_name', '')}: "
+            f"Similarity {float(row.get('similarity_percent', 0.0)):.1f}% "
+            f"[{row.get('similarity_band', 'unclassified')}{z_score_text}] "
+            f"(placements {float(row.get('placement_percent', 0.0)):.1f}%, "
+            f"aspects {float(row.get('aspect_percent', 0.0)):.1f}%, "
+            f"distribution {float(row.get('distribution_percent', 0.0)):.1f}%{dominance_text})"
+        )
+    return lines or ["No similar charts available."]
+
+
+def build_total_chart_similar_charts_section(
+    *,
+    subject_name: str,
+    most_rows: list[dict[str, Any]],
+    least_rows: list[dict[str, Any]],
+    markdown: bool,
+    algorithm_mode: str | None = None,
+    similarity_settings: Any | None = None,
+) -> str:
+    scoring_text = _format_similarity_scoring_method(
+        algorithm_mode=algorithm_mode,
+        similarity_settings=similarity_settings,
+    )
+    if markdown:
+        lines = ["# Similar Charts", "", "## 25 Most Similar", ""]
+        lines.extend(_format_similar_chart_rows(most_rows, markdown=True))
+        lines.extend(["", "## 25 Least Similar", ""])
+        lines.extend(_format_similar_chart_rows(least_rows, markdown=True))
+        lines.extend(["", "## Chart Similarities Scoring Method", "", scoring_text])
+        return "\n".join(lines).strip()
+
+    lines = ["SIMILAR CHARTS", "==============", "", "25 Most Similar", ""]
+    lines.extend(_format_similar_chart_rows(most_rows, markdown=False))
+    lines.extend(["", "25 Least Similar", ""])
+    lines.extend(_format_similar_chart_rows(least_rows, markdown=False))
+    lines.extend(["", "Chart Similarities Scoring Method", "", scoring_text])
+    return "\n".join(lines).strip()
+
+
+def build_total_chart_similar_charts_section_for_chart(
+    *,
+    chart: Chart,
+    subject_chart_id: int | None,
+    markdown: bool,
+    chart_rows: list[tuple[Any, ...]],
+    load_chart_by_id: Callable[[int], Chart],
+    resolve_similarity_band: Callable[[float], tuple[str, str]],
+    settings: Any,
+    algorithm_mode: str | None = None,
+    similarity_settings: Any | None = None,
+) -> str:
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+        build_similar_charts_export_rows_from_matches,
+        load_similar_chart_candidates,
+    )
+
+    subject_name = str(getattr(chart, "name", "") or "Current chart").strip() or "Current chart"
+    normalized_algorithm_mode = normalize_similar_charts_algorithm_mode(
+        algorithm_mode or SIMILAR_CHARTS_ALGORITHM_DEFAULT
+    )
+    try:
+        candidates = load_similar_chart_candidates(
+            rows=chart_rows,
+            current_chart_id=subject_chart_id,
+            load_chart_by_id=load_chart_by_id,
+        )
+        if not candidates:
+            return build_total_chart_similar_charts_section(
+                subject_name=subject_name,
+                most_rows=[],
+                least_rows=[],
+                markdown=markdown,
+                algorithm_mode=normalized_algorithm_mode,
+                similarity_settings=similarity_settings,
+            )
+
+        most_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=subject_chart_id,
+            least_similar=False,
+            algorithm_mode=normalized_algorithm_mode,
+            custom_settings=similarity_settings,
+        )
+        least_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=subject_chart_id,
+            least_similar=True,
+            algorithm_mode=normalized_algorithm_mode,
+            custom_settings=similarity_settings,
+        )
+        least_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(settings)
+        most_rows = build_similar_charts_export_rows_from_matches(
+            matches=most_matches[:25],
+            resolve_similarity_band=resolve_similarity_band,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
+        )
+        least_rows = build_similar_charts_export_rows_from_matches(
+            matches=least_matches[:25],
+            resolve_similarity_band=resolve_similarity_band,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
+        )
+        return build_total_chart_similar_charts_section(
+            subject_name=subject_name,
+            most_rows=most_rows,
+            least_rows=least_rows,
+            markdown=markdown,
+            algorithm_mode=normalized_algorithm_mode,
+            similarity_settings=similarity_settings,
+        )
+    except Exception as exc:
+        heading = "# Similar Charts" if markdown else "SIMILAR CHARTS\n=============="
+        subheading = "## Chart Similarities Scoring Method" if markdown else "Chart Similarities Scoring Method"
+        return (
+            f"{heading}\n\n"
+            f"Similar charts unavailable: {exc}\n\n"
+            f"{subheading}\n\n"
+            f"Current Settings > Similarities Calculator scoring system: "
+            f"{normalized_algorithm_mode.replace('_', ' ').title()}."
+        )
 
 
 def build_total_chart_export_text(
     chart: Chart,
     *,
     markdown: bool,
-    show_cursedness: bool = True,
+    show_cursedness: bool = False,
     show_dnd_output: bool = False,
     calculate_enneagram_scores: Callable[[Chart], dict[int, float]] | None = None,
+    similar_charts_section: str | None = None,
 ) -> str:
     """Build the complete single-chart export payload for TXT/Markdown files."""
     chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
@@ -266,4 +514,6 @@ def build_total_chart_export_text(
         _build_human_design_export_text(chart, markdown=markdown),
         _build_bazi_export_text(chart, markdown=markdown),
     ]
+    if similar_charts_section:
+        sections.append(str(similar_charts_section))
     return "\n\n".join(section.strip() for section in sections if str(section).strip()) + "\n"
