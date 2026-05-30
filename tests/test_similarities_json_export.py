@@ -237,7 +237,7 @@ def test_dissimilarities_json_export_bundles_chart_unique_factors_by_owner():
     assert similarities_json_payload_has_factors(payload, "Contrasts")
 
 
-def test_dissimilarities_json_export_keeps_all_owner_buckets_without_significance_filter():
+def test_dissimilarities_json_export_keeps_all_owner_buckets_without_database_significance_filter():
     payload = build_similarities_json_export_payload(
         "Contrasts",
         [
