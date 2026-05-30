@@ -307,6 +307,17 @@ def _format_similarity_scoring_method(
     return "\n".join(lines)
 
 
+def _markdown_table_cell(value: object) -> str:
+    """Return text safe to interpolate into a Markdown table cell."""
+    return (
+        str(value or "")
+        .replace("\r\n", "<br>")
+        .replace("\r", "<br>")
+        .replace("\n", "<br>")
+        .replace("|", r"\|")
+    )
+
+
 def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) -> list[str]:
     if markdown:
         lines = [
@@ -318,9 +329,11 @@ def _format_similar_chart_rows(rows: list[dict[str, Any]], *, markdown: bool) ->
             z_score_text = "" if z_score is None else f"{float(z_score):+.3f}"
             dominance = row.get("dominance_percent")
             dominance_text = "" if dominance is None else f"{float(dominance):.1f}%"
+            chart_name = _markdown_table_cell(row.get("chart_name", ""))
+            band = _markdown_table_cell(row.get("similarity_band", ""))
             lines.append(
-                f"| {row.get('rank', '')} | {row.get('chart_id', '')} | {row.get('chart_name', '')} | "
-                f"{float(row.get('similarity_percent', 0.0)):.1f}% | {row.get('similarity_band', '')} | "
+                f"| {row.get('rank', '')} | {row.get('chart_id', '')} | {chart_name} | "
+                f"{float(row.get('similarity_percent', 0.0)):.1f}% | {band} | "
                 f"{z_score_text} | {float(row.get('placement_percent', 0.0)):.1f}% | "
                 f"{float(row.get('aspect_percent', 0.0)):.1f}% | "
                 f"{float(row.get('distribution_percent', 0.0)):.1f}% | {dominance_text} |"
