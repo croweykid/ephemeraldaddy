@@ -1040,6 +1040,19 @@ from ephemeraldaddy.gui.style import (
     TRISTATE_SENTIMENT_STYLE,
 )
 from ephemeraldaddy.core.timeutils import localize_naive_datetime
+
+DISSIMILARITY_CHART_1_RGB = (80, 170, 255)
+DISSIMILARITY_CHART_2_RGB = (255, 215, 80)
+DISSIMILARITY_OWNER_RGB = {
+    "chart_1": DISSIMILARITY_CHART_1_RGB,
+    "chart_2": DISSIMILARITY_CHART_2_RGB,
+}
+
+
+def _contrasting_similarities_section_title(section_title: str) -> str:
+    factor_name = section_title.replace(" in contrast", "").replace(" in common", "")
+    return f"Contrasting {factor_name}"
+
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
     SPECIES_FAMILIES,
     assign_top_three_species,
@@ -2030,7 +2043,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_analytics_popout_dialogs: list[QDialog] = []
         self._database_metrics_section_widgets: dict[str, QWidget] = {}
         self._similarities_export_sections: list[
-            tuple[str, list[tuple[str, int, int, int, int, str]]]
+            tuple[str, list[tuple[Any, ...]]]
         ] = []
         self._similarities_pair_button: QPushButton | None = None
         self._dissimilarities_pair_button: QPushButton | None = None
@@ -7306,16 +7319,23 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
                 matches = section_matches.get(section_title, [])
-                db_match_counts = {label: db_count for label, _count, _total, db_count, _db_total, _names in matches}
-                db_total_counts = {label: db_total for label, _count, _total, _db_count, db_total, _names in matches}
+                db_match_counts = {match[0]: match[3] for match in matches}
+                db_total_counts = {match[0]: match[4] for match in matches}
+                row_rgb_by_label = {
+                    match[0]: DISSIMILARITY_OWNER_RGB[match[6]]
+                    for match in matches
+                    if len(match) > 6 and match[6] in DISSIMILARITY_OWNER_RGB
+                }
                 self._set_similarities_section_matches(
                     section_list,
                     toggle,
-                    [(label, count, total) for label, count, total, _db_count, _db_total, _names in matches],
+                    [(match[0], match[1], match[2]) for match in matches],
                     selection_total_count=len(selected_chart_ids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,
+                    display_title=_contrasting_similarities_section_title(section_title),
+                    row_rgb_by_label=row_rgb_by_label,
                 )
 
             total_contrasts = sum(len(matches) for _section_title, matches in pair_sections)
@@ -7405,9 +7425,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         db_total_count: int = 0,
         db_total_counts_by_label: dict[str, int] | None = None,
         show_no_match_row: bool = True,
+        display_title: str | None = None,
+        row_rgb_by_label: dict[str, tuple[int, int, int]] | None = None,
     ) -> None:
         section_list.clear()
-        base_title = str(toggle.property("similarities_base_title") or toggle.text())
+        stored_base_title = str(toggle.property("similarities_base_title") or toggle.text())
+        base_title = display_title or stored_base_title
         if not show_no_match_row and not matches:
             toggle.setText(base_title)
         else:
@@ -7440,9 +7463,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     if db_label_total_count
                     else 0
                 )
-                similarity_red, similarity_green, similarity_blue = similarity_delta_rgb(
-                    percent_value, db_percent_value, total_count
-                )
+                row_rgb = (row_rgb_by_label or {}).get(label)
+                if row_rgb is None:
+                    row_rgb = similarity_delta_rgb(percent_value, db_percent_value, total_count)
+                similarity_red, similarity_green, similarity_blue = row_rgb
                 add_similarity_match_row(
                     section_list=section_list,
                     section_title=base_title,
@@ -8729,14 +8753,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for section_title, matches in self._similarities_export_sections:
             if not matches:
                 continue
-            for (
-                label,
-                match_count,
-                total_count,
-                database_match_count,
-                database_total_count,
-                matching_chart_names,
-            ) in matches:
+            for match in matches:
+                (
+                    label,
+                    match_count,
+                    total_count,
+                    database_match_count,
+                    database_total_count,
+                    matching_chart_names,
+                ) = match[:6]
                 selection_percent = round((match_count / total_count) * 100, 2) if total_count else 0
                 database_percent = (
                     round((database_match_count / database_total_count) * 100, 2)
@@ -23817,16 +23842,23 @@ class MainWindow(QMainWindow):
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
                 matches = section_matches.get(section_title, [])
-                db_match_counts = {label: db_count for label, _count, _total, db_count, _db_total, _names in matches}
-                db_total_counts = {label: db_total for label, _count, _total, _db_count, db_total, _names in matches}
+                db_match_counts = {match[0]: match[3] for match in matches}
+                db_total_counts = {match[0]: match[4] for match in matches}
+                row_rgb_by_label = {
+                    match[0]: DISSIMILARITY_OWNER_RGB[match[6]]
+                    for match in matches
+                    if len(match) > 6 and match[6] in DISSIMILARITY_OWNER_RGB
+                }
                 self._set_similarities_section_matches(
                     section_list,
                     toggle,
-                    [(label, count, total) for label, count, total, _db_count, _db_total, _names in matches],
+                    [(match[0], match[1], match[2]) for match in matches],
                     selection_total_count=len(selected_chart_ids),
                     db_match_counts=db_match_counts,
                     db_total_count=db_total_count,
                     db_total_counts_by_label=db_total_counts,
+                    display_title=_contrasting_similarities_section_title(section_title),
+                    row_rgb_by_label=row_rgb_by_label,
                 )
 
             total_contrasts = sum(len(matches) for _section_title, matches in pair_sections)

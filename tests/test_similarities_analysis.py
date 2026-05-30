@@ -130,10 +130,12 @@ def test_dissimilarity_export_sections_exclude_timed_only_contrasts_for_mixed_pa
     )
 
     position_labels = {label for label, *_rest in sections["Signs in positions in contrast"]}
+    position_owners = {label: owner for label, *_rest, owner in sections["Signs in positions in contrast"]}
     house_position_labels = {label for label, *_rest in sections["Houses in positions in contrast"]}
     house_sign_labels = {label for label, *_rest in sections["Signs in houses in contrast"]}
 
     assert position_labels == {"Sun in Aries", "Sun in Taurus"}
+    assert position_owners == {"Sun in Aries": "chart_1", "Sun in Taurus": "chart_2"}
     assert "AS in Aries" not in position_labels
     assert house_position_labels == set()
     assert house_sign_labels == set()

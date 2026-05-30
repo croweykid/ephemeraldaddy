@@ -69,6 +69,26 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Profiles in contrast": "antiprofiles",
 }
 
+
+DISSIMILARITIES_JSON_OWNER_LABELS: dict[str, str] = {
+    "chart_1": "chart 1 unique factors",
+    "chart_2": "chart 2 unique factors",
+}
+DISSIMILARITIES_JSON_ANTI_TO_UNIQUE_CATEGORIES: dict[str, str] = {
+    "antisigns": "signs",
+    "antihouses": "houses",
+    "antibodies": "bodies",
+    "antinakshatras": "nakshatras",
+    "antipositions": "positions",
+    "antiaspects": "aspects",
+    "antigates": "gates",
+    "antichannels": "channels",
+    "anticenters": "centers",
+    "antiprofiles": "profiles",
+    "antiauthorities": "authorities",
+    "antibazisigns": "bazisigns",
+}
+
 SIMILARITIES_JSON_PRIMARY_POSITION_BODIES: tuple[str, ...] = (
     "Sun",
     "Moon",
@@ -268,6 +288,62 @@ def sort_similarities_json_positions(profile: OrderedDict) -> None:
         profile["positions"] = OrderedDict(sorted(positions.items(), key=_position_sort_key))
 
 
+def _similarities_json_match_owner(match: tuple[object, ...]) -> str:
+    return str(match[6]) if len(match) > 6 else ""
+
+
+def _has_dissimilarity_json_owner(export_sections) -> bool:
+    return any(
+        str(section_title).endswith(" in contrast")
+        and any(_similarities_json_match_owner(tuple(match)) in DISSIMILARITIES_JSON_OWNER_LABELS for match in matches)
+        for section_title, matches in export_sections
+    )
+
+
+def _add_similarity_json_match_to_profile(
+    profile: OrderedDict,
+    section_title: str,
+    match: tuple[object, ...],
+    *,
+    use_unique_factor_categories: bool = False,
+) -> None:
+    if len(match) < 6:
+        return
+    label, match_count, total_count, database_match_count, database_total_count, _matching_chart_names = match[:6]
+    match_count = int(match_count)
+    total_count = int(total_count)
+    database_match_count = int(database_match_count)
+    database_total_count = int(database_total_count)
+    selection_percent = (match_count / total_count) * 100 if total_count else 0.0
+    database_percent = (
+        (database_match_count / database_total_count) * 100
+        if database_total_count
+        else 0.0
+    )
+    percent_difference = selection_percent - database_percent
+    if not similarity_delta_exceeds_export_standard_deviation_tier(
+        selection_percent,
+        database_percent,
+        total_count,
+    ):
+        return
+    category = similarities_json_category_for_section(
+        section_title,
+        percent_difference,
+    )
+    if category is None:
+        return
+    if use_unique_factor_categories:
+        category = DISSIMILARITIES_JSON_ANTI_TO_UNIQUE_CATEGORIES.get(category, category)
+    ratio = int(round(percent_difference))
+    if ratio == 0:
+        return
+    criterion = normalize_similarities_json_criterion(section_title, label)
+    if criterion is None:
+        return
+    profile[category][criterion] = ratio
+
+
 def build_similarities_json_export_payload(
     selection_name: str,
     export_sections,
@@ -276,46 +352,39 @@ def build_similarities_json_export_payload(
 
     ``export_sections`` is the same data shape used by the CSV exporter: an
     iterable of ``(section_title, matches)`` entries whose matches contain
-    label, selection count/total, database count/total, and matching names.
+    label, selection count/total, database count/total, matching names, and
+    optionally a dissimilarity owner key (``chart_1`` or ``chart_2``).
     """
+    if _has_dissimilarity_json_owner(export_sections):
+        bundle = OrderedDict([("name", selection_name)])
+        for owner_key in ("chart_1", "chart_2"):
+            bundle[DISSIMILARITIES_JSON_OWNER_LABELS[owner_key]] = empty_similarities_json_profile(
+                DISSIMILARITIES_JSON_OWNER_LABELS[owner_key]
+            )
+        for section_title, matches in export_sections:
+            if not matches:
+                continue
+            for raw_match in matches:
+                match = tuple(raw_match)
+                owner_label = DISSIMILARITIES_JSON_OWNER_LABELS.get(_similarities_json_match_owner(match))
+                if owner_label is None:
+                    continue
+                _add_similarity_json_match_to_profile(
+                    bundle[owner_label],
+                    section_title,
+                    match,
+                    use_unique_factor_categories=True,
+                )
+        for owner_label in DISSIMILARITIES_JSON_OWNER_LABELS.values():
+            sort_similarities_json_positions(bundle[owner_label])
+        return OrderedDict([(selection_name, bundle)])
+
     profile = empty_similarities_json_profile(selection_name)
     for section_title, matches in export_sections:
         if not matches:
             continue
-        for (
-            label,
-            match_count,
-            total_count,
-            database_match_count,
-            database_total_count,
-            _matching_chart_names,
-        ) in matches:
-            selection_percent = (match_count / total_count) * 100 if total_count else 0.0
-            database_percent = (
-                (database_match_count / database_total_count) * 100
-                if database_total_count
-                else 0.0
-            )
-            percent_difference = selection_percent - database_percent
-            if not similarity_delta_exceeds_export_standard_deviation_tier(
-                selection_percent,
-                database_percent,
-                total_count,
-            ):
-                continue
-            category = similarities_json_category_for_section(
-                section_title,
-                percent_difference,
-            )
-            if category is None:
-                continue
-            ratio = int(round(percent_difference))
-            if ratio == 0:
-                continue
-            criterion = normalize_similarities_json_criterion(section_title, label)
-            if criterion is None:
-                continue
-            profile[category][criterion] = ratio
+        for raw_match in matches:
+            _add_similarity_json_match_to_profile(profile, section_title, tuple(raw_match))
     sort_similarities_json_positions(profile)
     return OrderedDict([(selection_name, profile)])
 
@@ -360,9 +429,19 @@ def format_similarities_json_export_payload(payload: OrderedDict) -> str:
     return f"{_format_similarities_export_value(payload, indent=0)}\n"
 
 
+def _similarities_json_profile_has_factors(profile: Mapping) -> bool:
+    return any(bool(profile.get(key)) for key in SIMILARITIES_JSON_FACTOR_KEYS)
+
+
 def similarities_json_payload_has_factors(payload: OrderedDict, selection_name: str) -> bool:
     """Return True when a Similarities Analysis JSON payload has exportable factors."""
     profile = payload.get(selection_name)
     if not isinstance(profile, dict):
         return False
-    return any(bool(profile.get(key)) for key in SIMILARITIES_JSON_FACTOR_KEYS)
+    if _similarities_json_profile_has_factors(profile):
+        return True
+    return any(
+        isinstance(profile.get(owner_label), Mapping)
+        and _similarities_json_profile_has_factors(profile[owner_label])
+        for owner_label in DISSIMILARITIES_JSON_OWNER_LABELS.values()
+    )
