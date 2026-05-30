@@ -784,11 +784,12 @@ def calculate_weighted_criteria_scores(
                 house_positive = sum(weight for house_num, weight in houses.items() if float(house_weights.get(house_num, 0.0)) > 0)
                 house_negative = sum(weight for house_num, weight in antihouses.items() if float(house_weights.get(house_num, 0.0)) > 0)
 
-        gates_positive = sum(weight for gate, weight in gates.items() if gate in active_gates)
-        gates_negative = sum(weight for gate, weight in antigates.items() if gate in active_gates)
-        channels_positive = sum(weight for channel, weight in channels.items() if channel in active_channels)
-        channels_negative = sum(weight for channel, weight in antichannels.items() if channel in active_channels)
-
+        hd_activation_weight = float(options.human_design_activation_weight)
+        gates_positive = sum(hd_activation_weight * weight for gate, weight in gates.items() if gate in active_gates)
+        gates_negative = sum(hd_activation_weight * weight for gate, weight in antigates.items() if gate in active_gates)
+        channels_positive = sum(hd_activation_weight * weight for channel, weight in channels.items() if channel in active_channels)
+        channels_negative = sum(hd_activation_weight * weight for channel, weight in antichannels.items() if channel in active_channels)
+        
         hdtype_positive = sum(weight for hd_type, weight in hdtypes.items() if hd_type == active_hd_type)
         hdtype_negative = sum(weight for hd_type, weight in antihdtypes.items() if hd_type == active_hd_type)
         center_positive = sum(weight for center, weight in centers.items() if center in active_centers)

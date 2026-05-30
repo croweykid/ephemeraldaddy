@@ -21311,6 +21311,14 @@ class MainWindow(QMainWindow):
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
         )
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(
+            self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        _set_enneagram_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         configure_main_window_chrome(self)
         self._feature_hub = FeatureEventHub()
