@@ -1810,9 +1810,8 @@ DND_STATS_HYPOTHETICAL = { #lore- x research-based. (GPT edited my findings to t
 
     "WIS": {
         "label": "Wisdom",
-        "sample_note": "Measures perception, judgment, pattern digestion, situational awareness, emotional reading, and empirical restraint.",
+        "sample_note": "The capacity to notice what is happening internally and interpersonally, stay regulated under emotional pressure, read context accurately, and choose responses that are proportionate, humane, and non-self-sabotaging.",
         "confidence": "medium-high",
-
         "signs": {
             "Gemini": 8,
             "Virgo": 6,
