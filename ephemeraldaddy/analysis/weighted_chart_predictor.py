@@ -150,6 +150,7 @@ class WeightedPredictorScoringOptions:
     average_scores_by_criterion_count: bool = True
     type_signature_scale_mode: str = TYPE_SIGNATURE_SCALE_NONE
     dominance_normalization_mode: str = DOMINANCE_NORMALIZATION_RANGE
+    human_design_activation_weight: float = 1.0
 
     def normalized_type_signature_scale_mode(self) -> str:
         mode = str(self.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE).strip().lower()
@@ -183,6 +184,13 @@ def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str,
             return bool(raw)
         return fallback
 
+    def _float(key: str, fallback: float) -> float:
+        raw = value.get(key, fallback)
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return fallback
+
     return WeightedPredictorScoringOptions(
         use_direct_dominance_activation=_bool("use_direct_dominance_activation", True),
         use_position_dominance_weighting=_bool("use_position_dominance_weighting", True),
@@ -191,6 +199,7 @@ def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str,
         average_scores_by_criterion_count=_bool("average_scores_by_criterion_count", True),
         type_signature_scale_mode=str(value.get("type_signature_scale_mode", TYPE_SIGNATURE_SCALE_NONE) or TYPE_SIGNATURE_SCALE_NONE),
         dominance_normalization_mode=str(value.get("dominance_normalization_mode", DOMINANCE_NORMALIZATION_RANGE) or DOMINANCE_NORMALIZATION_RANGE),
+        human_design_activation_weight=_float("human_design_activation_weight", 1.0),
     )
 
 

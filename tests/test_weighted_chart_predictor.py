@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
+    coerce_scoring_options,
 )
 
 
@@ -56,6 +57,18 @@ def test_scores_human_design_and_bazi_metadata_categories():
 
     assert scores["match"] == 28.0
     assert scores["miss"] == 0.0
+
+
+def test_scoring_options_include_human_design_activation_weight():
+    options = WeightedPredictorScoringOptions(human_design_activation_weight=2.5)
+
+    assert options.human_design_activation_weight == 2.5
+
+
+def test_coerce_scoring_options_preserves_human_design_activation_weight():
+    options = coerce_scoring_options({"human_design_activation_weight": "0.25"})
+
+    assert options.human_design_activation_weight == 0.25
 
 
 def test_scores_weighted_human_design_channels():
