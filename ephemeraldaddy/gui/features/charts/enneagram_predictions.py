@@ -34,6 +34,7 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
+    DOMINANCE_NORMALIZATION_SHARE,
     TYPE_SIGNATURE_SCALE_NONE,
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
@@ -51,6 +52,7 @@ ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
     simplify_anti_factor_handling=True,
     average_scores_by_criterion_count=False,
     type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+    dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
 )
 ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
 ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
@@ -85,6 +87,7 @@ def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
         simplify_anti_factor_handling=True,
         average_scores_by_criterion_count=False,
         type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+        dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
     )
 
 
@@ -100,6 +103,7 @@ def merge_enneagram_scoring_options(payload: Any) -> WeightedPredictorScoringOpt
         "simplify_anti_factor_handling": defaults.simplify_anti_factor_handling,
         "average_scores_by_criterion_count": defaults.average_scores_by_criterion_count,
         "type_signature_scale_mode": defaults.type_signature_scale_mode,
+        "dominance_normalization_mode": defaults.dominance_normalization_mode,
     }
     merged.update(payload)
     return coerce_scoring_options(merged)
@@ -122,6 +126,7 @@ def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOption
         "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
         "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
         "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE),
+        "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
     }
 
 def default_enneagram_category_weights() -> dict[str, float]:

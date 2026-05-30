@@ -258,3 +258,25 @@ def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypa
     weights = bazi_getter.bazi_sign_weights_from_chart(chart)
 
     assert weights == {"Horse": 2.0, "Dog": 1.0}
+
+
+def test_direct_dominance_can_use_share_of_total_activation():
+    chart = SimpleNamespace(dominant_sign_weights={"Aquarius": 42, "Libra": 58})
+    predictors = {"e4": {"signs": {"Aquarius": 19}}}
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda _chart: {"Aquarius": 42, "Libra": 58},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+            dominance_normalization_mode="share",
+        ),
+    )
+
+    assert round(scores["e4"], 2) == 7.98

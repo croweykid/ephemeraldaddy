@@ -131,6 +131,12 @@ TYPE_SIGNATURE_SCALE_MODES = {
     TYPE_SIGNATURE_SCALE_SQRT,
     TYPE_SIGNATURE_SCALE_FULL,
 }
+DOMINANCE_NORMALIZATION_RANGE = "range"
+DOMINANCE_NORMALIZATION_SHARE = "share"
+DOMINANCE_NORMALIZATION_MODES = {
+    DOMINANCE_NORMALIZATION_RANGE,
+    DOMINANCE_NORMALIZATION_SHARE,
+}
 
 
 @dataclass(frozen=True)
@@ -143,10 +149,15 @@ class WeightedPredictorScoringOptions:
     simplify_anti_factor_handling: bool = True
     average_scores_by_criterion_count: bool = True
     type_signature_scale_mode: str = TYPE_SIGNATURE_SCALE_NONE
+    dominance_normalization_mode: str = DOMINANCE_NORMALIZATION_RANGE
 
     def normalized_type_signature_scale_mode(self) -> str:
         mode = str(self.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE).strip().lower()
         return mode if mode in TYPE_SIGNATURE_SCALE_MODES else TYPE_SIGNATURE_SCALE_NONE
+
+    def normalized_dominance_normalization_mode(self) -> str:
+        mode = str(self.dominance_normalization_mode or DOMINANCE_NORMALIZATION_RANGE).strip().lower()
+        return mode if mode in DOMINANCE_NORMALIZATION_MODES else DOMINANCE_NORMALIZATION_RANGE
 
 
 DEFAULT_SCORING_OPTIONS = WeightedPredictorScoringOptions(simplify_anti_factor_handling=False)
@@ -179,6 +190,7 @@ def coerce_scoring_options(value: WeightedPredictorScoringOptions | Mapping[str,
         simplify_anti_factor_handling=_bool("simplify_anti_factor_handling", True),
         average_scores_by_criterion_count=_bool("average_scores_by_criterion_count", True),
         type_signature_scale_mode=str(value.get("type_signature_scale_mode", TYPE_SIGNATURE_SCALE_NONE) or TYPE_SIGNATURE_SCALE_NONE),
+        dominance_normalization_mode=str(value.get("dominance_normalization_mode", DOMINANCE_NORMALIZATION_RANGE) or DOMINANCE_NORMALIZATION_RANGE),
     )
 
 
@@ -231,6 +243,32 @@ def normalize_weight_map_by_range(raw_weights: Mapping[Any, float] | None) -> di
     if range_value <= 0:
         return {key: 0.0 for key in cleaned}
     return {key: (value - min_value) / range_value for key, value in cleaned.items()}
+
+
+def normalize_weight_map_by_share(raw_weights: Mapping[Any, float] | None) -> dict[Any, float]:
+    """Normalize arbitrary numeric weights as non-negative shares of total weight."""
+    if not raw_weights:
+        return {}
+    cleaned: dict[Any, float] = {}
+    for key, raw_value in raw_weights.items():
+        try:
+            cleaned[key] = max(0.0, float(raw_value))
+        except (TypeError, ValueError):
+            cleaned[key] = 0.0
+    total = sum(cleaned.values())
+    if total <= 0.0:
+        return {key: 0.0 for key in cleaned}
+    return {key: value / total for key, value in cleaned.items()}
+
+
+def normalize_weight_map_for_dominance_activation(
+    raw_weights: Mapping[Any, float] | None,
+    mode: str,
+) -> dict[Any, float]:
+    """Normalize dominance activations according to weighted predictor settings."""
+    if str(mode or DOMINANCE_NORMALIZATION_RANGE).strip().lower() == DOMINANCE_NORMALIZATION_SHARE:
+        return normalize_weight_map_by_share(raw_weights)
+    return normalize_weight_map_by_range(raw_weights)
 
 
 def normalize_factor_value(value: str) -> str:
@@ -642,10 +680,11 @@ def calculate_weighted_criteria_scores(
     house_weights_raw = calculate_house_weights(chart) if use_houses else {}
     nakshatra_weights_raw = getattr(chart, "dominant_nakshatra_weights", None) or calculate_nakshatra_weights(chart)
 
-    sign_weights = normalize_weight_map_by_range(sign_weights_raw)
-    body_weights = normalize_weight_map_by_range(body_weights_raw)
-    house_weights = normalize_weight_map_by_range(house_weights_raw) if use_houses else {}
-    nakshatra_weights = normalize_weight_map_by_range(nakshatra_weights_raw)
+    dominance_normalization_mode = options.normalized_dominance_normalization_mode()
+    sign_weights = normalize_weight_map_for_dominance_activation(sign_weights_raw, dominance_normalization_mode)
+    body_weights = normalize_weight_map_for_dominance_activation(body_weights_raw, dominance_normalization_mode)
+    house_weights = normalize_weight_map_for_dominance_activation(house_weights_raw, dominance_normalization_mode) if use_houses else {}
+    nakshatra_weights = normalize_weight_map_for_dominance_activation(nakshatra_weights_raw, dominance_normalization_mode)
     chart_name = str(getattr(chart, "name", "Unnamed Chart"))
 
     body_house_lookup: dict[str, int] = {}

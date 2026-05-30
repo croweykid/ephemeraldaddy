@@ -414,6 +414,9 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
+    chart_body_dominance_weights as _similarity_body_dominance_weights,
+    chart_house_dominance_weights as _similarity_house_dominance_weights,
+    chart_sign_dominance_weights as _similarity_sign_dominance_weights,
     find_astro_twins,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
@@ -29817,9 +29820,9 @@ class MainWindow(QMainWindow):
         return _calculate_enneagram_type_weights(
             chart,
             enneagram=ENNEAGRAM,
-            calculate_sign_weights=_calculate_dominant_sign_weights,
-            calculate_body_weights=_calculate_dominant_planet_weights,
-            calculate_house_weights=_calculate_dominant_house_weights,
+            calculate_sign_weights=_similarity_sign_dominance_weights,
+            calculate_body_weights=_similarity_body_dominance_weights,
+            calculate_house_weights=_similarity_house_dominance_weights,
             chart_uses_houses=_chart_uses_houses,
         )
 
