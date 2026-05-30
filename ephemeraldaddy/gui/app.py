@@ -1066,12 +1066,14 @@ from ephemeraldaddy.gui.features.charts.chart_data_output import (
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
     BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE,
-    build_bazi_export_payload_for_chart,
     create_bazi_window_dialog,
     validate_chart_for_bazi,
 )
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
+)
+from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
+    build_total_chart_export_text as _build_total_chart_export_text,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
@@ -1091,7 +1093,6 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
-    build_dnd_top_three_summary_html as _build_dnd_top_three_summary_html,
     configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
     connect_dnd_statblock_popout_pick_handler as _connect_dnd_statblock_popout_pick_handler,
     draw_dnd_statblock_predictions as _draw_dnd_statblock_predictions_chart,
@@ -6958,218 +6959,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return None
         return selected_chart_id
 
-    @staticmethod
-    def _plain_text_from_htmlish(value: object) -> str:
-        text = str(value or "")
-        text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"</\s*(p|div|li|h[1-6])\s*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<[^>]+>", "", text)
-        return html.unescape(text).strip()
-
-    @staticmethod
-    def _format_total_chart_ranked_values(values: dict[str, object], *, limit: int | None = None) -> list[str]:
-        ranked = sorted(
-            ((str(label), float(raw_value or 0.0)) for label, raw_value in (values or {}).items()),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-        if limit is not None:
-            ranked = ranked[:limit]
-        if not ranked:
-            return ["- No data"]
-        return [f"- {label}: {value:.2f}" for label, value in ranked]
-
-    @staticmethod
-    def _total_chart_section(title: str, body: str, *, markdown: bool) -> str:
-        clean_body = str(body or "").strip() or "No data available."
-        if markdown:
-            return f"## {title}\n\n{clean_body}"
-        return f"{title.upper()}\n{'=' * len(title)}\n\n{clean_body}"
-
-    def _build_total_chart_analytics_export_text(self, chart: Chart, *, markdown: bool) -> str:
-        sections: list[str] = []
-        dominant_signs = _calculate_dominant_sign_weights(chart)
-        sign_prevalence = _calculate_sign_prevalence_counts(chart)
-        dominant_bodies = _calculate_dominant_planet_weights(chart)
-        sidereal_bodies = _calculate_sidereal_planet_prevalence_counts(chart)
-        dominant_houses = _calculate_dominant_house_weights(chart)
-        house_prevalence = _calculate_house_prevalence_counts(chart)
-        dominant_elements = _calculate_dominant_element_weights(chart)
-        element_prevalence = _calculate_element_prevalence_counts(chart)
-        dominant_nakshatras = _calculate_dominant_nakshatra_weights(chart)
-        nakshatra_prevalence = _calculate_nakshatra_prevalence_counts(chart)
-        dominant_modes = _calculate_mode_weights(chart)
-        modal_prevalence = _calculate_modal_prevalence_counts(chart)
-
-        analytics_groups = [
-            ("Dominant Signs", dominant_signs),
-            ("Sign Prevalence", sign_prevalence),
-            ("Dominant Bodies", dominant_bodies),
-            ("Dominant Bodies by Nakshatra", sidereal_bodies),
-            ("Dominant Houses", dominant_houses),
-            ("House Prevalence", house_prevalence),
-            ("Dominant Elements", dominant_elements),
-            ("Element Prevalence", element_prevalence),
-            ("Dominant Nakshatras", dominant_nakshatras),
-            ("Nakshatra Prevalence", nakshatra_prevalence),
-            ("Dominant Modes", dominant_modes),
-            ("Modal Prevalence", modal_prevalence),
-        ]
-        for title, values in analytics_groups:
-            sections.append(
-                self._total_chart_section(
-                    title,
-                    "\n".join(self._format_total_chart_ranked_values(values)),
-                    markdown=markdown,
-                )
-            )
-
-        dynamics_scores = _calculate_planet_dynamics_scores(chart)
-        dynamics_lines: list[str] = []
-        for body in PLANET_ORDER:
-            metric_scores = dynamics_scores.get(body)
-            if not metric_scores:
-                continue
-            dynamics_lines.append(
-                f"- {_display_body_name(body)}: "
-                f"antagonizing {float(metric_scores.get('antagonizing', 0.0)):.2f}; "
-                f"enabling {float(metric_scores.get('enabling', 0.0)):.2f}; "
-                f"escalating {float(metric_scores.get('escalating', 0.0)):.2f}"
-            )
-        sections.append(
-            self._total_chart_section(
-                "Body Dynamics",
-                "\n".join(dynamics_lines),
-                markdown=markdown,
-            )
-        )
-
-        chart_type = chart_type_summary(chart)
-        shape_key = str(chart_type.get("shape", "unknown") or "unknown")
-        pattern_names = [
-            str(ASPECT_PATTERN_DEFS.get(pattern_key, {}).get("name", pattern_key))
-            for pattern_key in chart_type.get("patterns", []) or []
-        ]
-        chart_type_lines = [
-            f"- Shape: {shape_key.replace('_', ' ').title()}",
-            "- Aspect patterns: " + (", ".join(pattern_names) if pattern_names else "None detected"),
-        ]
-        sections.append(
-            self._total_chart_section("Chart Type", "\n".join(chart_type_lines), markdown=markdown)
-        )
-
-        try:
-            gender_text = _build_gender_guesser_breakdown_text(chart)
-        except Exception as exc:
-            gender_text = f"Gender guesser unavailable: {exc}"
-        sections.append(self._total_chart_section("Gender Guesser", gender_text, markdown=markdown))
-        return "\n\n".join(sections)
-
-    def _build_total_chart_predictions_export_text(self, chart: Chart, *, markdown: bool) -> str:
-        lines: list[str] = []
-        if self._is_placeholder_chart(chart):
-            lines.append("Predictions are unavailable for placeholder/hypothetical charts.")
-        else:
-            try:
-                enneagram_scores = _calculate_enneagram_type_weights(chart)
-                lines.append(f"Predicted Tritype: {_tritype_text_for_scores(enneagram_scores)}")
-                lines.append(self._plain_text_from_htmlish(_enneagram_realm_summary_html(enneagram_scores)))
-                lines.append("")
-                lines.append("Enneagram type scores:")
-                for enneagram_type, score in sorted(enneagram_scores.items(), key=lambda item: float(item[1]), reverse=True):
-                    lines.append(f"- Type {enneagram_type}: {float(score):.2f}")
-            except Exception as exc:
-                lines.append(f"Enneagram predictions unavailable: {exc}")
-            lines.append("")
-            try:
-                statblock = score_dnd_statblock(chart)
-                lines.append("D&D Statblock:")
-                for stat_key in ("STR", "DEX", "CON", "INT", "WIS", "CHA"):
-                    label = str(stat_key).upper()
-                    lines.append(
-                        f"- {label}: {int(statblock.scores.get(stat_key, 0))} "
-                        f"(modifier {int(statblock.modifiers.get(stat_key, 0)):+d})"
-                    )
-                lines.append("")
-                lines.append(self._plain_text_from_htmlish(_build_dnd_top_three_summary_html(chart, linked=False)))
-            except Exception as exc:
-                lines.append(f"D&D predictions unavailable: {exc}")
-        return self._total_chart_section("Predictions Panel", "\n".join(lines), markdown=markdown)
-
-    def _build_total_chart_human_design_export_text(self, chart: Chart, *, markdown: bool) -> str:
-        try:
-            hd_text, _position_info_map, _aspect_info_map, _species_info_map, _offset = build_human_design_chart_data_output(
-                chart,
-                aspect_sort="Priority",
-            )
-            hd_result = build_human_design_result(chart)
-            activations = (*hd_result.personality_activations, *hd_result.design_activations)
-            line_counts = {line: 0 for line in range(1, 7)}
-            color_counts: dict[int, int] = {}
-            tone_counts: dict[int, int] = {}
-            for activation in activations:
-                line = int(getattr(activation, "line", 0) or 0)
-                color = int(getattr(activation, "color", 0) or 0)
-                tone = int(getattr(activation, "tone", 0) or 0)
-                if line in line_counts:
-                    line_counts[line] += 1
-                if color:
-                    color_counts[color] = color_counts.get(color, 0) + 1
-                if tone:
-                    tone_counts[tone] = tone_counts.get(tone, 0) + 1
-            analytics_lines = [
-                "Human Design Analytics",
-                "",
-                "Line Distribution:",
-                *[f"- Line {line}: {count}" for line, count in sorted(line_counts.items())],
-                "",
-                "Color Distribution:",
-                *[f"- Color {color}: {count}" for color, count in sorted(color_counts.items())],
-                "",
-                "Tone Distribution:",
-                *[f"- Tone {tone}: {count}" for tone, count in sorted(tone_counts.items())],
-            ]
-            body = "\n\n".join([hd_text.strip(), "\n".join(analytics_lines)])
-        except Exception as exc:
-            body = f"Human Design chart unavailable: {exc}"
-        return self._total_chart_section("Human Design Chart Popout", body, markdown=markdown)
-
-    def _build_total_chart_bazi_export_text(self, chart: Chart, *, markdown: bool) -> str:
-        try:
-            txt_payload, md_payload = build_bazi_export_payload_for_chart(chart)
-            body = md_payload if markdown else txt_payload
-        except Exception as exc:
-            body = f"BaZi chart unavailable: {exc}"
-        return self._total_chart_section("BaZi Window", body, markdown=markdown)
-
-    def _build_total_chart_export_text(self, chart: Chart, *, markdown: bool) -> str:
-        chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
-        chart_data_text, _position_info_map, _aspect_info_map, _species_info_map = format_chart_text(
-            chart,
-            aspect_sort="Priority",
-            show_cursedness=self._visibility.get("chart_data.cursedness"),
-            show_dnd_output=False,
-        )
-        generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if markdown:
-            header = f"# Total Chart Export: {chart_name}\n\nGenerated: {generated_on}"
-        else:
-            title = f"TOTAL CHART EXPORT: {chart_name}"
-            header = f"{title}\n{'=' * len(title)}\n\nGenerated: {generated_on}"
-        sections = [
-            header,
-            self._total_chart_section("Chart Data Output", chart_data_text, markdown=markdown),
-            self._total_chart_section(
-                "Chart Analytics Panel",
-                self._build_total_chart_analytics_export_text(chart, markdown=markdown),
-                markdown=markdown,
-            ),
-            self._build_total_chart_predictions_export_text(chart, markdown=markdown),
-            self._build_total_chart_human_design_export_text(chart, markdown=markdown),
-            self._build_total_chart_bazi_export_text(chart, markdown=markdown),
-        ]
-        return "\n\n".join(section.strip() for section in sections if str(section).strip()) + "\n"
-
     def _on_export_selected_total_chart(self) -> None:
         selected_chart_ids = self._selected_chart_ids()
         if len(selected_chart_ids) != 1:
@@ -7202,7 +6991,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             file_path = f"{file_path}{selected_extension}"
         markdown = file_path.lower().endswith(".md")
         try:
-            export_text = self._build_total_chart_export_text(chart, markdown=markdown)
+            export_text = _build_total_chart_export_text(
+                chart,
+                markdown=markdown,
+                show_cursedness=self._visibility.get("chart_data.cursedness"),
+                show_dnd_output=False,
+            )
             with open(file_path, "w", encoding="utf-8") as output_file:
                 output_file.write(export_text)
         except Exception as exc:
