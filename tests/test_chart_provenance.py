@@ -5,9 +5,11 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     chart_is_hypothetical,
     chart_is_non_aggregable,
     chart_is_placeholder,
+    chart_is_similarity_participant,
     chart_row_is_hypothetical,
     chart_row_is_non_aggregable,
     chart_row_is_placeholder,
+    chart_row_is_similarity_participant,
 )
 
 
@@ -70,3 +72,23 @@ def test_hypothetical_rows_are_excluded_as_candidates_but_not_placeholders():
     assert not chart_row_is_placeholder(canonical_row)
     assert not chart_row_is_hypothetical(canonical_row)
     assert not chart_row_is_non_aggregable(canonical_row)
+
+
+def test_similarity_analysis_participants_include_hypothetical_charts():
+    hypothetical = SimpleNamespace(chart_type=SOURCE_HYPOTHETICAL, is_placeholder=False)
+    placeholder = SimpleNamespace(chart_type=SOURCE_PUBLIC_DB, is_placeholder=True)
+    canonical = SimpleNamespace(chart_type=SOURCE_PUBLIC_DB, is_placeholder=False)
+
+    assert chart_is_similarity_participant(hypothetical)
+    assert not chart_is_similarity_participant(placeholder)
+    assert chart_is_similarity_participant(canonical)
+
+
+def test_similarity_analysis_rows_include_hypothetical_charts():
+    hypothetical_row = _row(1, SOURCE_HYPOTHETICAL)
+    placeholder_row = _row(2, SOURCE_PUBLIC_DB, is_placeholder=1)
+    canonical_row = _row(3, SOURCE_PUBLIC_DB)
+
+    assert chart_row_is_similarity_participant(hypothetical_row)
+    assert not chart_row_is_similarity_participant(placeholder_row)
+    assert chart_row_is_similarity_participant(canonical_row)

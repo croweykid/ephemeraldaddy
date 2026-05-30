@@ -62,6 +62,11 @@ def chart_is_non_aggregable(chart: object | None) -> bool:
     return chart_is_placeholder(chart) or chart_is_hypothetical(chart)
 
 
+def chart_is_similarity_participant(chart: object | None) -> bool:
+    """Return True for charts that can be directly compared in Similarities Analysis."""
+    return chart is not None and not chart_is_placeholder(chart)
+
+
 def chart_row_is_placeholder(row: tuple[object, ...] | list[object] | None) -> bool:
     """Return True for list_charts() rows that represent placeholders."""
     if row is None:
@@ -83,3 +88,8 @@ def chart_row_is_hypothetical(row: tuple[object, ...] | list[object] | None) -> 
 def chart_row_is_non_aggregable(row: tuple[object, ...] | list[object] | None) -> bool:
     """Return True for list_charts() rows excluded from database-wide math."""
     return chart_row_is_placeholder(row) or chart_row_is_hypothetical(row)
+
+
+def chart_row_is_similarity_participant(row: tuple[object, ...] | list[object] | None) -> bool:
+    """Return True for rows that can be directly compared in Similarities Analysis."""
+    return row is not None and not chart_row_is_placeholder(row)

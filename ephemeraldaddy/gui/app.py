@@ -569,8 +569,11 @@ from ephemeraldaddy.gui.features.charts.provenance import (
     SOURCE_PUBLIC_DB,
     chart_is_non_aggregable as _chart_is_non_aggregable,
     chart_is_placeholder as _chart_is_placeholder,
+    chart_is_similarity_participant as _chart_is_similarity_participant,
     chart_row_is_hypothetical as _chart_row_is_hypothetical,
     chart_row_is_non_aggregable as _chart_row_is_non_aggregable,
+    chart_row_is_placeholder as _chart_row_is_placeholder,
+    chart_row_is_similarity_participant as _chart_row_is_similarity_participant,
     normalize_gui_source as _normalize_gui_source,
 )
 from ephemeraldaddy.gui.features.charts.collections import (
@@ -7117,7 +7120,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             normalized
             for row in list_charts()
             if (normalized := self._normalize_chart_row(row)) is not None
-            and not _chart_row_is_non_aggregable(normalized)
+            and _chart_row_is_similarity_participant(normalized)
         ]
         self._similarities_chart_lookup, choices = build_chart_lookup(similarity_rows)
 
@@ -7152,11 +7155,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if not self._is_placeholder_chart_id(int(chart_id))
         ]
 
+    def _is_similarities_placeholder_chart_id(self, chart_id: int) -> bool:
+        row = self._active_chart_rows_by_id.get(int(chart_id))
+        if row is not None and _chart_row_is_placeholder(row):
+            return True
+        chart = self._get_chart_for_filter(int(chart_id))
+        return not _chart_is_similarity_participant(chart)
+
+    def _exclude_similarities_placeholder_chart_ids(self, chart_ids: list[int]) -> list[int]:
+        return [
+            int(chart_id)
+            for chart_id in chart_ids
+            if not self._is_similarities_placeholder_chart_id(int(chart_id))
+        ]
+
     def _resolve_similarity_pair_targets(
         self, selected_chart_ids: list[int]
     ) -> SimilarityPairResolution:
         input_state = SimilarityInputState(
-            selected_chart_ids=self._exclude_placeholder_chart_ids(selected_chart_ids),
+            selected_chart_ids=self._exclude_similarities_placeholder_chart_ids(selected_chart_ids),
             first_checked=bool(
                 self._similarities_first_use_checkbox
                 and self._similarities_first_use_checkbox.isChecked()
@@ -7271,7 +7288,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
     def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
-        selected_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        selected_chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
         if len(selected_chart_ids) != 2:
             self._similarities_export_sections = []
             self.similarities_status_label.setText(
@@ -8147,7 +8164,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return ", ".join(matching_names)
 
     def _update_similarities_analysis(self, chart_ids: list[int]) -> None:
-        selected_non_placeholder_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        selected_non_placeholder_chart_ids = self._exclude_similarities_placeholder_chart_ids(chart_ids)
         db_chart_ids = [
             int(normalized[0])
             for row in self._chart_rows
