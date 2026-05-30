@@ -17,7 +17,19 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_similarity_score_custom,
     normalize_similar_charts_algorithm_mode,
 )
+from ephemeraldaddy.analysis.human_design_reference import canonicalize_hd_authority_label
 from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.interpretations import NATAL_WEIGHT, PLANET_ORDER
+from ephemeraldaddy.gui.features.charts.metrics import (
+    calculate_dominant_house_weights,
+    calculate_dominant_planet_weights,
+    calculate_dominant_sign_weights,
+    chart_uses_houses,
+    house_for_longitude,
+)
+from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
+from ephemeraldaddy.gui.features.charts.similarities_export import similarities_label_has_excluded_bodies
+from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label, _is_structural_tautology
 
 
 @dataclass(slots=True)
@@ -170,6 +182,236 @@ class SimilaritiesBaselineProvider(Protocol):
     def _build_common_human_design_authorities(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
     def _build_common_human_design_profiles(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
+class DissimilaritiesFactorProvider(Protocol):
+    """App-facing interface used to build Database View dissimilarity exports."""
+
+    def _get_chart_for_filter(self, chart_id: int) -> Any | None: ...
+
+    def _similarities_body_label(self, body: str) -> str: ...
+
+    def _dominant_sign_top_three_labels(self, dominant_weights: dict[str, float] | None) -> set[str]: ...
+
+    def _dominant_planet_top_three_labels(self, dominant_weights: dict[str, float] | None) -> set[str]: ...
+
+    def _dominant_house_top_three_labels(self, dominant_weights: dict[int, float] | None) -> set[int]: ...
+
+    def _extract_human_design_profile(self, chart: Any) -> tuple[Any, Any, Any, Any, Any, Any]: ...
+
+    def _chart_human_design_profile(self, chart: Any) -> str: ...
+
+    def _similarity_matching_chart_names(
+        self,
+        section_title: str,
+        label: str,
+        chart_ids: list[int],
+    ) -> str: ...
+
+
+_DISSIMILARITIES_SECTION_ORDER: tuple[str, ...] = (
+    "Signs in positions in contrast",
+    "Houses in positions in contrast",
+    "Signs in houses in contrast",
+    "Top 3 Dominant Signs in contrast",
+    "Top 3 Dominant Bodies in contrast",
+    "Top 3 Dominant Houses in contrast",
+    "Dominant nakshatras in contrast",
+    "Aspects in contrast",
+    "Gates in contrast",
+    "Channels in contrast",
+    "Defined Centers in contrast",
+    "Authorities in contrast",
+    "Profiles in contrast",
+)
+
+
+def _common_section_title_for_contrast(section_title: str) -> str:
+    common_title = section_title.replace(" in contrast", " in common")
+    replacements = {
+        "Aspects in contrast": "Aspects in common",
+        "Gates in contrast": "Gates in common",
+        "Channels in contrast": "Channels in common",
+        "Defined Centers in contrast": "Defined Centers in common",
+        "Authorities in contrast": "Authorities in common",
+        "Profiles in contrast": "Profiles in common",
+    }
+    return replacements.get(section_title, common_title)
+
+
+def _build_similarity_factor_counts(
+    provider: DissimilaritiesFactorProvider,
+    chart_ids: list[int],
+) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
+    charts = [provider._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+    charts = [chart for chart in charts if chart is not None]
+    chart_count = len(charts)
+    time_specific_chart_count = sum(1 for chart in charts if chart_uses_houses(chart))
+    angular_bodies = {"AS", "MC", "DS", "IC"}
+
+    sections: dict[str, tuple[dict[str, int], dict[str, int]]] = {}
+
+    def add(section: str, label: str, total: int | None = None) -> None:
+        if not label:
+            return
+        counts, totals = sections.setdefault(section, ({}, {}))
+        counts[label] = counts.get(label, 0) + 1
+        totals.setdefault(label, int(total if total is not None else chart_count))
+
+    for chart in charts:
+        use_houses = chart_uses_houses(chart)
+        for body in PLANET_ORDER:
+            if not use_houses and body in angular_bodies:
+                continue
+            lon = chart.positions.get(body)
+            if lon is None:
+                continue
+            body_label = provider._similarities_body_label(body)
+            add(
+                "Signs in positions in contrast",
+                f"{body_label} in {sign_for_longitude(lon)}",
+                time_specific_chart_count if body in angular_bodies else chart_count,
+            )
+            if use_houses:
+                house_num = house_for_longitude(getattr(chart, "houses", None), lon)
+                if house_num is not None and (body, house_num) not in {
+                    ("AS", 1),
+                    ("IC", 4),
+                    ("DS", 7),
+                    ("MC", 10),
+                }:
+                    add(
+                        "Houses in positions in contrast",
+                        f"{body_label}: House {house_num}",
+                        time_specific_chart_count,
+                    )
+        if use_houses:
+            houses = getattr(chart, "houses", None)
+            if houses and len(houses) >= 12:
+                for house_index in range(12):
+                    add(
+                        "Signs in houses in contrast",
+                        f"House {house_index + 1}: {sign_for_longitude(houses[house_index])}",
+                        time_specific_chart_count,
+                    )
+
+        dominant_weights = getattr(chart, "dominant_sign_weights", None)
+        if not dominant_weights:
+            dominant_weights = calculate_dominant_sign_weights(chart)
+            chart.dominant_sign_weights = dominant_weights
+        for sign in provider._dominant_sign_top_three_labels(dominant_weights):
+            add("Top 3 Dominant Signs in contrast", sign)
+
+        dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+        if not dominant_planet_weights:
+            dominant_planet_weights = calculate_dominant_planet_weights(chart)
+            chart.dominant_planet_weights = dominant_planet_weights
+        for body in provider._dominant_planet_top_three_labels(dominant_planet_weights):
+            add("Top 3 Dominant Bodies in contrast", provider._similarities_body_label(body))
+
+        for house_num in provider._dominant_house_top_three_labels(calculate_dominant_house_weights(chart)):
+            add("Top 3 Dominant Houses in contrast", f"House {house_num}")
+
+        nakshatra_weights: dict[str, int] = {}
+        for body in PLANET_ORDER:
+            if not use_houses and body in angular_bodies:
+                continue
+            lon = chart.positions.get(body)
+            if lon is None:
+                continue
+            nakshatra = get_nakshatra(lon)
+            nakshatra_weights[nakshatra] = nakshatra_weights.get(nakshatra, 0) + NATAL_WEIGHT.get(body, 1)
+        for name, _weight in sorted(nakshatra_weights.items(), key=lambda item: item[1], reverse=True)[:3]:
+            add("Dominant nakshatras in contrast", name)
+
+        chart_aspects: dict[str, int] = {}
+        for aspect in getattr(chart, "aspects", []) or []:
+            if _is_structural_tautology(aspect):
+                continue
+            raw_p1 = aspect.get("p1", "")
+            raw_p2 = aspect.get("p2", "")
+            if raw_p1 in angular_bodies and raw_p2 in angular_bodies:
+                continue
+            if not use_houses and (raw_p1 in angular_bodies or raw_p2 in angular_bodies):
+                continue
+            p1_label = provider._similarities_body_label(raw_p1)
+            p2_label = provider._similarities_body_label(raw_p2)
+            aspect_type = aspect.get("type", "")
+            if not p1_label or not p2_label or not aspect_type:
+                continue
+            body_a, body_b = sorted([p1_label, p2_label])
+            aspect_label = f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}"
+            chart_aspects[aspect_label] = (
+                time_specific_chart_count
+                if raw_p1 in angular_bodies or raw_p2 in angular_bodies
+                else chart_count
+            )
+        for aspect_label, total in chart_aspects.items():
+            add("Aspects in contrast", aspect_label, total)
+
+        hd_gates, _hd_lines, hd_channels, hd_centers, _hd_type, hd_authority = (
+            provider._extract_human_design_profile(chart)
+        )
+        for gate in sorted(set(hd_gates)):
+            add("Gates in contrast", f"Gate {gate}")
+        normalized_channels: set[str] = set()
+        for channel in hd_channels:
+            raw = str(channel).strip()
+            parts = raw.split("-")
+            if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                a, b = int(parts[0].strip()), int(parts[1].strip())
+                raw = f"{min(a, b)}-{max(a, b)}"
+            if raw:
+                normalized_channels.add(raw)
+        for channel in normalized_channels:
+            add("Channels in contrast", channel)
+        for center in {str(center).strip() for center in hd_centers if str(center).strip()}:
+            add("Defined Centers in contrast", center)
+        authority = canonicalize_hd_authority_label(str(hd_authority).strip())
+        if authority:
+            add("Authorities in contrast", authority)
+        profile = provider._chart_human_design_profile(chart)
+        if profile:
+            add("Profiles in contrast", profile)
+
+    return sections
+
+
+def build_dissimilarity_export_sections(
+    provider: DissimilaritiesFactorProvider,
+    selected_chart_ids: list[int],
+    db_chart_ids: list[int],
+    db_total_count: int,
+) -> list[tuple[str, list[tuple[str, int, int, int, int, str]]]]:
+    """Build export-ready pair-only contrast sections for Database View dissimilarities."""
+
+    pair_counts = _build_similarity_factor_counts(provider, selected_chart_ids)
+    db_counts = _build_similarity_factor_counts(provider, db_chart_ids)
+    export_sections: list[tuple[str, list[tuple[str, int, int, int, int, str]]]] = []
+    for section_title in _DISSIMILARITIES_SECTION_ORDER:
+        counts, totals = pair_counts.get(section_title, ({}, {}))
+        db_section_title = _common_section_title_for_contrast(section_title)
+        db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
+        matches: list[tuple[str, int, int, int, int, str]] = []
+        for label, count in sorted(counts.items(), key=lambda item: item[0].lower()):
+            if count != 1 or similarities_label_has_excluded_bodies(label):
+                continue
+            total_count = int(totals.get(label, len(selected_chart_ids)))
+            matches.append(
+                (
+                    label,
+                    count,
+                    total_count,
+                    int(db_section_counts.get(label, 0)),
+                    int(db_section_totals.get(label, db_total_count)),
+                    provider._similarity_matching_chart_names(
+                        db_section_title,
+                        label,
+                        selected_chart_ids,
+                    ),
+                )
+            )
+        export_sections.append((section_title, matches))
+    return export_sections
 
 
 class SimilaritiesDbBaselineCache:
