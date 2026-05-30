@@ -9,6 +9,11 @@ from collections.abc import Callable
 from typing import Any
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import score_dnd_statblock
+from ephemeraldaddy.analysis.get_astro_twin import (
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    find_astro_twins,
+    normalize_similar_charts_algorithm_mode,
+)
 from ephemeraldaddy.analysis.human_design import (
     build_human_design_chart_data_output,
     build_human_design_result,
@@ -24,6 +29,7 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     enneagram_realm_summary_html,
     tritype_text_for_scores,
 )
+from ephemeraldaddy.gui.features.charts.similarity_norms import load_similarity_calibration_stats
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
@@ -365,6 +371,95 @@ def build_total_chart_similar_charts_section(
     lines.extend(_format_similar_chart_rows(least_rows, markdown=False))
     lines.extend(["", "Chart Similarities Scoring Method", "", scoring_text])
     return "\n".join(lines).strip()
+
+
+def build_total_chart_similar_charts_section_for_chart(
+    *,
+    chart: Chart,
+    subject_chart_id: int | None,
+    markdown: bool,
+    chart_rows: list[tuple[Any, ...]],
+    load_chart_by_id: Callable[[int], Chart],
+    resolve_similarity_band: Callable[[float], tuple[str, str]],
+    settings: Any,
+    algorithm_mode: str | None = None,
+    similarity_settings: Any | None = None,
+) -> str:
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
+        build_similar_charts_export_rows_from_matches,
+        load_similar_chart_candidates,
+    )
+
+    subject_name = str(getattr(chart, "name", "") or "Current chart").strip() or "Current chart"
+    normalized_algorithm_mode = normalize_similar_charts_algorithm_mode(
+        algorithm_mode or SIMILAR_CHARTS_ALGORITHM_DEFAULT
+    )
+    try:
+        candidates = load_similar_chart_candidates(
+            rows=chart_rows,
+            current_chart_id=subject_chart_id,
+            load_chart_by_id=load_chart_by_id,
+        )
+        if not candidates:
+            return build_total_chart_similar_charts_section(
+                subject_name=subject_name,
+                most_rows=[],
+                least_rows=[],
+                markdown=markdown,
+                algorithm_mode=normalized_algorithm_mode,
+                similarity_settings=similarity_settings,
+            )
+
+        most_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=subject_chart_id,
+            least_similar=False,
+            algorithm_mode=normalized_algorithm_mode,
+            custom_settings=similarity_settings,
+        )
+        least_matches = find_astro_twins(
+            chart,
+            candidates,
+            top_k=25,
+            exclude_chart_id=subject_chart_id,
+            least_similar=True,
+            algorithm_mode=normalized_algorithm_mode,
+            custom_settings=similarity_settings,
+        )
+        least_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
+        similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(settings)
+        most_rows = build_similar_charts_export_rows_from_matches(
+            matches=most_matches[:25],
+            resolve_similarity_band=resolve_similarity_band,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
+        )
+        least_rows = build_similar_charts_export_rows_from_matches(
+            matches=least_matches[:25],
+            resolve_similarity_band=resolve_similarity_band,
+            similarity_average=similarity_average,
+            similarity_standard_deviation=similarity_standard_deviation,
+        )
+        return build_total_chart_similar_charts_section(
+            subject_name=subject_name,
+            most_rows=most_rows,
+            least_rows=least_rows,
+            markdown=markdown,
+            algorithm_mode=normalized_algorithm_mode,
+            similarity_settings=similarity_settings,
+        )
+    except Exception as exc:
+        heading = "# Similar Charts" if markdown else "SIMILAR CHARTS\n=============="
+        subheading = "## Chart Similarities Scoring Method" if markdown else "Chart Similarities Scoring Method"
+        return (
+            f"{heading}\n\n"
+            f"Similar charts unavailable: {exc}\n\n"
+            f"{subheading}\n\n"
+            f"Current Settings > Similarities Calculator scoring system: "
+            f"{normalized_algorithm_mode.replace('_', ' ').title()}."
+        )
 
 
 def build_total_chart_export_text(

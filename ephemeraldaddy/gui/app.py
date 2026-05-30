@@ -1090,7 +1090,7 @@ from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
 )
 from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
     build_total_chart_export_text as _build_total_chart_export_text,
-    build_total_chart_similar_charts_section as _build_total_chart_similar_charts_section,
+    build_total_chart_similar_charts_section_for_chart as _build_total_chart_similar_charts_section_for_chart,
 )
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
@@ -7008,10 +7008,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             file_path = f"{file_path}{selected_extension}"
         markdown = file_path.lower().endswith(".md")
         try:
-            similar_charts_section = self._build_total_chart_export_similar_charts_section(
+            algorithm_mode = _normalize_similar_charts_algorithm_mode(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+            )
+            self._similar_charts_algorithm_mode = algorithm_mode
+            similar_charts_section = _build_total_chart_similar_charts_section_for_chart(
                 chart=chart,
                 subject_chart_id=chart_id,
                 markdown=markdown,
+                chart_rows=list_charts(),
+                load_chart_by_id=load_chart,
+                resolve_similarity_band=self._similarity_band_for_percent,
+                settings=self._settings,
+                algorithm_mode=algorithm_mode,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
             )
             export_text = _build_total_chart_export_text(
                 chart,
@@ -7028,85 +7038,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         QMessageBox.information(self, "Export complete", f"Saved total chart export to:\n{file_path}")
 
-
-    def _build_total_chart_export_similar_charts_section(
-        self,
-        *,
-        chart: Chart,
-        subject_chart_id: int | None,
-        markdown: bool,
-    ) -> str:
-        subject_name = str(getattr(chart, "name", "") or "Current chart").strip() or "Current chart"
-        algorithm_mode = _normalize_similar_charts_algorithm_mode(
-            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
-        )
-        self._similar_charts_algorithm_mode = algorithm_mode
-        try:
-            chart_rows = list_charts()
-            candidates = self._load_similar_chart_candidates(
-                rows=chart_rows,
-                current_chart_id=subject_chart_id,
-            )
-            if not candidates:
-                return _build_total_chart_similar_charts_section(
-                    subject_name=subject_name,
-                    most_rows=[],
-                    least_rows=[],
-                    markdown=markdown,
-                    algorithm_mode=algorithm_mode,
-                    similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-                )
-            custom_settings = getattr(self, "_similarity_calculator_settings", None)
-            most_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=False,
-                algorithm_mode=algorithm_mode,
-                custom_settings=custom_settings,
-            )
-            least_matches = find_astro_twins(
-                chart,
-                candidates,
-                top_k=25,
-                exclude_chart_id=subject_chart_id,
-                least_similar=True,
-                algorithm_mode=algorithm_mode,
-                custom_settings=custom_settings,
-            )
-            least_matches.sort(key=lambda match: (float(match.score), int(match.chart_id)))
-            similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
-            most_rows = build_similar_charts_export_rows_from_matches(
-                matches=most_matches[:25],
-                resolve_similarity_band=self._similarity_band_for_percent,
-                similarity_average=similarity_average,
-                similarity_standard_deviation=similarity_standard_deviation,
-            )
-            least_rows = build_similar_charts_export_rows_from_matches(
-                matches=least_matches[:25],
-                resolve_similarity_band=self._similarity_band_for_percent,
-                similarity_average=similarity_average,
-                similarity_standard_deviation=similarity_standard_deviation,
-            )
-            return _build_total_chart_similar_charts_section(
-                subject_name=subject_name,
-                most_rows=most_rows,
-                least_rows=least_rows,
-                markdown=markdown,
-                algorithm_mode=algorithm_mode,
-                similarity_settings=custom_settings,
-            )
-        except Exception as exc:
-            heading = "# Similar Charts" if markdown else "SIMILAR CHARTS\n=============="
-            subheading = "## Chart Similarities Scoring Method" if markdown else "Chart Similarities Scoring Method"
-            return (
-                f"{heading}\n\n"
-                f"Similar charts unavailable: {exc}\n\n"
-                f"{subheading}\n\n"
-                f"Current Settings > Similarities Calculator scoring system: "
-                f"{algorithm_mode.replace('_', ' ').title()}."
-            )
 
     def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
         selected_chart_ids = self._selected_chart_ids()
