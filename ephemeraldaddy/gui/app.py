@@ -8215,7 +8215,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             elif section_title == "Profiles in common":
                 include = label == self._chart_human_design_profile(chart)
-            
+
             elif section_title == "BaZi signs in common":
                 include = label in bazi_sign_weights_from_chart(chart)
 
@@ -8283,7 +8283,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 [],
                 show_no_match_row=False,
             )
-            self._set_similarities_section_matches(
+            
+            _section_matches(
                 self.similarities_dominant_signs_list,
                 self.similarities_dominant_signs_toggle,
                 [],
@@ -8376,6 +8377,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             common_hd_profiles = self._build_common_human_design_profiles(
                 selected_non_placeholder_chart_ids
             )
+            common_bazi_signs = self._build_common_bazi_signs(selected_non_placeholder_chart_ids)
             update_similarities_loading_progress(
                 progress,
                 "Loading cached database comparison baselines…",
@@ -8401,6 +8403,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             db_common_hd_defined_centers = db_baselines["common_hd_defined_centers"]
             db_common_hd_authorities = db_baselines["common_hd_authorities"]
             db_common_hd_profiles = db_baselines["common_hd_profiles"]
+            db_common_bazi_signs = db_baselines["common_bazi_signs"]
             update_similarities_loading_progress(
                 progress,
                 "Preparing similarities export data…",
@@ -8640,6 +8643,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                         for label, match_count, total_count in common_hd_profiles
                     ],
                 ),
+                (
+                    "BaZi signs in common",
+                    [
+                        (
+                            label,
+                            match_count,
+                            total_count,
+                            int(db_common_bazi_signs.get(label, 0)),
+                            db_total_count,
+                            self._similarity_matching_chart_names(
+                                "BaZi signs in common",
+                                label,
+                                selected_non_placeholder_chart_ids,
+                            ),
+                        )
+                        for label, match_count, total_count in common_bazi_signs
+                    ],
+                ),
             ]
             self._similarities_export_sections = [
                 (
@@ -8783,6 +8804,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 common_hd_profiles,
                 selection_total_count=len(selected_non_placeholder_chart_ids),
                 db_match_counts=db_common_hd_profiles,
+                db_total_count=db_total_count,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_bazi_signs_list,
+                self.similarities_common_bazi_signs_toggle,
+                common_bazi_signs,
+                selection_total_count=len(selected_non_placeholder_chart_ids),
+                db_match_counts=db_common_bazi_signs,
                 db_total_count=db_total_count,
             )
         finally:

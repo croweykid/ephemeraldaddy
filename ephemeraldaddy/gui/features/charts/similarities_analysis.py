@@ -184,6 +184,8 @@ class SimilaritiesBaselineProvider(Protocol):
 
     def _build_common_human_design_profiles(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
 
+    def _build_common_bazi_signs(self, chart_ids: list[int]) -> list[tuple[str, int, int]]: ...
+
 class DissimilaritiesFactorProvider(Protocol):
     """App-facing interface used to build Database View dissimilarity exports."""
 
@@ -502,6 +504,7 @@ def build_similarity_db_baselines(
             provider._build_common_human_design_authorities(db_chart_ids)
         ),
         "common_hd_profiles": _match_counts(provider._build_common_human_design_profiles(db_chart_ids)),
+        "common_bazi_signs": _match_counts(provider._build_common_bazi_signs(db_chart_ids)),
     }
 
 
