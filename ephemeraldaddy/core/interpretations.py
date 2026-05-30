@@ -4864,6 +4864,7 @@ ENNEAGRAM = { #each criteria evidently really needs a multiplier weight attached
         #     "Jupiter in Cancer":6,
         #     "Saturn in Capricorn":9,"Saturn in Libra":6,
         #     "Virgo in H1":11,"Gemini in H1":4,}, #"Capricorn in H11":1,"Aquarius in H12":1,"Leo in H6":1,"Pisces in H3":1,"Virgo in H9":1,"Chiron in Aries":1,"Sun in H10":1,"Neptune in Sagittarius":1,"Pluto in Libra":1,"Juno in Scorpio":1,"Jupiter in Cancer":1,
+        },
         "aspects":{
             "Mercury conjunction Sun": 12,
             "Chiron opposition Pluto": 10,
