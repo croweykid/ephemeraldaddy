@@ -54,6 +54,7 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Defined Centers in common": "centers",
     "Authorities in common": "authorities",
     "Profiles in common": "profiles",
+    "BaZi signs in common": "bazisigns",
     "Signs in positions in contrast": "antipositions",
     "Houses in positions in contrast": "antipositions",
     "Signs in houses in contrast": "antipositions",
@@ -67,6 +68,7 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Defined Centers in contrast": "anticenters",
     "Authorities in contrast": "antiauthorities",
     "Profiles in contrast": "antiprofiles",
+    "BaZi signs in contrast": "antibazisigns",
 }
 
 
@@ -306,6 +308,7 @@ def _add_similarity_json_match_to_profile(
     match: tuple[object, ...],
     *,
     use_unique_factor_categories: bool = False,
+    require_significance: bool = True,
 ) -> None:
     if len(match) < 6:
         return
@@ -321,7 +324,7 @@ def _add_similarity_json_match_to_profile(
         else 0.0
     )
     percent_difference = selection_percent - database_percent
-    if not similarity_delta_exceeds_export_standard_deviation_tier(
+    if require_significance and not similarity_delta_exceeds_export_standard_deviation_tier(
         selection_percent,
         database_percent,
         total_count,
@@ -374,6 +377,7 @@ def build_similarities_json_export_payload(
                     section_title,
                     match,
                     use_unique_factor_categories=True,
+                    require_significance=False,
                 )
         for owner_label in DISSIMILARITIES_JSON_OWNER_LABELS.values():
             sort_similarities_json_positions(bundle[owner_label])
