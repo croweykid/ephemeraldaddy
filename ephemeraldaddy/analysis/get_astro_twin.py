@@ -864,6 +864,26 @@ def _house_weight_profile(chart: Chart) -> dict[int, float]:
     return profile
 
 
+def chart_sign_dominance_weights(chart: Chart) -> dict[str, float]:
+    """Return the sign-dominance profile used by Similarities Analysis, keyed by sign name."""
+    index_weights = _sign_weight_profile(chart)
+    return {
+        ZODIAC_NAMES[index]: float(weight)
+        for index, weight in index_weights.items()
+        if 0 <= int(index) < len(ZODIAC_NAMES)
+    }
+
+
+def chart_body_dominance_weights(chart: Chart) -> dict[str, float]:
+    """Return the body-dominance profile used by Similarities Analysis."""
+    return {body: float(weight) for body, weight in _body_dominance_profile(chart).items()}
+
+
+def chart_house_dominance_weights(chart: Chart) -> dict[int, float]:
+    """Return the house-dominance profile used by Similarities Analysis."""
+    return {int(house): float(weight) for house, weight in _house_weight_profile(chart).items()}
+
+
 def _weighted_overlap_similarity(values_a: dict[object, float], values_b: dict[object, float]) -> float:
     total_a = sum(max(0.0, float(value)) for value in values_a.values())
     total_b = sum(max(0.0, float(value)) for value in values_b.values())

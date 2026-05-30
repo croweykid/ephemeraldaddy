@@ -1633,45 +1633,81 @@ def build_enneagram_predictor_settings_section(
     dialog: QDialog,
     section_layout: QVBoxLayout,
     subheader_style: str,
-    on_mode_default_toggled: Callable[[bool], None],
-    on_mode_custom_toggled: Callable[[bool], None],
-    on_weight_changed: Callable[[str, float], None],
+    on_option_toggled: Callable[[str, bool], None],
+    on_scale_mode_changed: Callable[[str], None],
 ) -> dict[str, object]:
     label = QLabel("Enneagram Predictor")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
-    section_layout.addWidget(QLabel("Choose default or custom category-type weighting."))
-    default_radio = QRadioButton("use default")
-    custom_radio = QRadioButton("use custom")
-    group = QButtonGroup(dialog)
-    group.setExclusive(True)
-    group.addButton(default_radio)
-    group.addButton(custom_radio)
-    default_radio.toggled.connect(on_mode_default_toggled)
-    custom_radio.toggled.connect(on_mode_custom_toggled)
-    section_layout.addWidget(default_radio)
-    section_layout.addWidget(custom_radio)
+    description = QLabel(
+        "Configure how Enneagram predictor criteria are scored. Property categories are used only "
+        "to parse criteria, not as independent score multipliers."
+    )
+    description.setWordWrap(True)
+    section_layout.addWidget(description)
 
-    grid = QGridLayout()
-    grid.addWidget(QLabel("Criteria property"), 0, 0)
-    grid.addWidget(QLabel("Weight"), 0, 1)
-    weight_boxes: dict[str, QDoubleSpinBox] = {}
-    total_label = QLabel("0.00")
-    for idx, (key, title) in enumerate(ENNEAGRAM_CATEGORY_FACTOR_ROWS, start=1):
-        grid.addWidget(QLabel(title), idx, 0)
-        spin = QDoubleSpinBox()
-        spin.setDecimals(2)
-        spin.setRange(0.0, 5.0)
-        spin.setSingleStep(0.05)
-        spin.valueChanged.connect(lambda _v, row_key=key, box=spin: on_weight_changed(row_key, float(box.value())))
-        grid.addWidget(spin, idx, 1)
-        weight_boxes[key] = spin
-    grid.addWidget(QLabel("Selected Total"), len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 0)
-    grid.addWidget(total_label, len(ENNEAGRAM_CATEGORY_FACTOR_ROWS) + 1, 1)
-    section_layout.addLayout(grid)
+    behavior_label = QLabel("Scoring behavior")
+    behavior_label.setStyleSheet(subheader_style)
+    section_layout.addWidget(behavior_label)
+
+    checkbox_rows = (
+        (
+            "use_direct_dominance_activation",
+            "Use dominance activation for direct dominance criteria",
+            "When enabled, sign/body/house/nakshatra criteria are multiplied by the chart's normalized dominance weight.",
+        ),
+        (
+            "use_position_dominance_weighting",
+            "Use dominance weighting for position criteria",
+            "When enabled, matching positions are multiplied by relevant body/sign/house dominance modifiers.",
+        ),
+        (
+            "use_aspect_dominance_weighting",
+            "Use dominance/base weighting for aspect criteria",
+            "When enabled, matching aspects use body dominance plus the existing aspect base weight; disabled uses orb quality.",
+        ),
+        (
+            "simplify_anti_factor_handling",
+            "Simplify anti-factor handling",
+            "When enabled, positive evidence adds directly and anti evidence subtracts directly after anti-factor scaling.",
+        ),
+        (
+            "average_scores_by_criterion_count",
+            "Average scores by criterion count",
+            "Experimental: divide each category's evidence by its criterion count. Disabled by default.",
+        ),
+    )
+    checkboxes: dict[str, QCheckBox] = {}
+    for key, title, tooltip in checkbox_rows:
+        checkbox = QCheckBox(title)
+        checkbox.setToolTip(tooltip)
+        checkbox.toggled.connect(lambda checked, option_key=key: on_option_toggled(option_key, bool(checked)))
+        section_layout.addWidget(checkbox)
+        checkboxes[key] = checkbox
+
+    advanced_label = QLabel("Advanced")
+    advanced_label.setStyleSheet(subheader_style)
+    section_layout.addWidget(advanced_label)
+    scale_row = QHBoxLayout()
+    scale_row.addWidget(QLabel("Type signature scale adjustment:"))
+    scale_combo = QComboBox()
+    for value, title in (
+        ("none", "none"),
+        ("log", "log"),
+        ("sqrt", "sqrt"),
+        ("full", "full"),
+    ):
+        scale_combo.addItem(title, value)
+    scale_combo.currentIndexChanged.connect(lambda _idx: on_scale_mode_changed(str(scale_combo.currentData() or "none")))
+    scale_row.addWidget(scale_combo)
+    scale_row.addStretch(1)
+    section_layout.addLayout(scale_row)
     return {
-        "default_radio": default_radio,
-        "custom_radio": custom_radio,
-        "weight_spinboxes": weight_boxes,
-        "total_label": total_label,
+        "checkboxes": checkboxes,
+        "scale_combo": scale_combo,
+        # Legacy keys kept so older app/controller paths that still look them up do not crash.
+        "default_radio": QRadioButton(dialog),
+        "custom_radio": QRadioButton(dialog),
+        "weight_spinboxes": {},
+        "total_label": QLabel("disabled"),
     }

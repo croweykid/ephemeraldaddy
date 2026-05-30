@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 
-from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    WeightedPredictorScoringOptions,
+    calculate_weighted_criteria_scores,
+)
 
 
 def _empty_weights(_chart):
@@ -71,9 +74,9 @@ def test_scores_weighted_human_design_channels():
 
     scores = _score(predictors, chart)
 
-    assert scores["weighted_channel"] == 12.0
-    assert scores["unweighted_channel"] == 6.0
-    assert scores["anti_channel"] == -12.0
+    assert scores["weighted_channel"] == 2.0
+    assert scores["unweighted_channel"] == 1.0
+    assert scores["anti_channel"] == -2.0
 
 
 def test_scores_bazi_signs_from_stored_pillars():
@@ -93,6 +96,104 @@ def test_scores_bazi_signs_from_stored_pillars():
     scores = _score(predictors, chart)
 
     assert scores["bazi"] == 3.0
+
+
+def test_position_dominance_weighting_can_be_disabled():
+    chart = SimpleNamespace(positions={"Sun": 330.0})
+    predictors = {"target": {"positions": {"Sun in Pisces": 8}}}
+
+    weighted = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda _chart: {"Pisces": 3, "Aries": 1},
+        calculate_body_weights=lambda _chart: {"Sun": 2, "Moon": 0},
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=True,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+    binary = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda _chart: {"Pisces": 3, "Aries": 1},
+        calculate_body_weights=lambda _chart: {"Sun": 2, "Moon": 0},
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+
+    assert weighted["target"] == 16.0
+    assert binary["target"] == 8.0
+
+
+def test_aspect_dominance_weighting_can_use_orb_quality_instead():
+    chart = SimpleNamespace(
+        aspects=[{"p1": "Sun", "p2": "Moon", "type": "conjunction", "delta": 2.0}]
+    )
+    predictors = {"target": {"aspects": {"Sun conjunction Moon": 8}}}
+
+    weighted = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=lambda _chart: {"Sun": 2, "Moon": 0},
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_aspect_dominance_weighting=True,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+    orb_quality = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=lambda _chart: {"Sun": 2, "Moon": 0},
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_aspect_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+
+    assert weighted["target"] == 80.0
+    assert orb_quality["target"] == 6.0
+
+
+def test_simplified_anti_handling_directly_subtracts_anti_weights_without_category_weights():
+    chart = SimpleNamespace(dominant_sign_weights={"Aries": 3, "Libra": 1})
+    predictors = {"target": {"signs": {"Aries": 10}, "antisigns": {"Aries": 4}}}
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        category_weights={"signs": 0.0},
+        calculate_sign_weights=lambda _chart: {"Aries": 3, "Libra": 1},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+
+    assert scores["target"] == 6.0
 
 
 def test_skips_hd_gate_and_bazi_resolution_when_predictors_do_not_use_those_categories(monkeypatch):
@@ -157,3 +258,25 @@ def test_bazi_signs_from_stored_pillars_exclude_hour_without_house_time(monkeypa
     weights = bazi_getter.bazi_sign_weights_from_chart(chart)
 
     assert weights == {"Horse": 2.0, "Dog": 1.0}
+
+
+def test_direct_dominance_can_use_share_of_total_activation():
+    chart = SimpleNamespace(dominant_sign_weights={"Aquarius": 42, "Libra": 58})
+    predictors = {"e4": {"signs": {"Aquarius": 19}}}
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda _chart: {"Aquarius": 42, "Libra": 58},
+        calculate_body_weights=_empty_weights,
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+            dominance_normalization_mode="share",
+        ),
+    )
+
+    assert round(scores["e4"], 2) == 7.98

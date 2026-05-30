@@ -34,13 +34,26 @@ from ephemeraldaddy.core.chart import chart_uses_houses
 
 from ephemeraldaddy.analysis.weighted_chart_predictor import (
     DEFAULT_CATEGORY_WEIGHTS as WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS,
+    DOMINANCE_NORMALIZATION_SHARE,
+    TYPE_SIGNATURE_SCALE_NONE,
+    WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
+    coerce_scoring_options,
 )
 
 
 ENNEAGRAM_DEBUG_LOGGING = False
 ENNEAGRAM_ANTI_FACTOR = 1.0
 ENNEAGRAM_CATEGORY_WEIGHTS: dict[str, float] = dict(WEIGHTED_PREDICTOR_DEFAULT_CATEGORY_WEIGHTS)
+ENNEAGRAM_SCORING_OPTIONS = WeightedPredictorScoringOptions(
+    use_direct_dominance_activation=True,
+    use_position_dominance_weighting=True,
+    use_aspect_dominance_weighting=True,
+    simplify_anti_factor_handling=True,
+    average_scores_by_criterion_count=False,
+    type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+    dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+)
 ENNEAGRAM_REALM_DISPLAY_ORDER = ("head", "heart", "body")
 ENNEAGRAM_REALM_WEIGHT_LOW_COLOR = (127, 0, 0)
 ENNEAGRAM_REALM_WEIGHT_MID_COLOR = (255, 235, 59)
@@ -62,6 +75,59 @@ ENNEAGRAM_CATEGORY_WEIGHT_KEYS = (
     "aspects",
 )
 
+
+
+
+def default_enneagram_scoring_options() -> WeightedPredictorScoringOptions:
+    """Return default Enneagram scoring switches for Settings > Predictions."""
+    return WeightedPredictorScoringOptions(
+        use_direct_dominance_activation=True,
+        use_position_dominance_weighting=True,
+        use_aspect_dominance_weighting=True,
+        simplify_anti_factor_handling=True,
+        average_scores_by_criterion_count=False,
+        type_signature_scale_mode=TYPE_SIGNATURE_SCALE_NONE,
+        dominance_normalization_mode=DOMINANCE_NORMALIZATION_SHARE,
+    )
+
+
+def merge_enneagram_scoring_options(payload: Any) -> WeightedPredictorScoringOptions:
+    """Overlay persisted scoring switches onto Enneagram defaults."""
+    defaults = default_enneagram_scoring_options()
+    if not isinstance(payload, dict):
+        return defaults
+    merged = {
+        "use_direct_dominance_activation": defaults.use_direct_dominance_activation,
+        "use_position_dominance_weighting": defaults.use_position_dominance_weighting,
+        "use_aspect_dominance_weighting": defaults.use_aspect_dominance_weighting,
+        "simplify_anti_factor_handling": defaults.simplify_anti_factor_handling,
+        "average_scores_by_criterion_count": defaults.average_scores_by_criterion_count,
+        "type_signature_scale_mode": defaults.type_signature_scale_mode,
+        "dominance_normalization_mode": defaults.dominance_normalization_mode,
+    }
+    merged.update(payload)
+    return coerce_scoring_options(merged)
+
+
+def set_enneagram_scoring_options(overrides: WeightedPredictorScoringOptions | dict[str, Any] | None) -> None:
+    """Override runtime Enneagram scoring switches used by predictions."""
+    global ENNEAGRAM_SCORING_OPTIONS
+    if overrides is None:
+        ENNEAGRAM_SCORING_OPTIONS = default_enneagram_scoring_options()
+        return
+    ENNEAGRAM_SCORING_OPTIONS = coerce_scoring_options(overrides)
+
+
+def enneagram_scoring_options_to_payload(options: WeightedPredictorScoringOptions) -> dict[str, Any]:
+    return {
+        "use_direct_dominance_activation": bool(options.use_direct_dominance_activation),
+        "use_position_dominance_weighting": bool(options.use_position_dominance_weighting),
+        "use_aspect_dominance_weighting": bool(options.use_aspect_dominance_weighting),
+        "simplify_anti_factor_handling": bool(options.simplify_anti_factor_handling),
+        "average_scores_by_criterion_count": bool(options.average_scores_by_criterion_count),
+        "type_signature_scale_mode": str(options.type_signature_scale_mode or TYPE_SIGNATURE_SCALE_NONE),
+        "dominance_normalization_mode": str(options.dominance_normalization_mode or DOMINANCE_NORMALIZATION_SHARE),
+    }
 
 def default_enneagram_category_weights() -> dict[str, float]:
     """Return the GUI's default equal-weight Enneagram predictor controls."""
@@ -333,6 +399,7 @@ def calculate_enneagram_type_weights(
         predictors=enneagram,
         category_weights=ENNEAGRAM_CATEGORY_WEIGHTS,
         anti_factor=ENNEAGRAM_ANTI_FACTOR,
+        scoring_options=ENNEAGRAM_SCORING_OPTIONS,
         calculate_sign_weights=calculate_sign_weights,
         calculate_body_weights=calculate_body_weights,
         calculate_house_weights=calculate_house_weights,
