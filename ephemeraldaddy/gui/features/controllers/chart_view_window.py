@@ -927,7 +927,7 @@ def build_chart_view_right_panel(
     owner.metrics_layout = QVBoxLayout()
     #owner.metrics_layout.setSizeConstraint(QLayout.SetMinAndMaxSize)
     owner.metrics_layout.setContentsMargins(6, 6, 6, 6)
-    owner.metrics_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+    owner.metrics_layout.setAlignment(Qt.AlignTop)
     metrics_content.setLayout(owner.metrics_layout)
 
     subjective_notes_panel, subjective_notes_layout = _build_subjective_notes_panel(owner)

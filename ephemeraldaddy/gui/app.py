@@ -24213,6 +24213,19 @@ class MainWindow(QMainWindow):
         return selected_mode if isinstance(selected_mode, str) else fallback
 
     @staticmethod
+    def _metric_canvas_scroll_viewport_width(canvas: FigureCanvas) -> int | None:
+        parent = canvas.parentWidget()
+        while parent is not None:
+            scroll_area = parent.parentWidget()
+            while scroll_area is not None and not isinstance(scroll_area, QScrollArea):
+                scroll_area = scroll_area.parentWidget()
+            if isinstance(scroll_area, QScrollArea) and scroll_area.widget() is parent:
+                viewport_width = scroll_area.viewport().width()
+                return viewport_width if viewport_width > 0 else None
+            parent = parent.parentWidget()
+        return None
+
+    @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
         figure = canvas.figure
         figure_width, figure_height = figure.get_size_inches()
@@ -24224,15 +24237,19 @@ class MainWindow(QMainWindow):
         if display_height > 0:
             canvas.setMinimumHeight(display_height)
             canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
+
         # FigureCanvas reports a size hint derived from the Matplotlib figure's
         # physical inches (often ~550 px wide here), which is wider than Chart
-        # View's right panel.  If the scroll-area layout honors that hint on
-        # repeated Predictions-tab renders, the canvas can force the content
-        # widget wider than the viewport and crop the graph off the app window.
-        # Ignore the horizontal hint so the canvas always shrinks to the current
-        # right-panel viewport; keep the explicit height above for readability.
-        canvas.setMinimumWidth(0)
-        canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        # View's narrow right panel.  Let Qt stretch/shrink the canvas to the
+        # scroll viewport instead of honoring that oversized hint or collapsing
+        # to a 0-width black rectangle when the analytics layout is top-aligned.
+        canvas.setMinimumWidth(1)
+        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
+        if viewport_width is not None:
+            canvas.setMaximumWidth(viewport_width)
+        else:
+            canvas.setMaximumWidth(16777215)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
