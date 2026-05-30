@@ -235,3 +235,33 @@ def test_dissimilarities_json_export_bundles_chart_unique_factors_by_owner():
     assert chart_2["positions"] == {"Sun in Taurus": 50}
     assert chart_2["gates"] == {}
     assert similarities_json_payload_has_factors(payload, "Contrasts")
+
+
+def test_dissimilarities_json_export_keeps_all_owner_buckets_without_database_significance_filter():
+    payload = build_similarities_json_export_payload(
+        "Contrasts",
+        [
+            ("Top 3 Dominant Signs in contrast", [("Libra", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Top 3 Dominant Bodies in contrast", [("Venus", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Top 3 Dominant Houses in contrast", [("House 7", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Dominant nakshatras in contrast", [("Rohini", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Gates in contrast", [("Gate 44", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Channels in contrast", [("57-20", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Defined Centers in contrast", [("Throat", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Authorities in contrast", [("Emotional", 1, 2, 45, 100, "A", "chart_1")]),
+            ("Profiles in contrast", [("3/5", 1, 2, 45, 100, "A", "chart_1")]),
+            ("BaZi signs in contrast", [("Snake", 1, 2, 45, 100, "A", "chart_1")]),
+        ],
+    )
+
+    chart_1 = payload["Contrasts"]["chart 1 unique factors"]
+    assert chart_1["signs"] == {"Libra": 5}
+    assert chart_1["bodies"] == {"Venus": 5}
+    assert chart_1["houses"] == {"7": 5}
+    assert chart_1["nakshatras"] == {"Rohini": 5}
+    assert chart_1["gates"] == {44: 5}
+    assert chart_1["channels"] == {(20, 57): 5}
+    assert chart_1["centers"] == {"Throat": 5}
+    assert chart_1["authorities"] == {"Emotional": 5}
+    assert chart_1["profiles"] == {"3/5": 5}
+    assert chart_1["bazisigns"] == {"Snake": 5}

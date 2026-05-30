@@ -8,6 +8,7 @@ from typing import Any, Callable, Protocol
 from PySide6.QtCore import QEventLoop, Qt
 from PySide6.QtWidgets import QApplication, QListWidget, QProgressDialog, QWidget
 
+from ephemeraldaddy.analysis.bazi_getter import bazi_sign_weights_from_chart
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -222,6 +223,7 @@ _DISSIMILARITIES_SECTION_ORDER: tuple[str, ...] = (
     "Defined Centers in contrast",
     "Authorities in contrast",
     "Profiles in contrast",
+    "BaZi signs in contrast",
 )
 
 
@@ -372,6 +374,9 @@ def _build_similarity_factor_counts(
         profile = provider._chart_human_design_profile(chart)
         if profile:
             add("Profiles in contrast", profile)
+
+        for sign in sorted(bazi_sign_weights_from_chart(chart)):
+            add("BaZi signs in contrast", sign)
 
     return sections
 
