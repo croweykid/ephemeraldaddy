@@ -1072,6 +1072,9 @@ from ephemeraldaddy.gui.features.charts.bazi_window import (
 from ephemeraldaddy.gui.features.charts.chart_predictor_quiz import (
     create_chart_predictor_quiz_dialog,
 )
+from ephemeraldaddy.gui.features.charts.total_chart_exporter import (
+    build_total_chart_export_text as _build_total_chart_export_text,
+)
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     build_enneagram_popout_info_html as _build_enneagram_popout_info_html,
     cache_enneagram_prediction_metadata as _cache_enneagram_prediction_metadata,
@@ -2156,6 +2159,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_delete_chart_button.setObjectName("database_view_middle_delete_chart_button")
         self.batch_delete_chart_button.clicked.connect(self._on_delete)
 
+        self.total_chart_export_button = QPushButton("export chart")
+        self.total_chart_export_button.setObjectName("database_view_middle_total_chart_export_button")
+        self.total_chart_export_button.setToolTip("Export the selected chart's full Chart View, analytics, predictions, Human Design, and BaZi text")
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            self.total_chart_export_button.setIcon(QIcon(share_icon_path))
+            self.total_chart_export_button.setIconSize(QSize(14, 14))
+        self.total_chart_export_button.clicked.connect(self._on_export_selected_total_chart)
+        self.total_chart_export_button.setEnabled(False)
+
         self.batch_rename_chart_button = QPushButton("Rename Chart")
         self.batch_rename_chart_button.setObjectName("database_view_middle_rename_chart_button")
         self.batch_rename_chart_button.clicked.connect(self._on_rename_selected_chart)
@@ -2194,6 +2207,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self.similarities_panel_button,
             self.batch_new_chart_button,
             self.batch_delete_chart_button,
+            self.total_chart_export_button,
             self.batch_rename_chart_button,
             *self.database_view_middle_header_action_buttons.values(),
             self.manage_collections_button,
@@ -2353,6 +2367,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         middle_controls_layout.addStretch(1)
         middle_controls_layout.addWidget(self.batch_new_chart_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_delete_chart_button, 0, Qt.AlignHCenter)
+        middle_controls_layout.addWidget(self.total_chart_export_button, 0, Qt.AlignHCenter)
         middle_controls_layout.addWidget(self.batch_rename_chart_button, 0, Qt.AlignHCenter)
         for action_button in self.database_view_middle_header_action_buttons.values():
             middle_controls_layout.addWidget(action_button, 0, Qt.AlignHCenter)
@@ -6943,6 +6958,52 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if dialog.exec() != QDialog.Accepted:
             return None
         return selected_chart_id
+
+    def _on_export_selected_total_chart(self) -> None:
+        selected_chart_ids = self._selected_chart_ids()
+        if len(selected_chart_ids) != 1:
+            QMessageBox.information(
+                self,
+                "Select one chart",
+                "Select exactly one chart before exporting a total chart.",
+            )
+            return
+        chart_id = selected_chart_ids[0]
+        try:
+            chart = load_chart(chart_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Export chart", f"Unable to load selected chart.\n\n{exc}")
+            return
+
+        chart_name = (getattr(chart, "name", None) or "chart").strip() or "chart"
+        safe_name = self._sanitize_export_token(chart_name)
+        default_filename = f"{safe_name}-total-chart-export.md"
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Total Chart",
+            default_filename,
+            "Markdown Files (*.md);;Text Files (*.txt)",
+        )
+        if not file_path:
+            return
+        selected_extension = ".txt" if "*.txt" in selected_filter else ".md"
+        if not file_path.lower().endswith((".md", ".txt")):
+            file_path = f"{file_path}{selected_extension}"
+        markdown = file_path.lower().endswith(".md")
+        try:
+            export_text = _build_total_chart_export_text(
+                chart,
+                markdown=markdown,
+                show_cursedness=self._visibility.get("chart_data.cursedness"),
+                show_dnd_output=False,
+                calculate_enneagram_scores=self._calculate_enneagram_type_weights,
+            )
+            with open(file_path, "w", encoding="utf-8") as output_file:
+                output_file.write(export_text)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", f"Could not export total chart:\n{exc}")
+            return
+        QMessageBox.information(self, "Export complete", f"Saved total chart export to:\n{file_path}")
 
     def _resolve_middle_panel_tool_chart_id(self, tool_title: str) -> int | None:
         selected_chart_ids = self._selected_chart_ids()
@@ -16362,6 +16423,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if hasattr(self, "batch_rename_chart_button"):
             rename_enabled = selected_count == 1
             self.batch_rename_chart_button.setEnabled(rename_enabled)
+        if hasattr(self, "total_chart_export_button"):
+            self.total_chart_export_button.setEnabled(selected_count == 1)
         if hasattr(self, "mark_not_duplicates_button"):
             is_ready = (
                 self.mark_not_duplicates_button.isVisible()

@@ -425,6 +425,46 @@ def _build_bazi_export_payload(
     return txt_payload, md_payload
 
 
+def build_bazi_export_payload_for_chart(chart: Chart) -> tuple[str, str]:
+    """Build text/Markdown BaZi export payloads for a chart without opening the UI."""
+    validation_error = validate_chart_for_bazi(chart)
+    if validation_error is not None:
+        raise ValueError(
+            BAZI_INCOMPLETE_BIRTH_INFO_MESSAGE
+            if validation_error != "Please select a chart first."
+            else validation_error
+        )
+    dt_local = resolve_bazi_birth_datetime(chart)
+    has_known_birth_hour = chart_uses_houses(chart) and (
+        not bool(getattr(chart, "birthtime_unknown", False))
+        or (
+            getattr(chart, "retcon_hour", None) is not None
+            and getattr(chart, "retcon_minute", None) is not None
+        )
+    )
+    bazi_data = build_bazi_chart_data(dt_local, include_hour=has_known_birth_hour)
+    chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
+    birth_place = str(getattr(chart, "birth_place", "") or "").strip()
+    hour_note = (
+        "Hour pillar source: Rectified time"
+        if bool(getattr(chart, "birthtime_unknown", False))
+        and bool(getattr(chart, "retcon_time_used", False))
+        and has_known_birth_hour
+        else (
+            "Hour pillar source: Unknown birth time (hour-dependent values shown as Unknown)"
+            if not has_known_birth_hour
+            else "Hour pillar source: Birth time"
+        )
+    )
+    return _build_bazi_export_payload(
+        chart_name=chart_name,
+        birth_place=birth_place,
+        dt_local=dt_local,
+        hour_note=hour_note,
+        bazi_data=bazi_data,
+    )
+
+
 def _stem_english_name(stem_char: str) -> str:
     mapping = {
         "甲": "Yang Wood",
