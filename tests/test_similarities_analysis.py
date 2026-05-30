@@ -59,7 +59,7 @@ def _install_pyside_stubs():
 
 _install_pyside_stubs()
 
-from ephemeraldaddy.gui.features.charts.similarities_analysis import (
+from ephemeraldaddy.gui.features.charts.similarities_analysis import (  # noqa: E402
     build_dissimilarity_export_sections,
 )
 
@@ -93,7 +93,7 @@ class FakeDissimilarityProvider:
         return ""
 
 
-def _chart(*, birthtime_unknown, positions, houses=None):
+def _chart(*, birthtime_unknown, positions, houses=None, bazi_year_pillar=""):
     return SimpleNamespace(
         birthtime_unknown=birthtime_unknown,
         retcon_time_used=False,
@@ -102,6 +102,10 @@ def _chart(*, birthtime_unknown, positions, houses=None):
         aspects=[],
         dominant_sign_weights={},
         dominant_planet_weights={},
+        bazi_year_pillar=bazi_year_pillar,
+        bazi_month_pillar="",
+        bazi_day_pillar="",
+        bazi_hour_pillar="",
     )
 
 
@@ -139,3 +143,28 @@ def test_dissimilarity_export_sections_exclude_timed_only_contrasts_for_mixed_pa
     assert "AS in Aries" not in position_labels
     assert house_position_labels == set()
     assert house_sign_labels == set()
+
+
+def test_dissimilarity_export_sections_include_unique_bazi_signs():
+    provider = FakeDissimilarityProvider(
+        {
+            1: _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Snake"),
+            2: _chart(birthtime_unknown=True, positions={"Sun": 15.0}, bazi_year_pillar="Rat"),
+        }
+    )
+
+    sections = dict(
+        build_dissimilarity_export_sections(
+            provider,
+            selected_chart_ids=[1, 2],
+            db_chart_ids=[1, 2],
+            db_total_count=2,
+        )
+    )
+
+    bazi_matches = sections["BaZi signs in contrast"]
+    assert {label for label, *_rest in bazi_matches} == {"Rat", "Snake"}
+    assert {label: owner for label, *_rest, owner in bazi_matches} == {
+        "Snake": "chart_1",
+        "Rat": "chart_2",
+    }
