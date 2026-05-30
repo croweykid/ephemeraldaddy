@@ -392,10 +392,15 @@ def build_dissimilarity_export_sections(
         db_section_title = _common_section_title_for_contrast(section_title)
         db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
         matches: list[tuple[str, int, int, int, int, str]] = []
+        selected_total_count = len(selected_chart_ids)
         for label, count in sorted(counts.items(), key=lambda item: item[0].lower()):
-            if count != 1 or similarities_label_has_excluded_bodies(label):
+            total_count = int(totals.get(label, selected_total_count))
+            if (
+                count != 1
+                or total_count != selected_total_count
+                or similarities_label_has_excluded_bodies(label)
+            ):
                 continue
-            total_count = int(totals.get(label, len(selected_chart_ids)))
             matches.append(
                 (
                     label,
