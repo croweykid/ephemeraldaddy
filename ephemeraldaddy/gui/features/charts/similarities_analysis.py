@@ -381,17 +381,21 @@ def build_dissimilarity_export_sections(
     selected_chart_ids: list[int],
     db_chart_ids: list[int],
     db_total_count: int,
-) -> list[tuple[str, list[tuple[str, int, int, int, int, str]]]]:
+) -> list[tuple[str, list[tuple[str, int, int, int, int, str, str]]]]:
     """Build export-ready pair-only contrast sections for Database View dissimilarities."""
 
     pair_counts = _build_similarity_factor_counts(provider, selected_chart_ids)
     db_counts = _build_similarity_factor_counts(provider, db_chart_ids)
-    export_sections: list[tuple[str, list[tuple[str, int, int, int, int, str]]]] = []
+    chart_unique_counts = [
+        _build_similarity_factor_counts(provider, [chart_id])
+        for chart_id in selected_chart_ids[:2]
+    ]
+    export_sections: list[tuple[str, list[tuple[str, int, int, int, int, str, str]]]] = []
     for section_title in _DISSIMILARITIES_SECTION_ORDER:
         counts, totals = pair_counts.get(section_title, ({}, {}))
         db_section_title = _common_section_title_for_contrast(section_title)
         db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
-        matches: list[tuple[str, int, int, int, int, str]] = []
+        matches: list[tuple[str, int, int, int, int, str, str]] = []
         selected_total_count = len(selected_chart_ids)
         for label, count in sorted(counts.items(), key=lambda item: item[0].lower()):
             total_count = int(totals.get(label, selected_total_count))
@@ -401,6 +405,12 @@ def build_dissimilarity_export_sections(
                 or similarities_label_has_excluded_bodies(label)
             ):
                 continue
+            owner_key = ""
+            for owner_index, owner_counts_by_section in enumerate(chart_unique_counts, start=1):
+                owner_counts, _owner_totals = owner_counts_by_section.get(section_title, ({}, {}))
+                if int(owner_counts.get(label, 0)) > 0:
+                    owner_key = f"chart_{owner_index}"
+                    break
             matches.append(
                 (
                     label,
@@ -413,6 +423,7 @@ def build_dissimilarity_export_sections(
                         label,
                         selected_chart_ids,
                     ),
+                    owner_key,
                 )
             )
         export_sections.append((section_title, matches))

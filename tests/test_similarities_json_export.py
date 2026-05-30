@@ -209,3 +209,29 @@ def test_dissimilarities_json_export_uses_antifactor_buckets():
     assert profile["channels"] == {}
     assert profile["antichannels"] == {(20, 57): 50}
     assert similarities_json_payload_has_factors(payload, "Contrasts")
+
+
+def test_dissimilarities_json_export_bundles_chart_unique_factors_by_owner():
+    payload = build_similarities_json_export_payload(
+        "Contrasts",
+        [
+            (
+                "Signs in positions in contrast",
+                [
+                    ("Sun in Aries", 1, 2, 0, 100, "A", "chart_1"),
+                    ("Sun in Taurus", 1, 2, 0, 100, "B", "chart_2"),
+                ],
+            ),
+            ("Gates in contrast", [("Gate 44", 1, 2, 0, 100, "A", "chart_1")]),
+        ],
+    )
+
+    bundle = payload["Contrasts"]
+    chart_1 = bundle["chart 1 unique factors"]
+    chart_2 = bundle["chart 2 unique factors"]
+    assert chart_1["positions"] == {"Sun in Aries": 50}
+    assert chart_1["gates"] == {44: 50}
+    assert chart_1["antipositions"] == {}
+    assert chart_2["positions"] == {"Sun in Taurus": 50}
+    assert chart_2["gates"] == {}
+    assert similarities_json_payload_has_factors(payload, "Contrasts")
