@@ -54,6 +54,19 @@ SIMILARITIES_JSON_SECTION_CATEGORIES: dict[str, str] = {
     "Defined Centers in common": "centers",
     "Authorities in common": "authorities",
     "Profiles in common": "profiles",
+    "Signs in positions in contrast": "antipositions",
+    "Houses in positions in contrast": "antipositions",
+    "Signs in houses in contrast": "antipositions",
+    "Top 3 Dominant Signs in contrast": "antisigns",
+    "Top 3 Dominant Bodies in contrast": "antibodies",
+    "Top 3 Dominant Houses in contrast": "antihouses",
+    "Dominant nakshatras in contrast": "antinakshatras",
+    "Aspects in contrast": "antiaspects",
+    "Gates in contrast": "antigates",
+    "Channels in contrast": "antichannels",
+    "Defined Centers in contrast": "anticenters",
+    "Authorities in contrast": "antiauthorities",
+    "Profiles in contrast": "antiprofiles",
 }
 
 SIMILARITIES_JSON_PRIMARY_POSITION_BODIES: tuple[str, ...] = (
@@ -151,7 +164,7 @@ def normalize_similarities_json_criterion(
     if not text:
         return None
 
-    if section_title == "Houses in positions in common":
+    if section_title in {"Houses in positions in common", "Houses in positions in contrast"}:
         if ": House " not in text:
             return None
         body, house_text = text.split(": House ", 1)
@@ -160,7 +173,7 @@ def normalize_similarities_json_criterion(
             return None
         return f"{body.strip()} in H{int(house_num)}"
 
-    if section_title == "Signs in houses in common":
+    if section_title in {"Signs in houses in common", "Signs in houses in contrast"}:
         if not text.startswith("House ") or ": " not in text:
             return None
         house_text, sign = text.split(": ", 1)
@@ -169,7 +182,7 @@ def normalize_similarities_json_criterion(
             return None
         return f"{sign.strip()} in H{int(house_num)}"
 
-    if section_title == "Top 3 Dominant Houses in common":
+    if section_title in {"Top 3 Dominant Houses in common", "Top 3 Dominant Houses in contrast"}:
         if not text.startswith("House "):
             return None
         house_num = text.replace("House ", "", 1).strip()
@@ -177,7 +190,7 @@ def normalize_similarities_json_criterion(
             return None
         return str(int(house_num))
 
-    if section_title == "Gates in common":
+    if section_title in {"Gates in common", "Gates in contrast"}:
         if not text.startswith("Gate "):
             return None
         gate_num = text.replace("Gate ", "", 1).strip()
@@ -185,7 +198,7 @@ def normalize_similarities_json_criterion(
             return None
         return int(gate_num)
 
-    if section_title == "Channels in common":
+    if section_title in {"Channels in common", "Channels in contrast"}:
         normalized = _normalize_channel_criterion(text)
         if normalized is None:
             return None

@@ -185,3 +185,27 @@ def test_similarities_json_export_formats_gate_and_channel_keys_for_profiles():
     assert '"channels": {\n            (20, 57): 50,' in formatted
     assert '"44": 50' not in formatted
     assert '"20-57": 50' not in formatted
+
+
+def test_dissimilarities_json_export_uses_antifactor_buckets():
+    payload = build_similarities_json_export_payload(
+        "Contrasts",
+        [
+            ("Signs in positions in contrast", [("Sun in Aries", 1, 2, 0, 100, "A")]),
+            ("Houses in positions in contrast", [("Moon: House 7", 1, 2, 0, 100, "B")]),
+            ("Top 3 Dominant Signs in contrast", [("Libra", 1, 2, 0, 100, "A")]),
+            ("Gates in contrast", [("Gate 44", 1, 2, 0, 100, "B")]),
+            ("Channels in contrast", [("57-20", 1, 2, 0, 100, "B")]),
+        ],
+    )
+
+    profile = payload["Contrasts"]
+    assert profile["positions"] == {}
+    assert profile["antipositions"] == {"Sun in Aries": 50, "Moon in H7": 50}
+    assert profile["signs"] == {}
+    assert profile["antisigns"] == {"Libra": 50}
+    assert profile["gates"] == {}
+    assert profile["antigates"] == {44: 50}
+    assert profile["channels"] == {}
+    assert profile["antichannels"] == {(20, 57): 50}
+    assert similarities_json_payload_has_factors(payload, "Contrasts")

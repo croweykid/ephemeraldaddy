@@ -2013,6 +2013,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             tuple[str, list[tuple[str, int, int, int, int, str]]]
         ] = []
         self._similarities_pair_button: QPushButton | None = None
+        self._dissimilarities_pair_button: QPushButton | None = None
         self._similarities_pair_result_label: QLabel | None = None
         self._similarities_chart_lookup: dict[str, int] = {}
         self._similarities_first_chart_input: QLineEdit | None = None
@@ -6582,14 +6583,21 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         pair_layout.setContentsMargins(0, 0, 0, 0)
         pair_layout.setSpacing(8)
         pair_row.setLayout(pair_layout)
-        pair_button = QPushButton("Calculate Similarity")
+        pair_button = QPushButton("Calculate Similarities")
         pair_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
         pair_button.setToolTip("Select exactly 2 charts to compare.")
         pair_button.clicked.connect(self._calculate_pair_similarity_from_selection)
         pair_layout.addWidget(pair_button, alignment=Qt.AlignLeft)
+
+        dissimilarity_button = QPushButton("Calculate Dissimilarities")
+        dissimilarity_button.setStyleSheet(SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE)
+        dissimilarity_button.setToolTip("Select exactly 2 charts to compare.")
+        dissimilarity_button.clicked.connect(self._calculate_pair_dissimilarity_from_selection)
+        pair_layout.addWidget(dissimilarity_button, alignment=Qt.AlignLeft)
         pair_layout.addStretch(1)
         layout.addWidget(pair_row)
         self._similarities_pair_button = pair_button
+        self._dissimilarities_pair_button = dissimilarity_button
 
         pair_result_label = QLabel("Select 2 charts, or use chart inputs with “use this” checked.")
         pair_result_label.setWordWrap(True)
@@ -7137,6 +7145,109 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
         if breakdown_chart_ids is not None:
             self._update_similarities_analysis(breakdown_chart_ids)
+
+    def _calculate_pair_dissimilarity_from_selection(self) -> None:
+        if self._similarities_pair_result_label is None:
+            return
+        resolution = self._resolve_similarity_pair_targets(self._selected_chart_ids())
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Calculate Dissimilarity",
+                resolution.guidance
+                or "Please enter chart name in checked input(s), or select chart(s) from Database.",
+            )
+            self._similarities_pair_result_label.setText(
+                resolution.guidance
+                or "Select 2 charts, or use chart inputs with “use this” checked."
+            )
+            return
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
+        if first is None or second is None:
+            self._similarities_pair_result_label.setText("Could not load both selected charts.")
+            return
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is None:
+            return
+        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
+        self._similarities_pair_result_label.setText(
+            f"{first_name} ↔ {second_name}: "
+            f'<span style="color: #ffb74d; font-weight: 600;">'
+            f"{total_contrasts} contrasting factor(s)</span> found."
+        )
+
+    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
+        selected_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        if len(selected_chart_ids) != 2:
+            self._similarities_export_sections = []
+            self.similarities_status_label.setText(
+                "Select exactly 2 non-placeholder charts to calculate dissimilarities."
+            )
+            return 0
+
+        db_chart_ids = [
+            int(normalized[0])
+            for row in self._chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+            and not _chart_row_is_non_aggregable(normalized)
+        ]
+        db_total_count = len(db_chart_ids)
+        progress = show_similarities_loading_progress(
+            parent=self,
+            message="Calculating dissimilarities analysis…",
+        )
+        try:
+            update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
+            pair_sections = self._build_dissimilarity_export_sections(
+                selected_chart_ids,
+                db_chart_ids,
+                db_total_count,
+            )
+            self._similarities_export_sections = pair_sections
+            section_matches = {section_title: matches for section_title, matches in pair_sections}
+
+            render_pairs = (
+                ("Signs in positions in contrast", self.similarities_common_positions_list, self.similarities_common_positions_toggle),
+                ("Houses in positions in contrast", self.similarities_houses_in_positions_list, self.similarities_houses_in_positions_toggle),
+                ("Signs in houses in contrast", self.similarities_signs_in_houses_list, self.similarities_signs_in_houses_toggle),
+                ("Top 3 Dominant Signs in contrast", self.similarities_dominant_signs_list, self.similarities_dominant_signs_toggle),
+                ("Top 3 Dominant Bodies in contrast", self.similarities_dominant_bodies_list, self.similarities_dominant_bodies_toggle),
+                ("Top 3 Dominant Houses in contrast", self.similarities_dominant_houses_list, self.similarities_dominant_houses_toggle),
+                ("Dominant nakshatras in contrast", self.similarities_dominant_nakshatras_list, self.similarities_dominant_nakshatras_toggle),
+                ("Aspects in contrast", self.similarities_common_aspects_list, self.similarities_common_aspects_toggle),
+                ("Gates in contrast", self.similarities_common_hd_gates_list, self.similarities_common_hd_gates_toggle),
+                ("Channels in contrast", self.similarities_common_hd_channels_list, self.similarities_common_hd_channels_toggle),
+                ("Defined Centers in contrast", self.similarities_common_hd_defined_centers_list, self.similarities_common_hd_defined_centers_toggle),
+                ("Authorities in contrast", self.similarities_common_hd_authorities_list, self.similarities_common_hd_authorities_toggle),
+                ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
+            )
+            update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
+            for section_title, section_list, toggle in render_pairs:
+                matches = section_matches.get(section_title, [])
+                db_match_counts = {label: db_count for label, _count, _total, db_count, _db_total, _names in matches}
+                db_total_counts = {label: db_total for label, _count, _total, _db_count, db_total, _names in matches}
+                self._set_similarities_section_matches(
+                    section_list,
+                    toggle,
+                    [(label, count, total) for label, count, total, _db_count, _db_total, _names in matches],
+                    selection_total_count=len(selected_chart_ids),
+                    db_match_counts=db_match_counts,
+                    db_total_count=db_total_count,
+                    db_total_counts_by_label=db_total_counts,
+                )
+
+            total_contrasts = sum(len(matches) for _section_title, matches in pair_sections)
+            self.similarities_status_label.setText(
+                f"{total_contrasts} contrasting pattern(s) found between the 2 selected charts."
+                if total_contrasts
+                else "No contrasting factors found between the 2 selected charts."
+            )
+            return total_contrasts
+        finally:
+            close_similarities_loading_progress(progress)
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
@@ -7792,6 +7903,189 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ordered_counts[profile] = profile_counts[profile]
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+    def _build_similarity_factor_counts(
+        self,
+        chart_ids: list[int],
+    ) -> dict[str, tuple[dict[str, int], dict[str, int]]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        time_specific_chart_count = sum(1 for chart in charts if _chart_uses_houses(chart))
+        angular_bodies = {"AS", "MC", "DS", "IC"}
+
+        sections: dict[str, tuple[dict[str, int], dict[str, int]]] = {}
+
+        def add(section: str, label: str, total: int | None = None) -> None:
+            if not label:
+                return
+            counts, totals = sections.setdefault(section, ({}, {}))
+            counts[label] = counts.get(label, 0) + 1
+            totals.setdefault(label, int(total if total is not None else chart_count))
+
+        for chart in charts:
+            use_houses = _chart_uses_houses(chart)
+            for body in PLANET_ORDER:
+                if not use_houses and body in angular_bodies:
+                    continue
+                lon = chart.positions.get(body)
+                if lon is None:
+                    continue
+                body_label = self._similarities_body_label(body)
+                add(
+                    "Signs in positions in contrast",
+                    f"{body_label} in {_sign_for_longitude(lon)}",
+                    time_specific_chart_count if body in angular_bodies else chart_count,
+                )
+                if use_houses:
+                    house_num = _house_for_longitude(getattr(chart, "houses", None), lon)
+                    if house_num is not None and (body, house_num) not in {
+                        ("AS", 1),
+                        ("IC", 4),
+                        ("DS", 7),
+                        ("MC", 10),
+                    }:
+                        add("Houses in positions in contrast", f"{body_label}: House {house_num}", time_specific_chart_count)
+            if use_houses:
+                houses = getattr(chart, "houses", None)
+                if houses and len(houses) >= 12:
+                    for house_index in range(12):
+                        add(
+                            "Signs in houses in contrast",
+                            f"House {house_index + 1}: {_sign_for_longitude(houses[house_index])}",
+                            time_specific_chart_count,
+                        )
+
+            dominant_weights = getattr(chart, "dominant_sign_weights", None)
+            if not dominant_weights:
+                dominant_weights = _calculate_dominant_sign_weights(chart)
+                chart.dominant_sign_weights = dominant_weights
+            for sign in self._dominant_sign_top_three_labels(dominant_weights):
+                add("Top 3 Dominant Signs in contrast", sign)
+
+            dominant_planet_weights = getattr(chart, "dominant_planet_weights", None)
+            if not dominant_planet_weights:
+                dominant_planet_weights = _calculate_dominant_planet_weights(chart)
+                chart.dominant_planet_weights = dominant_planet_weights
+            for body in self._dominant_planet_top_three_labels(dominant_planet_weights):
+                add("Top 3 Dominant Bodies in contrast", self._similarities_body_label(body))
+
+            for house_num in self._dominant_house_top_three_labels(_calculate_dominant_house_weights(chart)):
+                add("Top 3 Dominant Houses in contrast", f"House {house_num}")
+
+            nakshatra_weights: dict[str, int] = {}
+            for body in PLANET_ORDER:
+                if not use_houses and body in angular_bodies:
+                    continue
+                lon = chart.positions.get(body)
+                if lon is None:
+                    continue
+                nakshatra = _get_nakshatra(lon)
+                nakshatra_weights[nakshatra] = nakshatra_weights.get(nakshatra, 0) + NATAL_WEIGHT.get(body, 1)
+            for name, _weight in sorted(nakshatra_weights.items(), key=lambda item: item[1], reverse=True)[:3]:
+                add("Dominant nakshatras in contrast", name)
+
+            chart_aspects: dict[str, int] = {}
+            for aspect in getattr(chart, "aspects", []) or []:
+                if _is_structural_tautology(aspect):
+                    continue
+                raw_p1 = aspect.get("p1", "")
+                raw_p2 = aspect.get("p2", "")
+                if raw_p1 in angular_bodies and raw_p2 in angular_bodies:
+                    continue
+                if not use_houses and (raw_p1 in angular_bodies or raw_p2 in angular_bodies):
+                    continue
+                p1_label = self._similarities_body_label(raw_p1)
+                p2_label = self._similarities_body_label(raw_p2)
+                aspect_type = aspect.get("type", "")
+                if not p1_label or not p2_label or not aspect_type:
+                    continue
+                body_a, body_b = sorted([p1_label, p2_label])
+                aspect_label = f"{body_a} {_aspect_label(aspect_type).lower()} {body_b}"
+                chart_aspects[aspect_label] = (
+                    time_specific_chart_count
+                    if raw_p1 in angular_bodies or raw_p2 in angular_bodies
+                    else chart_count
+                )
+            for aspect_label, total in chart_aspects.items():
+                add("Aspects in contrast", aspect_label, total)
+
+            hd_gates, _hd_lines, hd_channels, hd_centers, _hd_type, hd_authority = self._extract_human_design_profile(chart)
+            for gate in sorted(set(hd_gates)):
+                add("Gates in contrast", f"Gate {gate}")
+            normalized_channels: set[str] = set()
+            for channel in hd_channels:
+                raw = str(channel).strip()
+                parts = raw.split("-")
+                if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                    a, b = int(parts[0].strip()), int(parts[1].strip())
+                    raw = f"{min(a, b)}-{max(a, b)}"
+                if raw:
+                    normalized_channels.add(raw)
+            for channel in normalized_channels:
+                add("Channels in contrast", channel)
+            for center in {str(center).strip() for center in hd_centers if str(center).strip()}:
+                add("Defined Centers in contrast", center)
+            authority = canonicalize_hd_authority_label(str(hd_authority).strip())
+            if authority:
+                add("Authorities in contrast", authority)
+            profile = self._chart_human_design_profile(chart)
+            if profile:
+                add("Profiles in contrast", profile)
+
+        return sections
+
+    def _build_dissimilarity_export_sections(
+        self,
+        selected_chart_ids: list[int],
+        db_chart_ids: list[int],
+        db_total_count: int,
+    ) -> list[tuple[str, list[tuple[str, int, int, int, int, str]]]]:
+        pair_counts = self._build_similarity_factor_counts(selected_chart_ids)
+        db_counts = self._build_similarity_factor_counts(db_chart_ids)
+        section_order = (
+            "Signs in positions in contrast",
+            "Houses in positions in contrast",
+            "Signs in houses in contrast",
+            "Top 3 Dominant Signs in contrast",
+            "Top 3 Dominant Bodies in contrast",
+            "Top 3 Dominant Houses in contrast",
+            "Dominant nakshatras in contrast",
+            "Aspects in contrast",
+            "Gates in contrast",
+            "Channels in contrast",
+            "Defined Centers in contrast",
+            "Authorities in contrast",
+            "Profiles in contrast",
+        )
+        export_sections: list[tuple[str, list[tuple[str, int, int, int, int, str]]]] = []
+        for section_title in section_order:
+            counts, totals = pair_counts.get(section_title, ({}, {}))
+            db_section_title = section_title.replace(" in contrast", " in common")
+            db_section_title = db_section_title.replace("Aspects in contrast", "Aspects in common")
+            db_section_title = db_section_title.replace("Gates in contrast", "Gates in common")
+            db_section_title = db_section_title.replace("Channels in contrast", "Channels in common")
+            db_section_title = db_section_title.replace("Defined Centers in contrast", "Defined Centers in common")
+            db_section_title = db_section_title.replace("Authorities in contrast", "Authorities in common")
+            db_section_title = db_section_title.replace("Profiles in contrast", "Profiles in common")
+            db_section_counts, db_section_totals = db_counts.get(section_title, ({}, {}))
+            matches: list[tuple[str, int, int, int, int, str]] = []
+            for label, count in sorted(counts.items(), key=lambda item: (item[0].lower())):
+                if count != 1 or _similarities_label_has_excluded_bodies(label):
+                    continue
+                total_count = int(totals.get(label, len(selected_chart_ids)))
+                matches.append(
+                    (
+                        label,
+                        count,
+                        total_count,
+                        int(db_section_counts.get(label, 0)),
+                        int(db_section_totals.get(label, db_total_count)),
+                        self._similarity_matching_chart_names(db_section_title, label, selected_chart_ids),
+                    )
+                )
+            export_sections.append((section_title, matches))
+        return export_sections
+
     def _similarity_matching_chart_names(
         self,
         section_title: str,
@@ -7941,17 +8235,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and not _chart_row_is_non_aggregable(normalized)
         ]
         db_total_count = len(db_chart_ids)
-        if self._similarities_pair_button is not None:
-            resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
-            self._similarities_pair_button.setStyleSheet(
+        resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
+        for button, active_tooltip in (
+            (self._similarities_pair_button, "Calculate similarity between the selected/input charts."),
+            (self._dissimilarities_pair_button, "Calculate dissimilarity between the selected/input charts."),
+        ):
+            if button is None:
+                continue
+            button.setStyleSheet(
                 SIMILARITY_CALCULATE_BUTTON_ACTIVE_STYLE
                 if resolution.allow_click
                 else SIMILARITY_CALCULATE_BUTTON_INACTIVE_STYLE
             )
-            self._similarities_pair_button.setToolTip(
-                "Calculate similarity between the selected/input charts."
-                if resolution.allow_click
-                else (resolution.guidance or "Select 2 charts to compare.")
+            button.setToolTip(
+                active_tooltip if resolution.allow_click else (resolution.guidance or "Select 2 charts to compare.")
             )
         if self._similarities_pair_result_label is not None:
             resolution = self._resolve_similarity_pair_targets(selected_non_placeholder_chart_ids)
@@ -23500,6 +23797,109 @@ class MainWindow(QMainWindow):
             else None
         )
         dialog.show()
+
+    def _calculate_pair_dissimilarity_from_selection(self) -> None:
+        if self._similarities_pair_result_label is None:
+            return
+        resolution = self._resolve_similarity_pair_targets(self._selected_chart_ids())
+        if resolution.first_chart_id is None or resolution.second_chart_id is None:
+            QMessageBox.warning(
+                self,
+                "Calculate Dissimilarity",
+                resolution.guidance
+                or "Please enter chart name in checked input(s), or select chart(s) from Database.",
+            )
+            self._similarities_pair_result_label.setText(
+                resolution.guidance
+                or "Select 2 charts, or use chart inputs with “use this” checked."
+            )
+            return
+        first = self._get_chart_for_filter(resolution.first_chart_id)
+        second = self._get_chart_for_filter(resolution.second_chart_id)
+        if first is None or second is None:
+            self._similarities_pair_result_label.setText("Could not load both selected charts.")
+            return
+        breakdown_chart_ids = similarity_breakdown_chart_ids(resolution)
+        if breakdown_chart_ids is None:
+            return
+        total_contrasts = self._update_dissimilarities_analysis(breakdown_chart_ids)
+        first_name = str(getattr(first, "name", "") or f"#{resolution.first_chart_id}")
+        second_name = str(getattr(second, "name", "") or f"#{resolution.second_chart_id}")
+        self._similarities_pair_result_label.setText(
+            f"{first_name} ↔ {second_name}: "
+            f'<span style="color: #ffb74d; font-weight: 600;">'
+            f"{total_contrasts} contrasting factor(s)</span> found."
+        )
+
+    def _update_dissimilarities_analysis(self, chart_ids: list[int]) -> int:
+        selected_chart_ids = self._exclude_placeholder_chart_ids(chart_ids)
+        if len(selected_chart_ids) != 2:
+            self._similarities_export_sections = []
+            self.similarities_status_label.setText(
+                "Select exactly 2 non-placeholder charts to calculate dissimilarities."
+            )
+            return 0
+
+        db_chart_ids = [
+            int(normalized[0])
+            for row in self._chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+            and not _chart_row_is_non_aggregable(normalized)
+        ]
+        db_total_count = len(db_chart_ids)
+        progress = show_similarities_loading_progress(
+            parent=self,
+            message="Calculating dissimilarities analysis…",
+        )
+        try:
+            update_similarities_loading_progress(progress, "Finding pair-only contrast factors…")
+            pair_sections = self._build_dissimilarity_export_sections(
+                selected_chart_ids,
+                db_chart_ids,
+                db_total_count,
+            )
+            self._similarities_export_sections = pair_sections
+            section_matches = {section_title: matches for section_title, matches in pair_sections}
+
+            render_pairs = (
+                ("Signs in positions in contrast", self.similarities_common_positions_list, self.similarities_common_positions_toggle),
+                ("Houses in positions in contrast", self.similarities_houses_in_positions_list, self.similarities_houses_in_positions_toggle),
+                ("Signs in houses in contrast", self.similarities_signs_in_houses_list, self.similarities_signs_in_houses_toggle),
+                ("Top 3 Dominant Signs in contrast", self.similarities_dominant_signs_list, self.similarities_dominant_signs_toggle),
+                ("Top 3 Dominant Bodies in contrast", self.similarities_dominant_bodies_list, self.similarities_dominant_bodies_toggle),
+                ("Top 3 Dominant Houses in contrast", self.similarities_dominant_houses_list, self.similarities_dominant_houses_toggle),
+                ("Dominant nakshatras in contrast", self.similarities_dominant_nakshatras_list, self.similarities_dominant_nakshatras_toggle),
+                ("Aspects in contrast", self.similarities_common_aspects_list, self.similarities_common_aspects_toggle),
+                ("Gates in contrast", self.similarities_common_hd_gates_list, self.similarities_common_hd_gates_toggle),
+                ("Channels in contrast", self.similarities_common_hd_channels_list, self.similarities_common_hd_channels_toggle),
+                ("Defined Centers in contrast", self.similarities_common_hd_defined_centers_list, self.similarities_common_hd_defined_centers_toggle),
+                ("Authorities in contrast", self.similarities_common_hd_authorities_list, self.similarities_common_hd_authorities_toggle),
+                ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
+            )
+            update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
+            for section_title, section_list, toggle in render_pairs:
+                matches = section_matches.get(section_title, [])
+                db_match_counts = {label: db_count for label, _count, _total, db_count, _db_total, _names in matches}
+                db_total_counts = {label: db_total for label, _count, _total, _db_count, db_total, _names in matches}
+                self._set_similarities_section_matches(
+                    section_list,
+                    toggle,
+                    [(label, count, total) for label, count, total, _db_count, _db_total, _names in matches],
+                    selection_total_count=len(selected_chart_ids),
+                    db_match_counts=db_match_counts,
+                    db_total_count=db_total_count,
+                    db_total_counts_by_label=db_total_counts,
+                )
+
+            total_contrasts = sum(len(matches) for _section_title, matches in pair_sections)
+            self.similarities_status_label.setText(
+                f"{total_contrasts} contrasting pattern(s) found between the 2 selected charts."
+                if total_contrasts
+                else "No contrasting factors found between the 2 selected charts."
+            )
+            return total_contrasts
+        finally:
+            close_similarities_loading_progress(progress)
 
     def _similarity_band_for_percent(self, similarity_percent: float) -> tuple[str, str]:
         thresholds = load_similarity_thresholds(self._settings)
