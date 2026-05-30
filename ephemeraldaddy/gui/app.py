@@ -408,6 +408,10 @@ from ephemeraldaddy.gui.window_placement import (
     clear_fullscreen_and_minimized,
 )
 from ephemeraldaddy.core.chart import Chart, apply_time_specific_metadata_policy
+from ephemeraldaddy.analysis.bazi_getter import (
+    BAZI_BRANCH_TO_SIGN,
+    bazi_sign_weights_from_chart,
+)
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
@@ -6780,6 +6784,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             min_height=100,
             list_style=similarities_list_style,
         )
+        (
+            self.similarities_common_bazi_signs_toggle,
+            self.similarities_common_bazi_signs_list,
+        ) = self._add_similarities_collapsible_section(
+            layout,
+            "BaZi signs in common",
+            min_height=100,
+            list_style=similarities_list_style,
+        )
         self.similarities_db_info_panel = DBInfoPanel(panel)
         self.similarities_db_info_panel.setVisible(False)
         layout.addWidget(self.similarities_db_info_panel)
@@ -7350,6 +7363,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 ("Defined Centers in contrast", self.similarities_common_hd_defined_centers_list, self.similarities_common_hd_defined_centers_toggle),
                 ("Authorities in contrast", self.similarities_common_hd_authorities_list, self.similarities_common_hd_authorities_toggle),
                 ("Profiles in contrast", self.similarities_common_hd_profiles_list, self.similarities_common_hd_profiles_toggle),
+                ("BaZi signs in contrast", self.similarities_common_bazi_signs_list, self.similarities_common_bazi_signs_toggle),
             )
             update_similarities_loading_progress(progress, "Rendering dissimilarities results…")
             for section_title, section_list, toggle in render_pairs:
@@ -8041,6 +8055,31 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             ordered_counts[profile] = profile_counts[profile]
         return self._sorted_similarity_matches(ordered_counts, chart_count)
 
+
+    def _build_common_bazi_signs(
+        self, chart_ids: list[int]
+    ) -> list[tuple[str, int, int]]:
+        charts = [self._get_chart_for_filter(chart_id) for chart_id in chart_ids]
+        charts = [chart for chart in charts if chart is not None]
+        chart_count = len(charts)
+        if chart_count < 2:
+            return []
+
+        sign_counts: dict[str, int] = {}
+        for chart in charts:
+            for sign in set(bazi_sign_weights_from_chart(chart)):
+                sign_counts[sign] = sign_counts.get(sign, 0) + 1
+
+        bazi_sign_order = list(BAZI_BRANCH_TO_SIGN.values())
+        ordered_counts = {
+            sign: sign_counts[sign]
+            for sign in bazi_sign_order
+            if sign in sign_counts
+        }
+        for sign in sorted(set(sign_counts) - set(ordered_counts)):
+            ordered_counts[sign] = sign_counts[sign]
+        return self._sorted_similarity_matches(ordered_counts, chart_count)
+
     def _similarity_matching_chart_names(
         self,
         section_title: str,
@@ -8176,6 +8215,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
             elif section_title == "Profiles in common":
                 include = label == self._chart_human_design_profile(chart)
+            
+            elif section_title == "BaZi signs in common":
+                include = label in bazi_sign_weights_from_chart(chart)
 
             if include:
                 matching_names.append(self._display_name_for_chart_id(int(chart_id)))
@@ -8298,6 +8340,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._set_similarities_section_matches(
                 self.similarities_common_hd_profiles_list,
                 self.similarities_common_hd_profiles_toggle,
+                [],
+                show_no_match_row=False,
+            )
+            self._set_similarities_section_matches(
+                self.similarities_common_bazi_signs_list,
+                self.similarities_common_bazi_signs_toggle,
                 [],
                 show_no_match_row=False,
             )
