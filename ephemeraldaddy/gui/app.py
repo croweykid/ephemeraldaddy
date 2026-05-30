@@ -39,6 +39,7 @@ SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE = "similar_charts/algorithm_mode"
 SETTINGS_KEY_SIMILAR_CALCULATOR = "similar_charts/similarities_calculator"
 SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE = "enneagram_predictor/mode"
 SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS = "enneagram_predictor/category_weights"
+SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS = "enneagram_predictor/scoring_options"
 SETTINGS_KEY_ASTROTWIN_GRANULAR_EXPLANATION = "similar_charts/astrotwin_granular_explanation"
 SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
     "similar_charts/predictions_alignment_default_zero_when_unassigned"
@@ -1073,11 +1074,15 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     calculate_enneagram_type_weights as _calculate_enneagram_type_weights,
     connect_enneagram_popout_pick_handler as _connect_enneagram_popout_pick_handler,
     default_enneagram_category_weights as _default_enneagram_category_weights,
+    default_enneagram_scoring_options as _default_enneagram_scoring_options,
     draw_enneagram_predictions as _draw_enneagram_predictions_chart,
     enneagram_realm_summary_html as _enneagram_realm_summary_html,
+    enneagram_scoring_options_to_payload as _enneagram_scoring_options_to_payload,
     merge_enneagram_category_weights as _merge_enneagram_category_weights,
+    merge_enneagram_scoring_options as _merge_enneagram_scoring_options,
     tritype_text_for_scores as _tritype_text_for_scores,
     set_enneagram_category_weights as _set_enneagram_category_weights,
+    set_enneagram_scoring_options as _set_enneagram_scoring_options,
 )
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
@@ -1902,6 +1907,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
         )
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(
+            self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        _set_enneagram_scoring_options(self._enneagram_scoring_options)
         set_lilith_calculation_mode(self._lilith_calculation_method)
         self._feature_hub = FeatureEventHub()
         _apply_minimum_screen_height(self)
@@ -19643,10 +19656,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             dialog=dialog,
             section_layout=enneagram_section,
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
-            on_mode_default_toggled=lambda checked: checked and self._set_enneagram_predictor_mode("default"),
-            on_mode_custom_toggled=lambda checked: checked and self._set_enneagram_predictor_mode("custom"),
-            on_weight_changed=self._on_enneagram_category_weight_changed,
+            on_option_toggled=self._on_enneagram_scoring_option_toggled,
+            on_scale_mode_changed=self._on_enneagram_type_signature_scale_changed,
         )
+        self._enneagram_predictor_checkboxes = enneagram_controls["checkboxes"]
+        self._enneagram_predictor_scale_combo = enneagram_controls["scale_combo"]
         self._enneagram_predictor_default_radio = enneagram_controls["default_radio"]
         self._enneagram_predictor_custom_radio = enneagram_controls["custom_radio"]
         self._enneagram_predictor_weight_spinboxes = enneagram_controls["weight_spinboxes"]
@@ -20065,61 +20079,91 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return _default_enneagram_category_weights()
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
-        normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
-        self._enneagram_predictor_mode = normalized
-        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, normalized)
-        parent = self.parent()
-        if isinstance(parent, MainWindow):
-            parent._enneagram_predictor_mode = normalized
-            parent._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, normalized)
+        # Legacy category-weight mode is retained only for settings compatibility.
+        self._enneagram_predictor_mode = "default"
+        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default")
         self._apply_enneagram_predictor_weights()
 
     def _load_enneagram_predictor_controls(self) -> None:
-        payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}
-        mode = str(self._settings.value(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default") or "default").lower()
-        self._enneagram_predictor_mode = "custom" if mode == "custom" else "default"
-        merged = _merge_enneagram_category_weights(payload)
-        self._enneagram_predictor_weights = merged
-        for key, spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).items():
-            blocker = QSignalBlocker(spin)
-            spin.setValue(float(merged.get(key, 1.0)))
-            spin.setEnabled(self._enneagram_predictor_mode == "custom")
+        self._enneagram_predictor_mode = "default"
+        self._enneagram_predictor_weights = self._default_enneagram_category_weights()
+        payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
+        options = _merge_enneagram_scoring_options(payload)
+        self._enneagram_scoring_options = options
+        for key, checkbox in getattr(self, "_enneagram_predictor_checkboxes", {}).items():
+            blocker = QSignalBlocker(checkbox)
+            checkbox.setChecked(bool(getattr(options, key, False)))
             del blocker
-        self._enneagram_predictor_default_radio.setChecked(self._enneagram_predictor_mode == "default")
-        self._enneagram_predictor_custom_radio.setChecked(self._enneagram_predictor_mode == "custom")
+        combo = getattr(self, "_enneagram_predictor_scale_combo", None)
+        if combo is not None:
+            target_mode = options.normalized_type_signature_scale_mode()
+            index = combo.findData(target_mode)
+            blocker = QSignalBlocker(combo)
+            combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
 
     def _update_enneagram_predictor_total_label(self) -> None:
-        total = sum(float(spin.value()) for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values())
         label = getattr(self, "_enneagram_predictor_total_label", None)
         if label is not None:
-            label.setText(f"{total:.2f}")
+            label.setText("disabled")
 
     def _on_enneagram_category_weight_changed(self, key: str, value: float) -> None:
-        if not hasattr(self, "_enneagram_predictor_weights"):
-            self._enneagram_predictor_weights = self._default_enneagram_category_weights()
-        self._enneagram_predictor_weights[key] = float(value)
-        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, self._enneagram_predictor_weights)
+        # Category/property weights are disabled; keep this no-op for older signal paths.
+        self._enneagram_predictor_weights = self._default_enneagram_category_weights()
+        self._apply_enneagram_predictor_weights()
+
+    def _on_enneagram_scoring_option_toggled(self, key: str, value: bool) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload[key] = bool(value)
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._enneagram_predictor_weights = dict(self._enneagram_predictor_weights)
-            parent._settings.setValue(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, parent._enneagram_predictor_weights)
-        self._update_enneagram_predictor_total_label()
-        if getattr(self, "_enneagram_predictor_mode", "default") == "custom":
-            self._apply_enneagram_predictor_weights()
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
+
+    def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["type_signature_scale_mode"] = str(mode or "none")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._enneagram_scoring_options = self._enneagram_scoring_options
+            parent._settings.setValue(
+                SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+                _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+            )
+        self._apply_enneagram_predictor_weights()
 
     def _apply_enneagram_predictor_weights(self) -> None:
-        use_custom = getattr(self, "_enneagram_predictor_mode", "default") == "custom"
-        weights = getattr(self, "_enneagram_predictor_weights", self._default_enneagram_category_weights())
-        applied_weights = weights if use_custom else self._default_enneagram_category_weights()
-        _set_enneagram_category_weights(applied_weights)
-        for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values():
-            spin.setEnabled(use_custom)
+        # Property/category weights are disabled: criteria weights are interpreted directly.
+        weights = self._default_enneagram_category_weights()
+        self._enneagram_predictor_weights = weights
+        _set_enneagram_category_weights(weights)
+        options = getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
+        _set_enneagram_scoring_options(options)
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._enneagram_predictor_mode = getattr(self, "_enneagram_predictor_mode", "default")
+            parent._enneagram_predictor_mode = "default"
             parent._enneagram_predictor_weights = dict(weights)
+            parent._enneagram_scoring_options = options
 
     def _refresh_dev_age_predictor(self, force_guess: bool = False) -> None:
         if self._dev_user_age_label is None or self._dev_age_distribution_canvas is None:
@@ -29703,51 +29747,71 @@ class MainWindow(QMainWindow):
         self.chart_type_label = label
 
     def _set_enneagram_predictor_mode(self, mode: str) -> None:
-        normalized = "custom" if str(mode).strip().lower() == "custom" else "default"
-        self._enneagram_predictor_mode = normalized
-        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, normalized)
+        self._enneagram_predictor_mode = "default"
+        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default")
         self._apply_enneagram_predictor_weights()
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
         return _default_enneagram_category_weights()
 
     def _load_enneagram_predictor_controls(self) -> None:
-        payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, {}) or {}
-        mode = str(self._settings.value(SETTINGS_KEY_ENNEAGRAM_PREDICTOR_MODE, "default") or "default").lower()
-        self._enneagram_predictor_mode = "custom" if mode == "custom" else "default"
-        merged = _merge_enneagram_category_weights(payload)
-        self._enneagram_predictor_weights = merged
-        for key, spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).items():
-            blocker = QSignalBlocker(spin)
-            spin.setValue(float(merged.get(key, 1.0)))
-            spin.setEnabled(self._enneagram_predictor_mode == "custom")
+        self._enneagram_predictor_mode = "default"
+        self._enneagram_predictor_weights = self._default_enneagram_category_weights()
+        payload = self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        for key, checkbox in getattr(self, "_enneagram_predictor_checkboxes", {}).items():
+            blocker = QSignalBlocker(checkbox)
+            checkbox.setChecked(bool(getattr(self._enneagram_scoring_options, key, False)))
             del blocker
-        self._enneagram_predictor_default_radio.setChecked(self._enneagram_predictor_mode == "default")
-        self._enneagram_predictor_custom_radio.setChecked(self._enneagram_predictor_mode == "custom")
+        combo = getattr(self, "_enneagram_predictor_scale_combo", None)
+        if combo is not None:
+            index = combo.findData(self._enneagram_scoring_options.normalized_type_signature_scale_mode())
+            blocker = QSignalBlocker(combo)
+            combo.setCurrentIndex(index if index >= 0 else 0)
+            del blocker
         self._update_enneagram_predictor_total_label()
         self._apply_enneagram_predictor_weights()
 
     def _update_enneagram_predictor_total_label(self) -> None:
-        total = sum(float(spin.value()) for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values())
         label = getattr(self, "_enneagram_predictor_total_label", None)
         if label is not None:
-            label.setText(f"{total:.2f}")
+            label.setText("disabled")
 
     def _on_enneagram_category_weight_changed(self, key: str, value: float) -> None:
-        if not hasattr(self, "_enneagram_predictor_weights"):
-            self._enneagram_predictor_weights = self._default_enneagram_category_weights()
-        self._enneagram_predictor_weights[key] = float(value)
-        self._settings.setValue(SETTINGS_KEY_ENNEAGRAM_CATEGORY_WEIGHTS, self._enneagram_predictor_weights)
-        self._update_enneagram_predictor_total_label()
-        if getattr(self, "_enneagram_predictor_mode", "default") == "custom":
-            self._apply_enneagram_predictor_weights()
+        self._enneagram_predictor_weights = self._default_enneagram_category_weights()
+        self._apply_enneagram_predictor_weights()
+
+    def _on_enneagram_scoring_option_toggled(self, key: str, value: bool) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload[key] = bool(value)
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
+
+    def _on_enneagram_type_signature_scale_changed(self, mode: str) -> None:
+        if not hasattr(self, "_enneagram_scoring_options"):
+            self._enneagram_scoring_options = _default_enneagram_scoring_options()
+        payload = _enneagram_scoring_options_to_payload(self._enneagram_scoring_options)
+        payload["type_signature_scale_mode"] = str(mode or "none")
+        self._enneagram_scoring_options = _merge_enneagram_scoring_options(payload)
+        self._settings.setValue(
+            SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS,
+            _enneagram_scoring_options_to_payload(self._enneagram_scoring_options),
+        )
+        self._apply_enneagram_predictor_weights()
 
     def _apply_enneagram_predictor_weights(self) -> None:
-        use_custom = getattr(self, "_enneagram_predictor_mode", "default") == "custom"
-        weights = getattr(self, "_enneagram_predictor_weights", self._default_enneagram_category_weights())
-        _set_enneagram_category_weights(weights if use_custom else self._default_enneagram_category_weights())
-        for spin in getattr(self, "_enneagram_predictor_weight_spinboxes", {}).values():
-            spin.setEnabled(use_custom)
+        weights = self._default_enneagram_category_weights()
+        self._enneagram_predictor_weights = weights
+        _set_enneagram_category_weights(weights)
+        _set_enneagram_scoring_options(
+            getattr(self, "_enneagram_scoring_options", _default_enneagram_scoring_options())
+        )
 
     def _calculate_enneagram_type_weights(self, chart: Chart) -> dict[int, float]:
         return _calculate_enneagram_type_weights(
