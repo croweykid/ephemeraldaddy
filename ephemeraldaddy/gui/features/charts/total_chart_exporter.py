@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import html
 import re
+from collections.abc import Callable
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import score_dnd_statblock
 from ephemeraldaddy.analysis.human_design import (
@@ -19,7 +20,6 @@ from ephemeraldaddy.gui.features.charts.algorithmic_transparency import (
 from ephemeraldaddy.gui.features.charts.bazi_window import build_bazi_export_payload_for_chart
 from ephemeraldaddy.gui.features.charts.dnd_predictions import build_dnd_top_three_summary_html
 from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
-    calculate_enneagram_type_weights,
     enneagram_realm_summary_html,
     tritype_text_for_scores,
 )
@@ -138,13 +138,20 @@ def chart_type_summary_text(chart: Chart) -> str:
     return "\n".join(chart_type_lines)
 
 
-def _build_predictions_export_text(chart: Chart, *, markdown: bool) -> str:
+def _build_predictions_export_text(
+    chart: Chart,
+    *,
+    markdown: bool,
+    calculate_enneagram_scores: Callable[[Chart], dict[int, float]] | None,
+) -> str:
     lines: list[str] = []
     if chart_is_non_aggregable(chart):
         lines.append("Predictions are unavailable for placeholder/hypothetical charts.")
     else:
         try:
-            enneagram_scores = calculate_enneagram_type_weights(chart)
+            if calculate_enneagram_scores is None:
+                raise RuntimeError("Enneagram score provider is unavailable.")
+            enneagram_scores = calculate_enneagram_scores(chart)
             lines.append(f"Predicted Tritype: {tritype_text_for_scores(enneagram_scores)}")
             lines.append(_plain_text_from_htmlish(enneagram_realm_summary_html(enneagram_scores)))
             lines.append("")
@@ -227,6 +234,7 @@ def build_total_chart_export_text(
     markdown: bool,
     show_cursedness: bool = True,
     show_dnd_output: bool = False,
+    calculate_enneagram_scores: Callable[[Chart], dict[int, float]] | None = None,
 ) -> str:
     """Build the complete single-chart export payload for TXT/Markdown files."""
     chart_name = (getattr(chart, "name", None) or "Chart").strip() or "Chart"
@@ -250,7 +258,11 @@ def build_total_chart_export_text(
             _build_analytics_export_text(chart, markdown=markdown),
             markdown=markdown,
         ),
-        _build_predictions_export_text(chart, markdown=markdown),
+        _build_predictions_export_text(
+            chart,
+            markdown=markdown,
+            calculate_enneagram_scores=calculate_enneagram_scores,
+        ),
         _build_human_design_export_text(chart, markdown=markdown),
         _build_bazi_export_text(chart, markdown=markdown),
     ]

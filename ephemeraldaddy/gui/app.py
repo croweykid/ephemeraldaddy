@@ -6996,6 +6996,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 markdown=markdown,
                 show_cursedness=self._visibility.get("chart_data.cursedness"),
                 show_dnd_output=False,
+                calculate_enneagram_scores=self._calculate_enneagram_type_weights,
             )
             with open(file_path, "w", encoding="utf-8") as output_file:
                 output_file.write(export_text)
