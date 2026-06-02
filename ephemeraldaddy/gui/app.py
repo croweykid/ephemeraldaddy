@@ -8283,8 +8283,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 [],
                 show_no_match_row=False,
             )
-            
-            _section_matches(
+            self._set_similarities_section_matches(
                 self.similarities_dominant_signs_list,
                 self.similarities_dominant_signs_toggle,
                 [],
