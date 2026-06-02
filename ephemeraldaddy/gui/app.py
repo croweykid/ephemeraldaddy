@@ -27171,7 +27171,20 @@ class MainWindow(QMainWindow):
                 tone_line,
                 f"• Meaning: {meaning}.",
             ],
-            accent_color=accent_color,
+        )
+
+    def _show_human_design_line_info(self, line_value: int) -> None:
+        line_nickname = str(LINE_NICKNAMES.get(int(line_value), {}).get("name", "Unknown"))
+        line_archetype = str(LINE_ARCHETYPES.get(int(line_value), "No line archetype available."))
+        self._set_human_design_info_text(
+            f"Line {line_value}: {line_nickname}",
+            [
+                "Line System:",
+                "• L represents Human Design Line (1–6).",
+                "Details:",
+                f"• Nickname: {line_nickname}.",
+                f"• Archetype: {line_archetype}",
+            ],
         )
 
     def _show_species_info(
@@ -30884,7 +30897,11 @@ class MainWindow(QMainWindow):
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
-            on_metric_selected=_on_hd_metric_selected,
+            on_bar_click=lambda metric, value: (
+                self._show_human_design_line_info(value)
+                if metric == "line"
+                else self._show_human_design_color_info(value)
+            ),
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
