@@ -30901,6 +30901,8 @@ class MainWindow(QMainWindow):
                 self._show_human_design_line_info(value)
                 if metric == "line"
                 else self._show_human_design_color_info(value)
+                if metric == "color"
+                else self._show_human_design_tone_info(value)
             ),
         )
 

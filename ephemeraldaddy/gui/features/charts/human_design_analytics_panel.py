@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from collections.abc import Callable
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.image import imread
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
-    QSplitter,
+    #QSplitter,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -132,7 +133,8 @@ def build_human_design_analytics_panel(
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
-    on_metric_selected: Callable[[str, int], None] | None = None,
+    on_bar_click: Callable[[str, int], None] | None = None,
+    on_metric_selected: Callable[[str, int], None] | None = None, #should this be here? or delete it?
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -252,7 +254,10 @@ def build_human_design_analytics_panel(
         edgecolor="#E0E0E0",
         linewidth=0.5,
         alpha=0.95,
+        picker=True,
     )
+    for bar, line_number in zip(bars, line_numbers):
+        bar.set_gid(f"line:{line_number}")
     hd_line_chart_ax.set_xticks(line_numbers)
     line_labels = [
         f"L{line_number} ({str(LINE_NICKNAMES.get(line_number, {}).get('name', 'unknown'))})"
@@ -283,7 +288,7 @@ def build_human_design_analytics_panel(
             fontsize=8,
             fontweight="bold",
         )
-    hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.18, right=0.94, top=0.98)
+    hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.34, right=0.94, top=0.98)
     hd_line_chart_canvas.setMinimumHeight(255)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     line_section_layout.addWidget(hd_line_chart_canvas)
@@ -318,7 +323,7 @@ def build_human_design_analytics_panel(
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_color_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     color_bars = hd_color_chart_ax.bar(color_labels, color_values, color=color_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
-    for color_value, bar in zip(sorted(color_counts), color_bars):
+    for color_value, bar in zip(sorted(color_counts), color_bars): #slight adjustment - does this work?
         bar.set_gid(f"hd_color:{int(color_value)}")
         bar.set_picker(True)
     hd_color_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
@@ -346,7 +351,7 @@ def build_human_design_analytics_panel(
                 box_alignment=(0.5, 0.5),
             )
             hd_color_chart_ax.add_artist(star_artist)
-    hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
+    hd_color_chart_figure.subplots_adjust(left=0.18, bottom=0.36, right=0.94, top=0.98)
     hd_color_chart_canvas.setMinimumHeight(235)
     hd_color_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     color_section_layout = _add_local_collapsible_section(
@@ -370,7 +375,11 @@ def build_human_design_analytics_panel(
     hd_tone_chart_ax = hd_tone_chart_figure.add_subplot(111)
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_tone_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
-    tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
+    
+    tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95, picker=True) #Question: is picker true redundant here with the value below?
+    for bar, tone_value in zip(tone_bars, sorted(tone_counts)):
+        bar.set_gid(f"tone:{tone_value}")
+
     for tone_value, bar in zip(sorted(tone_counts), tone_bars):
         bar.set_gid(f"hd_tone:{int(tone_value)}")
         bar.set_picker(True)
@@ -385,7 +394,7 @@ def build_human_design_analytics_panel(
         spine.set_visible(False)
     for bar, value in zip(tone_bars, tone_values):
         hd_tone_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, str(value), ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
-    hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.20, right=0.94, top=0.98)
+    hd_tone_chart_figure.subplots_adjust(left=0.18, bottom=0.36, right=0.94, top=0.98)
     hd_tone_chart_canvas.setMinimumHeight(235) #defines graph canvas height
     hd_tone_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     tone_section_layout = _add_local_collapsible_section(
@@ -397,6 +406,24 @@ def build_human_design_analytics_panel(
     tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
     tone_section_layout.addWidget(hd_tone_chart_canvas)
 
+    #picker v1
+    def _on_bar_pick(event: object) -> None:
+        if on_bar_click is None:
+            return
+        artist = getattr(event, "artist", None)
+        gid = str(getattr(artist, "get_gid", lambda: "")() or "")
+        if ":" not in gid:
+            return
+        metric, raw_value = gid.split(":", 1)
+        if not raw_value.isdigit():
+            return
+        on_bar_click(metric, int(raw_value))
+
+    hd_line_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
+    hd_color_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
+    hd_tone_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
+
+    #picker v2
     def _connect_metric_pick_events(canvas: FigureCanvas) -> None:
         if on_metric_selected is None:
             return
