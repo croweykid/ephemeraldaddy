@@ -57,6 +57,22 @@ def _apply_synastry_gate_metadata(
         entry["chart_2_color"] = SYNASTRY_SECONDARY_COLOR
 
 
+def _human_design_synastry_ownership_maps(
+    hd_a: Any,
+    hd_b: Any,
+) -> tuple[dict[int, set[str]], dict[tuple[int, int], set[str]]]:
+    """Return gate and gate-line ownership maps for synastry output coloring."""
+    gate_owners: dict[int, set[str]] = {}
+    gate_line_owners: dict[tuple[int, int], set[str]] = {}
+    for owner_key, hd_result in (("chart_1", hd_a), ("chart_2", hd_b)):
+        for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+            gate = int(activation.gate)
+            line = int(activation.line)
+            gate_owners.setdefault(gate, set()).add(owner_key)
+            gate_line_owners.setdefault((gate, line), set()).add(owner_key)
+    return gate_owners, gate_line_owners
+
+
 def create_human_design_synastry_dialog(
     parent: QWidget,
     chart_a: Chart,
@@ -275,7 +291,7 @@ def create_human_design_synastry_dialog(
     output_font = summary_output.font()
     summary_output.setFont(output_font)
     summary_output.setTabStopDistance(6)
-    apply_chart_data_highlighter(summary_output, human_design_synastry_mode=True)
+    summary_highlighter = apply_chart_data_highlighter(summary_output, human_design_synastry_mode=True)
     summary_output.setMinimumHeight(220)
     summary_output.viewport().installEventFilter(parent)
     right_splitter.addWidget(summary_output)
@@ -288,6 +304,11 @@ def create_human_design_synastry_dialog(
         hd_b,
         chart_a_name=chart_a.name,
         chart_b_name=chart_b.name,
+    )
+    gate_owners, gate_line_owners = _human_design_synastry_ownership_maps(hd_a, hd_b)
+    summary_highlighter.set_human_design_synastry_ownership(
+        gate_owners=gate_owners,
+        gate_line_owners=gate_line_owners,
     )
     summary_output.setPlainText(chart_data_text)
 

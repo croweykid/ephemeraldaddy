@@ -326,6 +326,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         }
         self._hd_gate_side_cache_revision = -1
         self._hd_gate_side_cache: dict[tuple[int, int], set[str]] = {}
+        self._hd_synastry_gate_owners: dict[int, set[str]] = {}
+        self._hd_synastry_gate_line_owners: dict[tuple[int, int], set[str]] = {}
+
+    def set_human_design_synastry_ownership(
+        self,
+        *,
+        gate_owners: dict[int, set[str]],
+        gate_line_owners: dict[tuple[int, int], set[str]],
+    ) -> None:
+        """Provide per-chart ownership metadata for synastry gate highlighting."""
+        self._hd_synastry_gate_owners = {int(gate): set(owners) for gate, owners in gate_owners.items()}
+        self._hd_synastry_gate_line_owners = {
+            (int(gate), int(line)): set(owners)
+            for (gate, line), owners in gate_line_owners.items()
+        }
+        self.rehighlight()
 
     @staticmethod
     def _make_format(color: str, *, italic: bool = False) -> QTextCharFormat:
@@ -400,6 +416,53 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self._qt_len(match.group(1)),
                 text_format,
             )
+
+    def _format_for_hd_synastry_owners(self, owners: set[str]) -> QTextCharFormat | None:
+        if "chart_1" in owners:
+            return self._hd_synastry_chart_a_format
+        if "chart_2" in owners:
+            return self._hd_synastry_chart_b_format
+        return None
+
+    def _current_synastry_section(self) -> str:
+        block = self.currentBlock()
+        while block.isValid():
+            block_text = block.text().strip()
+            if block_text in {"GATES & LINES", "CHANNELS", "AWARENESS STREAMS", "CORE DESIGNATION"}:
+                return block_text
+            block = block.previous()
+        return ""
+
+    def _apply_hd_synastry_gate_line_ownership_color(self, text: str) -> None:
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])\.([1-6])\b", text):
+            gate = int(match.group(1))
+            line = int(match.group(2))
+            owners = self._hd_synastry_gate_line_owners.get((gate, line))
+            if owners is None:
+                owners = self._hd_synastry_gate_owners.get(gate, set())
+            text_format = self._format_for_hd_synastry_owners(owners)
+            if text_format is None:
+                continue
+            self.setFormat(
+                self._qt_index(text, match.start()),
+                self._qt_len(match.group(0)),
+                text_format,
+            )
+
+    def _apply_hd_synastry_channel_gate_ownership_color(self, text: str) -> None:
+        for match in re.finditer(r"\b([1-9]|[1-5][0-9]|6[0-4])-([1-9]|[1-5][0-9]|6[0-4])\b", text):
+            for group_index in (1, 2):
+                gate = int(match.group(group_index))
+                text_format = self._format_for_hd_synastry_owners(
+                    self._hd_synastry_gate_owners.get(gate, set())
+                )
+                if text_format is None:
+                    continue
+                self.setFormat(
+                    self._qt_index(text, match.start(group_index)),
+                    self._qt_len(match.group(group_index)),
+                    text_format,
+                )
 
     def _apply_defined_centers_format(self, text: str, stripped_text: str) -> None:
         label = ""
@@ -476,6 +539,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 )
                 self.setFormat(0, self._qt_len(text), active_format)
                 return
+
+        if self._human_design_synastry_mode:
+            current_section = self._current_synastry_section()
+            if current_section == "GATES & LINES":
+                self._apply_hd_synastry_gate_line_ownership_color(text)
+            elif current_section == "CHANNELS":
+                self._apply_hd_synastry_channel_gate_ownership_color(text)
 
         for header in CHART_DATA_SECTION_HEADERS:
             if stripped_text.upper() == header:
