@@ -30390,9 +30390,6 @@ class MainWindow(QMainWindow):
             summary_label.setWordWrap(True)
             summary_label.setTextFormat(Qt.RichText)
             self.dnd_prediction_top_three_label = summary_label
-        if chart_layout.indexOf(summary_label) < 0:
-            chart_layout.addWidget(summary_label)
-
         def _draw_no_data(ax, _chart: Chart | None) -> None:
             ax.clear()
             ax.set_facecolor(CHART_THEME_COLORS["panel"])
@@ -30418,6 +30415,8 @@ class MainWindow(QMainWindow):
                 draw_fn=_draw_no_data,
                 chart=chart,
             )
+            if chart_layout.indexOf(summary_label) < 0:
+                chart_layout.addWidget(summary_label)
             summary_label.setText("<b>Top three:</b> —" if chart is None else "<b>Top three:</b> No data")
             return
         self._render_metric_panel(
@@ -30428,6 +30427,8 @@ class MainWindow(QMainWindow):
             draw_fn=self._draw_dnd_statblock_predictions,
             chart=chart,
         )
+        if chart_layout.indexOf(summary_label) < 0:
+            chart_layout.addWidget(summary_label)
         _configure_dnd_top_three_summary_label(
             summary_label,
             chart,
