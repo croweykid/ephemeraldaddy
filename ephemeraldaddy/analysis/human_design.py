@@ -544,7 +544,18 @@ def _perspective_name_for_activation(activation: HDActivation | None) -> str:
     """Return the Human Design Perspective/View label for an activation's Color."""
     if activation is None:
         return "Unknown"
-    return HD_PERSPECTIVE_NAMES.get(int(activation.color), "Unknown")
+    perspective_entry = HD_PERSPECTIVE_NAMES.get(int(activation.color))
+    if isinstance(perspective_entry, dict):
+        return str(perspective_entry.get("name", "Unknown")).strip() or "Unknown"
+    return str(perspective_entry or "Unknown").strip() or "Unknown"
+
+
+def _digestion_variant_label(raw_variant: object) -> str:
+    """Return the short digestion variant label before any explanatory colon."""
+    variant_text = str(raw_variant or "").strip()
+    if not variant_text:
+        return "Unknown"
+    return variant_text.split(":", 1)[0].strip() or variant_text
 
 
 def _digestion_name_for_activation(activation: HDActivation | None) -> str:
@@ -554,13 +565,15 @@ def _digestion_name_for_activation(activation: HDActivation | None) -> str:
     digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
     if digestion_entry is None:
         return "Unknown"
-    digestion_name, left_variant, right_variant = digestion_entry
+    digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
+    left_variant = digestion_entry[1] if len(digestion_entry) >= 2 else ""
+    right_variant = digestion_entry[2] if len(digestion_entry) >= 3 else ""
     orientation = _tone_orientation_for_activation(activation)
     if orientation == "left":
-        return f"{left_variant} {digestion_name}"
+        return _digestion_variant_label(left_variant)
     if orientation == "right":
-        return f"{right_variant} {digestion_name}"
-    return digestion_name
+        return _digestion_variant_label(right_variant)
+    return digestion_name or "Unknown"
 
 
 def _environment_name_for_activation(activation: HDActivation | None) -> str:
@@ -622,13 +635,33 @@ def build_human_design_chart_data_output(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
     environment_name = _environment_name_for_activation(_design_rahu_activation(hd_result))
+    environment_line, environment_info_entry = _render_clickable_property(
+        "Environment",
+        environment_name,
+        "environment",
+    )
     perspective_name = _perspective_name_for_activation(
         _hd_activation_by_body(hd_result, side="personality", body="Rahu")
+    )
+    perspective_line, perspective_info_entry = _render_clickable_property(
+        "Perspective",
+        perspective_name,
+        "perspective",
     )
     motivation_name = _motivation_name_for_activation(
         _hd_activation_by_body(hd_result, side="personality", body="Sun")
     )
+    motivation_line, motivation_info_entry = _render_clickable_property(
+        "Motivation",
+        motivation_name,
+        "motivation",
+    )
     digestion_name = _digestion_name_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
+    digestion_line, digestion_info_entry = _render_clickable_property(
+        "Digestion",
+        digestion_name,
+        "digestion",
+    )
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -642,10 +675,10 @@ def build_human_design_chart_data_output(
         strategy_line,
         defined_centers_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
-        f"Environment: {environment_name}",
-        f"Perspective: {perspective_name}",
-        f"Motivation: {motivation_name}",
-        f"Digestion: {digestion_name}",
+        environment_line,
+        perspective_line,
+        motivation_line,
+        digestion_line,
         "",
         CHART_DATA_DIVIDER,
         *position_lines,
@@ -680,6 +713,10 @@ def build_human_design_chart_data_output(
         (profile_line, profile_info_entry),
         (definition_line, definition_info_entry),
         (strategy_line, strategy_info_entry),
+        (environment_line, environment_info_entry),
+        (perspective_line, perspective_info_entry),
+        (motivation_line, motivation_info_entry),
+        (digestion_line, digestion_info_entry),
     ):
         line_index = rendered_lines.index(line_text)
         position_info_map.setdefault(positions_start_index + line_index, []).append(entry)
