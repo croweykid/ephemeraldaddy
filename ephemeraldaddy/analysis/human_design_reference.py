@@ -1699,15 +1699,75 @@ HD_PROFILES = {
 }
 
 
+HD_ENVIRONMENT_COLORS = {
+    1: {
+        "name": "caves",
+        "motivation": "fear",
+        "color": "red",
+        "left": "selective",
+        "right": "blending",
+    },
+    2: {
+        "name": "markets",
+        "motivation": "hope",
+        "color": "orange",
+        "left": "internal",
+        "right": "external",
+    },
+    3: {
+        "name": "kitchens",
+        "motivation": "desire",
+        "color": "yellow",
+        "left": "wet",
+        "right": "dry",
+    },
+    4: {
+        "name": "mountains",
+        "motivation": "need",
+        "color": "green",
+        "left": "active",
+        "right": "passive",
+    },
+    5: {
+        "name": "valleys",
+        "motivation": "guilt",
+        "color": "blue",
+        "left": "narrow",
+        "right": "wide",
+    },
+    6: {
+        "name": "shores",
+        "motivation": "innocence",
+        "color": "violet",
+        "left": "natural",
+        "right": "artificial",
+    },
+}
+
 # Note: COLORS here use the standard Motivation naming convention.
 HD_COLORS = [
-    {"value": 1, "name": "caves", "environment_description":"Enclosed, secure spaces requiring privacy, controlled entry, and a sense of safety.","motivation": "fear", "motivation_description":"The drive to investigate the unknown, seeking clarity and understanding to dispel uncertainty.","color": "red"},
-    {"value": 2, "name": "markets", "environment_description":"Dynamic settings of exchange, commerce, and high interaction or flow of resources. ","motivation": "hope", "motivation_description":"The quiet knowing and trust that things will unfold correctly, allowing for patience and non-action.","color": "orange"},
-    {"value": 3, "name": "kitchens", "environment_description":"Transformative spaces focused on creation, collaboration, and shared activity.","motivation": "desire", "motivation_description":"The ambition and passion to pursue specific outcomes, goals, and achievements.","color": "yellow"},
-    {"value": 4, "name": "mountains", "environment_description":"Elevated, high-ground environments offering perspective, detachment, and clarity. ","motivation": "need", "motivation_description":"The instinct to address immediate necessities, security, and practical requirements.","color": "green"},
-    {"value": 5, "name": "valleys", "environment_description":"Ground-level pathways of flow, connection, and integration with movement and diversity.","motivation": "guilt", "motivation_description":"The sense of obligation and responsibility to fix what is broken or meet expectations.","color": "blue"},
-    {"value": 6, "name": "shores", "environment_description":"Transitional boundaries where two worlds meet, such as land and water or city and nature. ","motivation": "innocence", "motivation_description":"The curiosity and openness to simply experience life in the moment without control or agenda.","color": "violet"},
+    {"value": value, **entry}
+    for value, entry in HD_ENVIRONMENT_COLORS.items()
 ]
+for _color_entry in HD_COLORS:
+    if _color_entry["value"] == 1:
+        _color_entry["environment_description"] = "Enclosed, secure spaces requiring privacy, controlled entry, and a sense of safety."
+        _color_entry["motivation_description"] = "The drive to investigate the unknown, seeking clarity and understanding to dispel uncertainty."
+    elif _color_entry["value"] == 2:
+        _color_entry["environment_description"] = "Dynamic settings of exchange, commerce, and high interaction or flow of resources."
+        _color_entry["motivation_description"] = "The quiet knowing and trust that things will unfold correctly, allowing for patience and non-action."
+    elif _color_entry["value"] == 3:
+        _color_entry["environment_description"] = "Transformative spaces focused on creation, collaboration, and shared activity."
+        _color_entry["motivation_description"] = "The ambition and passion to pursue specific outcomes, goals, and achievements."
+    elif _color_entry["value"] == 4:
+        _color_entry["environment_description"] = "Elevated, high-ground environments offering perspective, detachment, and clarity."
+        _color_entry["motivation_description"] = "The instinct to address immediate necessities, security, and practical requirements."
+    elif _color_entry["value"] == 5:
+        _color_entry["environment_description"] = "Ground-level pathways of flow, connection, and integration with movement and diversity."
+        _color_entry["motivation_description"] = "The sense of obligation and responsibility to fix what is broken or meet expectations."
+    elif _color_entry["value"] == 6:
+        _color_entry["environment_description"] = "Transitional boundaries where two worlds meet, such as land and water or city and nature."
+        _color_entry["motivation_description"] = "The curiosity and openness to simply experience life in the moment without control or agenda."
 
 HD_TONES = [
     {"value": 1, "name": "scent", "meaning": "security", "orientation": "left"},

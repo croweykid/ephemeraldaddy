@@ -16,7 +16,7 @@ from ephemeraldaddy.core.human_design_system import (
     _split_definition,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
@@ -618,18 +618,44 @@ def _digestion_name_for_activation(activation: HDActivation | None) -> str:
     return _digestion_details_for_activation(activation).get("display", "Unknown") or "Unknown"
 
 
+def _environment_details_for_activation(activation: HDActivation | None) -> dict[str, str]:
+    """Return environment macro-name, Tone, and left/right subvariant details."""
+    if activation is None:
+        return {
+            "display": "Unknown",
+            "environment": "Unknown",
+            "tone": "",
+            "orientation": "",
+            "variant": "Unknown",
+        }
+    environment_entry = HD_ENVIRONMENT_COLORS.get(int(activation.color))
+    if not isinstance(environment_entry, dict):
+        color_name = _color_name_for_activation(activation)
+        return {
+            "display": color_name,
+            "environment": color_name,
+            "tone": str(int(activation.tone)),
+            "orientation": _tone_orientation_for_activation(activation),
+            "variant": "Unknown",
+        }
+
+    environment_name = str(environment_entry.get("name", "Unknown")).strip().title() or "Unknown"
+    tone_value = str(int(activation.tone))
+    orientation = _tone_orientation_for_activation(activation)
+    variant = str(environment_entry.get(orientation, "Unknown")).strip().title() or "Unknown"
+    display = f"{environment_name} — Tone {tone_value}, {variant}" if variant != "Unknown" else environment_name
+    return {
+        "display": display,
+        "environment": environment_name,
+        "tone": tone_value,
+        "orientation": orientation,
+        "variant": variant,
+    }
+
+
 def _environment_name_for_activation(activation: HDActivation | None) -> str:
     """Build the display environment label from an activation's Color and Tone."""
-    if activation is None:
-        return "Unknown"
-
-    color_name = _color_name_for_activation(activation)
-    orientation = _tone_orientation_for_activation(activation)
-    if orientation == "left":
-        return f"{color_name} (Selective)"
-    if orientation == "right":
-        return f"{color_name} (Blending)"
-    return color_name
+    return _environment_details_for_activation(activation).get("display", "Unknown") or "Unknown"
 
 
 def build_human_design_chart_data_output(
