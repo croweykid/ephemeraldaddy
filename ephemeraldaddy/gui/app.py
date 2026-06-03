@@ -776,6 +776,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_STRATEGIES,
     HD_TYPES,
     LINE_ARCHETYPES,
+    LINE_NICKNAMES,
     HD_LINE_COLORS,
     HD_TONES,
     canonicalize_hd_authority_label,
