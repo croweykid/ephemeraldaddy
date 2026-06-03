@@ -18,6 +18,13 @@ python -m pip install skyfield
 python -m pip install pyswisseph
 ```
 
+# Use the venv Python directly.
+.\venv\Scripts\python.exe --version
+
+.\venv\Scripts\python.exe -m pip install --upgrade pip wheel setuptools
+.\venv\Scripts\python.exe -m pip install --no-cache-dir -r requirements.txt
+.\venv\Scripts\python.exe -m ephemeraldaddy.gui.app
+
 ## 2) Sanity-check app before packaging
 
 ```powershell

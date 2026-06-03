@@ -258,19 +258,9 @@ def _stop_chart_right_panel_fade(owner: object) -> None:
     setattr(owner, "_chart_right_panel_opacity_effect", None)
 
 
-def prepare_chart_right_panel_for_loading(owner: object) -> None:
-    """Hide Chart View right-hand panel while loading a chart transition.
-
-    This intentionally avoids opacity animations.  The old fade animation made
-    the right panel visibly dim and reappear whenever a render queue completed,
-    including during unrelated UI work such as typing in right-panel fields.
-    """
-    panel = getattr(owner, "metrics_panel", None)
-    if not isinstance(panel, QWidget):
-        return
-    setattr(owner, "_chart_right_panel_transition_active", True)
-    _stop_chart_right_panel_fade(owner)
-    panel.setVisible(False)
+def _stop_chart_right_panel_fade(owner: object) -> None:
+    """Stop and detach any stale right-panel opacity animation/effect."""
+    animation = getattr(owner, "_chart_right_panel_fade_animation", None)
 
 
 def reveal_chart_right_panel_after_loading(owner: object) -> None:
@@ -281,7 +271,30 @@ def reveal_chart_right_panel_after_loading(owner: object) -> None:
     setattr(owner, "_chart_right_panel_transition_active", False)
     _stop_chart_right_panel_fade(owner)
     set_chart_right_panel_container_visible(owner, True)
+    stop_animation = getattr(animation, "stop", None)
+    if callable(stop_animation):
+        stop_animation()
+    setattr(owner, "_chart_right_panel_fade_animation", None)
+    setattr(owner, "_chart_right_panel_fade_in_progress", False)
 
+    panel = getattr(owner, "metrics_panel", None)
+    if isinstance(panel, QWidget):
+        panel.setGraphicsEffect(None)
+    setattr(owner, "_chart_right_panel_opacity_effect", None)
+
+
+def prepare_chart_right_panel_for_loading(owner: object) -> None:
+    """Prepare a chart transition without hiding the interactive right panel."""
+    # The loading overlay and per-section redraws already communicate chart-load
+    # progress.  Hiding the full right panel here causes visible blanking during
+    # normal render churn and can interrupt text entry in right-panel fields.
+    _stop_chart_right_panel_fade(owner)
+    setattr(owner, "_chart_right_panel_transition_active", False)
+
+def reveal_chart_right_panel_after_loading(owner: object) -> None:
+    """Leave the right panel visible after chart rendering completes."""
+    _stop_chart_right_panel_fade(owner)
+    setattr(owner, "_chart_right_panel_transition_active", False)
 
 
 def _scroll_expanded_section_into_view(toggle: QAbstractButton) -> None:
