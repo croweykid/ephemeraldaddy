@@ -770,6 +770,9 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_CENTERS,
     HD_CHANNELS,
     HD_COLORS,
+    HD_DIGESTION_NAMES,
+    HD_ENVIRONMENTS,
+    HD_PERSPECTIVE_NAMES,
     HD_DEFINITIONS,
     GATE_REFERENCE,
     HD_PROFILES,
@@ -27040,6 +27043,98 @@ class MainWindow(QMainWindow):
                 ],
             )
             return
+
+        elif key == "environment":
+            environment_label = raw_value or "Unknown"
+            base_name = environment_label.split("(", 1)[0].strip().lower()
+            variant = ""
+            if "(" in environment_label and ")" in environment_label:
+                variant = environment_label.split("(", 1)[1].split(")", 1)[0].strip().lower()
+            environment_entry = next(
+                (
+                    entry
+                    for entry in HD_ENVIRONMENTS.values()
+                    if str(entry.get("name", "")).strip().lower() == base_name
+                ),
+                None,
+            )
+            if environment_entry:
+                variant_text = ""
+                if variant == "selective":
+                    variant_text = str(environment_entry.get("selective_variant", "")).strip()
+                elif variant == "blending":
+                    variant_text = str(environment_entry.get("blending_variant", "")).strip()
+                body_lines = [
+                    f"• Core theme: {str(environment_entry.get('core_theme', 'Unknown')).strip()}",
+                    f"• Summary: {str(environment_entry.get('summary', 'No summary available.')).strip()}",
+                ]
+                if variant_text:
+                    body_lines.append(f"• {variant.title()} variant: {variant_text}")
+                preferences = [str(item).strip() for item in environment_entry.get("preferences", []) if str(item).strip()]
+                if preferences:
+                    body_lines.append(f"• Preferences: {', '.join(preferences)}.")
+                self._set_human_design_info_text(f"Environment: {environment_label}", body_lines)
+                return
+        elif key == "perspective":
+            perspective_label = _normalize(raw_value)
+            perspective_entry = next(
+                (
+                    entry
+                    for entry in HD_PERSPECTIVE_NAMES.values()
+                    if isinstance(entry, dict)
+                    and _normalize(str(entry.get("name", ""))) == perspective_label
+                ),
+                None,
+            )
+            if perspective_entry:
+                self._set_human_design_info_text(
+                    f"Perspective: {str(perspective_entry.get('name', raw_value)).strip()}",
+                    [f"• {str(perspective_entry.get('description', 'No perspective description available.')).strip()}"],
+                )
+                return
+        elif key == "motivation":
+            motivation_label = _normalize(raw_value)
+            color_entry = next(
+                (
+                    entry
+                    for entry in HD_COLORS
+                    if isinstance(entry, dict)
+                    and _normalize(str(entry.get("motivation", ""))) == motivation_label
+                ),
+                None,
+            )
+            if color_entry:
+                motivation_name = str(color_entry.get("motivation", raw_value)).strip().title()
+                body_lines = [
+                    f"• {str(color_entry.get('motivation_description', 'No motivation description available.')).strip()}",
+                    f"• Color family: {str(color_entry.get('color', 'Unknown')).strip().title()}.",
+                ]
+                self._set_human_design_info_text(f"Motivation: {motivation_name}", body_lines)
+                return
+        elif key == "digestion":
+            digestion_label = _normalize(raw_value)
+            for digestion_entry in HD_DIGESTION_NAMES.values():
+                digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
+                variants = [digestion_entry[index] for index in range(1, min(len(digestion_entry), 3))]
+                for variant_text in variants:
+                    variant_label = str(variant_text or "").split(":", 1)[0].strip()
+                    if _normalize(variant_label) != digestion_label:
+                        continue
+                    description = str(variant_text or "").split(":", 1)[1].strip() if ":" in str(variant_text or "") else ""
+                    body_lines = [
+                        f"• Determination: {digestion_name}.",
+                        f"• Variant: {variant_label}.",
+                    ]
+                    if description:
+                        body_lines.append(f"• {description}.")
+                    self._set_human_design_info_text(f"Digestion: {variant_label}", body_lines)
+                    return
+                if _normalize(digestion_name) == digestion_label:
+                    self._set_human_design_info_text(
+                        f"Digestion: {digestion_name}",
+                        ["• No digestion variant was available for this activation."],
+                    )
+                    return
 
         elif key == "incarnation_cross":
             cross_name = raw_value

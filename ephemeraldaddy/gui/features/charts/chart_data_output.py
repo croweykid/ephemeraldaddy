@@ -781,12 +781,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
         self._apply_hd_gate_side_color(text, stripped_text)
         if stripped_text.startswith("Environment:"):
-            environment_name = stripped_text.partition(":")[2].strip().title()
-            environment_fmt = self._hd_environment_color_formats.get(environment_name)
-            if environment_fmt and environment_name:
-                name_start = text.find(environment_name)
+            environment_value = stripped_text.partition(":")[2].strip().removesuffix("ⓘ").strip()
+            environment_color_key = environment_value.split("(", 1)[0].strip().title()
+            environment_fmt = self._hd_environment_color_formats.get(environment_color_key)
+            if environment_fmt and environment_value:
+                name_start = text.find(environment_value)
                 if name_start >= 0:
-                    self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_name), environment_fmt)
+                    self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
