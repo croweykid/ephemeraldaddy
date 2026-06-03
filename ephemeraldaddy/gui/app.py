@@ -4834,6 +4834,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _prompt_composite_chart_selection(
         self,
         default_first_chart_id: int | None = None,
+        default_second_chart_id: int | None = None,
         focus_second_input: bool = False,
         dialog_title: str = "Generate Composite Chart",
         submit_button_label: str = "Synastrize!",
@@ -4881,6 +4882,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for label, chart_id in chart_lookup.items():
                 if chart_id == default_first_chart_id:
                     first_chart_input.setText(label)
+                    break
+        if default_second_chart_id is not None:
+            for label, chart_id in chart_lookup.items():
+                if chart_id == default_second_chart_id:
+                    second_chart_input.setText(label)
                     break
         second_completer = QCompleter(labels, second_chart_input)
         second_completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -31185,11 +31191,16 @@ class MainWindow(QMainWindow):
 
     def on_get_human_design_synastry_chart(self) -> None:
         manage_dialog = self._get_or_create_manage_charts_dialog()
+        selected_chart_ids = manage_dialog._selected_non_placeholder_chart_ids()
         default_first_chart_id = self.current_chart_id
+        default_second_chart_id = None
+        if len(selected_chart_ids) == 2:
+            default_first_chart_id, default_second_chart_id = selected_chart_ids
         if default_first_chart_id is not None and manage_dialog._is_placeholder_chart_id(default_first_chart_id):
             default_first_chart_id = None
         chart_ids = manage_dialog._prompt_composite_chart_selection(
             default_first_chart_id=default_first_chart_id,
+            default_second_chart_id=default_second_chart_id,
             focus_second_input=True,
             dialog_title="Human Design Synastry Chart",
             submit_button_label="Open Human Design Synastry Chart",
