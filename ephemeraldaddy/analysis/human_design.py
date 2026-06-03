@@ -24,6 +24,24 @@ ZODIAC_NAMES = (
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
 
+HD_PERSPECTIVE_NAMES = {
+    1: "Survival",
+    2: "Possibility",
+    3: "Power",
+    4: "Wanting",
+    5: "Probability",
+    6: "Personal",
+}
+
+HD_DIGESTION_NAMES = {
+    1: ("Appetite", "Consecutive", "Alternating"),
+    2: ("Taste", "Open", "Closed"),
+    3: ("Thirst", "Hot", "Cold"),
+    4: ("Touch", "Calm", "Nervous"),
+    5: ("Sound", "High", "Low"),
+    6: ("Light", "Direct", "Indirect"),
+}
+
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
     """Return active Human Design gates and (gate, line) tuples for a chart."""
@@ -493,16 +511,74 @@ def _hd_meta_entry_by_value(entries: object, value: int) -> dict[str, object]:
     return {}
 
 
-def _design_rahu_activation(hd_result: HumanDesignResult) -> HDActivation | None:
-    """Return the Design-side Rahu activation that defines HD environment metadata."""
+def _hd_activation_by_body(hd_result: HumanDesignResult, *, side: str, body: str) -> HDActivation | None:
+    """Return a Human Design activation by side and body name."""
+    activations = (
+        hd_result.design_activations
+        if str(side).strip().lower() == "design"
+        else hd_result.personality_activations
+    )
+    body_key = str(body).strip().lower()
     return next(
         (
             activation
-            for activation in hd_result.design_activations
-            if str(activation.body).strip().lower() == "rahu"
+            for activation in activations
+            if str(activation.body).strip().lower() == body_key
         ),
         None,
     )
+
+
+def _design_rahu_activation(hd_result: HumanDesignResult) -> HDActivation | None:
+    """Return the Design-side Rahu activation that defines HD environment metadata."""
+    return _hd_activation_by_body(hd_result, side="design", body="Rahu")
+
+
+def _color_name_for_activation(activation: HDActivation | None) -> str:
+    """Return the Human Design Color name for an activation."""
+    if activation is None:
+        return "Unknown"
+    color_entry = _hd_meta_entry_by_value(HD_COLORS, int(activation.color))
+    return str(color_entry.get("name", "Unknown")).strip().title() or "Unknown"
+
+
+def _motivation_name_for_activation(activation: HDActivation | None) -> str:
+    """Return the Human Design Motivation name for an activation's Color."""
+    if activation is None:
+        return "Unknown"
+    color_entry = _hd_meta_entry_by_value(HD_COLORS, int(activation.color))
+    return str(color_entry.get("motivation", "Unknown")).strip().title() or "Unknown"
+
+
+def _tone_orientation_for_activation(activation: HDActivation | None) -> str:
+    """Return the left/right Tone orientation for an activation."""
+    if activation is None:
+        return ""
+    tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
+    return str(tone_entry.get("orientation", "")).strip().lower()
+
+
+def _perspective_name_for_activation(activation: HDActivation | None) -> str:
+    """Return the Human Design Perspective/View label for an activation's Color."""
+    if activation is None:
+        return "Unknown"
+    return HD_PERSPECTIVE_NAMES.get(int(activation.color), "Unknown")
+
+
+def _digestion_name_for_activation(activation: HDActivation | None) -> str:
+    """Return the Human Design Digestion/Determination label for an activation."""
+    if activation is None:
+        return "Unknown"
+    digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
+    if digestion_entry is None:
+        return "Unknown"
+    digestion_name, left_variant, right_variant = digestion_entry
+    orientation = _tone_orientation_for_activation(activation)
+    if orientation == "left":
+        return f"{left_variant} {digestion_name}"
+    if orientation == "right":
+        return f"{right_variant} {digestion_name}"
+    return digestion_name
 
 
 def _environment_name_for_activation(activation: HDActivation | None) -> str:
@@ -510,11 +586,8 @@ def _environment_name_for_activation(activation: HDActivation | None) -> str:
     if activation is None:
         return "Unknown"
 
-    color_entry = _hd_meta_entry_by_value(HD_COLORS, int(activation.color))
-    color_name = str(color_entry.get("name", "Unknown")).strip().title() or "Unknown"
-
-    tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
-    orientation = str(tone_entry.get("orientation", "")).strip().lower()
+    color_name = _color_name_for_activation(activation)
+    orientation = _tone_orientation_for_activation(activation)
     if orientation == "left":
         return f"{color_name} (Selective)"
     if orientation == "right":
@@ -567,6 +640,13 @@ def build_human_design_chart_data_output(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
     environment_name = _environment_name_for_activation(_design_rahu_activation(hd_result))
+    perspective_name = _perspective_name_for_activation(
+        _hd_activation_by_body(hd_result, side="personality", body="Rahu")
+    )
+    motivation_name = _motivation_name_for_activation(
+        _hd_activation_by_body(hd_result, side="personality", body="Sun")
+    )
+    digestion_name = _digestion_name_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
@@ -581,6 +661,9 @@ def build_human_design_chart_data_output(
         defined_centers_line,
         f"Incarnation Cross: {hd_result.incarnation_cross}",
         f"Environment: {environment_name}",
+        f"Perspective: {perspective_name}",
+        f"Motivation: {motivation_name}",
+        f"Digestion: {digestion_name}",
         "",
         CHART_DATA_DIVIDER,
         *position_lines,
