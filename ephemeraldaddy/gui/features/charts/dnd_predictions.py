@@ -54,11 +54,20 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
             fontsize=9,
             fontweight="bold",
         )
-    ax.set_title("D&D Statblock")
-    apply_standard_bar_axes(ax, labels)
-    ax.set_xlim(right=max_value + (value_label_offset * 4.0))
+    ax.set_title("D&D Statblock", color="#f5f5f5", fontsize=10, pad=8)
+    # This chart is horizontal, so do not use the shared Natal Chart View
+    # vertical-bar axis helper; that helper puts category labels on the x-axis
+    # and produces cramped/clipped output in Chart View's narrow right panel.
+    _ = apply_standard_bar_axes
+    ax.set_xlim(left=0, right=max_value + (value_label_offset * 4.0))
     ax.set_xticks([])
     ax.tick_params(axis="x", bottom=False, top=False, labelbottom=False)
+    ax.tick_params(axis="y", labelsize=9, colors="#f5f5f5", pad=2)
+    ax.margins(y=0.08)
+    for spine in ax.spines.values():
+        spine.set_color("#444444")
+    ax.figure.tight_layout()
+    ax.figure.subplots_adjust(left=0.16, bottom=0.06, top=0.84, right=0.94)
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
