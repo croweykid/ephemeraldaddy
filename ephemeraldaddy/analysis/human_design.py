@@ -16,7 +16,7 @@ from ephemeraldaddy.core.human_design_system import (
     _split_definition,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
@@ -471,6 +471,57 @@ def _format_defined_centers(defined_centers: set[str]) -> str:
     return ", ".join(ordered)
 
 
+def _hd_meta_entry_by_value(entries: object, value: int) -> dict[str, object]:
+    """Return Human Design reference metadata for a numeric color/tone value."""
+    try:
+        target_value = int(value)
+    except (TypeError, ValueError):
+        return {}
+    if isinstance(entries, dict):
+        raw_entry = entries.get(target_value)
+        return raw_entry if isinstance(raw_entry, dict) else {}
+    if isinstance(entries, (list, tuple)):
+        for raw_entry in entries:
+            if not isinstance(raw_entry, dict):
+                continue
+            try:
+                entry_value = int(raw_entry.get("value", -1))
+            except (TypeError, ValueError):
+                continue
+            if entry_value == target_value:
+                return raw_entry
+    return {}
+
+
+def _design_rahu_activation(hd_result: HumanDesignResult) -> HDActivation | None:
+    """Return the Design-side Rahu activation that defines HD environment metadata."""
+    return next(
+        (
+            activation
+            for activation in hd_result.design_activations
+            if str(activation.body).strip().lower() == "rahu"
+        ),
+        None,
+    )
+
+
+def _environment_name_for_activation(activation: HDActivation | None) -> str:
+    """Build the display environment label from an activation's Color and Tone."""
+    if activation is None:
+        return "Unknown"
+
+    color_entry = _hd_meta_entry_by_value(HD_COLORS, int(activation.color))
+    color_name = str(color_entry.get("name", "Unknown")).strip().title() or "Unknown"
+
+    tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
+    orientation = str(tone_entry.get("orientation", "")).strip().lower()
+    if orientation == "left":
+        return f"{color_name} (Selective)"
+    if orientation == "right":
+        return f"{color_name} (Blending)"
+    return color_name
+
+
 def build_human_design_chart_data_output(
     chart: Chart,
     *,
@@ -515,25 +566,7 @@ def build_human_design_chart_data_output(
         awareness_lines.append(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
-    design_sun_activation = next(
-        (activation for activation in hd_result.design_activations if activation.body == "Sun"),
-        None,
-    )
-    design_sun_color = int(design_sun_activation.color) if design_sun_activation else 0
-    if isinstance(HD_COLORS, dict):
-        environment_entry = HD_COLORS.get(design_sun_color, {})
-    elif isinstance(HD_COLORS, (list, tuple)):
-        environment_entry = next(
-            (
-                entry
-                for entry in HD_COLORS
-                if isinstance(entry, dict) and int(entry.get("value", -1)) == design_sun_color
-            ),
-            {},
-        )
-    else:
-        environment_entry = {}
-    environment_name = str(environment_entry.get("name", "Unknown")).strip().title() or "Unknown"
+    environment_name = _environment_name_for_activation(_design_rahu_activation(hd_result))
 
 #Chart Data Output panel output for Human Design Charts:
     rendered_lines = [
