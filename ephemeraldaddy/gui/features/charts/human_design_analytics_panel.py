@@ -129,6 +129,23 @@ def _design_rahu_activation(hd_result: HumanDesignResult):
     )
 
 
+def _profile_line_numbers(profile: object) -> set[int]:
+    """Return the valid Human Design line numbers encoded in a profile value."""
+    profile_text = str(profile or "").strip()
+    line_numbers: set[int] = set()
+    for raw_part in profile_text.replace("-", "/").split("/"):
+        raw_part = raw_part.strip()
+        if not raw_part:
+            continue
+        try:
+            line_number = int(raw_part)
+        except ValueError:
+            continue
+        if 1 <= line_number <= 6:
+            line_numbers.add(line_number)
+    return line_numbers
+
+
 def _glowing_star_image() -> object | None:
     star_path = Path(__file__).resolve().parents[3] / "graphics" / "emoji" / "glowing-star-noto-512.png"
     if not star_path.exists():
@@ -251,6 +268,7 @@ def build_human_design_analytics_panel(
     hd_line_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
 
     line_numbers = list(range(1, 7))
+    profile_line_numbers = _profile_line_numbers(hd_result.profile)
     line_values = [line_counts.get(line_number, 0) for line_number in line_numbers]
     line_colors = [
         _normalize_matplotlib_hex(HD_LINE_COLORS.get(line_number, "#5dc26a"), "#5dc26a")
@@ -281,6 +299,7 @@ def build_human_design_analytics_panel(
     hd_line_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_line_chart_ax.spines.values():
         spine.set_visible(False)
+    star_image = _glowing_star_image()
     for line_value, bar, value in zip(line_numbers, bars, line_values):
         bar.set_gid(f"hd_line:{line_value}")
         bar.set_picker(True)
@@ -294,6 +313,14 @@ def build_human_design_analytics_panel(
             fontsize=8,
             fontweight="bold",
         )
+        if star_image is not None and int(line_value) in profile_line_numbers:
+            star_artist = AnnotationBbox(
+                OffsetImage(star_image, zoom=0.025),
+                (bar.get_x() + (bar.get_width() / 2) - (bar.get_width() * 0.32), value + 0.24),
+                frameon=False,
+                box_alignment=(0.5, 0.5),
+            )
+            hd_line_chart_ax.add_artist(star_artist)
     hd_line_chart_figure.subplots_adjust(left=0.18, bottom=0.34, right=0.94, top=0.98)
     hd_line_chart_canvas.setMinimumHeight(255)
     hd_line_chart_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -339,7 +366,6 @@ def build_human_design_analytics_panel(
     hd_color_chart_ax.grid(axis="y", color=_theme_color(chart_theme_colors, "line", "#666666"), linewidth=0.6, alpha=0.4)
     for spine in hd_color_chart_ax.spines.values():
         spine.set_visible(False)
-    star_image = _glowing_star_image()
     for color_value, bar, value in zip(sorted(color_counts), color_bars, color_values):
         bar_label = str(value)
         hd_color_chart_ax.text(bar.get_x() + (bar.get_width() / 2), value + 0.05, bar_label, ha="center", va="bottom", color=_theme_color(chart_theme_colors, "text", "#f0f0f0"), fontsize=8, fontweight="bold")
