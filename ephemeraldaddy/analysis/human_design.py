@@ -16,7 +16,7 @@ from ephemeraldaddy.core.human_design_system import (
     _split_definition,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES, HD_ENVIRONMENT_COLORS
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
@@ -532,12 +532,25 @@ def _motivation_name_for_activation(activation: HDActivation | None) -> str:
     return str(color_entry.get("motivation", "Unknown")).strip().title() or "Unknown"
 
 
+def digestion_orientation_from_tone(tone: int) -> str:
+    """Return the digestion subvariant orientation encoded by Tone."""
+    tone_value = int(tone)
+    if tone_value in (1, 2, 3):
+        return "left"
+    if tone_value in (4, 5, 6):
+        return "right"
+    raise ValueError("tone must be 1-6")
+
+
 def _tone_orientation_for_activation(activation: HDActivation | None) -> str:
     """Return the left/right Tone orientation for an activation."""
     if activation is None:
         return ""
-    tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
-    return str(tone_entry.get("orientation", "")).strip().lower()
+    try:
+        return digestion_orientation_from_tone(int(activation.tone))
+    except ValueError:
+        tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
+        return str(tone_entry.get("orientation", "")).strip().lower()
 
 
 def _perspective_name_for_activation(activation: HDActivation | None) -> str:
@@ -558,36 +571,95 @@ def _digestion_variant_label(raw_variant: object) -> str:
     return variant_text.split(":", 1)[0].strip() or variant_text
 
 
+def _digestion_details_for_activation(activation: HDActivation | None) -> dict[str, str]:
+    """Return digestion determination, Tone, and subvariant details for an activation."""
+    if activation is None:
+        return {
+            "display": "Unknown",
+            "determination": "Unknown",
+            "tone": "",
+            "orientation": "",
+            "variant": "Unknown",
+            "variant_text": "",
+            "description": "",
+        }
+    digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
+    if not isinstance(digestion_entry, dict):
+        return {
+            "display": "Unknown",
+            "determination": "Unknown",
+            "tone": str(int(activation.tone)),
+            "orientation": _tone_orientation_for_activation(activation),
+            "variant": "Unknown",
+            "variant_text": "",
+            "description": "",
+        }
+
+    digestion_name = str(digestion_entry.get("name", "Unknown")).strip() or "Unknown"
+    tone_value = str(int(activation.tone))
+    orientation = _tone_orientation_for_activation(activation)
+    variant_text = str(digestion_entry.get(orientation, "") or "").strip()
+    variant_label = _digestion_variant_label(variant_text)
+    description = variant_text.split(":", 1)[1].strip() if ":" in variant_text else ""
+    display = f"{digestion_name}  — {variant_label}" if variant_label != "Unknown" else digestion_name
+    info_value = f"{display} (Tone {tone_value})" if variant_label != "Unknown" else digestion_name
+    return {
+        "display": display,
+        "info_value": info_value,
+        "determination": digestion_name,
+        "tone": tone_value,
+        "orientation": orientation,
+        "variant": variant_label,
+        "variant_text": variant_text,
+        "description": description,
+    }
+
+
 def _digestion_name_for_activation(activation: HDActivation | None) -> str:
     """Return the Human Design Digestion/Determination label for an activation."""
+    return _digestion_details_for_activation(activation).get("display", "Unknown") or "Unknown"
+
+
+def _environment_details_for_activation(activation: HDActivation | None) -> dict[str, str]:
+    """Return environment macro-name, Tone, and left/right subvariant details."""
     if activation is None:
-        return "Unknown"
-    digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
-    if digestion_entry is None:
-        return "Unknown"
-    digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
-    left_variant = digestion_entry[1] if len(digestion_entry) >= 2 else ""
-    right_variant = digestion_entry[2] if len(digestion_entry) >= 3 else ""
+        return {
+            "display": "Unknown",
+            "environment": "Unknown",
+            "tone": "",
+            "orientation": "",
+            "variant": "Unknown",
+        }
+    environment_entry = HD_ENVIRONMENT_COLORS.get(int(activation.color))
+    if not isinstance(environment_entry, dict):
+        color_name = _color_name_for_activation(activation)
+        return {
+            "display": color_name,
+            "environment": color_name,
+            "tone": str(int(activation.tone)),
+            "orientation": _tone_orientation_for_activation(activation),
+            "variant": "Unknown",
+        }
+
+    environment_name = str(environment_entry.get("name", "Unknown")).strip().title() or "Unknown"
+    tone_value = str(int(activation.tone))
     orientation = _tone_orientation_for_activation(activation)
-    if orientation == "left":
-        return _digestion_variant_label(left_variant)
-    if orientation == "right":
-        return _digestion_variant_label(right_variant)
-    return digestion_name or "Unknown"
+    variant = str(environment_entry.get(orientation, "Unknown")).strip().title() or "Unknown"
+    display = f"{environment_name}  — {variant}" if variant != "Unknown" else environment_name
+    info_value = f"{display} (Tone {tone_value})" if variant != "Unknown" else environment_name
+    return {
+        "display": display,
+        "info_value": info_value,
+        "environment": environment_name,
+        "tone": tone_value,
+        "orientation": orientation,
+        "variant": variant,
+    }
 
 
 def _environment_name_for_activation(activation: HDActivation | None) -> str:
     """Build the display environment label from an activation's Color and Tone."""
-    if activation is None:
-        return "Unknown"
-
-    color_name = _color_name_for_activation(activation)
-    orientation = _tone_orientation_for_activation(activation)
-    if orientation == "left":
-        return f"{color_name} (Selective)"
-    if orientation == "right":
-        return f"{color_name} (Blending)"
-    return color_name
+    return _environment_details_for_activation(activation).get("display", "Unknown") or "Unknown"
 
 
 def build_human_design_chart_data_output(
@@ -634,11 +706,12 @@ def build_human_design_chart_data_output(
         awareness_lines.append(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
-    environment_name = _environment_name_for_activation(_design_rahu_activation(hd_result))
+    environment_details = _environment_details_for_activation(_design_rahu_activation(hd_result))
     environment_line, environment_info_entry = _render_clickable_property(
         "Environment",
-        environment_name,
+        environment_details.get("display", "Unknown"),
         "environment",
+        lookup_value=environment_details.get("info_value"),
     )
     perspective_name = _perspective_name_for_activation(
         _hd_activation_by_body(hd_result, side="personality", body="Rahu")
@@ -656,11 +729,12 @@ def build_human_design_chart_data_output(
         motivation_name,
         "motivation",
     )
-    digestion_name = _digestion_name_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
+    digestion_details = _digestion_details_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
     digestion_line, digestion_info_entry = _render_clickable_property(
         "Digestion",
-        digestion_name,
+        digestion_details.get("display", "Unknown"),
         "digestion",
+        lookup_value=digestion_details.get("info_value"),
     )
 
 #Chart Data Output panel output for Human Design Charts:

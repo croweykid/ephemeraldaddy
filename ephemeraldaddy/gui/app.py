@@ -771,6 +771,7 @@ from ephemeraldaddy.analysis.human_design_reference import (
     HD_CHANNELS,
     HD_COLORS,
     HD_DIGESTION_NAMES,
+    HD_ENVIRONMENT_COLORS,
     HD_ENVIRONMENTS,
     HD_PERSPECTIVE_NAMES,
     HD_DEFINITIONS,
@@ -27052,10 +27053,20 @@ class MainWindow(QMainWindow):
 
         elif key == "environment":
             environment_label = raw_value or "Unknown"
-            base_name = environment_label.split("(", 1)[0].strip().lower()
+            label_text = str(environment_label).strip()
+            base_part = label_text.split("—", 1)[0].split("(", 1)[0].strip()
+            base_name = base_part.lower()
+            tone_match = re.search(r"\bTone\s*([1-6])\b", label_text, re.IGNORECASE)
+            tone_value = int(tone_match.group(1)) if tone_match else None
+            orientation = "left" if tone_value in (1, 2, 3) else "right" if tone_value in (4, 5, 6) else ""
             variant = ""
-            if "(" in environment_label and ")" in environment_label:
-                variant = environment_label.split("(", 1)[1].split(")", 1)[0].strip().lower()
+            if "—" in label_text:
+                variant_part = label_text.split("—", 1)[1].strip()
+                if "," in variant_part:
+                    variant_part = variant_part.split(",", 1)[1].strip()
+                variant = re.sub(r"\s*\(Tone\s*[1-6]\)\s*$", "", variant_part, flags=re.IGNORECASE).strip().lower()
+            elif "(" in label_text and ")" in label_text:
+                variant = label_text.split("(", 1)[1].split(")", 1)[0].strip().lower()
             environment_entry = next(
                 (
                     entry
@@ -27064,18 +27075,44 @@ class MainWindow(QMainWindow):
                 ),
                 None,
             )
+            environment_color_entry = next(
+                (
+                    entry
+                    for entry in HD_ENVIRONMENT_COLORS.values()
+                    if str(entry.get("name", "")).strip().lower() == base_name
+                ),
+                {},
+            )
             if environment_entry:
+                if not orientation and variant:
+                    for maybe_orientation in ("left", "right"):
+                        if _normalize(str(environment_color_entry.get(maybe_orientation, ""))) == _normalize(variant):
+                            orientation = maybe_orientation
+                            break
+                if not variant and orientation:
+                    variant = str(environment_color_entry.get(orientation, "")).strip().lower()
                 variant_text = ""
-                if variant == "selective":
+                if orientation == "left":
                     variant_text = str(environment_entry.get("selective_variant", "")).strip()
-                elif variant == "blending":
+                elif orientation == "right":
                     variant_text = str(environment_entry.get("blending_variant", "")).strip()
+                variant_label = variant.title() if variant else "Unknown"
                 body_lines = [
+                    f"• Macro-environment: {str(environment_entry.get('name', base_part)).strip()}.",
                     f"• Core theme: {str(environment_entry.get('core_theme', 'Unknown')).strip()}",
                     f"• Summary: {str(environment_entry.get('summary', 'No summary available.')).strip()}",
                 ]
+                if tone_value is not None:
+                    tone_entry = HD_TONES.get(int(tone_value), {}) if isinstance(HD_TONES, dict) else next(
+                        (entry for entry in HD_TONES if isinstance(entry, dict) and int(entry.get("value", -1)) == int(tone_value)),
+                        {},
+                    )
+                    tone_name = str(tone_entry.get("name", "Unknown")).strip().title()
+                    body_lines.append(f"• Tone: {tone_value} ({tone_name}) — {orientation.title()} orientation.")
+                if variant:
+                    body_lines.append(f"• Subvariant: {variant_label}.")
                 if variant_text:
-                    body_lines.append(f"• {variant.title()} variant: {variant_text}")
+                    body_lines.append(f"• {variant_label} guidance: {variant_text}")
                 preferences = [str(item).strip() for item in environment_entry.get("preferences", []) if str(item).strip()]
                 if preferences:
                     body_lines.append(f"• Preferences: {', '.join(preferences)}.")
@@ -27119,21 +27156,61 @@ class MainWindow(QMainWindow):
                 return
         elif key == "digestion":
             digestion_label = _normalize(raw_value)
+            tone_match = re.search(r"\bTone\s*([1-6])\b", str(raw_value or ""), re.IGNORECASE)
+            tone_value = int(tone_match.group(1)) if tone_match else None
+            orientation = "left" if tone_value in (1, 2, 3) else "right" if tone_value in (4, 5, 6) else ""
             for digestion_entry in HD_DIGESTION_NAMES.values():
-                digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
-                variants = [digestion_entry[index] for index in range(1, min(len(digestion_entry), 3))]
-                for variant_text in variants:
-                    variant_label = str(variant_text or "").split(":", 1)[0].strip()
-                    if _normalize(variant_label) != digestion_label:
+                if not isinstance(digestion_entry, dict):
+                    continue
+                digestion_name = str(digestion_entry.get("name", "Unknown")).strip() or "Unknown"
+                variant_items = [
+                    ("left", digestion_entry.get("left", "")),
+                    ("right", digestion_entry.get("right", "")),
+                ]
+                if orientation:
+                    variant_items = [item for item in variant_items if item[0] == orientation]
+                for variant_orientation, variant_text in variant_items:
+                    variant_text = str(variant_text or "").strip()
+                    variant_label = variant_text.split(":", 1)[0].strip() or "Unknown"
+                    if (
+                        _normalize(variant_label) not in digestion_label
+                        and _normalize(digestion_name) not in digestion_label
+                    ):
                         continue
-                    description = str(variant_text or "").split(":", 1)[1].strip() if ":" in str(variant_text or "") else ""
+                    description = variant_text.split(":", 1)[1].strip() if ":" in variant_text else ""
+                    tone_entry = {}
+                    if tone_value is not None:
+                        tone_entry = (
+                            HD_TONES.get(int(tone_value), {})
+                            if isinstance(HD_TONES, dict)
+                            else next(
+                                (
+                                    entry
+                                    for entry in HD_TONES
+                                    if isinstance(entry, dict) and int(entry.get("value", -1)) == int(tone_value)
+                                ),
+                                {},
+                            )
+                        )
+                    tone_name = str(tone_entry.get("name", "Unknown")).strip().title()
+                    meaning = str(tone_entry.get("meaning", "Unknown")).strip().title()
                     body_lines = [
                         f"• Determination: {digestion_name}.",
-                        f"• Variant: {variant_label}.",
+                        f"• Tone: {tone_value} ({tone_name}) — {variant_orientation.title()} orientation."
+                        if tone_value is not None
+                        else f"• Orientation: {variant_orientation.title()}.",
+                        f"• Subvariant: {variant_label}.",
                     ]
+                    if tone_value is not None:
+                        body_lines.append(f"• Tone meaning: {meaning}.")
                     if description:
-                        body_lines.append(f"• {description}.")
-                    self._set_human_design_info_text(f"Digestion: {variant_label}", body_lines)
+                        body_lines.append(f"• Subvariant guidance: {description}.")
+                    header = (
+                        f"{digestion_name}  — {variant_label} (Tone {tone_value})"
+                        if tone_value is not None
+                        else f"{digestion_name}  — {variant_label}"
+                    )
+                    self._set_human_design_info_text(header, body_lines)
                     return
                 if _normalize(digestion_name) == digestion_label:
                     self._set_human_design_info_text(

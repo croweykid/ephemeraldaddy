@@ -58,16 +58,27 @@ def _hd_result() -> HumanDesignResult:
 def test_chart_data_environment_uses_correct_variable_sources(monkeypatch) -> None:
     monkeypatch.setattr(hd_output, "calculate_human_design", lambda _chart: _hd_result())
 
-    output, *_ = hd_output.build_human_design_chart_data_output(
+    output, position_info_map, *_ = hd_output.build_human_design_chart_data_output(
         SimpleNamespace(),
         aspect_sort="orb",
     )
 
-    assert "Environment: Shores (Blending)" in output
+    assert "Environment: Shores  — Artificial" in output
+    assert "Environment: Shores  — Artificial (Tone 4)" not in output
     assert "Perspective: Probability" in output
     assert "Motivation: Hope" in output
-    assert "Digestion: Hot Thirst" in output
+    assert "Digestion: Thirst  — Hot" in output
+    assert "Digestion: Thirst  — Hot (Tone 3)" not in output
     assert "Environment: Mountains" not in output
+
+    property_values = [
+        entry.get("property_value")
+        for entries in position_info_map.values()
+        for entry in entries
+        if entry.get("kind") == "hd_property"
+    ]
+    assert "Shores  — Artificial (Tone 4)" in property_values
+    assert "Thirst  — Hot (Tone 3)" in property_values
 
 
 def test_design_marker_activation_is_design_rahu() -> None:
