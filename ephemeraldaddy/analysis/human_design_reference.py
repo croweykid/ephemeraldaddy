@@ -35,25 +35,25 @@ HD_COLORS = {
 }
 
 HD_TONES = {
-    1:{"name":"smell","meaning":"security","orientation":"left"},
-    2:{"name":"taste","meaning":"uncertainty","orientation":"left"},
-    3:{"name":"outer vision","meaning":"action","orientation":"left"},
-    4:{"name":"inner vision","meaning":"meditation","orientation":"right"},
-    5:{"name":"feeling","meaning":"judgement","orientation":"right"},
-    6:{"name":"touch","meaning":"acceptance","orientation":"right"},
+    1:{"name":"smell","meaning":"security","orientation":"left","description":""},
+    2:{"name":"taste","meaning":"uncertainty","orientation":"left","description":""},
+    3:{"name":"outer vision","meaning":"action","orientation":"left","description":""},
+    4:{"name":"inner vision","meaning":"meditation","orientation":"right","description":""},
+    5:{"name":"feeling","meaning":"judgement","orientation":"right","description":""},
+    6:{"name":"touch","meaning":"acceptance","orientation":"right","description":""},
 }
 
 HD_PERSPECTIVE_NAMES = {
-    1: "Survival: Focuses on essentials, security, and stability; it is grounded in what is necessary for immediate safety and practical survival. ",
-    2: "Possibility: Looks beyond the immediate to see potential and alternatives; it is imaginative, optimistic, and explores what could be.",
-    3: "Power: Understands dynamics, hierarchies, and influence; it tracks winners, losers, and the structures of control and authority.",
-    4: "Wanting: Attuned to the needs, desires, and values of the collective or group; it focuses on what is wanted or needed by the larger whole.",
-    5: "Probability: Sees what is likely, practical, and probable; it is logical and analytical, recognizing patterns, trends, and what will actually work.",
-    6: "Personal: Views life through a unique, introspective lens; it is focused on personal experience, self-understanding, and individual journey.",
+    1: {"name":"Survival","description":"Focuses on essentials, security, and stability; it is grounded in what is necessary for immediate safety and practical survival."},
+    2: {"name":"Possibility","description":"Looks beyond the immediate to see potential and alternatives; it is imaginative, optimistic, and explores what could be."},
+    3: {"name":"Power","description":"Understands dynamics, hierarchies, and influence; it tracks winners, losers, and the structures of control and authority."},
+    4: {"name":"Wanting","description":"Attuned to the needs, desires, and values of the collective or group; it focuses on what is wanted or needed by the larger whole."},
+    5: {"name":"Probability","description":"Sees what is likely, practical, and probable; it is logical and analytical, recognizing patterns, trends, and what will actually work."},
+    6: {"name":"Personal","description":"Views life through a unique, introspective lens; it is focused on personal experience, self-understanding, and individual journey."},
 }
 
 HD_DIGESTION_NAMES = {
-    1: ("Appetite", "Consecutive: eat one food at a time, simple meals", "Alternating: mix ingredients, variety in every bite"),
+    1: ("Appetite", "Consecutive: eat one food at a time, simple meals", "Alternating: mix ingredients, variety in every bite", ""),
     2: ("Taste", "Open: sample new things, flexible ingredients", "Closed: stick to known foods, control preparation"),
     3: ("Thirst", "Hot: prefer warm foods/drinks, warming spices", "Cold: prefer cold foods/drinks, cooling properties"),
     4: ("Touch", "Calm: eat in relaxing, solitary environments", "Nervous: eat with stimulation, movement, or conversation"),
