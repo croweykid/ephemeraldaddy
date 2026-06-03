@@ -601,9 +601,11 @@ def _digestion_details_for_activation(activation: HDActivation | None) -> dict[s
     variant_text = str(digestion_entry.get(orientation, "") or "").strip()
     variant_label = _digestion_variant_label(variant_text)
     description = variant_text.split(":", 1)[1].strip() if ":" in variant_text else ""
-    display = f"{digestion_name} — Tone {tone_value}, {variant_label}" if variant_label != "Unknown" else digestion_name
+    display = f"{digestion_name}  — {variant_label}" if variant_label != "Unknown" else digestion_name
+    info_value = f"{display} (Tone {tone_value})" if variant_label != "Unknown" else digestion_name
     return {
         "display": display,
+        "info_value": info_value,
         "determination": digestion_name,
         "tone": tone_value,
         "orientation": orientation,
@@ -643,9 +645,11 @@ def _environment_details_for_activation(activation: HDActivation | None) -> dict
     tone_value = str(int(activation.tone))
     orientation = _tone_orientation_for_activation(activation)
     variant = str(environment_entry.get(orientation, "Unknown")).strip().title() or "Unknown"
-    display = f"{environment_name} — Tone {tone_value}, {variant}" if variant != "Unknown" else environment_name
+    display = f"{environment_name}  — {variant}" if variant != "Unknown" else environment_name
+    info_value = f"{display} (Tone {tone_value})" if variant != "Unknown" else environment_name
     return {
         "display": display,
+        "info_value": info_value,
         "environment": environment_name,
         "tone": tone_value,
         "orientation": orientation,
@@ -702,11 +706,12 @@ def build_human_design_chart_data_output(
         awareness_lines.append(
             f"{stream_entry['type']}: {stream_entry['name']} - {stream_entry['completion_pct']}%. {stream_entry['missing_text']}"
         )
-    environment_name = _environment_name_for_activation(_design_rahu_activation(hd_result))
+    environment_details = _environment_details_for_activation(_design_rahu_activation(hd_result))
     environment_line, environment_info_entry = _render_clickable_property(
         "Environment",
-        environment_name,
+        environment_details.get("display", "Unknown"),
         "environment",
+        lookup_value=environment_details.get("info_value"),
     )
     perspective_name = _perspective_name_for_activation(
         _hd_activation_by_body(hd_result, side="personality", body="Rahu")
@@ -724,11 +729,12 @@ def build_human_design_chart_data_output(
         motivation_name,
         "motivation",
     )
-    digestion_name = _digestion_name_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
+    digestion_details = _digestion_details_for_activation(_hd_activation_by_body(hd_result, side="design", body="Sun"))
     digestion_line, digestion_info_entry = _render_clickable_property(
         "Digestion",
-        digestion_name,
+        digestion_details.get("display", "Unknown"),
         "digestion",
+        lookup_value=digestion_details.get("info_value"),
     )
 
 #Chart Data Output panel output for Human Design Charts:

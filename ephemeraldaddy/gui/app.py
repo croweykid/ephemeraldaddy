@@ -27054,8 +27054,11 @@ class MainWindow(QMainWindow):
             tone_value = int(tone_match.group(1)) if tone_match else None
             orientation = "left" if tone_value in (1, 2, 3) else "right" if tone_value in (4, 5, 6) else ""
             variant = ""
-            if "—" in label_text and "," in label_text.split("—", 1)[1]:
-                variant = label_text.split("—", 1)[1].split(",", 1)[1].strip().lower()
+            if "—" in label_text:
+                variant_part = label_text.split("—", 1)[1].strip()
+                if "," in variant_part:
+                    variant_part = variant_part.split(",", 1)[1].strip()
+                variant = re.sub(r"\s*\(Tone\s*[1-6]\)\s*$", "", variant_part, flags=re.IGNORECASE).strip().lower()
             elif "(" in label_text and ")" in label_text:
                 variant = label_text.split("(", 1)[1].split(")", 1)[0].strip().lower()
             environment_entry = next(
@@ -27196,10 +27199,12 @@ class MainWindow(QMainWindow):
                         body_lines.append(f"• Tone meaning: {meaning}.")
                     if description:
                         body_lines.append(f"• Subvariant guidance: {description}.")
-                    self._set_human_design_info_text(
-                        f"Digestion: {digestion_name} — {variant_label}",
-                        body_lines,
+                    header = (
+                        f"{digestion_name}  — {variant_label} (Tone {tone_value})"
+                        if tone_value is not None
+                        else f"{digestion_name}  — {variant_label}"
                     )
+                    self._set_human_design_info_text(header, body_lines)
                     return
                 if _normalize(digestion_name) == digestion_label:
                     self._set_human_design_info_text(
