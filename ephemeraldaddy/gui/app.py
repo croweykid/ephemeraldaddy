@@ -27113,21 +27113,46 @@ class MainWindow(QMainWindow):
                 return
         elif key == "digestion":
             digestion_label = _normalize(raw_value)
+            tone_match = re.search(r"\bTone\s*([1-6])\b", str(raw_value or ""), re.IGNORECASE)
+            tone_value = int(tone_match.group(1)) if tone_match else None
+            orientation = "left" if tone_value in (1, 2, 3) else "right" if tone_value in (4, 5, 6) else ""
             for digestion_entry in HD_DIGESTION_NAMES.values():
-                digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
-                variants = [digestion_entry[index] for index in range(1, min(len(digestion_entry), 3))]
-                for variant_text in variants:
-                    variant_label = str(variant_text or "").split(":", 1)[0].strip()
-                    if _normalize(variant_label) != digestion_label:
+                if not isinstance(digestion_entry, dict):
+                    continue
+                digestion_name = str(digestion_entry.get("name", "Unknown")).strip() or "Unknown"
+                variant_items = [
+                    ("left", digestion_entry.get("left", "")),
+                    ("right", digestion_entry.get("right", "")),
+                ]
+                if orientation:
+                    variant_items = [item for item in variant_items if item[0] == orientation]
+                for variant_orientation, variant_text in variant_items:
+                    variant_text = str(variant_text or "").strip()
+                    variant_label = variant_text.split(":", 1)[0].strip() or "Unknown"
+                    if (
+                        _normalize(variant_label) not in digestion_label
+                        and _normalize(digestion_name) not in digestion_label
+                    ):
                         continue
-                    description = str(variant_text or "").split(":", 1)[1].strip() if ":" in str(variant_text or "") else ""
+                    description = variant_text.split(":", 1)[1].strip() if ":" in variant_text else ""
+                    tone_entry = HD_TONES.get(int(tone_value), {}) if tone_value is not None else {}
+                    tone_name = str(tone_entry.get("name", "Unknown")).strip().title()
+                    meaning = str(tone_entry.get("meaning", "Unknown")).strip().title()
                     body_lines = [
                         f"• Determination: {digestion_name}.",
-                        f"• Variant: {variant_label}.",
+                        f"• Tone: {tone_value} ({tone_name}) — {variant_orientation.title()} orientation."
+                        if tone_value is not None
+                        else f"• Orientation: {variant_orientation.title()}.",
+                        f"• Subvariant: {variant_label}.",
                     ]
+                    if tone_value is not None:
+                        body_lines.append(f"• Tone meaning: {meaning}.")
                     if description:
-                        body_lines.append(f"• {description}.")
-                    self._set_human_design_info_text(f"Digestion: {variant_label}", body_lines)
+                        body_lines.append(f"• Subvariant guidance: {description}.")
+                    self._set_human_design_info_text(
+                        f"Digestion: {digestion_name} — {variant_label}",
+                        body_lines,
+                    )
                     return
                 if _normalize(digestion_name) == digestion_label:
                     self._set_human_design_info_text(

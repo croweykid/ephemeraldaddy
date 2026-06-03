@@ -532,12 +532,25 @@ def _motivation_name_for_activation(activation: HDActivation | None) -> str:
     return str(color_entry.get("motivation", "Unknown")).strip().title() or "Unknown"
 
 
+def digestion_orientation_from_tone(tone: int) -> str:
+    """Return the digestion subvariant orientation encoded by Tone."""
+    tone_value = int(tone)
+    if tone_value in (1, 2, 3):
+        return "left"
+    if tone_value in (4, 5, 6):
+        return "right"
+    raise ValueError("tone must be 1-6")
+
+
 def _tone_orientation_for_activation(activation: HDActivation | None) -> str:
     """Return the left/right Tone orientation for an activation."""
     if activation is None:
         return ""
-    tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
-    return str(tone_entry.get("orientation", "")).strip().lower()
+    try:
+        return digestion_orientation_from_tone(int(activation.tone))
+    except ValueError:
+        tone_entry = _hd_meta_entry_by_value(HD_TONES, int(activation.tone))
+        return str(tone_entry.get("orientation", "")).strip().lower()
 
 
 def _perspective_name_for_activation(activation: HDActivation | None) -> str:
@@ -558,22 +571,51 @@ def _digestion_variant_label(raw_variant: object) -> str:
     return variant_text.split(":", 1)[0].strip() or variant_text
 
 
+def _digestion_details_for_activation(activation: HDActivation | None) -> dict[str, str]:
+    """Return digestion determination, Tone, and subvariant details for an activation."""
+    if activation is None:
+        return {
+            "display": "Unknown",
+            "determination": "Unknown",
+            "tone": "",
+            "orientation": "",
+            "variant": "Unknown",
+            "variant_text": "",
+            "description": "",
+        }
+    digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
+    if not isinstance(digestion_entry, dict):
+        return {
+            "display": "Unknown",
+            "determination": "Unknown",
+            "tone": str(int(activation.tone)),
+            "orientation": _tone_orientation_for_activation(activation),
+            "variant": "Unknown",
+            "variant_text": "",
+            "description": "",
+        }
+
+    digestion_name = str(digestion_entry.get("name", "Unknown")).strip() or "Unknown"
+    tone_value = str(int(activation.tone))
+    orientation = _tone_orientation_for_activation(activation)
+    variant_text = str(digestion_entry.get(orientation, "") or "").strip()
+    variant_label = _digestion_variant_label(variant_text)
+    description = variant_text.split(":", 1)[1].strip() if ":" in variant_text else ""
+    display = f"{digestion_name} — Tone {tone_value}, {variant_label}" if variant_label != "Unknown" else digestion_name
+    return {
+        "display": display,
+        "determination": digestion_name,
+        "tone": tone_value,
+        "orientation": orientation,
+        "variant": variant_label,
+        "variant_text": variant_text,
+        "description": description,
+    }
+
+
 def _digestion_name_for_activation(activation: HDActivation | None) -> str:
     """Return the Human Design Digestion/Determination label for an activation."""
-    if activation is None:
-        return "Unknown"
-    digestion_entry = HD_DIGESTION_NAMES.get(int(activation.color))
-    if digestion_entry is None:
-        return "Unknown"
-    digestion_name = str(digestion_entry[0]).strip() if len(digestion_entry) >= 1 else "Unknown"
-    left_variant = digestion_entry[1] if len(digestion_entry) >= 2 else ""
-    right_variant = digestion_entry[2] if len(digestion_entry) >= 3 else ""
-    orientation = _tone_orientation_for_activation(activation)
-    if orientation == "left":
-        return _digestion_variant_label(left_variant)
-    if orientation == "right":
-        return _digestion_variant_label(right_variant)
-    return digestion_name or "Unknown"
+    return _digestion_details_for_activation(activation).get("display", "Unknown") or "Unknown"
 
 
 def _environment_name_for_activation(activation: HDActivation | None) -> str:

@@ -53,12 +53,36 @@ HD_PERSPECTIVE_NAMES = {
 }
 
 HD_DIGESTION_NAMES = {
-    1: ("Appetite", "Consecutive: eat one food at a time, simple meals", "Alternating: mix ingredients, variety in every bite", ""),
-    2: ("Taste", "Open: sample new things, flexible ingredients", "Closed: stick to known foods, control preparation"),
-    3: ("Thirst", "Hot: prefer warm foods/drinks, warming spices", "Cold: prefer cold foods/drinks, cooling properties"),
-    4: ("Touch", "Calm: eat in relaxing, solitary environments", "Nervous: eat with stimulation, movement, or conversation"),
-    5: ("Sound", "High: digest well with noise, music, or busy environments", "Low: digest best in quiet, minimal sound"),
-    6: ("Light", "Direct: digest best in bright daylight, largest meal at midday", "Indirect: digest best in low light, night owl"),
+    1: {
+        "name": "Appetite",
+        "left": "Consecutive: eat one food at a time, simple meals",
+        "right": "Alternating: mix ingredients, variety in every bite",
+    },
+    2: {
+        "name": "Taste",
+        "left": "Open: sample new things, flexible ingredients",
+        "right": "Closed: stick to known foods, control preparation",
+    },
+    3: {
+        "name": "Thirst",
+        "left": "Hot: prefer warm foods/drinks, warming spices",
+        "right": "Cold: prefer cold foods/drinks, cooling properties",
+    },
+    4: {
+        "name": "Touch",
+        "left": "Calm: eat in relaxing, solitary environments",
+        "right": "Nervous: eat with stimulation, movement, or conversation",
+    },
+    5: {
+        "name": "Sound",
+        "left": "High: digest well with noise, music, or busy environments",
+        "right": "Low: digest best in quiet, minimal sound",
+    },
+    6: {
+        "name": "Light",
+        "left": "Direct: digest best in bright daylight, largest meal at midday",
+        "right": "Indirect: digest best in low light, night owl",
+    },
 }
 
 HD_ENVIRONMENTS = {
