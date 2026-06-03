@@ -20,6 +20,57 @@ def resolve_hd_color_hex(color_name: str) -> str:
     return _HD_COLOR_HEX_LOOKUP.get(str(color_name or "").strip().lower(), CHART_DATA_HIGHLIGHT_COLOR)
 
 
+def insert_human_design_info_body_line(
+    cursor: QTextCursor,
+    line: str,
+    *,
+    header_fmt: QTextCharFormat,
+    plain_fmt: QTextCharFormat,
+) -> None:
+    """Insert a Human Design info body line with colon labels accented."""
+    line_text = str(line)
+    stripped_line = line_text.strip()
+    if not stripped_line:
+        cursor.insertText(line_text, plain_fmt)
+        return
+
+    is_section_header = (
+        not stripped_line.startswith("•")
+        and stripped_line.rstrip().endswith(":")
+    )
+    if is_section_header:
+        cursor.insertText(line_text, header_fmt)
+        return
+
+    colon_index = line_text.find(":")
+    if colon_index <= 0:
+        cursor.insertText(line_text, plain_fmt)
+        return
+
+    label_start = 0
+    while label_start < len(line_text) and line_text[label_start].isspace():
+        label_start += 1
+
+    inserted_prefix = False
+    if line_text.startswith("•", label_start):
+        bullet_end = label_start + 1
+        if bullet_end < len(line_text) and line_text[bullet_end] == " ":
+            bullet_end += 1
+        cursor.insertText(line_text[:bullet_end], plain_fmt)
+        label_start = bullet_end
+        inserted_prefix = True
+
+    if label_start >= colon_index:
+        cursor.insertText(line_text[label_start:] if inserted_prefix else line_text, plain_fmt)
+        return
+
+    if label_start > 0 and not inserted_prefix:
+        cursor.insertText(line_text[:label_start], plain_fmt)
+
+    cursor.insertText(line_text[label_start:colon_index + 1], header_fmt)
+    cursor.insertText(line_text[colon_index + 1:], plain_fmt)
+
+
 def render_human_design_info_text_with_accent(
     output: QPlainTextEdit,
     header: str,
@@ -45,8 +96,12 @@ def render_human_design_info_text_with_accent(
 
     cursor.insertText(f"{header}\n\n", accent_fmt)
     for idx, line in enumerate(body_lines):
-        is_section_header = bool(line) and not str(line).lstrip().startswith("•") and str(line).rstrip().endswith(":")
-        cursor.insertText(line, header_fmt if is_section_header else plain_fmt)
+        insert_human_design_info_body_line(
+            cursor,
+            line,
+            header_fmt=header_fmt,
+            plain_fmt=plain_fmt,
+        )
         if idx < len(body_lines) - 1:
             cursor.insertText("\n", plain_fmt)
     output.setTextCursor(cursor)
