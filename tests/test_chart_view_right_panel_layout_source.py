@@ -33,7 +33,7 @@ def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout
     assert first_render < first_add
 
 
-def test_dnd_prediction_statblock_uses_horizontal_axis_layout():
+def test_dnd_prediction_statblock_uses_standard_vertical_axis_layout():
     source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/dnd_predictions.py").read_text()
     function = source[
         source.index("def draw_dnd_statblock_predictions") : source.index(
@@ -41,7 +41,7 @@ def test_dnd_prediction_statblock_uses_horizontal_axis_layout():
         )
     ]
 
-    assert "ax.barh(labels, values)" in function
-    assert "_ = apply_standard_bar_axes" in function
-    assert "apply_standard_bar_axes(ax, labels)" not in function
-    assert "ax.figure.subplots_adjust(left=0.16" in function
+    assert "ax.bar(labels, values)" in function
+    assert "_style_prediction_bar_chart(" in function
+    assert "ax.barh(labels, values)" not in function
+    assert "_ = apply_standard_bar_axes" not in function
