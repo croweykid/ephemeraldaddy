@@ -35,12 +35,12 @@ HD_COLORS = {
 }
 
 HD_TONES = {
-    1:{"name":"smell","meaning":"security","orientation":"left","description":""},
-    2:{"name":"taste","meaning":"uncertainty","orientation":"left","description":""},
-    3:{"name":"outer vision","meaning":"action","orientation":"left","description":""},
-    4:{"name":"inner vision","meaning":"meditation","orientation":"right","description":""},
-    5:{"name":"feeling","meaning":"judgement","orientation":"right","description":""},
-    6:{"name":"touch","meaning":"acceptance","orientation":"right","description":""},
+    1:{"name":"smell","meaning":"security","orientation":"left","description":"Human polygraph who pick up on obscure details, subtle truths and subtexts."},
+    2:{"name":"taste","meaning":"uncertainty","orientation":"left","description":"Has intense preferences in terms of what they like and don’t like."},
+    3:{"name":"outer vision","meaning":"action","orientation":"left","description":"Needs aesthetic stimulation, have a sharp eye for spotting visual patterns in their environment."},
+    4:{"name":"inner vision","meaning":"meditation","orientation":"right","description":"Processes ideas and data internally over time; they benefit on reliving through memory and experimenting through dreams."},
+    5:{"name":"feeling","meaning":"judgement","orientation":"right","description":"Sensitive to emotional shifts; can often detect subtle vibe changes in their environment."},
+    6:{"name":"touch","meaning":"acceptance","orientation":"right","description":"Need to physically interact with their surroundings. They understand their environment best through tactile experiences."},
 }
 
 HD_PERSPECTIVE_NAMES = {
