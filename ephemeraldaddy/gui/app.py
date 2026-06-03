@@ -25580,8 +25580,10 @@ class MainWindow(QMainWindow):
         self._position_info_map = position_info_map
         self._aspect_info_map = aspect_info_map
         self._species_info_map = species_info_map
-        self._render_enneagram_predictions(chart)
-        self._render_dndification_predictions(chart)
+        state = getattr(self, "_chart_right_panel_state", None)
+        if getattr(state, "active_tab", None) == "predictions":
+            self._render_enneagram_predictions(chart)
+            self._render_dndification_predictions(chart)
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"

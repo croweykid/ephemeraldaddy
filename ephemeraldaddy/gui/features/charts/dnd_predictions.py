@@ -30,12 +30,24 @@ from ephemeraldaddy.analysis.dnd.species_assigner_v2 import (
 )
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DND_STAT_EARTHTONE_COLORS, get_cycled_earthtone_colors
 
+
+def _style_prediction_bar_chart(ax: Any, *, labels: list[str], max_value: float, apply_standard_bar_axes: Any) -> None:
+    """Apply the same vertical-bar styling used by Chart Analytics graphs."""
+    apply_standard_bar_axes(ax, labels)
+    ax.set_ylim(0, max(1.0, float(max_value) + 1.0))
+    ax.set_anchor("W")
+    for spine in ax.spines.values():
+        spine.set_color("#444444")
+    ax.figure.tight_layout()
+    ax.figure.subplots_adjust(left=0.18, bottom=0.20, top=0.92, right=0.96)
+
+
 def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[str, ...], apply_standard_bar_axes: Any) -> None:
     statblock = score_dnd_statblock(chart)
     labels = list(dnd_stat_keys)
     values = [float(statblock.scores.get(label, 0.0)) for label in labels]
-    bars = ax.barh(labels, values)
     max_value = max(values, default=0.0)
+    bars = ax.bar(labels, values)
     value_label_offset = max(0.25, max_value * 0.03)
     for idx, bar in enumerate(bars):
         stat_key = labels[idx]
@@ -45,29 +57,23 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
         bar.set_gid(f"dnd_stat:{stat_key}")
         bar.set_picker(True)
         ax.text(
+            bar.get_x() + (bar.get_width() / 2.0),
             stat_value + value_label_offset,
-            bar.get_y() + (bar.get_height() / 2.0),
             f"{int(stat_value)}",
-            va="center",
-            ha="left",
+            va="bottom",
+            ha="center",
             color="#f5f5f5",
             fontsize=9,
             fontweight="bold",
         )
     ax.set_title("D&D Statblock", color="#f5f5f5", fontsize=10, pad=8)
-    # This chart is horizontal, so do not use the shared Natal Chart View
-    # vertical-bar axis helper; that helper puts category labels on the x-axis
-    # and produces cramped/clipped output in Chart View's narrow right panel.
-    _ = apply_standard_bar_axes
-    ax.set_xlim(left=0, right=max_value + (value_label_offset * 4.0))
-    ax.set_xticks([])
-    ax.tick_params(axis="x", bottom=False, top=False, labelbottom=False)
-    ax.tick_params(axis="y", labelsize=9, colors="#f5f5f5", pad=2)
-    ax.margins(y=0.08)
-    for spine in ax.spines.values():
-        spine.set_color("#444444")
-    ax.figure.tight_layout()
-    ax.figure.subplots_adjust(left=0.16, bottom=0.06, top=0.84, right=0.94)
+    _style_prediction_bar_chart(
+        ax,
+        labels=labels,
+        max_value=max_value + value_label_offset,
+        apply_standard_bar_axes=apply_standard_bar_axes,
+    )
+
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
@@ -75,12 +81,17 @@ def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
     values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
-    bars = ax.barh(labels, values)
+    bars = ax.bar(labels, values)
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)
-    ax.set_title("Top 10 Species")
-    apply_standard_bar_axes(ax, labels)
+    ax.set_title("Top 10 Species", color="#f5f5f5", fontsize=10, pad=8)
+    _style_prediction_bar_chart(
+        ax,
+        labels=labels,
+        max_value=max(values, default=0.0),
+        apply_standard_bar_axes=apply_standard_bar_axes,
+    )
 
 
 def draw_dnd_classes_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
@@ -91,13 +102,17 @@ def draw_dnd_classes_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     labels = [DND_CLASSES[key].display_name if key in DND_CLASSES else key for key, _ in ranked]
     values = [float(score) for _key, score in ranked]
     colors = get_cycled_earthtone_colors(len(labels))
-    bars = ax.barh(labels, values)
+    bars = ax.bar(labels, values)
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)
-    ax.set_title("Top 10 Classes")
-    apply_standard_bar_axes(ax, labels)
-
+    ax.set_title("Top 10 Classes", color="#f5f5f5", fontsize=10, pad=8)
+    _style_prediction_bar_chart(
+        ax,
+        labels=labels,
+        max_value=max(values, default=0.0),
+        apply_standard_bar_axes=apply_standard_bar_axes,
+    )
 
 
 def _stat_definition_for_key(stat_key: str) -> dict[str, Any] | None:

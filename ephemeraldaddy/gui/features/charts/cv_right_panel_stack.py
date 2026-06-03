@@ -258,31 +258,6 @@ def _stop_chart_right_panel_fade(owner: object) -> None:
     setattr(owner, "_chart_right_panel_opacity_effect", None)
 
 
-def _stop_chart_right_panel_fade(owner: object) -> None:
-    """Stop and detach any stale right-panel opacity animation/effect."""
-    animation = getattr(owner, "_chart_right_panel_fade_animation", None)
-
-
-def reveal_chart_right_panel_after_loading(owner: object) -> None:
-    """Reveal Chart View's right-hand panel once all chart sections are rendered."""
-    transition_active = bool(getattr(owner, "_chart_right_panel_transition_active", False))
-    if not transition_active:
-        return
-    setattr(owner, "_chart_right_panel_transition_active", False)
-    _stop_chart_right_panel_fade(owner)
-    set_chart_right_panel_container_visible(owner, True)
-    stop_animation = getattr(animation, "stop", None)
-    if callable(stop_animation):
-        stop_animation()
-    setattr(owner, "_chart_right_panel_fade_animation", None)
-    setattr(owner, "_chart_right_panel_fade_in_progress", False)
-
-    panel = getattr(owner, "metrics_panel", None)
-    if isinstance(panel, QWidget):
-        panel.setGraphicsEffect(None)
-    setattr(owner, "_chart_right_panel_opacity_effect", None)
-
-
 def prepare_chart_right_panel_for_loading(owner: object) -> None:
     """Prepare a chart transition without hiding the interactive right panel."""
     # The loading overlay and per-section redraws already communicate chart-load
@@ -290,6 +265,7 @@ def prepare_chart_right_panel_for_loading(owner: object) -> None:
     # normal render churn and can interrupt text entry in right-panel fields.
     _stop_chart_right_panel_fade(owner)
     setattr(owner, "_chart_right_panel_transition_active", False)
+
 
 def reveal_chart_right_panel_after_loading(owner: object) -> None:
     """Leave the right panel visible after chart rendering completes."""
@@ -447,9 +423,12 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         owner._schedule_chart_render(chart)
         return
     if active_panel == "predictions":
+        # Predictions canvases depend on the current scroll-viewport width just
+        # like Chart Analytics canvases.  Re-render when the tab becomes active
+        # instead of trusting a hidden-tab render cached during a window/panel
+        # transition; stale hidden-tab sizing is what makes the Prediction graphs
+        # intermittently draw with the wrong geometry.
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
-        if getattr(state, "last_render_chart_token", None) == render_token:
-            return
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         if state is not None:
