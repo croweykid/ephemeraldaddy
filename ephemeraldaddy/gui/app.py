@@ -797,6 +797,7 @@ from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
     build_human_design_analytics_panel,
 )
 from ephemeraldaddy.gui.features.charts.human_design_info_panel import (
+    insert_human_design_info_body_line,
     render_human_design_info_text_with_accent,
     resolve_hd_color_hex,
 )
@@ -26932,12 +26933,12 @@ class MainWindow(QMainWindow):
 
         cursor.insertText(f"{header}\n\n", header_fmt)
         for idx, line in enumerate(body_lines):
-            is_section_header = (
-                bool(line)
-                and not str(line).lstrip().startswith("•")
-                and str(line).rstrip().endswith(":")
+            insert_human_design_info_body_line(
+                cursor,
+                line,
+                header_fmt=header_fmt,
+                plain_fmt=plain_fmt,
             )
-            cursor.insertText(line, header_fmt if is_section_header else plain_fmt)
             if idx < len(body_lines) - 1:
                 cursor.insertText("\n", plain_fmt)
         self.chart_info_output.setTextCursor(cursor)
