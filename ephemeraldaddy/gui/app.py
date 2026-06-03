@@ -18388,6 +18388,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             if selected_generations and generation_name not in selected_generations:
                 return False
 
+        has_earliest_birthdate_bound = (
+            birthdate_earliest_month is not None
+            or birthdate_earliest_day is not None
+            or birthdate_earliest_year is not None
+        )
+        has_latest_birthdate_bound = (
+            birthdate_latest_month is not None
+            or birthdate_latest_day is not None
+            or birthdate_latest_year is not None
+        )
         chart_birthdate_earliest = self._build_birthdate_filter_date(
             month=birthdate_earliest_month,
             day=birthdate_earliest_day,
@@ -18400,6 +18410,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             year=birthdate_latest_year,
             is_latest=True,
         )
+        if (
+            (has_earliest_birthdate_bound and chart_birthdate_earliest is None)
+            or (has_latest_birthdate_bound and chart_birthdate_latest is None)
+        ):
+            return False
         if chart_birthdate_earliest is not None and chart_birthdate_latest is not None and chart_birthdate_earliest > chart_birthdate_latest:
             chart_birthdate_earliest, chart_birthdate_latest = chart_birthdate_latest, chart_birthdate_earliest
         if chart_birthdate_earliest is not None or chart_birthdate_latest is not None:
