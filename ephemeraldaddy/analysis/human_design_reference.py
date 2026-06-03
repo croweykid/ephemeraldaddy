@@ -43,6 +43,24 @@ HD_TONES = {
     6:{"name":"touch","meaning":"acceptance","orientation":"right"},
 }
 
+HD_PERSPECTIVE_NAMES = {
+    1: "Survival: Focuses on essentials, security, and stability; it is grounded in what is necessary for immediate safety and practical survival. ",
+    2: "Possibility: Looks beyond the immediate to see potential and alternatives; it is imaginative, optimistic, and explores what could be.",
+    3: "Power: Understands dynamics, hierarchies, and influence; it tracks winners, losers, and the structures of control and authority.",
+    4: "Wanting: Attuned to the needs, desires, and values of the collective or group; it focuses on what is wanted or needed by the larger whole.",
+    5: "Probability: Sees what is likely, practical, and probable; it is logical and analytical, recognizing patterns, trends, and what will actually work.",
+    6: "Personal: Views life through a unique, introspective lens; it is focused on personal experience, self-understanding, and individual journey.",
+}
+
+HD_DIGESTION_NAMES = {
+    1: ("Appetite", "Consecutive: eat one food at a time, simple meals", "Alternating: mix ingredients, variety in every bite"),
+    2: ("Taste", "Open: sample new things, flexible ingredients", "Closed: stick to known foods, control preparation"),
+    3: ("Thirst", "Hot: prefer warm foods/drinks, warming spices", "Cold: prefer cold foods/drinks, cooling properties"),
+    4: ("Touch", "Calm: eat in relaxing, solitary environments", "Nervous: eat with stimulation, movement, or conversation"),
+    5: ("Sound", "High: digest well with noise, music, or busy environments", "Low: digest best in quiet, minimal sound"),
+    6: ("Light", "Direct: digest best in bright daylight, largest meal at midday", "Indirect: digest best in low light, night owl"),
+}
+
 HD_ENVIRONMENTS = {
     1: {
         "name": "Caves",
@@ -1659,12 +1677,12 @@ HD_PROFILES = {
 
 # Note: COLORS here use the standard Motivation naming convention.
 HD_COLORS = [
-    {"value": 1, "name": "caves", "motivation": "fear", "color": "red"},
-    {"value": 2, "name": "markets", "motivation": "hope", "color": "orange"},
-    {"value": 3, "name": "kitchens", "motivation": "desire", "color": "yellow"},
-    {"value": 4, "name": "mountains", "motivation": "need", "color": "green"},
-    {"value": 5, "name": "valleys", "motivation": "guilt", "color": "blue"},
-    {"value": 6, "name": "shores", "motivation": "innocence", "color": "violet"},
+    {"value": 1, "name": "caves", "environment_description":"Enclosed, secure spaces requiring privacy, controlled entry, and a sense of safety.","motivation": "fear", "motivation_description":"The drive to investigate the unknown, seeking clarity and understanding to dispel uncertainty.","color": "red"},
+    {"value": 2, "name": "markets", "environment_description":"Dynamic settings of exchange, commerce, and high interaction or flow of resources. ","motivation": "hope", "motivation_description":"The quiet knowing and trust that things will unfold correctly, allowing for patience and non-action.","color": "orange"},
+    {"value": 3, "name": "kitchens", "environment_description":"Transformative spaces focused on creation, collaboration, and shared activity.","motivation": "desire", "motivation_description":"The ambition and passion to pursue specific outcomes, goals, and achievements.","color": "yellow"},
+    {"value": 4, "name": "mountains", "environment_description":"Elevated, high-ground environments offering perspective, detachment, and clarity. ","motivation": "need", "motivation_description":"The instinct to address immediate necessities, security, and practical requirements.","color": "green"},
+    {"value": 5, "name": "valleys", "environment_description":"Ground-level pathways of flow, connection, and integration with movement and diversity.","motivation": "guilt", "motivation_description":"The sense of obligation and responsibility to fix what is broken or meet expectations.","color": "blue"},
+    {"value": 6, "name": "shores", "environment_description":"Transitional boundaries where two worlds meet, such as land and water or city and nature. ","motivation": "innocence", "motivation_description":"The curiosity and openness to simply experience life in the moment without control or agenda.","color": "violet"},
 ]
 
 HD_TONES = [

@@ -16,31 +16,13 @@ from ephemeraldaddy.core.human_design_system import (
     _split_definition,
     calculate_human_design,
 )
-from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES
+from ephemeraldaddy.analysis.human_design_reference import AWARENESS_STREAMS, HD_CIRCUIT_GROUPS, HD_COLORS, HD_TONES, HD_PERSPECTIVE_NAMES, HD_DIGESTION_NAMES
 from ephemeraldaddy.gui.style import CHART_DATA_DIVIDER
 
 ZODIAC_NAMES = (
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 )
-
-HD_PERSPECTIVE_NAMES = {
-    1: "Survival",
-    2: "Possibility",
-    3: "Power",
-    4: "Wanting",
-    5: "Probability",
-    6: "Personal",
-}
-
-HD_DIGESTION_NAMES = {
-    1: ("Appetite", "Consecutive", "Alternating"),
-    2: ("Taste", "Open", "Closed"),
-    3: ("Thirst", "Hot", "Cold"),
-    4: ("Touch", "Calm", "Nervous"),
-    5: ("Sound", "High", "Low"),
-    6: ("Light", "Direct", "Indirect"),
-}
 
 
 def get_active_human_design_gates_and_lines(chart: Chart) -> tuple[set[int], set[tuple[int, int]]]:
