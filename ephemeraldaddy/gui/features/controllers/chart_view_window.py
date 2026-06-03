@@ -883,12 +883,18 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
         title="D&&D-ification",
         expanded=True,
     )
+    owner.dnd_predictions_section_layout = dnd_section_layout
     owner.dnd_predictions_chart_panel = QWidget()
     owner.dnd_predictions_chart_layout = QVBoxLayout()
     owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.dnd_predictions_chart_layout.setSpacing(6)
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
+    owner.dnd_prediction_top_three_label = QLabel("<b>Top three:</b> —")
+    owner.dnd_prediction_top_three_label.setTextFormat(Qt.RichText)
+    owner.dnd_prediction_top_three_label.setWordWrap(True)
+    owner.dnd_prediction_top_three_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
+    dnd_section_layout.addWidget(owner.dnd_prediction_top_three_label)
     layout.addStretch(1)
     return panel
 

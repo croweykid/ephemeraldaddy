@@ -34,7 +34,7 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
     statblock = score_dnd_statblock(chart)
     labels = list(dnd_stat_keys)
     values = [float(statblock.scores.get(label, 0.0)) for label in labels]
-    bars = ax.barh(labels, values)
+    bars = ax.bar(labels, values)
     max_value = max(values, default=0.0)
     value_label_offset = max(0.25, max_value * 0.03)
     for idx, bar in enumerate(bars):
@@ -45,20 +45,22 @@ def draw_dnd_statblock_predictions(ax: Any, chart: Any, *, dnd_stat_keys: tuple[
         bar.set_gid(f"dnd_stat:{stat_key}")
         bar.set_picker(True)
         ax.text(
+            bar.get_x() + (bar.get_width() / 2.0),
             stat_value + value_label_offset,
-            bar.get_y() + (bar.get_height() / 2.0),
             f"{int(stat_value)}",
-            va="center",
-            ha="left",
+            va="bottom",
+            ha="center",
             color="#f5f5f5",
             fontsize=9,
             fontweight="bold",
         )
     ax.set_title("D&D Statblock")
     apply_standard_bar_axes(ax, labels)
-    ax.set_xlim(right=max_value + (value_label_offset * 4.0))
-    ax.set_xticks([])
-    ax.tick_params(axis="x", bottom=False, top=False, labelbottom=False)
+    ax.set_ylim(0, max(1.0, max_value + (value_label_offset * 5.0)))
+    for spine in ax.spines.values():
+        spine.set_color("#444444")
+    ax.figure.tight_layout()
+    ax.figure.subplots_adjust(left=0.18, bottom=0.20, top=0.92, right=0.96)
 
 def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes: Any) -> None:
     pick = SpeciesAssigner().assign(chart)
@@ -66,7 +68,7 @@ def draw_dnd_species_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     labels = [f"{family} ({subtype})" if subtype else family for family, subtype, _score in top]
     values = [float(score) for _family, _subtype, score in top]
     colors = get_cycled_earthtone_colors(len(labels))
-    bars = ax.barh(labels, values)
+    bars = ax.bar(labels, values)
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)
@@ -82,7 +84,7 @@ def draw_dnd_classes_predictions(ax: Any, chart: Any, *, apply_standard_bar_axes
     labels = [DND_CLASSES[key].display_name if key in DND_CLASSES else key for key, _ in ranked]
     values = [float(score) for _key, score in ranked]
     colors = get_cycled_earthtone_colors(len(labels))
-    bars = ax.barh(labels, values)
+    bars = ax.bar(labels, values)
     for idx, bar in enumerate(bars):
         bar.set_facecolor(colors[idx])
         bar.set_alpha(0.95)

@@ -30379,20 +30379,15 @@ class MainWindow(QMainWindow):
         if chart_layout is None:
             return
         summary_label = getattr(self, "dnd_prediction_top_three_label", None)
-        summary_label_is_usable = False
-        if summary_label is not None:
-            try:
-                summary_label_is_usable = summary_label.parent() is not None
-            except RuntimeError:
-                summary_label_is_usable = False
-        if not summary_label_is_usable:
+        if summary_label is None:
             summary_label = QLabel()
             summary_label.setWordWrap(True)
             summary_label.setTextFormat(Qt.RichText)
+            summary_label.setStyleSheet("color: #f5f5f5; padding-top: 6px;")
             self.dnd_prediction_top_three_label = summary_label
-        if chart_layout.indexOf(summary_label) < 0:
-            chart_layout.addWidget(summary_label)
-
+            section_layout = getattr(self, "dnd_predictions_section_layout", None)
+            if section_layout is not None and section_layout.indexOf(summary_label) < 0:
+                section_layout.addWidget(summary_label)
         def _draw_no_data(ax, _chart: Chart | None) -> None:
             ax.clear()
             ax.set_facecolor(CHART_THEME_COLORS["panel"])
