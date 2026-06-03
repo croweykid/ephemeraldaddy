@@ -79,6 +79,7 @@ def create_human_design_synastry_dialog(
     chart_a_gate_set = {activation.gate for activation in (*hd_a.personality_activations, *hd_a.design_activations)}
     chart_b_gate_set = {activation.gate for activation in (*hd_b.personality_activations, *hd_b.design_activations)}
     aggregate_gate_set = set(chart_a_gate_set) | set(chart_b_gate_set)
+    aggregate_defined_centers = set(hd_a.defined_centers) | set(hd_b.defined_centers)
     awareness_stream_entries = build_awareness_stream_completion(aggregate_gate_set)
     circuit_entries = build_circuit_group_completion(aggregate_gate_set)
     _apply_synastry_gate_metadata(
@@ -141,6 +142,7 @@ def create_human_design_synastry_dialog(
         chart_theme_colors=chart_theme_colors,
         personality_gate_set_override=chart_a_gate_set,
         design_gate_set_override=chart_b_gate_set,
+        defined_centers_override=aggregate_defined_centers,
         personality_active_color=SYNASTRY_PRIMARY_COLOR,
         design_active_color=SYNASTRY_SECONDARY_COLOR,
     )
@@ -154,7 +156,7 @@ def create_human_design_synastry_dialog(
     def _show_center_info(center_name: str) -> None:
         center_meta = center_reference_by_name.get(center_name, {})
         description = str(center_meta.get("description", "No center description available.")).strip()
-        is_defined = center_name in hd_a.defined_centers or center_name in hd_b.defined_centers
+        is_defined = center_name in aggregate_defined_centers
         state_label = "Defined in Combined Chart" if is_defined else "Undefined in Combined Chart"
         state_detail_key = "defined" if is_defined else "undefined"
         state_detail = str(center_meta.get(state_detail_key, "No details available.")).strip()

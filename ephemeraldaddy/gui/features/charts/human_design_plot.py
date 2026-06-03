@@ -152,6 +152,7 @@ def draw_human_design_chart(
     chart_theme_colors: dict[str, str],
     personality_gate_set_override: set[int] | None = None,
     design_gate_set_override: set[int] | None = None,
+    defined_centers_override: set[str] | frozenset[str] | None = None,
     personality_active_color: str = DEFAULT_CHANNEL_PERSONALITY_ACTIVE_COLOR,
     design_active_color: str = DEFAULT_CHANNEL_DESIGN_ACTIVE_COLOR,
 ) -> None:
@@ -217,6 +218,11 @@ def draw_human_design_chart(
         set(design_gate_set_override)
         if design_gate_set_override is not None
         else {activation.gate for activation in hd_result.design_activations}
+    )
+    defined_centers = (
+        set(defined_centers_override)
+        if defined_centers_override is not None
+        else set(hd_result.defined_centers)
     )
 
     def _draw_gate_segment(
@@ -511,7 +517,7 @@ def draw_human_design_chart(
 
     for center_name, (x, y) in CENTER_POSITIONS.items():
         y = _offset_center_y(y)
-        defined = center_name in hd_result.defined_centers
+        defined = center_name in defined_centers
         edge = "#c8914f" if defined else chart_theme_colors["spine"]
         fill = CENTER_FILL_COLORS.get(center_name, "#2f3d45") #"#2f3d45" if defined else "#2a2a2a"
         ax.add_patch(
