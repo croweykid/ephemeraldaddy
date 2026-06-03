@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-
-from collections.abc import Callable
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.image import imread
@@ -133,8 +131,7 @@ def build_human_design_analytics_panel(
     hd_result: HumanDesignResult,
     chart_theme_colors: dict[str, str],
     subheader_style: str,
-    on_bar_click: Callable[[str, int], None] | None = None,
-    on_metric_selected: Callable[[str, int], None] | None = None, #should this be here? or delete it?
+    on_metric_selected: Callable[[str, int], None] | None = None,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -254,10 +251,7 @@ def build_human_design_analytics_panel(
         edgecolor="#E0E0E0",
         linewidth=0.5,
         alpha=0.95,
-        picker=True,
     )
-    for bar, line_number in zip(bars, line_numbers):
-        bar.set_gid(f"line:{line_number}")
     hd_line_chart_ax.set_xticks(line_numbers)
     line_labels = [
         f"L{line_number} ({str(LINE_NICKNAMES.get(line_number, {}).get('name', 'unknown'))})"
@@ -323,7 +317,7 @@ def build_human_design_analytics_panel(
     hd_color_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_color_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     color_bars = hd_color_chart_ax.bar(color_labels, color_values, color=color_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
-    for color_value, bar in zip(sorted(color_counts), color_bars): #slight adjustment - does this work?
+    for color_value, bar in zip(sorted(color_counts), color_bars):
         bar.set_gid(f"hd_color:{int(color_value)}")
         bar.set_picker(True)
     hd_color_chart_ax.tick_params(axis="x", colors=_theme_color(chart_theme_colors, "text", "#f0f0f0"), labelsize=8)
@@ -376,10 +370,7 @@ def build_human_design_analytics_panel(
     hd_tone_chart_figure.patch.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     hd_tone_chart_ax.set_facecolor(_theme_color(chart_theme_colors, "background", "#101010"))
     
-    tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95, picker=True) #Question: is picker true redundant here with the value below?
-    for bar, tone_value in zip(tone_bars, sorted(tone_counts)):
-        bar.set_gid(f"tone:{tone_value}")
-
+    tone_bars = hd_tone_chart_ax.bar(tone_labels, tone_values, color=tone_bar_colors, edgecolor="#E0E0E0", linewidth=0.5, alpha=0.95)
     for tone_value, bar in zip(sorted(tone_counts), tone_bars):
         bar.set_gid(f"hd_tone:{int(tone_value)}")
         bar.set_picker(True)
@@ -406,45 +397,22 @@ def build_human_design_analytics_panel(
     tone_section_layout.addWidget(QLabel("Tone Distribution (T column)", styleSheet=subheader_style))
     tone_section_layout.addWidget(hd_tone_chart_canvas)
 
-    #picker v1
-    def _on_bar_pick(event: object) -> None:
-        if on_bar_click is None:
+    def _on_metric_bar_pick(event: object) -> None:
+        if on_metric_selected is None:
             return
         artist = getattr(event, "artist", None)
         gid = str(getattr(artist, "get_gid", lambda: "")() or "")
-        if ":" not in gid:
+        metric_kind, separator, raw_value = gid.partition(":")
+        if separator != ":" or metric_kind not in {"hd_line", "hd_color", "hd_tone"}:
             return
-        metric, raw_value = gid.split(":", 1)
-        if not raw_value.isdigit():
+        try:
+            metric_value = int(raw_value)
+        except ValueError:
             return
-        on_bar_click(metric, int(raw_value))
+        on_metric_selected(metric_kind, metric_value)
 
-    hd_line_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
-    hd_color_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
-    hd_tone_chart_canvas.mpl_connect("pick_event", _on_bar_pick)
-
-    #picker v2
-    def _connect_metric_pick_events(canvas: FigureCanvas) -> None:
-        if on_metric_selected is None:
-            return
-
-        def _on_pick(event: object) -> None:
-            artist = getattr(event, "artist", None)
-            gid = str(getattr(artist, "get_gid", lambda: "")() or "")
-            if ":" not in gid:
-                return
-            metric_kind, _, raw_value = gid.partition(":")
-            if metric_kind not in {"hd_line", "hd_color", "hd_tone"}:
-                return
-            if not raw_value.isdigit():
-                return
-            on_metric_selected(metric_kind, int(raw_value))
-
-        canvas.mpl_connect("pick_event", _on_pick)
-
-    _connect_metric_pick_events(hd_line_chart_canvas)
-    _connect_metric_pick_events(hd_color_chart_canvas)
-    _connect_metric_pick_events(hd_tone_chart_canvas)
+    for metric_canvas in (hd_line_chart_canvas, hd_color_chart_canvas, hd_tone_chart_canvas):
+        metric_canvas.mpl_connect("pick_event", _on_metric_bar_pick)
 
     hd_analytics_layout.addStretch(1)
     hd_analytics_scroll.setWidget(hd_analytics_panel)

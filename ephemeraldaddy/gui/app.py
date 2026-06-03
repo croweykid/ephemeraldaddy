@@ -793,7 +793,6 @@ from ephemeraldaddy.gui.features.charts.human_design_analytics_panel import (
 )
 from ephemeraldaddy.gui.features.charts.human_design_info_panel import (
     render_human_design_info_text_with_accent,
-    render_human_design_line_info,
     resolve_hd_color_hex,
 )
 from ephemeraldaddy.gui.features.charts.human_design_synastry_window import (
@@ -27170,6 +27169,7 @@ class MainWindow(QMainWindow):
                 tone_line,
                 f"• Meaning: {meaning}.",
             ],
+            accent_color=accent_color,
         )
 
     def _show_human_design_line_info(self, line_value: int) -> None:
@@ -30881,7 +30881,7 @@ class MainWindow(QMainWindow):
         def _on_hd_metric_selected(metric_kind: str, metric_value: int) -> None:
             def _render_metric_info() -> None:
                 if metric_kind == "hd_line":
-                    render_human_design_line_info(self.chart_info_output, int(metric_value))
+                    self._show_human_design_line_info(int(metric_value))
                     return
                 if metric_kind == "hd_color":
                     self._show_human_design_color_info(int(metric_value))
@@ -30896,13 +30896,7 @@ class MainWindow(QMainWindow):
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
-            on_bar_click=lambda metric, value: (
-                self._show_human_design_line_info(value)
-                if metric == "line"
-                else self._show_human_design_color_info(value)
-                if metric == "color"
-                else self._show_human_design_tone_info(value)
-            ),
+            on_metric_selected=_on_hd_metric_selected,
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
