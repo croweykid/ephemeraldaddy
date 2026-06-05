@@ -400,6 +400,11 @@ from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
     recalculate_personal_transit,
     resolve_personal_transit_location,
 )
+from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
+    append_similarity_algorithm_change_log,
+    build_similarity_algorithm_snapshot,
+    similarity_algorithm_snapshots_changed,
+)
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
     apply_window_placement,
@@ -19619,9 +19624,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
     def _on_open_settings(self) -> None:
         dialog = self._ensure_settings_dialog()
+        self._similarities_algorithm_settings_open_snapshot = self._current_similarity_algorithm_snapshot()
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+
+    def _current_similarity_algorithm_snapshot(self) -> dict[str, Any]:
+        return build_similarity_algorithm_snapshot(
+            getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            getattr(self, "_similarity_calculator_settings", None),
+        )
+
+    def _on_settings_dialog_closed(self) -> None:
+        opening_snapshot = getattr(self, "_similarities_algorithm_settings_open_snapshot", None)
+        current_snapshot = self._current_similarity_algorithm_snapshot()
+        if not similarity_algorithm_snapshots_changed(opening_snapshot, current_snapshot):
+            self._similarities_algorithm_settings_open_snapshot = current_snapshot
+            return
+        try:
+            log_path = append_similarity_algorithm_change_log(
+                opening_snapshot=opening_snapshot,
+                current_snapshot=current_snapshot,
+            )
+        except OSError:
+            logger.exception("Failed to append Similarities Algorithm change log.")
+        else:
+            logger.info("Appended Similarities Algorithm settings change to %s", log_path)
+        self._similarities_algorithm_settings_open_snapshot = current_snapshot
 
     def _ensure_settings_dialog(self) -> QDialog:
         if self._settings_dialog is not None:
@@ -19643,6 +19672,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return self._settings_dialog
 
         dialog = QDialog(self)
+        dialog.finished.connect(lambda _result: self._on_settings_dialog_closed())
         dialog.setWindowTitle("Settings & Preferences")
         dialog.setWindowFlag(Qt.Window, True)
         dialog.setModal(False)
