@@ -121,8 +121,8 @@ def test_score_dnd_statblock_normalizes_criteria_budget_before_mapping(monkeypat
     assert statblock.scores == {
         "STR": 13,
         "DEX": 12,
-        "CON": 13,
-        "INT": 13,
+        "CON": 12,
+        "INT": 12,
         "WIS": 11,
         "CHA": 10,
     }

@@ -293,3 +293,83 @@ def test_direct_dominance_can_use_share_of_total_activation():
     )
 
     assert round(scores["e4"], 2) == 7.98
+
+
+def test_weighted_position_entries_accepts_flat_and_nested_shapes():
+    from ephemeraldaddy.analysis.weighted_chart_predictor import weighted_position_entries
+
+    assert weighted_position_entries({"Sun in Scorpio": 4, "Sun in H4": 6}) == {
+        "Sun in Scorpio": 4.0,
+        "Sun in H4": 6.0,
+    }
+    assert weighted_position_entries({"Sun": {"Scorpio": 4, "Aquarius": 3, "H4": 6}}) == {
+        "Sun in Scorpio": 4.0,
+        "Sun in Aquarius": 3.0,
+        "Sun in H4": 6.0,
+    }
+    assert weighted_position_entries({"Sun": {"signs": {"Scorpio": 4}, "houses": {"4": 6}}}) == {
+        "Sun in Scorpio": 4.0,
+        "Sun in H4": 6.0,
+    }
+    assert weighted_position_entries({"Scorpio": {"houses": {"1": 5}}}) == {"Scorpio in H1": 5.0}
+
+
+def test_nested_position_shapes_score_equivalently_to_flat_position_specs():
+    chart = SimpleNamespace(positions={"Sun": 210.0})
+    predictors = {
+        "flat": {"positions": {"Sun in Scorpio": 4}},
+        "nested": {"positions": {"Sun": {"Scorpio": 4}}},
+        "bucketed": {"positions": {"Sun": {"signs": {"Scorpio": 4}}}},
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=lambda _chart: {"Scorpio": 0},
+        calculate_body_weights=lambda _chart: {"Sun": 0},
+        calculate_house_weights=_empty_weights,
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: False,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+
+    assert scores == {"flat": 4.0, "nested": 4.0, "bucketed": 4.0}
+
+
+def test_nested_house_position_shapes_score_equivalently_to_flat_position_specs():
+    chart = SimpleNamespace(
+        positions={"Sun": 95.0},
+        houses=[float(deg) for deg in range(0, 360, 30)],
+    )
+    predictors = {
+        "flat": {"positions": {"Sun in H4": 6}},
+        "nested": {"positions": {"Sun": {"H4": 6}}},
+        "bucketed": {"positions": {"Sun": {"houses": {"4": 6}}}},
+    }
+
+    scores = calculate_weighted_criteria_scores(
+        chart,
+        predictors=predictors,
+        calculate_sign_weights=_empty_weights,
+        calculate_body_weights=lambda _chart: {"Sun": 0},
+        calculate_house_weights=lambda _chart: {4: 0},
+        calculate_nakshatra_weights=_empty_weights,
+        uses_houses=lambda _chart: True,
+        scoring_options=WeightedPredictorScoringOptions(
+            use_position_dominance_weighting=False,
+            simplify_anti_factor_handling=True,
+            average_scores_by_criterion_count=False,
+        ),
+    )
+
+    assert scores == {"flat": 6.0, "nested": 6.0, "bucketed": 6.0}
+
+
+def test_negative_unweighted_gate_entries_are_signed_weights():
+    from ephemeraldaddy.analysis.weighted_chart_predictor import weighted_gate_entries
+
+    assert weighted_gate_entries({-63, 11}) == {63: -1.0, 11: 1.0}

@@ -3,7 +3,12 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-from ephemeraldaddy.analysis.weighted_chart_predictor import calculate_weighted_criteria_scores
+from ephemeraldaddy.analysis.weighted_chart_predictor import (
+    calculate_weighted_criteria_scores,
+    weighted_channel_entries,
+    weighted_gate_entries,
+    weighted_position_entries,
+)
 from .dnd_definitions import DND_STAT_PREDICTORS
 
 from .dnd_class_axes_v2 import (
@@ -82,6 +87,16 @@ def _criterion_weights(values: Any) -> list[float]:
     return weights
 
 
+def _criterion_weights_for_category(category: str, values: Any) -> list[float]:
+    if category in {"positions", "antipositions"}:
+        return [abs(float(weight)) for weight in weighted_position_entries(values).values()]
+    if category in {"gates", "antigates"}:
+        return [abs(float(weight)) for weight in weighted_gate_entries(values).values()]
+    if category in {"channels", "antichannels"}:
+        return [abs(float(weight)) for weight in weighted_channel_entries(values).values()]
+    return _criterion_weights(values)
+
+
 def _median(values: list[float]) -> float:
     if not values:
         return 1.0
@@ -109,8 +124,8 @@ def _calculate_predictor_criteria_budgets(
         factors = raw_factors if isinstance(raw_factors, Mapping) else {}
         budget = 0.0
         for positive_key, negative_key, multiplier in _WEIGHT_NORMALIZED_PREDICTOR_CATEGORIES:
-            positive_weights = _criterion_weights(factors.get(positive_key, ()))
-            negative_weights = _criterion_weights(factors.get(negative_key, ()))
+            positive_weights = _criterion_weights_for_category(positive_key, factors.get(positive_key, ()))
+            negative_weights = _criterion_weights_for_category(negative_key, factors.get(negative_key, ()))
             criteria_count = len(positive_weights) + len(negative_weights)
             if criteria_count <= 0:
                 continue
@@ -119,8 +134,8 @@ def _calculate_predictor_criteria_budgets(
             budget += max(positive_budget, negative_budget) / criteria_count
         for positive_key, negative_key in _MATCH_ONCE_PREDICTOR_CATEGORIES:
             weights = [
-                *_criterion_weights(factors.get(positive_key, ())),
-                *_criterion_weights(factors.get(negative_key, ())),
+                *_criterion_weights_for_category(positive_key, factors.get(positive_key, ())),
+                *_criterion_weights_for_category(negative_key, factors.get(negative_key, ())),
             ]
             if weights:
                 budget += max(weights)
