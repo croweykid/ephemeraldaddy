@@ -24371,6 +24371,26 @@ class MainWindow(QMainWindow):
         self._metric_chart_titles[canvas] = title
         self._register_metric_scroll_widget(canvas)
 
+    def _refresh_metric_canvas_after_layout(self, canvas: FigureCanvas) -> None:
+        """Re-apply viewport sizing after Qt has settled stacked-panel layout."""
+        try:
+            if canvas.parentWidget() is None:
+                return
+            self._apply_metric_chart_sizing(canvas)
+            canvas.draw_idle()
+        except RuntimeError:
+            return
+
+    def _schedule_metric_canvas_layout_refresh(self, canvas: FigureCanvas) -> None:
+        """Redraw a metric canvas once pending Qt geometry changes are applied."""
+        QTimer.singleShot(0, lambda metric_canvas=canvas: self._refresh_metric_canvas_after_layout(metric_canvas))
+        QTimer.singleShot(50, lambda metric_canvas=canvas: self._refresh_metric_canvas_after_layout(metric_canvas))
+
+    def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
+        """Refresh metric canvases after right-panel scroll viewport size changes."""
+        for canvas in list(self._metric_chart_titles):
+            self._schedule_metric_canvas_layout_refresh(canvas)
+
     def _handle_metrics_wheel(self, event) -> bool:
         if self.metrics_scroll is None:
             return False
@@ -26504,9 +26524,11 @@ class MainWindow(QMainWindow):
                 return self._handle_metrics_wheel(event)
             if event.type() == QEvent.KeyPress:
                 return self._handle_metrics_keypress(event)
+            if event.type() == QEvent.Resize:
+                self._schedule_visible_metric_canvas_layout_refreshes()
         if obj in self._metric_chart_titles:
             if event.type() == QEvent.Resize:
-                self._apply_metric_chart_sizing(obj)
+                self._schedule_metric_canvas_layout_refresh(obj)
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
@@ -29980,6 +30002,7 @@ class MainWindow(QMainWindow):
             canvas.draw()
         except RuntimeError:
             return
+        self._schedule_metric_canvas_layout_refresh(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
         self._latest_chart = chart
@@ -30032,6 +30055,7 @@ class MainWindow(QMainWindow):
             self.planet_dynamics_container_layout,
             self.chart_type_container_layout,
             self.enneagram_prediction_chart_layout,
+            self.dnd_predictions_chart_layout,
         ):
             self._clear_layout_widgets(layout)
         self._pending_render_chart = None
@@ -30063,6 +30087,8 @@ class MainWindow(QMainWindow):
         self.gender_guesser_canvas = None
         self.planet_dynamics_canvas = None
         self.enneagram_prediction_canvas = None
+        self.dnd_prediction_statblock_canvas = None
+        self.dnd_prediction_top_three_label = None
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
