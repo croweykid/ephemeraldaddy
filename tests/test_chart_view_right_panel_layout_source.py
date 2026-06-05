@@ -45,3 +45,30 @@ def test_dnd_prediction_statblock_uses_standard_vertical_axis_layout():
     assert "_style_prediction_bar_chart(" in function
     assert "ax.barh(labels, values)" not in function
     assert "_ = apply_standard_bar_axes" not in function
+
+
+def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert "def _schedule_metric_canvas_layout_refresh" in source
+    assert "QTimer.singleShot(0, lambda metric_canvas=canvas" in source
+    assert "QTimer.singleShot(50, lambda metric_canvas=canvas" in source
+    assert "self._schedule_metric_canvas_layout_refresh(canvas)" in source
+
+
+def test_metric_scroll_viewport_resize_refreshes_existing_canvases():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert "def _schedule_visible_metric_canvas_layout_refreshes" in source
+    assert "if event.type() == QEvent.Resize:" in source
+    assert "self._schedule_visible_metric_canvas_layout_refreshes()" in source
+
+
+def test_clear_chart_displays_resets_dnd_prediction_canvas_and_summary():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _clear_chart_displays")
+    method = source[method_start : source.index("    def _render_sign_tally", method_start)]
+
+    assert "self.dnd_predictions_chart_layout" in method
+    assert "self.dnd_prediction_statblock_canvas = None" in method
+    assert "self.dnd_prediction_top_three_label = None" in method
