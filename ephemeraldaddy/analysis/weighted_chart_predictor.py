@@ -357,10 +357,24 @@ def weighted_house_entries(values: Any) -> dict[int, float]:
 
 def weighted_gate_entries(values: Any) -> dict[int, float]:
     entries: dict[int, float] = {}
-    for raw_value, weight in coerce_weighted_entries(values).items():
-        token = str(raw_value).strip()
-        if token.isdigit() and 1 <= int(token) <= 64:
-            entries[int(token)] = weight
+    if isinstance(values, Mapping):
+        source = values.items()
+    else:
+        source = ((value, 1.0) for value in (values or []))
+    for raw_value, raw_weight in source:
+        try:
+            gate_num = int(str(raw_value).strip())
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= abs(gate_num) <= 64:
+            continue
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = 1.0
+        if gate_num < 0 and not isinstance(values, Mapping):
+            weight *= -1.0
+        entries[abs(gate_num)] = weight
     return entries
 
 
@@ -623,6 +637,94 @@ def _weighted_text_entries(values: Any) -> dict[str, float]:
     }
 
 
+def _is_numeric_weight(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _format_house_position_token(value: Any) -> str | None:
+    token = str(value).strip()
+    if not token:
+        return None
+    house_num = parse_house_token(token)
+    if house_num is None and token.isdigit():
+        house_num = int(token)
+    if house_num is None or not 1 <= house_num <= 12:
+        return None
+    return f"H{house_num}"
+
+
+def _position_destination_from_key(raw_key: Any, bucket: str | None = None) -> str | None:
+    token = str(raw_key).strip()
+    if not token:
+        return None
+    normalized_bucket = str(bucket or "").strip().casefold()
+    if normalized_bucket in {"house", "houses", "h"}:
+        return _format_house_position_token(token)
+    if normalized_bucket in {"sign", "signs", "zodiac", "zodiacs"}:
+        return token if token in ZODIAC_NAMES else None
+    house_token = _format_house_position_token(token)
+    if house_token is not None:
+        return house_token
+    return token if token in ZODIAC_NAMES else None
+
+
+def _add_position_entry(entries: dict[str, float], subject: Any, destination: Any, raw_weight: Any, bucket: str | None = None) -> None:
+    subject_text = normalize_factor_value(str(subject).strip())
+    if not subject_text:
+        return
+    destination_text = _position_destination_from_key(destination, bucket)
+    if destination_text is None:
+        return
+    try:
+        weight = float(raw_weight)
+    except (TypeError, ValueError):
+        weight = 1.0
+    entries[f"{subject_text} in {destination_text}"] = weight
+
+
+def weighted_position_entries(values: Any) -> dict[str, float]:
+    """Accept flat and nested position predictor criteria as equivalent.
+
+    Supported shapes include:
+    - {"Sun in Scorpio": 4, "Sun in H4": 6}
+    - {"Sun": {"Scorpio": 4, "Aquarius": 3, "H4": 6}}
+    - {"Sun": {"signs": {"Scorpio": 4}, "houses": {"H4": 6}}}
+    - iterables such as {"Sun in Scorpio", "Moon in H8"}
+    """
+    entries: dict[str, float] = {}
+    if isinstance(values, Mapping):
+        for raw_subject, raw_value in values.items():
+            subject_text = str(raw_subject).strip()
+            if not subject_text:
+                continue
+            if _is_numeric_weight(raw_value):
+                if parse_position_spec(subject_text) is not None:
+                    entries[subject_text] = float(raw_value)
+                continue
+            if not isinstance(raw_value, Mapping):
+                continue
+            for raw_destination, nested_value in raw_value.items():
+                bucket_name = str(raw_destination).strip()
+                if isinstance(nested_value, Mapping) and bucket_name.casefold() in {"sign", "signs", "house", "houses", "h"}:
+                    for bucket_destination, bucket_weight in nested_value.items():
+                        _add_position_entry(entries, subject_text, bucket_destination, bucket_weight, bucket_name)
+                elif _is_numeric_weight(nested_value):
+                    _add_position_entry(entries, subject_text, raw_destination, nested_value)
+        return entries
+
+    for raw_value, weight in coerce_weighted_entries(values).items():
+        token = str(raw_value).strip()
+        if token and parse_position_spec(token) is not None:
+            entries[token] = weight
+    return entries
+
+
 def _has_any_predictor_criteria(predictors: Mapping[Any, Mapping[str, Any]], category_keys: set[str]) -> bool:
     for raw_factors in predictors.values():
         if not isinstance(raw_factors, Mapping):
@@ -763,8 +865,8 @@ def calculate_weighted_criteria_scores(
         antiauthorities = weighted_hd_authority_entries(factors.get("antiauthorities", set()))
         bazisigns = weighted_bazi_sign_entries(factors.get("bazisigns", set()))
         antibazisigns = weighted_bazi_sign_entries(factors.get("antibazisigns", set()))
-        positions = _weighted_text_entries(factors.get("positions", set()))
-        antipositions = _weighted_text_entries(factors.get("antipositions", set()))
+        positions = weighted_position_entries(factors.get("positions", set()))
+        antipositions = weighted_position_entries(factors.get("antipositions", set()))
         aspects = _weighted_text_entries(factors.get("aspects", set()))
         antiaspects = _weighted_text_entries(factors.get("antiaspects", set()))
 

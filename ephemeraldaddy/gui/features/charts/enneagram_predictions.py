@@ -39,6 +39,8 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import (
     WeightedPredictorScoringOptions,
     calculate_weighted_criteria_scores,
     coerce_scoring_options,
+    parse_position_spec as parse_weighted_position_spec,
+    weighted_position_entries,
 )
 
 
@@ -344,20 +346,7 @@ def _parse_house_token(token: str) -> int | None:
 
 
 def _parse_position_spec(raw_spec: str) -> tuple[str, str | int, str] | None:
-    parts = [part.strip() for part in str(raw_spec).split(" in ")]
-    if len(parts) != 2:
-        return None
-    left, right = parts
-    if not left or not right:
-        return None
-    right_house = _parse_house_token(right)
-    if right_house is not None:
-        if left in ZODIAC_NAMES:
-            return ("sign_in_house", right_house, left)
-        return ("body_in_house", right_house, _normalize_factor_value(left))
-    if right in ZODIAC_NAMES:
-        return ("body_in_sign", right, _normalize_factor_value(left))
-    return None
+    return parse_weighted_position_spec(raw_spec)
 
 
 def _parse_aspect_spec(raw_spec: str) -> tuple[str, str, str] | None:
@@ -697,11 +686,11 @@ def build_enneagram_popout_info_html(
             return f"<li>{left_html} {aspect_html} {right_html}: {'✓' if matched else '✗'} score {score:.4f}</li>"
         position_items = "".join(
             _format_position_item(position)
-            for position in sorted({str(v).strip() for v in factors.get('positions', set()) if str(v).strip()})
+            for position in sorted(weighted_position_entries(factors.get('positions', set())))
         ) or "<li>None</li>"
         anti_position_items = "".join(
             _format_position_item(position)
-            for position in sorted({str(v).strip() for v in factors.get('antipositions', set()) if str(v).strip()})
+            for position in sorted(weighted_position_entries(factors.get('antipositions', set())))
         ) or "<li>None</li>"
         aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("aspects", set()) if str(v).strip()})) or "<li>None</li>"
         anti_aspect_items = "".join(_format_aspect_item(aspect) for aspect in sorted({str(v).strip() for v in factors.get("antiaspects", set()) if str(v).strip()})) or "<li>None</li>"
