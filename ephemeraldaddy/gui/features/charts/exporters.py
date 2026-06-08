@@ -113,7 +113,7 @@ def export_similarities_analysis_json_dialog(
     *,
     reactivate_callback: Callable[[], None] | None = None,
 ) -> None:
-    """Prompt for a name/path and export Similarities Analysis data as JSON."""
+    """Prompt for a name/path and export Similarities Analysis data as Python."""
     if not export_sections:
         QMessageBox.information(
             parent,
@@ -125,7 +125,7 @@ def export_similarities_analysis_json_dialog(
     selection_name, accepted = QInputDialog.getText(
         parent,
         "Selection name",
-        "Name this selection (used as the JSON key and profile name):",
+        "Name this selection (used as the Python key and profile name):",
         text="Selection",
     )
     if not accepted:
@@ -136,7 +136,7 @@ def export_similarities_analysis_json_dialog(
     if not similarities_json_payload_has_factors(payload, selection_name):
         QMessageBox.information(
             parent,
-            "No JSON factors",
+            "No Python factors",
             "No similarities fall beyond the second standard-error tier from the database norm.",
         )
         return
@@ -144,33 +144,33 @@ def export_similarities_analysis_json_dialog(
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     sanitized_name = re.sub(r"[^\w\s-]", "", selection_name).strip() or "selection"
     sanitized_name = re.sub(r"\s+", "_", sanitized_name)
-    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.json"
+    default_filename = f"ephemeraldaddy_{sanitized_name} similarities analysis_{timestamp}.py"
     file_path, _ = QFileDialog.getSaveFileName(
         parent,
-        "Export similarities analysis as JSON",
+        "Export similarities analysis as Python",
         default_filename,
-        "JSON Files (*.json)",
+        "Python Files (*.py)",
     )
     if reactivate_callback is not None:
         QTimer.singleShot(0, reactivate_callback)
     if not file_path:
         return
-    if not file_path.lower().endswith(".json"):
-        file_path = f"{file_path}.json"
+    if not file_path.lower().endswith(".py"):
+        file_path = f"{file_path}.py"
 
     try:
-        with open(file_path, "w", encoding="utf-8") as json_file:
-            json_file.write(format_similarities_json_export_payload(payload))
+        with open(file_path, "w", encoding="utf-8") as export_file:
+            export_file.write(format_similarities_json_export_payload(payload))
     except Exception as exc:
         QMessageBox.critical(
             parent,
             "Export failed",
-            f"Could not export similarities analysis as JSON:\n{exc}",
+            f"Could not export similarities analysis as Python:\n{exc}",
         )
         return
 
     QMessageBox.information(
         parent,
         "Export complete",
-        f"Saved similarities analysis JSON to:\n{file_path}",
+        f"Saved similarities analysis Python file to:\n{file_path}",
     )

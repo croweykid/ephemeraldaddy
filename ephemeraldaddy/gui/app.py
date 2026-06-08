@@ -6571,11 +6571,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
-        json_export_button = QPushButton("JSON")
+        json_export_button = QPushButton("</> export")
         json_export_button.setFlat(True)
-        json_export_button.setFixedSize(42, 20)
+        json_export_button.setFixedSize(58, 20)
+        json_export_font = json_export_button.font()
+        json_export_point_size = json_export_font.pointSize()
+        if json_export_point_size > 0:
+            json_export_font.setPointSize(max(1, json_export_point_size - 2))
+        json_export_button.setFont(json_export_font)
         json_export_button.setCursor(Qt.PointingHandCursor)
-        json_export_button.setToolTip("Export similarities analysis as JSON")
+        json_export_button.setToolTip("Export similarities analysis as Python")
         json_export_button.clicked.connect(self._export_similarities_analysis_json)
         title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
 
