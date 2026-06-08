@@ -15,10 +15,21 @@ def test_metric_canvas_sizing_uses_expanding_width_not_ignored_zero_width():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "canvas.setMinimumWidth(1)" in source
-    assert "canvas.setMaximumWidth(viewport_width)" in source
+    assert "available_width = MainWindow._metric_canvas_available_layout_width(canvas)" in source
+    assert "canvas.setMaximumWidth(available_width)" in source
+    assert "canvas.resize(available_width, current_height)" in source
     assert "canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)" in source
     assert "canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)" not in source
 
+
+
+def test_metric_canvas_width_subtracts_scroll_content_margins():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert "def _metric_canvas_available_layout_width" in source
+    assert "viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
+    assert "margins = parent_layout.contentsMargins()" in source
+    assert "available_width -= margins.left() + margins.right()" in source
 
 def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
