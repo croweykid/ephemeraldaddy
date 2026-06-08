@@ -1114,19 +1114,21 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Cancer": 6,
             "Leo":5, #dominated in "high CHA"  but not 'highest CHA'
             },
-         'antisigns': {'Sagittarius': 10, 'Aquarius': 13},
+         'antisigns': {'Sagittarius': 10, 'Aquarius': 13}, #Sag got both -8 in highest CHA and +10 in lowest CHA. lol
          'houses': {
-            "10": 9, #dominant in 'high cha' too.
-            "4": 6,
-            "9": 5,
-            "2": 6,
-            "11": 4, #dominant in 'high cha' too.
+            "10": 9, #dominant in all high CHA data sets.
+            "4": 9, #sometimes less, sometimes more dominant than h10, but nearly always present.
+            "12": 7, #present in both high & low cha samples at above-avg numbers.
+            "2": 6, #shows up in all samples but less strongly than h10 & h4 usually
+            "11": 5, #dominant in most samples
+            "3": 3, #shows up in some samples strongly, but not all
+            #"6": 7, #showed up in one of the samples as significant but I don't buy it.
             },
          'antihouses': {12:7}, #overrep in low CHA
          'bodies': {
-            "Sun":2,
-            "Mercury": 6, #overrep in high CHA and highest CHA
-            "Venus":2,
+            "Sun":1,
+            "Mercury": 11, #overrep in high CHA and highest CHA
+            "Venus":1,
             "Saturn":1,
             },
          'antibodies': {
@@ -1136,27 +1138,33 @@ DND_STAT_PREDICTORS = { #mostly currently theoretical, just based on lore - unle
             "Mercury":-4, #both overrepresented in high CHA & underrep in low CHA
             },
          'nakshatras': { #consider disabling - didn't show up in "HIGH CHA" at all
-            "Ashlesha": 5,
-            "Mrigashira": 4,
-            "Chitra":2,
-            "Swati":2,
-            "Dhanishta":4,
-            "Uttara Bhadrapada":3,
-            "Pushya":3,
-            "Revati":-3
+            # "Ashlesha": 5,
+            # "Mrigashira": 4,
+            # "Chitra":2,
+            # "Swati":2,
+            # "Dhanishta":4,
+            # "Uttara Bhadrapada":3,
+            # "Pushya":3,
+            # "Revati":-3
             },
          'antinakshatras': { #consider disabling - didn't show up in "HIGH CHA" at all
-            "Ashwini":11,
-            "Magha":10,
-            "Punarvasu":11,
-            "Mula":8,
+            # "Ashwini":11,
+            # "Magha":10,
+            # "Punarvasu":11,
+            # "Mula":8,
          },
          'positions': {
             'Sun': {'signs': {'Gemini': 5,'Leo':4,'Sagittarius':2,'Aquarius':2,},'houses':{'2':6}},
-            'Moon':{'houses':{'3':5}},
+            'Moon':{'signs':{'Taurus':-5},'houses':{'3':5,'6':5}},
+            'Neptune':{'signs':{'Leo':6},'houses':{'6':8}},
+            'Rahu':{'signs':{'Aquarius':6}},
+            'Chiron':{'signs':{'Aquarius':-8}},
             'Ceres':{'signs':{'Leo':5,'Scorpio':-4}},
             'Pallas':{'signs':{'Cancer':4}},
-            'Vesta':{'signs':{'Cancer':5,'Aquarius':-4}},
+            'Vesta':{'signs':{'Cancer':5,'Aquarius':-4,'Taurus':6,'Leo':-5}},
+            'Juno':{'houses':{'4':7}},
+            'Fortune':{'houses':{'7':-6}},
+            'Lilith':{'houses':{'12':6}},
             'Aries in H2':4,
             'Libra in H8':4,
          }, #Aquarius was both overrepresented in highest CHA and lowest CHA.
