@@ -24361,6 +24361,22 @@ class MainWindow(QMainWindow):
         return None
 
     @staticmethod
+    def _metric_canvas_available_layout_width(canvas: FigureCanvas) -> int | None:
+        """Return the width a metric canvas may occupy inside its scroll panel."""
+        parent = canvas.parentWidget()
+        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
+        if viewport_width is None:
+            return None
+
+        available_width = viewport_width
+        if parent is not None:
+            parent_layout = parent.layout()
+            if parent_layout is not None:
+                margins = parent_layout.contentsMargins()
+                available_width -= margins.left() + margins.right()
+        return max(1, available_width)
+
+    @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
         figure = canvas.figure
         figure_width, figure_height = figure.get_size_inches()
@@ -24379,9 +24395,17 @@ class MainWindow(QMainWindow):
         # scroll viewport instead of honoring that oversized hint or collapsing
         # to a 0-width black rectangle when the analytics layout is top-aligned.
         canvas.setMinimumWidth(1)
-        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
-        if viewport_width is not None:
-            canvas.setMaximumWidth(viewport_width)
+        available_width = MainWindow._metric_canvas_available_layout_width(canvas)
+        if available_width is not None:
+            canvas.setMaximumWidth(available_width)
+            # Matplotlib's Qt canvas can keep a stale backing-buffer width when a
+            # chart redraw happens before the right-panel layout has completed.
+            # Clamp the actual widget width immediately so the draw below uses the
+            # same bounds as the scroll-panel viewport instead of painting a wider
+            # graph that gets cropped on the right.
+            current_height = max(canvas.height(), display_height, 1)
+            if canvas.width() != available_width or canvas.height() < current_height:
+                canvas.resize(available_width, current_height)
         else:
             canvas.setMaximumWidth(16777215)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
