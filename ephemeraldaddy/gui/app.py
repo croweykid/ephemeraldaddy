@@ -24361,6 +24361,22 @@ class MainWindow(QMainWindow):
         return None
 
     @staticmethod
+    def _metric_canvas_available_layout_width(canvas: FigureCanvas) -> int | None:
+        """Return the width a metric canvas may occupy inside its scroll panel."""
+        parent = canvas.parentWidget()
+        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
+        if viewport_width is None:
+            return None
+
+        available_width = viewport_width
+        if parent is not None:
+            parent_layout = parent.layout()
+            if parent_layout is not None:
+                margins = parent_layout.contentsMargins()
+                available_width -= margins.left() + margins.right()
+        return max(1, available_width)
+
+    @staticmethod
     def _apply_metric_chart_sizing(canvas: FigureCanvas) -> None:
         figure = canvas.figure
         figure_width, figure_height = figure.get_size_inches()
@@ -24379,9 +24395,9 @@ class MainWindow(QMainWindow):
         # scroll viewport instead of honoring that oversized hint or collapsing
         # to a 0-width black rectangle when the analytics layout is top-aligned.
         canvas.setMinimumWidth(1)
-        viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)
-        if viewport_width is not None:
-            canvas.setMaximumWidth(viewport_width)
+        available_width = MainWindow._metric_canvas_available_layout_width(canvas)
+        if available_width is not None:
+            canvas.setMaximumWidth(available_width)
         else:
             canvas.setMaximumWidth(16777215)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -30028,10 +30044,10 @@ class MainWindow(QMainWindow):
         canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
-        try:
-            canvas.draw()
-        except RuntimeError:
-            return
+        # Avoid a synchronous Matplotlib draw while Qt may still be settling the
+        # stacked right-panel/scroll-area geometry. Drawing immediately can paint
+        # one frame at an outdated canvas width before the scheduled post-layout
+        # refresh corrects it, which makes the panel graphs appear to wiggle.
         self._schedule_metric_canvas_layout_refresh(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
