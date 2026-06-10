@@ -238,7 +238,7 @@ def format_dnd_class_info_text(
 
 
 def format_dnd_statblock_info_text(profile_lines: list[str]) -> str:
-    header = "D&D Statblock"
+    header = ""
     if profile_lines:
         return "\n".join([header, "", *profile_lines])
     return "\n".join([header, "", "‣ Stat block profile unavailable for this chart."])
