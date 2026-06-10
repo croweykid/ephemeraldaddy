@@ -10430,7 +10430,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         return not (
-            self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+            not getattr(self, "_hide_hypothetical_charts", False)
+            and self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and (self.living_checkbox is None or self.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
@@ -18156,7 +18157,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._update_selection_header()
+        self._on_selection_changed()
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
