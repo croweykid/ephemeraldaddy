@@ -46,6 +46,81 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
 )
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
 
+SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
+DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("name", "Name"),
+    ("alias", "Alias"),
+    ("from_whence", "From"),
+    ("birth_date", "Birth date"),
+    ("birth_time", "Birth time"),
+    ("birth_place", "Birth place"),
+    ("current_age", "Current age"),
+    ("sign_glyphs", "Sun/Moon/Rising sign glyphs"),
+    ("gender", "Gender glyph"),
+)
+DATABASE_VIEW_ROW_INFO_DEFAULTS: dict[str, bool] = {
+    key: True for key, _label in DATABASE_VIEW_ROW_INFO_OPTIONS
+}
+
+
+def _settings_bool(value: object, fallback: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(fallback)
+
+
+def _load_database_view_row_info_visibility(settings) -> dict[str, bool]:
+    payload = settings.value(SETTINGS_KEY_DATABASE_VIEW_ROW_INFO, {})
+    if not isinstance(payload, dict):
+        payload = {}
+    return {
+        key: _settings_bool(payload.get(key, default), default)
+        for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
+    }
+
+
+def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool]) -> None:
+    settings.setValue(
+        SETTINGS_KEY_DATABASE_VIEW_ROW_INFO,
+        {
+            key: bool(visibility.get(key, default))
+            for key, default in DATABASE_VIEW_ROW_INFO_DEFAULTS.items()
+        },
+    )
+
+
+def _current_age_from_datetime_iso(
+    datetime_iso: str | None,
+    *,
+    today: datetime.date | None = None,
+) -> int | None:
+    if not datetime_iso:
+        return None
+    parsed_dt, _time_missing = parse_datetime_value(datetime_iso)
+    if parsed_dt is None:
+        return None
+    today_value = today or datetime.datetime.now(datetime.timezone.utc).date()
+    birth_date = parsed_dt.date()
+    age = today_value.year - birth_date.year
+    try:
+        birthday_this_year = birth_date.replace(year=today_value.year)
+    except ValueError:
+        # Treat Feb. 29 birthdays as having occurred on Feb. 28 in non-leap years.
+        birthday_this_year = datetime.date(today_value.year, 2, 28)
+    if today_value < birthday_this_year:
+        age -= 1
+    if age < 0:
+        return None
+    return age
+
 
 def _new_debug_action_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
@@ -1953,6 +2028,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(
             SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH,
             int(self._wikipedia_backup_search_enabled),
+        )
+        self._database_view_row_info_visibility = _load_database_view_row_info_visibility(
+            self._settings
+        )
+        _save_database_view_row_info_visibility(
+            self._settings,
+            self._database_view_row_info_visibility,
         )
         self._batch_tagging_terminal_debug = load_batch_tagging_terminal_debug_enabled(
             self._settings,
@@ -17777,6 +17859,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_positions = {
             row[0]: index for index, row in enumerate(rows, start=1)
         }
+        row_info_visibility = getattr(
+            self,
+            "_database_view_row_info_visibility",
+            DATABASE_VIEW_ROW_INFO_DEFAULTS,
+        )
         try:
             for (
                 cid,
@@ -17845,18 +17932,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
                 place = birth_place or ""
                 gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
-                place_with_gender = f"{place} {gender_glyph}".rstrip() if place or gender_glyph else ""
-                chart_info_segments = self._chart_row_chart_info_segments(chart)
+                current_age = _current_age_from_datetime_iso(dt_iso)
+                current_age_label = f"({current_age})" if current_age is not None else ""
+                chart_info_segments = (
+                    self._chart_row_chart_info_segments(chart)
+                    if row_info_visibility.get("sign_glyphs", True)
+                    else []
+                )
                 chart_info_label = "".join(
                     f"{segment.get('text', '')}{' ' if segment.get('space_after', True) else ''}"
                     for segment in chart_info_segments
                 ).strip()
                 row_prefix = "💀  " if bool(is_deceased) else ""
-                label = (
-                    f"{row_prefix}#{chart_positions.get(cid, '?')}  "
-                    f"{display_name}  {alias_label}  {from_whence_label}  {chart_info_label}  "
-                    f"{date_label}  {time_label}  {retcon_time_label}  {place_with_gender}"
-                )
+                visible_label_parts = [f"{row_prefix}#{chart_positions.get(cid, '?')}"]
+                if row_info_visibility.get("name", True):
+                    visible_label_parts.append(display_name)
+                if row_info_visibility.get("alias", True) and alias_label:
+                    visible_label_parts.append(alias_label)
+                if row_info_visibility.get("from_whence", True) and from_whence_label:
+                    visible_label_parts.append(from_whence_label)
+                if row_info_visibility.get("sign_glyphs", True) and chart_info_label:
+                    visible_label_parts.append(chart_info_label)
+                if row_info_visibility.get("birth_date", True):
+                    visible_label_parts.append(date_label)
+                if row_info_visibility.get("birth_time", True):
+                    visible_label_parts.append(time_label)
+                if row_info_visibility.get("birth_time", True) and retcon_time_label:
+                    visible_label_parts.append(retcon_time_label)
+                if row_info_visibility.get("birth_place", True) and place:
+                    visible_label_parts.append(place)
+                if row_info_visibility.get("gender", True) and gender_glyph:
+                    visible_label_parts.append(gender_glyph)
+                if row_info_visibility.get("current_age", True) and current_age_label:
+                    visible_label_parts.append(current_age_label)
+                label = "  ".join(part for part in visible_label_parts if part)
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, cid)
                 is_hypothetical = _chart_row_is_hypothetical(
@@ -17941,15 +18050,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     Qt.UserRole + 1,
                     {
                         "position": chart_positions.get(cid, "?"),
-                        "name": display_name,
+                        "name": display_name if row_info_visibility.get("name", True) else "",
                         "raw_name": name or "Unnamed",
-                        "alias": alias_text,
-                        "from_whence": from_whence_text,
-                        "date": date_label,
-                        "time": time_label,
+                        "alias": alias_text if row_info_visibility.get("alias", True) else "",
+                        "from_whence": from_whence_text if row_info_visibility.get("from_whence", True) else "",
+                        "date": date_label if row_info_visibility.get("birth_date", True) else "",
+                        "time": time_label if row_info_visibility.get("birth_time", True) else "",
                         "chart_info": chart_info_segments,
-                        "retcon_time": retcon_time_label,
-                        "place": place_with_gender,
+                        "retcon_time": retcon_time_label if row_info_visibility.get("birth_time", True) else "",
+                        "place": place if row_info_visibility.get("birth_place", True) else "",
+                        "gender": gender_glyph if row_info_visibility.get("gender", True) else "",
+                        "current_age": current_age_label if row_info_visibility.get("current_age", True) else "",
                         "is_placeholder": bool(is_placeholder),
                         "is_hypothetical": bool(is_hypothetical),
                         "is_deceased": bool(is_deceased),
@@ -19693,6 +19804,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
                 significance_combo.setCurrentIndex(correction_index if correction_index >= 0 else 0)
                 del blocker
+            row_info_checkboxes = getattr(self, "_database_view_row_info_checkboxes", {})
+            if isinstance(row_info_checkboxes, dict):
+                for key, checkbox in row_info_checkboxes.items():
+                    if isinstance(checkbox, QCheckBox):
+                        blocker = QSignalBlocker(checkbox)
+                        checkbox.setChecked(
+                            bool(
+                                getattr(self, "_database_view_row_info_visibility", {}).get(
+                                    key,
+                                    DATABASE_VIEW_ROW_INFO_DEFAULTS.get(str(key), True),
+                                )
+                            )
+                        )
+                        del blocker
             self._resize_and_center_settings_dialog(self._settings_dialog)
             return self._settings_dialog
 
@@ -19856,6 +19981,36 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         )
         visibility_section.addWidget(bazi_checkbox)
+
+        database_view_section = self._add_settings_collapsible_section(
+            content_layout,
+            "Database View",
+        )
+        database_view_help = QLabel(
+            "Choose which details appear in the middle-panel chart list. "
+            "Uncheck any field you want hidden from every Database View row."
+        )
+        database_view_help.setWordWrap(True)
+        database_view_section.addWidget(database_view_help)
+        self._database_view_row_info_checkboxes = {}
+        for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
+            checkbox = QCheckBox(f"Show {row_info_label}")
+            checkbox.setChecked(
+                bool(
+                    self._database_view_row_info_visibility.get(
+                        row_info_key,
+                        DATABASE_VIEW_ROW_INFO_DEFAULTS.get(row_info_key, True),
+                    )
+                )
+            )
+            checkbox.toggled.connect(
+                lambda checked, key=row_info_key: self._set_database_view_row_info_visibility(
+                    key,
+                    checked,
+                )
+            )
+            self._database_view_row_info_checkboxes[row_info_key] = checkbox
+            database_view_section.addWidget(checkbox)
 
         chart_calculation_section = self._add_settings_collapsible_section(
             content_layout,
@@ -20795,6 +20950,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _set_database_metric_section_visibility_from_settings(self, section_key: str, checked: bool) -> None:
         self._set_database_metrics_section_visible(section_key, checked)
         self._refresh_charts(refresh_metrics=True)
+
+    def _set_database_view_row_info_visibility(self, row_info_key: str, checked: bool) -> None:
+        if row_info_key not in DATABASE_VIEW_ROW_INFO_DEFAULTS:
+            return
+        self._database_view_row_info_visibility[row_info_key] = bool(checked)
+        _save_database_view_row_info_visibility(
+            self._settings,
+            self._database_view_row_info_visibility,
+        )
+        self._settings.sync()
+        self._populate_list(
+            selected_ids=set(self._selected_chart_ids()) or None,
+            refresh_metrics=False,
+        )
 
     def _set_standard_deviation_indicator_visibility_from_settings(self, checked: bool) -> None:
         self._visibility.set("charts.standard_deviation_indicators", checked)
