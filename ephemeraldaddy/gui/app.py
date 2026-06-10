@@ -24408,9 +24408,9 @@ class MainWindow(QMainWindow):
             # Clamp the actual widget width immediately so the draw below uses the
             # same bounds as the scroll-panel viewport instead of painting a wider
             # graph that gets cropped on the right.
-            current_height = max(canvas.height(), display_height, 1)
-            if canvas.width() != available_width or canvas.height() < current_height:
-                canvas.resize(available_width, current_height)
+            # current_height = max(canvas.height(), display_height, 1)
+            # if canvas.width() != available_width or canvas.height() < current_height:
+            #     canvas.resize(available_width, current_height)
         else:
             canvas.setMaximumWidth(16777215)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -30057,10 +30057,14 @@ class MainWindow(QMainWindow):
         canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
-        try:
-            canvas.draw()
-        except RuntimeError:
-            return
+        # try:
+        #     canvas.draw()
+        # except RuntimeError:
+        #     return
+        # Avoid a synchronous Matplotlib draw while Qt may still be settling the
+        # stacked right-panel/scroll-area geometry. Drawing immediately can paint
+        # one frame at an outdated canvas width before the scheduled post-layout
+        # refresh corrects it, which makes the panel graphs appear to wiggle.
         self._schedule_metric_canvas_layout_refresh(canvas)
 
     def _render_chart(self, chart: Chart) -> None:
