@@ -17845,10 +17845,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        self._database_total_count = len(rows)
-        rows = [row for row in rows if self._chart_in_active_collection(row)]
         if getattr(self, "_hide_hypothetical_charts", False):
-            rows = [row for row in rows if not _chart_row_is_hypothetical(row)]
+            display_database_rows = [
+                row for row in rows if not _chart_row_is_hypothetical(row)
+            ]
+        else:
+            display_database_rows = rows
+        self._database_total_count = len(display_database_rows)
+        rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
