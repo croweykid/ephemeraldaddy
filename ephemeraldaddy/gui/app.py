@@ -14500,9 +14500,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._batch_refresh_in_progress,
         )
         if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
-            self._mark_chart_analytics_sections_lucy_goosey()
+            # Batch metadata edits do not recalculate the open chart.  Refresh the
+            # text summary only; analytics/prediction graphs remain keyed to the
+            # chart's birth date, time, and place token.
             if self._latest_chart is not None:
-                self._schedule_chart_render(self._latest_chart)
+                self._schedule_chart_render(self._latest_chart, sections={"summary"})
 
         def _refresh_and_restore_selection() -> None:
             if self._batch_refresh_in_progress:
@@ -20091,7 +20093,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Chart Calculation Methods",
         )
         chart_calculation_section.addWidget(
-            QLabel("Select which Black Moon Lilith ephemeris model to display.")
+            QLabel("Select which Lilith ephemeris model to display.")
         )
 
         lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
@@ -20923,12 +20925,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            #label.setMinimumHeight(0)
-            label.setMinimumHeight(label.fontMetrics().lineSpacing())
+            label.setMinimumHeight(0)
             label.setMaximumHeight(16777215)
             label.setAlignment(label.alignment() | Qt.AlignTop)
-            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            #label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label_size_policy.setHeightForWidth(True)
+            label.setSizePolicy(label_size_policy)
+            label.adjustSize()
             label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
@@ -20936,7 +20939,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 button.setMinimumHeight(button.fontMetrics().lineSpacing() + 8)
                 button.setMaximumHeight(16777215)
                 button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+                button.adjustSize()
                 button.updateGeometry()
+
+        self._refresh_settings_section_geometry(root)
+
+    def _refresh_settings_section_geometry(self, root: QWidget) -> None:
+        """Invalidate cached fixed-size hints inside settings sections.
+
+        Word-wrapped Qt labels calculate their height from their current width.  The
+        settings sections are frequently populated while collapsed, so force the
+        nested layouts and visible content frames to recalculate instead of reusing
+        the compact height hints that can crop the first or last text row.
+        """
+        for layout in root.findChildren(QLayout):
+            layout.invalidate()
+            layout.activate()
+        root_layout = root.layout()
+        if root_layout is not None:
+            root_layout.invalidate()
+            root_layout.activate()
+        for frame in root.findChildren(QFrame):
+            if frame.objectName() == "settings_section_content" and frame.isVisible():
+                frame.adjustSize()
+                frame.updateGeometry()
+        root.adjustSize()
+        root.updateGeometry()
 
     def _add_settings_collapsible_section(
         self,
@@ -20948,7 +20976,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(4)
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -20963,9 +20991,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_content = QFrame()
         section_content.setObjectName("settings_section_content")
         section_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        section_content.setMinimumHeight(0)
+        section_content.setMaximumHeight(16777215)
         section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         section_content_layout = QVBoxLayout(section_content)
-        section_content_layout.setSizeConstraint(QLayout.SetMinimumSize)
+        section_content_layout.setSizeConstraint(QLayout.SetDefaultConstraint)
         section_content_layout.setContentsMargins(12, 10, 12, 10)
         section_content_layout.setSpacing(8)
         container_layout.addWidget(section_content)
@@ -20973,10 +21003,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _toggle_section(checked: bool) -> None:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             section_content.setVisible(checked)
-            section_content.updateGeometry()
-            container.updateGeometry()
+            self._refresh_settings_section_geometry(container)
             if self._settings_dialog is not None:
                 self._settings_dialog.layout().activate()
+                QTimer.singleShot(0, lambda: self._refresh_settings_section_geometry(container))
             self._settings_section_expanded_session[title] = checked
 
         toggle.toggled.connect(_toggle_section)
@@ -25995,8 +26025,7 @@ class MainWindow(QMainWindow):
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
         if getattr(state, "active_tab", None) == "predictions":
-            self._render_enneagram_predictions(chart)
-            self._render_dndification_predictions(chart)
+            self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -29234,8 +29263,24 @@ class MainWindow(QMainWindow):
             self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        previous_recalculation_token = (
+            self._chart_analytics_cache_token(self._latest_chart)
+            if (
+                self._latest_chart is not None
+                and self.current_chart_id == chart_id
+            )
+            else None
+        )
         self._cache_chart_view_navigation_entry(chart_id, chart)
-        self._mark_chart_analytics_sections_lucy_goosey()
+        new_recalculation_token = self._chart_analytics_cache_token(chart)
+        chart_recalculated = bool(
+            is_new_chart or previous_recalculation_token != new_recalculation_token
+        )
+        if chart_recalculated:
+            self._mark_chart_analytics_sections_lucy_goosey()
+            state = getattr(self, "_chart_right_panel_state", None)
+            if state is not None:
+                state.last_render_chart_token = None
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place

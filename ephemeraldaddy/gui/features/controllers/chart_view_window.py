@@ -858,6 +858,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout = QVBoxLayout()
     layout.setContentsMargins(6, 6, 6, 6)
     layout.setSpacing(6)
+    layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
@@ -869,6 +870,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.enneagram_prediction_chart_panel = QWidget()
     owner.enneagram_prediction_chart_layout = QVBoxLayout()
     owner.enneagram_prediction_chart_layout.setContentsMargins(0, 0, 0, 0)
+    owner.enneagram_prediction_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.enneagram_prediction_chart_panel.setLayout(owner.enneagram_prediction_chart_layout)
     enneagram_section_layout.addWidget(owner.enneagram_prediction_chart_panel)
     owner.enneagram_prediction_tritype_label = QLabel("Predicted Tritype: —")
@@ -887,6 +889,7 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     owner.dnd_predictions_chart_layout = QVBoxLayout()
     owner.dnd_predictions_chart_layout.setContentsMargins(0, 0, 0, 0)
     owner.dnd_predictions_chart_layout.setSpacing(6)
+    owner.dnd_predictions_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     owner.dnd_predictions_chart_panel.setLayout(owner.dnd_predictions_chart_layout)
     dnd_section_layout.addWidget(owner.dnd_predictions_chart_panel)
     layout.addStretch(1)
