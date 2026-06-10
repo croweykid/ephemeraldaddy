@@ -517,34 +517,36 @@ class _CollapsibleHeaderHoverFilter(QObject):
 
 def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
     """Animate a compact left/right wiggle on a clicked collapsible header."""
+    origin = toggle.pos()
     previous_animation = getattr(toggle, "_collapsible_header_wiggle_animation", None)
     if previous_animation is not None:
         previous_animation.stop()
-        origin = getattr(toggle, "_collapsible_header_wiggle_origin", None)
-        if isinstance(origin, QPoint):
-            toggle.move(origin)
+        previous_origin = getattr(toggle, "_collapsible_header_wiggle_origin", None)
+        if isinstance(previous_origin, QPoint):
+            toggle.move(previous_origin)
             origin = toggle.pos()
     toggle._collapsible_header_wiggle_origin = origin  # type: ignore[attr-defined]
     wiggle_offset = COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX
     if toggle.layoutDirection() == Qt.RightToLeft:
         wiggle_offset *= -1
 
-        animation = QPropertyAnimation(toggle, b"pos", toggle)
-        animation.setDuration(COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS)
-        animation.setEasingCurve(QEasingCurve.InOutSine)
-        animation.setStartValue(origin)
-        half_wiggle_offset = max(1, abs(wiggle_offset) // 2)
-        if wiggle_offset < 0:
-            half_wiggle_offset *= -1
-        animation.setKeyValueAt(0.25, origin + QPoint(wiggle_offset, 0))
-        animation.setKeyValueAt(0.50, origin + QPoint(-wiggle_offset, 0))
-        animation.setKeyValueAt(0.75, origin + QPoint(half_wiggle_offset, 0))
-        animation.setEndValue(origin)
-        animation.finished.connect(
-            lambda header_toggle=toggle, start_pos=origin: header_toggle.move(start_pos)
-        )
-        toggle._collapsible_header_wiggle_animation = animation  # type: ignore[attr-defined]
-        animation.start()
+    animation = QPropertyAnimation(toggle, b"pos", toggle)
+    animation.setDuration(COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS)
+    animation.setEasingCurve(QEasingCurve.InOutSine)
+    animation.setStartValue(origin)
+    half_wiggle_offset = max(1, abs(wiggle_offset) // 2)
+    if wiggle_offset < 0:
+        half_wiggle_offset *= -1
+    animation.setKeyValueAt(0.25, origin + QPoint(wiggle_offset, 0))
+    animation.setKeyValueAt(0.50, origin + QPoint(-wiggle_offset, 0))
+    animation.setKeyValueAt(0.75, origin + QPoint(half_wiggle_offset, 0))
+    animation.setEndValue(origin)
+    animation.finished.connect(
+        lambda header_toggle=toggle, start_pos=origin: header_toggle.move(start_pos)
+    )
+    toggle._collapsible_header_wiggle_animation = animation  # type: ignore[attr-defined]
+    animation.start()
+
 
 def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
     """Install the shared hover and click-wiggle behavior on a collapsible header."""
