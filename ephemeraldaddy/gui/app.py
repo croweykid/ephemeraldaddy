@@ -1815,6 +1815,13 @@ def _configure_similarities_export_button(
     button_font.setPointSize(5)
     button.setFont(button_font)
     button.setFlat(True)
+    button.setStyleSheet(
+        "QPushButton {"
+        " border: 0px;"
+        " margin: 0px;"
+        " padding: 0px 2px 0px 2px;"
+        "}"
+    )
     button.setMinimumWidth(button.sizeHint().width())
     button.setFixedHeight(20)
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
