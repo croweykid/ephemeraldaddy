@@ -97,6 +97,23 @@ def _save_database_view_row_info_visibility(settings, visibility: dict[str, bool
     )
 
 
+def _birth_components_form_complete_date(
+    birth_month: object,
+    birth_day: object,
+    birth_year: object,
+) -> bool:
+    try:
+        month = int(birth_month)
+        day = int(birth_day)
+        year = int(birth_year)
+    except (TypeError, ValueError):
+        return False
+    try:
+        datetime.date(year, month, day)
+    except ValueError:
+        return False
+    return True
+
 def _current_age_from_datetime_iso(
     datetime_iso: str | None,
     *,
@@ -17932,7 +17949,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 retcon_time_label = f"({retcon_time_value})" if retcon_time_used and has_known_retcon_time else ""
                 place = birth_place or ""
                 gender_glyph = GENDER_GLYPHS.get((gender or "").strip().upper(), "")
-                current_age = _current_age_from_datetime_iso(dt_iso)
+                current_age = None
+                if (
+                    not bool(is_placeholder)
+                    or _birth_components_form_complete_date(
+                        _birth_month,
+                        _birth_day,
+                        _birth_year,
+                    )
+                ):
+                    current_age = _current_age_from_datetime_iso(dt_iso)
                 current_age_label = f"({current_age})" if current_age is not None else ""
                 chart_info_segments = (
                     self._chart_row_chart_info_segments(chart)
