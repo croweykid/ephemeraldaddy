@@ -10,7 +10,7 @@ from PySide6.QtCore import (
     Qt,
     QVariantAnimation,
 )
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import (
     QAbstractButton,
     QComboBox,
@@ -520,6 +520,23 @@ def _display_text_for_collapsible_header_burst(title: str) -> str:
     placeholder = "\0"
     return title.replace("&&", placeholder).replace("&", "").replace(placeholder, "&")
 
+def _collapsible_header_text_center(toggle: QToolButton, text: str) -> QPoint:
+    """Return the center point of the visible header text in the toggle's window space."""
+    text_width = QFontMetrics(toggle.font()).horizontalAdvance(text)
+    icon_width = toggle.iconSize().width()
+    if toggle.arrowType() != Qt.NoArrow:
+        icon_width = max(icon_width, toggle.iconSize().height())
+    text_gap = 4 if icon_width > 0 else 0
+    left_padding = 6
+    text_center_x = left_padding + icon_width + text_gap + (text_width // 2)
+    if toggle.layoutDirection() == Qt.RightToLeft:
+        text_center_x = toggle.width() - text_center_x
+    text_center_x = max(0, min(text_center_x, toggle.width()))
+    text_center = QPoint(text_center_x, toggle.height() // 2)
+
+    window = toggle.window()
+    parent: QWidget = window if isinstance(window, QWidget) else toggle
+    return toggle.mapTo(parent, text_center)
 
 def _run_collapsible_header_burst(toggle: QToolButton) -> None:
     """Animate a transient copy of the header text growing and fading on click."""
@@ -543,7 +560,7 @@ def _run_collapsible_header_burst(toggle: QToolButton) -> None:
     label.setFont(start_font)
     label.adjustSize()
 
-    start_center = toggle.mapTo(parent, QPoint(toggle.width() // 2, toggle.height() // 2))
+    start_center = _collapsible_header_text_center(toggle, text)
     label.move(
         start_center.x() - (label.width() // 2),
         start_center.y() - (label.height() // 2),
