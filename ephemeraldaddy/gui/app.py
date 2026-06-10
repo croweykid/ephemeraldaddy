@@ -24404,13 +24404,14 @@ class MainWindow(QMainWindow):
         if available_width is not None:
             canvas.setMaximumWidth(available_width)
             # Matplotlib's Qt canvas can keep a stale backing-buffer width when a
-            # chart redraw happens before the right-panel layout has completed.
-            # Clamp the actual widget width immediately so the draw below uses the
-            # same bounds as the scroll-panel viewport instead of painting a wider
-            # graph that gets cropped on the right.
-            # current_height = max(canvas.height(), display_height, 1)
-            # if canvas.width() != available_width or canvas.height() < current_height:
-            #     canvas.resize(available_width, current_height)
+            # chart redraw happens before the right-panel layout has completed or
+            # after _render_metric_panel restores the logical figure inches for a
+            # new chart. Clamp the actual widget size so the next draw uses the
+            # scroll-panel viewport bounds instead of painting a wider graph that
+            # gets clipped/right-justified outside the panel.
+            current_height = max(canvas.height(), display_height, 1)
+            if canvas.width() != available_width or canvas.height() < current_height:
+                canvas.resize(available_width, current_height)
         else:
             canvas.setMaximumWidth(16777215)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
