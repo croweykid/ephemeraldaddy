@@ -20091,7 +20091,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Chart Calculation Methods",
         )
         chart_calculation_section.addWidget(
-            QLabel("Select which Black Moon Lilith ephemeris model to display.")
+            QLabel("Select which Lilith ephemeris model to display.")
         )
 
         lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
