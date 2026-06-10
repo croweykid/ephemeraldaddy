@@ -28,7 +28,12 @@ from ephemeraldaddy.core.interpretations import (
 
 from ephemeraldaddy.gui.features.charts.presentation import abbreviate_nakshatra_label
 from ephemeraldaddy.gui.features.charts.exporters import get_text_export_path
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, configure_collapsible_header_toggle, configure_share_export_icon_button
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    apply_shared_dropdown_style,
+    configure_collapsible_header_toggle,
+    configure_share_export_icon_button,
+)
 
 SIGN_ORDER = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -151,13 +156,15 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     left_layout.setContentsMargins(0, 0, 0, 0)
     left_layout.setSpacing(6)
     search_row = QHBoxLayout()
-    search_row.setContentsMargins(8, 6, 8, 0)
+    search_row.setContentsMargins(2, 6, 2, 0)
     search_row.setSpacing(6)
     sign_combo = QComboBox(left_panel)
     sign_combo.addItems(SIGN_ORDER)
+    apply_shared_dropdown_style(sign_combo)
     sign_combo.setToolTip("Select a zodiac sign to search on the reference circle")
     degree_combo = QComboBox(left_panel)
     degree_combo.addItems([str(degree) for degree in range(31)])
+    apply_shared_dropdown_style(degree_combo)
     degree_combo.setToolTip("Select a degree from 0 to 30 within the chosen sign")
     search_button = QPushButton("Search", left_panel)
     search_button.setToolTip("Show the selected sign degree and mark it on the circle")
