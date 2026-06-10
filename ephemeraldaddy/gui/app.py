@@ -20882,10 +20882,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            label.setMinimumHeight(0)
+            #label.setMinimumHeight(0)
+            label.setMinimumHeight(label.fontMetrics().lineSpacing())
             label.setMaximumHeight(16777215)
             label.setAlignment(label.alignment() | Qt.AlignTop)
             label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            #label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
@@ -24682,18 +24684,34 @@ class MainWindow(QMainWindow):
             self._metric_scroll_widgets.add(viewport)
             viewport.installEventFilter(self)
 
+    
+    def _unregister_metric_chart(self, canvas: QWidget) -> None:
+        """Forget a metric canvas that Qt has removed or deleted."""
+        self._metric_chart_titles.pop(canvas, None)
+        self._metric_scroll_widgets.discard(canvas)
+        self._pending_metric_canvas_layout_refreshes.discard(canvas)
+
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
         self._register_metric_scroll_widget(canvas)
 
+    def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
+        """Return False when a PySide wrapper points at a deleted C++ canvas."""
+        try:
+            return canvas.parentWidget() is not None
+        except RuntimeError:
+            self._unregister_metric_chart(canvas)
+            return False
+
     def _refresh_metric_canvas_after_layout(self, canvas: FigureCanvas) -> None:
         """Re-apply viewport sizing after Qt has settled stacked-panel layout."""
         try:
-            if canvas.parentWidget() is None:
+            if not self._metric_canvas_is_alive(canvas):
                 return
             self._apply_metric_chart_sizing(canvas)
             canvas.draw_idle()
         except RuntimeError:
+            self._unregister_metric_chart(canvas)
             return
 
     def _schedule_metric_canvas_layout_refresh(self, canvas: FigureCanvas) -> None:
@@ -24715,7 +24733,13 @@ class MainWindow(QMainWindow):
     def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
         """Resize visible metric canvases without recalculating right-panel sections."""
         for canvas in list(self._metric_chart_titles):
-            if canvas.isVisible():
+            try:
+                is_visible = canvas.isVisible()
+            except RuntimeError:
+                self._unregister_metric_chart(canvas)
+                continue
+            if is_visible:
+                self._schedule_metric_canvas_layout_refresh
                 self._schedule_metric_canvas_layout_refresh(canvas)
 
     def _handle_metrics_wheel(self, event) -> bool:
@@ -29970,6 +29994,8 @@ class MainWindow(QMainWindow):
             item = layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                if widget in self._metric_chart_titles:
+                    self._unregister_metric_chart(widget)
                 widget.setParent(None)
                 widget.deleteLater()
 
