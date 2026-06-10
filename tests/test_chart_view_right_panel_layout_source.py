@@ -83,3 +83,13 @@ def test_clear_chart_displays_resets_dnd_prediction_canvas_and_summary():
     assert "self.dnd_predictions_chart_layout" in method
     assert "self.dnd_prediction_statblock_canvas = None" in method
     assert "self.dnd_prediction_top_three_label = None" in method
+
+
+def test_settings_dialog_section_labels_wrap_to_available_width():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+
+    assert "def _configure_settings_section_text_wrap" in source
+    assert "label.setWordWrap(True)" in source
+    assert "label.setMinimumWidth(0)" in source
+    assert "label.setSizePolicy(QSizePolicy.Expanding, label.sizePolicy().verticalPolicy())" in source
+    assert "self._configure_settings_section_text_wrap(content)" in source

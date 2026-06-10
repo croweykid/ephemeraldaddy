@@ -20071,6 +20071,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         reset_section.addWidget(reset_interface_button)
         content_layout.addStretch(1)
 
+        self._configure_settings_section_text_wrap(content)
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
@@ -20660,6 +20661,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._reset_interface_layout_to_defaults()
 
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
+
+    def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
+        """Allow settings-section labels to reflow instead of clipping horizontally."""
+        for label in root.findChildren(QLabel):
+            label.setWordWrap(True)
+            label.setMinimumWidth(0)
+            label.setSizePolicy(QSizePolicy.Expanding, label.sizePolicy().verticalPolicy())
 
     def _add_settings_collapsible_section(
         self,
