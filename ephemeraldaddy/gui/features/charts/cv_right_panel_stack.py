@@ -412,6 +412,38 @@ def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> 
     return f"object:{id(chart)}"
 
 
+def _chart_right_panel_analytics_has_stale_sections(owner: object, chart: object) -> bool:
+    """Return whether Analytics needs recalculation for the current chart token."""
+    cache_token = getattr(owner, "_chart_analytics_cache_token", None)
+    render_tokens = getattr(owner, "_chart_analytics_render_tokens", None)
+    dirty_sections = getattr(owner, "_chart_analytics_lucy_goosey_sections", None)
+    if not callable(cache_token) or not isinstance(render_tokens, dict):
+        return True
+
+    current_token = str(cache_token(chart))
+    analytics_sections = (
+        "signs",
+        "planets",
+        "houses",
+        "elements",
+        "nakshatra",
+        "modal",
+        "gender",
+        "planet_dynamics",
+        "chart_type",
+        "similar_charts",
+    )
+    is_renderable = getattr(owner, "_is_chart_analytics_section_renderable", None)
+    for section in analytics_sections:
+        if callable(is_renderable) and not is_renderable(section):
+            continue
+        if dirty_sections is not None and section in dirty_sections:
+            return True
+        if render_tokens.get(section) != current_token:
+            return True
+    return False
+
+
 def schedule_chart_render_for_active_right_panel(owner: object) -> None:
     """Queue right-panel work only when the active chart data token changes."""
     chart = getattr(owner, "_latest_chart", None)
@@ -420,7 +452,8 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
     state = getattr(owner, "_chart_right_panel_state", None)
     active_panel = getattr(state, "active_tab", None)
     if active_panel == "analytics":
-        owner._schedule_chart_render(chart)
+        if _chart_right_panel_analytics_has_stale_sections(owner, chart):
+            owner._schedule_chart_render(chart)
         return
     if active_panel == "predictions":
         render_token = _chart_right_panel_prediction_render_token(owner, chart)

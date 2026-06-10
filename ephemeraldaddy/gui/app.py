@@ -1034,10 +1034,10 @@ GENDER_DROPDOWN_OPTIONS: tuple[tuple[str, str], ...] = (
 GEN_POP_UNSUPPORTED_GENDER_MODES: frozenset[str] = frozenset(
     {"guessed_weight", "guessed_prevalence"}
 )
-# Metric canvases live in narrow scroll panels.  Use a stable logical width
-# for height calculations so they keep the intended aspect ratio without
-# reacting to transient resize widths during section expand/collapse.
-METRIC_CHART_REFERENCE_WIDTH_PX = 280
+# Metric canvases live in narrow scroll panels. Keep their rendered footprint
+# stable so right-panel graphs do not wiggle during tab/layout changes.
+CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX = 240
+CHART_RIGHT_PANEL_GRAPH_SIDE_GUTTER_PX = 5
 GEN_POP_HIDDEN_DATABASE_METRIC_SECTIONS: frozenset[str] = frozenset(
     {
         "sentiment_prevalence",
@@ -20875,10 +20875,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            label.setMinimumHeight(label.fontMetrics().lineSpacing())
+            label.setMinimumHeight(0)
             label.setMaximumHeight(16777215)
             label.setAlignment(label.alignment() | Qt.AlignTop)
-            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
@@ -21873,6 +21873,7 @@ class MainWindow(QMainWindow):
         self.update_button = None
         self.delete_this_chart_button = None
         self._metric_scroll_widgets: set[QWidget] = set()
+        self._pending_metric_canvas_layout_refreshes: set[FigureCanvas] = set()
         self._metric_chart_titles: dict[QWidget, str] = {}
         self._metric_popout_dialogs: list[QDialog] = []
         self._gemstone_chartwheel_popouts: list[QDialog] = []
@@ -24644,26 +24645,24 @@ class MainWindow(QMainWindow):
 
         # FigureCanvas reports a size hint derived from the Matplotlib figure's
         # physical inches (often ~550 px wide here), which is wider than Chart
-        # View's narrow right panel.  Let Qt stretch/shrink the canvas to the
-        # scroll viewport instead of honoring that oversized hint or collapsing
-        # to a 0-width black rectangle when the analytics layout is top-aligned.
+        # View's narrow right panel.  Pin the widget to the current scroll
+        # viewport width minus a 5 px gutter on each side so every graph remains
+        # left-justified and cannot paint outside the right-hand column.
         canvas.setMinimumWidth(1)
         available_width = MainWindow._metric_canvas_available_layout_width(canvas)
         if available_width is not None:
-            available_width = max(1, available_width - 10)
+            available_width = max(
+                1,
+                available_width - (CHART_RIGHT_PANEL_GRAPH_SIDE_GUTTER_PX * 2),
+            )
+            canvas.setMinimumWidth(available_width)
             canvas.setMaximumWidth(available_width)
-            # Matplotlib's Qt canvas can keep a stale backing-buffer width when a
-            # chart redraw happens before the right-panel layout has completed or
-            # after _render_metric_panel restores the logical figure inches for a
-            # new chart. Clamp the actual widget size so the next draw uses the
-            # scroll-panel viewport bounds instead of painting a wider graph that
-            # gets clipped/right-justified outside the panel.
-            current_height = max(canvas.height(), display_height, 1)
-            if canvas.width() != available_width or canvas.height() < current_height:
+            current_height = max(display_height, 1)
+            if canvas.width() != available_width or canvas.height() != current_height:
                 canvas.resize(available_width, current_height)
         else:
             canvas.setMaximumWidth(16777215)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
@@ -24692,13 +24691,25 @@ class MainWindow(QMainWindow):
 
     def _schedule_metric_canvas_layout_refresh(self, canvas: FigureCanvas) -> None:
         """Redraw a metric canvas once pending Qt geometry changes are applied."""
-        QTimer.singleShot(0, lambda metric_canvas=canvas: self._refresh_metric_canvas_after_layout(metric_canvas))
-        QTimer.singleShot(50, lambda metric_canvas=canvas: self._refresh_metric_canvas_after_layout(metric_canvas))
+        pending = getattr(self, "_pending_metric_canvas_layout_refreshes", None)
+        if pending is None:
+            pending = set()
+            self._pending_metric_canvas_layout_refreshes = pending
+        if canvas in pending:
+            return
+        pending.add(canvas)
+
+        def _refresh_once(metric_canvas: FigureCanvas = canvas) -> None:
+            pending.discard(metric_canvas)
+            self._refresh_metric_canvas_after_layout(metric_canvas)
+
+        QTimer.singleShot(0, _refresh_once)
 
     def _schedule_visible_metric_canvas_layout_refreshes(self) -> None:
-        """Refresh metric canvases after right-panel scroll viewport size changes."""
+        """Resize visible metric canvases without recalculating right-panel sections."""
         for canvas in list(self._metric_chart_titles):
-            self._schedule_metric_canvas_layout_refresh(canvas)
+            if canvas.isVisible():
+                self._schedule_metric_canvas_layout_refresh(canvas)
 
     def _handle_metrics_wheel(self, event) -> bool:
         if self.metrics_scroll is None:
@@ -30294,13 +30305,7 @@ class MainWindow(QMainWindow):
             figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
             ax.set_facecolor(CHART_THEME_COLORS["background"])
 
-        figure_width, figure_height = figsize
-        display_height = max(
-            1,
-            int(round(METRIC_CHART_REFERENCE_WIDTH_PX * (figure_height / figure_width)))
-            if figure_width > 0
-            else int(round(figure_height * figure.get_dpi())),
-        )
+        display_height = CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX
         canvas.setProperty("metric_display_height", display_height)
         self._apply_metric_chart_sizing(canvas)
         draw_fn(ax, chart)
