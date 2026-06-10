@@ -20872,15 +20872,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
 
     def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
-        """Allow settings-section labels to reflow vertically and horizontally."""
+        """Allow settings-section text to size itself from its contents.
+
+        The settings dialog contains many labels and option buttons inside collapsible
+        sections.  Keep their widths flexible for wrapping, but do not let any text
+        widget keep a fixed/zero-height hint that can clip ascenders or descenders
+        after a section is expanded.
+        """
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            label.setMinimumHeight(0)
+            label.setMinimumHeight(label.fontMetrics().lineSpacing())
             label.setMaximumHeight(16777215)
             label.setAlignment(label.alignment() | Qt.AlignTop)
-            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             label.updateGeometry()
+
+        for button_type in (QCheckBox, QRadioButton):
+            for button in root.findChildren(button_type):
+                button.setMinimumHeight(button.fontMetrics().lineSpacing() + 8)
+                button.setMaximumHeight(16777215)
+                button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+                button.updateGeometry()
 
     def _add_settings_collapsible_section(
         self,
@@ -20892,6 +20905,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(4)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -20906,7 +20920,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_content = QFrame()
         section_content.setObjectName("settings_section_content")
         section_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         section_content_layout = QVBoxLayout(section_content)
+        section_content_layout.setSizeConstraint(QLayout.SetMinimumSize)
         section_content_layout.setContentsMargins(12, 10, 12, 10)
         section_content_layout.setSpacing(8)
         container_layout.addWidget(section_content)
@@ -20914,6 +20930,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _toggle_section(checked: bool) -> None:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             section_content.setVisible(checked)
+            section_content.updateGeometry()
+            container.updateGeometry()
+            if self._settings_dialog is not None:
+                self._settings_dialog.layout().activate()
             self._settings_section_expanded_session[title] = checked
 
         toggle.toggled.connect(_toggle_section)
