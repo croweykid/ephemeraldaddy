@@ -186,6 +186,38 @@ def test_schedule_render_for_active_tab_analytics():
     assert calls == [("analytics", owner._latest_chart, None)]
 
 
+def test_schedule_render_for_active_tab_analytics_skips_clean_chart_token():
+    owner = _owner()
+    owner._latest_chart = SimpleNamespace(name="same")
+    calls = []
+    owner._chart_analytics_cache_token = lambda chart: f"token:{chart.name}"
+    owner._chart_analytics_render_tokens = {
+        section: "token:same"
+        for section in (
+            "signs",
+            "planets",
+            "houses",
+            "elements",
+            "nakshatra",
+            "modal",
+            "gender",
+            "planet_dynamics",
+            "chart_type",
+            "similar_charts",
+        )
+    }
+    owner._chart_analytics_lucy_goosey_sections = set()
+    owner._is_chart_analytics_section_renderable = lambda _section: True
+    owner._schedule_chart_render = (
+        lambda chart, sections=None: calls.append((chart, sections))
+    )
+    owner._chart_right_panel_state.active_tab = "analytics"
+
+    schedule_chart_render_for_active_right_panel(owner)
+
+    assert calls == []
+
+
 def test_schedule_render_for_active_tab_predictions():
     owner = _owner()
     owner._latest_chart = object()
@@ -205,7 +237,9 @@ def test_schedule_render_for_active_tab_subjective_notes_when_anagrams_visible()
     owner = _owner()
     owner._latest_chart = object()
     calls = []
-    owner._schedule_chart_render = lambda chart, sections=None: calls.append((chart, sections))
+    owner._schedule_chart_render = (
+        lambda chart, sections=None: calls.append((chart, sections))
+    )
     owner._render_enneagram_predictions = lambda _chart: None
     owner._render_dndification_predictions = lambda _chart: None
     owner._is_chart_analysis_section_visible = lambda key: key == "anagrams"
@@ -288,7 +322,9 @@ def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
     owner = _owner()
     owner._latest_chart = object()
     calls = []
-    owner._schedule_chart_render = lambda chart, sections=None: calls.append((chart, sections))
+    owner._schedule_chart_render = (
+        lambda chart, sections=None: calls.append((chart, sections))
+    )
     owner._render_enneagram_predictions = lambda _chart: None
     owner._render_dndification_predictions = lambda _chart: None
     owner._is_chart_analysis_section_visible = lambda _key: False
@@ -297,6 +333,7 @@ def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
     schedule_chart_render_for_active_right_panel(owner)
 
     assert calls == []
+
 
 def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
     owner = _owner()
