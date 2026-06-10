@@ -20929,6 +20929,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             label_size_policy.setHeightForWidth(True)
             label.setSizePolicy(label_size_policy)
+            label.adjustSize()
             label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
@@ -20936,7 +20937,32 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 button.setMinimumHeight(button.fontMetrics().lineSpacing() + 8)
                 button.setMaximumHeight(16777215)
                 button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+                button.adjustSize()
                 button.updateGeometry()
+
+        self._refresh_settings_section_geometry(root)
+
+    def _refresh_settings_section_geometry(self, root: QWidget) -> None:
+        """Invalidate cached fixed-size hints inside settings sections.
+
+        Word-wrapped Qt labels calculate their height from their current width.  The
+        settings sections are frequently populated while collapsed, so force the
+        nested layouts and visible content frames to recalculate instead of reusing
+        the compact height hints that can crop the first or last text row.
+        """
+        for layout in root.findChildren(QLayout):
+            layout.invalidate()
+            layout.activate()
+        root_layout = root.layout()
+        if root_layout is not None:
+            root_layout.invalidate()
+            root_layout.activate()
+        for frame in root.findChildren(QFrame):
+            if frame.objectName() == "settings_section_content" and frame.isVisible():
+                frame.adjustSize()
+                frame.updateGeometry()
+        root.adjustSize()
+        root.updateGeometry()
 
     def _add_settings_collapsible_section(
         self,
@@ -20963,9 +20989,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         section_content = QFrame()
         section_content.setObjectName("settings_section_content")
         section_content.setStyleSheet(COLLAPSIBLE_SECTION_CONTENT_STYLE)
+        section_content.setMinimumHeight(0)
+        section_content.setMaximumHeight(16777215)
         section_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         section_content_layout = QVBoxLayout(section_content)
-        section_content_layout.setSizeConstraint(QLayout.SetMinimumSize)
+        section_content_layout.setSizeConstraint(QLayout.SetDefaultConstraint)
         section_content_layout.setContentsMargins(12, 10, 12, 10)
         section_content_layout.setSpacing(8)
         container_layout.addWidget(section_content)
@@ -20973,14 +21001,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _toggle_section(checked: bool) -> None:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             section_content.setVisible(checked)
-            section_content.layout().activate()
-            section_content.adjustSize()
-            section_content.updateGeometry()
-            container.layout().activate()
-            container.adjustSize()
-            container.updateGeometry()
+            self._refresh_settings_section_geometry(container)
             if self._settings_dialog is not None:
                 self._settings_dialog.layout().activate()
+                QTimer.singleShot(0, lambda: self._refresh_settings_section_geometry(container))
             self._settings_section_expanded_session[title] = checked
 
         toggle.toggled.connect(_toggle_section)
