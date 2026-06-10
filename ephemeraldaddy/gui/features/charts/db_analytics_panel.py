@@ -6,7 +6,7 @@ from ephemeraldaddy.data.genpop import (
     INNER_PLANET_SIGN_DISTRIBUTION_AGGREGATED,
     SUN_SIGN_DISTRIBUTION_AGGREGATED,
 )
-from ephemeraldaddy.core.interpretations import NAKSHATRA_DESCRIPTIONS, NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import NAKSHATRA_PLANET_COLOR, NAKSHATRA_RANGES, ZODIAC_NAMES
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra
 from ephemeraldaddy.gui.features.charts.sign_distribution import SIGN_DISTRIBUTION_DROPDOWN_OPTIONS
 
@@ -91,9 +91,8 @@ def nakshatra_bar_colors(labels: list[str]) -> list[str]:
     fallback = "#6fa8dc"
     colors: list[str] = []
     for label in labels:
-        details = NAKSHATRA_DESCRIPTIONS.get(str(label), {})
-        color = str(details.get("color", "")).strip()
-        colors.append(color or fallback)
+        _ruler, color = NAKSHATRA_PLANET_COLOR.get(str(label), (None, fallback))
+        colors.append(str(color).strip() or fallback)
     return colors
 
 def _decan_baseline_counts(*, baseline_mode: str, database_counts: list[int]) -> list[int]:
