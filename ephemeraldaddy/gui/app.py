@@ -24594,8 +24594,7 @@ class MainWindow(QMainWindow):
         if display_height <= 0 and figure_width > 0:
             display_height = int(round(figure_width * figure.get_dpi()))
         if display_height > 0:
-            canvas.setMinimumHeight(display_height)
-            canvas.setMaximumHeight(16777215)  # Clear any earlier fixed-height cap.
+            canvas.setFixedHeight(display_height)
 
         # FigureCanvas reports a size hint derived from the Matplotlib figure's
         # physical inches (often ~550 px wide here), which is wider than Chart
@@ -24605,6 +24604,7 @@ class MainWindow(QMainWindow):
         canvas.setMinimumWidth(1)
         available_width = MainWindow._metric_canvas_available_layout_width(canvas)
         if available_width is not None:
+            available_width = max(1, available_width - 10)
             canvas.setMaximumWidth(available_width)
             # Matplotlib's Qt canvas can keep a stale backing-buffer width when a
             # chart redraw happens before the right-panel layout has completed or
@@ -24617,7 +24617,7 @@ class MainWindow(QMainWindow):
                 canvas.resize(available_width, current_height)
         else:
             canvas.setMaximumWidth(16777215)
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         canvas.updateGeometry()
 
     def _register_metric_scroll_widget(self, widget: QWidget | None) -> None:
@@ -30038,6 +30038,8 @@ class MainWindow(QMainWindow):
         # be tied to actual completion of the final render pass here.
         reveal_chart_right_panel_after_loading(self)
         self._hide_chart_loading_overlay()
+        if getattr(self._chart_right_panel_state, "active_tab", None) == "predictions":
+            self._schedule_chart_render_for_active_right_panel()
         preload_delay_ms = 700 if bool(getattr(self, "_chart_right_panel_fade_in_progress", False)) else 0
         QTimer.singleShot(
             preload_delay_ms,
@@ -30094,8 +30096,6 @@ class MainWindow(QMainWindow):
 
     def _chart_analytics_cache_token(self, chart: Chart) -> str:
         chart_id = self.current_chart_id
-        name_token = str(getattr(chart, "name", "") or "")
-        alias_token = str(getattr(chart, "alias", "") or "")
         dt_value = getattr(chart, "dt", None)
         dt_token = dt_value.isoformat() if dt_value is not None else "nodt"
         birthtime_unknown_token = int(bool(getattr(chart, "birthtime_unknown", False)))
@@ -30111,12 +30111,9 @@ class MainWindow(QMainWindow):
             f"dt:{dt_token}|birthtime_unknown:{birthtime_unknown_token}|"
             f"retcon_enabled:{retcon_enabled_token}|retcon_time:{retcon_time_token}"
         )
-        if chart_id is not None:
-            return f"id:{int(chart_id)}|name:{name_token}|alias:{alias_token}|{timing_token}"
-        return (
-            f"draft:{name_token}|alias:{alias_token}|{dt_token}|"
-            f"{getattr(chart, 'lat', 0.0):.6f}|{getattr(chart, 'lon', 0.0):.6f}|{timing_token}"
-        )
+        place_token = f"lat:{getattr(chart, 'lat', 0.0):.6f}|lon:{getattr(chart, 'lon', 0.0):.6f}"
+        chart_scope_token = f"id:{int(chart_id)}" if chart_id is not None else "draft"
+        return f"{chart_scope_token}|{place_token}|{timing_token}"
 
     def _mark_chart_analytics_sections_lucy_goosey(self, sections: set[str] | None = None) -> None:
         if sections is None:
@@ -30241,7 +30238,7 @@ class MainWindow(QMainWindow):
             setattr(self, canvas_attr, canvas)
             self._register_metric_chart(canvas, title)
             self._clear_layout_widgets(container_layout)
-            container_layout.addWidget(canvas)
+            container_layout.addWidget(canvas, alignment=Qt.AlignLeft)
         else:
             figure = canvas.figure
             # Keep logical figure sizing for redraws, but avoid forcing a Qt widget resize.
