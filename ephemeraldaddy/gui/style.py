@@ -3,23 +3,23 @@ from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
     QObject,
-    QParallelAnimationGroup,
+    #QParallelAnimationGroup,
     QPoint,
     QPropertyAnimation,
     QSize,
     Qt,
-    QVariantAnimation,
+    #QVariantAnimation,
 )
-from PySide6.QtGui import QFont, QFontMetrics, QIcon
+from PySide6.QtGui import QFont, QIcon#, QFontMetrics
 from PySide6.QtWidgets import (
     QAbstractButton,
     QComboBox,
-    QGraphicsOpacityEffect,
-    QLabel,
+    #QGraphicsOpacityEffect,
+    #QLabel,
     QListView,
     QSizePolicy,
     QToolButton,
-    QWidget,
+    #QWidget,
 )
 
 DARK_THEME = {
@@ -404,8 +404,8 @@ DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
 CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
-COLLAPSIBLE_SECTION_HEADER_BURST_DURATION_MS = 700
-COLLAPSIBLE_SECTION_HEADER_BURST_FONT_GROWTH_PT = 8.0
+COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS = 220
+COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX = 4
 
 
 def collapsible_section_header_toggle_style(
@@ -515,113 +515,51 @@ class _CollapsibleHeaderHoverFilter(QObject):
         return super().eventFilter(watched, event)
 
 
-def _display_text_for_collapsible_header_burst(title: str) -> str:
-    """Convert QToolButton mnemonic text into the visible label used for the burst."""
-    placeholder = "\0"
-    return title.replace("&&", placeholder).replace("&", "").replace(placeholder, "&")
-
-def _collapsible_header_text_center(toggle: QToolButton, text: str) -> QPoint:
-    """Return the center point of the visible header text in the toggle's window space."""
-    text_width = QFontMetrics(toggle.font()).horizontalAdvance(text)
-    icon_width = toggle.iconSize().width()
-    if toggle.arrowType() != Qt.NoArrow:
-        icon_width = max(icon_width, toggle.iconSize().height())
-    text_gap = 4 if icon_width > 0 else 0
-    left_padding = 6
-    text_center_x = left_padding + icon_width + text_gap + (text_width // 2)
+def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
+    """Animate a compact left/right wiggle on a clicked collapsible header."""
+    previous_animation = getattr(toggle, "_collapsible_header_wiggle_animation", None)
+    if previous_animation is not None:
+        previous_animation.stop()
+        origin = getattr(toggle, "_collapsible_header_wiggle_origin", None)
+        if isinstance(origin, QPoint):
+            toggle.move(origin)
+            origin = toggle.pos()
+    toggle._collapsible_header_wiggle_origin = origin  # type: ignore[attr-defined]
+    wiggle_offset = COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX
     if toggle.layoutDirection() == Qt.RightToLeft:
-        text_center_x = toggle.width() - text_center_x
-    text_center_x = max(0, min(text_center_x, toggle.width()))
-    text_center = QPoint(text_center_x, toggle.height() // 2)
+    wiggle_offset *= -1
 
-    window = toggle.window()
-    parent: QWidget = window if isinstance(window, QWidget) else toggle
-    return toggle.mapTo(parent, text_center)
-
-def _run_collapsible_header_burst(toggle: QToolButton) -> None:
-    """Animate a transient copy of the header text growing and fading on click."""
-    text = _display_text_for_collapsible_header_burst(toggle.text()).strip()
-    if not text:
-        return
-
-    window = toggle.window()
-    parent: QWidget = window if isinstance(window, QWidget) else toggle
-    label = QLabel(text, parent)
-    label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-    label.setStyleSheet(
-        "background: transparent; "
-        f"color: {CHART_DATA_HIGHLIGHT_COLOR}; "
-        "font-weight: bold;"
-    )
-
-    start_font = QFont(toggle.font())
-    if start_font.pointSizeF() <= 0:
-        start_font.setPointSizeF(12.0)
-    label.setFont(start_font)
-    label.adjustSize()
-
-    start_center = _collapsible_header_text_center(toggle, text)
-    label.move(
-        start_center.x() - (label.width() // 2),
-        start_center.y() - (label.height() // 2),
-    )
-    label.raise_()
-    label.show()
-
-    opacity_effect = QGraphicsOpacityEffect(label)
-    opacity_effect.setOpacity(1.0)
-    label.setGraphicsEffect(opacity_effect)
-
-    duration = COLLAPSIBLE_SECTION_HEADER_BURST_DURATION_MS
-    start_point_size = start_font.pointSizeF()
-    end_point_size = start_point_size + COLLAPSIBLE_SECTION_HEADER_BURST_FONT_GROWTH_PT
-
-    font_animation = QVariantAnimation(label)
-    font_animation.setStartValue(start_point_size)
-    font_animation.setEndValue(end_point_size)
-    font_animation.setDuration(duration)
-    font_animation.setEasingCurve(QEasingCurve.OutCubic)
-
-    def _resize_burst_label(point_size: float) -> None:
-        font = QFont(label.font())
-        font.setPointSizeF(float(point_size))
-        label.setFont(font)
-        label.adjustSize()
-        label.move(
-            start_center.x() - (label.width() // 2),
-            start_center.y() - (label.height() // 2),
+        animation = QPropertyAnimation(toggle, b"pos", toggle)
+        animation.setDuration(COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS)
+        animation.setEasingCurve(QEasingCurve.InOutSine)
+        animation.setStartValue(origin)
+        half_wiggle_offset = max(1, abs(wiggle_offset) // 2)
+        if wiggle_offset < 0:
+            half_wiggle_offset *= -1
+        animation.setKeyValueAt(0.25, origin + QPoint(wiggle_offset, 0))
+        animation.setKeyValueAt(0.50, origin + QPoint(-wiggle_offset, 0))
+        animation.setKeyValueAt(0.75, origin + QPoint(half_wiggle_offset, 0))
+        animation.setEndValue(origin)
+        animation.finished.connect(
+            lambda header_toggle=toggle, start_pos=origin: header_toggle.move(start_pos)
         )
-
-    font_animation.valueChanged.connect(_resize_burst_label)
-
-    opacity_animation = QPropertyAnimation(opacity_effect, b"opacity", label)
-    opacity_animation.setStartValue(1.0)
-    opacity_animation.setEndValue(0.0)
-    opacity_animation.setDuration(duration)
-    opacity_animation.setEasingCurve(QEasingCurve.OutQuad)
-
-    group = QParallelAnimationGroup(label)
-    group.addAnimation(font_animation)
-    group.addAnimation(opacity_animation)
-    group.finished.connect(label.deleteLater)
-    label._collapsible_header_burst_animation = group  # type: ignore[attr-defined]
-    group.start()
-
+        toggle._collapsible_header_wiggle_animation = animation  # type: ignore[attr-defined]
+        animation.start()
 
 def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
-    """Install the shared hover and click-burst behavior on a collapsible header."""
+    """Install the shared hover and click-wiggle behavior on a collapsible header."""
     if not toggle.property("collapsible_header_hover_filter_installed"):
         hover_filter = _CollapsibleHeaderHoverFilter(toggle, style_sheet)
         toggle.installEventFilter(hover_filter)
         toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
         toggle.setProperty("collapsible_header_hover_filter_installed", True)
-    if not toggle.property("collapsible_header_burst_installed"):
+    if not toggle.property("collapsible_header_wiggle_installed"):
         toggle.clicked.connect(
-            lambda _checked=False, header_toggle=toggle: _run_collapsible_header_burst(
+            lambda _checked=False, header_toggle=toggle: _run_collapsible_header_wiggle(
                 header_toggle
             )
         )
-        toggle.setProperty("collapsible_header_burst_installed", True)
+        toggle.setProperty("collapsible_header_wiggle_installed", True)
 
 
 def configure_share_export_icon_button(
