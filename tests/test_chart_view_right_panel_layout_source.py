@@ -97,3 +97,29 @@ def test_settings_dialog_section_labels_wrap_to_available_width():
     assert "label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)" in source
     assert "label.updateGeometry()" in source
     assert "self._configure_settings_section_text_wrap(content)" in source
+
+
+def test_property_managers_button_sits_below_settings_sections_with_padding():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _ensure_settings_dialog")
+    method = source[method_start : source.index("    def _set_lilith_calculation_method", method_start)]
+
+    data_visualization_index = method.index('"Data Visualization"')
+    developer_tools_index = method.index('"Developer Tools"')
+    database_stats_index = method.index("add_database_info_settings_section(self, content_layout)")
+    similar_charts_index = method.index('"Similar Charts Calculator"')
+    enneagram_index = method.index('"Enneagram Predictor"')
+    user_profile_index = method.index('"User Profile"')
+    reset_index = method.index('"Reset All to Defaults"')
+    property_managers_index = method.index('"Property Managers"')
+    stretch_index = method.index("content_layout.addStretch(1)")
+
+    assert data_visualization_index < developer_tools_index < database_stats_index
+    assert database_stats_index < similar_charts_index < enneagram_index < user_profile_index < reset_index
+    assert reset_index < property_managers_index < stretch_index
+    assert "top_spacing=18" in method
+    assert "parent_layout.addSpacing(top_spacing)" in source
+    assert "button = QPushButton(title)" in source
+    assert "button = QToolButton()" not in source[
+        source.index("    def _add_settings_action_section") : source.index("    def _build_settings_subheader_label")
+    ]
