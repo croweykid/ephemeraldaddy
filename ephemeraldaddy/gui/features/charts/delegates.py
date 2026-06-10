@@ -31,6 +31,8 @@ class ChartRowDelegate(QStyledItemDelegate):
             "time": QColor("#6b705c"),
             "retcon_time": QColor("#4a7bd1"),
             "place": QColor(CHART_ROW_PLACE_COLOR),
+            "gender": QColor(CHART_ROW_PLACE_COLOR),
+            "current_age": QColor("#8a8a8a"),
         }
         self._duplicate_likelihood_colors = {
             "definite": QColor("#7CFF00"),
@@ -79,6 +81,8 @@ class ChartRowDelegate(QStyledItemDelegate):
         time_text = str(segment_data.get("time", "??:??"))
         retcon_time_text = str(segment_data.get("retcon_time", ""))
         place_text = str(segment_data.get("place", ""))
+        gender_text = str(segment_data.get("gender", ""))
+        current_age_text = str(segment_data.get("current_age", ""))
         status_text = "💀" if bool(segment_data.get("is_deceased", False)) else ""
 
         is_placeholder = bool(segment_data.get("is_placeholder", False))
@@ -96,6 +100,8 @@ class ChartRowDelegate(QStyledItemDelegate):
             {"key": "time", "text": time_text},
             {"key": "retcon_time", "text": retcon_time_text},
             {"key": "place", "text": place_text},
+            {"key": "gender", "text": gender_text},
+            {"key": "current_age", "text": current_age_text},
         ]
 
         x = rect.x()
@@ -122,6 +128,8 @@ class ChartRowDelegate(QStyledItemDelegate):
                 "time",
                 "retcon_time",
                 "place",
+                "gender",
+                "current_age",
             }:
                 color = self._duplicate_likelihood_colors.get(duplicate_likelihood, color)
             if opt.state & QStyle.State_Selected:
