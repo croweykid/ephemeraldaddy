@@ -20923,12 +20923,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            #label.setMinimumHeight(0)
-            label.setMinimumHeight(label.fontMetrics().lineSpacing())
+            label.setMinimumHeight(0)
             label.setMaximumHeight(16777215)
             label.setAlignment(label.alignment() | Qt.AlignTop)
-            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            #label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label_size_policy.setHeightForWidth(True)
+            label.setSizePolicy(label_size_policy)
             label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
@@ -20948,7 +20948,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(4)
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         toggle = QToolButton()
         configure_collapsible_header_toggle(
@@ -20973,7 +20973,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         def _toggle_section(checked: bool) -> None:
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
             section_content.setVisible(checked)
+            section_content.layout().activate()
+            section_content.adjustSize()
             section_content.updateGeometry()
+            container.layout().activate()
+            container.adjustSize()
             container.updateGeometry()
             if self._settings_dialog is not None:
                 self._settings_dialog.layout().activate()
