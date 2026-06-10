@@ -20663,11 +20663,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
 
     def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
-        """Allow settings-section labels to reflow instead of clipping horizontally."""
+        """Allow settings-section labels to reflow vertically and horizontally."""
         for label in root.findChildren(QLabel):
             label.setWordWrap(True)
             label.setMinimumWidth(0)
-            label.setSizePolicy(QSizePolicy.Expanding, label.sizePolicy().verticalPolicy())
+            label.setMinimumHeight(0)
+            label.setMaximumHeight(16777215)
+            label.setAlignment(label.alignment() | Qt.AlignTop)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            label.updateGeometry()
 
     def _add_settings_collapsible_section(
         self,

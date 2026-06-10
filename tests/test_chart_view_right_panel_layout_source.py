@@ -91,5 +91,9 @@ def test_settings_dialog_section_labels_wrap_to_available_width():
     assert "def _configure_settings_section_text_wrap" in source
     assert "label.setWordWrap(True)" in source
     assert "label.setMinimumWidth(0)" in source
-    assert "label.setSizePolicy(QSizePolicy.Expanding, label.sizePolicy().verticalPolicy())" in source
+    assert "label.setMinimumHeight(0)" in source
+    assert "label.setMaximumHeight(16777215)" in source
+    assert "label.setAlignment(label.alignment() | Qt.AlignTop)" in source
+    assert "label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)" in source
+    assert "label.updateGeometry()" in source
     assert "self._configure_settings_section_text_wrap(content)" in source
