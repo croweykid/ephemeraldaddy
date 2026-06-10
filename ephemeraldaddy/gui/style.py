@@ -527,7 +527,7 @@ def _run_collapsible_header_wiggle(toggle: QToolButton) -> None:
     toggle._collapsible_header_wiggle_origin = origin  # type: ignore[attr-defined]
     wiggle_offset = COLLAPSIBLE_SECTION_HEADER_WIGGLE_OFFSET_PX
     if toggle.layoutDirection() == Qt.RightToLeft:
-    wiggle_offset *= -1
+        wiggle_offset *= -1
 
         animation = QPropertyAnimation(toggle, b"pos", toggle)
         animation.setDuration(COLLAPSIBLE_SECTION_HEADER_WIGGLE_DURATION_MS)
