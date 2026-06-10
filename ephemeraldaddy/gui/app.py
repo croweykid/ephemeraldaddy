@@ -47,6 +47,7 @@ SETTINGS_KEY_PREDICTIONS_ALIGNMENT_DEFAULT_ZERO = (
 SETTINGS_KEY_WIKIPEDIA_BACKUP_SEARCH = "astrotheme/wikipedia_backup_search_enabled"
 
 SETTINGS_KEY_DATABASE_VIEW_ROW_INFO = "manage_charts/database_view_row_info"
+SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS = "manage_charts/hide_hypothetical_charts"
 DATABASE_VIEW_ROW_INFO_OPTIONS: tuple[tuple[str, str], ...] = (
     ("name", "Name"),
     ("alias", "Alias"),
@@ -2179,6 +2180,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._show_possible_duplicates_collection = False
         self._active_collection_total_count = 0
         self._database_total_count = 0
+        self._hide_hypothetical_charts = _settings_bool(
+            self._settings.value(SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS, False),
+            False,
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS,
+            int(self._hide_hypothetical_charts),
+        )
         self._analysis_chart_export_rows: dict[str, list[tuple[Any, ...]]] = {}
         self._analysis_chart_filenames: dict[str, str] = {}
         self._analysis_chart_dropdowns: dict[str, QComboBox] = {}
@@ -2389,6 +2398,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "padding: 1px 5px; font-size: 11px; color: #ff7b7b; font-weight: 600;"
         )
 
+        self.hide_hypothetical_checkbox = QCheckBox("hide\nhypothetical")
+        self.hide_hypothetical_checkbox.setObjectName("manage_hide_hypothetical_checkbox")
+        self.hide_hypothetical_checkbox.setToolTip("Hide Hypothetical charts from the Database View chart rows")
+        self.hide_hypothetical_checkbox.setChecked(self._hide_hypothetical_charts)
+        self.hide_hypothetical_checkbox.toggled.connect(self._on_hide_hypothetical_toggled)
+        self.hide_hypothetical_checkbox.setStyleSheet(
+            "QCheckBox { font-size: 6pt; padding: 0px; spacing: 3px; }"
+            "QCheckBox::indicator { width: 11px; height: 11px; }"
+        )
+        self.hide_hypothetical_checkbox.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+
         self.sort_button = QPushButton("Sort: Alphabetical") #default sorting method pt 2/2
         self.sort_button.setObjectName("manage_sort_button")
         self.sort_menu = QMenu(self)
@@ -2586,6 +2606,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
         self.collection_combo.currentIndexChanged.connect(self._on_collection_changed)
         list_header_layout.addWidget(self.collection_combo)
+        list_header_layout.addWidget(self.hide_hypothetical_checkbox, alignment=Qt.AlignVCenter)
         self.mark_not_duplicates_button = QPushButton('Mark "Not Duplicates"')
         self.mark_not_duplicates_button.setObjectName("manage_mark_not_duplicates_button")
         self.mark_not_duplicates_button.clicked.connect(self._on_mark_not_duplicates)
@@ -10409,7 +10430,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         return not (
-            self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
+            not getattr(self, "_hide_hypothetical_charts", False)
+            and self.incomplete_birthdate_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.birthtime_unknown_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and self.retconned_checkbox.mode() == QuadStateSlider.MODE_EMPTY
             and (self.living_checkbox is None or self.living_checkbox.mode() == QuadStateSlider.MODE_EMPTY)
@@ -17823,8 +17845,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             for row in self._chart_rows
             if (normalized := self._normalize_chart_row(row)) is not None
         ]
-        self._database_total_count = len(rows)
-        rows = [row for row in rows if self._chart_in_active_collection(row)]
+        if getattr(self, "_hide_hypothetical_charts", False):
+            display_database_rows = [
+                row for row in rows if not _chart_row_is_hypothetical(row)
+            ]
+        else:
+            display_database_rows = rows
+        self._database_total_count = len(display_database_rows)
+        rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
@@ -18121,6 +18149,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     changed_ids=changed_ids,
                 )
         self._update_collection_membership_buttons()
+
+
+    def _on_hide_hypothetical_toggled(self, checked: bool) -> None:
+        self._hide_hypothetical_charts = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_HIDE_HYPOTHETICAL_CHARTS,
+            int(self._hide_hypothetical_charts),
+        )
+        self._populate_list(
+            selected_ids=set(self._selected_chart_ids()),
+            refresh_metrics=False,
+        )
+        self._on_selection_changed()
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
