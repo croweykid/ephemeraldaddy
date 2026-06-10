@@ -126,3 +126,51 @@ def test_property_managers_button_sits_below_settings_sections_with_padding():
     assert "button = QToolButton()" not in source[
         source.index("    def _add_settings_action_section") : source.index("    def _build_settings_subheader_label")
     ]
+
+
+def test_prediction_panel_graph_layouts_are_left_aligned():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/controllers/chart_view_window.py").read_text()
+
+    assert "layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+    assert "owner.enneagram_prediction_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+    assert "owner.dnd_predictions_chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+
+
+def test_right_panel_scroll_areas_pin_content_to_left_edge():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/features/charts/cv_right_panel_stack.py").read_text()
+
+    assert "analytics_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+    assert "predictions_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+    assert "subjective_notes_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)" in source
+
+
+def test_predictions_refresh_uses_token_gated_right_panel_scheduler():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _refresh_chart_summary")
+    method = source[method_start : source.index("    def _build_chart_export_markdown", method_start)]
+
+    assert "self._schedule_chart_render_for_active_right_panel()" in method
+    assert "self._render_enneagram_predictions(chart)" not in method
+    assert "self._render_dndification_predictions(chart)" not in method
+
+
+def test_saved_chart_metadata_updates_do_not_dirty_right_panel_sections():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    save_start = source.index("    def on_update_chart")
+    save_method = source[save_start : source.index("    def _reset_new_chart_form", save_start)]
+
+    assert "previous_recalculation_token =" in save_method
+    assert "new_recalculation_token = self._chart_analytics_cache_token(chart)" in save_method
+    assert "chart_recalculated = bool(" in save_method
+    dirty_index = save_method.index("self._mark_chart_analytics_sections_lucy_goosey()")
+    recalculated_index = save_method.index("if chart_recalculated:")
+    assert recalculated_index < dirty_index
+
+
+def test_batch_metadata_refresh_does_not_dirty_right_panel_sections():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _refresh_filters_after_batch_edit")
+    method = source[method_start : source.index("        def _refresh_and_restore_selection", method_start)]
+
+    assert "sections={\"summary\"}" in method
+    assert "_mark_chart_analytics_sections_lucy_goosey" not in method

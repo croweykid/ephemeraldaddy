@@ -14500,9 +14500,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._batch_refresh_in_progress,
         )
         if self.current_chart_id is not None and int(self.current_chart_id) in pending_ids:
-            self._mark_chart_analytics_sections_lucy_goosey()
+            # Batch metadata edits do not recalculate the open chart.  Refresh the
+            # text summary only; analytics/prediction graphs remain keyed to the
+            # chart's birth date, time, and place token.
             if self._latest_chart is not None:
-                self._schedule_chart_render(self._latest_chart)
+                self._schedule_chart_render(self._latest_chart, sections={"summary"})
 
         def _refresh_and_restore_selection() -> None:
             if self._batch_refresh_in_progress:
@@ -26023,8 +26025,7 @@ class MainWindow(QMainWindow):
         self._species_info_map = species_info_map
         state = getattr(self, "_chart_right_panel_state", None)
         if getattr(state, "active_tab", None) == "predictions":
-            self._render_enneagram_predictions(chart)
-            self._render_dndification_predictions(chart)
+            self._schedule_chart_render_for_active_right_panel()
 
     def _build_chart_export_markdown(self, chart: Chart) -> str:
         date_label = chart.dt.strftime("%Y-%m-%d") if chart.dt else "Unknown"
@@ -29262,8 +29263,24 @@ class MainWindow(QMainWindow):
             self._invalidate_chart_view_navigation_cache({chart_id})
 
         self.current_chart_id = chart_id
+        previous_recalculation_token = (
+            self._chart_analytics_cache_token(self._latest_chart)
+            if (
+                self._latest_chart is not None
+                and self.current_chart_id == chart_id
+            )
+            else None
+        )
         self._cache_chart_view_navigation_entry(chart_id, chart)
-        self._mark_chart_analytics_sections_lucy_goosey()
+        new_recalculation_token = self._chart_analytics_cache_token(chart)
+        chart_recalculated = bool(
+            is_new_chart or previous_recalculation_token != new_recalculation_token
+        )
+        if chart_recalculated:
+            self._mark_chart_analytics_sections_lucy_goosey()
+            state = getattr(self, "_chart_right_panel_state", None)
+            if state is not None:
+                state.last_render_chart_token = None
         self._manage_charts_pending_changed_ids.add(chart_id)
         self._refresh_manage_charts_in_background({chart_id})
         self._loaded_birth_place = place

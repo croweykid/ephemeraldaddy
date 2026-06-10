@@ -194,6 +194,7 @@ def build_chart_right_panel_stack(
     analytics_scroll.setMinimumWidth(240)
     analytics_scroll.setStyleSheet(scrollbar_style)
     analytics_scroll.setFocusPolicy(Qt.StrongFocus)
+    analytics_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     analytics_scroll.setWidget(analytics_content_widget)
     stack.addWidget(analytics_scroll)
 
@@ -203,6 +204,7 @@ def build_chart_right_panel_stack(
     predictions_scroll.setMinimumWidth(240)
     predictions_scroll.setStyleSheet(scrollbar_style)
     predictions_scroll.setFocusPolicy(Qt.StrongFocus)
+    predictions_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     predictions_scroll.setWidget(predictions_content_widget)
     stack.addWidget(predictions_scroll)
 
@@ -212,6 +214,7 @@ def build_chart_right_panel_stack(
     subjective_notes_scroll.setMinimumWidth(240)
     subjective_notes_scroll.setStyleSheet(scrollbar_style)
     subjective_notes_scroll.setFocusPolicy(Qt.StrongFocus)
+    subjective_notes_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     subjective_notes_scroll.setWidget(subjective_notes_content_widget)
     stack.addWidget(subjective_notes_scroll)
 
