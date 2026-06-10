@@ -277,7 +277,7 @@ class ChartAnalysisSectionsController:
         chart_container = QWidget()
         chart_layout = QVBoxLayout()
         chart_layout.setContentsMargins(*DATABASE_ANALYTICS_CHART_CONTENT_MARGINS)
-        chart_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        chart_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         chart_container.setLayout(chart_layout)
         if DATABASE_ANALYTICS_DEBUG_VISUAL_BOUNDS:
             chart_container.setStyleSheet(DATABASE_ANALYTICS_CHART_CONTAINER_DEBUG_STYLE)

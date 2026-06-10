@@ -413,7 +413,7 @@ def _chart_right_panel_prediction_render_token(owner: object, chart: object) -> 
 
 
 def schedule_chart_render_for_active_right_panel(owner: object) -> None:
-    """Queue now-renderable sections after Chart View right-panel tab switches."""
+    """Queue right-panel work only when the active chart data token changes."""
     chart = getattr(owner, "_latest_chart", None)
     if chart is None:
         return
@@ -423,12 +423,9 @@ def schedule_chart_render_for_active_right_panel(owner: object) -> None:
         owner._schedule_chart_render(chart)
         return
     if active_panel == "predictions":
-        # Predictions canvases depend on the current scroll-viewport width just
-        # like Chart Analytics canvases.  Re-render when the tab becomes active
-        # instead of trusting a hidden-tab render cached during a window/panel
-        # transition; stale hidden-tab sizing is what makes the Prediction graphs
-        # intermittently draw with the wrong geometry.
         render_token = _chart_right_panel_prediction_render_token(owner, chart)
+        if state is not None and state.last_render_chart_token == render_token:
+            return
         owner._render_enneagram_predictions(chart)
         owner._render_dndification_predictions(chart)
         if state is not None:

@@ -298,7 +298,7 @@ def test_schedule_render_for_subjective_notes_skips_when_anagrams_hidden():
 
     assert calls == []
 
-def test_schedule_render_for_active_tab_predictions_rerenders_cached_chart_for_active_viewport():
+def test_schedule_render_for_active_tab_predictions_skips_cached_chart_token():
     owner = _owner()
     owner._latest_chart = SimpleNamespace(name="same")
     calls = []
@@ -310,7 +310,7 @@ def test_schedule_render_for_active_tab_predictions_rerenders_cached_chart_for_a
     schedule_chart_render_for_active_right_panel(owner)
     schedule_chart_render_for_active_right_panel(owner)
 
-    assert calls == [("enneagram",), ("dnd",), ("enneagram",), ("dnd",)]
+    assert calls == [("enneagram",), ("dnd",)]
 
 
 def test_schedule_render_for_active_tab_predictions_rerenders_when_chart_token_changes():
