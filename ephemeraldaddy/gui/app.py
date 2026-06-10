@@ -1705,6 +1705,31 @@ def _get_share_icon_path() -> str | None:
         return str(icon_path)
     return None
 
+def _configure_similarities_export_button(
+    button: QPushButton,
+    *,
+    label: str,
+    tooltip: str,
+    share_icon_path: str | None,
+) -> None:
+    """Apply the compact Similarities Analysis share/export button style."""
+    button.setText(label)
+    if share_icon_path:
+        button.setIcon(QIcon(share_icon_path))
+        button.setIconSize(QSize(12, 12))
+    else:
+        button.setText(f"↗ {label}")
+    button_font = QFont(button.font())
+    button_font.setPointSize(5)
+    button.setFont(button_font)
+    button.setFlat(True)
+    button.setMinimumWidth(button.sizeHint().width())
+    button.setFixedHeight(20)
+    button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setToolTip(tooltip)
+
+
 def _get_popout_window_icon_path() -> str | None:
     module_root = Path(__file__).resolve().parents[1]
     icon_path = module_root / "graphics" / "popout_window_icon.png"
@@ -6571,30 +6596,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         # title_layout.addWidget(self.similarities_db_info_toggle_button, alignment=Qt.AlignLeft)
         title_layout.addStretch(1)
 
-        json_export_button = QPushButton("</> export")
-        json_export_button.setFlat(True)
-        json_export_button.setFixedSize(58, 20)
-        json_export_font = json_export_button.font()
-        json_export_point_size = json_export_font.pointSize()
-        if json_export_point_size > 0:
-            json_export_font.setPointSize(max(1, json_export_point_size - 2))
-        json_export_button.setFont(json_export_font)
-        json_export_button.setCursor(Qt.PointingHandCursor)
-        json_export_button.setToolTip("Export similarities analysis as Python")
+        share_icon_path = _get_share_icon_path()
+
+        json_export_button = QPushButton()
+        _configure_similarities_export_button(
+            json_export_button,
+            label="data",
+            tooltip="Export similarities analysis as Python",
+            share_icon_path=share_icon_path,
+        )
         json_export_button.clicked.connect(self._export_similarities_analysis_json)
         title_layout.addWidget(json_export_button, alignment=Qt.AlignRight)
 
         export_button = QPushButton()
-        share_icon_path = _get_share_icon_path()
-        if share_icon_path:
-            export_button.setIcon(QIcon(share_icon_path))
-            export_button.setIconSize(QSize(14, 14))
-        else:
-            export_button.setText("↗")
-        export_button.setFlat(True)
-        export_button.setFixedSize(20, 20)
-        export_button.setCursor(Qt.PointingHandCursor)
-        export_button.setToolTip("Export similarities analysis as CSV")
+        _configure_similarities_export_button(
+            export_button,
+            label="text",
+            tooltip="Export similarities analysis as CSV",
+            share_icon_path=share_icon_path,
+        )
         export_button.clicked.connect(self._export_similarities_analysis_csv)
         title_layout.addWidget(export_button, alignment=Qt.AlignRight)
         layout.addWidget(title_row)
