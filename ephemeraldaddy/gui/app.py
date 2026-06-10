@@ -1719,13 +1719,15 @@ def _configure_similarities_export_button(
         button.setIconSize(QSize(12, 12))
     else:
         button.setText(f"↗ {label}")
+    button_font = QFont(button.font())
+    button_font.setPointSize(5)
+    button.setFont(button_font)
     button.setFlat(True)
-    button.setFixedSize(44, 20)
+    button.setMinimumWidth(button.sizeHint().width())
+    button.setFixedHeight(20)
+    button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
     button.setCursor(Qt.PointingHandCursor)
     button.setToolTip(tooltip)
-    button_font = QFont(button.font())
-    button_font.setPointSize(7)
-    button.setFont(button_font)
 
 
 def _get_popout_window_icon_path() -> str | None:
