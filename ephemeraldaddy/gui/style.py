@@ -1,7 +1,26 @@
 """Shared GUI styling and interface constants."""
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QAbstractButton, QComboBox, QListView, QSizePolicy, QToolButton
+from PySide6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QObject,
+    QParallelAnimationGroup,
+    QPoint,
+    QPropertyAnimation,
+    QSize,
+    Qt,
+    QVariantAnimation,
+)
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QComboBox,
+    QGraphicsOpacityEffect,
+    QLabel,
+    QListView,
+    QSizePolicy,
+    QToolButton,
+    QWidget,
+)
 
 DARK_THEME = {
     "background": "#111111",
@@ -384,17 +403,38 @@ COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BAC
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
-DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = (
-    f"font-weight: bold; font-size: 12px; color: #ffffff; padding: 6px; text-align: left; "
-    f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
+CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+COLLAPSIBLE_SECTION_HEADER_BURST_DURATION_MS = 700
+COLLAPSIBLE_SECTION_HEADER_BURST_FONT_GROWTH_PT = 8.0
+
+
+def collapsible_section_header_toggle_style(
+    *,
+    text_color: str,
+    background_color: str = COLLAPSIBLE_SECTION_BACKGROUND,
+) -> str:
+    """Return the appwide expandable/collapsible section-header text rule."""
+    return (
+        "QToolButton {"
+        "font-weight: bold; font-size: 12px; "
+        f"color: {text_color}; "
+        "padding: 6px; text-align: left; "
+        f"background-color: {background_color};"
+        "}"
+        "QToolButton:hover {"
+        f"color: {CHART_DATA_HIGHLIGHT_COLOR};"
+        "}"
+    )
+
+
+DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
+    text_color="#ffffff",
 )
-SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = (
-    f"font-weight: bold; font-size: 12px; color: {DATABASE_VIEW_HEADER_COLOR}; padding: 6px; text-align: left; "
-    f"background-color: {COLLAPSIBLE_SECTION_BACKGROUND};"
+SETTINGS_COLLAPSIBLE_TOGGLE_STYLE = collapsible_section_header_toggle_style(
+    text_color=DATABASE_VIEW_HEADER_COLOR,
 )
 SETTINGS_SECTION_SUBHEADER_STYLE = "font-weight: 700;"
 DATABASE_ANALYTICS_COLLAPSIBLE_TOGGLE_STYLE = DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE
-CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 CHART_DATA_MONOSPACE_FONT_FAMILY = "Courier New"
 CHART_DATA_DIVIDER = "---------"
 CHART_DATA_SECTION_HEADERS = (
@@ -455,6 +495,118 @@ CHART_INFO_SPECIES_DESCRIPTION_ITALIC = True
 CHART_INFO_EVIDENCE_LABEL_BOLD = True
 
 
+class _CollapsibleHeaderHoverFilter(QObject):
+    """Keep section-header hover color consistent for stylesheets without QSS hover blocks."""
+
+    def __init__(self, toggle: QToolButton, base_style_sheet: str) -> None:
+        super().__init__(toggle)
+        self._toggle = toggle
+        self._base_style_sheet = base_style_sheet
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        if watched is self._toggle:
+            if event.type() == QEvent.Enter:
+                self._toggle.setStyleSheet(
+                    f"{self._base_style_sheet} "
+                    f"QToolButton {{ color: {CHART_DATA_HIGHLIGHT_COLOR}; }}"
+                )
+            elif event.type() in (QEvent.Leave, QEvent.Hide, QEvent.EnabledChange):
+                self._toggle.setStyleSheet(self._base_style_sheet)
+        return super().eventFilter(watched, event)
+
+
+def _display_text_for_collapsible_header_burst(title: str) -> str:
+    """Convert QToolButton mnemonic text into the visible label used for the burst."""
+    placeholder = "\0"
+    return title.replace("&&", placeholder).replace("&", "").replace(placeholder, "&")
+
+
+def _run_collapsible_header_burst(toggle: QToolButton) -> None:
+    """Animate a transient copy of the header text growing and fading on click."""
+    text = _display_text_for_collapsible_header_burst(toggle.text()).strip()
+    if not text:
+        return
+
+    window = toggle.window()
+    parent: QWidget = window if isinstance(window, QWidget) else toggle
+    label = QLabel(text, parent)
+    label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    label.setStyleSheet(
+        "background: transparent; "
+        f"color: {CHART_DATA_HIGHLIGHT_COLOR}; "
+        "font-weight: bold;"
+    )
+
+    start_font = QFont(toggle.font())
+    if start_font.pointSizeF() <= 0:
+        start_font.setPointSizeF(12.0)
+    label.setFont(start_font)
+    label.adjustSize()
+
+    start_center = toggle.mapTo(parent, QPoint(toggle.width() // 2, toggle.height() // 2))
+    label.move(
+        start_center.x() - (label.width() // 2),
+        start_center.y() - (label.height() // 2),
+    )
+    label.raise_()
+    label.show()
+
+    opacity_effect = QGraphicsOpacityEffect(label)
+    opacity_effect.setOpacity(1.0)
+    label.setGraphicsEffect(opacity_effect)
+
+    duration = COLLAPSIBLE_SECTION_HEADER_BURST_DURATION_MS
+    start_point_size = start_font.pointSizeF()
+    end_point_size = start_point_size + COLLAPSIBLE_SECTION_HEADER_BURST_FONT_GROWTH_PT
+
+    font_animation = QVariantAnimation(label)
+    font_animation.setStartValue(start_point_size)
+    font_animation.setEndValue(end_point_size)
+    font_animation.setDuration(duration)
+    font_animation.setEasingCurve(QEasingCurve.OutCubic)
+
+    def _resize_burst_label(point_size: float) -> None:
+        font = QFont(label.font())
+        font.setPointSizeF(float(point_size))
+        label.setFont(font)
+        label.adjustSize()
+        label.move(
+            start_center.x() - (label.width() // 2),
+            start_center.y() - (label.height() // 2),
+        )
+
+    font_animation.valueChanged.connect(_resize_burst_label)
+
+    opacity_animation = QPropertyAnimation(opacity_effect, b"opacity", label)
+    opacity_animation.setStartValue(1.0)
+    opacity_animation.setEndValue(0.0)
+    opacity_animation.setDuration(duration)
+    opacity_animation.setEasingCurve(QEasingCurve.OutQuad)
+
+    group = QParallelAnimationGroup(label)
+    group.addAnimation(font_animation)
+    group.addAnimation(opacity_animation)
+    group.finished.connect(label.deleteLater)
+    label._collapsible_header_burst_animation = group  # type: ignore[attr-defined]
+    group.start()
+
+
+def _install_collapsible_header_interactions(toggle: QToolButton, style_sheet: str) -> None:
+    """Install the shared hover and click-burst behavior on a collapsible header."""
+    if not toggle.property("collapsible_header_hover_filter_installed"):
+        hover_filter = _CollapsibleHeaderHoverFilter(toggle, style_sheet)
+        toggle.installEventFilter(hover_filter)
+        toggle._collapsible_header_hover_filter = hover_filter  # type: ignore[attr-defined]
+        toggle.setProperty("collapsible_header_hover_filter_installed", True)
+    if not toggle.property("collapsible_header_burst_installed"):
+        toggle.clicked.connect(
+            lambda _checked=False, header_toggle=toggle: _run_collapsible_header_burst(
+                header_toggle
+            )
+        )
+        toggle.setProperty("collapsible_header_burst_installed", True)
+
+
 def configure_share_export_icon_button(
     button: QAbstractButton,
     *,
@@ -494,6 +646,7 @@ def configure_collapsible_header_toggle(
     toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     toggle.setStyleSheet(style_sheet)
+    _install_collapsible_header_interactions(toggle, style_sheet)
 
 
 def apply_shared_dropdown_style(dropdown: QComboBox) -> None:
