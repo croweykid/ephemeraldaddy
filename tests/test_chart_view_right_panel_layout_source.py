@@ -16,11 +16,12 @@ def test_metric_canvas_sizing_uses_expanding_width_not_ignored_zero_width():
 
     assert "canvas.setMinimumWidth(1)" in source
     assert "available_width = MainWindow._metric_canvas_available_layout_width(canvas)" in source
+    assert "CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX = 240" in source
+    assert "canvas.setMinimumWidth(available_width)" in source
     assert "canvas.setMaximumWidth(available_width)" in source
     assert "canvas.resize(available_width, current_height)" in source
-    assert "canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)" in source
+    assert "canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)" in source
     assert "canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)" not in source
-
 
 
 def test_metric_canvas_width_subtracts_scroll_content_margins():
@@ -30,6 +31,7 @@ def test_metric_canvas_width_subtracts_scroll_content_margins():
     assert "viewport_width = MainWindow._metric_canvas_scroll_viewport_width(canvas)" in source
     assert "margins = parent_layout.contentsMargins()" in source
     assert "available_width -= margins.left() + margins.right()" in source
+
 
 def test_dnd_prediction_summary_is_added_after_metric_panel_render_clears_layout():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
@@ -62,8 +64,9 @@ def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 
     assert "def _schedule_metric_canvas_layout_refresh" in source
-    assert "QTimer.singleShot(0, lambda metric_canvas=canvas" in source
-    assert "QTimer.singleShot(50, lambda metric_canvas=canvas" in source
+    assert "_pending_metric_canvas_layout_refreshes" in source
+    assert "QTimer.singleShot(0, _refresh_once)" in source
+    assert "QTimer.singleShot(50" not in source
     assert "self._schedule_metric_canvas_layout_refresh(canvas)" in source
 
 
@@ -91,10 +94,10 @@ def test_settings_dialog_section_labels_wrap_to_available_width():
     assert "def _configure_settings_section_text_wrap" in source
     assert "label.setWordWrap(True)" in source
     assert "label.setMinimumWidth(0)" in source
-    assert "label.setMinimumHeight(0)" in source
+    assert "label.setMinimumHeight(label.fontMetrics().lineSpacing())" in source
     assert "label.setMaximumHeight(16777215)" in source
     assert "label.setAlignment(label.alignment() | Qt.AlignTop)" in source
-    assert "label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)" in source
+    assert "label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)" in source
     assert "label.updateGeometry()" in source
     assert "self._configure_settings_section_text_wrap(content)" in source
 
