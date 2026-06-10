@@ -19925,12 +19925,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         data_visualization_section.addWidget(significance_help_label)
         self._settings_significance_correction_combo = significance_combo
 
-        self._add_settings_action_section(
-            content_layout,
-            "Property Managers",
-            self._launch_property_manager_dialog,
-        )
-
         dev_tools_section = self._add_settings_collapsible_section(content_layout, "Developer Tools")
         dev_tools_section.addWidget(QLabel("Developer and maintenance utilities"))
 
@@ -20087,8 +20081,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         reset_interface_button = QPushButton("Reset interface to default")
         reset_interface_button.clicked.connect(self._reset_interface_to_defaults)
         reset_section.addWidget(reset_interface_button)
+
+        self._add_settings_action_section(
+            content_layout,
+            "Property Managers",
+            self._launch_property_manager_dialog,
+            top_spacing=18,
+        )
         content_layout.addStretch(1)
 
+        self._configure_settings_section_text_wrap(content)
         self._settings_dialog = dialog
         self._resize_and_center_settings_dialog(dialog)
         return dialog
@@ -20679,6 +20681,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
 
+    def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
+        """Allow settings-section labels to reflow vertically and horizontally."""
+        for label in root.findChildren(QLabel):
+            label.setWordWrap(True)
+            label.setMinimumWidth(0)
+            label.setMinimumHeight(0)
+            label.setMaximumHeight(16777215)
+            label.setAlignment(label.alignment() | Qt.AlignTop)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            label.updateGeometry()
+
     def _add_settings_collapsible_section(
         self,
         parent_layout: QVBoxLayout,
@@ -20726,18 +20739,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent_layout: QVBoxLayout,
         title: str,
         callback: Callable[[], None],
+        *,
+        top_spacing: int = 0,
     ) -> None:
+        if top_spacing > 0:
+            parent_layout.addSpacing(top_spacing)
+
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(4)
 
-        button = QToolButton()
-        button.setText(title)
-        button.setCheckable(False)
+        button = QPushButton(title)
         button.setCursor(Qt.PointingHandCursor)
-        button.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        button.setStyleSheet(SETTINGS_COLLAPSIBLE_TOGGLE_STYLE)
         button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.clicked.connect(callback)
         container_layout.addWidget(button)
