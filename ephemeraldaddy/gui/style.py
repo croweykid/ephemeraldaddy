@@ -44,6 +44,10 @@ GENDER_GUESSER_COLORS = {
     "androgynous": "#ffd966",
 }
 
+MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
+CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
+
+
 EARTH_TONE_COLOR_CYCLE = (
     "#7b5b45",  # clay brown
     "#8f7a5a",  # tan umber
@@ -238,9 +242,10 @@ DEFAULT_DROPDOWN_STYLE = """
 QComboBox {
     background-color: #1c1c1c;
     alternate-background-color: #1c1c1c;
+    color: __CHART_DATA_HIGHLIGHT_COLOR__;
     border: 1px solid #3f3f3f;
     border-radius: 4px;
-    padding: 3px 6px;
+    padding: 3px 2px;
     min-height: 24px;
     combobox-popup: 1;
 }
@@ -256,12 +261,12 @@ QComboBox QAbstractItemView {
     outline: 0;
 }
 QComboBox QAbstractItemView::item {
-    padding: 3px 6px 3px 6px;
+    padding: 3px 2px 3px 2px;
     margin: 0px;
 }
 QComboBox QAbstractItemView::item:selected {
     background-color: #4f3f25;
-    color: #f6ead1;
+    color: __CHART_DATA_HIGHLIGHT_COLOR__;
 }
 QComboBox QAbstractItemView::item:hover {
     background-color: #6a532d;
@@ -269,7 +274,7 @@ QComboBox QAbstractItemView::item:hover {
 }
 QComboBox QAbstractItemView::item:checked {
     background-color: #4f3f25;
-    color: #f6ead1;
+    color: __CHART_DATA_HIGHLIGHT_COLOR__;
 }
 QComboBox QAbstractItemView::item:checked:hover {
     background-color: #6a532d;
@@ -281,7 +286,7 @@ QComboBox QAbstractItemView::indicator {
     margin: 0px;
     padding: 0px;
 }
-"""
+""".replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
 
 WINDOW_CHROME_MENU_STYLE = """
 QMenu {
@@ -390,7 +395,6 @@ RELATIVE_YEAR_COLORS = {
     "other":"#ffffff"
 }
 
-MIDDLE_PANEL_ACCENT_COLOR = "#c8914f"
 MIDDLE_PANEL_PLACEHOLDER_COLOR_RGBA = "rgba(200, 145, 79, 0.92)"
 CHART_VIEW_TIME_INPUT_WIDTH = 78
 CHART_VIEW_TIME_INPUT_DISPLAY_FORMAT = "HH:mm"
@@ -403,7 +407,6 @@ COLLAPSIBLE_SECTION_CONTENT_STYLE = f"background-color: {COLLAPSIBLE_SECTION_BAC
 DATABASE_VIEW_PANEL_HEADER_STYLE = (
     f"font-weight: bold; font-size: 14.5px; color: {DATABASE_VIEW_HEADER_COLOR};"
 )
-CHART_DATA_HIGHLIGHT_COLOR = MIDDLE_PANEL_ACCENT_COLOR
 COLLAPSIBLE_SECTION_HEADER_BURST_DURATION_MS = 700
 COLLAPSIBLE_SECTION_HEADER_BURST_FONT_GROWTH_PT = 8.0
 
@@ -665,12 +668,12 @@ QListView::viewport {
 }
 QListView::item {
     background-color: #1c1c1c;
-    padding: 3px 6px;
+    padding: 3px 2px;
     margin: 0px;
 }
 QListView::item:selected {
     background-color: #4f3f25;
-    color: #f6ead1;
+    color: __CHART_DATA_HIGHLIGHT_COLOR__;
 }
 QListView::item:hover {
     background-color: #6a532d;
@@ -678,7 +681,7 @@ QListView::item:hover {
 }
 QListView::item:checked {
     background-color: #4f3f25;
-    color: #f6ead1;
+    color: __CHART_DATA_HIGHLIGHT_COLOR__;
 }
 QListView::item:checked:hover {
     background-color: #6a532d;
@@ -690,7 +693,7 @@ QListView::indicator {
     margin: 0px;
     padding: 0px;
 }
-"""
+""".replace("__CHART_DATA_HIGHLIGHT_COLOR__", CHART_DATA_HIGHLIGHT_COLOR)
     )
     dropdown.setView(popup_view)
 

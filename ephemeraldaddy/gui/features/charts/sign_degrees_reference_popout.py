@@ -6,11 +6,12 @@ from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.offsetbox import AnnotationBbox, HPacker, TextArea
+from matplotlib.image import imread
+from matplotlib.offsetbox import AnnotationBbox, HPacker, OffsetImage, TextArea
 from matplotlib.patches import Wedge
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QScrollArea, QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QTextBrowser, QToolButton, QVBoxLayout, QWidget
 
 from ephemeraldaddy.analysis.human_design_reference import HD_GATES_BY_SIGN
 from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, GATE_REFERENCE
@@ -27,7 +28,12 @@ from ephemeraldaddy.core.interpretations import (
 
 from ephemeraldaddy.gui.features.charts.presentation import abbreviate_nakshatra_label
 from ephemeraldaddy.gui.features.charts.exporters import get_text_export_path
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, configure_collapsible_header_toggle, configure_share_export_icon_button
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    apply_shared_dropdown_style,
+    configure_collapsible_header_toggle,
+    configure_share_export_icon_button,
+)
 
 SIGN_ORDER = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -145,8 +151,38 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     splitter = QSplitter(Qt.Horizontal, dialog)
     layout.addWidget(splitter)
 
+    left_panel = QWidget(dialog)
+    left_layout = QVBoxLayout(left_panel)
+    left_layout.setContentsMargins(0, 0, 0, 0)
+    left_layout.setSpacing(6)
+    search_row = QHBoxLayout()
+    search_row.setContentsMargins(2, 6, 2, 0)
+    search_row.setSpacing(6)
+    sign_combo = QComboBox(left_panel)
+    sign_combo.addItems(SIGN_ORDER)
+    apply_shared_dropdown_style(sign_combo)
+    sign_combo.setToolTip("Select a zodiac sign to search on the reference circle")
+    degree_combo = QComboBox(left_panel)
+    degree_combo.addItems([str(degree) for degree in range(31)])
+    apply_shared_dropdown_style(degree_combo)
+    degree_combo.setToolTip("Select a degree from 0 to 30 within the chosen sign")
+    search_button = QPushButton("Search", left_panel)
+    search_button.setToolTip("Show the selected sign degree and mark it on the circle")
+    search_button.setStyleSheet(
+        "QPushButton { background-color: #238636; color: white; font-weight: 700; "
+        "border: 1px solid #2ea043; border-radius: 5px; padding: 4px 12px; }"
+        "QPushButton:hover { background-color: #2ea043; }"
+        "QPushButton:pressed { background-color: #196c2e; }"
+    )
+    search_row.addWidget(sign_combo, 0)
+    search_row.addWidget(degree_combo, 0)
+    search_row.addWidget(search_button, 0)
+    search_row.addStretch(1)
+    left_layout.addLayout(search_row)
+
     figure = Figure(figsize=(8, 8), facecolor="#111111")
     canvas = FigureCanvas(figure)
+    left_layout.addWidget(canvas, 1)
     ax = figure.add_subplot(111)
     ax.set_facecolor("#111111")
     ax.set_aspect("equal")
@@ -193,7 +229,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         configure_collapsible_header_toggle(
             toggle,
             title=section_name,
-            expanded=True,
+            expanded=False,
             style_sheet=(
                 "QToolButton { border: none; color: #d4b06a; font-weight: 700; padding: 4px 2px; background: transparent; text-align: left; }"
                 "QToolButton:hover { color: #f0cb7b; }"
@@ -211,6 +247,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         text.setStyleSheet("background: transparent;")
         body_layout.addWidget(text)
         section_layout.addWidget(body)
+        body.setVisible(False)
         toggle.toggled.connect(lambda checked, body_widget=body, btn=toggle: (body_widget.setVisible(checked), btn.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)))
         scroll_layout.addWidget(section)
         section_contents[section_name] = text
@@ -218,7 +255,7 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         section_bodies[section_name] = body
     scroll_layout.addStretch(1)
 
-    splitter.addWidget(canvas)
+    splitter.addWidget(left_panel)
     splitter.addWidget(right_panel)
     splitter.setSizes([700, 280])
     status_box = ax.text(
@@ -272,8 +309,6 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             )
             ax.add_artist(line_artist)
             status_line_texts.append(line_artist)
-
-    _set_status_line_items([("Degree selected: ", "—", "#f7f7f7")])
 
     ring_map = {
         "sign": (0.00, 0.25),
@@ -365,26 +400,70 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             va="center",
         )
 
-    def _on_click(event) -> None:
-        if event.inaxes != ax or event.xdata is None or event.ydata is None:
-            return
-        x, y = float(event.xdata), float(event.ydata)
-        radius = math.hypot(x, y)
-        if radius <= 0.0 or radius > 1.0:
-            return
+    selected_marker = None
+    star_path = Path(__file__).resolve().parents[3] / "graphics" / "emoji" / "glowing-star-noto-512.png"
+    star_image = imread(star_path) if star_path.exists() else None
 
-        theta = (90.0 - math.degrees(math.atan2(y, x))) % 360.0
-        absolute_degree = _normalize_degree(theta)
-        sign_index = int(absolute_degree // 30.0)
-        sign_name = SIGN_ORDER[sign_index]
-        sign_local_degree = absolute_degree - (sign_index * 30.0)
+    def _expand_reference_sections() -> None:
+        for toggle in section_toggles.values():
+            if not toggle.isChecked():
+                toggle.setChecked(True)
+
+    def _set_search_marker(absolute_degree: float) -> None:
+        nonlocal selected_marker
+        if selected_marker is not None:
+            selected_marker.remove()
+            selected_marker = None
+
+        marker_degree = _normalize_degree(absolute_degree)
+        marker_angle = math.radians(90.0 - marker_degree)
+        marker_radius = 1.065
+        marker_xy = (marker_radius * math.cos(marker_angle), marker_radius * math.sin(marker_angle))
+        if star_image is not None:
+            marker_box = OffsetImage(star_image, zoom=0.045)
+            selected_marker = AnnotationBbox(
+                marker_box,
+                marker_xy,
+                xycoords="data",
+                frameon=False,
+                pad=0.0,
+                zorder=120,
+            )
+            ax.add_artist(selected_marker)
+        else:
+            selected_marker = ax.text(
+                marker_xy[0],
+                marker_xy[1],
+                "★",
+                color="#ffd84d",
+                fontsize=18,
+                ha="center",
+                va="center",
+                zorder=120,
+            )
+
+    def _show_degree(
+        absolute_degree: float,
+        *,
+        sign_name_override: str | None = None,
+        sign_local_degree_override: float | None = None,
+        mark_with_star: bool = False,
+    ) -> None:
+        lookup_degree = _normalize_degree(absolute_degree)
+        lookup_sign_index = int(lookup_degree // 30.0)
+        sign_name = sign_name_override or SIGN_ORDER[lookup_sign_index]
+        sign_local_degree = (
+            sign_local_degree_override
+            if sign_local_degree_override is not None
+            else lookup_degree - (lookup_sign_index * 30.0)
+        )
         decan_index = min(2, int(sign_local_degree // 10.0))
         decan_data = ZODIAC_DECANS[sign_name][decan_index]
 
-        nak_match = _segment_for_degree(nak_segments, absolute_degree)
+        nak_match = _segment_for_degree(nak_segments, lookup_degree)
         if nak_match is None:
-            nak_match = _segment_for_degree(nak_segments, absolute_degree + 360.0)
-        gate_match = _segment_for_degree(gate_segments, absolute_degree)
+            nak_match = _segment_for_degree(nak_segments, lookup_degree + 360.0)
+        gate_match = _segment_for_degree(gate_segments, lookup_degree)
 
         gate_number = int(gate_match.label[1:]) if gate_match else None
         gate_reference = GATE_REFERENCE.get(gate_number, {})
@@ -397,6 +476,9 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
         nak_shakti = NAKSHATRA_DESCRIPTIONS.get(nak_name, {}).get("shakti", "No shakti reference available.")
         decan_ruler_color = PLANET_COLORS.get(str(decan_data["subsign_ruler"]), "#f7f7f7")
 
+        _expand_reference_sections()
+        if mark_with_star:
+            _set_search_marker(absolute_degree)
         status_box.set_text("")
         _set_status_line_items(
             [
@@ -487,6 +569,30 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             pass
         export_button.clicked.connect(_export_analysis)
         canvas.draw_idle()
+
+    def _on_search() -> None:
+        sign_name = sign_combo.currentText()
+        sign_degree = float(degree_combo.currentText())
+        absolute_degree = (_sign_index(sign_name) * 30.0) + sign_degree
+        _show_degree(
+            absolute_degree,
+            sign_name_override=sign_name,
+            sign_local_degree_override=sign_degree,
+            mark_with_star=True,
+        )
+
+    def _on_click(event) -> None:
+        if event.inaxes != ax or event.xdata is None or event.ydata is None:
+            return
+        x, y = float(event.xdata), float(event.ydata)
+        radius = math.hypot(x, y)
+        if radius <= 0.0 or radius > 1.0:
+            return
+
+        theta = (90.0 - math.degrees(math.atan2(y, x))) % 360.0
+        _show_degree(_normalize_degree(theta))
+
+    search_button.clicked.connect(_on_search)
 
     canvas.mpl_connect("button_press_event", _on_click)
     ax.set_xlim(-1.12, 1.12)
