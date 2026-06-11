@@ -23698,7 +23698,7 @@ class MainWindow(QMainWindow):
         panel_key: str,
         score: int | None,
         not_applicable: bool,
-    ) -> bool:
+    ) -> None:
         subject_chart = getattr(dialog, "_similar_chart_popout_subject_chart", None)
         subject_name = (
             str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip()
@@ -23757,10 +23757,8 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             logger.exception("Failed to append Similar Charts perceived accuracy log.")
-            return False
         else:
             logger.info("Appended Similar Charts perceived accuracy to %s", log_path)
-            return True
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()

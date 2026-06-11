@@ -31,7 +31,6 @@ def _install_pyside_stubs():
             pass
 
     qt_core.QEventLoop = getattr(qt_core, "QEventLoop", _QEventLoop)
-    qt_core.QSignalBlocker = getattr(qt_core, "QSignalBlocker", _Widget)
     qt_core.QSize = getattr(qt_core, "QSize", _Widget)
     qt_core.Qt = getattr(qt_core, "Qt", _Qt)
     qt_gui.QIcon = getattr(qt_gui, "QIcon", _Widget)
@@ -45,7 +44,6 @@ def _install_pyside_stubs():
         "QHBoxLayout",
         "QLabel",
         "QLineEdit",
-        "QMessageBox",
         "QProgressDialog",
         "QPushButton",
         "QScrollArea",

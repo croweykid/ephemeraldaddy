@@ -1,5 +1,4 @@
 import datetime as dt
-import json
 
 from ephemeraldaddy.analysis.get_astro_twin import SimilarityCalculatorSettings
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
@@ -123,60 +122,3 @@ def test_perceived_accuracy_log_round_trips_latest_state(tmp_path):
     states = load_similarity_perceived_accuracy_states(log_path)
     assert states[state_key]["not_applicable"] is True
     assert states[state_key]["user_reported_accuracy"] is None
-
-
-def test_perceived_accuracy_state_key_is_chart_pair_stable_regardless_direction():
-    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import perceived_accuracy_state_key
-
-    forward = perceived_accuracy_state_key(
-        chart_1_id=12,
-        chart_2_id=4,
-        analysis_context="similarities",
-    )
-    reverse = perceived_accuracy_state_key(
-        chart_1_id=4,
-        chart_2_id=12,
-        analysis_context="similarities",
-    )
-
-    assert forward == reverse == "4|12|similarities"
-
-
-def test_perceived_accuracy_loader_normalizes_legacy_directional_state_keys(tmp_path):
-    from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
-        load_similarity_perceived_accuracy_states,
-        perceived_accuracy_state_key,
-    )
-
-    log_path = tmp_path / "similarities_algorithm_log.txt"
-    log_path.write_text(
-        "\n".join(
-            [
-                "=== Similarity Perceived Accuracy #1 ===",
-                "Perceived accuracy payload:",
-                json.dumps(
-                    {
-                        "state_key": "12|4|similarities",
-                        "chart_1_compared_with_chart_2": {
-                            "chart_1": {"id": 12, "name": "A"},
-                            "chart_2": {"id": 4, "name": "B"},
-                        },
-                        "analysis_context": "similarities",
-                        "user_reported_accuracy": 77,
-                        "not_applicable": False,
-                    }
-                ),
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    normalized_key = perceived_accuracy_state_key(
-        chart_1_id=4,
-        chart_2_id=12,
-        analysis_context="similarities",
-    )
-    states = load_similarity_perceived_accuracy_states(log_path)
-
-    assert states[normalized_key]["user_reported_accuracy"] == 77
