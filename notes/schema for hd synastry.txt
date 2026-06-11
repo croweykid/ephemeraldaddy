@@ -1,0 +1,17 @@
+For active chart (Chart A) look at the human design chart to see which channels are half active in the Chart A and find what the missing half of each channel is.
+
+Put those on a list. 
+Score database/current selection of charts according to have the most of those missing channel-completing gates active in their own charts, this score will be called "supportive to [chart A]", where "Chart A" is the name of the active chart.
+
+For instance, if Chart A has 47 (missing 64 to complete the 47-64 channel), 62 (missing gate 17 to complete 17-62), 7 (missing 31 to complete 1-7), 21 (missing 45 to complete channel 21-45), 59 (missing gate 6...), 19 (missing 49...), 32 (missing 54), charts will be scored as more "supportive to [chart A]" in order of which have the most of the following active: 64, 17, 31, 45, 6, 49, 54.
+
+Check which charts from the database or current selection are missing the active gates from Chart A: which charts of that list are missing 47, 62, 7, 21, 59, 19 and 32.
+Those with the most of those gates missing are scored as more "in need of [chart A]".
+
+Charts within database/current selection which have the most gates in common with chart A will be scored as "most similar to [chart A]".
+
+Charts which have the most defined channels (both gates in a channel) wherein Chart A has only one gate (partially defined channel) get scored as "caretaker for [chart A]".
+
+Charts which have the most instances of only 1 of 2 gates in a channel that Chart A has fully defined (ie Chart A has 57-10, Chart B has only 57) are scored as "dependent on [chart A]".
+
+Charts which define an otherwise undefined center for Chart A (contributing one or 2 gates which complete a channel Chart A lacked) get scored as "most awakening for [chart A]".

@@ -141,9 +141,10 @@ def _sentiment_estimate_html(average: float, median: float) -> str:
     if avg_label == median_label:
         return avg_phrase
     median_phrase = (
-        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
+        f""
+        #f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
     )
-    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>or a(n)</span> {median_phrase}"
+    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'></span>{median_phrase}"
 
 
 def _alignment_scale_bucket(value: float) -> tuple[str, str, str]:
@@ -176,9 +177,10 @@ def _alignment_estimate_html(average: float, median: float) -> str:
     if avg_label == median_label:
         return avg_phrase
     median_phrase = (
-        f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
+        f""
+        #f"{html.escape(median_emoji)} <span style='color:{median_color}'>{html.escape(median_label)}</span>"
     )
-    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>or</span> {median_phrase}"
+    return f"{avg_phrase} <span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'></span>{median_phrase}"
 
 SIMILAR_INFO_TARGET_PREFIX = "sim-info"
 SIMILARITY_SECTION_HEADER_COLOR = "#B87333"
@@ -2474,11 +2476,11 @@ def build_predictions_panel_content(
         f"Based on similar charts, the user is probably sees {html.escape(subject_name)} as...<br><br> "
         "</div>"
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (best case):</span> {_sentiment_estimate_html(positive_avg_numeric)}<br>" #, positive_median_numeric
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (best case):</span> {_sentiment_estimate_html(positive_avg_numeric, positive_median_numeric)}<br>"
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (worst case):</span></span> "
-        f"{_sentiment_estimate_html(-negative_avg_numeric)}<br><br>" #, -negative_median_numeric
+        f"{_sentiment_estimate_html(-negative_avg_numeric, -negative_median_numeric)}<br><br>" 
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Ethically:</span> "
-        f"{_alignment_estimate_html(alignment_avg_numeric)}." #, alignment_median_numeric
+        f"{_alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)}."
         "</div>"
         + alignment_skip_footnote_html
     )
