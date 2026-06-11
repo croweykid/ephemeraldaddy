@@ -2350,6 +2350,7 @@ def render_similar_match_blocks(
     similarity_settings: SimilarityCalculatorSettings | None = None,
     similarity_average: float | None = None,
     similarity_standard_deviation: float | None = None,
+    start_rank: int = 1,
 ) -> str:
     if not matches:
         return "No charts found."
@@ -2357,8 +2358,12 @@ def render_similar_match_blocks(
         algorithm_mode=algorithm_mode,
         similarity_settings=similarity_settings,
     )
+    try:
+        first_rank = max(1, int(start_rank))
+    except (TypeError, ValueError):
+        first_rank = 1
     blocks: list[str] = []
-    for rank, match in enumerate(matches, start=1):
+    for rank, match in enumerate(matches, start=first_rank):
         display_name = format_similar_chart_name_html(
             chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
             subject_uses_houses=subject_uses_houses,
@@ -2740,7 +2745,7 @@ def build_similar_charts_popout_dialog(
                     bool(na_checkbox.isChecked()),
                 )
 
-            for match in matches:
+            for rank, match in enumerate(matches, start=1):
                 match_widget = QWidget()
                 match_layout = QVBoxLayout(match_widget)
                 match_layout.setContentsMargins(0, 0, 0, 0)
@@ -2766,6 +2771,7 @@ def build_similar_charts_popout_dialog(
                         similarity_settings=similarity_settings,
                         similarity_average=similarity_average,
                         similarity_standard_deviation=similarity_standard_deviation,
+                        start_rank=rank,
                     )
                 )
                 row_layout.addWidget(result_label, 1)
