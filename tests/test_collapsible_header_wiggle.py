@@ -38,3 +38,27 @@ def test_collapsible_header_wiggle_animation_runs_for_all_layout_directions():
     for node in ast.walk(function):
         if isinstance(node, ast.If):
             assert function.body[animation_assignment_index] not in node.body
+
+
+def test_collapsible_header_wiggle_keyframes_move_vertically():
+    function = _wiggle_function()
+    keyframe_calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "setKeyValueAt"
+    ]
+
+    assert len(keyframe_calls) == 3
+    for call in keyframe_calls:
+        point_call = call.args[1].right
+        assert isinstance(point_call, ast.Call)
+        assert isinstance(point_call.func, ast.Name)
+        assert point_call.func.id == "QPoint"
+        assert isinstance(point_call.args[0], ast.Constant)
+        assert point_call.args[0].value == 0
+        assert not (
+            isinstance(point_call.args[1], ast.Constant)
+            and point_call.args[1].value == 0
+        )
