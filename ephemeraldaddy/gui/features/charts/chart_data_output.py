@@ -20,6 +20,7 @@ from ephemeraldaddy.core.interpretations import (
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
+    PLANET_GLYPHS,
     SIGN_COLORS,
 )
 from ephemeraldaddy.gui.style import (
@@ -266,6 +267,13 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             alias: self._planet_formats[target]
             for alias, target in self._planet_aliases.items()
             if target in self._planet_formats
+        }
+        self._planet_glyph_formats = {
+            glyph: self._planet_formats[planet]
+            for planet, glyph in PLANET_GLYPHS.items()
+            if planet in self._planet_formats
+            and glyph
+            and str(glyph).strip().casefold() != str(planet).strip().casefold()
         }
         self._sign_formats = {
             sign: self._make_format(color)
@@ -836,6 +844,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 self._highlight_phrase(text, body, fmt)
             for alias, fmt in self._planet_alias_formats.items():
                 self._highlight_phrase(text, alias, fmt)
+        self._highlight_planet_glyphs(text)
         for aspect, fmt in self._aspect_formats.items():
             self._highlight_phrase(lowered, aspect, fmt)
         for sign, fmt in self._sign_formats.items():
@@ -903,6 +912,20 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 name_start = text.find(environment_value)
                 if name_start >= 0:
                     self.setFormat(self._qt_index(text, name_start), self._qt_len(environment_value), environment_fmt)
+
+    def _highlight_planet_glyphs(self, text: str) -> None:
+        for glyph, text_format in self._planet_glyph_formats.items():
+            start = 0
+            while True:
+                index = text.find(glyph, start)
+                if index == -1:
+                    break
+                self.setFormat(
+                    self._qt_index(text, index),
+                    self._qt_len(glyph),
+                    text_format,
+                )
+                start = index + len(glyph)
 
     def _highlight_phrase(self, text: str, phrase: str, text_format: QTextCharFormat) -> None:
         start = 0
