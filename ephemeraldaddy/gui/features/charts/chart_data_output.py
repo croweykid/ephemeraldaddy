@@ -236,9 +236,11 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
         self._time_variant_dusk_format = self._make_format("#4a7bd1", italic=True)
-        self._hd_midnight_variant_format = self._make_format("#ff9f1c")
+        # Human Design time variants use the same start/end colors as the
+        # chart-data sign time variants above, plus yellow for explicit noon.
+        self._hd_midnight_variant_format = self._make_format("#d1863a")
         self._hd_noon_variant_format = self._make_format("#ffd60a")
-        self._hd_late_variant_format = self._make_format("#4f8cff")
+        self._hd_late_variant_format = self._make_format("#4a7bd1")
         self._aspect_formats = {
             "conjunction": self._make_format("#c7a56a"),
             "sextile": self._make_format("#6b8ba4"),
@@ -411,9 +413,12 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         if not fields_match:
             return
         formats_by_count = {
-            1: (self._hd_noon_variant_format,),
             2: (self._hd_midnight_variant_format, self._hd_late_variant_format),
-            3: (self._hd_midnight_variant_format, self._hd_noon_variant_format, self._hd_late_variant_format),
+            3: (
+                self._hd_midnight_variant_format,
+                self._hd_noon_variant_format,
+                self._hd_late_variant_format,
+            ),
         }
         for field_name in ("gl", "c", "t", "b"):
             field_text = fields_match.group(field_name)

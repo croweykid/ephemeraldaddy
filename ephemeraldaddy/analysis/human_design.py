@@ -179,6 +179,20 @@ def _format_time_variant_field(tokens: tuple[str, str, str]) -> str:
     return "->".join(_collapsed_time_variant_tokens(tokens))
 
 
+def _time_variant_change_count(tokens: tuple[str, str, str]) -> int:
+    return sum(
+        1
+        for previous_token, current_token in zip(tokens, tokens[1:])
+        if previous_token != current_token
+    )
+
+
+def _format_single_change_or_unknown_time_variant_field(tokens: tuple[str, str, str]) -> str:
+    if _time_variant_change_count(tokens) > 1:
+        return "?"
+    return _format_time_variant_field(tokens)
+
+
 def _activation_display_values(activation, variants: tuple[object, object, object] | None) -> tuple[str, str, str, str]:
     if variants is None:
         return (
@@ -193,9 +207,9 @@ def _activation_display_values(activation, variants: tuple[object, object, objec
     base_tokens = tuple(str(int(item.base)) for item in variants)
     return (
         _format_time_variant_field(gate_line_tokens),
-        _format_time_variant_field(color_tokens),
-        _format_time_variant_field(tone_tokens),
-        _format_time_variant_field(base_tokens),
+        _format_single_change_or_unknown_time_variant_field(color_tokens),
+        _format_single_change_or_unknown_time_variant_field(tone_tokens),
+        _format_single_change_or_unknown_time_variant_field(base_tokens),
     )
 
 
@@ -250,24 +264,26 @@ def _build_hd_positions_lines(
                 )
         if color_start != -1:
             first_color = color_text.split("->", 1)[0]
-            line_entries.append(
-                {
-                    "kind": "hd_color",
-                    "color": int(first_color),
-                    "span_start": color_start,
-                    "span_end": color_start + len(first_color),
-                }
-            )
+            if first_color.isdigit():
+                line_entries.append(
+                    {
+                        "kind": "hd_color",
+                        "color": int(first_color),
+                        "span_start": color_start,
+                        "span_end": color_start + len(first_color),
+                    }
+                )
         if tone_start != -1:
             first_tone = tone_text.split("->", 1)[0]
-            line_entries.append(
-                {
-                    "kind": "hd_tone",
-                    "tone": int(first_tone),
-                    "span_start": tone_start,
-                    "span_end": tone_start + len(first_tone),
-                }
-            )
+            if first_tone.isdigit():
+                line_entries.append(
+                    {
+                        "kind": "hd_tone",
+                        "tone": int(first_tone),
+                        "span_start": tone_start,
+                        "span_end": tone_start + len(first_tone),
+                    }
+                )
         if line_entries:
             info_map[len(lines) - 1] = line_entries
     return lines, info_map
