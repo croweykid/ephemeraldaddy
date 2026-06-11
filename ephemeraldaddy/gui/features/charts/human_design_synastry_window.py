@@ -36,7 +36,11 @@ from ephemeraldaddy.gui.features.charts.human_design_plot import (
     CENTER_POSITIONS,
     draw_human_design_chart,
 )
-from ephemeraldaddy.gui.style import CHART_DATA_MONOSPACE_FONT_FAMILY, CHART_DATA_POPOUT_HEADER_STYLE
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_MONOSPACE_FONT_FAMILY,
+    CHART_DATA_POPOUT_HEADER_STYLE,
+    apply_chart_info_link_cursor,
+)
 
 SYNASTRY_PRIMARY_COLOR = "#ff9f1c"
 SYNASTRY_SECONDARY_COLOR = "#4ea5ff"
@@ -152,6 +156,7 @@ def create_human_design_synastry_dialog(
 
     figure = Figure(figsize=(7.9, 10.9))
     canvas = FigureCanvas(figure)
+    apply_chart_info_link_cursor(canvas)
     draw_human_design_chart(
         figure,
         hd_a,

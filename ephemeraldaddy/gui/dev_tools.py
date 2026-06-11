@@ -40,6 +40,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_VIEW_HEADER_COLOR,
     CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
+    apply_button_cursor,
     similarity_gradient_rgb_for_range,
 )
 
@@ -461,7 +462,7 @@ class SizeCheckerPopup(QDialog):
 
         self._copy_button = QPushButton(self)
         self._copy_button.setToolTip("Copy size readout")
-        self._copy_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(self._copy_button)
         self._copy_button.clicked.connect(self._copy_readout)
 
         copy_icon_path = Path(__file__).resolve().parents[1] / "graphics" / "copy_icon.png"

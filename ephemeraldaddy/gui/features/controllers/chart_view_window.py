@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.chart import Chart, apply_unknown_sign_metadata
+from ephemeraldaddy.gui.style import apply_button_cursor, apply_clickable_cursor
 from ephemeraldaddy.gui.features.charts.presentation import sign_for_longitude
 from ephemeraldaddy.core.ephemeris import planetary_positions
 from ephemeraldaddy.core.interpretations import (
@@ -673,7 +674,7 @@ def build_chart_view_left_panel(
 
     owner.chart_info_toggle_button = QPushButton("ⓘ")
     owner.chart_info_toggle_button.setCheckable(True)
-    owner.chart_info_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_info_toggle_button)
     owner.chart_info_toggle_button.setMinimumHeight(24)
     owner.chart_info_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("chart_info")
@@ -681,7 +682,7 @@ def build_chart_view_left_panel(
 
     owner.chart_bio_toggle_button = QPushButton("👤") #Biography / #Bio
     owner.chart_bio_toggle_button.setCheckable(True)
-    owner.chart_bio_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_bio_toggle_button)
     owner.chart_bio_toggle_button.setMinimumHeight(24)
     owner.chart_bio_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("biography")
@@ -689,7 +690,7 @@ def build_chart_view_left_panel(
 
     owner.chart_comments_toggle_button = QPushButton("💭") #Personal thoughts / #Comments
     owner.chart_comments_toggle_button.setCheckable(True)
-    owner.chart_comments_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_comments_toggle_button)
     owner.chart_comments_toggle_button.setMinimumHeight(24)
     owner.chart_comments_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("comments")
@@ -697,7 +698,7 @@ def build_chart_view_left_panel(
 
     owner.chart_rectification_toggle_button = QPushButton("⏳💬") #Rectification Notes
     owner.chart_rectification_toggle_button.setCheckable(True)
-    owner.chart_rectification_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_rectification_toggle_button)
     owner.chart_rectification_toggle_button.setMinimumHeight(24)
     owner.chart_rectification_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("rectification")
@@ -705,7 +706,7 @@ def build_chart_view_left_panel(
 
     owner.chart_source_toggle_button = QPushButton("🌐") #Source
     owner.chart_source_toggle_button.setCheckable(True)
-    owner.chart_source_toggle_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(owner.chart_source_toggle_button)
     owner.chart_source_toggle_button.setMinimumHeight(24)
     owner.chart_source_toggle_button.clicked.connect(
         lambda: owner._set_chart_info_panel_mode("source")
@@ -1019,7 +1020,7 @@ def setup_chart_view_tags_section(*, owner: QWidget, tags_content_layout: QVBoxL
     owner.chart_tags_selection_label.setWordWrap(True)
     owner.chart_tags_selection_label.setTextFormat(Qt.RichText)
     owner.chart_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-    owner.chart_tags_selection_label.setCursor(Qt.PointingHandCursor)
+    apply_clickable_cursor(owner.chart_tags_selection_label)
     owner.chart_tags_selection_label.linkActivated.connect(
         lambda link: on_chart_view_tag_remove_link(owner, link)
     )

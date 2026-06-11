@@ -1128,6 +1128,10 @@ from ephemeraldaddy.gui.style import (
     SETTINGS_SECTION_SUBHEADER_STYLE,
     DEFAULT_DROPDOWN_STYLE,
     WINDOW_CHROME_MENU_STYLE,
+    apply_button_cursor,
+    apply_chart_info_link_cursor,
+    apply_clickable_cursor,
+    apply_popout_cursor,
     apply_shared_dropdown_style,
     FAILSAFE_EXIT_TIMEOUT_MS,
     CHART_DATA_COLON_LABELS,
@@ -1163,6 +1167,7 @@ from ephemeraldaddy.gui.style import (
     alignment_score_to_rgb,
     similarity_gradient_rgb_for_range,
     configure_collapsible_header_toggle,
+    install_appwide_cursor_defaults,
     format_chart_header,
     QUAD_STATE_SLIDER_VISUALS,
     TRISTATE_SENTIMENT_STYLE,
@@ -1776,6 +1781,7 @@ def _get_qapp():
         app._edd_global_close_filter = _GlobalCloseShortcutFilter(app)
         app.installEventFilter(app._edd_global_close_filter)
     _apply_global_dropdown_and_menu_styles(app)
+    install_appwide_cursor_defaults(app)
     return app
 
 
@@ -1845,7 +1851,7 @@ def _configure_similarities_export_button(
     button.setMinimumWidth(button.sizeHint().width())
     button.setFixedHeight(20)
     button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-    button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(button)
     button.setToolTip(tooltip)
 
 
@@ -2761,7 +2767,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             popout_button.setIconSize(QSize(*DATABASE_ANALYTICS_EXPORT_ICON_SIZE))
         popout_button.setFlat(True)
         popout_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        popout_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(popout_button)
         popout_button.setToolTip(f"Open {title_text} graph in a larger popout window")
         popout_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._show_database_analytics_popout(
@@ -2780,7 +2786,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             export_button.setText("↗")
         export_button.setFlat(True)
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
         export_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._export_database_analysis_chart_csv(
@@ -4753,7 +4759,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         figure = Figure(figsize=(3.8, 3.8))
         canvas = FigureCanvas(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        canvas.setCursor(Qt.PointingHandCursor)
+        apply_popout_cursor(canvas)
         draw_chart_wheel(
             figure,
             chart,
@@ -4770,7 +4776,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         chart_click_layout.setContentsMargins(0, 0, 0, 0)
         chart_click_layout.setSpacing(0)
         chart_click_container.setLayout(chart_click_layout)
-        chart_click_container.setCursor(Qt.PointingHandCursor)
+        apply_popout_cursor(chart_click_container)
         chart_click_layout.addWidget(canvas, 0, 0)
 
         popout_hint = QLabel(chart_click_container)
@@ -6749,7 +6755,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         title.setStyleSheet(DATABASE_VIEW_PANEL_HEADER_STYLE)
         title_layout.addWidget(title)
         # self.similarities_db_info_toggle_button = QPushButton("DB Info")
-        # self.similarities_db_info_toggle_button.setCursor(Qt.PointingHandCursor)
+        # apply_button_cursor(self.similarities_db_info_toggle_button)
         # self.similarities_db_info_toggle_button.setMinimumHeight(20)
         # self.similarities_db_info_toggle_button.clicked.connect(
         #     self._toggle_similarities_db_info_panel
@@ -12788,7 +12794,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             database_analytics_key = self._database_analytics_chart_key_for_canvas(obj)
         if database_analytics_key is not None:
             if event.type() == QEvent.Enter:
-                obj.setCursor(Qt.PointingHandCursor)
+                apply_popout_cursor(obj)
             if event.type() == QEvent.Wheel:
                 return self._handle_database_analytics_canvas_wheel(event)
             if (
@@ -12802,7 +12808,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return True
         if obj in self._transit_chart_canvases:
             if event.type() == QEvent.Enter:
-                obj.setCursor(Qt.PointingHandCursor)
+                apply_popout_cursor(obj)
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
@@ -13339,7 +13345,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.batch_tags_selection_label.setWordWrap(True)
         self.batch_tags_selection_label.setTextFormat(Qt.RichText)
         self.batch_tags_selection_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.batch_tags_selection_label.setCursor(Qt.PointingHandCursor)
+        apply_clickable_cursor(self.batch_tags_selection_label)
         self.batch_tags_selection_label.linkActivated.connect(self._on_batch_tag_remove_link_clicked)
         tagging_section_layout.addWidget(self.batch_tags_selection_label)
         self.batch_tags_toggle = QToolButton()
@@ -13507,7 +13513,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         batch_familiarity_calculator_button.setAutoRaise(True)
         batch_familiarity_calculator_button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0; }")
         batch_familiarity_calculator_button.setToolTip("Open Familiarity Calculator")
-        batch_familiarity_calculator_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(batch_familiarity_calculator_button)
         batch_familiarity_calculator_button.clicked.connect(self._open_batch_familiarity_calculator)
         familiarity_label_layout.addWidget(batch_familiarity_calculator_button)
         familiarity_label_widget.setLayout(familiarity_label_layout)
@@ -16883,7 +16889,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
 
         save_button = QPushButton("✅")
-        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(save_button)
         save_button.setToolTip("Save chart name")
         save_button.setFixedWidth(34)
         save_button.setStyleSheet(
@@ -21183,7 +21189,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         container_layout.setSpacing(4)
 
         button = QPushButton(title)
-        button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(button)
         button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.clicked.connect(callback)
         container_layout.addWidget(button)
@@ -22908,7 +22914,7 @@ class MainWindow(QMainWindow):
         familiarity_calculator_button.setAutoRaise(True)
         familiarity_calculator_button.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0; }")
         familiarity_calculator_button.setToolTip("Open Familiarity Calculator")
-        familiarity_calculator_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_button_cursor(familiarity_calculator_button)
         familiarity_calculator_button.clicked.connect(self._open_chart_familiarity_calculator)
         familiarity_label_layout.addWidget(familiarity_calculator_button)
         familiarity_label_widget.setLayout(familiarity_label_layout)
@@ -23076,7 +23082,7 @@ class MainWindow(QMainWindow):
         else:
             self.output_share_button.setText("↗")
         self.output_share_button.setAutoRaise(True)
-        self.output_share_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(self.output_share_button)
         self.output_share_button.setToolTip("Export chart data output as Markdown or text")
         self.output_share_button.clicked.connect(self._export_chart_data_output)
         self.output_share_button.resize(22, 22)
@@ -23355,7 +23361,7 @@ class MainWindow(QMainWindow):
         else:
             export_button.setText("↗")
         export_button.setAutoRaise(True)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip("Export similar charts as TXT or Markdown")
         export_button.clicked.connect(self._export_similar_charts_share)
         header_layout.addWidget(export_button, 0, Qt.AlignRight)
@@ -23376,7 +23382,7 @@ class MainWindow(QMainWindow):
         more_button = QToolButton()
         more_button.setText("More...")
         more_button.setAutoRaise(True)
-        more_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(more_button)
         more_button.setStyleSheet(
             (
                 "QToolButton {"
@@ -25100,6 +25106,7 @@ class MainWindow(QMainWindow):
 
     def _register_metric_chart(self, canvas: FigureCanvas, title: str) -> None:
         self._metric_chart_titles[canvas] = title
+        apply_popout_cursor(canvas)
         self._register_metric_scroll_widget(canvas)
 
     def _metric_canvas_is_alive(self, canvas: FigureCanvas) -> bool:
@@ -27008,6 +27015,81 @@ class MainWindow(QMainWindow):
             f"Saved chart data output to:\n{file_path}",
         )
 
+
+    def _summary_info_cursor_is_on_link(
+        self,
+        cursor,
+        position_info_map: dict[int, list[dict[str, object]]],
+        aspect_info_map: dict[int, dict[str, object]],
+        species_info_map: dict[int, list[dict[str, object]]],
+        block_offset: int = 0,
+    ) -> bool:
+        """Return True when the text cursor is over a Chart Info click target."""
+        block = cursor.block()
+        block_number = block.blockNumber() + block_offset
+        block_text = block.text()
+        cursor_pos = cursor.positionInBlock()
+
+        for entries in (
+            species_info_map.get(block_number, []),
+            position_info_map.get(block_number, []),
+        ):
+            for entry in entries:
+                span_start = entry.get("span_start")
+                span_end = entry.get("span_end")
+                if (
+                    isinstance(span_start, int)
+                    and isinstance(span_end, int)
+                    and span_start <= cursor_pos < span_end
+                ):
+                    return True
+            icon_indices = [
+                int(entry["icon_index"])
+                for entry in entries
+                if isinstance(entry.get("icon_index"), int)
+                and int(entry.get("icon_index", -1)) >= 0
+            ]
+            if any(cursor_pos >= icon_index for icon_index in icon_indices):
+                return True
+
+        aspect_info = aspect_info_map.get(block_number)
+        if aspect_info:
+            info_index = block_text.rfind("ⓘ")
+            if info_index != -1 and cursor_pos >= info_index:
+                return True
+            span_start = aspect_info.get("span_start")
+            span_end = aspect_info.get("span_end")
+            if (
+                isinstance(span_start, int)
+                and isinstance(span_end, int)
+                and span_start <= cursor_pos < span_end
+            ):
+                return True
+        return False
+
+    def _update_summary_info_hover_cursor(
+        self,
+        output_widget: QPlainTextEdit,
+        viewport: QWidget,
+        position,
+        position_info_map: dict[int, list[dict[str, object]]],
+        aspect_info_map: dict[int, dict[str, object]],
+        species_info_map: dict[int, list[dict[str, object]]],
+        block_offset: int = 0,
+    ) -> None:
+        """Set the question cursor when hovering Chart Info links in output text."""
+        cursor = output_widget.cursorForPosition(position.toPoint())
+        if self._summary_info_cursor_is_on_link(
+            cursor,
+            position_info_map,
+            aspect_info_map,
+            species_info_map,
+            block_offset,
+        ):
+            apply_chart_info_link_cursor(viewport)
+        else:
+            viewport.unsetCursor()
+
     def _handle_summary_info_click(
         self,
         output_widget: QPlainTextEdit,
@@ -27257,8 +27339,22 @@ class MainWindow(QMainWindow):
         output_text = getattr(self, "output_text", None)
         chart_canvas = getattr(self, "chart_canvas", None)
         if popout_context is not None:
+            output_widget = popout_context["output_widget"]
+            if event.type() == QEvent.Enter:
+                obj.setMouseTracking(True)
+            if event.type() == QEvent.MouseMove:
+                self._update_summary_info_hover_cursor(
+                    output_widget,
+                    obj,
+                    event.position(),
+                    popout_context["position_info_map"],
+                    popout_context["aspect_info_map"],
+                    popout_context["species_info_map"],
+                    popout_context.get("summary_block_offset", 0),
+                )
+            if event.type() == QEvent.Leave:
+                obj.unsetCursor()
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-                output_widget = popout_context["output_widget"]
                 cursor = output_widget.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
                     output_widget,
@@ -27275,6 +27371,19 @@ class MainWindow(QMainWindow):
             if event.type() == QEvent.Resize:
                 self._position_output_share_button()
         if output_text is not None and obj is output_text.viewport():
+            if event.type() == QEvent.Enter:
+                obj.setMouseTracking(True)
+            if event.type() == QEvent.MouseMove:
+                self._update_summary_info_hover_cursor(
+                    output_text,
+                    obj,
+                    event.position(),
+                    self._position_info_map,
+                    self._aspect_info_map,
+                    self._species_info_map,
+                )
+            if event.type() == QEvent.Leave:
+                obj.unsetCursor()
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 cursor = output_text.cursorForPosition(event.position().toPoint())
                 return self._handle_summary_info_click(
@@ -27306,7 +27415,7 @@ class MainWindow(QMainWindow):
                 return True
         if chart_canvas is not None and obj is chart_canvas:
             if event.type() == QEvent.Enter:
-                obj.setCursor(Qt.PointingHandCursor)
+                apply_popout_cursor(obj)
             if (
                 event.type() == QEvent.MouseButtonRelease
                 and event.button() == Qt.LeftButton
@@ -31747,6 +31856,7 @@ class MainWindow(QMainWindow):
 
         figure = Figure(figsize=(7.9, 10.9))
         canvas = FigureCanvas(figure)
+        apply_chart_info_link_cursor(canvas)
         draw_human_design_chart(
             figure,
             hd_result,
@@ -31915,7 +32025,7 @@ class MainWindow(QMainWindow):
         else:
             summary_share_button.setText("↗")
         summary_share_button.setAutoRaise(True)
-        summary_share_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(summary_share_button)
         summary_share_button.setToolTip("Export chart data output as Markdown or text")
         summary_share_button.setFixedSize(22, 22)
         summary_share_button.clicked.connect(

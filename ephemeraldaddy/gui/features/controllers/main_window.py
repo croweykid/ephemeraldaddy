@@ -35,6 +35,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_HEADER_ROW_DEBUG_STYLE,
     DATABASE_ANALYTICS_HEADER_SPACING,
     DATABASE_ANALYTICS_SECTION_DEBUG_STYLE,
+    apply_button_cursor,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_ANALYTICS_SUBTITLE_DEBUG_STYLE,
     configure_collapsible_header_toggle,
@@ -107,7 +108,7 @@ class ChartAnalysisSectionsController:
             export_button.setText("↗")
         export_button.setFlat(True)
         export_button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-        export_button.setCursor(Qt.PointingHandCursor)
+        apply_button_cursor(export_button)
         export_button.setToolTip(f"Export {title_text} as CSV")
         export_button.clicked.connect(
             lambda _checked=False, key=chart_key, title=title_text: self._on_export_chart_csv(

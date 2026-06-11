@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QToolButton,
     QWidget,
 )
+
+from ephemeraldaddy.gui.style import apply_button_cursor
 
 
 def register_popout_close_shortcuts(dialog: QWidget) -> None:
@@ -67,7 +69,7 @@ def attach_popout_share_button(
     else:
         share_button.setText("↗")
     share_button.setAutoRaise(True)
-    share_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(share_button)
     share_button.setToolTip("Export chart data output as Markdown or text")
 
     def _export_clicked(

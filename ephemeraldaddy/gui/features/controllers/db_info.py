@@ -29,6 +29,7 @@ from ephemeraldaddy.gui.features.charts.metrics import (
 )
 from ephemeraldaddy.gui.style import (
     CHART_DATA_HIGHLIGHT_COLOR,
+    apply_button_cursor,
     apply_shared_dropdown_style,
     similarity_gradient_rgb_for_range,
 )
@@ -452,7 +453,7 @@ def add_database_info_settings_section(owner: Any, content_layout) -> None:
     else:
         export_button.setText("⇪")
     export_button.setToolTip("Export Database Statistics as TXT or MD")
-    export_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(export_button)
     export_button.clicked.connect(lambda _checked=False: _export_database_info(owner))
     top_row.addWidget(export_button, 0, Qt.AlignTop | Qt.AlignRight)
     section_layout.addLayout(top_row)

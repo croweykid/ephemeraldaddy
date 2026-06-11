@@ -24,6 +24,7 @@ from ephemeraldaddy.gui.style import (
     DATABASE_ANALYTICS_DROPDOWN_STYLE,
     DATABASE_ANALYTICS_SUBHEADER_STYLE,
     DATABASE_VIEW_COLLAPSIBLE_TOGGLE_STYLE,
+    apply_button_cursor,
     configure_collapsible_header_toggle,
 )
 
@@ -438,7 +439,7 @@ def build_anagrams_section(
     else:
         export_button.setText("↗")
     export_button.setAutoRaise(True)
-    export_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(export_button)
     export_button.setToolTip("Export anagrams and clicked definitions")
     export_button.clicked.connect(on_export_clicked)
     header_layout.addWidget(export_button, 0, Qt.AlignRight)

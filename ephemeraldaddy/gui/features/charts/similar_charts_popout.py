@@ -73,7 +73,12 @@ from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_sco
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import perceived_accuracy_state_key
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    DEFAULT_DROPDOWN_STYLE,
+    apply_button_cursor,
+    apply_clickable_cursor,
+)
 
 
 def show_similar_charts_loading_progress(
@@ -2565,7 +2570,7 @@ def build_similar_charts_popout_dialog(
     subject_chart_link.setTextFormat(Qt.RichText)
     subject_chart_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
     subject_chart_link.setOpenExternalLinks(False)
-    subject_chart_link.setCursor(Qt.PointingHandCursor)
+    apply_clickable_cursor(subject_chart_link)
     subject_chart_link.setStyleSheet(header_style)
     safe_subject_name = _escape_html(str(subject_name or "Current chart"))
     if subject_chart_id is not None:
@@ -2577,7 +2582,7 @@ def build_similar_charts_popout_dialog(
     top_row.addWidget(subject_chart_link, 0, Qt.AlignLeft)
     top_row.addStretch(1)
     make_collection_button = QPushButton("Make collection from similar charts")
-    make_collection_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(make_collection_button)
     make_collection_button.setVisible(on_make_collection_clicked is not None)
     if on_make_collection_clicked is not None:
         make_collection_button.clicked.connect(lambda _checked=False: on_make_collection_clicked(dialog))
@@ -2589,7 +2594,7 @@ def build_similar_charts_popout_dialog(
     else:
         export_button.setText("↗")
     export_button.setAutoRaise(True)
-    export_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(export_button)
     export_button.setToolTip("Export Top 25 Most Similar & Top 25 Least Similar charts as TXT or Markdown")
     export_button.setVisible(on_export_clicked is not None)
     if on_export_clicked is not None:

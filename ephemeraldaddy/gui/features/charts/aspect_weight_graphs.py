@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from ephemeraldaddy.core.interpretations import ASPECT_COLORS, ASPECT_FRICTION, ASPECT_TYPES
+from ephemeraldaddy.gui.style import apply_button_cursor, apply_chart_info_link_cursor
 
 
 def normalize_aspect_type(raw_aspect: Any) -> str:
@@ -223,7 +224,7 @@ def build_popout_left_panel(
     else:
         analytics_export_button.setText("↗")
     analytics_export_button.setAutoRaise(True)
-    analytics_export_button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(analytics_export_button)
     analytics_export_button.setToolTip("Export aspect distribution as CSV")
     analytics_header_layout.addWidget(analytics_export_button, 0, Qt.AlignRight)
     left_panel_layout.addLayout(analytics_header_layout)
@@ -243,6 +244,7 @@ def build_popout_left_panel(
 
     analytics_figure = Figure(figsize=(4.2, 3.4))
     analytics_canvas = FigureCanvas(analytics_figure)
+    apply_chart_info_link_cursor(analytics_canvas)
     analytics_ax = analytics_figure.add_subplot(111)
     analytics_figure.patch.set_facecolor(chart_theme_colors["background"])
     analytics_ax.set_facecolor(chart_theme_colors["background"])
