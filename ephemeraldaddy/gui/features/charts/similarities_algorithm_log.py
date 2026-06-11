@@ -200,8 +200,12 @@ def perceived_accuracy_state_key(
         except (TypeError, ValueError):
             return "unknown"
 
-    first = _id_token(chart_1_id)
-    second = _id_token(chart_2_id)
+    raw_first = _id_token(chart_1_id)
+    raw_second = _id_token(chart_2_id)
+    if raw_first != "unknown" and raw_second != "unknown":
+        first, second = sorted((raw_first, raw_second), key=int)
+    else:
+        first, second = raw_first, raw_second
     return f"{first}|{second}|{str(analysis_context or '').strip().lower()}"
 
 
@@ -299,16 +303,15 @@ def load_similarity_perceived_accuracy_states(
         if not isinstance(payload, dict):
             continue
         key = str(payload.get("state_key") or "").strip()
-        if not key:
-            pair = payload.get("chart_1_compared_with_chart_2", {})
-            if isinstance(pair, Mapping):
-                chart_1 = pair.get("chart_1", {})
-                chart_2 = pair.get("chart_2", {})
-                key = perceived_accuracy_state_key(
-                    chart_1_id=chart_1.get("id") if isinstance(chart_1, Mapping) else None,
-                    chart_2_id=chart_2.get("id") if isinstance(chart_2, Mapping) else None,
-                    analysis_context=str(payload.get("analysis_context") or ""),
-                )
+        pair = payload.get("chart_1_compared_with_chart_2", {})
+        if isinstance(pair, Mapping):
+            chart_1 = pair.get("chart_1", {})
+            chart_2 = pair.get("chart_2", {})
+            key = perceived_accuracy_state_key(
+                chart_1_id=chart_1.get("id") if isinstance(chart_1, Mapping) else None,
+                chart_2_id=chart_2.get("id") if isinstance(chart_2, Mapping) else None,
+                analysis_context=str(payload.get("analysis_context") or ""),
+            )
         if key:
             states[key] = payload
     return states
