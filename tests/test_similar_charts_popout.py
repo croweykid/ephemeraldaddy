@@ -66,8 +66,13 @@ def _install_style_stub():
     def format_chart_header(*_args, **_kwargs):
         return ""
 
+    def blend_hex_colors(color_a, color_b, ratio=0.5):
+        return color_a or color_b or "#000000"
+
     if not hasattr(style, "format_chart_header"):
         style.format_chart_header = format_chart_header
+    if not hasattr(style, "blend_hex_colors"):
+        style.blend_hex_colors = blend_hex_colors
 
 
 _install_pyside_stubs()
@@ -148,3 +153,17 @@ def test_similar_match_blocks_include_z_score():
     )
 
     assert "z=+2.00" in html
+
+
+def test_popout_chart_name_links_request_database_to_chart_view_transition():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
+    assert "transition_to_chart_view: bool = False" in source
+    assert "_similar_chart_popout_opened_from_database_view = bool(database_view_active)" in source
+    assert "transition_to_chart_view=bool(" in source
+    assert "activate=False" in source
+    assert "manage_dialog.hide()" in source
+    assert "lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog)" in source
+    assert "except RuntimeError:" in source
+    assert "if current_chart_id == chart_id:" in source
