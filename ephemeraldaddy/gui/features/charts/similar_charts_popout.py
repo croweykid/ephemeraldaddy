@@ -2456,24 +2456,24 @@ def build_predictions_panel_content(
         f"Based on similar charts, the user is probably sees {html.escape(subject_name)} as...<br><br> "
         "</div>"
         f"<div style='margin-top:6px;color:#f5f5f5'>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (best case):</span> a(n) {_sentiment_estimate_html(positive_avg_numeric, positive_median_numeric)}<br>"
-        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (worst case):</span> a(n)</span> "
-        f"{_sentiment_estimate_html(-negative_avg_numeric, -negative_median_numeric)}<br><br>"
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (best case):</span> {_sentiment_estimate_html(positive_avg_numeric)}<br>" #, positive_median_numeric
+        f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Likeability (worst case):</span></span> "
+        f"{_sentiment_estimate_html(-negative_avg_numeric)}<br><br>" #, -negative_median_numeric
         f"<span style='font-weight:700;color:{CHART_DATA_HIGHLIGHT_COLOR}'>Ethically:</span> "
-        f"{_alignment_estimate_html(alignment_avg_numeric, alignment_median_numeric)}."
+        f"{_alignment_estimate_html(alignment_avg_numeric)}." #, alignment_median_numeric
         "</div>"
         + alignment_skip_footnote_html
     )
     plain_text = (
         "PREDICTIONS\n\n"
         "User's Positive Sentiment Likelihood (based on similar charts):\n"
-        f"By median: {positive_median}\n"
+        #f"By median: {positive_median}\n"
         f"By avg: {positive_avg}\n\n"
         "User's Negative Sentiment Likelihood (based on similar charts):\n"
-        f"By median: {negative_median}\n"
+        #f"By median: {negative_median}\n"
         f"By avg: {negative_avg}\n\n"
         "User-Assessed Alignment Likelihood (based on similar charts):\n"
-        f"By median: {alignment_median}\n"
+        #f"By median: {alignment_median}\n"
         f"By avg: {alignment_avg}"
         f"{alignment_skip_footnote_text}"
     )
