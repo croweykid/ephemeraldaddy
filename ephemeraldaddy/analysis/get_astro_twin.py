@@ -47,6 +47,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import active_human_design
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
+SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
@@ -70,6 +71,15 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "inner_planet_placement",
     "outer_planet_placement",
 )
+
+ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS: frozenset[str] = frozenset({
+    "defined_centers",
+    "outer_planet_placement",
+})
+ALL_OR_NOTHING_COMPONENT_KEYS: tuple[str, ...] = tuple(
+    key for key in SIMILARITY_COMPONENT_KEYS if key not in ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS
+)
+DEFAULT_ALL_OR_NOTHING_COMPONENT = "inner_planet_placement"
 
 CORE_BODIES: tuple[str, ...] = (
     "Sun",
@@ -405,6 +415,7 @@ class SimilarityCalculatorSettings:
     use_outer_planet_placement: bool = False
     weight_outer_planet_placement: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
+    all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
 
     @classmethod
     def defaults_from_comprehensive(cls) -> "SimilarityCalculatorSettings":
@@ -443,16 +454,42 @@ class SimilarityCalculatorSettings:
     def normalized_placement_weighting_mode(self) -> str:
         return normalize_placement_weighting_mode(self.placement_weighting_mode)
 
+    def normalized_all_or_nothing_component(self) -> str:
+        return normalize_all_or_nothing_component(self.all_or_nothing_component)
+
 
 def normalize_similar_charts_algorithm_mode(value: object) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+        SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     }:
         return normalized
     return SIMILAR_CHARTS_ALGORITHM_DEFAULT
+
+
+def normalize_all_or_nothing_component(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in ALL_OR_NOTHING_COMPONENT_KEYS:
+        return normalized
+    return DEFAULT_ALL_OR_NOTHING_COMPONENT
+
+
+def all_or_nothing_similarity_settings(
+    settings: SimilarityCalculatorSettings | None,
+) -> SimilarityCalculatorSettings:
+    source = settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    selected_component = normalize_all_or_nothing_component(source.all_or_nothing_component)
+    values: dict[str, object] = {
+        "placement_weighting_mode": source.normalized_placement_weighting_mode(),
+        "all_or_nothing_component": selected_component,
+    }
+    for key in SIMILARITY_COMPONENT_KEYS:
+        values[f"use_{key}"] = key == selected_component
+        values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
+    return SimilarityCalculatorSettings(**values)
 
 
 def normalize_placement_weighting_mode(value: object) -> str:
@@ -1066,39 +1103,70 @@ def _human_design_channels_similarity(query: Chart, candidate: Chart) -> float:
     return len(intersection) / len(union)
 
 
+def _active_similarity_component_keys(settings: SimilarityCalculatorSettings) -> tuple[str, ...]:
+    enabled_components = settings.enabled_components()
+    weights_by_component = settings.weights_by_component()
+    return tuple(
+        key
+        for key in SIMILARITY_COMPONENT_KEYS
+        if bool(enabled_components.get(key, False))
+        and max(0.0, float(weights_by_component.get(key, 0.0))) > 0.0
+    )
+
+
 def _similarity_component_scores(
     query: Chart,
     candidate: Chart,
     *,
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+    component_keys: Iterable[str] | None = None,
 ) -> dict[str, float]:
-    return {
-        "placement": _placement_similarity(query, candidate, weighting_mode=placement_weighting_mode),
-        "aspect": _aspect_similarity(query, candidate),
-        "distribution": _distribution_similarity(
-            query,
-            candidate,
-            weighting_mode=placement_weighting_mode,
-        ),
-        "combined_dominance": _combined_dominance_similarity(query, candidate),
-        "nakshatra_placement": _nakshatra_similarity(query, candidate),
-        "nakshatra_dominance": _nakshatra_dominance_similarity(query, candidate),
-        "defined_centers": _defined_centers_similarity(query, candidate),
-        "human_design_gates": _human_design_gates_similarity(query, candidate),
-        "human_design_channels": _human_design_channels_similarity(query, candidate),
-        "inner_planet_placement": _placement_similarity(
-            query,
-            candidate,
-            weighting_mode=placement_weighting_mode,
-            bodies=INNER_PLANETS,
-        ),
-        "outer_planet_placement": _placement_similarity(
-            query,
-            candidate,
-            weighting_mode=placement_weighting_mode,
-            bodies=OUTER_PLANETS,
-        ),
-    }
+    requested = tuple(SIMILARITY_COMPONENT_KEYS if component_keys is None else component_keys)
+    scores: dict[str, float] = {}
+    for key in SIMILARITY_COMPONENT_KEYS:
+        if key not in requested:
+            continue
+        if key == "placement":
+            scores[key] = _placement_similarity(
+                query,
+                candidate,
+                weighting_mode=placement_weighting_mode,
+            )
+        elif key == "aspect":
+            scores[key] = _aspect_similarity(query, candidate)
+        elif key == "distribution":
+            scores[key] = _distribution_similarity(
+                query,
+                candidate,
+                weighting_mode=placement_weighting_mode,
+            )
+        elif key == "combined_dominance":
+            scores[key] = _combined_dominance_similarity(query, candidate)
+        elif key == "nakshatra_placement":
+            scores[key] = _nakshatra_similarity(query, candidate)
+        elif key == "nakshatra_dominance":
+            scores[key] = _nakshatra_dominance_similarity(query, candidate)
+        elif key == "defined_centers":
+            scores[key] = _defined_centers_similarity(query, candidate)
+        elif key == "human_design_gates":
+            scores[key] = _human_design_gates_similarity(query, candidate)
+        elif key == "human_design_channels":
+            scores[key] = _human_design_channels_similarity(query, candidate)
+        elif key == "inner_planet_placement":
+            scores[key] = _placement_similarity(
+                query,
+                candidate,
+                weighting_mode=placement_weighting_mode,
+                bodies=INNER_PLANETS,
+            )
+        elif key == "outer_planet_placement":
+            scores[key] = _placement_similarity(
+                query,
+                candidate,
+                weighting_mode=placement_weighting_mode,
+                bodies=OUTER_PLANETS,
+            )
+    return scores
 
 
 def _weighted_similarity_score(
@@ -1169,18 +1237,32 @@ def chart_similarity_score(
     return final_score, placement_score, aspect_score, distribution_score
 
 
+def _comprehensive_similarity_components(
+    query: Chart,
+    candidate: Chart,
+    *,
+    placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+) -> tuple[SimilarityCalculatorSettings, dict[str, float]]:
+    settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+    return settings, _similarity_component_scores(
+        query,
+        candidate,
+        placement_weighting_mode=placement_weighting_mode,
+        component_keys=_active_similarity_component_keys(settings),
+    )
+
+
 def chart_similarity_score_comprehensive(
     query: Chart,
     candidate: Chart,
     *,
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-) -> tuple[float, float, float, float, float, float]:
-    component_scores = _similarity_component_scores(
+) -> tuple[float, float, float, float, float, float | None]:
+    settings, component_scores = _comprehensive_similarity_components(
         query,
         candidate,
         placement_weighting_mode=placement_weighting_mode,
     )
-    settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
     comprehensive_score = _weighted_similarity_score(
         component_scores,
         settings.weights_by_component(),
@@ -1188,11 +1270,11 @@ def chart_similarity_score_comprehensive(
     )
     return (
         comprehensive_score,
-        component_scores["placement"],
-        component_scores["aspect"],
-        component_scores["distribution"],
-        component_scores["nakshatra_placement"],
-        component_scores["defined_centers"],
+        component_scores.get("placement", 0.0),
+        component_scores.get("aspect", 0.0),
+        component_scores.get("distribution", 0.0),
+        component_scores.get("nakshatra_placement", 0.0),
+        component_scores.get("defined_centers"),
     )
 
 
@@ -1205,6 +1287,7 @@ def chart_similarity_score_custom(
         query,
         candidate,
         placement_weighting_mode=settings.normalized_placement_weighting_mode(),
+        component_keys=_active_similarity_component_keys(settings),
     )
     final_score = _weighted_similarity_score(
         component_scores,
@@ -1212,6 +1295,18 @@ def chart_similarity_score_custom(
         enabled_components=settings.enabled_components(),
     )
     return final_score, component_scores
+
+
+def chart_similarity_score_all_or_nothing(
+    query: Chart,
+    candidate: Chart,
+    settings: SimilarityCalculatorSettings | None,
+) -> tuple[float, dict[str, float]]:
+    return chart_similarity_score_custom(
+        query,
+        candidate,
+        all_or_nothing_similarity_settings(settings),
+    )
 
 
 def chart_dissimilarity_score(
@@ -1245,13 +1340,12 @@ def chart_dissimilarity_score_comprehensive(
     candidate: Chart,
     *,
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
-) -> tuple[float, float, float, float, float, float, float]:
-    component_scores = _similarity_component_scores(
+) -> tuple[float, float, float, float, float, float, float | None]:
+    settings, component_scores = _comprehensive_similarity_components(
         query,
         candidate,
         placement_weighting_mode=placement_weighting_mode,
     )
-    settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
     weights = settings.weights_by_component()
     enabled = settings.enabled_components()
     similarity_score = _weighted_similarity_score(
@@ -1264,11 +1358,11 @@ def chart_dissimilarity_score_comprehensive(
         weights,
         enabled_components=enabled,
     )
-    placement_score = component_scores["placement"]
-    aspect_score = component_scores["aspect"]
-    distribution_score = component_scores["distribution"]
-    nakshatra_score = component_scores["nakshatra_placement"]
-    hd_centers_score = component_scores["defined_centers"]
+    placement_score = component_scores.get("placement", 0.0)
+    aspect_score = component_scores.get("aspect", 0.0)
+    distribution_score = component_scores.get("distribution", 0.0)
+    nakshatra_score = component_scores.get("nakshatra_placement", 0.0)
+    hd_centers_score = component_scores.get("defined_centers")
     dominance_similarity = _sign_dominance_similarity(query, candidate)
     dominance_penalty = 0.35 * dominance_similarity
     dissimilarity_score = inverse_weighted * (1.0 - dominance_penalty)
@@ -1297,11 +1391,22 @@ def find_astro_twins(
     # Keep only k best candidates as we iterate so we avoid sorting all rows.
     scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
     relaxed_scored_matches: list[tuple[float, int, AstroTwinMatch]] = []
-    query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+    use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
     use_custom = normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM
+    apply_least_similar_dominance_guardrail = least_similar and normalized_mode in {
+        SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    }
+    query_top3_signs = (
+        _top_sign_indices(_sign_weight_profile(query_chart), count=3)
+        if apply_least_similar_dominance_guardrail
+        else set()
+    )
     normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    if use_all_or_nothing:
+        normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
@@ -1312,7 +1417,7 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            if use_custom:
+            if use_custom or use_all_or_nothing:
                 custom_similarity_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1320,40 +1425,46 @@ def find_astro_twins(
                 )
                 rank_score = 1.0 - custom_similarity_score
                 final_score = custom_similarity_score
-                placement_score = component_scores["placement"]
-                aspect_score = component_scores["aspect"]
-                distribution_score = component_scores["distribution"]
-                nakshatra_score = component_scores["nakshatra_placement"]
-                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
-                hd_centers_score = component_scores["defined_centers"]
-                human_design_gates_score = component_scores["human_design_gates"]
-                human_design_channels_score = component_scores["human_design_channels"]
-                inner_planet_placement_score = component_scores["inner_planet_placement"]
-                outer_planet_placement_score = component_scores["outer_planet_placement"]
+                placement_score = component_scores.get("placement", 0.0)
+                aspect_score = component_scores.get("aspect", 0.0)
+                distribution_score = component_scores.get("distribution", 0.0)
+                nakshatra_score = component_scores.get("nakshatra_placement")
+                nakshatra_dominance_score = component_scores.get("nakshatra_dominance")
+                hd_centers_score = component_scores.get("defined_centers")
+                human_design_gates_score = component_scores.get("human_design_gates")
+                human_design_channels_score = component_scores.get("human_design_channels")
+                inner_planet_placement_score = component_scores.get("inner_planet_placement")
+                outer_planet_placement_score = component_scores.get("outer_planet_placement")
             elif use_comprehensive:
-                (
-                    rank_score,
-                    final_score,
-                    placement_score,
-                    aspect_score,
-                    distribution_score,
-                    nakshatra_score,
-                    hd_centers_score,
-                ) = chart_dissimilarity_score_comprehensive(
+                comprehensive_settings, component_scores = _comprehensive_similarity_components(
                     query_chart,
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
-                comprehensive_component_scores = _similarity_component_scores(
-                    query_chart,
-                    candidate,
-                    placement_weighting_mode=placement_weighting_mode,
+                weights = comprehensive_settings.weights_by_component()
+                enabled = comprehensive_settings.enabled_components()
+                final_score = _weighted_similarity_score(
+                    component_scores,
+                    weights,
+                    enabled_components=enabled,
                 )
-                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
-                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
-                human_design_channels_score = comprehensive_component_scores["human_design_channels"]
-                inner_planet_placement_score = comprehensive_component_scores["inner_planet_placement"]
-                outer_planet_placement_score = comprehensive_component_scores["outer_planet_placement"]
+                inverse_weighted = _weighted_similarity_score(
+                    {key: 1.0 - float(score) for key, score in component_scores.items()},
+                    weights,
+                    enabled_components=enabled,
+                )
+                dominance_similarity = _sign_dominance_similarity(query_chart, candidate)
+                rank_score = inverse_weighted * (1.0 - (0.35 * dominance_similarity))
+                placement_score = component_scores.get("placement", 0.0)
+                aspect_score = component_scores.get("aspect", 0.0)
+                distribution_score = component_scores.get("distribution", 0.0)
+                nakshatra_score = component_scores.get("nakshatra_placement")
+                hd_centers_score = component_scores.get("defined_centers")
+                nakshatra_dominance_score = component_scores.get("nakshatra_dominance")
+                human_design_gates_score = component_scores.get("human_design_gates")
+                human_design_channels_score = component_scores.get("human_design_channels")
+                inner_planet_placement_score = component_scores.get("inner_planet_placement")
+                outer_planet_placement_score = component_scores.get("outer_planet_placement")
             else:
                 rank_score, final_score, placement_score, aspect_score, distribution_score = chart_dissimilarity_score(
                     query_chart,
@@ -1368,45 +1479,43 @@ def find_astro_twins(
                 inner_planet_placement_score = None
                 outer_planet_placement_score = None
         else:
-            if use_custom:
+            if use_custom or use_all_or_nothing:
                 final_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
                     normalized_custom_settings,
                 )
-                placement_score = component_scores["placement"]
-                aspect_score = component_scores["aspect"]
-                distribution_score = component_scores["distribution"]
-                nakshatra_score = component_scores["nakshatra_placement"]
-                nakshatra_dominance_score = component_scores["nakshatra_dominance"]
-                hd_centers_score = component_scores["defined_centers"]
-                human_design_gates_score = component_scores["human_design_gates"]
-                human_design_channels_score = component_scores["human_design_channels"]
-                inner_planet_placement_score = component_scores["inner_planet_placement"]
-                outer_planet_placement_score = component_scores["outer_planet_placement"]
+                placement_score = component_scores.get("placement", 0.0)
+                aspect_score = component_scores.get("aspect", 0.0)
+                distribution_score = component_scores.get("distribution", 0.0)
+                nakshatra_score = component_scores.get("nakshatra_placement")
+                nakshatra_dominance_score = component_scores.get("nakshatra_dominance")
+                hd_centers_score = component_scores.get("defined_centers")
+                human_design_gates_score = component_scores.get("human_design_gates")
+                human_design_channels_score = component_scores.get("human_design_channels")
+                inner_planet_placement_score = component_scores.get("inner_planet_placement")
+                outer_planet_placement_score = component_scores.get("outer_planet_placement")
             elif use_comprehensive:
-                (
-                    final_score,
-                    placement_score,
-                    aspect_score,
-                    distribution_score,
-                    nakshatra_score,
-                    hd_centers_score,
-                ) = chart_similarity_score_comprehensive(
+                comprehensive_settings, component_scores = _comprehensive_similarity_components(
                     query_chart,
                     candidate,
                     placement_weighting_mode=placement_weighting_mode,
                 )
-                comprehensive_component_scores = _similarity_component_scores(
-                    query_chart,
-                    candidate,
-                    placement_weighting_mode=placement_weighting_mode,
+                final_score = _weighted_similarity_score(
+                    component_scores,
+                    comprehensive_settings.weights_by_component(),
+                    enabled_components=comprehensive_settings.enabled_components(),
                 )
-                nakshatra_dominance_score = comprehensive_component_scores["nakshatra_dominance"]
-                human_design_gates_score = comprehensive_component_scores["human_design_gates"]
-                human_design_channels_score = comprehensive_component_scores["human_design_channels"]
-                inner_planet_placement_score = comprehensive_component_scores["inner_planet_placement"]
-                outer_planet_placement_score = comprehensive_component_scores["outer_planet_placement"]
+                placement_score = component_scores.get("placement", 0.0)
+                aspect_score = component_scores.get("aspect", 0.0)
+                distribution_score = component_scores.get("distribution", 0.0)
+                nakshatra_score = component_scores.get("nakshatra_placement")
+                hd_centers_score = component_scores.get("defined_centers")
+                nakshatra_dominance_score = component_scores.get("nakshatra_dominance")
+                human_design_gates_score = component_scores.get("human_design_gates")
+                human_design_channels_score = component_scores.get("human_design_channels")
+                inner_planet_placement_score = component_scores.get("inner_planet_placement")
+                outer_planet_placement_score = component_scores.get("outer_planet_placement")
             else:
                 final_score, placement_score, aspect_score, distribution_score = chart_similarity_score(
                     query_chart,
@@ -1422,7 +1531,10 @@ def find_astro_twins(
                 outer_planet_placement_score = None
             rank_score = final_score
 
-        dominance_score = _combined_dominance_similarity(query_chart, candidate)
+        if use_custom or use_all_or_nothing or use_comprehensive:
+            dominance_score = component_scores.get("combined_dominance")
+        else:
+            dominance_score = _combined_dominance_similarity(query_chart, candidate)
         match = AstroTwinMatch(
             chart_id=int(chart_id),
             chart_name=str(getattr(candidate, "name", "") or "Unnamed"),

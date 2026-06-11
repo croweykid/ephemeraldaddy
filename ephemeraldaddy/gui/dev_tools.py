@@ -197,10 +197,12 @@ def build_similarity_calculator_settings_section(
     subheader_style: str,
     on_mode_default_toggled: Callable[[bool], None],
     on_mode_comprehensive_toggled: Callable[[bool], None],
+    on_mode_all_or_nothing_toggled: Callable[[bool], None],
     on_mode_custom_toggled: Callable[[bool], None],
     on_checkbox_toggled: Callable[[str, bool], None],
     on_weight_changed: Callable[[str, float], None],
     on_placement_weighting_mode_changed: Callable[[str], None],
+    on_all_or_nothing_criterion_changed: Callable[[str], None],
     on_reset_weights_clicked: Callable[[], None],
     on_granular_explanations_toggled: Callable[[bool], None],
     show_granular_explanations: bool,
@@ -220,17 +222,36 @@ def build_similarity_calculator_settings_section(
 
     default_radio = QRadioButton("use default")
     comprehensive_radio = QRadioButton("use comprehensive")
+    all_or_nothing_radio = QRadioButton("use all or nothing")
     custom_radio = QRadioButton("use custom")
     similar_charts_algo_group = QButtonGroup(dialog)
     similar_charts_algo_group.setExclusive(True)
     similar_charts_algo_group.addButton(default_radio)
     similar_charts_algo_group.addButton(comprehensive_radio)
+    similar_charts_algo_group.addButton(all_or_nothing_radio)
     similar_charts_algo_group.addButton(custom_radio)
     default_radio.toggled.connect(on_mode_default_toggled)
     comprehensive_radio.toggled.connect(on_mode_comprehensive_toggled)
+    all_or_nothing_radio.toggled.connect(on_mode_all_or_nothing_toggled)
     custom_radio.toggled.connect(on_mode_custom_toggled)
     section_layout.addWidget(default_radio)
     section_layout.addWidget(comprehensive_radio)
+    section_layout.addWidget(all_or_nothing_radio)
+
+    all_or_nothing_criterion_combo = QComboBox()
+    all_or_nothing_criterion_combo.setToolTip(
+        "Choose the one criterion that will exclusively rank Similar Charts when all-or-nothing mode is selected."
+    )
+    for key, label_text in SIMILARITY_CALCULATOR_FACTOR_ROWS:
+        if key in {"defined_centers", "outer_planet_placement"}:
+            continue
+        all_or_nothing_criterion_combo.addItem(label_text, key)
+    all_or_nothing_criterion_combo.currentIndexChanged.connect(
+        lambda _index: on_all_or_nothing_criterion_changed(
+            str(all_or_nothing_criterion_combo.currentData() or "inner_planet_placement")
+        )
+    )
+    section_layout.addWidget(all_or_nothing_criterion_combo)
     section_layout.addWidget(custom_radio)
 
     calculator_checkboxes: dict[str, QCheckBox] = {}
@@ -366,11 +387,13 @@ def build_similarity_calculator_settings_section(
     return {
         "default_radio": default_radio,
         "comprehensive_radio": comprehensive_radio,
+        "all_or_nothing_radio": all_or_nothing_radio,
         "custom_radio": custom_radio,
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,
         "calculator_total_label": total_weight_value_label,
         "placement_weighting_mode_combo": weighting_mode_combo,
+        "all_or_nothing_criterion_combo": all_or_nothing_criterion_combo,
         "granular_explanations_checkbox": granular_explanations_checkbox,
         "threshold_spinboxes": threshold_spinboxes,
     }

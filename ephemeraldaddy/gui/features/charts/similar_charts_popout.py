@@ -35,8 +35,10 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     NATAL_WEIGHT,
     PLACEMENT_WEIGHTING_MODE_HYBRID,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
+    all_or_nothing_similarity_settings,
     _placement_body_weights,
     _top_keys,
     chart_similarity_score_custom,
@@ -1427,8 +1429,10 @@ def _resolve_component_weight_percents(
     similarity_settings: SimilarityCalculatorSettings | None,
 ) -> dict[str, int]:
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
-    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+    if normalized_mode in {SIMILAR_CHARTS_ALGORITHM_CUSTOM, SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING}:
         settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+        if normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
+            settings = all_or_nothing_similarity_settings(settings)
         enabled = settings.enabled_components()
         raw_weights = settings.weights_by_component()
     elif normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
@@ -1516,7 +1520,11 @@ def _resolve_component_score_percents(
         if similarity_settings is not None
         else SimilarityCalculatorSettings.defaults_from_comprehensive().normalized_placement_weighting_mode()
     )
-    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
+        effective_settings = all_or_nothing_similarity_settings(
+            similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+        )
+    elif normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
         effective_settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
     else:
         effective_settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
