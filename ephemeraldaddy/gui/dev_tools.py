@@ -248,7 +248,7 @@ def build_similarity_calculator_settings_section(
         all_or_nothing_criterion_combo.addItem(label_text, key)
     all_or_nothing_criterion_combo.currentIndexChanged.connect(
         lambda _index: on_all_or_nothing_criterion_changed(
-            str(all_or_nothing_criterion_combo.currentData() or "placement")
+            str(all_or_nothing_criterion_combo.currentData() or "inner_planet_placement")
         )
     )
     section_layout.addWidget(all_or_nothing_criterion_combo)

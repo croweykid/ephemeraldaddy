@@ -184,6 +184,17 @@ def test_all_or_nothing_settings_exclude_broad_criteria_and_normalize_to_one_wei
 
     effective = all_or_nothing_similarity_settings(settings)
 
-    assert effective.all_or_nothing_component == "placement"
-    assert effective.enabled_components()["placement"] is True
+    assert effective.all_or_nothing_component == "inner_planet_placement"
+    assert effective.enabled_components()["inner_planet_placement"] is True
     assert sum(effective.weights_by_component().values()) == 1.0
+
+
+def test_all_or_nothing_default_criterion_is_inner_planet_placement():
+    settings = SimilarityCalculatorSettings()
+
+    effective = all_or_nothing_similarity_settings(settings)
+
+    assert settings.all_or_nothing_component == "inner_planet_placement"
+    assert effective.all_or_nothing_component == "inner_planet_placement"
+    assert effective.enabled_components()["inner_planet_placement"] is True
+    assert effective.weights_by_component()["inner_planet_placement"] == 1.0

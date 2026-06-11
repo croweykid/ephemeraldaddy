@@ -20463,11 +20463,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
         if isinstance(all_or_nothing_combo, QComboBox):
             normalized_component = _normalize_all_or_nothing_component(
-                getattr(settings, "all_or_nothing_component", "placement")
+                getattr(settings, "all_or_nothing_component", "inner_planet_placement")
             )
             target_index = all_or_nothing_combo.findData(normalized_component)
             if target_index < 0:
-                target_index = all_or_nothing_combo.findData("placement")
+                target_index = all_or_nothing_combo.findData("inner_planet_placement")
             if target_index >= 0:
                 blocker = QSignalBlocker(all_or_nothing_combo)
                 all_or_nothing_combo.setCurrentIndex(target_index)
@@ -20730,7 +20730,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 getattr(
                     getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None),
                     "currentData",
-                    lambda: "placement",
+                    lambda: "inner_planet_placement",
                 )()
             ),
         )

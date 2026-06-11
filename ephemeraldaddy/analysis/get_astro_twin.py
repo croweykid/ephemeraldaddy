@@ -79,7 +79,7 @@ ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS: frozenset[str] = frozenset({
 ALL_OR_NOTHING_COMPONENT_KEYS: tuple[str, ...] = tuple(
     key for key in SIMILARITY_COMPONENT_KEYS if key not in ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS
 )
-DEFAULT_ALL_OR_NOTHING_COMPONENT = "placement"
+DEFAULT_ALL_OR_NOTHING_COMPONENT = "inner_planet_placement"
 
 CORE_BODIES: tuple[str, ...] = (
     "Sun",
