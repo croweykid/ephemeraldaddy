@@ -141,6 +141,28 @@ def _split_segment_for_drawing(start: float, end: float) -> tuple[list[tuple[flo
     return [(draw_start, draw_end)], (draw_start + draw_end) / 2.0
 
 
+def _fit_reference_combo_to_options(dropdown: QComboBox, *, alignment: Qt.AlignmentFlag = Qt.AlignCenter) -> None:
+    """Keep the reference picker compact and align popup rows predictably."""
+    dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    dropdown.setMinimumContentsLength(0)
+
+    for index in range(dropdown.count()):
+        dropdown.setItemData(index, alignment, Qt.TextAlignmentRole)
+
+    option_texts = [dropdown.itemText(index) for index in range(dropdown.count())]
+    if not option_texts:
+        return
+
+    metrics = dropdown.fontMetrics()
+    widest_option = max(metrics.horizontalAdvance(option_text) for option_text in option_texts)
+    content_padding = 8
+    dropdown_arrow_width = 18
+    frame_padding = 4
+    fitted_width = widest_option + content_padding + dropdown_arrow_width + frame_padding
+    dropdown.setFixedWidth(fitted_width)
+    dropdown.view().setMinimumWidth(fitted_width)
+
+
 def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle("Sign Degrees Reference Circle")
@@ -161,10 +183,12 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
     sign_combo = QComboBox(left_panel)
     sign_combo.addItems(SIGN_ORDER)
     apply_shared_dropdown_style(sign_combo)
+    _fit_reference_combo_to_options(sign_combo)
     sign_combo.setToolTip("Select a zodiac sign to search on the reference circle")
     degree_combo = QComboBox(left_panel)
     degree_combo.addItems([str(degree) for degree in range(31)])
     apply_shared_dropdown_style(degree_combo)
+    _fit_reference_combo_to_options(degree_combo)
     degree_combo.setToolTip("Select a degree from 0 to 30 within the chosen sign")
     search_button = QPushButton("Search", left_panel)
     search_button.setToolTip("Show the selected sign degree and mark it on the circle")
