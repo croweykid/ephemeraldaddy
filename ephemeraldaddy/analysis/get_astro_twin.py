@@ -47,6 +47,7 @@ from ephemeraldaddy.analysis.weighted_chart_predictor import active_human_design
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
+SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
 PLACEMENT_WEIGHTING_MODE_CHART_DEFINED = "chart_defined"
 PLACEMENT_WEIGHTING_MODE_GENERIC = "generic"
@@ -70,6 +71,15 @@ SIMILARITY_COMPONENT_KEYS: tuple[str, ...] = (
     "inner_planet_placement",
     "outer_planet_placement",
 )
+
+ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS: frozenset[str] = frozenset({
+    "defined_centers",
+    "outer_planet_placement",
+})
+ALL_OR_NOTHING_COMPONENT_KEYS: tuple[str, ...] = tuple(
+    key for key in SIMILARITY_COMPONENT_KEYS if key not in ALL_OR_NOTHING_EXCLUDED_COMPONENT_KEYS
+)
+DEFAULT_ALL_OR_NOTHING_COMPONENT = "placement"
 
 CORE_BODIES: tuple[str, ...] = (
     "Sun",
@@ -405,6 +415,7 @@ class SimilarityCalculatorSettings:
     use_outer_planet_placement: bool = False
     weight_outer_planet_placement: float = 0.00
     placement_weighting_mode: str = PLACEMENT_WEIGHTING_MODE_CHART_DEFINED
+    all_or_nothing_component: str = DEFAULT_ALL_OR_NOTHING_COMPONENT
 
     @classmethod
     def defaults_from_comprehensive(cls) -> "SimilarityCalculatorSettings":
@@ -443,16 +454,42 @@ class SimilarityCalculatorSettings:
     def normalized_placement_weighting_mode(self) -> str:
         return normalize_placement_weighting_mode(self.placement_weighting_mode)
 
+    def normalized_all_or_nothing_component(self) -> str:
+        return normalize_all_or_nothing_component(self.all_or_nothing_component)
+
 
 def normalize_similar_charts_algorithm_mode(value: object) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+        SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     }:
         return normalized
     return SIMILAR_CHARTS_ALGORITHM_DEFAULT
+
+
+def normalize_all_or_nothing_component(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in ALL_OR_NOTHING_COMPONENT_KEYS:
+        return normalized
+    return DEFAULT_ALL_OR_NOTHING_COMPONENT
+
+
+def all_or_nothing_similarity_settings(
+    settings: SimilarityCalculatorSettings | None,
+) -> SimilarityCalculatorSettings:
+    source = settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    selected_component = normalize_all_or_nothing_component(source.all_or_nothing_component)
+    values: dict[str, object] = {
+        "placement_weighting_mode": source.normalized_placement_weighting_mode(),
+        "all_or_nothing_component": selected_component,
+    }
+    for key in SIMILARITY_COMPONENT_KEYS:
+        values[f"use_{key}"] = key == selected_component
+        values[f"weight_{key}"] = 1.0 if key == selected_component else 0.0
+    return SimilarityCalculatorSettings(**values)
 
 
 def normalize_placement_weighting_mode(value: object) -> str:
@@ -1214,6 +1251,18 @@ def chart_similarity_score_custom(
     return final_score, component_scores
 
 
+def chart_similarity_score_all_or_nothing(
+    query: Chart,
+    candidate: Chart,
+    settings: SimilarityCalculatorSettings | None,
+) -> tuple[float, dict[str, float]]:
+    return chart_similarity_score_custom(
+        query,
+        candidate,
+        all_or_nothing_similarity_settings(settings),
+    )
+
+
 def chart_dissimilarity_score(
     query: Chart,
     candidate: Chart,
@@ -1300,8 +1349,11 @@ def find_astro_twins(
     query_top3_signs = _top_sign_indices(_sign_weight_profile(query_chart), count=3) if least_similar else set()
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
+    use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
     use_custom = normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM
     normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    if use_all_or_nothing:
+        normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()
     for chart_id, candidate in candidates:
         if exclude_chart_id is not None and chart_id == exclude_chart_id:
@@ -1312,7 +1364,7 @@ def find_astro_twins(
             continue
 
         if least_similar:
-            if use_custom:
+            if use_custom or use_all_or_nothing:
                 custom_similarity_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,
@@ -1368,7 +1420,7 @@ def find_astro_twins(
                 inner_planet_placement_score = None
                 outer_planet_placement_score = None
         else:
-            if use_custom:
+            if use_custom or use_all_or_nothing:
                 final_score, component_scores = chart_similarity_score_custom(
                     query_chart,
                     candidate,

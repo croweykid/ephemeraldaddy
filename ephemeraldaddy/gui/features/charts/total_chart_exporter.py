@@ -11,6 +11,8 @@ from typing import Any
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import score_dnd_statblock
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    SimilarityCalculatorSettings,
+    all_or_nothing_similarity_settings,
     find_astro_twins,
     normalize_similar_charts_algorithm_mode,
 )
@@ -276,12 +278,17 @@ def _format_similarity_scoring_method(
     mode_label = {
         "default": "Default",
         "comprehensive": "Comprehensive",
+        "all_or_nothing": "All or Nothing",
         "custom": "Custom",
     }.get(mode, mode.replace("_", " ").title())
     lines = [f"Current Settings > Similarities Calculator scoring system: {mode_label}."]
 
     settings = similarity_settings
-    if mode == "comprehensive" or (mode == "custom" and settings is not None):
+    if mode == "all_or_nothing":
+        settings = all_or_nothing_similarity_settings(
+            settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+        )
+    if mode in {"comprehensive", "all_or_nothing"} or (mode == "custom" and settings is not None):
         try:
             enabled = settings.enabled_components()
             weights = settings.weights_by_component()

@@ -2,8 +2,10 @@ from types import SimpleNamespace
 
 from ephemeraldaddy.analysis.get_astro_twin import (
     SimilarityCalculatorSettings,
+    all_or_nothing_similarity_settings,
     chart_dissimilarity_score_comprehensive,
     chart_similarity_score_custom,
+    find_astro_twins,
 )
 
 
@@ -136,3 +138,52 @@ def test_comprehensive_dissimilarity_ranking_includes_human_design_gates():
     different_rank_score = chart_dissimilarity_score_comprehensive(subject, different_gates)[0]
 
     assert different_rank_score > same_rank_score
+
+
+def test_all_or_nothing_similarity_uses_only_selected_human_design_gates():
+    positions = {"Sun": 0.0, "Moon": 30.0, "Mercury": 60.0, "Venus": 90.0, "Mars": 120.0}
+    query = SimpleNamespace(
+        name="Query",
+        positions=positions,
+        human_design_gates=[1, 2, 3],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+    same_gates_different_positions = SimpleNamespace(
+        name="Same Gates",
+        positions={"Sun": 180.0, "Moon": 210.0, "Mercury": 240.0, "Venus": 270.0, "Mars": 300.0},
+        human_design_gates=[1, 2, 3],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+    different_gates_same_positions = SimpleNamespace(
+        name="Different Gates",
+        positions=dict(positions),
+        human_design_gates=[61, 62, 63],
+        birthtime_unknown=True,
+        is_placeholder=False,
+    )
+    settings = SimilarityCalculatorSettings(all_or_nothing_component="human_design_gates")
+
+    matches = find_astro_twins(
+        query,
+        [(1, same_gates_different_positions), (2, different_gates_same_positions)],
+        top_k=2,
+        algorithm_mode="all_or_nothing",
+        custom_settings=settings,
+    )
+
+    assert [match.chart_name for match in matches] == ["Same Gates", "Different Gates"]
+    assert matches[0].score == 1.0
+    assert matches[1].score == 0.0
+    assert matches[0].algorithm_mode == "all_or_nothing"
+
+
+def test_all_or_nothing_settings_exclude_broad_criteria_and_normalize_to_one_weight():
+    settings = SimilarityCalculatorSettings(all_or_nothing_component="outer_planet_placement")
+
+    effective = all_or_nothing_similarity_settings(settings)
+
+    assert effective.all_or_nothing_component == "placement"
+    assert effective.enabled_components()["placement"] is True
+    assert sum(effective.weights_by_component().values()) == 1.0

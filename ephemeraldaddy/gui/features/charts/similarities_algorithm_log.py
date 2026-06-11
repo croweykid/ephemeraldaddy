@@ -43,7 +43,7 @@ def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any]
         payload = {
             key: getattr(settings, key)
             for key in dir(settings)
-            if key.startswith(("use_", "weight_")) or key == "placement_weighting_mode"
+            if key.startswith(("use_", "weight_")) or key in {"placement_weighting_mode", "all_or_nothing_component"}
         }
     normalized: dict[str, Any] = {}
     for key, value in payload.items():
@@ -53,9 +53,14 @@ def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any]
             normalized[key] = round(float(value), 6)
         else:
             normalized[key] = value
+    defaults = SimilarityCalculatorSettings.defaults_from_comprehensive()
     normalized["placement_weighting_mode"] = str(
         normalized.get("placement_weighting_mode")
-        or SimilarityCalculatorSettings.defaults_from_comprehensive().placement_weighting_mode
+        or defaults.placement_weighting_mode
+    )
+    normalized["all_or_nothing_component"] = str(
+        normalized.get("all_or_nothing_component")
+        or defaults.all_or_nothing_component
     )
     return normalized
 

@@ -211,6 +211,9 @@ def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettin
         "placement_weighting_mode": _normalize_placement_weighting_mode(
             payload.get("placement_weighting_mode", defaults.placement_weighting_mode)
         ),
+        "all_or_nothing_component": _normalize_all_or_nothing_component(
+            payload.get("all_or_nothing_component", defaults.all_or_nothing_component)
+        ),
     }
     return SimilarityCalculatorSettings(**values)
 
@@ -242,6 +245,7 @@ def _save_similarity_calculator_settings(settings, value: SimilarityCalculatorSe
             "use_outer_planet_placement": bool(value.use_outer_planet_placement),
             "weight_outer_planet_placement": float(value.weight_outer_planet_placement),
             "placement_weighting_mode": _normalize_placement_weighting_mode(value.placement_weighting_mode),
+            "all_or_nothing_component": _normalize_all_or_nothing_component(value.all_or_nothing_component),
         },
     )
 
@@ -513,6 +517,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SimilarityCalculatorSettings,
@@ -520,6 +525,7 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_house_dominance_weights as _similarity_house_dominance_weights,
     chart_sign_dominance_weights as _similarity_sign_dominance_weights,
     find_astro_twins,
+    normalize_all_or_nothing_component as _normalize_all_or_nothing_component,
     normalize_placement_weighting_mode as _normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode as _normalize_similar_charts_algorithm_mode,
 )
@@ -20239,11 +20245,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
             on_mode_comprehensive_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
+            on_mode_all_or_nothing_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING),
             on_mode_custom_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_CUSTOM),
             on_checkbox_toggled=self._on_similarity_calculator_checkbox_toggled,
             on_weight_changed=self._on_similarity_calculator_weight_changed,
             on_placement_weighting_mode_changed=self._on_similarity_calculator_placement_weighting_mode_changed,
+            on_all_or_nothing_criterion_changed=self._on_similarity_calculator_all_or_nothing_component_changed,
             on_reset_weights_clicked=self._reset_similarity_calculator_defaults,
             on_granular_explanations_toggled=self._on_astrotwin_granular_explanation_toggled,
             show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
@@ -20254,11 +20263,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         )
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
+        self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
         self._similarity_calculator_checkboxes = similarity_controls["calculator_checkboxes"]
         self._similarity_calculator_weights = similarity_controls["calculator_weights"]
         self._similarity_calculator_total_label = similarity_controls["calculator_total_label"]
         self._similarity_calculator_placement_weighting_mode_combo = similarity_controls["placement_weighting_mode_combo"]
+        self._similarity_calculator_all_or_nothing_component_combo = similarity_controls["all_or_nothing_criterion_combo"]
         self._astrotwin_granular_explanation_checkbox = similarity_controls["granular_explanations_checkbox"]
         self._similarity_threshold_spinboxes = similarity_controls["threshold_spinboxes"]
         self._set_similar_charts_algorithm_mode(self._similar_charts_algorithm_mode)
@@ -20387,17 +20398,24 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
         default_radio = getattr(self, "_similar_charts_algo_default_radio", None)
         comprehensive_radio = getattr(self, "_similar_charts_algo_comprehensive_radio", None)
+        all_or_nothing_radio = getattr(self, "_similar_charts_algo_all_or_nothing_radio", None)
         custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
-        if default_radio is None or comprehensive_radio is None or custom_radio is None:
+        all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
+        if default_radio is None or comprehensive_radio is None or all_or_nothing_radio is None or custom_radio is None:
             return
         blocker_default = QSignalBlocker(default_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
+        blocker_all_or_nothing = QSignalBlocker(all_or_nothing_radio)
         blocker_custom = QSignalBlocker(custom_radio)
         default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
         comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
+        all_or_nothing_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
+        if isinstance(all_or_nothing_combo, QComboBox):
+            all_or_nothing_combo.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         del blocker_default
         del blocker_comprehensive
+        del blocker_all_or_nothing
         del blocker_custom
         parent = self.parent()
         if isinstance(parent, MainWindow):
@@ -20442,6 +20460,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 blocker = QSignalBlocker(weighting_mode_combo)
                 weighting_mode_combo.setCurrentIndex(target_index)
                 del blocker
+        all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
+        if isinstance(all_or_nothing_combo, QComboBox):
+            normalized_component = _normalize_all_or_nothing_component(
+                getattr(settings, "all_or_nothing_component", "placement")
+            )
+            target_index = all_or_nothing_combo.findData(normalized_component)
+            if target_index < 0:
+                target_index = all_or_nothing_combo.findData("placement")
+            if target_index >= 0:
+                blocker = QSignalBlocker(all_or_nothing_combo)
+                all_or_nothing_combo.setCurrentIndex(target_index)
+                del blocker
+            all_or_nothing_combo.setVisible(
+                getattr(self, "_similar_charts_algorithm_mode", SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+                == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
+            )
         granular_checkbox = getattr(self, "_astrotwin_granular_explanation_checkbox", None)
         if isinstance(granular_checkbox, QCheckBox):
             blocker = QSignalBlocker(granular_checkbox)
@@ -20602,6 +20636,19 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_similarity_calculator_weight_constraints_and_total()
         self._save_similarity_calculator_from_controls()
 
+    def _on_similarity_calculator_all_or_nothing_component_changed(self, component: str) -> None:
+        normalized_component = _normalize_all_or_nothing_component(component)
+        combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
+        if isinstance(combo, QComboBox):
+            current_component = _normalize_all_or_nothing_component(combo.currentData())
+            if normalized_component != current_component:
+                target_index = combo.findData(normalized_component)
+                if target_index >= 0:
+                    blocker = QSignalBlocker(combo)
+                    combo.setCurrentIndex(target_index)
+                    del blocker
+        self._save_similarity_calculator_from_controls()
+
     def _on_similarity_calculator_placement_weighting_mode_changed(self, mode: str) -> None:
         normalized_mode = _normalize_placement_weighting_mode(mode)
         combo = getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None)
@@ -20677,6 +20724,13 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     getattr(self, "_similarity_calculator_placement_weighting_mode_combo", None),
                     "currentData",
                     lambda: PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+                )()
+            ),
+            all_or_nothing_component=_normalize_all_or_nothing_component(
+                getattr(
+                    getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None),
+                    "currentData",
+                    lambda: "placement",
                 )()
             ),
         )
@@ -23124,6 +23178,8 @@ class MainWindow(QMainWindow):
     def _similar_charts_section_title(self) -> str:
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             return "Similar Charts (comprehensive)"
+        if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
+            return "Similar Charts (all or nothing)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
             return "Similar Charts (custom)"
         return "Similar Charts"
