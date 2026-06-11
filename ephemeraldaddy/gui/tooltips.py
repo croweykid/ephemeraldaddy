@@ -5,7 +5,81 @@ from __future__ import annotations
 from html import escape
 from typing import Mapping
 
-from PySide6.QtWidgets import QAbstractButton, QLabel, QLineEdit, QTextEdit, QWidget
+from PySide6.QtCore import QEvent, QPoint, Qt
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QLabel,
+    QLineEdit,
+    QTextEdit,
+    QToolTip,
+    QWidget,
+)
+
+from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+
+
+APP_TOOLTIP_STYLE = (
+    "QToolTip {"
+    "background-color: #252525;"
+    "color: #f5f5f5;"
+    f"border: 1px solid {CHART_DATA_HIGHLIGHT_COLOR};"
+    "padding: 6px;"
+    "}"
+)
+
+
+def apply_tooltip_signifier(widget: QWidget) -> None:
+    """Mark a widget as tooltip-bearing using the appwide question cursor."""
+    widget.setCursor(Qt.WhatsThisCursor)
+    widget.setMouseTracking(True)
+    existing_style = widget.styleSheet().strip()
+    if APP_TOOLTIP_STYLE not in existing_style:
+        widget.setStyleSheet((existing_style + "\n" + APP_TOOLTIP_STYLE).strip())
+
+
+class TooltipHelpLabel(QLabel):
+    """QLabel that uses the appwide tooltip cursor and reliably opens help text."""
+
+    def __init__(self, text: str = "", tooltip: str = "", parent=None) -> None:
+        super().__init__(text, parent)
+        self._tooltip_text = ""
+        apply_tooltip_signifier(self)
+        if tooltip:
+            self.set_help_tooltip(tooltip)
+
+    def set_help_tooltip(self, tooltip: str) -> None:
+        self._tooltip_text = str(tooltip or "")
+        formatted_tooltip = (
+            _format_tooltip_text(self._tooltip_text) if self._tooltip_text else ""
+        )
+        self.setToolTip(formatted_tooltip)
+
+    def _tooltip_position(self) -> QPoint:
+        return self.mapToGlobal(QPoint(0, self.height() + 4))
+
+    def _show_help_tooltip(self, global_pos: QPoint | None = None) -> None:
+        tooltip = self.toolTip().strip()
+        if not tooltip:
+            return
+        anchor = global_pos if global_pos is not None else self._tooltip_position()
+        QToolTip.showText(anchor, tooltip, self)
+
+    def event(self, event) -> bool:  # noqa: ANN001 - Qt override signature
+        if event.type() == QEvent.ToolTip:
+            global_pos = (
+                event.globalPos()
+                if hasattr(event, "globalPos")
+                else self._tooltip_position()
+            )
+            self._show_help_tooltip(global_pos)
+            event.accept()
+            return True
+        return super().event(event)
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001 - Qt override signature
+        self._show_help_tooltip()
+        super().mousePressEvent(event)
+
 
 DEFAULT_TOOLTIP_OVERRIDES: dict[str, str] = {
     # Database View controls
@@ -136,6 +210,7 @@ def apply_default_text_tooltips(
         exact_override_text = EXACT_TEXT_TOOLTIP_OVERRIDES.get(text, "").strip()
         if exact_override_text:
             widget.setToolTip(_format_tooltip_text(exact_override_text))
+            apply_tooltip_signifier(widget)
             continue
 
         if widget.toolTip().strip():
@@ -144,7 +219,8 @@ def apply_default_text_tooltips(
         object_name = widget.objectName().strip()
         override_text = overrides.get(object_name, "").strip()
         if override_text:
-            widget.setToolTip(override_text)
+            widget.setToolTip(_format_tooltip_text(override_text))
+            apply_tooltip_signifier(widget)
             continue
 
     text_inputs = [
@@ -158,3 +234,4 @@ def apply_default_text_tooltips(
         placeholder_tooltip = EXACT_PLACEHOLDER_TOOLTIP_OVERRIDES.get(placeholder, "").strip()
         if placeholder_tooltip:
             input_widget.setToolTip(_format_tooltip_text(placeholder_tooltip))
+            apply_tooltip_signifier(input_widget)

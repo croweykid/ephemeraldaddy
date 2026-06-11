@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSplitter,
-    QToolTip,
     #QSizePolicy,
     QTextEdit,
     QTreeWidget,
@@ -35,6 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
+from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
     DATABASE_VIEW_HEADER_COLOR,
@@ -147,46 +147,6 @@ QCheckBox::indicator:checked {{
 }}
 """
 
-SIMILARITY_CALCULATOR_TOOLTIP_STYLE = (
-    "QToolTip {"
-    "background-color: #252525;"
-    "color: #f5f5f5;"
-    f"border: 1px solid {CHART_DATA_HIGHLIGHT_COLOR};"
-    "padding: 6px;"
-    "}"
-)
-
-
-class _SimilarityCriterionHelpLabel(QLabel):
-    """Help label that shows criterion explanations on hover and click."""
-
-    def __init__(self, text: str, tooltip: str) -> None:
-        super().__init__(text)
-        self._tooltip = tooltip
-        self.setToolTip(tooltip)
-        self.setCursor(Qt.WhatsThisCursor)
-        self.setMouseTracking(True)
-        self.setStyleSheet(SIMILARITY_CALCULATOR_TOOLTIP_STYLE)
-
-    def _tooltip_position(self) -> QPoint:
-        return self.mapToGlobal(QPoint(0, self.height() + 4))
-
-    def event(self, event) -> bool:  # noqa: ANN001 - Qt override signature
-        if event.type() == QEvent.ToolTip:
-            global_pos = (
-                event.globalPos()
-                if hasattr(event, "globalPos")
-                else self._tooltip_position()
-            )
-            QToolTip.showText(global_pos, self._tooltip, self)
-            event.accept()
-            return True
-        return super().event(event)
-
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001 - Qt override signature
-        QToolTip.showText(self._tooltip_position(), self._tooltip, self)
-        super().mousePressEvent(event)
-
 
 SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
     "placement": (
@@ -297,7 +257,7 @@ def build_similarity_calculator_settings_section(
             key,
             "Explains what this similarity criterion measures between two charts.",
         )
-        criterion_label = _SimilarityCriterionHelpLabel(f"{label_text} Ⓘ", criterion_tooltip)
+        criterion_label = TooltipHelpLabel(f"{label_text} Ⓘ", criterion_tooltip)
         calculator_grid.addWidget(criterion_label, row_index, 1)
         enabled_checkbox = QCheckBox()
         enabled_checkbox.setStyleSheet(SIMILARITY_CALCULATOR_CHECKBOX_STYLE)
