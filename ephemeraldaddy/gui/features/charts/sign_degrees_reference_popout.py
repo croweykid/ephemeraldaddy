@@ -610,11 +610,11 @@ def show_sign_degrees_reference_popout(parent, register_popout_shortcuts=None) -
             return
         x, y = float(event.xdata), float(event.ydata)
         radius = math.hypot(x, y)
-        if radius <= 0.0 or radius > 1.0:
+        if radius <= 0.0 or radius > 1.12:
             return
 
         theta = (90.0 - math.degrees(math.atan2(y, x))) % 360.0
-        _show_degree(_normalize_degree(theta))
+        _show_degree(_normalize_degree(theta), mark_with_star=True)
 
     search_button.clicked.connect(_on_search)
 
