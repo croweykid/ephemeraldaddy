@@ -34,9 +34,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
+from ephemeraldaddy.gui.tooltips import TooltipHelpLabel
 from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
     DATABASE_VIEW_HEADER_COLOR,
+    CHART_DATA_HIGHLIGHT_COLOR,
     INACTIVE_ACTION_BUTTON_STYLE,
     similarity_gradient_rgb_for_range,
 )
@@ -125,6 +127,25 @@ SIMILARITY_CALCULATOR_FACTOR_ROWS: tuple[tuple[str, str], ...] = (
     ("inner_planet_placement", "Inner planet placement"),
     ("outer_planet_placement", "Outer planet placement"),
 )
+
+
+SIMILARITY_CALCULATOR_CHECKBOX_STYLE = f"""
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 1px solid #777777;
+    border-radius: 3px;
+    background-color: #202020;
+}}
+QCheckBox::indicator:hover {{
+    border: 1px solid {CHART_DATA_HIGHLIGHT_COLOR};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {CHART_DATA_HIGHLIGHT_COLOR};
+    border: 1px solid {CHART_DATA_HIGHLIGHT_COLOR};
+    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><path d='M3.4 8.3 L6.5 11.4 L12.8 4.7' fill='none' stroke='%23111111' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}}
+"""
 
 
 SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS: dict[str, str] = {
@@ -232,16 +253,14 @@ def build_similarity_calculator_settings_section(
         alignment=Qt.AlignRight | Qt.AlignTop,
     )
     for row_index, (key, label_text) in enumerate(SIMILARITY_CALCULATOR_FACTOR_ROWS, start=1):
-        criterion_label = QLabel(f"{label_text} Ⓘ")
-        criterion_label.setToolTip(
-            SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS.get(
-                key,
-                "Explains what this similarity criterion measures between two charts.",
-            )
+        criterion_tooltip = SIMILARITY_CALCULATOR_CRITERION_EXPLAINERS.get(
+            key,
+            "Explains what this similarity criterion measures between two charts.",
         )
-        criterion_label.setCursor(Qt.WhatsThisCursor)
+        criterion_label = TooltipHelpLabel(f"{label_text} Ⓘ", criterion_tooltip)
         calculator_grid.addWidget(criterion_label, row_index, 1)
         enabled_checkbox = QCheckBox()
+        enabled_checkbox.setStyleSheet(SIMILARITY_CALCULATOR_CHECKBOX_STYLE)
         enabled_checkbox.setChecked(True)
         enabled_checkbox.stateChanged.connect(
             lambda _state, row_key=key, checkbox=enabled_checkbox: on_checkbox_toggled(
