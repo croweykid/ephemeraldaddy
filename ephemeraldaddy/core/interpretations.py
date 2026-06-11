@@ -221,6 +221,19 @@ ASPECT_SCORE_MULTIPLIERS = {
     "biquintile": 0.3, #.65
 }
 
+ASPECT_GLYPHS = {
+    "conjunction": "☌",
+    "opposition": "☍",
+    "square": "□",
+    "trine": "△",
+    "sextile": "⚹",
+    "quincunx": "⚻",
+    "semisextile": "⚺",
+    "semisquare": "∠",
+    "sesquiquadrate": "⚼",
+    "quintile": "Q",
+    "biquintile": "bQ",
+}
 
 ASPECT_ORB_ALLOWANCES = {
     "conjunction": 6,
