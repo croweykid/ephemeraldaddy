@@ -27,6 +27,7 @@ TRANSIT_INNER_WHEEL_SLICES = ("#80b3ff", "#4d94ff") #blue inner wheel (personal 
 TRANSIT_INNER_GLYPH_COLOR = "#0000ff" #blue inner glyphs (personal chart or person 1)
 TRANSIT_OUTER_WHEEL_SLICES = ("#ff8080", "#ff4d4d") #red outer wheel (event transit or person 2)
 TRANSIT_OUTER_GLYPH_COLOR = "#ff0000" #red outer glyphs (event transit or person 2)
+CHARTWHEEL_SIGN_SLICE_ALPHA = 0.64  # 36% softer zodiac-slice backgrounds for glyph/line legibility
 
 def _angular_diff(a, b):
     diff = abs(a - b) % (2 * np.pi)
@@ -167,6 +168,7 @@ def _draw_chart_wheel(
             color=sign_color,
             align="edge",
             edgecolor="none",
+            alpha=CHARTWHEEL_SIGN_SLICE_ALPHA if not base_monochrome_color else None,
             #zorder=0,
         )
 
