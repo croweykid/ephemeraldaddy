@@ -80,6 +80,20 @@ def test_metric_canvas_layout_refresh_forces_full_canvas_draw():
     assert "canvas.draw_idle()" not in method
 
 
+def test_metric_panel_renders_swap_in_fresh_canvases():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _render_metric_panel")
+    method = source[method_start : source.index("    def _render_chart", method_start)]
+
+    clear_index = method.index("self._clear_layout_widgets(container_layout)")
+    canvas_index = method.index("canvas = FigureCanvas(figure)")
+    add_index = method.index("container_layout.addWidget(canvas, alignment=Qt.AlignLeft)")
+
+    assert clear_index < canvas_index < add_index
+    assert "figure.gca()" not in method
+    assert "ax.clear()" not in method
+
+
 def test_metric_scroll_viewport_resize_refreshes_existing_canvases():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 

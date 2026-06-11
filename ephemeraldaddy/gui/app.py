@@ -30618,25 +30618,23 @@ class MainWindow(QMainWindow):
         draw_fn: Callable[[Any, Chart], None],
         chart: Chart,
     ) -> None:
-        canvas = getattr(self, canvas_attr)
-        if canvas is None:
-            figure = Figure(figsize=figsize)
-            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
-            ax = figure.add_subplot(111)
-            ax.set_facecolor(CHART_THEME_COLORS["background"])
-            canvas = FigureCanvas(figure)
-            setattr(self, canvas_attr, canvas)
-            self._register_metric_chart(canvas, title)
-            self._clear_layout_widgets(container_layout)
-            container_layout.addWidget(canvas, alignment=Qt.AlignLeft)
-        else:
-            figure = canvas.figure
-            # Keep logical figure sizing for redraws, but avoid forcing a Qt widget resize.
-            figure.set_size_inches(*figsize, forward=False)
-            ax = figure.gca()
-            ax.clear()
-            figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
-            ax.set_facecolor(CHART_THEME_COLORS["background"])
+        # Retcon-time edits can invalidate every metric graph in quick succession
+        # while Qt still has paint/update events queued for the previous chart.
+        # Reusing the same FigureCanvas lets those stale backing-store updates mix
+        # with freshly-cleared Matplotlib artists, which shows up as corrupted
+        # right-panel graphs until an external resize or app restart creates a
+        # clean paint buffer.  Treat each metric render as a fresh canvas swap so
+        # timing-sensitive chart changes cannot inherit a stale Qt/Matplotlib
+        # canvas state.
+        self._clear_layout_widgets(container_layout)
+        figure = Figure(figsize=figsize)
+        figure.patch.set_facecolor(CHART_THEME_COLORS["background"])
+        ax = figure.add_subplot(111)
+        ax.set_facecolor(CHART_THEME_COLORS["background"])
+        canvas = FigureCanvas(figure)
+        setattr(self, canvas_attr, canvas)
+        self._register_metric_chart(canvas, title)
+        container_layout.addWidget(canvas, alignment=Qt.AlignLeft)
 
         display_height = CHART_RIGHT_PANEL_GRAPH_HEIGHT_PX
         canvas.setProperty("metric_display_height", display_height)
