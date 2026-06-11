@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSplitter,
+    QSizePolicy,
     QTextEdit,
     QTreeWidget,
     QTreeWidgetItemIterator,
@@ -44,6 +45,19 @@ BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT = False
 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG = "dev_tools/enneagram_predictions_debug"
 ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
 
+
+def _build_settings_help_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setMinimumWidth(0)
+    label.setMinimumHeight(0)
+    label.setMaximumHeight(16777215)
+    label.setMargin(max(label.margin(), 3))
+    label.setAlignment(label.alignment() | Qt.AlignTop)
+    label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    label_size_policy.setHeightForWidth(True)
+    label.setSizePolicy(label_size_policy)
+    return label
 
 def load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))
@@ -1639,11 +1653,11 @@ def build_enneagram_predictor_settings_section(
     label = QLabel("Enneagram Predictor")
     label.setStyleSheet(subheader_style)
     section_layout.addWidget(label)
-    description = QLabel(
+    description = _build_settings_help_label(
         "Configure how Enneagram predictor criteria are scored. Property categories are used only "
         "to parse criteria, not as independent score multipliers."
     )
-    description.setWordWrap(True)
+    #description.setWordWrap(True)
     section_layout.addWidget(description)
 
     behavior_label = QLabel("Scoring behavior")

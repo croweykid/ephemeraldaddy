@@ -20062,11 +20062,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             content_layout,
             "Database View",
         )
-        database_view_help = QLabel(
+        database_view_help = self._build_settings_help_label(
             "Choose which details appear in the middle-panel chart list. "
             "Uncheck any field you want hidden from every Database View row."
         )
-        database_view_help.setWordWrap(True)
+        #database_view_help.setWordWrap(True)
         database_view_section.addWidget(database_view_help)
         self._database_view_row_info_checkboxes = {}
         for row_info_key, row_info_label in DATABASE_VIEW_ROW_INFO_OPTIONS:
@@ -20093,7 +20093,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Chart Calculation Methods",
         )
         chart_calculation_section.addWidget(
-            QLabel("Select which Lilith ephemeris model to display.")
+            self._build_settings_help_label("Select which Lilith ephemeris model to display.")
         )
 
         lilith_mean_radio = QRadioButton("Black Moon Lilith (mean apogee)")
@@ -20125,7 +20125,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             "Data Visualization",
         )
         data_visualization_section.addWidget(
-            QLabel(
+            self._build_settings_help_label(
                 "Controls graph overlays and statistical-significance handling for Database View analytics."
             )
         )
@@ -20150,11 +20150,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         significance_row.addWidget(significance_combo)
         significance_row.addStretch(1)
         data_visualization_section.addLayout(significance_row)
-        significance_help_label = QLabel(
+        significance_help_label = self._build_settings_help_label(
             "Category charts use a selection-vs-database proportion z-test; dashed red guides show "
             "typical ±1/±2 standard-error noise bands when a selection is active."
         )
-        significance_help_label.setWordWrap(True)
+        #significance_help_label.setWordWrap(True)
         data_visualization_section.addWidget(significance_help_label)
         self._settings_significance_correction_combo = significance_combo
 
@@ -20914,6 +20914,25 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         QMessageBox.information(self, "Reset complete", "Interface has been reset to defaults.")
 
+
+    def _build_settings_help_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        self._configure_settings_text_label(label)
+        return label
+
+    def _configure_settings_text_label(self, label: QLabel) -> None:
+        """Give settings body text enough paint padding for dynamic wrapped heights."""
+        label.setWordWrap(True)
+        label.setMinimumWidth(0)
+        label.setMinimumHeight(0)
+        label.setMaximumHeight(16777215)
+        label.setMargin(max(label.margin(), 3))
+        label.setAlignment(label.alignment() | Qt.AlignTop)
+        label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        label_size_policy.setHeightForWidth(True)
+        label.setSizePolicy(label_size_policy)
+        label.updateGeometry()
+
     def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
         """Allow settings-section text to size itself from its contents.
 
@@ -20923,16 +20942,17 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         after a section is expanded.
         """
         for label in root.findChildren(QLabel):
-            label.setWordWrap(True)
-            label.setMinimumWidth(0)
-            label.setMinimumHeight(0)
-            label.setMaximumHeight(16777215)
-            label.setAlignment(label.alignment() | Qt.AlignTop)
-            label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            label_size_policy.setHeightForWidth(True)
-            label.setSizePolicy(label_size_policy)
+            # label.setWordWrap(True)
+            # label.setMinimumWidth(0)
+            # label.setMinimumHeight(0)
+            # label.setMaximumHeight(16777215)
+            # label.setAlignment(label.alignment() | Qt.AlignTop)
+            # label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            # label_size_policy.setHeightForWidth(True)
+            # label.setSizePolicy(label_size_policy)
+            self._configure_settings_text_label(label)
             label.adjustSize()
-            label.updateGeometry()
+            #label.updateGeometry()
 
         for button_type in (QCheckBox, QRadioButton):
             for button in root.findChildren(button_type):
