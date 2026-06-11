@@ -88,3 +88,80 @@ def test_design_marker_activation_is_design_rahu() -> None:
     assert activation.body == "Rahu"
     assert activation.color == 6
     assert activation.tone == 4
+
+
+def test_activation_display_values_marks_multiple_color_tone_base_changes_unknown() -> None:
+    current = _activation("Sun", "personality", color=1, tone=1, gate=24)
+    midnight = _activation("Sun", "personality", color=1, tone=1, gate=24)
+    noon = _activation("Sun", "personality", color=2, tone=2, gate=17)
+    late = _activation("Sun", "personality", color=1, tone=3, gate=14)
+    midnight = HDActivation(**{**midnight.__dict__, "line": 5, "base": 1})
+    noon = HDActivation(**{**noon.__dict__, "line": 3, "base": 2})
+    late = HDActivation(**{**late.__dict__, "line": 2, "base": 3})
+
+    gl_text, color_text, tone_text, base_text = hd_output._activation_display_values(
+        current,
+        (midnight, noon, late),
+    )
+
+    assert gl_text == "24.5->17.3->14.2"
+    assert color_text == "?"
+    assert tone_text == "?"
+    assert base_text == "?"
+
+
+def test_activation_display_values_shows_single_color_tone_base_change() -> None:
+    current = _activation("Moon", "personality", color=5, tone=1, gate=1)
+    midnight = _activation("Moon", "personality", color=5, tone=1, gate=1)
+    noon = _activation("Moon", "personality", color=5, tone=1, gate=1)
+    late = _activation("Moon", "personality", color=6, tone=4, gate=43)
+    midnight = HDActivation(**{**midnight.__dict__, "line": 2, "base": 3})
+    noon = HDActivation(**{**noon.__dict__, "line": 2, "base": 3})
+    late = HDActivation(**{**late.__dict__, "line": 6, "base": 4})
+
+    gl_text, color_text, tone_text, base_text = hd_output._activation_display_values(
+        current,
+        (midnight, noon, late),
+    )
+
+    assert gl_text == "1.2->43.6"
+    assert color_text == "5->6"
+    assert tone_text == "1->4"
+    assert base_text == "3->4"
+
+
+def test_positions_lines_render_unknown_variant_fields_without_clickable_value_errors() -> None:
+    current = HDActivation(**{**_activation("Sun", "personality", color=1, tone=1, gate=24).__dict__, "line": 5, "base": 1})
+    midnight = HDActivation(**{**current.__dict__, "color": 1, "tone": 1, "base": 1})
+    noon = HDActivation(**{**current.__dict__, "gate": 17, "line": 3, "color": 2, "tone": 2, "base": 2})
+    late = HDActivation(**{**current.__dict__, "gate": 14, "line": 2, "color": 1, "tone": 3, "base": 3})
+    base_result = HumanDesignResult(
+        birth_utc=datetime(2000, 1, 1, tzinfo=timezone.utc),
+        design_utc=datetime(1999, 10, 5, tzinfo=timezone.utc),
+        personality_activations=(current,),
+        design_activations=(),
+        active_gates=frozenset({24}),
+        defined_channels=(),
+        defined_centers=frozenset(),
+        hd_type="Reflector",
+        authority="Lunar",
+        profile="5/1",
+        strategy="Wait a lunar cycle",
+        split_definition="None",
+        incarnation_cross="Test Cross",
+    )
+    midnight_result = HDActivation(**{**midnight.__dict__})
+    noon_result = HDActivation(**{**noon.__dict__})
+    late_result = HDActivation(**{**late.__dict__})
+
+    lines, info_map = hd_output._build_hd_positions_lines(
+        base_result,
+        time_variant_results=(
+            HumanDesignResult(**{**base_result.__dict__, "personality_activations": (midnight_result,)}),
+            HumanDesignResult(**{**base_result.__dict__, "personality_activations": (noon_result,)}),
+            HumanDesignResult(**{**base_result.__dict__, "personality_activations": (late_result,)}),
+        ),
+    )
+
+    assert any("24.5->17.3->14.2" in line and "?" in line for line in lines)
+    assert any(entry.get("kind") == "hd_gate_line" for entries in info_map.values() for entry in entries)
