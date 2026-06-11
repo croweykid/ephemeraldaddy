@@ -4,7 +4,7 @@ import datetime
 import re
 
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
-from PySide6.QtWidgets import QFrame, QPlainTextEdit, QWidget
+from PySide6.QtWidgets import QFrame, QPlainTextEdit, QToolTip, QWidget
 
 from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
     DND_CLASS_AXIS_EARTHTONE_COLORS,
@@ -16,12 +16,16 @@ from ephemeraldaddy.analysis.dnd.dnd_class_axes_v2 import (
 from ephemeraldaddy.analysis.dnd.species_assigner_v2 import SPECIES_FAMILIES
 from ephemeraldaddy.analysis.human_design_reference import HD_CENTERS, HD_COLORS
 from ephemeraldaddy.core.interpretations import (
+    ASPECT_COLORS,
+    ASPECT_GLYPHS,
     ELEMENT_COLORS,
     HOUSE_COLORS,
     NAKSHATRA_PLANET_COLOR,
     PLANET_COLORS,
     PLANET_GLYPHS,
     SIGN_COLORS,
+    ZODIAC_NAMES,
+    ZODIAC_SIGNS,
 )
 from ephemeraldaddy.gui.style import (
     CHART_DATA_COLON_LABELS,
@@ -38,6 +42,42 @@ from ephemeraldaddy.gui.style import (
     RELATIVE_YEAR_COLORS,
     CHART_DATA_MONOSPACE_FONT_FAMILY,
 )
+
+
+class ChartDataTooltipOutput(QPlainTextEdit):
+    """Read-only plain-text chart output with per-token hover tooltips."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._tooltip_spans: dict[int, list[dict[str, object]]] = {}
+        self.setMouseTracking(True)
+
+    def set_tooltip_spans(self, spans: dict[int, list[dict[str, object]]] | None) -> None:
+        self._tooltip_spans = spans or {}
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        cursor = self.cursorForPosition(event.pos())
+        block_number = cursor.blockNumber()
+        column = cursor.positionInBlock()
+        tooltip_text = ""
+        for span in self._tooltip_spans.get(block_number, []):
+            try:
+                start = int(span.get("span_start", -1))
+                end = int(span.get("span_end", -1))
+            except (TypeError, ValueError):
+                continue
+            if start <= column < end:
+                tooltip_text = str(span.get("tooltip", "")).strip()
+                break
+        if tooltip_text:
+            QToolTip.showText(event.globalPos(), tooltip_text, self)
+        else:
+            QToolTip.hideText()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001 - Qt event type varies by binding version.
+        QToolTip.hideText()
+        super().leaveEvent(event)
 
 
 class ChartDataTableOutput(QPlainTextEdit):
@@ -244,11 +284,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_noon_variant_format = self._make_format("#ffd60a")
         self._hd_late_variant_format = self._make_format("#4a7bd1")
         self._aspect_formats = {
-            "conjunction": self._make_format("#c7a56a"),
-            "sextile": self._make_format("#6b8ba4"),
-            "square": self._make_format("#8d6e63"),
-            "trine": self._make_format("#6b705c"),
-            "opposition": self._make_format("#c26d3a"),
+            aspect: self._make_format(color)
+            for aspect, color in ASPECT_COLORS.items()
+            if color
         }
         self._planet_formats = {
             planet: self._make_format(color)
@@ -272,14 +310,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._planet_glyph_formats = {
             glyph: self._planet_formats[planet]
             for planet, glyph in PLANET_GLYPHS.items()
-            if planet in self._planet_formats
-            and glyph
-            and str(glyph).strip().casefold() != str(planet).strip().casefold()
+            if planet in self._planet_formats and glyph
         }
         self._sign_formats = {
             sign: self._make_format(color)
             for sign, color in SIGN_COLORS.items()
             if color
+        }
+        self._sign_glyph_formats = {
+            glyph: self._sign_formats[sign]
+            for sign, glyph in zip(ZODIAC_NAMES, ZODIAC_SIGNS, strict=False)
+            if sign in self._sign_formats and glyph
+        }
+        self._aspect_glyph_formats = {
+            glyph: self._aspect_formats[aspect]
+            for aspect, glyph in ASPECT_GLYPHS.items()
+            if aspect in self._aspect_formats and glyph
         }
         self._element_formats = {
             element.lower(): self._make_format(color)
@@ -848,8 +894,10 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._highlight_planet_glyphs(text)
         for aspect, fmt in self._aspect_formats.items():
             self._highlight_phrase(lowered, aspect, fmt)
+        self._highlight_glyphs(text, self._aspect_glyph_formats)
         for sign, fmt in self._sign_formats.items():
             self._highlight_phrase(text, sign, fmt)
+        self._highlight_glyphs(text, self._sign_glyph_formats)
         for element, fmt in self._element_formats.items():
             self._highlight_phrase(lowered, element, fmt)
         for nakshatra, fmt in self._nakshatra_formats.items():
@@ -1005,12 +1053,22 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                 )
 
     def _highlight_planet_glyphs(self, text: str) -> None:
-        for glyph, text_format in self._planet_glyph_formats.items():
+        self._highlight_glyphs(text, self._planet_glyph_formats)
+
+    def _highlight_glyphs(self, text: str, glyph_formats: dict[str, QTextCharFormat]) -> None:
+        for glyph, text_format in glyph_formats.items():
             start = 0
             while True:
                 index = text.find(glyph, start)
                 if index == -1:
                     break
+                if glyph.isalnum():
+                    before_ok = index == 0 or not text[index - 1].isalnum()
+                    after_index = index + len(glyph)
+                    after_ok = after_index >= len(text) or not text[after_index].isalnum()
+                    if not (before_ok and after_ok):
+                        start = index + len(glyph)
+                        continue
                 self.setFormat(
                     self._qt_index(text, index),
                     self._qt_len(glyph),
