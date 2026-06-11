@@ -16,7 +16,6 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     chart_similarity_score,
-    chart_similarity_score_comprehensive,
     chart_similarity_score_custom,
     normalize_similar_charts_algorithm_mode,
 )
@@ -75,50 +74,40 @@ def calculate_pair_similarity_result(
         final_score, component_scores = chart_similarity_score_custom(first, second, effective_settings)
         return PairSimilarityResult(
             score=final_score,
-            placement_score=component_scores["placement"],
-            aspect_score=component_scores["aspect"],
-            distribution_score=component_scores["distribution"],
-            dominance_score=component_scores["combined_dominance"],
-            nakshatra_score=component_scores["nakshatra_placement"],
-            nakshatra_dominance_score=component_scores["nakshatra_dominance"],
-            hd_centers_score=component_scores["defined_centers"],
-            human_design_gates_score=component_scores["human_design_gates"],
-            human_design_channels_score=component_scores["human_design_channels"],
-            inner_planet_placement_score=component_scores["inner_planet_placement"],
-            outer_planet_placement_score=component_scores["outer_planet_placement"],
+            placement_score=component_scores.get("placement", 0.0),
+            aspect_score=component_scores.get("aspect", 0.0),
+            distribution_score=component_scores.get("distribution", 0.0),
+            dominance_score=component_scores.get("combined_dominance"),
+            nakshatra_score=component_scores.get("nakshatra_placement"),
+            nakshatra_dominance_score=component_scores.get("nakshatra_dominance"),
+            hd_centers_score=component_scores.get("defined_centers"),
+            human_design_gates_score=component_scores.get("human_design_gates"),
+            human_design_channels_score=component_scores.get("human_design_channels"),
+            inner_planet_placement_score=component_scores.get("inner_planet_placement"),
+            outer_planet_placement_score=component_scores.get("outer_planet_placement"),
             algorithm_mode=normalized_mode,
         )
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
-        (
-            final_score,
-            placement_score,
-            aspect_score,
-            distribution_score,
-            nakshatra_score,
-            hd_centers_score,
-        ) = chart_similarity_score_comprehensive(
+        comprehensive_settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
+        comprehensive_settings.placement_weighting_mode = placement_weighting_mode
+        final_score, component_scores = chart_similarity_score_custom(
             first,
             second,
-            placement_weighting_mode=placement_weighting_mode,
+            comprehensive_settings,
         )
-        component_scores = chart_similarity_score_custom(
-            first,
-            second,
-            SimilarityCalculatorSettings.defaults_from_comprehensive(),
-        )[1]
         return PairSimilarityResult(
             score=final_score,
-            placement_score=placement_score,
-            aspect_score=aspect_score,
-            distribution_score=distribution_score,
-            dominance_score=component_scores["combined_dominance"],
-            nakshatra_score=nakshatra_score,
-            nakshatra_dominance_score=component_scores["nakshatra_dominance"],
-            hd_centers_score=hd_centers_score,
-            human_design_gates_score=component_scores["human_design_gates"],
-            human_design_channels_score=component_scores["human_design_channels"],
-            inner_planet_placement_score=component_scores["inner_planet_placement"],
-            outer_planet_placement_score=component_scores["outer_planet_placement"],
+            placement_score=component_scores.get("placement", 0.0),
+            aspect_score=component_scores.get("aspect", 0.0),
+            distribution_score=component_scores.get("distribution", 0.0),
+            dominance_score=component_scores.get("combined_dominance"),
+            nakshatra_score=component_scores.get("nakshatra_placement"),
+            nakshatra_dominance_score=component_scores.get("nakshatra_dominance"),
+            hd_centers_score=component_scores.get("defined_centers"),
+            human_design_gates_score=component_scores.get("human_design_gates"),
+            human_design_channels_score=component_scores.get("human_design_channels"),
+            inner_planet_placement_score=component_scores.get("inner_planet_placement"),
+            outer_planet_placement_score=component_scores.get("outer_planet_placement"),
             algorithm_mode=normalized_mode,
         )
 
