@@ -23361,7 +23361,43 @@ class MainWindow(QMainWindow):
         while len(cache) > 20:
             cache.popitem(last=False)
 
-    def _on_similar_chart_link_activated(self, target: str) -> None:
+    def _database_view_dialog_for_chart_link_transition(self) -> ManageChartsDialog | None:
+        manage_dialog = self._manage_charts_dialog
+        if manage_dialog is None or not manage_dialog.isVisible():
+            return None
+        return manage_dialog
+
+    def _keep_similar_charts_popout_in_front(self, dialog: QDialog | None) -> None:
+        if dialog is None or not dialog.isVisible():
+            return
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _transition_database_view_chart_link_to_chart_view(
+        self,
+        *,
+        source_dialog: QDialog | None = None,
+    ) -> None:
+        manage_dialog = self._database_view_dialog_for_chart_link_transition()
+        if manage_dialog is None:
+            return
+
+        was_maximized = manage_dialog.isMaximized()
+        self._show_chart_view_maximized(maximize=was_maximized, source_window=manage_dialog)
+        self._retarget_size_checker_to_main_view()
+        manage_dialog.hide()
+        self._keep_similar_charts_popout_in_front(source_dialog)
+        QTimer.singleShot(
+            0,
+            lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog),
+        )
+
+    def _on_similar_chart_link_activated(
+        self,
+        target: str,
+        *,
+        source_dialog: QDialog | None = None,
+    ) -> None:
         normalized_target = str(target or "").strip()
         if is_similar_info_target(normalized_target):
             self._show_similar_chart_reasoning(normalized_target)
@@ -23371,21 +23407,33 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             return
         current_chart_id = self.current_chart_id
-        if current_chart_id is None or current_chart_id == chart_id:
+        database_transition_dialog = (
+            self._database_view_dialog_for_chart_link_transition()
+            if source_dialog is not None
+            else None
+        )
+        if current_chart_id == chart_id:
+            if database_transition_dialog is not None:
+                self._transition_database_view_chart_link_to_chart_view(source_dialog=source_dialog)
             return
+
         previous_history = list(self._chart_view_history)
         previous_index = self._chart_view_history_index
-        if not self._chart_view_history:
-            self._chart_view_history = [current_chart_id]
-            self._chart_view_history_index = 0
-        else:
-            self._chart_view_history = self._chart_view_history[: self._chart_view_history_index + 1]
-        self._chart_view_history.append(chart_id)
-        self._chart_view_history_index = len(self._chart_view_history) - 1
+        if current_chart_id is not None:
+            if not self._chart_view_history:
+                self._chart_view_history = [current_chart_id]
+                self._chart_view_history_index = 0
+            else:
+                self._chart_view_history = self._chart_view_history[: self._chart_view_history_index + 1]
+            self._chart_view_history.append(chart_id)
+            self._chart_view_history_index = len(self._chart_view_history) - 1
         loaded = self.load_chart_by_id(chart_id, from_chart_link=True)
         if not loaded:
             self._chart_view_history = previous_history
             self._chart_view_history_index = previous_index
+            return
+        if database_transition_dialog is not None:
+            self._transition_database_view_chart_link_to_chart_view(source_dialog=source_dialog)
 
     def _on_similar_chart_popout_link_activated(self, dialog: QDialog, target: str) -> None:
         normalized_target = str(target or "").strip()
@@ -23412,7 +23460,7 @@ class MainWindow(QMainWindow):
                         popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
             return
-        self._on_similar_chart_link_activated(normalized_target)
+        self._on_similar_chart_link_activated(normalized_target, source_dialog=dialog)
 
     def _on_similar_chart_popout_analysis_mode_changed(self, dialog: QDialog) -> None:
         popout_analysis_dropdown = getattr(dialog, "_similar_chart_popout_analysis_dropdown", None)
