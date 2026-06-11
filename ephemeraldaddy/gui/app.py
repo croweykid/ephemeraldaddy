@@ -7287,15 +7287,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         elif tool_key == "personal_transit":
             parent._generate_current_transits_for_chart(chart, chart_id)
         elif tool_key == "similar_charts":
-            previous_chart = parent._latest_chart
-            previous_chart_id = parent.current_chart_id
-            parent._latest_chart = chart
-            parent.current_chart_id = chart_id
-            try:
-                parent._show_similar_charts_popout(requester=parent)
-            finally:
-                parent._latest_chart = previous_chart
-                parent.current_chart_id = previous_chart_id
+            parent._show_similar_charts_popout(
+                requester=self,
+                chart_override=chart,
+                subject_chart_id_override=chart_id,
+                opened_from_database_view=True,
+            )
         elif tool_key == "gemstone_chart":
             parent._create_gemstone_chartwheel(chart)
         else:
@@ -24103,7 +24100,15 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def _show_similar_charts_popout(self, requester: QWidget | None = None) -> None:
+    
+    def _show_similar_charts_popout(
+        self,
+        requester: QWidget | None = None,
+        *,
+        chart_override: Chart | None = None,
+        subject_chart_id_override: int | None = None,
+        opened_from_database_view: bool | None = None,
+    ) -> None:
         manage_dialog = self._manage_charts_dialog
         database_view_active = (
             requester is not self
@@ -24116,9 +24121,17 @@ class MainWindow(QMainWindow):
                 )
             )
         )
+        popout_opened_from_database_view = (
+            bool(database_view_active)
+            if opened_from_database_view is None
+            else bool(opened_from_database_view)
+        )
         chart: Chart | None
         subject_chart_id: int | None
-        if database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
+        if chart_override is not None:
+            chart = chart_override
+            subject_chart_id = subject_chart_id_override
+        elif database_view_active and manage_dialog is not None and hasattr(manage_dialog, "list_widget"):
             selected_chart_ids = manage_dialog._selected_chart_ids()
             if len(selected_chart_ids) < 1:
                 QMessageBox.information(
@@ -24304,7 +24317,7 @@ class MainWindow(QMainWindow):
             on_export_clicked=self._export_similar_charts_popout_share,
             share_icon_path=_get_share_icon_path(),
         )
-        dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
+        dialog._similar_chart_popout_opened_from_database_view = bool(popout_opened_from_database_view)
         dialog._similar_chart_popout_subject_name = subject_name
         dialog._similar_chart_popout_subject_chart = chart
         dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
@@ -26360,7 +26373,19 @@ class MainWindow(QMainWindow):
             self._latest_chart = chart
             self.on_get_human_design_info()
         elif action_name == "see_similar_charts":
-            self._show_similar_charts_popout(requester=requester)
+            database_view_active = self._database_view_dialog_for_chart_link_transition() is not None and (
+                requester is self._manage_charts_dialog
+                or (
+                    self._manage_charts_dialog is not None
+                    and self._manage_charts_dialog.isActiveWindow()
+                )
+            )
+            self._show_similar_charts_popout(
+                requester=requester,
+                chart_override=chart,
+                subject_chart_id_override=chart_id,
+                opened_from_database_view=database_view_active,
+            )
         else:
             QMessageBox.warning(self, "Chart action", f"Unknown chart action: {action_name}")
 
