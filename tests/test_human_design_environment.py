@@ -81,6 +81,21 @@ def test_chart_data_environment_uses_correct_variable_sources(monkeypatch) -> No
     assert "Thirst  — Hot (Tone 3)" in property_values
 
 
+def test_positions_lines_use_compact_side_display_aliases_only() -> None:
+    lines, _info_map = hd_output._build_hd_positions_lines(_hd_result())
+    rendered = "\n".join(lines)
+
+    assert "P. Sun" in rendered
+    assert "P. Rahu" in rendered
+    assert "D. Sun" in rendered
+    assert "D. Rahu" in rendered
+    assert "Personality Sun" not in rendered
+    assert "Design Sun" not in rendered
+
+    personality_sun = _hd_result().personality_activations[0]
+    assert personality_sun.side == "personality"
+    assert personality_sun.body == "Sun"
+
 def test_design_marker_activation_is_design_rahu() -> None:
     activation = hd_output._design_rahu_activation(_hd_result())
 
