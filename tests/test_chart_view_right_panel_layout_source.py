@@ -70,6 +70,16 @@ def test_prediction_metric_canvases_redraw_after_stacked_panel_layout_settles():
     assert "self._schedule_metric_canvas_layout_refresh(canvas)" in source
 
 
+def test_metric_canvas_layout_refresh_forces_full_canvas_draw():
+    source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
+    method_start = source.index("    def _refresh_metric_canvas_after_layout")
+    method = source[method_start : source.index("    def _schedule_metric_canvas_layout_refresh", method_start)]
+
+    assert "self._apply_metric_chart_sizing(canvas)" in method
+    assert "canvas.draw()" in method
+    assert "canvas.draw_idle()" not in method
+
+
 def test_metric_scroll_viewport_resize_refreshes_existing_canvases():
     source = (REPO_ROOT / "ephemeraldaddy/gui/app.py").read_text()
 

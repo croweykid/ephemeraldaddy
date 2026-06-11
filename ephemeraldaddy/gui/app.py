@@ -24952,7 +24952,14 @@ class MainWindow(QMainWindow):
             if not self._metric_canvas_is_alive(canvas):
                 return
             self._apply_metric_chart_sizing(canvas)
-            canvas.draw_idle()
+            # Existing metric canvases keep the same Qt widget/backing store while
+            # their Matplotlib artists are replaced.  draw_idle() can be
+            # coalesced with the still-in-flight Chart View render queue, leaving
+            # stale pixels in the right-panel graphs until an external resize
+            # forces a full repaint.  This refresh already runs after the
+            # current layout pass, so draw synchronously here to rebuild the Agg
+            # buffer for the latest chart before Qt repaints the canvas.
+            canvas.draw()
         except RuntimeError:
             self._unregister_metric_chart(canvas)
             return
