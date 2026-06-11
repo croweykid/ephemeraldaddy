@@ -31611,11 +31611,28 @@ class MainWindow(QMainWindow):
 
             self._run_with_chart_info_output(chart_info_output, _render_metric_info)
 
+        hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
+        summary_share_button = QToolButton()
+        share_icon_path = _get_share_icon_path()
+        if share_icon_path:
+            summary_share_button.setIcon(QIcon(share_icon_path))
+            summary_share_button.setIconSize(QSize(14, 14))
+        else:
+            summary_share_button.setText("↗")
+        summary_share_button.setAutoRaise(True)
+        summary_share_button.setCursor(Qt.PointingHandCursor)
+        summary_share_button.setToolTip("Export chart data output as Markdown or text")
+        summary_share_button.setFixedSize(22, 22)
+        summary_share_button.clicked.connect(
+            lambda _checked=False: self._export_popout_chart_data_output(summary_output, hd_file_stem)
+        )
+
         right_panel = build_human_design_analytics_panel(
             hd_result=hd_result,
             chart_theme_colors=CHART_THEME_COLORS,
             subheader_style=DATABASE_ANALYTICS_SUBHEADER_STYLE,
             on_metric_selected=_on_hd_metric_selected,
+            header_action_widget=summary_share_button,
         )
 
         middle_right_splitter = QSplitter(Qt.Horizontal)
@@ -31635,9 +31652,6 @@ class MainWindow(QMainWindow):
             "species_info_map": {},
             "summary_block_offset": 0,
         }
-        hd_file_stem = f"ephemeraldaddy_{self._sanitize_export_token(self._latest_chart.name)}_hdc"
-        summary_share_button = self._attach_popout_share_button(summary_output, hd_file_stem)
-        popout_context["share_button"] = summary_share_button
         self._popout_summary_contexts[popout_context_key] = popout_context
         dialog.destroyed.connect(
             lambda _=None, key=popout_context_key: self._popout_summary_contexts.pop(key, None)
