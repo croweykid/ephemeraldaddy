@@ -440,17 +440,21 @@ from ephemeraldaddy.gui.wikipedia_search import (
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
+    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+    SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
     add_enneagram_predictions_debug_setting,
+    add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
     build_enneagram_predictor_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
+    load_similarity_perceived_accuracy_controls_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
@@ -2091,6 +2095,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
         )
+        self._similarity_perceived_accuracy_controls_enabled = (
+            load_similarity_perceived_accuracy_controls_enabled(
+                self._settings,
+                fallback=SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
+        )
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(
             self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
         )
@@ -2275,6 +2289,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
+        self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
         self._settings_db_info_label: QLabel | None = None
         self._database_weight_norms: dict[str, Any] = {}
@@ -19883,6 +19898,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
                 )
                 del blocker
+            if isinstance(self._similarity_perceived_accuracy_controls_checkbox, QCheckBox):
+                blocker = QSignalBlocker(self._similarity_perceived_accuracy_controls_checkbox)
+                self._similarity_perceived_accuracy_controls_checkbox.setChecked(
+                    bool(
+                        getattr(
+                            self,
+                            "_similarity_perceived_accuracy_controls_enabled",
+                            SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                        )
+                    )
+                )
+                del blocker
             significance_combo = getattr(self, "_settings_significance_correction_combo", None)
             if isinstance(significance_combo, QComboBox):
                 blocker = QSignalBlocker(significance_combo)
@@ -20228,6 +20255,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_enneagram_predictions_debug", ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT)),
             on_toggled=self._on_enneagram_predictions_debug_toggled,
+        )
+
+        self._similarity_perceived_accuracy_controls_checkbox = (
+            add_similarity_perceived_accuracy_controls_setting(
+                section_layout=dev_tools_section,
+                is_enabled=bool(
+                    getattr(
+                        self,
+                        "_similarity_perceived_accuracy_controls_enabled",
+                        SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                    )
+                ),
+                on_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
+            )
         )
 
         #should this be here or no?
@@ -20594,6 +20635,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._settings.setValue(
                 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
                 int(self._enneagram_predictions_debug),
+            )
+
+    def _on_similarity_perceived_accuracy_controls_toggled(self, checked: bool) -> None:
+        self._similarity_perceived_accuracy_controls_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._similarity_perceived_accuracy_controls_enabled = (
+                self._similarity_perceived_accuracy_controls_enabled
+            )
+            parent._settings.setValue(
+                SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+                int(self._similarity_perceived_accuracy_controls_enabled),
             )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
@@ -21971,6 +22028,16 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
+        )
+        self._similarity_perceived_accuracy_controls_enabled = (
+            load_similarity_perceived_accuracy_controls_enabled(
+                self._settings,
+                fallback=SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
         )
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(
             self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
@@ -24448,7 +24515,16 @@ class MainWindow(QMainWindow):
             )
         )
         similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
-        perceived_accuracy_states = load_similarity_perceived_accuracy_states()
+        show_perceived_accuracy_controls = bool(
+            getattr(
+                self,
+                "_similarity_perceived_accuracy_controls_enabled",
+                SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        perceived_accuracy_states = (
+            load_similarity_perceived_accuracy_states() if show_perceived_accuracy_controls else None
+        )
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
@@ -24472,8 +24548,13 @@ class MainWindow(QMainWindow):
             on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
             on_export_clicked=self._export_similar_charts_popout_share,
             share_icon_path=_get_share_icon_path(),
+            show_perceived_accuracy_controls=show_perceived_accuracy_controls,
             perceived_accuracy_states=perceived_accuracy_states,
-            on_perceived_accuracy_changed=self._on_similar_chart_popout_perceived_accuracy_changed,
+            on_perceived_accuracy_changed=(
+                self._on_similar_chart_popout_perceived_accuracy_changed
+                if show_perceived_accuracy_controls
+                else None
+            ),
         )
         database_view_active = popout_opened_from_database_view
         dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)

@@ -2544,6 +2544,7 @@ def build_similar_charts_popout_dialog(
     on_make_collection_clicked: Callable[[QDialog], None] | None = None,
     on_export_clicked: Callable[[QDialog], None] | None = None,
     share_icon_path: str | None = None,
+    show_perceived_accuracy_controls: bool = False,
     perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None = None,
     on_perceived_accuracy_changed: Callable[[QDialog, Any, str, int | None, bool], None] | None = None,
 ) -> QDialog:
@@ -2673,6 +2674,27 @@ def build_similar_charts_popout_dialog(
             result_label = QLabel("No charts found.")
             result_label.setWordWrap(True)
             result_label.setStyleSheet(output_style)
+            content_layout.addWidget(result_label)
+        elif not show_perceived_accuracy_controls:
+            result_label = QLabel()
+            result_label.setWordWrap(True)
+            result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            result_label.setOpenExternalLinks(False)
+            result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
+            result_label.setStyleSheet(output_style)
+            result_label.setText(
+                render_similar_match_blocks(
+                    matches=matches,
+                    highlight_color=highlight_color,
+                    resolve_similarity_band=resolve_similarity_band,
+                    subject_uses_houses=subject_uses_houses,
+                    info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                    similarity_average=similarity_average,
+                    similarity_standard_deviation=similarity_standard_deviation,
+                )
+            )
             content_layout.addWidget(result_label)
         else:
             accuracy_widgets: dict[int, dict[str, Any]] = getattr(
