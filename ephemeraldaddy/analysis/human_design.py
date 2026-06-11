@@ -165,18 +165,10 @@ def _activation_variant_lookup(
     return {key: tuple(value) for key, value in lookup.items() if len(value) == 3}
 
 
-def _collapsed_time_variant_tokens(tokens: tuple[str, str, str]) -> list[str]:
-    if tokens[0] == tokens[1] == tokens[2]:
-        return [tokens[1]]
-    rendered: list[str] = []
-    for token in tokens:
-        if not rendered or rendered[-1] != token:
-            rendered.append(token)
-    return rendered
-
-
 def _format_time_variant_field(tokens: tuple[str, str, str]) -> str:
-    return "->".join(_collapsed_time_variant_tokens(tokens))
+    if tokens[0] == tokens[1] == tokens[2]:
+        return tokens[1]
+    return "->".join(tokens)
 
 
 def _time_variant_change_count(tokens: tuple[str, str, str]) -> int:
