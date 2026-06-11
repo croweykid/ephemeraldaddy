@@ -161,6 +161,7 @@ def build_human_design_analytics_panel(
     chart_theme_colors: dict[str, str],
     subheader_style: str,
     on_metric_selected: Callable[[str, int], None] | None = None,
+    header_action_widget: QWidget | None = None,
 ) -> QWidget:
     """Build the Human Design popout right-side analytics panel widget."""
 
@@ -188,6 +189,15 @@ def build_human_design_analytics_panel(
     hd_analytics_content_layout = QVBoxLayout(hd_analytics_content)
     hd_analytics_content_layout.setContentsMargins(6, 0, 0, 0)
     hd_analytics_content_layout.setSpacing(6)
+
+    if header_action_widget is not None:
+        hd_analytics_header = QWidget(hd_analytics_content)
+        hd_analytics_header_layout = QHBoxLayout(hd_analytics_header)
+        hd_analytics_header_layout.setContentsMargins(0, 0, 0, 0)
+        hd_analytics_header_layout.setSpacing(0)
+        hd_analytics_header_layout.addStretch(1)
+        hd_analytics_header_layout.addWidget(header_action_widget, 0, Qt.AlignRight | Qt.AlignTop)
+        hd_analytics_content_layout.addWidget(hd_analytics_header, 0)
 
     hd_analytics_scroll = QScrollArea()
     hd_analytics_scroll.setWidgetResizable(True)
