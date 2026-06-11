@@ -124,10 +124,10 @@ def test_activation_display_values_shows_single_color_tone_base_change() -> None
         (midnight, noon, late),
     )
 
-    assert gl_text == "1.2->1.2->43.6"
-    assert color_text == "5->5->6"
-    assert tone_text == "1->1->4"
-    assert base_text == "3->3->4"
+    assert gl_text == "1.2->43.6"
+    assert color_text == "5->6"
+    assert tone_text == "1->4"
+    assert base_text == "3->4"
 
 
 def test_positions_lines_render_unknown_variant_fields_without_clickable_value_errors() -> None:
