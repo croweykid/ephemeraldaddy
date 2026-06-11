@@ -12,6 +12,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QFont, QIcon#, QFontMetrics
 from PySide6.QtWidgets import (
+    QApplication,
     QAbstractButton,
     QComboBox,
     #QGraphicsOpacityEffect,
@@ -19,8 +20,61 @@ from PySide6.QtWidgets import (
     QListView,
     QSizePolicy,
     QToolButton,
-    #QWidget,
+    QWidget,
 )
+
+
+# Shared cursor policy. Keep these constants and helpers as the single source of
+# truth for clickable UI affordances across Chart View, Database View, popouts,
+# and utility panels.
+APP_CHART_INFO_LINK_CURSOR = Qt.WhatsThisCursor
+APP_POPOUT_CURSOR = Qt.PointingHandCursor
+APP_BUTTON_CURSOR = Qt.PointingHandCursor
+
+
+def apply_chart_info_link_cursor(widget: QWidget) -> None:
+    """Use the appwide question cursor for links that open Chart Info details."""
+    widget.setCursor(APP_CHART_INFO_LINK_CURSOR)
+
+
+def apply_popout_cursor(widget: QWidget) -> None:
+    """Use the appwide pointing-hand cursor for clickable charts/popout targets."""
+    widget.setCursor(APP_POPOUT_CURSOR)
+
+
+def apply_button_cursor(button: QAbstractButton) -> None:
+    """Use the appwide pointing-hand cursor for clickable buttons."""
+    button.setCursor(APP_BUTTON_CURSOR)
+
+
+class _AppwideCursorDefaultsFilter(QObject):
+    """Apply shared cursor defaults to widgets created after QApplication setup."""
+
+    def __init__(self, app: QApplication) -> None:
+        super().__init__(app)
+        self._app = app
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
+        if event.type() in (QEvent.ChildAdded, QEvent.Show):
+            self._apply_to_object(watched)
+        return super().eventFilter(watched, event)
+
+    def _apply_to_object(self, obj: QObject) -> None:
+        if isinstance(obj, QAbstractButton):
+            apply_button_cursor(obj)
+        for child in obj.findChildren(QAbstractButton):
+            apply_button_cursor(child)
+
+
+def install_appwide_cursor_defaults(app: QApplication) -> None:
+    """Install appwide cursor defaults for standard interactive widgets."""
+    if getattr(app, "_edd_appwide_cursor_defaults_installed", False):
+        return
+    cursor_filter = _AppwideCursorDefaultsFilter(app)
+    app.installEventFilter(cursor_filter)
+    app._edd_appwide_cursor_defaults_filter = cursor_filter  # type: ignore[attr-defined]
+    app._edd_appwide_cursor_defaults_installed = True  # type: ignore[attr-defined]
+    cursor_filter._apply_to_object(app)
 
 DARK_THEME = {
     "background": "#111111",
@@ -584,7 +638,7 @@ def configure_share_export_icon_button(
         button.setAutoRaise(True)
 
     button.setFixedSize(*DATABASE_ANALYTICS_EXPORT_BUTTON_SIZE)
-    button.setCursor(Qt.PointingHandCursor)
+    apply_button_cursor(button)
     button.setToolTip(tooltip)
 
 

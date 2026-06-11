@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Mapping
 
-from PySide6.QtCore import QEvent, QPoint, Qt
+from PySide6.QtCore import QEvent, QPoint
 from PySide6.QtWidgets import (
     QAbstractButton,
     QLabel,
@@ -15,7 +15,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR
+from ephemeraldaddy.gui.style import (
+    CHART_DATA_HIGHLIGHT_COLOR,
+    apply_chart_info_link_cursor,
+)
 
 
 APP_TOOLTIP_STYLE = (
@@ -30,7 +33,7 @@ APP_TOOLTIP_STYLE = (
 
 def apply_tooltip_signifier(widget: QWidget) -> None:
     """Mark a widget as tooltip-bearing using the appwide question cursor."""
-    widget.setCursor(Qt.WhatsThisCursor)
+    apply_chart_info_link_cursor(widget)
     widget.setMouseTracking(True)
     existing_style = widget.styleSheet().strip()
     if APP_TOOLTIP_STYLE not in existing_style:
