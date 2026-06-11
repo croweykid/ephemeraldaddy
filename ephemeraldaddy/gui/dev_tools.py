@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSplitter,
-    QSizePolicy,
+    #QSizePolicy,
     QTextEdit,
     QTreeWidget,
     QTreeWidgetItemIterator,
@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from ephemeraldaddy.gui.settings_widgets import SettingsHelpLabel
 from ephemeraldaddy.gui.style import (
     DEFAULT_DROPDOWN_STYLE,
     DATABASE_VIEW_HEADER_COLOR,
@@ -47,17 +48,7 @@ ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT = False
 
 
 def _build_settings_help_label(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setWordWrap(True)
-    label.setMinimumWidth(0)
-    label.setMinimumHeight(0)
-    label.setMaximumHeight(16777215)
-    label.setMargin(max(label.margin(), 3))
-    label.setAlignment(label.alignment() | Qt.AlignTop)
-    label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    label_size_policy.setHeightForWidth(True)
-    label.setSizePolicy(label_size_policy)
-    return label
+    return SettingsHelpLabel(text)
 
 def load_batch_tagging_terminal_debug_enabled(settings, *, fallback: bool = False) -> bool:
     value = settings.value(SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG, int(fallback))

@@ -1080,6 +1080,11 @@ from ephemeraldaddy.gui.features.retcon.workers import RetconSearchWorker
 from ephemeraldaddy.gui.features.dialogues import FamiliarityCalculatorDialog, RetconEngineDialog
 
 from ephemeraldaddy.gui import help as help_notes
+from ephemeraldaddy.gui.settings_widgets import (
+    SettingsHelpLabel,
+    configure_settings_help_label,
+)
+
 from ephemeraldaddy.gui.style import (
     CHART_VIEW_RECTIFIED_GROUP_LEFT_SPACER,
     CHART_VIEW_RECTIFIED_LABEL_CHECKBOX_SPACING,
@@ -20916,22 +20921,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
 
     def _build_settings_help_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        self._configure_settings_text_label(label)
-        return label
+        return SettingsHelpLabel(text)
 
     def _configure_settings_text_label(self, label: QLabel) -> None:
         """Give settings body text enough paint padding for dynamic wrapped heights."""
-        label.setWordWrap(True)
-        label.setMinimumWidth(0)
-        label.setMinimumHeight(0)
-        label.setMaximumHeight(16777215)
-        label.setMargin(max(label.margin(), 3))
-        label.setAlignment(label.alignment() | Qt.AlignTop)
-        label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        label_size_policy.setHeightForWidth(True)
-        label.setSizePolicy(label_size_policy)
-        label.updateGeometry()
+        configure_settings_help_label(label)
 
     def _configure_settings_section_text_wrap(self, root: QWidget) -> None:
         """Allow settings-section text to size itself from its contents.
@@ -20942,17 +20936,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         after a section is expanded.
         """
         for label in root.findChildren(QLabel):
-            # label.setWordWrap(True)
-            # label.setMinimumWidth(0)
-            # label.setMinimumHeight(0)
-            # label.setMaximumHeight(16777215)
-            # label.setAlignment(label.alignment() | Qt.AlignTop)
-            # label_size_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            # label_size_policy.setHeightForWidth(True)
-            # label.setSizePolicy(label_size_policy)
             self._configure_settings_text_label(label)
-            label.adjustSize()
-            #label.updateGeometry()
+            if isinstance(label, SettingsHelpLabel):
+                label.refresh_dynamic_height()
+            else:
+                label.adjustSize()
 
         for button_type in (QCheckBox, QRadioButton):
             for button in root.findChildren(button_type):
