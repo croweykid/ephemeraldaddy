@@ -159,9 +159,11 @@ def test_popout_chart_name_links_request_database_to_chart_view_transition():
     from pathlib import Path
 
     source = (Path(__file__).resolve().parents[1] / "ephemeraldaddy/gui/app.py").read_text()
-    assert "source_dialog: QDialog | None = None" in source
-    assert "self._on_similar_chart_link_activated(normalized_target, source_dialog=dialog)" in source
-    assert "self._show_chart_view_maximized(maximize=was_maximized, source_window=manage_dialog)" in source
+    assert "transition_to_chart_view: bool = False" in source
+    assert "_similar_chart_popout_opened_from_database_view = bool(database_view_active)" in source
+    assert "transition_to_chart_view=bool(" in source
+    assert "activate=False" in source
     assert "manage_dialog.hide()" in source
     assert "lambda dialog=source_dialog: self._keep_similar_charts_popout_in_front(dialog)" in source
+    assert "except RuntimeError:" in source
     assert "if current_chart_id == chart_id:" in source
