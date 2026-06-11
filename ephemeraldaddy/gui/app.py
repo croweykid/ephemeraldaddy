@@ -863,7 +863,7 @@ from ephemeraldaddy.gui.features.charts.text_summary import (
     _overlay_aspect_segments,
     _synastry_pair_weight,
     format_chart_text,
-    format_transit_chart_text,
+    format_compact_transit_chart_text,
 )
 from ephemeraldaddy.analysis.human_design import (
     build_awareness_stream_completion,
@@ -1206,6 +1206,7 @@ from ephemeraldaddy.analysis.city_lookup import normalize_city
 from ephemeraldaddy.analysis.us_state_lookup import normalize_us_state
 from ephemeraldaddy.gui.features.charts.chart_data_output import (
     ChartDataTableOutput,
+    ChartDataTooltipOutput,
     apply_chart_data_highlighter,
 )
 from ephemeraldaddy.gui.features.charts.bazi_window import (
@@ -4589,7 +4590,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self.todays_transits_chart_container.setLayout(self.todays_transits_chart_layout)
         layout.addWidget(self.todays_transits_chart_container)
 
-        self.todays_transits_output = QPlainTextEdit()
+        self.todays_transits_output = ChartDataTooltipOutput()
         self.todays_transits_output.setReadOnly(True)
         output_font = self.todays_transits_output.font()
         output_font.setPointSize(9)
@@ -4800,8 +4801,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._transit_chart_canvases[chart_click_container] = chart
         self.todays_transits_chart_layout.addWidget(chart_click_container)
 
-        summary = format_transit_chart_text(chart, self._transit_location_label)
+        summary, tooltip_spans = format_compact_transit_chart_text(
+            chart,
+            self._transit_location_label,
+        )
         self.todays_transits_output.setPlainText(summary)
+        self.todays_transits_output.set_tooltip_spans(tooltip_spans)
 
         local_now = selected_utc.astimezone(local_tz)
         source_hint = ""
