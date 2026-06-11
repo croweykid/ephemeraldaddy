@@ -7,17 +7,19 @@ from html import escape as _escape_html
 import html
 import re
 import statistics
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from PySide6.QtCore import QEventLoop, QSize, Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QProgressDialog,
     QToolButton,
@@ -68,6 +70,7 @@ from ephemeraldaddy.core.interpretations import (
 from ephemeraldaddy.gui.features.charts.presentation import get_nakshatra, sign_for_longitude
 from ephemeraldaddy.gui.features.charts.provenance import chart_row_is_non_aggregable
 from ephemeraldaddy.gui.features.charts.similarity_norms import similarity_z_score
+from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import perceived_accuracy_state_key
 from ephemeraldaddy.gui.features.charts.metrics import calculate_dominant_nakshatra_weights
 from ephemeraldaddy.gui.features.charts.text_summary import _aspect_label
 from ephemeraldaddy.gui.style import CHART_DATA_HIGHLIGHT_COLOR, DEFAULT_DROPDOWN_STYLE
@@ -2347,6 +2350,7 @@ def render_similar_match_blocks(
     similarity_settings: SimilarityCalculatorSettings | None = None,
     similarity_average: float | None = None,
     similarity_standard_deviation: float | None = None,
+    start_rank: int = 1,
 ) -> str:
     if not matches:
         return "No charts found."
@@ -2354,8 +2358,12 @@ def render_similar_match_blocks(
         algorithm_mode=algorithm_mode,
         similarity_settings=similarity_settings,
     )
+    try:
+        first_rank = max(1, int(start_rank))
+    except (TypeError, ValueError):
+        first_rank = 1
     blocks: list[str] = []
-    for rank, match in enumerate(matches, start=1):
+    for rank, match in enumerate(matches, start=first_rank):
         display_name = format_similar_chart_name_html(
             chart_name=str(getattr(match, "chart_name", "") or "Unnamed"),
             subject_uses_houses=subject_uses_houses,
@@ -2541,6 +2549,9 @@ def build_similar_charts_popout_dialog(
     on_make_collection_clicked: Callable[[QDialog], None] | None = None,
     on_export_clicked: Callable[[QDialog], None] | None = None,
     share_icon_path: str | None = None,
+    show_perceived_accuracy_controls: bool = False,
+    perceived_accuracy_states: Mapping[str, Mapping[str, Any]] | None = None,
+    on_perceived_accuracy_changed: Callable[[QDialog, Any, str, int | None, bool], None] | None = None,
 ) -> QDialog:
     dialog = QDialog(parent)
     dialog.setWindowTitle(f"Similar Charts — {subject_name}")
@@ -2656,33 +2667,161 @@ def build_similar_charts_popout_dialog(
         header_label.setStyleSheet(header_style)
         panel_layout.addWidget(header_label)
 
-        result_label = QLabel()
-        result_label.setWordWrap(True)
-        result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        result_label.setOpenExternalLinks(False)
-        result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
-        result_label.setStyleSheet(output_style)
-        result_label.setText(
-            render_similar_match_blocks(
-                matches=matches,
-                highlight_color=highlight_color,
-                resolve_similarity_band=resolve_similarity_band,
-                subject_uses_houses=subject_uses_houses,
-                info_link_prefix=f"{info_link_prefix}:{panel_key}",
-                algorithm_mode=algorithm_mode,
-                similarity_settings=similarity_settings,
-                similarity_average=similarity_average,
-                similarity_standard_deviation=similarity_standard_deviation,
-            )
-        )
-
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.addWidget(result_label)
+        content_layout.setSpacing(10)
+
+        if not matches:
+            result_label = QLabel("No charts found.")
+            result_label.setWordWrap(True)
+            result_label.setStyleSheet(output_style)
+            content_layout.addWidget(result_label)
+        elif not show_perceived_accuracy_controls:
+            result_label = QLabel()
+            result_label.setWordWrap(True)
+            result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            result_label.setOpenExternalLinks(False)
+            result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
+            result_label.setStyleSheet(output_style)
+            result_label.setText(
+                render_similar_match_blocks(
+                    matches=matches,
+                    highlight_color=highlight_color,
+                    resolve_similarity_band=resolve_similarity_band,
+                    subject_uses_houses=subject_uses_houses,
+                    info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                    algorithm_mode=algorithm_mode,
+                    similarity_settings=similarity_settings,
+                    similarity_average=similarity_average,
+                    similarity_standard_deviation=similarity_standard_deviation,
+                )
+            )
+            content_layout.addWidget(result_label)
+        else:
+            accuracy_widgets: dict[int, dict[str, Any]] = getattr(
+                dialog,
+                "_similar_chart_popout_accuracy_widgets",
+                {},
+            )
+            if not isinstance(accuracy_widgets, dict):
+                accuracy_widgets = {}
+                dialog._similar_chart_popout_accuracy_widgets = accuracy_widgets
+
+            def _accuracy_state_for(match: Any) -> Mapping[str, Any]:
+                if not perceived_accuracy_states:
+                    return {}
+                analysis_context = "dissimilarities" if panel_key == "least" else "similarities"
+                key = perceived_accuracy_state_key(
+                    chart_1_id=subject_chart_id,
+                    chart_2_id=int(getattr(match, "chart_id", 0) or 0) or None,
+                    analysis_context=analysis_context,
+                )
+                state = perceived_accuracy_states.get(key, {})
+                return state if isinstance(state, Mapping) else {}
+
+            def _emit_accuracy_change(match: Any, line_edit: QLineEdit, na_checkbox: QCheckBox) -> None:
+                if on_perceived_accuracy_changed is None:
+                    return
+                text_value = line_edit.text().strip()
+                score: int | None = None
+                if text_value:
+                    try:
+                        score = max(0, min(100, int(text_value)))
+                    except ValueError:
+                        score = None
+                    else:
+                        normalized = str(score)
+                        if normalized != text_value:
+                            line_edit.setText(normalized)
+                on_perceived_accuracy_changed(
+                    dialog,
+                    match,
+                    panel_key,
+                    score,
+                    bool(na_checkbox.isChecked()),
+                )
+
+            for rank, match in enumerate(matches, start=1):
+                match_widget = QWidget()
+                match_layout = QVBoxLayout(match_widget)
+                match_layout.setContentsMargins(0, 0, 0, 0)
+                match_layout.setSpacing(2)
+
+                row_layout = QHBoxLayout()
+                row_layout.setContentsMargins(0, 0, 0, 0)
+                row_layout.setSpacing(4)
+                result_label = QLabel()
+                result_label.setWordWrap(True)
+                result_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+                result_label.setOpenExternalLinks(False)
+                result_label.linkActivated.connect(lambda target: on_link_activated(dialog, target))
+                result_label.setStyleSheet(output_style)
+                result_label.setText(
+                    render_similar_match_blocks(
+                        matches=[match],
+                        highlight_color=highlight_color,
+                        resolve_similarity_band=resolve_similarity_band,
+                        subject_uses_houses=subject_uses_houses,
+                        info_link_prefix=f"{info_link_prefix}:{panel_key}",
+                        algorithm_mode=algorithm_mode,
+                        similarity_settings=similarity_settings,
+                        similarity_average=similarity_average,
+                        similarity_standard_deviation=similarity_standard_deviation,
+                        start_rank=rank,
+                    )
+                )
+                row_layout.addWidget(result_label, 1)
+
+                accuracy_input = QLineEdit()
+                accuracy_input.setAlignment(Qt.AlignRight)
+                accuracy_input.setValidator(QIntValidator(0, 100, accuracy_input))
+                accuracy_input.setFixedWidth(38)
+                accuracy_input.setPlaceholderText("0-100")
+                accuracy_input.setToolTip("Perceived accuracy for this match (0-100).")
+                accuracy_input.setStyleSheet("font-size: 10px; padding: 1px;")
+                na_checkbox = QCheckBox("n/a")
+                na_checkbox.setToolTip("No opinion / not enough familiarity; ignore this data point.")
+                na_checkbox.setStyleSheet("QCheckBox { font-size: 6pt; color: #f5f5f5; spacing: 1px; }")
+                state = _accuracy_state_for(match)
+                if bool(state.get("not_applicable", False)):
+                    na_checkbox.setChecked(True)
+                    accuracy_input.setEnabled(False)
+                raw_score = state.get("user_reported_accuracy")
+                if raw_score is not None:
+                    try:
+                        accuracy_input.setText(str(max(0, min(100, int(raw_score)))))
+                    except (TypeError, ValueError):
+                        pass
+                accuracy_input.editingFinished.connect(
+                    lambda match=match, line_edit=accuracy_input, checkbox=na_checkbox: _emit_accuracy_change(
+                        match,
+                        line_edit,
+                        checkbox,
+                    )
+                )
+                na_checkbox.stateChanged.connect(
+                    lambda _state, match=match, line_edit=accuracy_input, checkbox=na_checkbox: (
+                        line_edit.setEnabled(not checkbox.isChecked()),
+                        _emit_accuracy_change(match, line_edit, checkbox),
+                    )
+                )
+                row_layout.addWidget(accuracy_input, 0, Qt.AlignTop | Qt.AlignRight)
+                row_layout.addWidget(na_checkbox, 0, Qt.AlignTop | Qt.AlignRight)
+                match_layout.addLayout(row_layout)
+                content_layout.addWidget(match_widget)
+                try:
+                    accuracy_widgets[int(getattr(match, "chart_id", 0))] = {
+                        "input": accuracy_input,
+                        "not_applicable_checkbox": na_checkbox,
+                        "panel_key": panel_key,
+                    }
+                except (TypeError, ValueError):
+                    pass
+
         content_layout.addStretch(1)
         scroll.setWidget(content)
         panel_layout.addWidget(scroll, 1)

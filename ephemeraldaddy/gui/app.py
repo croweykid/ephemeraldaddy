@@ -440,17 +440,21 @@ from ephemeraldaddy.gui.wikipedia_search import (
 from ephemeraldaddy.gui.dev_tools import (
     BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT,
     ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT,
+    SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
     SETTINGS_KEY_BATCH_TAGGING_TERMINAL_DEBUG,
     SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
+    SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
     ManageMetadataLabelsDialog,
     MetadataMigrationPanel,
     SizeCheckerPopup,
     add_batch_tagging_terminal_debug_setting,
     add_enneagram_predictions_debug_setting,
+    add_similarity_perceived_accuracy_controls_setting,
     build_similarity_calculator_settings_section,
     build_enneagram_predictor_settings_section,
     load_batch_tagging_terminal_debug_enabled,
     load_enneagram_predictions_debug_enabled,
+    load_similarity_perceived_accuracy_controls_enabled,
 )
 from ephemeraldaddy.gui.cleanup_metadata import (
     ACTION_ALIAS_TO_FROM,
@@ -499,7 +503,9 @@ from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
 )
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     append_similarity_algorithm_change_log,
+    append_similarity_perceived_accuracy_log,
     build_similarity_algorithm_snapshot,
+    load_similarity_perceived_accuracy_states,
     similarity_algorithm_snapshots_changed,
 )
 from ephemeraldaddy.gui.window_placement import (
@@ -2090,6 +2096,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
         )
+        self._similarity_perceived_accuracy_controls_enabled = (
+            load_similarity_perceived_accuracy_controls_enabled(
+                self._settings,
+                fallback=SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
+        )
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(
             self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
         )
@@ -2274,6 +2290,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._help_marker_buttons: list[QToolButton] = []
         self._settings_dialog: QDialog | None = None
         self._batch_tagging_terminal_debug_checkbox: QCheckBox | None = None
+        self._similarity_perceived_accuracy_controls_checkbox: QCheckBox | None = None
         self._settings_section_expanded_session: dict[str, bool] = {}
         self._settings_db_info_label: QLabel | None = None
         self._database_weight_norms: dict[str, Any] = {}
@@ -19886,6 +19903,18 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     bool(getattr(self, "_batch_tagging_terminal_debug", BATCH_TAGGING_TERMINAL_DEBUG_DEFAULT))
                 )
                 del blocker
+            if isinstance(self._similarity_perceived_accuracy_controls_checkbox, QCheckBox):
+                blocker = QSignalBlocker(self._similarity_perceived_accuracy_controls_checkbox)
+                self._similarity_perceived_accuracy_controls_checkbox.setChecked(
+                    bool(
+                        getattr(
+                            self,
+                            "_similarity_perceived_accuracy_controls_enabled",
+                            SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                        )
+                    )
+                )
+                del blocker
             significance_combo = getattr(self, "_settings_significance_correction_combo", None)
             if isinstance(significance_combo, QComboBox):
                 blocker = QSignalBlocker(significance_combo)
@@ -20231,6 +20260,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             section_layout=dev_tools_section,
             is_enabled=bool(getattr(self, "_enneagram_predictions_debug", ENNEAGRAM_PREDICTIONS_DEBUG_DEFAULT)),
             on_toggled=self._on_enneagram_predictions_debug_toggled,
+        )
+
+        self._similarity_perceived_accuracy_controls_checkbox = (
+            add_similarity_perceived_accuracy_controls_setting(
+                section_layout=dev_tools_section,
+                is_enabled=bool(
+                    getattr(
+                        self,
+                        "_similarity_perceived_accuracy_controls_enabled",
+                        SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+                    )
+                ),
+                on_toggled=self._on_similarity_perceived_accuracy_controls_toggled,
+            )
         )
 
         #should this be here or no?
@@ -20597,6 +20640,22 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             parent._settings.setValue(
                 SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
                 int(self._enneagram_predictions_debug),
+            )
+
+    def _on_similarity_perceived_accuracy_controls_toggled(self, checked: bool) -> None:
+        self._similarity_perceived_accuracy_controls_enabled = bool(checked)
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
+        )
+        parent = self.parent()
+        if isinstance(parent, MainWindow):
+            parent._similarity_perceived_accuracy_controls_enabled = (
+                self._similarity_perceived_accuracy_controls_enabled
+            )
+            parent._settings.setValue(
+                SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+                int(self._similarity_perceived_accuracy_controls_enabled),
             )
 
     def _on_similarity_calculator_checkbox_toggled(self, key: str, checked: bool) -> None:
@@ -21974,6 +22033,16 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             SETTINGS_KEY_ENNEAGRAM_PREDICTIONS_DEBUG,
             int(self._enneagram_predictions_debug),
+        )
+        self._similarity_perceived_accuracy_controls_enabled = (
+            load_similarity_perceived_accuracy_controls_enabled(
+                self._settings,
+                fallback=SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        self._settings.setValue(
+            SETTINGS_KEY_SIMILARITY_PERCEIVED_ACCURACY_CONTROLS,
+            int(self._similarity_perceived_accuracy_controls_enabled),
         )
         self._enneagram_scoring_options = _merge_enneagram_scoring_options(
             self._settings.value(SETTINGS_KEY_ENNEAGRAM_SCORING_OPTIONS, {}) or {}
@@ -23618,6 +23687,75 @@ class MainWindow(QMainWindow):
             ),
         )
 
+    def _on_similar_chart_popout_perceived_accuracy_changed(
+        self,
+        dialog: QDialog,
+        match: object,
+        panel_key: str,
+        score: int | None,
+        not_applicable: bool,
+    ) -> None:
+        subject_chart = getattr(dialog, "_similar_chart_popout_subject_chart", None)
+        subject_name = (
+            str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip()
+            or "Current chart"
+        )
+        subject_chart_id = getattr(subject_chart, "id", None)
+        if subject_chart_id is None:
+            subject_chart_id = getattr(dialog, "_similar_chart_popout_subject_chart_id", None)
+        try:
+            subject_chart_id = int(subject_chart_id) if subject_chart_id is not None else None
+        except (TypeError, ValueError):
+            subject_chart_id = None
+        compared_chart_id = self._extract_similar_match_chart_id(match)
+        compared_chart = None
+        if compared_chart_id is not None:
+            try:
+                compared_chart = load_chart(compared_chart_id)
+            except Exception:
+                compared_chart = None
+        compared_name = str(getattr(match, "chart_name", "") or f"Chart #{compared_chart_id or '?'}").strip()
+        if not compared_name:
+            compared_name = "Unknown chart"
+        analysis_context = "dissimilarities" if str(panel_key).strip().lower() == "least" else "similarities"
+        try:
+            similarities_analysis = build_similarity_reasoning_panel_text(
+                match=match,
+                subject_name=subject_name,
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
+                resolve_similarity_band=self._similarity_band_for_percent,
+                analysis_mode="similarities",
+            )
+            dissimilarities_analysis = build_similarity_reasoning_panel_text(
+                match=match,
+                subject_name=subject_name,
+                subject_chart=subject_chart,
+                compared_chart=compared_chart,
+                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
+                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
+                resolve_similarity_band=self._similarity_band_for_percent,
+                analysis_mode="dissimilarities",
+            )
+            log_path = append_similarity_perceived_accuracy_log(
+                chart_1_id=subject_chart_id,
+                chart_1_name=subject_name,
+                chart_2_id=compared_chart_id,
+                chart_2_name=compared_name,
+                analysis_context=analysis_context,
+                user_reported_accuracy=score,
+                not_applicable=not_applicable,
+                similarities_analysis=similarities_analysis,
+                dissimilarities_analysis=dissimilarities_analysis,
+                algorithm_snapshot=self._current_similarity_algorithm_snapshot(),
+            )
+        except Exception:
+            logger.exception("Failed to append Similar Charts perceived accuracy log.")
+        else:
+            logger.info("Appended Similar Charts perceived accuracy to %s", log_path)
+
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
         if not subject_name:
@@ -24382,10 +24520,20 @@ class MainWindow(QMainWindow):
             )
         )
         similarity_average, similarity_standard_deviation = load_similarity_calibration_stats(self._settings)
+        show_perceived_accuracy_controls = bool(
+            getattr(
+                self,
+                "_similarity_perceived_accuracy_controls_enabled",
+                SIMILARITY_PERCEIVED_ACCURACY_CONTROLS_DEFAULT,
+            )
+        )
+        perceived_accuracy_states = (
+            load_similarity_perceived_accuracy_states() if show_perceived_accuracy_controls else None
+        )
         dialog = build_similar_charts_popout_dialog(
             parent=self,
             subject_name=subject_name,
-            subject_chart_id=int(getattr(chart, "id", 0) or 0) or None,
+            subject_chart_id=subject_chart_id,
             subject_uses_houses=_chart_uses_houses(chart),
             most_similar_matches=most_similar_matches,
             least_similar_matches=least_similar_matches,
@@ -24405,11 +24553,19 @@ class MainWindow(QMainWindow):
             on_make_collection_clicked=self._on_similar_chart_popout_make_collection_clicked,
             on_export_clicked=self._export_similar_charts_popout_share,
             share_icon_path=_get_share_icon_path(),
+            show_perceived_accuracy_controls=show_perceived_accuracy_controls,
+            perceived_accuracy_states=perceived_accuracy_states,
+            on_perceived_accuracy_changed=(
+                self._on_similar_chart_popout_perceived_accuracy_changed
+                if show_perceived_accuracy_controls
+                else None
+            ),
         )
         database_view_active = popout_opened_from_database_view
         dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
         dialog._similar_chart_popout_subject_name = subject_name
         dialog._similar_chart_popout_subject_chart = chart
+        dialog._similar_chart_popout_subject_chart_id = subject_chart_id
         dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target
         dialog._similar_chart_popout_most_similar_matches = list(most_similar_matches)
         dialog._similar_chart_popout_least_similar_matches = list(least_similar_matches)
@@ -24583,7 +24739,10 @@ class MainWindow(QMainWindow):
             return
 
         export_date = datetime.date.today().isoformat()
-        subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip() or "Current chart"
+        subject_name = (
+            str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip()
+            or "Current chart"
+        )
         subject_token = self._sanitize_export_token(subject_name or "chart")
         file_path = _get_text_export_path(
             dialog,

@@ -34,13 +34,16 @@ def _install_pyside_stubs():
     qt_core.QSize = getattr(qt_core, "QSize", _Widget)
     qt_core.Qt = getattr(qt_core, "Qt", _Qt)
     qt_gui.QIcon = getattr(qt_gui, "QIcon", _Widget)
+    qt_gui.QIntValidator = getattr(qt_gui, "QIntValidator", _Widget)
     for name in (
         "QApplication",
+        "QCheckBox",
         "QComboBox",
         "QDialog",
         "QFrame",
         "QHBoxLayout",
         "QLabel",
+        "QLineEdit",
         "QProgressDialog",
         "QPushButton",
         "QScrollArea",
@@ -153,6 +156,34 @@ def test_similar_match_blocks_include_z_score():
     )
 
     assert "z=+2.00" in html
+
+
+def test_similar_match_blocks_preserve_starting_rank_for_per_row_rendering():
+    match = SimpleNamespace(
+        chart_id=9,
+        chart_name="Ranked Chart",
+        score=0.72,
+        placement_score=0.7,
+        aspect_score=0.6,
+        distribution_score=0.5,
+        dominance_score=0.4,
+        chart_uses_houses=True,
+        algorithm_mode="default",
+    )
+
+    from ephemeraldaddy.gui.features.charts.similar_charts_popout import (  # noqa: PLC0415
+        render_similar_match_blocks,
+    )
+
+    html = render_similar_match_blocks(
+        matches=[match],
+        highlight_color="#ffffff",
+        resolve_similarity_band=_band_for_test,
+        start_rank=7,
+    )
+
+    assert ">7.</span>" in html
+    assert ">1.</span>" not in html
 
 
 def test_popout_chart_name_links_request_database_to_chart_view_transition():
