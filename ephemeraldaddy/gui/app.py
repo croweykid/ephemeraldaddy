@@ -20738,8 +20738,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         _save_similarity_calculator_settings(self._settings, settings)
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._similarity_calculator_settings = settings
-            _save_similarity_calculator_settings(parent._settings, settings)
+            previous_settings = getattr(parent, "_similarity_calculator_settings", None)
+            settings_changed = (
+                asdict(previous_settings) if isinstance(previous_settings, SimilarityCalculatorSettings) else None
+            ) != asdict(settings)
+            parent._handle_similarity_calculator_settings_changed(
+                settings,
+                rerender_similar_charts=settings_changed,
+            )
 
     def _reset_similarity_calculator_defaults(self) -> None:
         defaults = _similarity_calculator_settings_defaults()
@@ -20748,8 +20754,14 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._load_similarity_calculator_controls()
         parent = self.parent()
         if isinstance(parent, MainWindow):
-            parent._similarity_calculator_settings = defaults
-            _save_similarity_calculator_settings(parent._settings, defaults)
+            previous_settings = getattr(parent, "_similarity_calculator_settings", None)
+            settings_changed = (
+                asdict(previous_settings) if isinstance(previous_settings, SimilarityCalculatorSettings) else None
+            ) != asdict(defaults)
+            parent._handle_similarity_calculator_settings_changed(
+                defaults,
+                rerender_similar_charts=settings_changed,
+            )
 
     def _default_enneagram_category_weights(self) -> dict[str, float]:
         return _default_enneagram_category_weights()
@@ -30188,6 +30200,27 @@ class MainWindow(QMainWindow):
             self.load_chart_by_id(self.current_chart_id)
             return
         self._refresh_chart_preview()
+
+    def _handle_similarity_calculator_settings_changed(
+        self,
+        settings: SimilarityCalculatorSettings,
+        *,
+        rerender_similar_charts: bool = True,
+    ) -> None:
+        self._similarity_calculator_settings = settings
+        _save_similarity_calculator_settings(self._settings, settings)
+        cache = getattr(self, "_similar_charts_popout_cache", None)
+        if isinstance(cache, OrderedDict):
+            cache.clear()
+        if not rerender_similar_charts or self._latest_chart is None:
+            return
+
+        self._mark_chart_analytics_sections_lucy_goosey({"similar_charts"})
+        self._schedule_chart_render(
+            self._latest_chart,
+            sections={"similar_charts"},
+            queue_priority="interactive",
+        )
 
     def _handle_similar_charts_algorithm_mode_changed(self, mode: str) -> None:
         normalized = _normalize_similar_charts_algorithm_mode(mode)
