@@ -35,12 +35,15 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     NATAL_WEIGHT,
     PLACEMENT_WEIGHTING_MODE_HYBRID,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+    SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
     all_or_nothing_similarity_settings,
     _placement_body_weights,
     _top_keys,
+    chart_similarity_score,
     chart_similarity_score_custom,
     normalize_placement_weighting_mode,
     normalize_similar_charts_algorithm_mode,
@@ -1429,8 +1432,12 @@ def _resolve_component_weight_percents(
     similarity_settings: SimilarityCalculatorSettings | None,
 ) -> dict[str, int]:
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
-    if normalized_mode in {SIMILAR_CHARTS_ALGORITHM_CUSTOM, SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING}:
-        settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    if normalized_mode in {
+        SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+        SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    }:
+        settings = similarity_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
         if normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
             settings = all_or_nothing_similarity_settings(settings)
         enabled = settings.enabled_components()
@@ -1518,14 +1525,25 @@ def _resolve_component_score_percents(
     active_placement_mode = (
         similarity_settings.normalized_placement_weighting_mode()
         if similarity_settings is not None
-        else SimilarityCalculatorSettings.defaults_from_comprehensive().normalized_placement_weighting_mode()
+        else SimilarityCalculatorSettings.defaults_for_default_mode().normalized_placement_weighting_mode()
     )
+    if normalized_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
+        _overall, placement_score, aspect_score, distribution_score = chart_similarity_score(
+            subject_chart,
+            compared_chart,
+            placement_weighting_mode=active_placement_mode,
+        )
+        return {
+            "placement": round(max(0.0, min(1.0, float(placement_score))) * 100.0, 1),
+            "aspect": round(max(0.0, min(1.0, float(aspect_score))) * 100.0, 1),
+            "distribution": round(max(0.0, min(1.0, float(distribution_score))) * 100.0, 1),
+        }
     if normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
         effective_settings = all_or_nothing_similarity_settings(
-            similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+            similarity_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
         )
-    elif normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM:
-        effective_settings = similarity_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    elif normalized_mode in {SIMILAR_CHARTS_ALGORITHM_DEFAULT, SIMILAR_CHARTS_ALGORITHM_CUSTOM}:
+        effective_settings = similarity_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     else:
         effective_settings = SimilarityCalculatorSettings.defaults_from_comprehensive()
         effective_settings.placement_weighting_mode = active_placement_mode
@@ -1548,7 +1566,7 @@ def _resolve_active_placement_weighting_mode(
     mode = (
         similarity_settings.normalized_placement_weighting_mode()
         if similarity_settings is not None
-        else SimilarityCalculatorSettings.defaults_from_comprehensive().normalized_placement_weighting_mode()
+        else SimilarityCalculatorSettings.defaults_for_default_mode().normalized_placement_weighting_mode()
     )
     return normalize_placement_weighting_mode(mode)
 

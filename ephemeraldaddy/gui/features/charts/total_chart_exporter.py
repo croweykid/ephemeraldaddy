@@ -277,6 +277,7 @@ def _format_similarity_scoring_method(
     mode = str(algorithm_mode or "default").strip().lower() or "default"
     mode_label = {
         "default": "Default",
+        "generic_astro": "Generic Astro",
         "comprehensive": "Comprehensive",
         "all_or_nothing": "All or Nothing",
         "custom": "Custom",
@@ -286,9 +287,11 @@ def _format_similarity_scoring_method(
     settings = similarity_settings
     if mode == "all_or_nothing":
         settings = all_or_nothing_similarity_settings(
-            settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+            settings or SimilarityCalculatorSettings.defaults_for_default_mode()
         )
-    if mode in {"comprehensive", "all_or_nothing"} or (mode == "custom" and settings is not None):
+    if mode == "default":
+        settings = settings or SimilarityCalculatorSettings.defaults_for_default_mode()
+    if mode in {"default", "comprehensive", "all_or_nothing"} or (mode == "custom" and settings is not None):
         try:
             enabled = settings.enabled_components()
             weights = settings.weights_by_component()
@@ -310,7 +313,7 @@ def _format_similarity_scoring_method(
         except Exception:
             pass
     else:
-        lines.append("Default mode combines placement, aspect, distribution, and dominance similarity components.")
+        lines.append("Generic astro mode combines placement, aspect, distribution, and dominance similarity components.")
     return "\n".join(lines)
 
 
