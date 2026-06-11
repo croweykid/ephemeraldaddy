@@ -236,6 +236,9 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._time_variant_format.setFontItalic(True)
         self._time_variant_dawn_format = self._make_format("#d1863a", italic=True)
         self._time_variant_dusk_format = self._make_format("#4a7bd1", italic=True)
+        self._hd_midnight_variant_format = self._make_format("#ff9f1c")
+        self._hd_noon_variant_format = self._make_format("#ffd60a")
+        self._hd_late_variant_format = self._make_format("#4f8cff")
         self._aspect_formats = {
             "conjunction": self._make_format("#c7a56a"),
             "sextile": self._make_format("#6b8ba4"),
@@ -393,6 +396,42 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_gate_side_cache_revision = revision
         self._hd_gate_side_cache = gate_line_sides
         return gate_line_sides
+
+    def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
+        if "->" not in stripped_text:
+            return
+        activation_match = re.match(r"^\s*(Personality|Design)\s+[A-Za-z]+\s+", text)
+        if not activation_match:
+            return
+        fields_match = re.match(
+            r"^\s*(?:Personality|Design)\s+[A-Za-z]+\s+\S+\s+\d+(?:\.\d+)?°\s+"
+            r"(?P<gl>\S+)\s+(?P<c>\S+)\s+(?P<t>\S+)\s+(?P<b>\S+)",
+            text,
+        )
+        if not fields_match:
+            return
+        formats_by_count = {
+            1: (self._hd_noon_variant_format,),
+            2: (self._hd_midnight_variant_format, self._hd_late_variant_format),
+            3: (self._hd_midnight_variant_format, self._hd_noon_variant_format, self._hd_late_variant_format),
+        }
+        for field_name in ("gl", "c", "t", "b"):
+            field_text = fields_match.group(field_name)
+            if "->" not in field_text:
+                continue
+            segments = field_text.split("->")
+            segment_formats = formats_by_count.get(len(segments))
+            if segment_formats is None:
+                continue
+            cursor = fields_match.start(field_name)
+            for segment, text_format in zip(segments, segment_formats):
+                if segment:
+                    self.setFormat(
+                        self._qt_index(text, cursor),
+                        self._qt_len(segment),
+                        text_format,
+                    )
+                cursor += len(segment) + len("->")
 
     def _apply_hd_gate_side_color(self, text: str, stripped_text: str) -> None:
         if not stripped_text:
@@ -783,6 +822,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(text) - start_qt,
                         self._time_variant_dusk_format,
                     )
+        self._apply_hd_time_variant_colors(text, stripped_text)
         leading_token = text.split()[0] if text.split() else ""
         if leading_token in self._planet_formats:
             self.setFormat(0, self._qt_len(text), self._planet_formats[leading_token])

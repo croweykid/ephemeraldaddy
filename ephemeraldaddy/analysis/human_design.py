@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 import re
+from datetime import datetime
 from typing import Any
 
-from ephemeraldaddy.core.chart import Chart
+from ephemeraldaddy.core.chart import Chart, chart_uses_houses
 from ephemeraldaddy.core.human_design_system import (
     CHANNELS,
     INCARNATION_CROSS_LOOKUP,
@@ -129,11 +131,93 @@ def build_circuit_group_completion(active_gate_set: set[int]) -> list[dict[str, 
     return circuit_payload
 
 
+def _chart_with_hypothetical_local_time(chart: Chart, hour: int, minute: int) -> Chart:
+    """Return a lightweight chart copy pinned to a hypothetical local time."""
+    chart_copy = copy.copy(chart)
+    source_dt = getattr(chart, "dt", None)
+    if not isinstance(source_dt, datetime):
+        return chart_copy
+    chart_copy.dt = source_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return chart_copy
+
+
+def _time_variant_human_design_results(chart: Chart) -> tuple[HumanDesignResult, HumanDesignResult, HumanDesignResult]:
+    return (
+        calculate_human_design(_chart_with_hypothetical_local_time(chart, 0, 0)),
+        calculate_human_design(_chart_with_hypothetical_local_time(chart, 12, 0)),
+        calculate_human_design(_chart_with_hypothetical_local_time(chart, 23, 59)),
+    )
+
+
+def _activation_key(activation) -> tuple[str, str]:
+    return str(activation.side), str(activation.body)
+
+
+def _activation_variant_lookup(
+    variant_results: tuple[HumanDesignResult, HumanDesignResult, HumanDesignResult] | None,
+) -> dict[tuple[str, str], tuple[object, object, object]]:
+    if variant_results is None:
+        return {}
+    lookup: dict[tuple[str, str], list[object]] = {}
+    for result in variant_results:
+        for activation in (*result.personality_activations, *result.design_activations):
+            lookup.setdefault(_activation_key(activation), []).append(activation)
+    return {key: tuple(value) for key, value in lookup.items() if len(value) == 3}
+
+
+def _collapsed_time_variant_tokens(tokens: tuple[str, str, str]) -> list[str]:
+    if tokens[0] == tokens[1] == tokens[2]:
+        return [tokens[1]]
+    rendered: list[str] = []
+    for token in tokens:
+        if not rendered or rendered[-1] != token:
+            rendered.append(token)
+    return rendered
+
+
+def _format_time_variant_field(tokens: tuple[str, str, str]) -> str:
+    return "->".join(_collapsed_time_variant_tokens(tokens))
+
+
+def _activation_display_values(activation, variants: tuple[object, object, object] | None) -> tuple[str, str, str, str]:
+    if variants is None:
+        return (
+            f"{activation.gate}.{activation.line}",
+            str(int(activation.color)),
+            str(int(activation.tone)),
+            str(int(activation.base)),
+        )
+    gate_line_tokens = tuple(f"{item.gate}.{item.line}" for item in variants)
+    color_tokens = tuple(str(int(item.color)) for item in variants)
+    tone_tokens = tuple(str(int(item.tone)) for item in variants)
+    base_tokens = tuple(str(int(item.base)) for item in variants)
+    return (
+        _format_time_variant_field(gate_line_tokens),
+        _format_time_variant_field(color_tokens),
+        _format_time_variant_field(tone_tokens),
+        _format_time_variant_field(base_tokens),
+    )
+
+
 def _build_hd_positions_lines(
     hd_result: HumanDesignResult,
+    *,
+    time_variant_results: tuple[HumanDesignResult, HumanDesignResult, HumanDesignResult] | None = None,
 ) -> tuple[list[str], dict[int, list[dict[str, object]]]]:
     """Build a Human Design-native POSITIONS block (no zodiac sign import)."""
-    header_line = f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<7}  {'C':<1}  {'T':<1}  {'B':<1}"
+    variant_lookup = _activation_variant_lookup(time_variant_results)
+    activation_rows = []
+    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+        display_values = _activation_display_values(
+            activation,
+            variant_lookup.get(_activation_key(activation)),
+        )
+        activation_rows.append((activation, display_values))
+    gl_width = max(7, *(len(display_values[0]) for _activation, display_values in activation_rows))
+    c_width = max(1, *(len(display_values[1]) for _activation, display_values in activation_rows))
+    t_width = max(1, *(len(display_values[2]) for _activation, display_values in activation_rows))
+    b_width = max(1, *(len(display_values[3]) for _activation, display_values in activation_rows))
+    header_line = f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
@@ -141,47 +225,47 @@ def _build_hd_positions_lines(
         CHART_DATA_DIVIDER,
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
-    for activation in (*hd_result.personality_activations, *hd_result.design_activations):
+    for activation, (gl_text, color_text, tone_text, base_text) in activation_rows:
         body_label = f"{'Personality' if activation.side == 'personality' else 'Design'} {activation.body}"
         sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
-        gl_text = f"{activation.gate}.{activation.line}"
         line_text = (
             f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
-            f"{gl_text:<7}  {activation.color:<1}  {activation.tone:<1}  {activation.base:<1}"
+            f"{gl_text:<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
         )
         lines.append(line_text)
         gl_start = line_text.find(gl_text)
-        color_text = str(int(activation.color))
-        tone_text = str(int(activation.tone))
         color_start = line_text.find(color_text, gl_start + len(gl_text))
         tone_start = line_text.find(tone_text, color_start + len(color_text)) if color_start != -1 else -1
         line_entries: list[dict[str, object]] = []
         if gl_start != -1:
-            line_entries.append(
-                {
-                    "kind": "hd_gate_line",
-                    "gate": activation.gate,
-                    "line": activation.line,
-                    "span_start": gl_start,
-                    "span_end": gl_start + len(gl_text),
-                }
-            )
+            for gl_match in re.finditer(rf"(?<![\d.])({_GATE_NUMBER_PATTERN})\.([1-6])(?![\d.])", gl_text):
+                line_entries.append(
+                    {
+                        "kind": "hd_gate_line",
+                        "gate": int(gl_match.group(1)),
+                        "line": int(gl_match.group(2)),
+                        "span_start": gl_start + gl_match.start(),
+                        "span_end": gl_start + gl_match.end(),
+                    }
+                )
         if color_start != -1:
+            first_color = color_text.split("->", 1)[0]
             line_entries.append(
                 {
                     "kind": "hd_color",
-                    "color": int(activation.color),
+                    "color": int(first_color),
                     "span_start": color_start,
-                    "span_end": color_start + len(color_text),
+                    "span_end": color_start + len(first_color),
                 }
             )
         if tone_start != -1:
+            first_tone = tone_text.split("->", 1)[0]
             line_entries.append(
                 {
                     "kind": "hd_tone",
-                    "tone": int(activation.tone),
+                    "tone": int(first_tone),
                     "span_start": tone_start,
-                    "span_end": tone_start + len(tone_text),
+                    "span_end": tone_start + len(first_tone),
                 }
             )
         if line_entries:
@@ -678,7 +762,11 @@ def build_human_design_chart_data_output(
     position_info_map: dict[int, Any] = {}
 
     hd_result = calculate_human_design(chart)
-    position_lines, positions_info_map = _build_hd_positions_lines(hd_result)
+    time_variant_results = None if chart_uses_houses(chart) else _time_variant_human_design_results(chart)
+    position_lines, positions_info_map = _build_hd_positions_lines(
+        hd_result,
+        time_variant_results=time_variant_results,
+    )
     activations = (*hd_result.personality_activations, *hd_result.design_activations)
     active_gate_set = {activation.gate for activation in activations}
     active_line_set = {(activation.gate, activation.line) for activation in activations}
