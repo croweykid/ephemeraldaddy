@@ -165,7 +165,7 @@ def _resolve_supported_lilith_calculation_method(value: object) -> str:
 
 
 def _similarity_calculator_settings_defaults() -> SimilarityCalculatorSettings:
-    return SimilarityCalculatorSettings.defaults_from_comprehensive()
+    return SimilarityCalculatorSettings.defaults_for_default_mode()
 
 
 def _load_similarity_calculator_settings(settings) -> SimilarityCalculatorSettings:
@@ -517,6 +517,7 @@ from ephemeraldaddy.analysis.bazi_getter import (
 from ephemeraldaddy.analysis.get_astro_twin import (
     PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SIMILAR_CHARTS_ALGORITHM_DEFAULT,
@@ -20240,6 +20241,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             subheader_style=SETTINGS_SECTION_SUBHEADER_STYLE,
             on_mode_default_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_DEFAULT),
+            on_mode_generic_astro_toggled=lambda checked: checked
+            and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO),
             on_mode_comprehensive_toggled=lambda checked: checked
             and self._set_similar_charts_algorithm_mode(SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE),
             on_mode_all_or_nothing_toggled=lambda checked: checked
@@ -20259,6 +20262,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             threshold_rows=SIMILARITY_THRESHOLD_EDITOR_ROWS,
         )
         self._similar_charts_algo_default_radio = similarity_controls["default_radio"]
+        self._similar_charts_algo_generic_astro_radio = similarity_controls["generic_astro_radio"]
         self._similar_charts_algo_comprehensive_radio = similarity_controls["comprehensive_radio"]
         self._similar_charts_algo_all_or_nothing_radio = similarity_controls["all_or_nothing_radio"]
         self._similar_charts_algo_custom_radio = similarity_controls["custom_radio"]
@@ -20394,23 +20398,33 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._similar_charts_algorithm_mode = normalized
         self._settings.setValue(SETTINGS_KEY_SIMILAR_CHARTS_ALGORITHM_MODE, normalized)
         default_radio = getattr(self, "_similar_charts_algo_default_radio", None)
+        generic_astro_radio = getattr(self, "_similar_charts_algo_generic_astro_radio", None)
         comprehensive_radio = getattr(self, "_similar_charts_algo_comprehensive_radio", None)
         all_or_nothing_radio = getattr(self, "_similar_charts_algo_all_or_nothing_radio", None)
         custom_radio = getattr(self, "_similar_charts_algo_custom_radio", None)
         all_or_nothing_combo = getattr(self, "_similarity_calculator_all_or_nothing_component_combo", None)
-        if default_radio is None or comprehensive_radio is None or all_or_nothing_radio is None or custom_radio is None:
+        if (
+            default_radio is None
+            or generic_astro_radio is None
+            or comprehensive_radio is None
+            or all_or_nothing_radio is None
+            or custom_radio is None
+        ):
             return
         blocker_default = QSignalBlocker(default_radio)
+        blocker_generic_astro = QSignalBlocker(generic_astro_radio)
         blocker_comprehensive = QSignalBlocker(comprehensive_radio)
         blocker_all_or_nothing = QSignalBlocker(all_or_nothing_radio)
         blocker_custom = QSignalBlocker(custom_radio)
         default_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_DEFAULT)
+        generic_astro_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO)
         comprehensive_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE)
         all_or_nothing_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         custom_radio.setChecked(normalized == SIMILAR_CHARTS_ALGORITHM_CUSTOM)
         if isinstance(all_or_nothing_combo, QComboBox):
             all_or_nothing_combo.setVisible(normalized == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING)
         del blocker_default
+        del blocker_generic_astro
         del blocker_comprehensive
         del blocker_all_or_nothing
         del blocker_custom
@@ -23185,6 +23199,8 @@ class MainWindow(QMainWindow):
         self._chart_analysis_sections_controller.create_sections(panel)
 
     def _similar_charts_section_title(self) -> str:
+        if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO:
+            return "Similar Charts (generic astro)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE:
             return "Similar Charts (comprehensive)"
         if self._similar_charts_algorithm_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING:
@@ -24385,7 +24401,8 @@ class MainWindow(QMainWindow):
             on_export_clicked=self._export_similar_charts_popout_share,
             share_icon_path=_get_share_icon_path(),
         )
-        dialog._similar_chart_popout_opened_from_database_view = bool(popout_opened_from_database_view)
+        database_view_active = popout_opened_from_database_view
+        dialog._similar_chart_popout_opened_from_database_view = bool(database_view_active)
         dialog._similar_chart_popout_subject_name = subject_name
         dialog._similar_chart_popout_subject_chart = chart
         dialog._similar_chart_popout_reasoning_by_target = popout_reasoning_by_target

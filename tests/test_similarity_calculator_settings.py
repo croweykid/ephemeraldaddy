@@ -8,7 +8,50 @@ from ephemeraldaddy.analysis.get_astro_twin import (
     chart_similarity_score_all_or_nothing,
     chart_similarity_score_custom,
     find_astro_twins,
+    normalize_similar_charts_algorithm_mode,
 )
+
+
+def test_default_similarity_settings_match_requested_weights():
+    settings = SimilarityCalculatorSettings.defaults_for_default_mode()
+
+    assert settings.normalized_placement_weighting_mode() == "hybrid"
+    assert settings.weights_by_component() == {
+        "placement": 0.17,
+        "aspect": 0.08,
+        "distribution": 0.07,
+        "combined_dominance": 0.17,
+        "nakshatra_placement": 0.06,
+        "nakshatra_dominance": 0.09,
+        "defined_centers": 0.03,
+        "human_design_gates": 0.30,
+        "human_design_channels": 0.04,
+        "inner_planet_placement": 0.13,
+        "outer_planet_placement": 0.0,
+    }
+    assert settings.enabled_components() == {
+        "placement": True,
+        "aspect": True,
+        "distribution": False,
+        "combined_dominance": True,
+        "nakshatra_placement": True,
+        "nakshatra_dominance": True,
+        "defined_centers": False,
+        "human_design_gates": True,
+        "human_design_channels": False,
+        "inner_planet_placement": True,
+        "outer_planet_placement": False,
+    }
+    assert sum(
+        weight
+        for key, weight in settings.weights_by_component().items()
+        if settings.enabled_components()[key]
+    ) == 1.0
+
+
+def test_generic_astro_algorithm_mode_is_supported():
+    assert normalize_similar_charts_algorithm_mode("generic astro") == "generic_astro"
+    assert normalize_similar_charts_algorithm_mode("generic_astro") == "generic_astro"
 
 
 def test_comprehensive_similarity_defaults_match_requested_weights():
@@ -29,6 +72,23 @@ def test_comprehensive_similarity_defaults_match_requested_weights():
     }
     assert settings.enabled_components()["human_design_gates"] is True
     assert settings.enabled_components()["defined_centers"] is False
+
+
+def test_default_algorithm_mode_uses_new_default_custom_settings(monkeypatch):
+    def fake_custom(_query, _candidate, settings):
+        assert settings.normalized_placement_weighting_mode() == "hybrid"
+        assert settings.enabled_components()["human_design_gates"] is True
+        assert settings.weights_by_component()["human_design_gates"] == 0.30
+        return 0.73, {"placement": 0.73}
+
+    monkeypatch.setattr(get_astro_twin, "chart_similarity_score_custom", fake_custom)
+    query = SimpleNamespace(name="Query", positions={"Sun": 0.0}, is_placeholder=False)
+    candidate = SimpleNamespace(name="Candidate", positions={"Sun": 0.0}, is_placeholder=False)
+
+    matches = find_astro_twins(query, [(1, candidate)], top_k=1, algorithm_mode="default", custom_settings=None)
+
+    assert matches[0].score == 0.73
+    assert matches[0].algorithm_mode == "default"
 
 
 def test_custom_similarity_can_score_human_design_channels_only():

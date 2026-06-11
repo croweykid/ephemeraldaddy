@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QListWidget, QProgressDialog, QWidge
 from ephemeraldaddy.analysis.bazi_getter import bazi_sign_weights_from_chart
 from ephemeraldaddy.analysis.get_astro_twin import (
     SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
+    SIMILAR_CHARTS_ALGORITHM_DEFAULT,
     SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
     SIMILAR_CHARTS_ALGORITHM_CUSTOM,
     SimilarityCalculatorSettings,
@@ -63,9 +64,13 @@ def calculate_pair_similarity_result(
     """Calculate a pair score using the currently selected Similarities Calculator mode."""
 
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
-    settings = custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     placement_weighting_mode = settings.normalized_placement_weighting_mode()
-    if normalized_mode in {SIMILAR_CHARTS_ALGORITHM_CUSTOM, SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING}:
+    if normalized_mode in {
+        SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+        SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
+    }:
         effective_settings = (
             all_or_nothing_similarity_settings(settings)
             if normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING

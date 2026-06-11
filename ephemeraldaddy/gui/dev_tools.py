@@ -196,6 +196,7 @@ def build_similarity_calculator_settings_section(
     section_layout: QVBoxLayout,
     subheader_style: str,
     on_mode_default_toggled: Callable[[bool], None],
+    on_mode_generic_astro_toggled: Callable[[bool], None],
     on_mode_comprehensive_toggled: Callable[[bool], None],
     on_mode_all_or_nothing_toggled: Callable[[bool], None],
     on_mode_custom_toggled: Callable[[bool], None],
@@ -221,20 +222,24 @@ def build_similarity_calculator_settings_section(
     )
 
     default_radio = QRadioButton("use default")
+    generic_astro_radio = QRadioButton("use generic astro")
     comprehensive_radio = QRadioButton("use comprehensive")
     all_or_nothing_radio = QRadioButton("use all or nothing")
     custom_radio = QRadioButton("use custom")
     similar_charts_algo_group = QButtonGroup(dialog)
     similar_charts_algo_group.setExclusive(True)
     similar_charts_algo_group.addButton(default_radio)
+    similar_charts_algo_group.addButton(generic_astro_radio)
     similar_charts_algo_group.addButton(comprehensive_radio)
     similar_charts_algo_group.addButton(all_or_nothing_radio)
     similar_charts_algo_group.addButton(custom_radio)
     default_radio.toggled.connect(on_mode_default_toggled)
+    generic_astro_radio.toggled.connect(on_mode_generic_astro_toggled)
     comprehensive_radio.toggled.connect(on_mode_comprehensive_toggled)
     all_or_nothing_radio.toggled.connect(on_mode_all_or_nothing_toggled)
     custom_radio.toggled.connect(on_mode_custom_toggled)
     section_layout.addWidget(default_radio)
+    section_layout.addWidget(generic_astro_radio)
     section_layout.addWidget(comprehensive_radio)
     section_layout.addWidget(all_or_nothing_radio)
 
@@ -386,6 +391,7 @@ def build_similarity_calculator_settings_section(
 
     return {
         "default_radio": default_radio,
+        "generic_astro_radio": generic_astro_radio,
         "comprehensive_radio": comprehensive_radio,
         "all_or_nothing_radio": all_or_nothing_radio,
         "custom_radio": custom_radio,

@@ -46,6 +46,7 @@ from ephemeraldaddy.analysis.nakshatra_metrics import calculate_dominant_nakshat
 from ephemeraldaddy.analysis.weighted_chart_predictor import active_human_design_channels
 
 SIMILAR_CHARTS_ALGORITHM_DEFAULT = "default"
+SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO = "generic_astro"
 SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE = "comprehensive"
 SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING = "all_or_nothing"
 SIMILAR_CHARTS_ALGORITHM_CUSTOM = "custom"
@@ -419,7 +420,59 @@ class SimilarityCalculatorSettings:
 
     @classmethod
     def defaults_from_comprehensive(cls) -> "SimilarityCalculatorSettings":
-        return cls()
+        return cls(
+            use_placement=True,
+            weight_placement=0.33,
+            use_aspect=True,
+            weight_aspect=0.07,
+            use_distribution=True,
+            weight_distribution=0.10,
+            use_combined_dominance=True,
+            weight_combined_dominance=0.15,
+            use_nakshatra_placement=True,
+            weight_nakshatra_placement=0.07,
+            use_nakshatra_dominance=False,
+            weight_nakshatra_dominance=0.00,
+            use_defined_centers=False,
+            weight_defined_centers=0.00,
+            use_human_design_gates=True,
+            weight_human_design_gates=0.18,
+            use_human_design_channels=False,
+            weight_human_design_channels=0.00,
+            use_inner_planet_placement=False,
+            weight_inner_planet_placement=0.00,
+            use_outer_planet_placement=False,
+            weight_outer_planet_placement=0.00,
+            placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_CHART_DEFINED,
+        )
+
+    @classmethod
+    def defaults_for_default_mode(cls) -> "SimilarityCalculatorSettings":
+        return cls(
+            use_placement=True,
+            weight_placement=0.17,
+            use_aspect=True,
+            weight_aspect=0.08,
+            use_distribution=False,
+            weight_distribution=0.07,
+            use_combined_dominance=True,
+            weight_combined_dominance=0.17,
+            use_nakshatra_placement=True,
+            weight_nakshatra_placement=0.06,
+            use_nakshatra_dominance=True,
+            weight_nakshatra_dominance=0.09,
+            use_defined_centers=False,
+            weight_defined_centers=0.03,
+            use_human_design_gates=True,
+            weight_human_design_gates=0.30,
+            use_human_design_channels=False,
+            weight_human_design_channels=0.04,
+            use_inner_planet_placement=True,
+            weight_inner_planet_placement=0.13,
+            use_outer_planet_placement=False,
+            weight_outer_planet_placement=0.00,
+            placement_weighting_mode=PLACEMENT_WEIGHTING_MODE_HYBRID,
+        )
 
     def weights_by_component(self) -> dict[str, float]:
         return {
@@ -459,9 +512,10 @@ class SimilarityCalculatorSettings:
 
 
 def normalize_similar_charts_algorithm_mode(value: object) -> str:
-    normalized = str(value or "").strip().lower()
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
     if normalized in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
         SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING,
         SIMILAR_CHARTS_ALGORITHM_CUSTOM,
@@ -1394,9 +1448,12 @@ def find_astro_twins(
     normalized_mode = normalize_similar_charts_algorithm_mode(algorithm_mode)
     use_comprehensive = normalized_mode == SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE
     use_all_or_nothing = normalized_mode == SIMILAR_CHARTS_ALGORITHM_ALL_OR_NOTHING
-    use_custom = normalized_mode == SIMILAR_CHARTS_ALGORITHM_CUSTOM
-    apply_least_similar_dominance_guardrail = least_similar and normalized_mode in {
+    use_custom = normalized_mode in {
         SIMILAR_CHARTS_ALGORITHM_DEFAULT,
+        SIMILAR_CHARTS_ALGORITHM_CUSTOM,
+    }
+    apply_least_similar_dominance_guardrail = least_similar and normalized_mode in {
+        SIMILAR_CHARTS_ALGORITHM_GENERIC_ASTRO,
         SIMILAR_CHARTS_ALGORITHM_COMPREHENSIVE,
     }
     query_top3_signs = (
@@ -1404,7 +1461,7 @@ def find_astro_twins(
         if apply_least_similar_dominance_guardrail
         else set()
     )
-    normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_from_comprehensive()
+    normalized_custom_settings = custom_settings or SimilarityCalculatorSettings.defaults_for_default_mode()
     if use_all_or_nothing:
         normalized_custom_settings = all_or_nothing_similarity_settings(normalized_custom_settings)
     placement_weighting_mode = normalized_custom_settings.normalized_placement_weighting_mode()

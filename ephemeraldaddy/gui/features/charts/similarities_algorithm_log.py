@@ -38,7 +38,7 @@ def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any]
     elif isinstance(settings, Mapping):
         payload = dict(settings)
     elif settings is None:
-        payload = asdict(SimilarityCalculatorSettings.defaults_from_comprehensive())
+        payload = asdict(SimilarityCalculatorSettings.defaults_for_default_mode())
     else:
         payload = {
             key: getattr(settings, key)
@@ -53,7 +53,7 @@ def _settings_payload(settings: SimilarityCalculatorSettings | Mapping[str, Any]
             normalized[key] = round(float(value), 6)
         else:
             normalized[key] = value
-    defaults = SimilarityCalculatorSettings.defaults_from_comprehensive()
+    defaults = SimilarityCalculatorSettings.defaults_for_default_mode()
     normalized["placement_weighting_mode"] = str(
         normalized.get("placement_weighting_mode")
         or defaults.placement_weighting_mode
