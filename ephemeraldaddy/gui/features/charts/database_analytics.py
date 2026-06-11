@@ -97,6 +97,7 @@ from ephemeraldaddy.gui.style import (
     DND_STAT_EARTHTONE_COLORS,
     DATABASE_VIEW_SUBHEADER_WORD_WRAP,
     GENDER_GUESSER_COLORS,
+    apply_popout_cursor,
     get_cycled_earthtone_colors,
     value_to_red_blue_rgb,
 )
@@ -832,7 +833,7 @@ class DatabaseAnalyticsChartsMixin:
         canvas.setMaximumHeight(height)
         #adds trackpad scrolling & hoverstate arrow scroll:
         canvas.setFocusPolicy(Qt.NoFocus)
-        canvas.setCursor(Qt.PointingHandCursor)
+        apply_popout_cursor(canvas)
         canvas.setAttribute(Qt.WA_TransparentForMouseEvents, False)
         canvas.installEventFilter(self)
 
