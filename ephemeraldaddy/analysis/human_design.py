@@ -213,6 +213,22 @@ def _activation_display_values(activation, variants: tuple[object, object, objec
     )
 
 
+_HD_ACTIVATION_SIDE_DISPLAY_ALIASES = {
+    "personality": "P.",
+    "design": "D.",
+}
+
+
+def _hd_activation_body_display_label(activation: HDActivation) -> str:
+    """Return the compact Chart Data Output label for an HD activation.
+
+    This is intentionally a display alias only; activation.side remains the
+    canonical placement side used by calculations and lookups.
+    """
+    side_alias = _HD_ACTIVATION_SIDE_DISPLAY_ALIASES.get(activation.side, activation.side.title())
+    return f"{side_alias} {activation.body}"
+
+
 def _build_hd_positions_lines(
     hd_result: HumanDesignResult,
     *,
@@ -226,12 +242,16 @@ def _build_hd_positions_lines(
             activation,
             variant_lookup.get(_activation_key(activation)),
         )
-        activation_rows.append((activation, display_values))
-    gl_width = max(7, *(len(display_values[0]) for _activation, display_values in activation_rows))
-    c_width = max(1, *(len(display_values[1]) for _activation, display_values in activation_rows))
-    t_width = max(1, *(len(display_values[2]) for _activation, display_values in activation_rows))
-    b_width = max(1, *(len(display_values[3]) for _activation, display_values in activation_rows))
-    header_line = f"{'Body':<18}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
+        activation_rows.append((activation, _hd_activation_body_display_label(activation), display_values))
+    body_width = max(
+        len("Body"),
+        *(len(body_label) for _activation, body_label, _display_values in activation_rows),
+    )
+    gl_width = max(7, *(len(display_values[0]) for _activation, _body_label, display_values in activation_rows))
+    c_width = max(1, *(len(display_values[1]) for _activation, _body_label, display_values in activation_rows))
+    t_width = max(1, *(len(display_values[2]) for _activation, _body_label, display_values in activation_rows))
+    b_width = max(1, *(len(display_values[3]) for _activation, _body_label, display_values in activation_rows))
+    header_line = f"{'Body':<{body_width}}  {'Sign':<11}  {'Longitude':<11}  {'G/L':<{gl_width}}  {'C':<{c_width}}  {'T':<{t_width}}  {'B':<{b_width}}"
     lines = [
         "POSITIONS",
         CHART_DATA_DIVIDER,
@@ -239,11 +259,10 @@ def _build_hd_positions_lines(
         CHART_DATA_DIVIDER,
     ]
     info_map: dict[int, list[dict[str, object]]] = {}
-    for activation, (gl_text, color_text, tone_text, base_text) in activation_rows:
-        body_label = f"{'Personality' if activation.side == 'personality' else 'Design'} {activation.body}"
+    for activation, body_label, (gl_text, color_text, tone_text, base_text) in activation_rows:
         sign_text = ZODIAC_NAMES[int((activation.longitude % 360.0) // 30) % 12]
         line_text = (
-            f"{body_label:<18}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
+            f"{body_label:<{body_width}}  {sign_text:<11}  {activation.longitude:>8.3f}°  "
             f"{gl_text:<{gl_width}}  {color_text:<{c_width}}  {tone_text:<{t_width}}  {base_text:<{b_width}}"
         )
         lines.append(line_text)
