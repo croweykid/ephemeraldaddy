@@ -2532,6 +2532,7 @@ PLANET_KEYWORDS = {
         ],
         "archetypes":[
         ],
+        "polarity_partner": "Earth", #only count Sun, not Earth as secondary evidence of the same thing
     },
     "Moon": {
         "nouns": [
@@ -2556,6 +2557,7 @@ PLANET_KEYWORDS = {
         ],
         "archetypes":[
         ],
+        "polarity_partner": "none",
     },
     "Mercury": {
         "nouns": [
@@ -2581,6 +2583,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "Hermes",
         ],
+        "polarity_partner": "none",
     },
     "Venus": {
         "nouns": [
@@ -2607,6 +2610,7 @@ PLANET_KEYWORDS = {
         ],
         "archetypes":[
         ],
+        "polarity_partner": "none",
     },
     "Mars": {
         "nouns": [
@@ -2633,6 +2637,7 @@ PLANET_KEYWORDS = {
         ],
         "archetypes":[
         ],
+        "polarity_partner": "none",
     },
     "Jupiter": {
         "nouns": [
@@ -2658,6 +2663,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "Santa Clause",
         ],
+        "polarity_partner": "none",
     },
     "Saturn": { #If you're just printing a list of keywords, you're going to want to dial back the synonyms. But as long as you're generating phrases, this is cool & keeps things spicy and varied, poetic.
         "nouns": [
@@ -2685,6 +2691,7 @@ PLANET_KEYWORDS = {
         #The hierophant can also drift 9th-house/Jupiter/Taurus-ish depending on the symbolic system. 
             "Turtle Thomas","a tortoise","a bristlecone pine","Methuselah","ouroboros","Sisyphus","Time","Father Time", #Saturn includes both maat (order, law, continuity, obligation, structure - but unlike maat has no devotion to truth, justice or correct proportion) and isfet (order, law, continuity, obligation, structure). Saturn is the temporality that makes maat costly, fragile, and perishable, and that allows isfet to arise through neglect, rigidity, exhaustion, and decay.
         ],
+        "polarity_partner": "none",
     },
     "Uranus": {
         "nouns": [
@@ -2713,6 +2720,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "a live wire",
         ],
+        "polarity_partner": "none",
     },
     "Neptune": {
         "nouns": [
@@ -2742,6 +2750,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "fog bank","deep uncharted ocean","being lost in the depths of space",
         ],
+        "polarity_partner": "none",
     },
     "Pluto": {
         "nouns": [
@@ -2768,6 +2777,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "Kafka plots", #lol
         ],
+        "polarity_partner": "none",
     },
     "Chiron": {
         "nouns": [
@@ -2791,6 +2801,7 @@ PLANET_KEYWORDS = {
         "archetypes": [
             "Obi-Wan Kenobe",
         ],
+        "polarity_partner": "none",
     },
     "Ceres": {
         "nouns": [
@@ -2813,6 +2824,8 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "the steward", "the gardener", "the keeper of stores","the potluck queen","the lunchlady",
         ],
+        "polarity_partner": "none",
+
     },
     "Pallas": {
         "nouns": [
@@ -2835,6 +2848,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "Samantha Carter (SG1)","Athena","Princess Leia","Seven of Nine (Star Trek: Voyager)","Dana Scully (X-Files)",
         ],
+        "polarity_partner": "none",
     },
     "Juno": {
         "nouns": [
@@ -2857,6 +2871,7 @@ PLANET_KEYWORDS = {
         "archetypes": [
             "the lawful spouse",
         ],
+        "polarity_partner": "none",
     },
     "Vesta": {
         "nouns": [
@@ -2879,6 +2894,7 @@ PLANET_KEYWORDS = {
         "archetypes": [
             "the vestal virgin priestess", "nuns", "monks", "the cloistered scholar",
         ],
+        "polarity_partner": "none",
     },
     "Rahu": {
         "nouns": [
@@ -2901,6 +2917,7 @@ PLANET_KEYWORDS = {
         "archetypes": [
             "the poltergeist, a restless spirit who yearns to live", "the usurper", "the exile who wants the crown","the rejected fairy godmother","Alakshmi",
         ],
+        "polarity_partner": "Ketu",
     },
     "Ketu": {
         "nouns": [
@@ -2923,7 +2940,45 @@ PLANET_KEYWORDS = {
         "archetypes": [
             "the renunciant", "the cast-off skin", "being fed up with this small town like you're in a Bruce Springsteen song","Rambo when he swore he'd never go back for one more job","the one who knows how the trick works and that it isn't actually magic",
         ],
+        "polarity_partner": "Rahu",
     },
+    "Earth": {
+        "nouns": [
+            "grounding", "stability", "weight", "gravity", "anchoring", "embodiment",
+            "support", "containment", "orientation", "footing", "balance", "limits",
+            "capacity", "staying power", "material reality", "consequence", "rootedness",
+            "burden", "responsibility", "place",
+        ],
+        "verbs": [
+            "grounding", "stabilizing", "anchoring", "embodying", "supporting",
+            "containing", "balancing", "weighing", "making real", "settling into",
+            "taking responsibility for", "standing on", "building from", "being held by",
+            "finding footing through", "carrying", "rooting into", "placing weight on",
+        ],
+        "verbsonly": [
+            "grounding", "stabilizing", "anchoring", "embodying", "supporting",
+            "containing", "balancing", "weighing", "making real", "settling",
+            "taking responsibility", "standing", "building", "being held",
+            "finding footing", "carrying", "rooting", "placing weight",
+        ],
+        "definition1": "The stabilizing counterposition to the Human Design Sun: the gate and line theme that gives the Sun’s expression weight, footing, and consequence.",
+        "definition2": "Where purpose stops floating in abstraction and becomes embodied: the support structure, burden, limit, and material ground that make expression sustainable.",
+        "explanation": [
+            "the ground under the solar theme: what stabilizes expression, forces embodiment, and shows where purpose must become practical rather than merely radiant",
+        ],
+        "archetypes": [
+            "the ground wire",
+            "the load-bearing wall",
+            "the hearthstone",
+            "the ballast in the ship",
+            "the farmer reading the soil",
+            "Atlas",
+            "Gaia",
+            "the foundation stone",
+            "the body that has to carry the idea",
+        ],
+        "polarity_partner": "Sun",
+},
     "Lilith": {
         "nouns": [
             "refusal", "defiance", "taboo", "exile", "noncompliance", "provocation",
@@ -2947,6 +3002,7 @@ PLANET_KEYWORDS = {
         "archetypes": [
           "Mata Hari","Cleopatra","Jeanne d'Arc","the one they call dangerous because she would not submit", # "the wife who walked out", "the exile who will not kneel","the burned witch",  
         ],
+        "polarity_partner": "none",
     },
     "Part of Fortune": {
         "nouns": [
@@ -2970,6 +3026,7 @@ PLANET_KEYWORDS = {
         "archetypes":[
             "The Tao","The Zone",
         ],
+        "polarity_partner": "none",
     },
     "AS": {
         "nouns": [
@@ -2989,6 +3046,7 @@ PLANET_KEYWORDS = {
         "explanation":[""],
         "archetypes":[
         ],
+        "polarity_partner": "DS",
     },
     "MC": {
         "nouns": [
@@ -3008,6 +3066,7 @@ PLANET_KEYWORDS = {
         "explanation":[""],
         "archetypes":[
         ],
+        "polarity_partner": "IC",
     },
     "DS": {
         "nouns": [
@@ -3027,6 +3086,7 @@ PLANET_KEYWORDS = {
         "explanation":[""],
         "archetypes":[
         ],
+        "polarity_partner": "AS",
     },
     "IC": {
         "nouns": [
@@ -3046,6 +3106,7 @@ PLANET_KEYWORDS = {
         "explanation":[""],
         "archetypes":[
         ],
+        "polarity_partner": "MC",
     },
 }
 
