@@ -959,6 +959,7 @@ from ephemeraldaddy.gui.features.charts.similarity_pairing import (
 from ephemeraldaddy.gui.features.charts.similar_charts_worker import SimilarChartsWorker
 from ephemeraldaddy.gui.features.charts.similar_charts_popout import (
     build_similar_chart_bio_panel_content,
+    build_similar_chart_biography_text,
     build_similar_charts_export_lines,
     build_similar_charts_export_rows_from_matches,
     build_similarity_reasoning_panel_html,
@@ -23655,17 +23656,17 @@ class MainWindow(QMainWindow):
                 if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "currentData")
                 else ""
             )
-            if selected_mode not in {"similarities", "dissimilarities", "bio"}:
-                similarities_index = (
-                    int(popout_analysis_dropdown.findData("similarities"))
+            if selected_mode != "bio":
+                bio_index = (
+                    int(popout_analysis_dropdown.findData("bio"))
                     if popout_analysis_dropdown is not None and hasattr(popout_analysis_dropdown, "findData")
                     else -1
                 )
-                if similarities_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
+                if bio_index >= 0 and hasattr(popout_analysis_dropdown, "setCurrentIndex"):
                     signals_were_blocked = False
                     if hasattr(popout_analysis_dropdown, "blockSignals"):
                         signals_were_blocked = bool(popout_analysis_dropdown.blockSignals(True))
-                    popout_analysis_dropdown.setCurrentIndex(similarities_index)
+                    popout_analysis_dropdown.setCurrentIndex(bio_index)
                     if hasattr(popout_analysis_dropdown, "blockSignals"):
                         popout_analysis_dropdown.blockSignals(signals_were_blocked)
             self._show_similar_chart_reasoning(normalized_target, target_dialog=dialog)
@@ -23954,14 +23955,7 @@ class MainWindow(QMainWindow):
 
         compared_name = str(getattr(match, "chart_name", "") or f"Chart #{getattr(match, 'chart_id', '?')}")
         compared_name = compared_name.strip() or "Unknown chart"
-        biography_text = ""
-        if compared_chart is not None:
-            biography_text = str(getattr(compared_chart, "biography", "") or "").strip()
-            if not biography_text:
-                biography_text = str(getattr(compared_chart, "bio", "") or "").strip()
-            chart_metadata = getattr(compared_chart, "metadata", None)
-            if not biography_text and isinstance(chart_metadata, dict):
-                biography_text = str(chart_metadata.get("bio") or chart_metadata.get("biography") or "").strip()
+        biography_text = build_similar_chart_biography_text(compared_chart=compared_chart)
         if analysis_mode == "bio":
             if biography_text:
                 html_text = (
