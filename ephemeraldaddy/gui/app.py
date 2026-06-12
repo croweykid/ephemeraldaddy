@@ -2205,6 +2205,11 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._filter_refresh_timer.setSingleShot(True)
         self._filter_refresh_timer.setInterval(75)
         self._filter_refresh_timer.timeout.connect(self._run_scheduled_filter_refresh)
+        self._selected_chart_id_order: list[int] = []
+        self._selected_chart_ids_set: set[int] = set()
+        self._visible_chart_ids: set[int] = set()
+        self._selection_update_mode = "replace"
+        self._syncing_visible_selection = False
         self._custom_collections: dict[str, CustomCollection] = {}
         self._active_collection_id = DEFAULT_COLLECTION_ALL
         self._possible_duplicate_chart_ids: set[int] = set()
@@ -3376,7 +3381,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 sections_to_refresh={chart_key},
             )
             self._update_dominant_factors_subheader(
-                use_selection_scope=self.list_widget is not None and len(self.list_widget.selectedItems()) > 0
+                use_selection_scope=self.list_widget is not None and len(self._selected_chart_ids()) > 0
             )
             return
 
@@ -5010,26 +5015,15 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._personal_transit_generation_in_progress = False
 
     def _on_generate_composite_chart(self) -> None:
-        selected_items = self.list_widget.selectedItems()
-        if len(selected_items) != 2:
+        selected_chart_ids = self._selected_chart_ids()
+        if len(selected_chart_ids) != 2:
             chart_ids = self._prompt_composite_chart_selection()
             if chart_ids is None:
                 return
             self._generate_composite_chart_for_ids(*chart_ids)
             return
 
-        try:
-            base_chart_id = int(selected_items[0].data(Qt.UserRole))
-            overlay_chart_id = int(selected_items[1].data(Qt.UserRole))
-        except (TypeError, ValueError):
-            QMessageBox.warning(
-                self,
-                "Generate Composite Chart",
-                "Could not determine chart IDs from the current selection.",
-            )
-            return
-
-        self._generate_composite_chart_for_ids(base_chart_id, overlay_chart_id)
+        self._generate_composite_chart_for_ids(selected_chart_ids[0], selected_chart_ids[1])
 
     def _prompt_composite_chart_selection(
         self,
@@ -7340,7 +7334,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         selected_items: list[QListWidgetItem] | None = None,
     ) -> list[int]:
         if selected_items is None:
-            selected_items = self.list_widget.selectedItems() if self.list_widget is not None else []
+            self._reconcile_persistent_selection_with_database()
+            return list(getattr(self, "_selected_chart_id_order", []))
         chart_ids: list[int] = []
         for item in selected_items:
             raw_chart_id = item.data(Qt.UserRole)
@@ -7351,6 +7346,117 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             except (TypeError, ValueError):
                 continue
         return chart_ids
+
+    def _visible_selected_chart_ids(self) -> list[int]:
+        return self._selected_chart_ids(self.list_widget.selectedItems()) if self.list_widget is not None else []
+
+    def _all_visible_chart_ids(self) -> list[int]:
+        if self.list_widget is None:
+            return []
+        chart_ids: list[int] = []
+        for row in range(self.list_widget.count()):
+            item = self.list_widget.item(row)
+            if item is None:
+                continue
+            raw_chart_id = item.data(Qt.UserRole)
+            if raw_chart_id is None or isinstance(raw_chart_id, bool):
+                continue
+            try:
+                chart_ids.append(int(raw_chart_id))
+            except (TypeError, ValueError):
+                continue
+        return chart_ids
+
+    def _replace_persistent_selection(self, chart_ids: Iterable[int]) -> None:
+        ordered: list[int] = []
+        seen: set[int] = set()
+        for raw_chart_id in chart_ids:
+            try:
+                chart_id = int(raw_chart_id)
+            except (TypeError, ValueError):
+                continue
+            if chart_id in seen:
+                continue
+            seen.add(chart_id)
+            ordered.append(chart_id)
+        self._selected_chart_id_order = ordered
+        self._selected_chart_ids_set = set(ordered)
+        if hasattr(self, "_batch_selection_order"):
+            self._update_batch_selection_order(ordered)
+
+    def _clear_persistent_selection(self) -> None:
+        self._replace_persistent_selection([])
+        if self.list_widget is not None and self.list_widget.selectedItems():
+            blocker = QSignalBlocker(self.list_widget)
+            self.list_widget.clearSelection()
+            blocker.unblock()
+
+    def _reconcile_persistent_selection_with_database(self) -> None:
+        chart_rows = getattr(self, "_chart_rows", [])
+        if not chart_rows:
+            if getattr(self, "_selected_chart_id_order", []):
+                self._replace_persistent_selection([])
+            return
+        valid_ids = {
+            int(normalized[0])
+            for row in chart_rows
+            if (normalized := self._normalize_chart_row(row)) is not None
+        }
+        current = getattr(self, "_selected_chart_id_order", [])
+        reconciled = [chart_id for chart_id in current if chart_id in valid_ids]
+        if len(reconciled) != len(current):
+            self._replace_persistent_selection(reconciled)
+
+    def _sync_visible_selection_from_persistent_selection(self) -> None:
+        if self.list_widget is None:
+            return
+        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
+        self._syncing_visible_selection = True
+        blocker = QSignalBlocker(self.list_widget)
+        try:
+            self.list_widget.clearSelection()
+            for row in range(self.list_widget.count()):
+                item = self.list_widget.item(row)
+                if item is None:
+                    continue
+                raw_chart_id = item.data(Qt.UserRole)
+                try:
+                    chart_id = int(raw_chart_id)
+                except (TypeError, ValueError):
+                    continue
+                if chart_id in selected_ids:
+                    item.setSelected(True)
+        finally:
+            blocker.unblock()
+            self._syncing_visible_selection = False
+
+    def _merge_visible_selection_into_persistent_selection(self, *, replace: bool) -> None:
+        visible_ids = set(self._all_visible_chart_ids())
+        selected_visible_ids = self._visible_selected_chart_ids()
+        if replace:
+            self._replace_persistent_selection(selected_visible_ids)
+            return
+
+        selected_visible_set = set(selected_visible_ids)
+        merged: list[int] = []
+        seen: set[int] = set()
+        for chart_id in getattr(self, "_selected_chart_id_order", []):
+            if chart_id in visible_ids and chart_id not in selected_visible_set:
+                continue
+            if chart_id in seen:
+                continue
+            seen.add(chart_id)
+            merged.append(chart_id)
+        for chart_id in selected_visible_ids:
+            if chart_id in seen:
+                continue
+            seen.add(chart_id)
+            merged.append(chart_id)
+        self._replace_persistent_selection(merged)
+
+    def _hidden_selected_chart_count(self) -> int:
+        visible_selected = set(self._visible_selected_chart_ids())
+        return max(0, len(getattr(self, "_selected_chart_ids_set", set())) - len(visible_selected))
 
     def _refresh_similarities_chart_options(self) -> None:
         similarity_rows = [
@@ -10088,8 +10194,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return filtered_ids
 
     def _update_selection_header(self) -> None:
+        selected_total = len(self._selected_chart_ids())
         summary_counts = SelectionSummaryCounts.from_values(
-            selected=len(self.list_widget.selectedItems()),
+            selected=selected_total,
             search_results=self.list_widget.count(),
             current_collection=getattr(self, "_active_collection_total_count", 0),
             database=getattr(
@@ -10097,6 +10204,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "_database_total_count",
                 len(getattr(self, "_chart_rows", ())),
             ),
+            hidden_selected=self._hidden_selected_chart_count(),
         )
         self.charts_header_label.setText(
             format_selection_summary_html(
@@ -10600,8 +10708,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             similarities_scrollbar = self.similarities_analysis_panel_scroll.verticalScrollBar()
             similarities_scroll_value = similarities_scrollbar.value()
 
-        selected_items = self.list_widget.selectedItems()
-        chart_ids = self._selected_chart_ids(selected_items)
+        chart_ids = self._selected_chart_ids()
 
         labels = list(SENTIMENT_OPTIONS)
         negative_start = (
@@ -12747,9 +12854,30 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._on_transit_location_submitted()
             return True
         list_widget = getattr(self, "list_widget", None)
-        if list_widget is not None and obj is list_widget and event.type() == QEvent.KeyPress:
-            if self._handle_list_letter_jump(event):
-                return True
+        if list_widget is not None and obj is list_widget:
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                modifiers = event.modifiers()
+                additive = bool(
+                    modifiers
+                    & (
+                        Qt.KeyboardModifier.ShiftModifier
+                        | Qt.KeyboardModifier.ControlModifier
+                        | Qt.KeyboardModifier.MetaModifier
+                    )
+                )
+                self._selection_update_mode = "extend" if additive else "replace"
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Escape:
+                    self._clear_persistent_selection()
+                    self._on_selection_changed()
+                    return True
+                modifiers = event.modifiers()
+                if modifiers & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+                    self._selection_update_mode = "extend"
+                else:
+                    self._selection_update_mode = "replace"
+                if self._handle_list_letter_jump(event):
+                    return True
         popout_context = self._popout_summary_contexts.get(obj)
         if popout_context is not None:
             output_widget = popout_context.get("output_widget")
@@ -13659,9 +13787,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         checkbox.blockSignals(False)
 
     def _update_batch_edit_state(self) -> None:
-        selected_items = self.list_widget.selectedItems()
         self._update_batch_edit_action_buttons()
-        selected_chart_ids = self._selected_chart_ids(selected_items)
+        selected_chart_ids = self._selected_chart_ids()
         chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_metrics = (
             bool(chart_id_set)
@@ -13868,8 +13995,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not hasattr(self, "batch_tags_input"):
             return
 
-        selected_items = self.list_widget.selectedItems()
-        selected_chart_ids = self._selected_chart_ids(selected_items)
+        selected_chart_ids = self._selected_chart_ids()
         chart_id_set = set(selected_chart_ids)
         preserve_lucygoosey_tags = (
             bool(chart_id_set)
@@ -13962,7 +14088,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             self._batch_tagging_debug_log("phase2c_tag_distribution_refresh_skipped_collapsed")
             return
 
-        chart_ids = self._selected_chart_ids(self.list_widget.selectedItems())
+        chart_ids = self._selected_chart_ids()
         database_chart_ids = {
             int(row[0])
             for row in getattr(self, "_chart_rows", [])
@@ -15832,7 +15958,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._update_collection_membership_buttons()
 
     def _update_collection_membership_buttons(self) -> None:
-        selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
+        selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
         selected_collection_id = self._selected_custom_collection_id()
         selected_collection = (
             self._custom_collections.get(selected_collection_id)
@@ -15885,6 +16011,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             else self._active_collection_id
         )
         self._settings.setValue("manage_charts/active_collection_id", persisted_collection_id)
+        if self._active_collection_id != previous_collection_id:
+            self._clear_persistent_selection()
         self._update_mark_not_duplicates_visibility()
         self._populate_list()
 
@@ -15926,6 +16054,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._possible_duplicate_group_ids = duplicate_result.duplicate_group_by_chart_id
         self._show_possible_duplicates_collection = True
         self._active_collection_id = DEFAULT_COLLECTION_POSSIBLE_DUPLICATES
+        self._clear_persistent_selection()
         self._refresh_collection_controls()
         self._populate_list()
 
@@ -16043,6 +16172,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._custom_collections.pop(collection_id, None)
         if self._active_collection_id == collection_id:
             self._active_collection_id = DEFAULT_COLLECTION_ALL
+            self._clear_persistent_selection()
             self._settings.setValue("manage_charts/active_collection_id", self._active_collection_id)
         self._save_custom_collections_to_settings()
         self._refresh_collection_controls()
@@ -16084,6 +16214,20 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if not chart_ids:
             QMessageBox.information(self, "Collections", "Select one or more charts first.")
             return
+        hidden_count = self._hidden_selected_chart_count()
+        if hidden_count > 0:
+            answer = QMessageBox.question(
+                self,
+                "Remove from collection",
+                (
+                    f"Remove {len(chart_ids)} selected chart(s) from this collection?"
+                    f"\n\n{hidden_count} selected chart(s) are hidden by the current filters."
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         collection = self._custom_collections[collection_id]
         updated_ids = {int(chart_id) for chart_id in collection.chart_ids}
         updated_ids.difference_update(chart_ids)
@@ -16452,10 +16596,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         debug_id = _new_debug_action_id("filter_refresh")
         logger.debug("Starting filter refresh (id=%s).", debug_id)
         try:
-            if self.list_widget.selectedItems():
-                blocker = QSignalBlocker(self.list_widget)
-                self.list_widget.clearSelection()
-                blocker.unblock()
             self._populate_list()
         except Exception as exc:
             logger.exception("Filter refresh failed (id=%s): %s", debug_id, exc)
@@ -16553,7 +16693,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._suppress_filter_refresh = True
         try:
             self._clear_batch_edits()
-            self._clear_filter_selection()
             self.incomplete_birthdate_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.birthtime_unknown_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
             self.retconned_checkbox.setMode(QuadStateSlider.MODE_EMPTY)
@@ -16755,6 +16894,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 active_left_scrollbar = active_left_panel.verticalScrollBar()
                 active_left_scroll_value = active_left_scrollbar.value()
 
+        if self._syncing_visible_selection:
+            return
+        replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
+        self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
+        self._selection_update_mode = "replace"
+
         if self._right_panel_visible and self._active_right_panel == "edit":
             self._update_batch_edit_state()
         self._update_batch_edit_action_buttons()
@@ -16781,7 +16926,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 )
 
     def _update_batch_edit_action_buttons(self) -> None:
-        selected_count = len(self.list_widget.selectedItems()) if hasattr(self, "list_widget") else 0
+        selected_count = len(self._selected_chart_ids()) if hasattr(self, "list_widget") else 0
         if hasattr(self, "batch_delete_chart_button"):
             chart_label = "Chart" if selected_count == 1 else "Charts"
             self.batch_delete_chart_button.setText(
@@ -17002,11 +17147,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
     def _reset_filters(self) -> None:
         self._clear_filters(refresh=False)
         self._set_sort_mode("alpha")
-        self.list_widget.clearSelection()
 
     def _on_export_selected(self) -> None:
-        selected_items = self.list_widget.selectedItems()
-        if not selected_items:
+        chart_ids = self._selected_chart_ids()
+        if not chart_ids:
             QMessageBox.information(
                 self,
                 "Export charts",
@@ -17026,8 +17170,6 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             return
         if not file_path.lower().endswith(".csv"):
             file_path = f"{file_path}.csv"
-
-        chart_ids = self._selected_chart_ids(selected_items)
 
         try:
             with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
@@ -17897,10 +18039,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         changed_ids: set[int] | None = None,
         force_full_analysis_refresh: bool = False,
     ) -> None:
+        if selected_ids is not None:
+            self._replace_persistent_selection(selected_ids)
+        else:
+            self._reconcile_persistent_selection_with_database()
+        selected_ids = set(getattr(self, "_selected_chart_ids_set", set()))
         self._refresh_personal_transit_chart_options()
         self._refresh_similarities_chart_options()
         list_signal_blocker = QSignalBlocker(self.list_widget)
         self.list_widget.clear()
+        visible_chart_ids: set[int] = set()
 
         rows = [
             normalized
@@ -18191,10 +18339,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     },
                 )
                 self.list_widget.addItem(item)
+                visible_chart_ids.add(int(cid))
                 if selected_ids and cid in selected_ids:
                     item.setSelected(True)
         finally:
             del list_signal_blocker
+        self._visible_chart_ids = visible_chart_ids
         if refresh_metrics:
             if self._should_use_incremental_metrics_refresh():
                 self._update_sentiment_tally(
@@ -19818,8 +19968,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         return _house_for_longitude(cusps, lon)
 
     def _on_delete(self) -> None:
-        selected_items = self.list_widget.selectedItems()
-        if not selected_items:
+        chart_ids = self._selected_chart_ids()
+        if not chart_ids:
             QMessageBox.information(
                 self,
                 "Delete charts",
@@ -19827,11 +19977,16 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             )
             return
 
-        chart_ids = self._selected_chart_ids(selected_items)
+        hidden_count = self._hidden_selected_chart_count()
+        confirm_text = f"Delete {len(chart_ids)} selected chart(s)?"
+        if hidden_count > 0:
+            confirm_text += (
+                f"\n\n{hidden_count} selected chart(s) are hidden by the current filters."
+            )
         confirm = QMessageBox.question(
             self,
             "Confirm delete",
-            f"Delete {len(chart_ids)} selected chart(s)?",
+            confirm_text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
@@ -19856,6 +20011,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         parent = self.parent()
         if isinstance(parent, QWidget) and hasattr(parent, "_on_charts_deleted"):
             parent._on_charts_deleted(set(chart_ids))
+        remaining_selection = [
+            chart_id for chart_id in self._selected_chart_ids() if chart_id not in set(chart_ids)
+        ]
+        self._replace_persistent_selection(remaining_selection)
         self._refresh_charts(changed_ids=set(chart_ids))
 
     def _on_new_chart(self) -> None:
