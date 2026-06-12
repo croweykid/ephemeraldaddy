@@ -1261,6 +1261,9 @@ from ephemeraldaddy.gui.features.charts.enneagram_predictions import (
     set_enneagram_category_weights as _set_enneagram_category_weights,
     set_enneagram_scoring_options as _set_enneagram_scoring_options,
 )
+from ephemeraldaddy.gui.features.charts.distinguishing_factors import (
+    build_distinguishing_factors_html as _build_distinguishing_factors_html,
+)
 from ephemeraldaddy.gui.features.charts.dnd_predictions import (
     build_dnd_statblock_popout_info_html as _build_dnd_statblock_popout_info_html,
     configure_dnd_top_three_summary_label as _configure_dnd_top_three_summary_label,
@@ -2160,6 +2163,8 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._sort_descending = False
         self._chart_rows = []
         self._active_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
+        self._displayed_chart_rows_by_id: dict[int, tuple[Any, ...]] = {}
+        self._prediction_norms_revision = 0
         self._chart_cache = {}
         # Dialog-side chart selection/render state mirrors MainWindow attributes
         # and is referenced by shared refresh helpers.
@@ -17988,6 +17993,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 "list_charts() returned malformed MUTANT row data. "
                 f"Example row: {sample!r}"
             )
+        self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0)) + 1
         if force_full_analysis_refresh:
             self._chart_cache = {}
             owner = self.parent()
@@ -18102,6 +18108,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._database_total_count = len(display_database_rows)
         rows = [row for row in display_database_rows if self._chart_in_active_collection(row)]
         self._active_chart_rows_by_id = {int(row[0]): row for row in rows}
+        self._displayed_chart_rows_by_id = {}
         self._active_collection_total_count = len(rows)
         if self._sort_mode == "alpha":
             rows.sort(key=lambda r: (r[1] or "").lower(), reverse=self._sort_descending)
@@ -18193,6 +18200,28 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                     matches_filters = False
                 if not matches_filters:
                     continue
+                self._displayed_chart_rows_by_id[int(cid)] = (
+                    cid,
+                    name,
+                    alias,
+                    gender,
+                    dt_iso,
+                    birth_place,
+                    _created_at,
+                    used_fallback,
+                    birthtime_unknown,
+                    retcon_time_used,
+                    _familiarity,
+                    _age_when_first_met,
+                    _year_first_encountered,
+                    _social_score,
+                    _source,
+                    is_placeholder,
+                    is_deceased,
+                    _birth_month,
+                    _birth_day,
+                    _birth_year,
+                )
                 display_name = name or "Unnamed"
                 chart = self._get_chart_for_filter(cid)
                 from_whence_text = ((getattr(chart, "from_whence", "") if chart is not None else "") or "").strip()
@@ -22419,6 +22448,7 @@ class MainWindow(QMainWindow):
         self._help_marker_buttons: list[QToolButton] = []
         self._size_checker_popup: SizeCheckerPopup | None = None
         self._manage_charts_pending_changed_ids: set[int] = set()
+        self._prediction_norms_revision = 0
         self._charts_controller = ChartsController(
             confirm_discard_or_save=self._confirm_discard_or_save,
             get_or_create_manage_dialog=self._get_or_create_manage_charts_dialog,
@@ -30595,6 +30625,7 @@ class MainWindow(QMainWindow):
             refresh_metrics=True,
             changed_ids=set(changed_ids),
         )
+        self._prediction_norms_revision = int(getattr(self, "_prediction_norms_revision", 0) or 0) + 1
         self._manage_charts_pending_changed_ids.difference_update(changed_ids)
 
     def on_manage_charts(
@@ -31366,6 +31397,8 @@ class MainWindow(QMainWindow):
         self.enneagram_prediction_canvas = None
         self.dnd_prediction_statblock_canvas = None
         self.dnd_prediction_top_three_label = None
+        if getattr(self, "distinguishing_factors_label", None) is not None:
+            self.distinguishing_factors_label.setText("Database distinction scan: —")
         self.chart_type_label = None #this might be in the wrong order - should mayb ebe below planet_dynamics_summary_label
         self.planet_dynamics_summary_label = None
         if getattr(self, "enneagram_prediction_tritype_label", None) is not None:
@@ -31774,6 +31807,76 @@ class MainWindow(QMainWindow):
             calculate_house_weights=_similarity_house_dominance_weights,
             chart_uses_houses=_chart_uses_houses,
         )
+
+    def _prediction_norm_rows(self) -> list[Any]:
+        displayed_rows_by_id = getattr(self, "_displayed_chart_rows_by_id", None)
+        if displayed_rows_by_id is not None:
+            return list(displayed_rows_by_id.values())
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        dialog_displayed_rows_by_id = (
+            getattr(manage_dialog, "_displayed_chart_rows_by_id", None)
+            if manage_dialog is not None
+            else None
+        )
+        if dialog_displayed_rows_by_id is not None:
+            return list(dialog_displayed_rows_by_id.values())
+        try:
+            return list(list_charts())
+        except Exception:
+            return []
+
+    def _prediction_norms_render_token(self) -> str:
+        row_tokens: list[tuple[int, str]] = []
+        for row in self._prediction_norm_rows():
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            row_tokens.append((chart_id, repr(row)))
+        pending_ids = sorted(
+            int(chart_id)
+            for chart_id in (getattr(self, "_manage_charts_pending_changed_ids", set()) or set())
+        )
+        dirty_ids = sorted(
+            int(chart_id)
+            for chart_id in (getattr(self, "_database_metrics_lucy_goosey_ids", set()) or set())
+        )
+        manage_dialog = getattr(self, "_manage_charts_dialog", None)
+        dialog_revision = int(getattr(manage_dialog, "_prediction_norms_revision", 0) or 0) if manage_dialog is not None else 0
+        revision = int(getattr(self, "_prediction_norms_revision", 0) or 0)
+        return (
+            f"prediction_norms:{revision}:{dialog_revision}:"
+            f"{tuple(sorted(row_tokens))}:{tuple(pending_ids)}:{tuple(dirty_ids)}"
+        )
+
+    def _prediction_norm_charts(self) -> list[Chart]:
+        norm_charts: list[Chart] = []
+        for row in self._prediction_norm_rows():
+            try:
+                chart_id = int(row[0])
+            except Exception:
+                continue
+            try:
+                chart = load_chart(chart_id)
+            except Exception:
+                continue
+            if chart is None or self._is_placeholder_chart(chart):
+                continue
+            norm_charts.append(chart)
+        return norm_charts
+
+    def _render_distinguishing_factors(self, chart: Chart | None) -> None:
+        label = getattr(self, "distinguishing_factors_label", None)
+        if label is None:
+            return
+        if chart is None or self._is_placeholder_chart(chart):
+            label.setText(
+                "<span style='color:#f5f5f5;'>"
+                + ("No chart loaded." if chart is None else "No data for placeholder/hypothetical charts.")
+                + "</span>"
+            )
+            return
+        label.setText(_build_distinguishing_factors_html(chart, self._prediction_norm_charts()))
 
     def _draw_enneagram_predictions(self, ax, chart: Chart) -> None:
         _draw_enneagram_predictions_chart(

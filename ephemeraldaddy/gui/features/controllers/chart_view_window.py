@@ -862,6 +862,18 @@ def _build_predictions_panel(owner: QWidget) -> QWidget:
     layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
     panel.setLayout(layout)
 
+    distinguishing_section_layout = owner._add_chart_analysis_collapsible_section(
+        panel=panel,
+        layout=layout,
+        title="Most Distinguishing Astrological Factors",
+        expanded=True,
+    )
+    owner.distinguishing_factors_label = QLabel("Database distinction scan: —")
+    owner.distinguishing_factors_label.setTextFormat(Qt.RichText)
+    owner.distinguishing_factors_label.setWordWrap(True)
+    owner.distinguishing_factors_label.setStyleSheet("color: #f5f5f5; padding-top: 2px; padding-bottom: 6px;")
+    distinguishing_section_layout.addWidget(owner.distinguishing_factors_label)
+
     enneagram_section_layout = owner._add_chart_analysis_collapsible_section(
         panel=panel,
         layout=layout,
