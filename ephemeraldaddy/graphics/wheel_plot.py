@@ -28,6 +28,8 @@ TRANSIT_INNER_GLYPH_COLOR = "#0000ff" #blue inner glyphs (personal chart or pers
 TRANSIT_OUTER_WHEEL_SLICES = ("#ff8080", "#ff4d4d") #red outer wheel (event transit or person 2)
 TRANSIT_OUTER_GLYPH_COLOR = "#ff0000" #red outer glyphs (event transit or person 2)
 CHARTWHEEL_SIGN_SLICE_ALPHA = 0.36  # 36% softer zodiac-slice backgrounds for glyph/line legibility
+HOVER_LABEL_AXES_ZORDER = 100
+HOVER_LABEL_ARTIST_ZORDER = 1000
 
 
 ANGULAR_BODIES = frozenset({"AS", "MC", "DS", "IC"})
@@ -200,6 +202,7 @@ def _draw_chart_wheel(
     ax_bg = fig.add_subplot(111, polar=True)
     ax = fig.add_axes(ax_bg.get_position(), polar=True, frameon=False)
     ax_cart = fig.add_axes(ax_bg.get_position(), frameon=False)
+    ax_hover = fig.add_axes(ax_bg.get_position(), polar=True, frameon=False)
 
     if wheel_padding > 0:
         base_position = ax_bg.get_position()
@@ -215,6 +218,7 @@ def _draw_chart_wheel(
         ax_bg.set_position(wheel_position)
         ax.set_position(wheel_position)
         ax_cart.set_position(wheel_position)
+        ax_hover.set_position(wheel_position)
 
     if wheel_scale != 1.0:
         bounded_scale = min(max(float(wheel_scale), 0.5), 1.8)
@@ -236,15 +240,20 @@ def _draw_chart_wheel(
         ax_bg.set_position(scaled_position)
         ax.set_position(scaled_position)
         ax_cart.set_position(scaled_position)
+        ax_hover.set_position(scaled_position)
 
     fig.patch.set_facecolor(DARK_THEME["background"])
     ax_bg.set_facecolor(DARK_THEME["background"])
     ax.set_facecolor("none")
     ax_cart.patch.set_alpha(0)
+    ax_hover.set_facecolor("none")
+    ax_hover.patch.set_alpha(0)
 
     ax_bg.set_zorder(0)
     ax_cart.set_zorder(1)
     ax.set_zorder(2)
+    ax_hover.set_zorder(HOVER_LABEL_AXES_ZORDER)
+    ax_hover.set_axis_off()
 
     for axis in (ax_bg, ax):
         axis.set_theta_zero_location("E")
@@ -602,10 +611,10 @@ def _draw_chart_wheel(
             pad=24,
         )
 
-    hover_note = ax.annotate(
+    hover_note = ax_hover.annotate(
         "",
         xy=(0, 0),
-        xycoords="data",
+        xycoords=ax.transData,
         textcoords="offset points",
         xytext=(8, 8),
         ha="left",
@@ -619,14 +628,15 @@ def _draw_chart_wheel(
             lw=0.8,
         ),
         annotation_clip=False,
+        zorder=HOVER_LABEL_ARTIST_ZORDER,
     )
     hover_note.set_clip_on(False)
     hover_note.set_visible(False)
 
-    endpoint_hover_note = ax_cart.annotate(
+    endpoint_hover_note = ax_hover.annotate(
         "",
         xy=(0, 0),
-        xycoords="data",
+        xycoords=ax_cart.transData,
         textcoords="offset points",
         xytext=(8, 8),
         ha="left",
@@ -640,6 +650,7 @@ def _draw_chart_wheel(
             lw=0.8,
         ),
         annotation_clip=False,
+        zorder=HOVER_LABEL_ARTIST_ZORDER,
     )
     endpoint_hover_note.set_clip_on(False)
     endpoint_hover_note.set_visible(False)

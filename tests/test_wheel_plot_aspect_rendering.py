@@ -19,11 +19,22 @@ style_stub.DARK_THEME = {
 }
 sys.modules.setdefault("ephemeraldaddy.gui.style", style_stub)
 
-from ephemeraldaddy.graphics.wheel_plot import _aspect_endpoint_xy, draw_chart_wheel
+from ephemeraldaddy.graphics.wheel_plot import (
+    HOVER_LABEL_ARTIST_ZORDER,
+    HOVER_LABEL_AXES_ZORDER,
+    _aspect_endpoint_xy,
+    draw_chart_wheel,
+)
 
 
 def _cartesian_aspect_axes(fig):
     axes = [ax for ax in fig.axes if ax.name == "rectilinear"]
+    assert len(axes) == 1
+    return axes[0]
+
+
+def _hover_label_axes(fig):
+    axes = [ax for ax in fig.axes if ax.get_zorder() == HOVER_LABEL_AXES_ZORDER]
     assert len(axes) == 1
     return axes[0]
 
@@ -116,6 +127,27 @@ def test_hovering_aspect_endpoint_shows_endpoint_aspect_label():
 
     fig.canvas.callbacks.process("motion_notify_event", event)
 
-    visible_labels = [text.get_text() for text in aspect_axes.texts if text.get_visible()]
+    hover_axes = _hover_label_axes(fig)
+    visible_labels = [text.get_text() for text in hover_axes.texts if text.get_visible()]
     assert any("Sun: Taurus 00°00'" in label for label in visible_labels)
     assert any("Sun Sextile Moon" in label for label in visible_labels)
+
+
+def test_hover_labels_render_above_chart_glyphs_lines_and_outline():
+    chart = SimpleNamespace(
+        name="Hover z-order test",
+        positions={"Sun": 30.0, "Moon": 90.0},
+        aspects=[
+            {"p1": "Sun", "p2": "Moon", "type": "sextile", "angle": 60.0, "delta": 0.0},
+        ],
+        birthtime_unknown=False,
+    )
+    fig = Figure(figsize=(4, 4))
+
+    draw_chart_wheel(fig, chart, show_title=False)
+
+    hover_axes = _hover_label_axes(fig)
+    non_hover_axes = [ax for ax in fig.axes if ax is not hover_axes]
+    assert all(hover_axes.get_zorder() > ax.get_zorder() for ax in non_hover_axes)
+    assert hover_axes.texts
+    assert all(text.get_zorder() == HOVER_LABEL_ARTIST_ZORDER for text in hover_axes.texts)
