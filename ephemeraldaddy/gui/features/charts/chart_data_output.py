@@ -455,38 +455,63 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
         self._hd_gate_side_cache = gate_line_sides
         return gate_line_sides
 
-    def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
-        if "->" not in stripped_text:
-            return
-        activation_match = re.match(r"^\s*(Personality|Design)\s+[A-Za-z]+\s+", text)
-        if not activation_match:
-            return
-        fields_match = re.match(
-            r"^\s*(?:Personality|Design)\s+[A-Za-z]+\s+\S+\s+\d+(?:\.\d+)?°\s+"
-            r"(?P<gl>\S+)\s+(?P<c>\S+)\s+(?P<t>\S+)\s+(?P<b>\S+)",
-            text,
-        )
-        if not fields_match:
-            return
-        formats_by_count = {
-            2: (self._hd_midnight_variant_format, self._hd_late_variant_format),
-            3: (
+    def _hd_time_variant_segment_formats(
+        self,
+        segment_count: int,
+        *,
+        row_has_three_way_variant: bool,
+    ) -> tuple[QTextCharFormat, ...] | None:
+        if segment_count == 3:
+            return (
                 self._hd_midnight_variant_format,
                 self._hd_noon_variant_format,
                 self._hd_late_variant_format,
-            ),
-        }
-        for field_name in ("gl", "c", "t", "b"):
-            field_text = fields_match.group(field_name)
-            if "->" not in field_text:
+            )
+        if segment_count == 2:
+            if row_has_three_way_variant:
+                return (self._hd_midnight_variant_format, self._hd_noon_variant_format)
+            return (self._hd_midnight_variant_format, self._hd_late_variant_format)
+        return None
+
+    def _apply_hd_time_variant_colors(self, text: str, stripped_text: str) -> None:
+        if "->" not in stripped_text or self._current_chart_data_section() != "POSITIONS":
+            return
+        columns = self._split_padded_columns(text.rstrip())
+        if len(columns) < 4:
+            return
+        has_info_icon = columns[-1][0].strip() == "ⓘ"
+        data_columns = columns[:-1] if has_info_icon else columns
+        if len(data_columns) < 4:
+            return
+        body_text = data_columns[0][0].strip()
+        if not re.match(r"^[PD]\.\s+", body_text):
+            return
+        degree_value = data_columns[2][0].strip()
+        if not re.fullmatch(r"\d{1,3}(?:\.\d+)?°", degree_value):
+            return
+
+        variant_columns = data_columns[3:7]
+        parsed_variant_fields: list[tuple[int, re.Match[str], list[str]]] = []
+        row_has_three_way_variant = False
+        for value_text, value_start, _value_end in variant_columns:
+            value_match = re.search(r"\S+(?:->\S+)*", value_text)
+            if value_match is None or "->" not in value_match.group(0):
                 continue
-            segments = field_text.split("->")
-            segment_formats = formats_by_count.get(len(segments))
+            segments = value_match.group(0).split("->")
+            if len(segments) == 3:
+                row_has_three_way_variant = True
+            parsed_variant_fields.append((value_start, value_match, segments))
+
+        for value_start, value_match, segments in parsed_variant_fields:
+            segment_formats = self._hd_time_variant_segment_formats(
+                len(segments),
+                row_has_three_way_variant=row_has_three_way_variant,
+            )
             if segment_formats is None:
                 continue
-            cursor = fields_match.start(field_name)
+            cursor = value_start + value_match.start()
             for segment, text_format in zip(segments, segment_formats):
-                if segment:
+                if segment and segment != "?":
                     self.setFormat(
                         self._qt_index(text, cursor),
                         self._qt_len(segment),
@@ -883,7 +908,6 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
                         self._qt_len(text) - start_qt,
                         self._time_variant_dusk_format,
                     )
-        self._apply_hd_time_variant_colors(text, stripped_text)
         leading_token = text.split()[0] if text.split() else ""
         if leading_token in self._planet_formats:
             self.setFormat(0, self._qt_len(text), self._planet_formats[leading_token])
@@ -955,6 +979,7 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
         self._apply_hd_gate_side_color(text, stripped_text)
         self._apply_positions_row_colors(text, stripped_text)
+        self._apply_hd_time_variant_colors(text, stripped_text)
         if stripped_text.startswith("Environment:"):
             environment_value = stripped_text.partition(":")[2].strip().removesuffix("ⓘ").strip()
             environment_color_key = environment_value.split("(", 1)[0].strip().title()
