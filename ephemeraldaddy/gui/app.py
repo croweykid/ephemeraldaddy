@@ -29537,7 +29537,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid 🐣Date",
-                    f"Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}.",
+                    f"Come on. Birth date must be a real calendar date in MM. DD. YYYY format, and the year must be between {NATAL_CHART_MIN_YEAR} and {NATAL_CHART_MAX_YEAR}. Don't make up silly stuff.",
                 )
             return
         if self.retcon_time_checkbox.isChecked():
