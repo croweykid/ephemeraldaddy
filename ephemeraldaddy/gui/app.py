@@ -12749,18 +12749,40 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
                 return True
         popout_context = self._popout_summary_contexts.get(obj)
         if popout_context is not None:
+            output_widget = popout_context.get("output_widget")
+            parent = self.parent()
             if event.type() == QEvent.Resize:
                 share_button = popout_context.get("share_button")
-                output_widget = popout_context.get("output_widget")
                 if isinstance(share_button, QToolButton) and isinstance(output_widget, QPlainTextEdit):
                     self._position_popout_share_button(output_widget, share_button)
-            if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-                output_widget = popout_context["output_widget"]
+            if event.type() == QEvent.Enter:
+                obj.setMouseTracking(True)
+            if (
+                event.type() == QEvent.MouseMove
+                and isinstance(output_widget, QPlainTextEdit)
+                and parent is not None
+                and hasattr(parent, "_update_summary_info_hover_cursor")
+            ):
+                parent._update_summary_info_hover_cursor(
+                    output_widget,
+                    obj,
+                    event.position(),
+                    popout_context["position_info_map"],
+                    popout_context["aspect_info_map"],
+                    popout_context["species_info_map"],
+                    popout_context.get("summary_block_offset", 0),
+                )
+            if event.type() == QEvent.Leave:
+                obj.unsetCursor()
+            if (
+                event.type() == QEvent.MouseButtonRelease
+                and event.button() == Qt.LeftButton
+                and isinstance(output_widget, QPlainTextEdit)
+            ):
                 cursor = output_widget.cursorForPosition(event.position().toPoint())
                 custom_handler = popout_context.get("custom_click_handler")
                 if callable(custom_handler) and custom_handler(cursor):
                     return True
-                parent = self.parent()
                 if parent is not None and hasattr(parent, "_handle_summary_info_click"):
                     return parent._handle_summary_info_click(
                         output_widget,
@@ -30970,6 +30992,7 @@ class MainWindow(QMainWindow):
         if self.chart_canvas is None:
             figure = Figure(figsize=(5.5, 5.5))
             canvas = FigureCanvas(figure)
+            apply_popout_cursor(canvas)
             canvas.installEventFilter(self)
             self._clear_layout_widgets(self.chart_canvas_container_layout)
             self.chart_canvas_container_layout.addWidget(canvas)
