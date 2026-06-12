@@ -293,6 +293,18 @@ def build_similarity_calculator_settings_section(
     section_layout.addWidget(all_or_nothing_criterion_combo)
     section_layout.addWidget(custom_radio)
 
+    custom_fields_frame = QFrame()
+    custom_fields_frame.setFrameShape(QFrame.StyledPanel)
+    custom_fields_frame.setFrameShadow(QFrame.Plain)
+    custom_fields_frame.setStyleSheet(
+        "QFrame { border: 1px solid rgba(128, 128, 128, 70); border-radius: 6px; }"
+    )
+    custom_fields_layout = QVBoxLayout(custom_fields_frame)
+    custom_fields_layout.setContentsMargins(20, 8, 8, 8)
+    custom_fields_layout.setSpacing(8)
+    custom_fields_frame.setVisible(False)
+    custom_radio.toggled.connect(custom_fields_frame.setVisible)
+
     calculator_checkboxes: dict[str, QCheckBox] = {}
     calculator_weights: dict[str, QDoubleSpinBox] = {}
     calculator_grid = QGridLayout()
@@ -343,7 +355,7 @@ def build_similarity_calculator_settings_section(
         calculator_grid.addWidget(weight_spinbox, row_index, 2)
         calculator_checkboxes[key] = enabled_checkbox
         calculator_weights[key] = weight_spinbox
-    section_layout.addLayout(calculator_grid)
+    custom_fields_layout.addLayout(calculator_grid)
 
     weighting_mode_row = QHBoxLayout()
     weighting_mode_label = QLabel("Placement weighting mode")
@@ -359,7 +371,7 @@ def build_similarity_calculator_settings_section(
     weighting_mode_row.addWidget(weighting_mode_label)
     weighting_mode_row.addWidget(weighting_mode_combo)
     weighting_mode_row.addStretch(1)
-    section_layout.addLayout(weighting_mode_row)
+    custom_fields_layout.addLayout(weighting_mode_row)
 
     reset_similarity_weights_button = QPushButton("Reset Weights to Defaults")
     reset_similarity_weights_button.clicked.connect(on_reset_weights_clicked)
@@ -371,7 +383,8 @@ def build_similarity_calculator_settings_section(
     reset_granular_row.addWidget(reset_similarity_weights_button, alignment=Qt.AlignLeft)
     reset_granular_row.addStretch(1)
     reset_granular_row.addWidget(granular_explanations_checkbox, alignment=Qt.AlignRight)
-    section_layout.addLayout(reset_granular_row)
+    custom_fields_layout.addLayout(reset_granular_row)
+    section_layout.addWidget(custom_fields_frame)
 
     section_divider = QFrame()
     section_divider.setFrameShape(QFrame.HLine)
@@ -429,6 +442,7 @@ def build_similarity_calculator_settings_section(
         "comprehensive_radio": comprehensive_radio,
         "all_or_nothing_radio": all_or_nothing_radio,
         "custom_radio": custom_radio,
+        "custom_fields_frame": custom_fields_frame,
         "calculator_checkboxes": calculator_checkboxes,
         "calculator_weights": calculator_weights,
         "calculator_total_label": total_weight_value_label,
