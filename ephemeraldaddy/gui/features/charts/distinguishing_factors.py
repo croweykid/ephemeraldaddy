@@ -10,8 +10,18 @@ import statistics
 from typing import Callable, Iterable
 
 from ephemeraldaddy.analysis.human_design import build_human_design_result
+from ephemeraldaddy.analysis.human_design_reference import GATE_COLORS, HD_LINE_COLORS
 from ephemeraldaddy.core.chart import Chart, chart_uses_houses
-from ephemeraldaddy.core.interpretations import NAKSHATRA_RANGES, ZODIAC_NAMES
+from ephemeraldaddy.core.interpretations import (
+    ELEMENT_COLORS,
+    HOUSE_COLORS,
+    MODE_COLORS,
+    NAKSHATRA_PLANET_COLOR,
+    NAKSHATRA_RANGES,
+    PLANET_COLORS,
+    SIGN_COLORS,
+    ZODIAC_NAMES,
+)
 from ephemeraldaddy.gui.features.charts.metrics import (
     calculate_dominant_element_weights,
     calculate_dominant_house_weights,
@@ -39,7 +49,9 @@ class _MetricGroup:
 
 @dataclass(frozen=True)
 class DistinguishingFactor:
+    group_key: str
     group_label: str
+    raw_label: object
     factor_label: str
     value_pct: float
     mean_pct: float
@@ -56,6 +68,41 @@ def _normalized_shares(values: dict[object, float], labels: Iterable[object]) ->
     if total <= 0:
         return {label: 0.0 for label in labels}
     return {label: value / total for label, value in raw.items()}
+
+
+def _color_token(label: object, color: str | None) -> str:
+    label_text = str(label)
+    color_text = str(color or "").strip()
+    if not color_text:
+        return html.escape(label_text)
+    return (
+        f'<span style="color:{html.escape(color_text)}; font-weight:400;">'
+        f"{html.escape(label_text)}</span>"
+    )
+
+
+def _factor_label_html(group_key: str, raw_label: object, display_label: str) -> str:
+    if group_key == "planets":
+        return _color_token(display_label, PLANET_COLORS.get(str(raw_label)))
+    if group_key == "signs":
+        return _color_token(display_label, SIGN_COLORS.get(str(raw_label)))
+    if group_key == "houses":
+        return _color_token(display_label, HOUSE_COLORS.get(str(raw_label)))
+    if group_key == "elements":
+        return _color_token(display_label, ELEMENT_COLORS.get(str(raw_label)))
+    if group_key == "modes":
+        return _color_token(display_label, MODE_COLORS.get(str(raw_label).lower()))
+    if group_key == "nakshatras":
+        return _color_token(display_label, NAKSHATRA_PLANET_COLOR.get(str(raw_label), (None, None))[1])
+    return html.escape(display_label)
+
+
+def _hd_gate_label_html(gate: int) -> str:
+    return _color_token(f"Gate {gate}", GATE_COLORS.get(int(gate)))
+
+
+def _hd_gate_line_html(gate: int, line: int) -> str:
+    return _color_token(f"{gate}.{line}", HD_LINE_COLORS.get(int(line), GATE_COLORS.get(int(gate))))
 
 
 def _planet_group() -> _MetricGroup:
@@ -140,7 +187,9 @@ def find_distinguishing_factors(chart: Chart, norm_charts: Iterable[Chart]) -> t
             if abs(z_score) >= DISTINGUISHING_Z_THRESHOLD:
                 factors.append(
                     DistinguishingFactor(
+                        group_key=group.key,
                         group_label=group.label,
+                        raw_label=label,
                         factor_label=_label_text(label, group.key),
                         value_pct=value * 100.0,
                         mean_pct=mean * 100.0,
@@ -179,11 +228,11 @@ def _concentration_lines(chart: Chart) -> list[str]:
     element_shares = _normalized_shares(calculate_dominant_element_weights(chart), ("Fire", "Earth", "Air", "Water"))
     for element, share in sorted(element_shares.items(), key=lambda item: item[1], reverse=True):
         if share > ELEMENT_SHARE_THRESHOLD:
-            lines.append(f"{html.escape(str(element))} makes up {share * 100.0:.1f}% of weighted elements.")
+            lines.append(f"{_color_token(element, ELEMENT_COLORS.get(element))} makes up {share * 100.0:.1f}% of weighted elements.")
     mode_shares = _normalized_shares(calculate_mode_weights(chart), ("cardinal", "mutable", "fixed"))
     for mode, share in sorted(mode_shares.items(), key=lambda item: item[1], reverse=True):
         if share >= MODE_SHARE_THRESHOLD:
-            lines.append(f"{html.escape(str(mode).title())} makes up {share * 100.0:.1f}% of weighted modes.")
+            lines.append(f"{_color_token(str(mode).title(), MODE_COLORS.get(mode))} makes up {share * 100.0:.1f}% of weighted modes.")
     return lines
 
 
@@ -197,52 +246,50 @@ def build_distinguishing_factors_html(chart: Chart | None, norm_charts: Iterable
     lines: list[str] = []
     if norm_count < MIN_NORM_SAMPLE_SIZE:
         lines.append(
-            f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found {norm_count}."
+            html.escape(f"Need at least {MIN_NORM_SAMPLE_SIZE} database charts to calculate norms; found {norm_count}.")
         )
     elif factors:
         lines.append(
-            f"Compared with {norm_count} database charts, these factors are at least "
-            f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the current norm:"
+            html.escape(
+                f"Compared with {norm_count} database charts, these factors are at least "
+                f"{DISTINGUISHING_Z_THRESHOLD:.0f}σ from the current norm:"
+            )
         )
         for factor in factors[:12]:
             direction = "above" if factor.z_score > 0 else "below"
             lines.append(
                 "• "
-                f"{html.escape(factor.factor_label)} {html.escape(factor.group_label)}: "
+                f"{_factor_label_html(factor.group_key, factor.raw_label, factor.factor_label)} {html.escape(factor.group_label)}: "
                 f"{factor.value_pct:.1f}% vs DB mean {factor.mean_pct:.1f}% "
-                f"({abs(factor.z_score):.1f}σ {direction})."
+                f"({abs(factor.z_score):.1f}σ {html.escape(direction)})."
             )
     else:
         lines.append(
-            f"Compared with {norm_count} database charts, no weighted factors currently exceed "
-            f"the {DISTINGUISHING_Z_THRESHOLD:.0f}σ distinction threshold."
+            html.escape(
+                f"Compared with {norm_count} database charts, no weighted factors currently exceed "
+                f"the {DISTINGUISHING_Z_THRESHOLD:.0f}σ distinction threshold."
+            )
         )
 
     concentration_lines = _concentration_lines(chart)
     if concentration_lines:
         lines.append("")
-        lines.append("Concentration flags:")
+        lines.append(html.escape("Concentration flags:"))
         lines.extend(f"• {line}" for line in concentration_lines)
 
     duplicate_gates = _duplicate_human_design_gate_lines(chart)
     if duplicate_gates:
         lines.append("")
-        lines.append("Repeated Human Design gates:")
+        lines.append(html.escape("Repeated Human Design gates:"))
         for gate, duplicate_lines in duplicate_gates[:10]:
             line_counts = Counter(duplicate_lines)
             line_text = ", ".join(
-                f"{gate}.{line}" + (f" ×{count}" if count > 1 else "")
+                _hd_gate_line_html(gate, line) + (f" ×{count}" if count > 1 else "")
                 for line, count in sorted(line_counts.items())
             )
-            lines.append(f"• Gate {gate} appears {len(duplicate_lines)} times ({html.escape(line_text)}).")
+            lines.append(f"• {_hd_gate_label_html(gate)} appears {len(duplicate_lines)} times ({line_text}).")
 
-    escaped_html_lines = []
-    for line in lines:
-        if line == "":
-            escaped_html_lines.append("<br>")
-        else:
-            escaped_html_lines.append(html.escape(line))
-    body = "<br>".join(escaped_html_lines)
+    body = "<br>".join("<br>" if line == "" else line for line in lines)
     return (
         f"<span style='color:{CHART_DATA_HIGHLIGHT_COLOR}; font-weight:700;'>Database distinction scan</span>"
         f"<br><span style='color:#f5f5f5; font-weight:400;'>{body}</span>"
