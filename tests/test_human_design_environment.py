@@ -180,3 +180,16 @@ def test_positions_lines_render_unknown_variant_fields_without_clickable_value_e
 
     assert any("24.5->17.3->14.2" in line and "?" in line for line in lines)
     assert any(entry.get("kind") == "hd_gate_line" for entries in info_map.values() for entry in entries)
+
+
+def test_positions_lines_include_colorable_info_icons() -> None:
+    lines, info_map = hd_output._build_hd_positions_lines(_hd_result())
+    data_lines = [line for line in lines if line.startswith(("P. ", "D. "))]
+
+    assert data_lines
+    assert all(line.endswith("ⓘ") for line in data_lines)
+    assert any(
+        entry.get("kind") == "hd_gate_line" and isinstance(entry.get("icon_index"), int)
+        for entries in info_map.values()
+        for entry in entries
+    )

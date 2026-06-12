@@ -975,6 +975,15 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
             block = block.previous()
         return ""
 
+    def _format_for_sign_cell(self, sign_cell: str) -> QTextCharFormat | None:
+        sign_text = sign_cell.strip()
+        if not sign_text:
+            return None
+        sign_format = self._sign_formats.get(sign_text)
+        if sign_format is not None:
+            return sign_format
+        return self._sign_glyph_formats.get(sign_text)
+
     def _planet_format_for_body_cell(self, body_cell: str) -> QTextCharFormat | None:
         normalized_body_cell = body_cell.strip()
         if not normalized_body_cell:
@@ -1020,27 +1029,36 @@ class ChartSummaryHighlighter(QSyntaxHighlighter):
 
         body_text = data_columns[0][0].strip()
         sign_text, _sign_start, _sign_end = data_columns[1]
-        degree_text, degree_start, degree_end = data_columns[2]
-        sign_name = sign_text.strip()
-        degree_value = degree_text.strip()
-        sign_format = self._sign_formats.get(sign_name)
-        if sign_format is None or not re.fullmatch(r"\d{1,2}°\d{2}'(?:\s+\(Я\))?", degree_value):
-            return
+        sign_format = self._format_for_sign_cell(sign_text)
 
-        self.setFormat(
-            self._qt_index(text, degree_start),
-            self._qt_len(text[degree_start:degree_end]),
-            sign_format,
-        )
-
-        if len(data_columns) >= 6:
-            gate_line_text, gate_line_start, gate_line_end = data_columns[5]
-            if re.fullmatch(r"\d{1,2}\.[1-6]", gate_line_text.strip()):
+        if sign_format is not None:
+            degree_text, degree_start, degree_end = data_columns[2]
+            degree_value = degree_text.strip()
+            is_standard_degree = re.fullmatch(r"\d{1,2}°\d{2}'(?:\s+\(Я\))?", degree_value)
+            is_hd_longitude = re.fullmatch(r"\d{1,3}(?:\.\d+)?°", degree_value)
+            if is_standard_degree or is_hd_longitude:
                 self.setFormat(
-                    self._qt_index(text, gate_line_start),
-                    self._qt_len(text[gate_line_start:gate_line_end]),
+                    self._qt_index(text, degree_start),
+                    self._qt_len(text[degree_start:degree_end]),
                     sign_format,
                 )
+
+            gate_line_column: tuple[str, int, int] | None = None
+            if len(data_columns) >= 4 and is_hd_longitude:
+                gate_line_column = data_columns[3]
+            elif len(data_columns) >= 6:
+                gate_line_column = data_columns[5]
+            if gate_line_column is not None:
+                gate_line_text, gate_line_start, gate_line_end = gate_line_column
+                if re.fullmatch(
+                    r"(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6](?:->(?:[1-9]|[1-5][0-9]|6[0-4])\.[1-6])*",
+                    gate_line_text.strip(),
+                ):
+                    self.setFormat(
+                        self._qt_index(text, gate_line_start),
+                        self._qt_len(text[gate_line_start:gate_line_end]),
+                        sign_format,
+                    )
 
         if has_info_icon:
             icon_text, icon_start, _icon_end = columns[-1]
