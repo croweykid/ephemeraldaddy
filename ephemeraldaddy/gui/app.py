@@ -16886,7 +16886,12 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         if refresh:
             self._on_filter_changed()
 
-    def _on_selection_changed(self, *, refresh_metrics: bool = True) -> None:
+    def _on_selection_changed(
+        self,
+        *,
+        refresh_metrics: bool = True,
+        sync_persistent_selection: bool = True,
+    ) -> None:
         self._cancel_inline_chart_rename()
         active_left_scrollbar = None
         active_left_scroll_value = None
@@ -16898,8 +16903,9 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
 
         if self._syncing_visible_selection:
             return
-        replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
-        self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
+        if sync_persistent_selection:
+            replace_selection = getattr(self, "_selection_update_mode", "replace") == "replace"
+            self._merge_visible_selection_into_persistent_selection(replace=replace_selection)
         self._selection_update_mode = "replace"
 
         if self._right_panel_visible and self._active_right_panel == "edit":
@@ -17773,7 +17779,10 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
         self._settings.setValue("manage_charts/sort_mode", self._sort_mode)
         self._settings.setValue("manage_charts/sort_descending", int(self._sort_descending))
         self._populate_list(selected_ids=selected_ids or None)
-        self._on_selection_changed(refresh_metrics=False)
+        self._on_selection_changed(
+            refresh_metrics=False,
+            sync_persistent_selection=False,
+        )
 
     @staticmethod
     def _age_sort_key(datetime_iso: str | None) -> datetime.datetime:
@@ -18375,7 +18384,7 @@ class ManageChartsDialog(DatabaseAnalyticsChartsMixin, QDialog):
             selected_ids=set(self._selected_chart_ids()),
             refresh_metrics=False,
         )
-        self._on_selection_changed()
+        self._on_selection_changed(sync_persistent_selection=False)
 
     def _chart_matches_filters(self, chart_id: int) -> bool:
         incomplete_birthdate_state = self.incomplete_birthdate_checkbox.mode()
