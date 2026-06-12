@@ -503,10 +503,12 @@ from ephemeraldaddy.gui.features.charts.personal_transit_popout import (
 )
 from ephemeraldaddy.gui.features.charts.similarities_algorithm_log import (
     append_similarity_algorithm_change_log,
-    append_similarity_perceived_accuracy_log,
     build_similarity_algorithm_snapshot,
-    load_similarity_perceived_accuracy_states,
     similarity_algorithm_snapshots_changed,
+)
+from ephemeraldaddy.gui.features.charts.chart_similarity_relationships import (
+    load_chart_similarity_relationship_states,
+    save_chart_similarity_relationship,
 )
 from ephemeraldaddy.gui.window_placement import (
     WindowPlacement,
@@ -23698,7 +23700,7 @@ class MainWindow(QMainWindow):
         panel_key: str,
         score: int | None,
         not_applicable: bool,
-    ) -> None:
+    ) -> bool:
         subject_chart = getattr(dialog, "_similar_chart_popout_subject_chart", None)
         subject_name = (
             str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "Current chart").strip()
@@ -23712,53 +23714,24 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             subject_chart_id = None
         compared_chart_id = self._extract_similar_match_chart_id(match)
-        compared_chart = None
-        if compared_chart_id is not None:
-            try:
-                compared_chart = load_chart(compared_chart_id)
-            except Exception:
-                compared_chart = None
         compared_name = str(getattr(match, "chart_name", "") or f"Chart #{compared_chart_id or '?'}").strip()
         if not compared_name:
             compared_name = "Unknown chart"
-        analysis_context = "dissimilarities" if str(panel_key).strip().lower() == "least" else "similarities"
         try:
-            similarities_analysis = build_similarity_reasoning_panel_text(
-                match=match,
-                subject_name=subject_name,
-                subject_chart=subject_chart,
-                compared_chart=compared_chart,
-                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
-                resolve_similarity_band=self._similarity_band_for_percent,
-                analysis_mode="similarities",
-            )
-            dissimilarities_analysis = build_similarity_reasoning_panel_text(
-                match=match,
-                subject_name=subject_name,
-                subject_chart=subject_chart,
-                compared_chart=compared_chart,
-                similarity_settings=getattr(self, "_similarity_calculator_settings", None),
-                show_granular_explanations=bool(getattr(self, "_astrotwin_granular_explanation", False)),
-                resolve_similarity_band=self._similarity_band_for_percent,
-                analysis_mode="dissimilarities",
-            )
-            log_path = append_similarity_perceived_accuracy_log(
+            relationship_path = save_chart_similarity_relationship(
                 chart_1_id=subject_chart_id,
                 chart_1_name=subject_name,
                 chart_2_id=compared_chart_id,
                 chart_2_name=compared_name,
-                analysis_context=analysis_context,
                 user_reported_accuracy=score,
                 not_applicable=not_applicable,
-                similarities_analysis=similarities_analysis,
-                dissimilarities_analysis=dissimilarities_analysis,
-                algorithm_snapshot=self._current_similarity_algorithm_snapshot(),
             )
         except Exception:
-            logger.exception("Failed to append Similar Charts perceived accuracy log.")
+            logger.exception("Failed to save Similar Charts perceived similarity relationship.")
+            return False
         else:
-            logger.info("Appended Similar Charts perceived accuracy to %s", log_path)
+            logger.info("Saved Similar Charts perceived similarity relationship to %s", relationship_path)
+            return True
 
     def _on_similar_chart_popout_make_collection_clicked(self, dialog: QDialog) -> None:
         subject_name = str(getattr(dialog, "_similar_chart_popout_subject_name", "") or "").strip()
@@ -24532,7 +24505,7 @@ class MainWindow(QMainWindow):
             )
         )
         perceived_accuracy_states = (
-            load_similarity_perceived_accuracy_states() if show_perceived_accuracy_controls else None
+            load_chart_similarity_relationship_states() if show_perceived_accuracy_controls else None
         )
         dialog = build_similar_charts_popout_dialog(
             parent=self,
